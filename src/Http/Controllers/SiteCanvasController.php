@@ -9,7 +9,8 @@ use Illuminate\Support\Collection as LaravelCollection;
 use MarioHamann\StatamicVisualEditor\CollectionViewTemplates;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SiteCanvasArrangement;
-use MarioHamann\StatamicVisualEditor\Stores;
+use MarioHamann\StatamicVisualEditor\TemplateBoard;
+use MarioHamann\StatamicVisualEditor\TemplateUsage;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -25,15 +26,23 @@ use Statamic\Support\Str;
  * the Control Panel.
  *
  * A group's rows are clusters on its line; a row's columns stand side by
- * side, each a stack of frames. Templates are the rows of the templates
- * store, grouped under the collection they draw (index and show for
- * Services, say), one template a column; the site's own views (the layout,
- * the default page) stand in a row of their own. Pages are the entries of
- * the previews collection — the site's pages — in one row whose columns are
- * the editors' own arrangement (SiteCanvasArrangement) over the order of the
- * tree: that group is marked `arrange`, and the canvas posts its columns
- * back here as a page is dragged. A concrete service entry is in neither
- * group.
+ * side, each a stack of frames. Templates are the cards of the Templates
+ * board (TemplateBoard: a card exists because its view file does), grouped
+ * under the collection they draw (index and show for Services, say) for the
+ * collections with a route on this site, one template a column; the site's
+ * own views (the layout, the default page, the 404) stand in a row of their
+ * own. Pages are the entries of the previews collection — the site's pages —
+ * in one row whose columns are the editors' own arrangement
+ * (SiteCanvasArrangement) over the order of the tree: that group is marked
+ * `arrange`, and the canvas posts its columns back here as a page is
+ * dragged. A concrete service entry is in neither group.
+ *
+ * Every frame carries a `note` saying where it stands in the site: on a page,
+ * the template it is drawn with when that is one of its own; on a template,
+ * the page it is drawn on (an index), the route it answers (a show), the
+ * pages it draws (the default), the pages it frames (the layout). The same
+ * file named the same way on both rows — a page and the index that draws it
+ * are one address, seen from two sides.
  *
  * Each frame's preview URL is the one Statamic hands Live Preview for that
  * entry: its first preview target, with a Live Preview token minted the way
@@ -44,6 +53,9 @@ use Statamic\Support\Str;
  */
 class SiteCanvasController extends Controller
 {
+    /** @var array<string, LaravelCollection<int, EntryContract>> the pages of a site, read once a request */
+    protected array $pages = [];
+
     public function index()
     {
         $user = User::current();
@@ -92,10 +104,21 @@ class SiteCanvasController extends Controller
     }
 
     /**
-     * The templates store, one row per source collection and one for the
-     * site's own views, each template a column of its own. Only templates
-     * whose view file exists: the preview route 404s for any other. Nothing
-     * without the templates feature — the preview route is gone with it.
+     * The templates as the Templates board draws them — the files are the
+     * truth ({@see TemplateBoard}) — for the collections whose entries have
+     * an address on this site, then the site's own views; one template a
+     * column. A card is a frame when its file exists: the board's own rule,
+     * so the two screens never disagree about what the site has.
+     *
+     * A card's CP row — the entry Live Preview opens — is made the first time
+     * the canvas draws it, the same row the board makes when its card is
+     * clicked (`TemplateBoardController::store`): idempotent, nothing written
+     * over. Nothing without the templates feature — the preview route is
+     * gone with it.
+     *
+     * Taxonomies wait: the templates store names its source in a collections
+     * field, so a taxonomy's row cannot be made yet. The board lists them
+     * without a door; the canvas draws nothing it cannot open.
      *
      * @return list<array{key: string, title: string, columns: list<list<array<string, mixed>>>}>
      */
@@ -105,51 +128,176 @@ class SiteCanvasController extends Controller
             return [];
         }
 
+        $drawn = $this->pagesByView($site);
         $rows = [];
 
-        $entries = Entry::query()
-            ->where('collection', Stores::collectionTemplates())
-            ->where('site', $site)
-            ->get();
-
-        foreach ($entries as $entry) {
-            $view = CollectionViewTemplates::normalizeView((string) $entry->value('view'));
-
-            if (! $view || ! CollectionViewPreviewController::viewExists($view)) {
+        foreach (TemplateBoard::sourceRows() as $row) {
+            if ($row['kind'] !== 'collection') {
                 continue;
             }
 
-            $kind = (string) $entry->value('kind');
-            $collection = in_array($kind, ['index', 'show'], true)
-                ? Collection::findByHandle($this->scalar($entry->value('source_collection')))
-                : null;
-            $key = $collection?->handle() ?? 'site';
+            $collection = Collection::findByHandle($row['handle']);
 
-            $rows[$key] ??= [
-                'key' => $key,
-                'title' => $collection?->title() ?? trans('sve::messages.site_canvas_site', [], $locale),
-                'frames' => [],
-            ];
+            if (! $collection || ! $this->hasAddress($collection, $site)) {
+                continue;
+            }
 
-            if ($frame = $this->frame($entry)) {
-                $rows[$key]['frames'][] = $frame + ['kind' => $kind];
+            $frames = [];
+
+            foreach ($row['cards'] as $card) {
+                if ($frame = $this->templateFrame($card, $row['handle'], $card['slot'], $collection->title(), $locale)) {
+                    $frame['note'] = $this->sourceNote($card, $collection, $site, $drawn, $locale);
+                    $frames[] = $frame;
+                }
+            }
+
+            if ($frames !== []) {
+                $rows[] = ['key' => $row['handle'], 'title' => $row['title'], 'columns' => array_map(fn ($frame) => [$frame], $frames)];
             }
         }
 
-        $order = ['layout' => 0, 'index' => 1, 'show' => 2, 'page' => 3];
+        usort($rows, fn ($a, $b) => strnatcasecmp($a['title'], $b['title']));
 
-        foreach ($rows as &$row) {
-            usort($row['frames'], fn ($a, $b) => [$order[$a['kind']] ?? 9, $a['title']] <=> [$order[$b['kind']] ?? 9, $b['title']]);
-            $row['columns'] = array_map(fn ($frame) => [$frame], $row['frames']);
-            unset($row['frames']);
+        $frames = [];
+
+        foreach (TemplateBoard::siteRow()['cards'] as $card) {
+            $kind = $card['slot'] === 'layout' ? 'layout' : 'page';
+
+            if ($frame = $this->templateFrame($card, '_site', $kind, $card['slot'], $locale)) {
+                $frame['note'] = $this->siteNote($card, $drawn, $locale);
+                $frames[] = $frame;
+            }
         }
 
-        unset($row);
+        if ($frames !== []) {
+            $rows[] = ['key' => 'site', 'title' => trans('sve::messages.site_canvas_site', [], $locale), 'columns' => array_map(fn ($frame) => [$frame], $frames)];
+        }
 
-        // Collections by title; the site's own views last.
-        uasort($rows, fn ($a, $b) => [$a['key'] === 'site', $a['title']] <=> [$b['key'] === 'site', $b['title']]);
+        return $rows;
+    }
 
-        return array_values(array_filter($rows, fn ($row) => $row['columns'] !== []));
+    /**
+     * A board card as a frame: its CP row made if it has none, titled as the
+     * board titles the card ("Index", "Default page"). Null for a card with
+     * no file — there is nothing to draw — or no row.
+     *
+     * `$handle`, `$kind` and `$title` are what the board's own store sends
+     * `CollectionViewTemplates::ensure` for this card, so the row found or
+     * made here is the row a click on the board would open.
+     */
+    protected function templateFrame(array $card, string $handle, string $kind, string $title, string $locale): ?array
+    {
+        if (! $card['exists']) {
+            return null;
+        }
+
+        $entry = CollectionViewTemplates::ensure($handle, $kind, $card['view'], $title);
+        $frame = $entry ? $this->frame($entry) : null;
+
+        if (! $frame) {
+            return null;
+        }
+
+        $frame['title'] = trans('sve::messages.template_board_slot_'.$card['slot'], [], $locale);
+        $frame['slot'] = $card['slot'];
+        $frame['view'] = $card['view'];
+
+        return $frame;
+    }
+
+    /**
+     * Where a collection's template is drawn: an index on the page whose
+     * `template:` names it (Statamic's way to give an index an address — the
+     * mount), a show at the collection's route, said to be shared when the
+     * file is another collection's.
+     */
+    protected function sourceNote(array $card, $collection, string $site, array $drawn, string $locale): string
+    {
+        if ($card['slot'] === 'index') {
+            return $this->drawnOn($card['view'], $drawn, $locale);
+        }
+
+        $parts = [];
+
+        if (! empty($card['shared'])) {
+            $parts[] = trans('sve::messages.template_board_shared_short', [], $locale);
+        }
+
+        $route = (string) $collection->route($site);
+
+        if ($route !== '') {
+            $parts[] = Str::ensureLeft($route, '/');
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Where one of the site's own views is drawn: the layout around every
+     * page, the default page on however many pages have no template of their
+     * own, the frontpage and the search page on the page that names them.
+     * The 404 is its own address.
+     */
+    protected function siteNote(array $card, array $drawn, string $locale): string
+    {
+        $count = count($drawn[$card['view']] ?? []);
+
+        return match ($card['slot']) {
+            'layout' => trans('sve::messages.site_canvas_note_layout', [], $locale),
+            'default' => trans_choice('sve::messages.site_canvas_note_pages', $count, ['count' => $count], $locale),
+            'error' => '',
+            default => $this->drawnOn($card['view'], $drawn, $locale),
+        };
+    }
+
+    /** "On Cases" — the page a view is drawn on, and how many more; or that no page draws it yet. */
+    protected function drawnOn(string $view, array $drawn, string $locale): string
+    {
+        $pages = $drawn[$view] ?? [];
+
+        if ($pages === []) {
+            return trans('sve::messages.site_canvas_note_nowhere', [], $locale);
+        }
+
+        $title = (string) ($pages[0]->value('title') ?: $pages[0]->slug());
+
+        return count($pages) === 1
+            ? trans('sve::messages.site_canvas_note_on', ['page' => $title], $locale)
+            : trans('sve::messages.site_canvas_note_on_more', ['page' => $title, 'count' => count($pages) - 1], $locale);
+    }
+
+    /**
+     * The pages by the view each is drawn with — Statamic's rule: the page's
+     * own `template:`, else its collection's. One pass over the pages the
+     * canvas draws; what the notes on both rows are read from.
+     *
+     * @return array<string, list<EntryContract>>
+     */
+    protected function pagesByView(string $site): array
+    {
+        $drawn = [];
+
+        foreach ($this->pageEntries($site) as $entry) {
+            $view = $entry->template();
+
+            if (is_string($view) && $view !== '') {
+                $drawn[$view][] = $entry;
+            }
+        }
+
+        return $drawn;
+    }
+
+    /**
+     * A collection whose entries have a URL on this site — a route. One with
+     * none (a list drawn on some page, a store) has no template anyone could
+     * look at, and gets no cluster.
+     */
+    protected function hasAddress($collection, string $site): bool
+    {
+        $route = $collection->route($site);
+
+        return is_string($route) && trim($route) !== '';
     }
 
     /**
@@ -169,7 +317,11 @@ class SiteCanvasController extends Controller
         }
 
         $frames = $this->pageEntries($site)
-            ->map(fn (EntryContract $entry) => $this->frame($entry))
+            ->map(function (EntryContract $entry) {
+                $frame = $this->frame($entry);
+
+                return $frame ? $frame + ['note' => $this->pageNote($entry)] : null;
+            })
             ->filter()
             ->keyBy('id');
 
@@ -187,18 +339,38 @@ class SiteCanvasController extends Controller
     }
 
     /**
+     * Which template draws the page, when it is one of its own — not the
+     * default every page starts with. Named as the board names the card
+     * ("Cases · Index", "Frontpage"), so the page and the template say the
+     * same thing about each other.
+     */
+    protected function pageNote(EntryContract $entry): string
+    {
+        $view = $entry->template();
+
+        return is_string($view) && $view !== '' && $view !== TemplateBoard::SITE_SLOTS['default']
+            ? TemplateUsage::name($view)
+            : '';
+    }
+
+    /**
      * The pages collection's entries for `$site`: the order of its tree when
-     * it has one, by title otherwise.
+     * it has one, by title otherwise. Read once a request — the notes and the
+     * row both ask.
      *
      * @return LaravelCollection<int, EntryContract>
      */
     protected function pageEntries(string $site): LaravelCollection
     {
+        if (isset($this->pages[$site])) {
+            return $this->pages[$site];
+        }
+
         $handle = (string) config('statamic-visual-editor.previews.collection', 'pages');
         $collection = Collection::findByHandle($handle);
 
         if (! $collection) {
-            return collect();
+            return $this->pages[$site] = collect();
         }
 
         $tree = $collection->structure()?->in($site);
@@ -210,7 +382,7 @@ class SiteCanvasController extends Controller
                 SORT_NATURAL | SORT_FLAG_CASE
             );
 
-        return collect($entries->values()->all());
+        return $this->pages[$site] = collect($entries->values()->all());
     }
 
     /**
@@ -255,14 +427,5 @@ class SiteCanvasController extends Controller
         $url = URL::makeAbsolute($url);
 
         return $url.(str_contains($url, '?') ? '&' : '?').'live-preview='.Str::random().'&token='.$token;
-    }
-
-    protected function scalar(mixed $value): string
-    {
-        if (is_array($value)) {
-            $value = $value[0] ?? '';
-        }
-
-        return is_string($value) ? $value : '';
     }
 }

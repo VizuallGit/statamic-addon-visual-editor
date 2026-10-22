@@ -83,11 +83,14 @@ class CollectionViewTemplates
             return null;
         }
 
+        // The source is a collections field, and one saved from the CP may be
+        // a list; `sourceMatches` reads both forms, where a `where` on the
+        // list would not (the Stache compares strings).
         $existing = Entry::query()
             ->where('collection', $store)
-            ->where('source_collection', $sourceHandle)
             ->where('kind', $kind)
-            ->first();
+            ->get()
+            ->first(fn ($entry) => static::sourceMatches($entry->get('source_collection'), $sourceHandle));
 
         if (! $existing && in_array($kind, ['layout', 'page'], true)) {
             // The layout belongs to the site, not to a collection, so an older

@@ -79,10 +79,20 @@ class CollectionViewPreviewController extends Controller
         $layout = $source->layout() ?: config('statamic.system.layout', 'layout');
 
         if ($kind === 'index') {
-            $html = app(View::class)
+            $render = app(View::class)
                 ->template($view)
-                ->layout($layout)
-                ->render();
+                ->layout($layout);
+
+            // An index is drawn on a page: the one whose `template:` names it
+            // (Statamic's mount). With that page as the cascade the preview is
+            // the page as the site shows it — title, fields, sections above
+            // the list — and the same thing the page's own frame shows.
+            // Without one the view stands alone, as it does on the site.
+            if ($page = static::pageDrawnWith($view)) {
+                $render->cascadeContent($page);
+            }
+
+            $html = $render->render();
 
             if (static::entryCount($sourceHandle) === 0) {
                 $html = static::withEmptyNotice($html);
@@ -124,6 +134,25 @@ class CollectionViewPreviewController extends Controller
         $real = realpath($full);
 
         return is_string($real) && str_starts_with($real, $base.DIRECTORY_SEPARATOR);
+    }
+
+    /**
+     * The page of the pages collection drawn with `$view` on the selected
+     * site — its own `template:` names the view. The first when several do.
+     */
+    protected static function pageDrawnWith(string $view): ?EntryContract
+    {
+        $handle = (string) config('statamic-visual-editor.previews.collection', 'pages');
+
+        if (! Collection::findByHandle($handle)) {
+            return null;
+        }
+
+        return Entry::query()
+            ->where('collection', $handle)
+            ->where('site', Site::selected()?->handle() ?? Site::default()->handle())
+            ->where('template', $view)
+            ->first();
     }
 
     protected static function host(EntryContract $template, $source): EntryContract

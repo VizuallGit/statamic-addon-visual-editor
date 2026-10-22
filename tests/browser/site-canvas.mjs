@@ -235,7 +235,7 @@ const canvasShape = (layerSel) => {
       const frame = item.querySelector('iframe');
       const hit = item.querySelector('.sve-sc-hit');
       const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-      return { id: item.dataset.id, title: item.querySelector('.sve-sc-label')?.textContent || '', current: item.hasAttribute('data-current'), x: r.x, y: r.y, w: r.width, h: r.height, src: frame?.getAttribute('src') || '', hitOnTop: top === hit, hitOn: top ? `${top.tagName.toLowerCase()}${top.className ? '.' + String(top.className).split(' ')[0] : ''}` : 'nothing', labelSize: parseFloat(getComputedStyle(item.querySelector('.sve-sc-label')).fontSize) * z };
+      return { id: item.dataset.id, title: item.querySelector('.sve-sc-title')?.textContent || '', note: item.querySelector('.sve-sc-note')?.textContent || '', current: item.hasAttribute('data-current'), x: r.x, y: r.y, w: r.width, h: r.height, src: frame?.getAttribute('src') || '', hitOnTop: top === hit, hitOn: top ? `${top.tagName.toLowerCase()}${top.className ? '.' + String(top.className).split(' ')[0] : ''}` : 'nothing', labelSize: parseFloat(getComputedStyle(item.querySelector('.sve-sc-label')).fontSize) * z };
     }),
     iframes: document.querySelectorAll('iframe').length,
     pressed: document.querySelector('#__sve-preview-chrome [data-canvas]')?.getAttribute('aria-pressed'),

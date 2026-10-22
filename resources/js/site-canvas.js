@@ -200,6 +200,7 @@ export function canvasGroups(payload) {
                 .map((frame) => ({
                   id: String(frame.id),
                   title: String(frame.title || frame.id),
+                  note: typeof frame.note === 'string' ? frame.note : '',
                   preview: String(frame.preview),
                   edit: String(frame.edit),
                 }))
@@ -872,8 +873,11 @@ ${L} .sve-sc-head { position: absolute; white-space: nowrap; line-height: 1.2; p
 ${L} .sve-sc-head[data-kind="group"] { font-size: calc(1.125rem / var(--z)); font-weight: 600; }
 ${L} .sve-sc-head[data-kind="row"] { font-size: calc(.8125rem / var(--z)); font-weight: 500; opacity: .7; }
 ${L} .sve-sc-item { position: absolute; }
-${L} .sve-sc-label { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: calc(.375rem / var(--z)); font-size: calc(.75rem / var(--z)); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .85; pointer-events: none; }
-${L} .sve-sc-item[data-current] .sve-sc-label { font-weight: 600; opacity: 1; }
+${L} .sve-sc-label { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: calc(.375rem / var(--z)); display: flex; align-items: baseline; gap: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: none; }
+${L} .sve-sc-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+${L} .sve-sc-note { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .6; }
+${L} .sve-sc-item[data-current] .sve-sc-label { opacity: 1; }
+${L} .sve-sc-item[data-current] .sve-sc-title { font-weight: 600; }
 ${L} .sve-sc-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
 ${L} .sve-sc-hit { position: absolute; inset: 0; cursor: pointer; outline: 1px solid rgba(0, 0, 0, .12); }
 ${L} .sve-sc-hit:hover { outline: calc(.1875rem / var(--z)) solid ${ring}; }
@@ -946,8 +950,14 @@ function populate(win, groups) {
 
       item.dataset.id = frame.id;
       item.style.width = `${FRAME.width}px`;
-      label.textContent = frame.title;
-      el.title = frame.title;
+      label.appendChild(make(doc, 'span', 'sve-sc-title')).textContent = frame.title;
+
+      // Where the frame stands in the site: the template a page is drawn with, the page a template is drawn on.
+      if (frame.note) {
+        label.appendChild(make(doc, 'span', 'sve-sc-note')).textContent = frame.note;
+      }
+
+      el.title = frame.note ? `${frame.title} — ${frame.note}` : frame.title;
       el.tabIndex = -1;
       hit.title = frame.id === current ? t(win, 'site_canvas_current') : t(win, group.arrange ? 'site_canvas_drag' : 'site_canvas_open', { title: frame.title });
 
