@@ -339,8 +339,10 @@ async function submit() {
 }
 
 /* The browser's own select keeps square corners and its own arrow whatever
-   the radius says. Drawn here instead: our padding, our chevron, our corners. */
-select.sve-bp-add__unit {
+   the radius says. Drawn here instead: our padding, our chevron, our corners.
+   Heavier than the unit rule above, not only later — that one's `background`
+   shorthand would otherwise wipe the chevron and its padding the room for it. */
+.sve-bp-add__join > select.sve-bp-add__unit {
   appearance: none;
   -webkit-appearance: none;
   padding-inline-end: 1.625rem;
