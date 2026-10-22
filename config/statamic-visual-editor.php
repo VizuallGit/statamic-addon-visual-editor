@@ -692,14 +692,24 @@ return [
     | The breakpoints this site designs for — one list, read by Live Preview's
     | device buttons, the responsive fields, the Tailwind row and the CSS panel.
     |
-    | Desktop-first: the list is sorted widest first, the widest is the base and
-    | is written with no media query at all, and every narrower size is an
-    | exception under a `max-width` worked out from the size above it.
+    | The list is always sorted widest first — that is the order the buttons
+    | and tabs draw. Which end is the base is `breakpoint_direction`:
+    |
+    |   desktop  (default) the widest is the base, written with no media query;
+    |            every narrower size is an exception under `(width < …)`,
+    |            the limit being the size above it. Tailwind: `max-lg:`.
+    |   mobile   the narrowest is the base; every wider size is an exception
+    |            under `(width >= …)` from its own `min`. Tailwind: `lg:`.
+    |
+    | Decide the direction when the site is started. Saved responsive values
+    | and every `max-lg:` already in the templates were written in the
+    | direction the site had; switching later is a content migration, not a
+    | toggle. Five sizes at most.
     |
     | `handle` is the key content is stored under. Adding a size is safe — an
-    | entry with nothing saved for it simply inherits from the size above.
-    | Renaming or removing one leaves saved values with no owner, so don't,
-    | unless you are prepared to migrate the content.
+    | entry with nothing saved for it simply inherits from the size before it
+    | in the cascade. Renaming or removing one leaves saved values with no
+    | owner, so don't, unless you are prepared to migrate the content.
     |
     | Addons > Statamic Visual Editor wins over this; this wins over the three
     | the addon ships with. Leave it empty to use those.
@@ -739,6 +749,8 @@ return [
     ],
 
     'breakpoints' => [],
+
+    'breakpoint_direction' => 'desktop',
 
     'data_vars' => [
         'skip' => [

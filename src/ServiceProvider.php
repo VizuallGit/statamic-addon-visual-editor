@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor;
 use MarioHamann\StatamicVisualEditor\AfterSave;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
+use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\Commands\Install;
 use MarioHamann\StatamicVisualEditor\Features;
@@ -154,6 +155,10 @@ class ServiceProvider extends AddonServiceProvider
         // without this it would show the map resolved before the save.
         AddonSettingsSaved::class => [
             [Features::class, 'flush'],
+            // The screen sizes are read from the same settings and cached the
+            // same way; a size added on the screen (or from the preview's «+»)
+            // must be in the list the rest of the request reads.
+            [Breakpoints::class, 'forget'],
             // The library limit reads those settings and settles its answer once
             // per request — without this the screen would re-render on the map
             // it resolved before the save.

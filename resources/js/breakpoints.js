@@ -6,11 +6,27 @@
  * inheritance chain and the responsive conditions — four places that agreed
  * only because nobody had changed one of them yet.
  *
- * Desktop-first, and that is not a style: the widest size is the base and has
- * no media query at all, every narrower one is an exception written under a
- * `max-width`. `FALLBACK` is what the addon shipped with, so a Control Panel
- * that never got the config draws exactly what it drew before.
+ * The list is always widest first: that is the order every button row, tab
+ * row and overview draws. Which end is the base is the site's *direction*:
+ *
+ * - desktop-first (the default): the widest is the base with no media query,
+ *   every narrower one is an exception under `(width < …)` / `max-lg:`;
+ * - mobile-first: the narrowest is the base, every wider one is an exception
+ *   under `(width >= …)` / `lg:`.
+ *
+ * `bpCascade()` is the list in cascade order — base first — and is what
+ * inheritance and `@media` writing read. Nothing here decides the direction;
+ * PHP did, and every row carries it. `FALLBACK` is what the addon shipped
+ * with, so a Control Panel that never got the config draws exactly what it
+ * drew before.
  */
+
+/**
+ * Dispatched on the window when the list is set anew without a page load — a
+ * size added from the preview's «+». `detail.breakpoints` is the new list;
+ * readers that drew from `breakpoints()` draw again.
+ */
+export const BP_CHANGED_EVENT = 'sve:breakpoints-changed';
 
 /** What the three built-in sizes have always been. */
 const FALLBACK = [
@@ -20,6 +36,7 @@ const FALLBACK = [
     device: 'Desktop',
     icon: 'desktop',
     base: true,
+    direction: 'desktop',
     min: 64,
     unit: 'em',
     min_px: 1024,
@@ -34,6 +51,7 @@ const FALLBACK = [
     device: 'Tablet',
     icon: 'tablet',
     base: false,
+    direction: 'desktop',
     min: 48,
     unit: 'em',
     min_px: 768,
@@ -48,6 +66,7 @@ const FALLBACK = [
     device: 'Mobile',
     icon: 'mobile',
     base: false,
+    direction: 'desktop',
     min: 0,
     unit: 'em',
     min_px: 0,
@@ -67,7 +86,8 @@ let cachedFrom = null;
  * Read lazily and remembered, but keyed on the array the config handed over:
  * `Statamic.$config` is filled while the Control Panel boots, so the first
  * caller can easily be early. Keying on identity means the real list replaces
- * the fallback by itself, without anyone having to know when to ask again.
+ * the fallback by itself, without anyone having to know when to ask again —
+ * and a list set anew (a size added from the preview's «+») is read anew.
  */
 export function breakpoints(win = window) {
   let raw = null;
@@ -95,6 +115,7 @@ export function breakpoints(win = window) {
       device: row.device || row.handle,
       icon: row.icon || 'desktop',
       base: !!row.base,
+      direction: row.direction === 'mobile' ? 'mobile' : 'desktop',
       min: Number(row.min) || 0,
       unit: row.unit || 'em',
       min_px: Number(row.min_px ?? row.min) || 0,
@@ -107,13 +128,39 @@ export function breakpoints(win = window) {
   return cached.length ? cached : FALLBACK;
 }
 
+/** Handles in display order — widest first. No cascade meaning. */
 export function bpHandles(win = window) {
   return breakpoints(win).map((item) => item.handle);
 }
 
+/** `desktop` (the widest is the base) or `mobile` (the narrowest is). */
+export function bpDirection(win = window) {
+  return breakpoints(win)[0]?.direction === 'mobile' ? 'mobile' : 'desktop';
+}
+
+/**
+ * The list in cascade order: the base first, then each exception in the
+ * order CSS has to write them so the nearest wins where two apply.
+ *
+ * Desktop-first that is the list itself; mobile-first it is the list turned
+ * around. Anything that works out what an empty value inherits, or where a
+ * new `@media` block goes relative to its siblings, reads this — not
+ * `breakpoints()`.
+ */
+export function bpCascade(win = window) {
+  const list = breakpoints(win);
+
+  return bpDirection(win) === 'mobile' ? [...list].reverse() : list;
+}
+
+/** Handles in cascade order — the base first. What an empty value inherits along. */
+export function bpCascadeHandles(win = window) {
+  return bpCascade(win).map((item) => item.handle);
+}
+
 /** The size written without a media query — the rule the others except from. */
 export function bpBase(win = window) {
-  return (breakpoints(win).find((item) => item.base) || breakpoints(win)[0]).handle;
+  return (breakpoints(win).find((item) => item.base) || bpCascade(win)[0]).handle;
 }
 
 export function bpRow(handle, win = window) {
@@ -133,14 +180,16 @@ export function bpDevice(handle, win = window) {
  * What each size inherits from, nearest first.
  *
  * `{ laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop'] }` for the
- * three built-ins — derived rather than written, so a fourth size slots into
- * the chain without anyone editing it.
+ * three built-ins desktop-first; `{ mobile: [], tablet: ['mobile'], laptop:
+ * ['tablet', 'mobile'] }` mobile-first — derived from the cascade rather
+ * than written, so a fourth size slots into the chain without anyone editing
+ * it, and the direction turns it around by itself.
  */
 export function bpInherits(win = window) {
   const out = {};
   let above = [];
 
-  for (const item of breakpoints(win)) {
+  for (const item of bpCascade(win)) {
     out[item.handle] = above;
     above = [item.handle, ...above];
   }
@@ -148,7 +197,13 @@ export function bpInherits(win = window) {
   return out;
 }
 
-/** Which size a pane this wide is showing. */
+/**
+ * Which size a pane this wide is showing.
+ *
+ * Width alone decides: a pane 900px wide shows the tablet size whichever end
+ * of the list is the base. The direction is about what inherits from what,
+ * not about which size a width falls in.
+ */
 export function bpFromWidth(width, win = window) {
   const list = breakpoints(win);
 
@@ -187,7 +242,7 @@ export function bpMediaForms(handle, win = window) {
   return row && !row.base ? [row.media, row.media_px].filter(Boolean) : [];
 }
 
-/** The Tailwind variant that means "narrower than this size". */
+/** The Tailwind variant that means this size — `max-lg` desktop-first, `lg` mobile-first. */
 export function bpTailwind(handle, win = window) {
   return bpRow(handle, win)?.tw || '';
 }

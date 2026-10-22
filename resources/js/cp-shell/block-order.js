@@ -3,7 +3,7 @@
  * only the imports are new. See the barrel cp.js for what the shell exports.
  */
 import { emit, register } from '../cp/bus.js';
-import { bpBase, bpDevice, bpForDevice, bpFromWidth, bpInherits, breakpoints } from '../breakpoints.js';
+import { BP_CHANGED_EVENT, bpBase, bpDevice, bpForDevice, bpFromWidth, bpInherits, breakpoints } from '../breakpoints.js';
 import { bindTips, hideTip } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
@@ -18,6 +18,7 @@ import { lpModeSeparator, paintLpActiveControl, paintLpSaveButton, syncLpRightBa
 import { LP_DEVICE_ICONS, LP_DEVICE_KEY, LP_SCALE_DEVICE_TO_PANE, LP_ZOOM_DEFAULT, LP_ZOOM_KEY, LP_ZOOM_STEPS, lpChromeActiveDevice, lpConfiguredDevices, lpDeviceKeys, lpStoredDevice } from './preview-chrome.js';
 import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, HEADER_TOOLBAR_ID } from './header-toolbar.js';
 import { hideStatamicLpClose } from './grid-rows.js';
+import { ensureBreakpointAddButton } from './breakpoint-add-button.js';
 
 // ===== block-order =====
 // --- Per-breakpoint block order ---------------------------------------------
@@ -1114,6 +1115,9 @@ export function ensureLpPreviewChrome(win) {
     if (!lpZoomKeysBound.has(win)) {
       lpZoomKeysBound.add(win);
       win.addEventListener('keydown', (event) => onLpZoomKey(win, event));
+      // A size added from the «+» (breakpoint-add.js) sets the list anew;
+      // the device row below redraws from it on the next pass — this is it.
+      win.addEventListener(BP_CHANGED_EVENT, () => ensureLpPreviewChrome(win));
     }
 
     const zoomOut = doc.createElement('button');
@@ -1224,6 +1228,10 @@ export function ensureLpPreviewChrome(win) {
       devicesEl.appendChild(btn);
     });
   }
+
+  // The «+» at the group's left edge — one more size. Emptied with the group
+  // above, so put back on every pass; the helper does nothing when it is there.
+  ensureBreakpointAddButton(win, devicesEl);
 
   // Place devices+zoom on the RIGHT — where Statamic's device <Select…> sat —
   // immediately before Save & Publish. Never move the node when it's already

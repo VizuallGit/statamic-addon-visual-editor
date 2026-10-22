@@ -12,7 +12,7 @@
  * Dropping the key to stop icon button groups flashing froze the panel on the
  * drawer it mounted with — the value was saved correctly, only the panel lied.
  */
-import { bpBase, bpForDevice, bpHandles } from '../../breakpoints.js';
+import { bpBase, bpCascadeHandles, bpForDevice } from '../../breakpoints.js';
 import { chromeGet } from '../../chrome-prefs.js';
 
 (function () {
@@ -29,8 +29,8 @@ import { chromeGet } from '../../chrome-prefs.js';
             return;
         }
 
-        /** Widest first. The first one is the baseline the rest except from. */
-        const bpOrder = () => bpHandles(window);
+        /** Cascade order: the base first, the rest except from what came before. */
+        const bpOrder = () => bpCascadeHandles(window);
         const baseBp = () => bpBase(window);
 
         function deviceToBp(device) {

@@ -11,7 +11,7 @@
  * Storage, emit shape, and the responsive UI are untouched.
  */
 
-import { bpBase, bpForDevice, bpHandles } from './breakpoints.js';
+import { bpBase, bpCascadeHandles, bpForDevice } from './breakpoints.js';
 import { chromeGet } from './chrome-prefs.js';
 
 const CAPTURE_KEY = 'passOnAny';
@@ -19,9 +19,9 @@ const CAPTURE_KEY = 'passOnAny';
 let activeBp = '';
 let patched = false;
 
-/** Widest first — the cascade a narrower size reads down through. */
+/** Cascade order — the base first, what a size reads back through when it is empty. */
 function bpOrder() {
-    return bpHandles(window);
+    return bpCascadeHandles(window);
 }
 
 /**
@@ -92,7 +92,7 @@ export function unwrapResponsiveConditionValue(value, field, bp = activeBp || bp
         return value;
     }
 
-    return effectiveLeaf(value, bp || 'laptop', leafHandle(field));
+    return effectiveLeaf(value, bp || bpBase(window), leafHandle(field));
 }
 
 function patchValidatorProto(proto) {

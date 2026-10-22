@@ -33,49 +33,69 @@ function toPx(value, unit) {
 }
 
 /**
- * The upper bound a query describes, in pixels — or null if it has none.
+ * The one boundary a width query describes, in pixels, and which side of it
+ * the query is on — or null for a query that is not a plain width limit.
  *
  * `(max-width: 1023.98px)`, `(width < 64em)` and `(width <= 1023.98px)` all
- * come back as about 1024. A `min-width` query has no upper bound and is not
- * one of ours: mobile-first is not how these templates are written, and a
- * query nobody can place is better left alone than filed under a guess.
+ * come back as `{ px: ~1024, side: 'max' }`: the sizes *below* the line, the
+ * way a desktop-first site writes its exceptions. `(min-width: 768px)` and
+ * `(width >= 48em)` come back as `{ px: 768, side: 'min' }`: the sizes *from*
+ * the line up, the mobile-first spelling. A range (`48em <= width < 64em`) is
+ * two boundaries and belongs to no single size; it is left alone.
  */
-export function queryUpperPx(query) {
+export function queryEdge(query) {
   const text = String(query || '').toLowerCase();
+  const hasMax = /\bmax-width\b|\bwidth\s*<=?\s*[\d.]|[\d.](px|em|rem)\s*>=?\s*width\b/.test(text);
+  const hasMin = /\bmin-width\b|\bwidth\s*>=?\s*[\d.]|[\d.](px|em|rem)\s*<=?\s*width\b/.test(text);
 
-  if (/\bmin-width\b|\bwidth\s*>=?/.test(text)) {
+  if (hasMax === hasMin) {
     return null;
   }
 
-  let m = text.match(/\bmax-width\s*:\s*([\d.]+)(px|em|rem)/);
+  const patterns = hasMax
+    ? [/\bmax-width\s*:\s*([\d.]+)(px|em|rem)/, /\bwidth\s*<=?\s*([\d.]+)(px|em|rem)/, /([\d.]+)(px|em|rem)\s*>=?\s*width\b/]
+    : [/\bmin-width\s*:\s*([\d.]+)(px|em|rem)/, /\bwidth\s*>=?\s*([\d.]+)(px|em|rem)/, /([\d.]+)(px|em|rem)\s*<=?\s*width\b/];
 
-  if (m) {
-    return toPx(m[1], m[2]);
+  for (const pattern of patterns) {
+    const m = text.match(pattern);
+
+    if (m) {
+      const px = toPx(m[1], m[2]);
+
+      return px === null ? null : { px, side: hasMax ? 'max' : 'min' };
+    }
   }
 
-  m = text.match(/\bwidth\s*<=?\s*([\d.]+)(px|em|rem)/);
+  return null;
+}
 
-  if (m) {
-    return toPx(m[1], m[2]);
-  }
+/**
+ * The upper bound a query describes, in pixels — or null if it has none.
+ * Kept for readers that only ever meant "narrower than"; `queryEdge` is the
+ * one that knows both sides.
+ */
+export function queryUpperPx(query) {
+  const edge = queryEdge(query);
 
-  m = text.match(/([\d.]+)(px|em|rem)\s*>=?\s*width\b/);
-
-  return m ? toPx(m[1], m[2]) : null;
+  return edge && edge.side === 'max' ? edge.px : null;
 }
 
 /**
  * Which size a media query belongs to, or '' for one that is none of ours.
  *
- * `sizes` are the breakpoint rows: `{ handle, base, max }`, `max` being the
- * edge as a CSS length. A query no size claims — `print`, `prefers-reduced-
- * motion`, a boundary this site does not use — belongs to no size, and is
- * therefore shown at every size rather than hidden at all of them.
+ * `sizes` are the breakpoint rows: `{ handle, base, direction, max, min_px }`.
+ * Desktop-first a size's edge is `max` (the line it is written *below*);
+ * mobile-first it is its own `min_px` (the line it is written *from*). A
+ * query on the other side of a line is not that size — `(width >= 48em)` is
+ * nobody's on a desktop-first site, however close the number. A query no
+ * size claims — `print`, `prefers-reduced-motion`, a boundary this site does
+ * not use — belongs to no size, and is therefore shown at every size rather
+ * than hidden at all of them.
  */
 export function sizeOfQuery(query, sizes) {
-  const px = queryUpperPx(query);
+  const edge = queryEdge(query);
 
-  if (px === null) {
+  if (!edge) {
     return '';
   }
 
@@ -84,9 +104,17 @@ export function sizeOfQuery(query, sizes) {
       continue;
     }
 
-    const edge = toPx(String(size.max || '').replace(/[a-z]+$/i, ''), (String(size.max || '').match(/[a-z]+$/i) || [''])[0]);
+    const mobileFirst = size.direction === 'mobile';
 
-    if (edge !== null && Math.abs(edge - px) <= SLACK) {
+    if ((mobileFirst ? 'min' : 'max') !== edge.side) {
+      continue;
+    }
+
+    const own = mobileFirst
+      ? Number(size.min_px)
+      : toPx(String(size.max || '').replace(/[a-z]+$/i, ''), (String(size.max || '').match(/[a-z]+$/i) || [''])[0]);
+
+    if (own !== null && Number.isFinite(own) && Math.abs(own - edge.px) <= SLACK) {
       return size.handle;
     }
   }

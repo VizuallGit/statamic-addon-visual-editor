@@ -11,6 +11,7 @@ use MarioHamann\StatamicVisualEditor\SetPreviewImages;
 use MarioHamann\StatamicVisualEditor\Stores;
 use Illuminate\Support\Facades\View;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
+use MarioHamann\StatamicVisualEditor\Breakpoints\Store;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
@@ -99,6 +100,9 @@ final class ControlPanelScript
                 // responsive field, the Tailwind row and the CSS panel all
                 // read this and can never disagree about where a size ends.
                 'sveBreakpoints' => Breakpoints::forScript(),
+                // The «+» beside the size buttons: only for a user who may edit
+                // the addon's settings, which is where the size is written.
+                'sveBreakpointsEditable' => Store::editable(),
                 // Hashed Tailwind compiler chunk — dock-instant-preview imports it
                 // so a new class can paint before the section morph comes back.
                 'sveTwCompile' => static::twCompileUrl(),

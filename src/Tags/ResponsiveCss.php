@@ -74,8 +74,11 @@ class ResponsiveCss extends Tags
                 .($this->isPair ? $this->parse() : '')
                 .'}';
 
-            foreach (Responsive::breakpoints() as $breakpoint) {
-                if ($breakpoint['handle'] === $base || empty($breakpoint['max'])) {
+            // Kaskade-orden, ikke visningsorden: hvor to media queries begge
+            // gælder (mobil er også under tablet-grænsen; desktop er også over
+            // tablet-grænsen mobile-first), skal den nærmeste stå sidst og vinde.
+            foreach (Responsive::cascade() as $breakpoint) {
+                if ($breakpoint['base'] || $breakpoint['media'] === '') {
                     continue;
                 }
 

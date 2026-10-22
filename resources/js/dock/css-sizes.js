@@ -24,12 +24,14 @@ import { currentFullHtml } from './scope.js';
 import { isCodeDockOpen } from './dock-api.js';
 
 // ===== css-sizes =====
-/** The size rows as `css-sizes.js` wants them: handle, base, edge. */
+/** The size rows as `css-sizes.js` wants them: handle, base, direction, edge. */
 export function cssSizeRows(win) {
   return breakpoints(win).map((row) => ({
     handle: row.handle,
     base: row.base,
+    direction: row.direction,
     max: row.max,
+    min_px: row.min_px,
     media: row.media,
     media_px: row.media_px,
     label: row.label,
@@ -133,7 +135,7 @@ export function applyCssFolds(win, force = false) {
 export function newSizeQuery(row, text) {
   const spelling = dockState.cssFull || text;
 
-  return /max-width/i.test(spelling) && !/width\s*</i.test(spelling)
+  return /(max|min)-width/i.test(spelling) && !/width\s*[<>]/i.test(spelling)
     ? row.media_px || row.media
     : row.media;
 }

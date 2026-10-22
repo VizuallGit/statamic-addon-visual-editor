@@ -798,8 +798,18 @@ tabs:
                 library_in_use_only: 'equals true'
       -
         display: 'Screen sizes'
-        instructions: "The sizes this site designs for. One list: the preview's device buttons, the responsive fields, the Tailwind row and the CSS panel all read it, so they can never offer different ones. Desktop-first — the widest is written with no media query at all, and the narrower ones are exceptions from it. Leave it empty to use the three that ship with the addon."
+        instructions: "The sizes this site designs for. One list: the preview's device buttons, the responsive fields, the Tailwind row and the CSS panel all read it, so they can never offer different ones. Desktop-first by default — the widest is written with no media query at all, and the narrower ones are exceptions from it; Direction below can turn that around. Leave it empty to use the three that ship with the addon."
         fields:
+          -
+            handle: breakpoint_direction
+            field:
+              type: button_group
+              display: Direction
+              default: desktop
+              options:
+                desktop: Desktop-first
+                mobile: Mobile-first
+              instructions: "Desktop-first: the widest size is the base and is written with no media query; every narrower size is an exception under `max-width` (Tailwind `max-lg:`). Mobile-first: the narrowest size is the base and every wider size is an exception under `min-width` (Tailwind `lg:`). **Decide this when the site is started.** Switching later turns every saved `max-lg:` class and every empty responsive value on its head — that is a migration, not a toggle."
           -
             handle: breakpoints
             field:
@@ -808,7 +818,8 @@ tabs:
               hide_display: true
               mode: stacked
               reorderable: false
-              instructions: "Order does not matter here — the list is sorted by width, widest first, and the widest becomes the base. **Handle is the key your content is stored under: add freely, but renaming or deleting one leaves every entry's saved values for that size with no owner.**"
+              max_rows: 5
+              instructions: "Order does not matter here — the list is sorted by width, widest first, and the widest becomes the base. **Handle is the key your content is stored under: add freely, but renaming or deleting one leaves every entry's saved values for that size with no owner.** Five at most."
               add_row: 'Add a screen size'
               default:
                 -
@@ -864,12 +875,16 @@ tabs:
                     width: 34
                     default: desktop
                     options:
-                      desktop: Desktop
-                      laptop: Laptop
-                      tablet: Tablet
                       mobile: Mobile
-                      watch: Watch
+                      mobile_landscape: 'Mobile (landscape)'
+                      tablet: Tablet
+                      tablet_landscape: 'Tablet (landscape)'
+                      laptop: Laptop
+                      desktop: Desktop
+                      widescreen: Widescreen
+                      ultrawide: Ultrawide
                       tv: TV
+                      watch: Watch
                 -
                   handle: min
                   field:

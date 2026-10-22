@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiCopyController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiTabsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\BreakpointsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
@@ -257,6 +258,10 @@ final class EditorRoutes
                 ->name('sve.schema.show');
             Route::post('/!/sve/schema', [SchemaController::class, 'store'])
                 ->name('sve.schema.store');
+
+            // One more screen size, from the «+» beside Live Preview's size buttons.
+            Route::post('/!/sve/breakpoints', [BreakpointsController::class, 'store'])
+                ->name('sve.breakpoints.store');
 
             Route::post('/!/sve/chrome-prefs', [ChromePrefsController::class, 'update'])
                 ->name('sve.chrome-prefs.update');

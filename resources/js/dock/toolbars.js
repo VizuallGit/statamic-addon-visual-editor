@@ -9,16 +9,20 @@ import CodeDockCssTools from '../cp/surfaces/CodeDockCssTools.vue';
 import { cssToolsUi } from '../cp/css/tools.js';
 import { HTML_ICONS, TEXT_TAGS } from '../html-tree-icons.js';
 import { closeTwMenu, twOpenGroupMenu, twOpenToolMenu, twSetClass } from '../tw-classes.js';
-import { breakpoints } from '../breakpoints.js';
+import { BP_CHANGED_EVENT, breakpoints } from '../breakpoints.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { CSS_LENGTHS, CSS_MENU_ID, CSS_TOOL_INDEX, HTML_HEADINGS, HTML_TOOLS, STYLE_MODE_KEY, VALUES_MODE_KEY } from '../code-dock.js';
 import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMode, setValuesMode, toggleAll } from './style-modes.js';
 import { paintAll } from './all.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
+import { paintCssHead } from './css-sizes.js';
 import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane, toggleHtmlPagination } from './html-tools.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
+
+/** Windows whose size-tab row already follows the breakpoint list — bound once each. */
+const sizeTabsBound = new WeakSet();
 
 // ===== toolbars =====
 function setStyleMode(win, mode) {
@@ -227,6 +231,14 @@ export function bindCssTools(win, dock) {
   dockState.cssToolRow();
   watchScrollEdges(host);
   watchScrollEdgesIn(host, '[data-sve-css-kids]');
+
+  // A size added from the preview's «+» is a tab here as well: the head reads
+  // the list on every paint, so one more paint is all it takes. Once per
+  // window — the dock can be built more than once in a session.
+  if (!sizeTabsBound.has(win)) {
+    sizeTabsBound.add(win);
+    win.addEventListener(BP_CHANGED_EVENT, () => paintCssHead(win));
+  }
 
   win.document.addEventListener(
     'mousedown',

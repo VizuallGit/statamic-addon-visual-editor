@@ -55,6 +55,17 @@ class ResponsiveFieldtype extends Fieldtype
         return Breakpoints::all();
     }
 
+    /**
+     * Breakpointene i den orden CSS skal skrive dem: basis først, så hver
+     * undtagelse, så den sidste vinder hvor to media queries begge gælder.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function cascade(): array
+    {
+        return Breakpoints::cascade();
+    }
+
     protected function configFieldItems(): array
     {
         return [
@@ -67,10 +78,18 @@ class ResponsiveFieldtype extends Fieldtype
         ];
     }
 
-    /** @return array<int, string> */
+    /**
+     * Handles i kaskade-orden — basis først.
+     *
+     * Det er den orden preProcess/process/preload regner arv i: et tomt felt
+     * tager værdien fra det foregående. Desktop-first er det bredeste først;
+     * mobile-first det smalleste. Se {@see Breakpoints::cascade()}.
+     *
+     * @return array<int, string>
+     */
     public static function handles(): array
     {
-        return Breakpoints::handles();
+        return Breakpoints::cascadeHandles();
     }
 
     /** Basis-breakpointet — det der skrives ud uden media query. */

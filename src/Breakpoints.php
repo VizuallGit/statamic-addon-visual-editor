@@ -13,28 +13,38 @@ use MarioHamann\StatamicVisualEditor\Breakpoints\Rows;
  * ikonerne i cp.js, Tailwind-rækkens præfikser, kolonnespændets buckets og
  * arve-kæden. Et tal skrevet syv steder bliver før eller siden syv tal.
  *
- * Listen er desktop-first: bredeste først, og den bredeste er basis — den
- * skrives uden media query, og de smallere er undtagelser fra den. Derfor
- * udledes `max` af det foregående breakpoints `min`, så de to aldrig kan komme
- * til at gælde på præcis den samme pixel.
+ * Listen står altid bredeste først — det er den orden knapper, faner og
+ * oversigten tegner den i. Hvilken ende der er basis, afgør retningen:
+ *
+ * - **Desktop-first** (standard): den bredeste er basis og skrives uden media
+ *   query; hver smallere er en undtagelse under `(width < …)`, grænsen er det
+ *   foregående breakpoints `min`.
+ * - **Mobile-first**: den smalleste er basis; hver bredere er en undtagelse
+ *   under `(width >= …)`, grænsen er dens eget `min`.
+ *
+ * Kaskaden — rækkefølgen CSS skrives ud i, og hvad et tomt felt arver fra —
+ * er `cascade()`: basis først. Desktop-first er det samme som listen;
+ * mobile-first er den vendt om. Retningen vælges når sitet startes: gemt
+ * indhold og `max-lg:`-klasser i skabelonerne skifter ikke betydning med.
  *
  * `handle` er den nøgle gemt indhold ligger under. Den kan tilføjes, men aldrig
  * omdøbes uden at værdier i hver eneste entry mister deres ejer.
  *
  * This class keeps the resolved list (cached per request) and everything
  * read from it; the parsing lives in `Breakpoints\Rows`, the button text in
- * `Breakpoints\Labels` and the CSS forms in `Breakpoints\Queries`. Split in
- * WP7d, code moved verbatim.
+ * `Breakpoints\Labels` and the CSS forms in `Breakpoints\Queries`.
  */
 class Breakpoints
 {
     public const DEFAULTS = Rows::DEFAULTS;
     public const UNITS = Rows::UNITS;
     public const ROOT_PX = Rows::ROOT_PX;
+    public const MAX = Rows::MAX;
     public const LABEL_KEYS = Labels::LABEL_KEYS;
+    public const DIRECTIONS = Rows::DIRECTIONS;
 
-    /** Ikonerne der kan vælges pr. breakpoint. Navnet slås op i cp.js. */
-    public const ICONS = ['desktop', 'laptop', 'tablet', 'mobile', 'watch', 'tv'];
+    /** Ikonerne der kan vælges pr. breakpoint. Navnet slås op i cp-shell/preview-chrome.js. */
+    public const ICONS = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv', 'watch'];
 
     /**
      * Cachet pr. request: indstillingerne læses fra disk.
@@ -55,12 +65,10 @@ class Breakpoints
     public static function all(): array
     {
         if (static::$resolved !== null) {
-            return array_map(function ($row) {
-                $row['label'] = Labels::label($row);
-
-                return $row;
-            }, static::$resolved);
+            return static::labelled(static::$resolved);
         }
+
+        $direction = Rows::direction();
 
         $rows = array_map(function ($row) {
             $row['min_px'] = Rows::toPx((float) $row['min'], $row['unit']);
@@ -68,24 +76,35 @@ class Breakpoints
             return $row;
         }, Rows::rows());
 
-        // Bredeste først. Rækkefølgen er hele kaskaden: den første er basis,
-        // og hver følgende er en undtagelse fra dem over den. Sorteret på
-        // pixels, så en liste der blander em og px stadig står i orden.
+        // Bredeste først. Sorteret på pixels, så en liste der blander em og px
+        // stadig står i orden. Dette er visningsordenen; kaskaden er cascade().
         usort($rows, fn ($a, $b) => $b['min_px'] <=> $a['min_px']);
 
+        $last = count($rows) - 1;
         $out = [];
 
         foreach ($rows as $i => $row) {
-            $previous = $rows[$i - 1] ?? null;
+            $row['direction'] = $direction;
 
-            $row['base'] = $i === 0;
+            if ($direction === 'mobile') {
+                // Den smalleste er basis. Hver bredere skrives fra sit eget
+                // `min` og op — grænsen er dens egen, ikke naboens.
+                $row['base'] = $i === $last;
+                $row['media'] = $row['base'] ? '' : Queries::from($row);
+                $row['media_px'] = $row['base'] ? '' : Queries::fromPx($row['min_px']);
+                $row['max'] = null;
+                $row['tw'] = $row['base'] ? '' : Queries::tailwind($row, 'mobile');
+            } else {
+                $previous = $rows[$i - 1] ?? null;
 
-            // Grænsen er det foregående breakpoints `min`, skrevet i DEN
-            // rækkes enhed: det er dér grænsen blev besluttet.
-            $row['media'] = $previous ? Queries::query($previous) : '';
-            $row['media_px'] = $previous ? Queries::queryPx($previous['min_px']) : '';
-            $row['max'] = $previous ? Queries::maxPx($previous['min_px']).'px' : null;
-            $row['tw'] = Queries::tailwindPrefix($previous['min_px'] ?? null);
+                // Grænsen er det foregående breakpoints `min`, skrevet i DEN
+                // rækkes enhed: det er dér grænsen blev besluttet.
+                $row['base'] = $i === 0;
+                $row['media'] = $previous ? Queries::below($previous) : '';
+                $row['media_px'] = $previous ? Queries::belowPx($previous['min_px']) : '';
+                $row['max'] = $previous ? Queries::maxPx($previous['min_px']).'px' : null;
+                $row['tw'] = $previous ? Queries::tailwind($previous, 'desktop') : '';
+            }
 
             // `label` bliver stående som den nøgle den er skrevet som. Den
             // slås op ved hvert opslag, ikke her — se kommentaren på $resolved.
@@ -95,11 +114,17 @@ class Breakpoints
 
         static::$resolved = $out;
 
+        return static::labelled($out);
+    }
+
+    /** @param  array<int, array<string, mixed>>  $rows */
+    protected static function labelled(array $rows): array
+    {
         return array_map(function ($row) {
             $row['label'] = Labels::label($row);
 
             return $row;
-        }, $out);
+        }, $rows);
     }
 
     /** Glem den læste liste — indstillingerne er gemt om. */
@@ -108,23 +133,54 @@ class Breakpoints
         static::$resolved = null;
     }
 
+    /** `desktop` (bredeste er basis) eller `mobile` (smalleste er basis). */
+    public static function direction(): string
+    {
+        return Rows::direction();
+    }
+
+    /**
+     * Listen i kaskade-orden: basis først, derefter hver undtagelse i den
+     * rækkefølge CSS skal skrive dem, så den sidste vinder hvor to gælder.
+     *
+     * Desktop-first er listen selv; mobile-first er den vendt om. Alt der
+     * regner arv eller skriver `@media`-blokke læser denne — ikke `all()`.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function cascade(): array
+    {
+        $all = static::all();
+
+        return static::direction() === 'mobile' ? array_reverse($all) : $all;
+    }
+
+    /** Handles i visningsorden — bredeste først. Ingen kaskade-betydning. */
     /** @return array<int, string> */
     public static function handles(): array
     {
         return array_column(static::all(), 'handle');
     }
 
+    /** Handles i kaskade-orden — basis først. Det et tomt felt arver langs. */
+    /** @return array<int, string> */
+    public static function cascadeHandles(): array
+    {
+        return array_column(static::cascade(), 'handle');
+    }
+
     /** Basis-breakpointet — det der skrives ud uden media query. */
     public static function base(): string
     {
-        return static::all()[0]['handle'];
+        return static::cascade()[0]['handle'];
     }
 
     /**
      * Hvad hvert breakpoint arver fra, nærmeste først.
      *
-     * Tomt på tablet betyder "det samme som desktop", og tomt på mobil betyder
-     * "det samme som tablet, som måske selv arver".
+     * Desktop-first: tomt på tablet betyder "det samme som desktop", og tomt
+     * på mobil betyder "det samme som tablet, som måske selv arver".
+     * Mobile-first: det omvendte — tablet arver fra mobil, desktop fra tablet.
      *
      * @return array<string, array<int, string>>
      */
@@ -133,7 +189,7 @@ class Breakpoints
         $out = [];
         $above = [];
 
-        foreach (static::handles() as $handle) {
+        foreach (static::cascadeHandles() as $handle) {
             $out[$handle] = $above;
             $above = array_merge([$handle], $above);
         }
@@ -169,6 +225,7 @@ class Breakpoints
             'device' => $row['device'],
             'icon' => $row['icon'],
             'base' => $row['base'],
+            'direction' => $row['direction'],
             'min' => $row['min'],
             'unit' => $row['unit'],
             'min_px' => $row['min_px'],

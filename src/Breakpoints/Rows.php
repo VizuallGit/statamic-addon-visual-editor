@@ -68,11 +68,43 @@ final class Rows
     public const ROOT_PX = 16;
 
     /**
+     * Flere end fem størrelser er ikke flere valg, det er færre: hver række
+     * er en knap i Live Preview, en fane i CSS-panelet, en skuffe i hvert
+     * responsivt felt og en ramme i oversigten. Indstillingsskærmen stopper
+     * ved fem; her klippes config, der ikke har nogen skærm til at stoppe den.
+     */
+    public const MAX = 5;
+
+    /** Hvilken ende af listen der er basis. */
+    public const DIRECTIONS = ['desktop', 'mobile'];
+
+    /**
+     * `desktop` (standard) eller `mobile`.
+     *
+     * Et valg for sitet, ikke for siden: alt gemt indhold og hver `max-lg:`
+     * i skabelonerne er skrevet i den retning sitet havde, da det blev
+     * skrevet. Indstillingsskærmen vinder, så config; alt andet er desktop.
+     */
+    public static function direction(): string
+    {
+        $raw = Features::setting('breakpoint_direction');
+
+        if (! is_string($raw) || $raw === '') {
+            $raw = config('statamic-visual-editor.breakpoint_direction');
+        }
+
+        $raw = is_string($raw) ? strtolower(trim($raw)) : '';
+
+        return in_array($raw, static::DIRECTIONS, true) ? $raw : 'desktop';
+    }
+
+    /**
      * Rækkerne som de er skrevet, før noget udledes.
      *
      * Indstillingsskærmen vinder, config svarer for det den ikke dækker, og
      * ellers er det de tre der altid har været her. En række uden `handle`
      * eller uden et tal i `min` er ikke et breakpoint og springes over.
+     * Flere end `MAX` gyldige rækker: de første som skrevet beholdes.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -93,6 +125,10 @@ final class Rows
         foreach ($saved as $row) {
             if (! is_array($row)) {
                 continue;
+            }
+
+            if (count($rows) >= static::MAX) {
+                break;
             }
 
             $handle = static::handle($row['handle'] ?? $row['device'] ?? '');
