@@ -611,6 +611,10 @@ export function openBreakpointOverview(win) {
     return;
   }
 
+  // Two states, one at a time: the site canvas (site-canvas.js) goes first.
+  // Answered only while its module is loaded and it is open; otherwise nothing.
+  ask('site-canvas:close');
+
   const main = previewFrame(win.document);
   const contents = main?.closest('.live-preview-contents');
   const host = contents?.parentElement;

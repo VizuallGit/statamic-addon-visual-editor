@@ -55,6 +55,16 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: site_canvas
+            field:
+              type: toggle
+              display: 'Site canvas (demo)'
+              instructions: 'A button in the Live Preview top bar that lays the site''s templates and pages out as frames on one canvas — pan, zoom, and click a frame to edit that page. Nothing is loaded until it is clicked. Off by default while it is a demo.'
+              default: false
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
             handle: pages
             field:
               type: toggle

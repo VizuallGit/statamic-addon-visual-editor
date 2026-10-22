@@ -31,7 +31,8 @@
     "test:bard-styles": "node tests/browser/bard-styles.mjs",
     "test:ai-tabs": "node tests/browser/ai-tabs.mjs",
     "test:ai-queue": "node tests/browser/ai-queue.mjs",
-    "test:live-reload": "node tests/browser/live-reload.mjs"
+    "test:live-reload": "node tests/browser/live-reload.mjs",
+    "test:site-canvas": "node tests/browser/site-canvas.mjs"
   },
   "dependencies": {
     "@alpinejs/morph": "^3.15.11",

@@ -42,6 +42,7 @@ class Features
         'live_reload_instant',
         'collection_templates',
         'previews_autowatch',
+        'site_canvas',
     ];
 
     /** Every toggle, in the order the settings screen shows them. */
@@ -51,6 +52,10 @@ class Features
         // The Live Preview top bar's "all screen sizes" button. On unless the
         // settings or config say false: closed, it is one button and nothing else.
         'breakpoint_overview',
+        // The site canvas (demo): templates and pages as frames on one surface
+        // in Live Preview, a click making one the page being edited. Off until
+        // the owner has seen it; closed, it is one button and nothing else.
+        'site_canvas',
         'pages',
         'globals',
         'sections',

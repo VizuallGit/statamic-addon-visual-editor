@@ -47,6 +47,10 @@ return [
     |                      screen sizes, that shows every size side by side as
     |                      live pages — to look at, not to edit. Nothing loads
     |                      until it is clicked. On by default.
+    | - site_canvas:       (demo) an icon beside it that lays the site's
+    |                      templates and pages out as frames on one canvas; a
+    |                      click on a frame opens that page for editing. Off by
+    |                      default.
     | - pages:             the collection/entry picker, for moving between pages
     | - globals:           the globals picker (Theme Settings and friends)
     | - globals_picker:    which global sets that menu lists, by handle. Null
@@ -142,6 +146,7 @@ return [
         'panel' => true,
         'page_activity' => true,
         'breakpoint_overview' => true,
+        'site_canvas' => false,
         'pages' => true,
         'globals' => true,
         // Not a toggle: handles shown in the globe menu. Null = all except

@@ -33,6 +33,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\DesignOverlayController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
@@ -316,6 +317,10 @@ final class EditorRoutes
             // render middleware (no Vite client, eager images) applies.
             Route::get('/!/sve/layout-pattern-preview', [LayoutPatternsController::class, 'preview'])
                 ->name('sve.layout-patterns.preview');
+
+            // The site canvas's frames: templates and pages, grouped, with their preview URLs.
+            Route::get('/!/sve/site-canvas', SiteCanvasController::class)
+                ->name('sve.site-canvas');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)

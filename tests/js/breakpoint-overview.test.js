@@ -449,10 +449,13 @@ test('no file depends on it: the button import()s it and nothing imports it stat
     .filter((file) => /(?:from\s*|import\(\s*)['"][^'"]*breakpoint-overview\.js['"]/.test(readFileSync(file, 'utf8')))
     .map((file) => relative(JS, file));
 
-  assert.deepEqual(users, ['cp-shell/block-order.js']);
+  // The site canvas (site-canvas.js) import()s it too, only to close it when
+  // the canvas opens — the two are one state at a time. Dynamic as well.
+  assert.deepEqual(users.sort(), ['cp-shell/block-order.js', 'site-canvas.js']);
 
   const shell = readFileSync(join(JS, 'cp-shell/block-order.js'), 'utf8');
 
   assert.ok(!/from\s*['"][^'"]*breakpoint-overview/.test(shell), 'block-order.js imports it statically');
   assert.equal((shell.match(/import\(\s*['"]\.\.\/breakpoint-overview\.js['"]\s*\)/g) || []).length, 1);
+  assert.ok(!/from\s*['"][^'"]*breakpoint-overview/.test(readFileSync(join(JS, 'site-canvas.js'), 'utf8')), 'site-canvas.js imports it statically');
 });
