@@ -888,6 +888,11 @@ ${L} .sve-sc-item[data-dragging] { z-index: 2; opacity: .85; }
 ${L} .sve-sc-scroll[data-dragging], ${L} .sve-sc-scroll[data-dragging] .sve-sc-hit { cursor: grabbing; }
 ${L} .sve-sc-drop { position: absolute; z-index: 1; border-radius: calc(.125rem / var(--z)); background: ${ring}; pointer-events: none; }
 ${L} .sve-sc-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: .875rem; opacity: .7; pointer-events: none; }
+${L} .sve-sc-leaving { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: rgba(0, 0, 0, .6); animation: sve-sc-fade .38s cubic-bezier(.4, 0, .2, 1); }
+${L} .sve-sc-leaving span { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; background: #000; color: #fff; box-shadow: 0 .25rem .875rem rgba(0, 0, 0, .35); }
+${L} .sve-sc-leaving svg { animation: sve-sc-spin 1s linear infinite; }
+@keyframes sve-sc-fade { from { opacity: 0; } }
+@keyframes sve-sc-spin { to { transform: rotate(360deg); } }
 ${L} .sve-sc-zoom { position: absolute; left: .75rem; bottom: .75rem; display: inline-flex; align-items: center; gap: .25rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .88); color: #fff; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .25); font: 500 .75rem/1 ui-sans-serif, system-ui, sans-serif; }
 ${L} .sve-sc-zoom button { display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 ${L} .sve-sc-zoom button:hover { background: rgba(255, 255, 255, .12); }
@@ -1564,23 +1569,41 @@ async function saveArrangement(win, columns) {
 }
 
 /**
- * The one way Live Preview moves to another entry: close the canvas, then
- * navigateFromLp — unsaved work asked about first, the next editor booted
- * hidden and swapped in once it has painted. The entry already being edited
- * only closes the canvas: the page under it is that page.
+ * The one way Live Preview moves to another entry: navigateFromLp — unsaved
+ * work asked about first, the next editor booted hidden and swapped in once
+ * it has painted. The canvas stays up under a spinner meanwhile, so the page
+ * being left is never seen again: the host's swap (or its full navigation if
+ * the swap fails) replaces this document, canvas and all. Only a cancelled
+ * unsaved question comes back here, and takes the spinner down. The entry
+ * already being edited only closes the canvas: the page under it is that page.
  */
 function openEntry(win, frame) {
-  const same = frame.id === currentEntryId(win);
+  if (frame.id === currentEntryId(win)) {
+    closeSiteCanvas(win);
 
-  closeSiteCanvas(win);
-
-  if (same) {
     return;
   }
 
+  const leaving = showLeaving(win);
+
   Promise.all([import('./pages.js'), import('./lp-templates.js')]).then(([{ navigateFromLp }, { inLivePreview }]) => {
-    navigateFromLp(win, null, inLivePreview(win, frame.edit));
+    navigateFromLp(win, null, inLivePreview(win, frame.edit), () => leaving.remove());
   });
+}
+
+/** Dims the canvas and spins over it while the next page is on its way. */
+function showLeaving(win) {
+  const { layer } = canvasState;
+  const leaving = make(layer.ownerDocument, 'div', 'sve-sc-leaving');
+
+  leaving.setAttribute('role', 'status');
+  leaving.setAttribute('aria-label', t(win, 'loading'));
+  leaving.innerHTML =
+    '<span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
+    '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg></span>';
+  layer.appendChild(leaving);
+
+  return leaving;
 }
 
 // --- Paint ---------------------------------------------------------------------------
