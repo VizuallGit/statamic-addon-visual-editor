@@ -103,6 +103,9 @@ final class ControlPanelScript
                 // The «+» beside the size buttons: only for a user who may edit
                 // the addon's settings, which is where the size is written.
                 'sveBreakpointsEditable' => Store::editable(),
+                // How many sizes the list holds at most — the popover gives way
+                // to a note at that count, instead of a save the Store refuses.
+                'sveBreakpointsMax' => Breakpoints::MAX,
                 // Hashed Tailwind compiler chunk — dock-instant-preview imports it
                 // so a new class can paint before the section morph comes back.
                 'sveTwCompile' => static::twCompileUrl(),

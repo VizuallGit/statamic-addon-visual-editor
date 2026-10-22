@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BP_CHANGED_EVENT,
+  applyBreakpointList,
   bpBase,
   bpCascade,
   bpCascadeHandles,
@@ -101,4 +102,61 @@ test('media and tailwind are read off the row, never derived here', () => {
 
 test('the change event has one name everybody listens for', () => {
   assert.equal(BP_CHANGED_EVENT, 'sve:breakpoints-changed');
+});
+
+/**
+ * Statamic's own Config: `set` writes one top-level key as given, `get` walks
+ * a dotted path (resources/js/components/Config.js + util/data_get.js). A
+ * stub that behaves the same, so a write that only looks right is caught.
+ */
+function statamicConfig(values) {
+  return {
+    values,
+    get(key) {
+      return key.split('.').reduce((prev, curr) => prev && prev[curr], values);
+    },
+    set(key, value) {
+      values[key] = value;
+    },
+  };
+}
+
+test('a saved list lands where the page load would have put it, and the window is told', () => {
+  const $config = statamicConfig({
+    sveBreakpoints: DESKTOP,
+    livePreview: { devices: { Laptop: { width: 1440, height: 900 } }, enabled: true },
+  });
+  const events = [];
+  const w = {
+    Statamic: { $config },
+    CustomEvent: class {
+      constructor(type, init) {
+        this.type = type;
+        this.detail = init?.detail;
+      }
+    },
+    dispatchEvent: (event) => events.push(event),
+  };
+  const wide = { ...DESKTOP[0], handle: 'wide', device: 'Wide', min: 90, min_px: 1440 };
+  const next = [wide, ...DESKTOP.map((row) => ({ ...row, base: false }))];
+  const devices = { Wide: { width: 1600, height: 900 }, Laptop: { width: 1440, height: 900 } };
+
+  assert.equal(applyBreakpointList(w, { breakpoints: next, devices }), true);
+
+  assert.deepEqual(bpHandles(w), ['wide', 'laptop', 'tablet', 'mobile'], 'breakpoints() reads the new array');
+  assert.deepEqual($config.get('livePreview.devices'), devices, 'the device buttons read the new widths through the dotted path');
+  assert.equal($config.get('livePreview.enabled'), true, 'the rest of livePreview is kept');
+  assert.equal(Object.hasOwn($config.values, 'livePreview.devices'), false, 'no key spelled with a dot');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, BP_CHANGED_EVENT);
+  assert.equal(events[0].detail.breakpoints, next);
+});
+
+test('an answer without a list changes nothing', () => {
+  const $config = statamicConfig({ sveBreakpoints: DESKTOP });
+  const w = { Statamic: { $config }, CustomEvent: class {}, dispatchEvent: () => assert.fail('nothing to announce') };
+
+  assert.equal(applyBreakpointList(w, { ok: true }), false);
+  assert.equal(applyBreakpointList({ Statamic: {} }, { breakpoints: DESKTOP }), false);
+  assert.equal($config.get('sveBreakpoints'), DESKTOP);
 });

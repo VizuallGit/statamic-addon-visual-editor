@@ -13,7 +13,7 @@
  * puts it where the page load would have put it (`Statamic.$config`) and
  * tells the window; every reader of `breakpoints()` sees the new array.
  */
-import { BP_CHANGED_EVENT, bpDirection, breakpoints } from '../breakpoints.js';
+import { applyBreakpointList, bpDirection, breakpoints } from '../breakpoints.js';
 import { mountSurface } from '../cp/mount.js';
 import LpBreakpointAdd from '../cp/surfaces/LpBreakpointAdd.vue';
 import { csrfToken } from '../lib/csrf.js';
@@ -28,8 +28,15 @@ const ENDPOINT = '/!/sve/breakpoints';
 const POPOVER_WIDTH_REM = 21;
 const VIEWPORT_PAD = 8;
 
-/** Five sizes is the limit — Breakpoints::MAX. The form gives way to a note at that point. */
-const MAX = 5;
+/**
+ * How many sizes the list holds at most — Breakpoints::MAX, sent by
+ * ControlPanelScript as `sveBreakpointsMax`. The form gives way to a note at
+ * that count. The Store refuses a save past it either way; this only spares
+ * the round trip.
+ */
+function maxSizes(win) {
+  return Number(win.Statamic?.$config?.get?.('sveBreakpointsMax'));
+}
 
 /** The pictures a size may have, in the order to offer them. Only the ones this build draws. */
 const ICON_ORDER = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv', 'watch'];
@@ -59,29 +66,6 @@ export function dismissBreakpointAdd() {
   app.unmount();
   host.remove();
   anchor.setAttribute('aria-expanded', 'false');
-}
-
-/**
- * The saved list, put where the page load would have put it, and announced.
- *
- * `sveBreakpoints` is what `breakpoints()` reads (keyed on the array, so a
- * new array is a new list); `livePreview.devices` is what the device buttons
- * size the frame by. Both come from the same PHP answer.
- */
-export function applyBreakpointList(win, data) {
-  const config = win.Statamic?.$config;
-
-  if (!config || !Array.isArray(data?.breakpoints)) {
-    return;
-  }
-
-  config.set('sveBreakpoints', data.breakpoints);
-
-  if (data.devices && typeof data.devices === 'object') {
-    config.set('livePreview.devices', data.devices);
-  }
-
-  win.dispatchEvent(new win.CustomEvent(BP_CHANGED_EVENT, { detail: { breakpoints: data.breakpoints } }));
 }
 
 async function save(win, payload) {
@@ -127,6 +111,7 @@ async function save(win, payload) {
 function popoverProps(win, anchor) {
   const rect = anchor.getBoundingClientRect();
   const rows = breakpoints(win);
+  const max = maxSizes(win);
   const taken = (px) => rows.some((row) => Math.abs(Number(row.min_px) - px) < 0.5);
 
   return {
@@ -150,13 +135,13 @@ function popoverProps(win, anchor) {
       saving: t(win, 'bp_add_saving'),
       cancel: t(win, 'bp_add_cancel'),
       failed: t(win, 'bp_add_failed'),
-      full: t(win, 'bp_add_error_max', { max: MAX }),
+      full: t(win, 'bp_add_error_max', { max }),
     },
     icons: ICON_ORDER.filter((key) => LP_DEVICE_ICONS[key]).map((key) => ({ key, svg: LP_DEVICE_ICONS[key] })),
     presets: PRESETS.map((preset) => ({ ...preset, taken: taken(preset.px) })),
     units: UNITS,
     direction: bpDirection(win),
-    full: rows.length >= MAX,
+    full: rows.length >= max,
     onSave: (payload) => save(win, payload),
     onClose: dismissBreakpointAdd,
   };

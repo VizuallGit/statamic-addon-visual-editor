@@ -128,6 +128,43 @@ export function breakpoints(win = window) {
   return cached.length ? cached : FALLBACK;
 }
 
+/**
+ * The saved list, put where the page load would have put it, and announced.
+ *
+ * `data` is the answer PHP gives when a size is saved (`BreakpointsController`):
+ * `breakpoints` is `Breakpoints::forScript()`, which `breakpoints()` reads
+ * under `sveBreakpoints` (keyed on the array, so a new array is a new list);
+ * `devices` is `Breakpoints::devices()`, which the device buttons size the
+ * frame by, under `livePreview.devices`.
+ *
+ * Statamic's `Config.set(key, value)` writes one top-level key as given —
+ * `set('a.b', …)` would make a key spelled "a.b", while `get('a.b')` walks `a`
+ * then `b`. So the `livePreview` object is the one set, with the rest of it
+ * kept as it was.
+ */
+export function applyBreakpointList(win, data) {
+  const config = win?.Statamic?.$config;
+
+  if (!config || typeof config.set !== 'function' || !Array.isArray(data?.breakpoints)) {
+    return false;
+  }
+
+  config.set('sveBreakpoints', data.breakpoints);
+
+  if (data.devices && typeof data.devices === 'object') {
+    const livePreview = config.get('livePreview');
+
+    config.set('livePreview', {
+      ...(livePreview && typeof livePreview === 'object' ? livePreview : {}),
+      devices: data.devices,
+    });
+  }
+
+  win.dispatchEvent(new win.CustomEvent(BP_CHANGED_EVENT, { detail: { breakpoints: data.breakpoints } }));
+
+  return true;
+}
+
 /** Handles in display order — widest first. No cascade meaning. */
 export function bpHandles(win = window) {
   return breakpoints(win).map((item) => item.handle);
