@@ -22,7 +22,7 @@ class TemplateBoardTest extends TestCase
         // The collections the tests make are written to the fixture site, and
         // nothing else clears them — without this they are left behind in the
         // repo and the next run starts from a different site than this one.
-        foreach (['journal', 'ghosts', 'worked', 'shared', 'nothing'] as $handle) {
+        foreach (['journal', 'ghosts', 'worked', 'shared', 'nothing', 'board'] as $handle) {
             Collection::findByHandle($handle)?->delete();
         }
 
@@ -87,16 +87,16 @@ class TemplateBoardTest extends TestCase
         $own = Collection::make('worked')->title('Worked')->template('worked/show');
         $own->save();
 
-        $shared = Collection::make('shared')->title('Shared')->template('default');
+        $shared = Collection::make('shared')->title('Shared')->template('worked/show');
         $shared->save();
 
         $this->assertSame('worked/show', TemplateBoard::showView('worked', $own));
-        $this->assertSame('default', TemplateBoard::showView('shared', $shared));
+        $this->assertSame('worked/show', TemplateBoard::showView('shared', $shared));
     }
 
     public function test_a_shared_template_is_marked_shared_not_empty(): void
     {
-        $shared = Collection::make('shared')->title('Shared')->template('default');
+        $shared = Collection::make('shared')->title('Shared')->template('worked/show');
         $shared->save();
 
         $own = Collection::make('worked')->title('Worked')->template('worked/show');
@@ -106,6 +106,38 @@ class TemplateBoardTest extends TestCase
 
         $this->assertTrue($card(TemplateBoard::sourceRow('shared', 'Shared', 'collection', $shared))['shared']);
         $this->assertFalse($card(TemplateBoard::sourceRow('worked', 'Worked', 'collection', $own))['shared']);
+    }
+
+    /**
+     * Statamic renders a collection with nothing set through `default`, and
+     * the CP writes that `default` back on every save. Neither is a template
+     * anyone added: a new collection has no show card until one is made here,
+     * by Scaffold Views, or by pointing the collection somewhere itself.
+     */
+    public function test_a_new_collection_has_no_show_card_until_a_template_is_added(): void
+    {
+        $fresh = Collection::make('board')->title('Board');
+        $fresh->save();
+
+        $card = fn ($source) => collect(TemplateBoard::sourceRow('board', 'Board', 'collection', $source)['cards'])->firstWhere('slot', 'show');
+
+        $this->assertSame('default', $fresh->template(), 'Statamic\'s own fallback');
+        $this->assertNull(TemplateBoard::ownTemplate($fresh));
+        $this->assertFalse($card($fresh)['exists'], 'nothing added, nothing shown');
+        $this->assertFalse($card($fresh)['shared'], 'and not "shared" either');
+
+        // The CP saved it: `template: default` is now in the file. Still nothing.
+        $fresh->template('default')->save();
+
+        $this->assertNull(TemplateBoard::ownTemplate($fresh));
+        $this->assertFalse($card($fresh)['exists']);
+
+        // A file of its own — written here or by Scaffold Views — is the card.
+        $this->writeView('board/show');
+
+        $this->assertTrue($card($fresh)['exists']);
+        $this->assertSame('board/show', $card($fresh)['view']);
+        $this->assertFalse($card($fresh)['shared']);
     }
 
     public function test_the_show_view_falls_back_to_the_convention_without_a_source(): void

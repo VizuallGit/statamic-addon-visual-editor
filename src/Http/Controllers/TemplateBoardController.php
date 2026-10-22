@@ -235,9 +235,7 @@ class TemplateBoardController extends Controller
             return;
         }
 
-        $current = $collection->template();
-
-        if (is_string($current) && $current !== '' && $current !== 'default') {
+        if (TemplateBoard::ownTemplate($collection) !== null) {
             return;
         }
 

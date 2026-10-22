@@ -160,25 +160,46 @@ final class TemplateBoard
     }
 
     /**
-     * Which view a source actually renders an entry with.
+     * Which view a source's show card stands for.
      *
      * **Its own setting, not the naming convention.** `cases/show` is only what
      * Statamic's Scaffold Views happens to write into `template:`; a collection
-     * is free to point anywhere, and several point at `default`. Guessing the
-     * path made three of four collections on a real site look as though they
-     * had no template at all.
+     * is free to point at another collection's file, and that card is drawn as
+     * shared. Guessing the path made three of four collections on a real site
+     * look as though they had no template at all.
+     *
+     * Without a template of its own the card is the conventional file — there
+     * when somebody made it, empty until then. A new collection has no show
+     * template until one is added here, by Scaffold Views or in its settings.
      */
     public static function showView(string $handle, mixed $source = null): string
     {
         $source ??= Collection::findByHandle($handle) ?: Taxonomy::findByHandle($handle);
 
+        return static::ownTemplate($source) ?? static::viewPath($handle, 'show');
+    }
+
+    /**
+     * The template a source chose for itself, or null when it only has
+     * Statamic's fallback.
+     *
+     * A collection with nothing set renders through `default` — the site's own
+     * page view, already a card in the site row — and the CP writes that
+     * `default` back into the file on every save. So `default` in a
+     * collection is not a template anyone added; it is what a collection has
+     * before one is.
+     */
+    public static function ownTemplate(mixed $source): ?string
+    {
         $template = is_object($source) && method_exists($source, 'template')
             ? $source->template()
             : null;
 
-        return is_string($template) && $template !== ''
-            ? $template
-            : static::viewPath($handle, 'show');
+        if (! is_string($template) || $template === '' || $template === static::SITE_SLOTS['default']) {
+            return null;
+        }
+
+        return $template;
     }
 
     /**
