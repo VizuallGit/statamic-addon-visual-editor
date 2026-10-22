@@ -838,8 +838,18 @@ try {
     step('a drag on a page frame opened nothing: the canvas is still open, the editor on the same entry', !!(await cp.$(LAYER)) && cp.url().includes(ENTRY_ID));
   }
 
-  // 9. Pan: a drag moves the view; it opens nothing.
-  const panFrom = { x: layerRect.x + layerRect.w / 2, y: layerRect.y + layerRect.h / 2 };
+  // 9. Pan: a drag moves the view; it opens nothing. A press on a page frame lifts the frame (8) and never pans, so the press goes to the view's centre or, if a page frame stands there, the nearest spot that is not one — the sheet, a heading, a plate, a template frame all pan.
+  const panFrom = await cp.evaluate((sel, rect) => {
+    const layer = document.querySelector(sel);
+    const centre = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+    const free = (x, y) => { const el = document.elementFromPoint(x, y); return !!el && layer.contains(el) && !el.closest('.sve-sc-item[data-arrange]') && !el.closest('.sve-sc-zoom'); };
+    for (let r = 0; r <= Math.min(rect.w, rect.h) / 2 - 8; r += 12) {
+      for (const [dx, dy] of [[0, 0], [0, -r], [r, 0], [-r, 0], [0, r], [r, -r], [-r, -r], [r, r], [-r, r]]) {
+        if (free(centre.x + dx, centre.y + dy)) return { x: centre.x + dx, y: centre.y + dy, offCentre: Math.hypot(dx, dy) };
+      }
+    }
+    return { ...centre, offCentre: NaN };
+  }, LAYER, layerRect);
   const beforePan = await cp.evaluate(canvasShape, LAYER);
   await page.mouse.move(panFrom.x, panFrom.y);
   await page.mouse.down();
@@ -849,8 +859,8 @@ try {
   const afterPan = await cp.evaluate(canvasShape, LAYER);
   const stillOpenAfterPan = !!(await cp.$(LAYER));
   const panWant = expectScroll(beforePan, 200, 120);
-  step('a drag pans the canvas by the distance dragged (to the scroll box’s end at most)', !!afterPan && Math.abs(afterPan.scroll[0] - panWant[0]) <= 2 && Math.abs(afterPan.scroll[1] - panWant[1]) <= 2, `scroll ${beforePan.scroll.join(',')} → ${afterPan?.scroll.join(',')} (dragged 200,120; expected ${panWant.map(Math.round).join(',')})`);
-  step('a drag that began on a frame opened nothing: the canvas is still open, the editor on the same entry', stillOpenAfterPan && cp.url().includes(ENTRY_ID), stillOpenAfterPan ? 'open' : 'closed');
+  step('a drag pans the canvas by the distance dragged (to the scroll box’s end at most)', !!afterPan && Math.abs(afterPan.scroll[0] - panWant[0]) <= 2 && Math.abs(afterPan.scroll[1] - panWant[1]) <= 2, `scroll ${beforePan.scroll.join(',')} → ${afterPan?.scroll.join(',')} (dragged 200,120; expected ${panWant.map(Math.round).join(',')}; pressed ${Number.isNaN(panFrom.offCentre) ? 'at the centre, no free spot found' : panFrom.offCentre === 0 ? 'at the centre' : `${Math.round(panFrom.offCentre)} px off the centre, clear of the page frames`})`);
+  step('a drag on the sheet opened nothing: the canvas is still open, the editor on the same entry', stillOpenAfterPan && cp.url().includes(ENTRY_ID), stillOpenAfterPan ? 'open' : 'closed');
   // Scrolling in only loads frames not yet loaded: all were, so the srcs are what they were.
   step('scrolled and panned about, every frame keeps the src it was given (nothing reloads)', afterPan.items.every((it, i) => it.src === shape1.items[i].src));
 
