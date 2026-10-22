@@ -368,6 +368,15 @@ export function confirmCloseDiscard(
  * Preview asked to leave header/footer focus. Warn if Theme Settings is dirty.
  */
 export function handleRequestCloseChrome(win) {
+  // The preview drops the half's focus the moment the exit is decided — before
+  // anything the exit itself asks the preview to render. The preview picks its
+  // morph path from the focus it sees when a render is requested; told of the
+  // exit only after the discard's refresh had been requested, it rendered as
+  // "still in the header" and put the fade back on a header the Control Panel
+  // had already left.
+  const leavePreview = () => {
+    sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
+  };
   const finish = () => {
     dismissChromeForPageEdit(win, { syncDock: true });
     // Closing the header/footer closes the drawer describing it. Parked, not
@@ -375,10 +384,10 @@ export function handleRequestCloseChrome(win) {
     // on this deliberate exit: stepping sideways into a page section goes
     // through dismissChromeForPageEdit alone and leaves the drawer alone.
     parkGlobalsPanel(win);
-    sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
   };
 
   if (!hasUnsavedGlobals(win)) {
+    leavePreview();
     finish();
 
     return;
@@ -388,12 +397,14 @@ export function handleRequestCloseChrome(win) {
     win,
     { titleKey: 'chrome_close_title', bodyKey: 'chrome_close_body' },
     () => {
+      leavePreview();
       discardGlobalsChanges(win, { refresh: true, reloadForm: true }).then(finish);
     },
     () => {},
     () => {
       saveGlobalsPanel(win, (ok) => {
         if (ok) {
+          leavePreview();
           finish();
         }
       });

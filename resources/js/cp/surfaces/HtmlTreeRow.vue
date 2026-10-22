@@ -117,22 +117,11 @@ function isSlot(row) {
 }
 
 /**
- * A row of the file around the open component — the section's own tags,
- * drawn faded so the component reads as the thing being edited. It cannot be
- * picked, moved, renamed or deleted: its offsets belong to a file the dock is
- * not holding. Clicking one is the way back out to that file.
- */
-function isContext(row) {
-  return !!row.context;
-}
-
-/**
  * Press and drag. A section — shut, or the open one by its root row — moves
  * on the page, between the other sections; any other row moves in the file.
- * The rows of the file around an open component move nothing.
  */
 function onPointerDown(event, row) {
-  if (isContext(row) || isFrame(row) || isSlot(row)) {
+  if (isFrame(row) || isSlot(row)) {
     return;
   }
 
@@ -154,12 +143,6 @@ function onRowClick(row) {
 
   if (isShutSection(row)) {
     ui.onSection?.(row.section);
-
-    return;
-  }
-
-  if (isContext(row)) {
-    ui.onContextRow?.(row.id);
 
     return;
   }
@@ -190,12 +173,6 @@ function rowBind(row, dim) {
 
   if (dim) {
     bind['data-sve-ht-dim'] = '';
-  }
-
-  // Around the open component: faded, except the row the component unfolds
-  // from, which says where you are.
-  if (isContext(row)) {
-    bind['data-sve-ht-context'] = row.context;
   }
 
   // Kept so the old stylesheet rules and the verify scripts still find a
@@ -273,12 +250,12 @@ function canAct(row) {
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row)"
-    @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isSlot(row) || isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
+    @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
     @pointerdown="onPointerDown($event, row)"
     @pointerenter="isShutSection(row) ? ui.onSectionHover?.(row.section) : null"
-    @contextmenu.prevent.stop="isFrame(row) || isSlot(row) || isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
+    @contextmenu.prevent.stop="isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--
       The tags look indents with a spacer that draws one guide per level, each
@@ -314,7 +291,7 @@ function canAct(row) {
         to select — a single click there kept opening a menu nobody asked for.
       -->
       <button
-        v-if="!row.kind && !isShutSection(row) && !isContext(row) && !isFrame(row)"
+        v-if="!row.kind && !isShutSection(row) && !isFrame(row)"
         type="button"
         data-sve-ht-tag
         :title="ui.tagTitle"
@@ -380,7 +357,7 @@ function canAct(row) {
         @dblclick.stop
       ></button>
     </span>
-    <span v-else-if="!isShutSection(row) && !isContext(row) && !isSlot(row)" data-sve-ht-actions>
+    <span v-else-if="!isShutSection(row) && !isSlot(row)" data-sve-ht-actions>
       <!--
         A <video> row: hold the video paused in the preview, or let it play.
         Not behind the lock — the file is not touched, only what the editor

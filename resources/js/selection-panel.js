@@ -45,8 +45,7 @@ import { ACTIVE_ATTR } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
-import { handleRequestCloseGlobal } from './pages.js';
-import { dismissChromeForPageEdit } from './section-library.js';
+import { handleRequestCloseChrome, handleRequestCloseGlobal } from './pages.js';
 import { activateSectionsTab } from './lp-width.js';
 import SelectionPanel from './cp/surfaces/SelectionPanel.vue';
 import { syncCodeDock } from './code-dock-lazy.js';
@@ -152,9 +151,13 @@ export function leaveSelection(win, source = 'panel') {
     return;
   }
 
+  // The header or the footer: out through the half's own close — the same
+  // door as the bar under the preview and Escape. It asks about unsaved
+  // edits, parks the drawer, takes the form down (and the selection with it)
+  // and tells the preview to drop the half's focus. Taking the form down from
+  // here alone left the preview faded on a header the panel had already left.
   if (name !== 'base') {
-    dismissChromeForPageEdit(win, { syncDock: true });
-    clearSelection(source);
+    handleRequestCloseChrome(win);
 
     return;
   }

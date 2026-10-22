@@ -10,7 +10,7 @@ import { controlsFrom, drawnPlaceholder, findPrecedingSetSibling, openToolbarMen
 import { widthDragJustEnded } from './grid.js';
 import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
 import { INSERT_LAYER_ID } from './outline-nav.js';
-import { CHROME_ATTR, CHROME_BAR_ID, CHROME_LOCKS_PAGE, confirmEnterGlobal, rebindGlobalFocus } from './global-sections.js';
+import { CHROME_ATTR, CHROME_BAR_ID, confirmEnterGlobal, rebindGlobalFocus } from './global-sections.js';
 import { chromeEditable, confirmEnterChrome, hasChromeFocusClass, requestCloseChrome } from './header-footer.js';
 import { finishEditing, wrapUpBeltTarget } from './editing.js';
 import { hideMoveControl } from './row-caps-move.js';
@@ -230,14 +230,12 @@ export function createClickHandler(win) {
       event.preventDefault();
       event.stopPropagation();
 
-      // Inside the header or the footer the rest of the page is locked, exactly
-      // as it is inside a global section: a click out there does nothing at all.
-      // Leaving is a decision made on the bar at the bottom — Save or Close — or
-      // with Escape, not something that happens to you because the pointer
-      // landed an inch too far down the page.
-      if (!CHROME_LOCKS_PAGE) {
-        requestCloseChrome(win);
-      }
+      // Inside the header or the footer, a click on the faded page is the way
+      // out — the same door as the bar's Close and Escape: the Control Panel
+      // asks about unsaved edits first, and only then drops the half's focus.
+      // The click goes no further; the page is still faded under it, and what
+      // it landed on is clicked again once the page is lit.
+      requestCloseChrome(win);
 
       return;
     }

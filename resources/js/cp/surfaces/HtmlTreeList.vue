@@ -38,9 +38,10 @@ function frameShown(row) {
 }
 
 /**
- * Inside a component, everything but it fades. A half no longer fades the
- * rest — the rest is not drawn at all (`halfOnly`) — so the half's own arm
- * is all this still answers for.
+ * A half fades nothing — the rest is not drawn at all (`halfOnly`) — so the
+ * half's own arm is all this still answers for. A component draws neither
+ * frame nor sections, so `inComponent` here only reaches an empty page's
+ * frame, should the dock hold a component on one.
  */
 function frameDim(part) {
   const kind = ui.frame?.kind;
@@ -202,6 +203,14 @@ function wrapBind(sec) {
         <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="frameDim('footer')" />
       </template>
     </template>
+    <!--
+      Inside a component the tree is that component and nothing else — its
+      rows in a box of its own family, the way the header's stand alone in
+      the header's. No frame, no sections (html-tree.js leaves both out).
+    -->
+    <div v-else-if="ui.inComponent && ui.rows.length" data-sve-ht-branch data-sve-ht-cat="component">
+      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+    </div>
     <template v-else-if="ui.rows.length">
       <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
     </template>
