@@ -29,7 +29,9 @@
  * width and height of room round it on every side, so every pan is a scroll
  * position — drag, wheel in both directions — and a zoom round the pointer
  * keeps the point under it exactly (the nearest sheet point, for a pointer
- * in the room beside it); the room follows the pane's size. It opens at
+ * in the room beside it); the bar's − and + and the plain `+`/`-` keys
+ * (lib/zoom-keys.js, shared with the preview's own zoom) step the ladder
+ * round the view's middle; the room follows the pane's size. It opens at
  * ZOOM_DEFAULT (50 %), the sheet's top-left corner a margin in from the
  * view's (in the middle, on an axis the sheet fits on); «Fit all» zooms the
  * whole sheet into the view. The scrollbars are not drawn: the room would
@@ -82,12 +84,13 @@
  */
 import { ask, register } from './cp/bus.js';
 import { t } from './lib/i18n.js';
-import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, SITE_CANVAS_ID } from './lib/ids.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { zoomKey } from './lib/zoom-keys.js';
 
-export const SITE_CANVAS_ID = '__sve-site-canvas';
+export { SITE_CANVAS_ID };
 const STYLE_ID = '__sve-site-canvas-style';
 const ON_CLASS = 'sve-sc-on';
 
@@ -1088,9 +1091,19 @@ function bind(win, view) {
   });
 }
 
+/** Escape closes; a plain `+` or `-` (lib/zoom-keys.js: no modifier, no field being typed in) steps the zoom round the view's middle, as the bar's buttons do. */
 function onKey(event) {
   if (event.key === 'Escape' && !event.defaultPrevented) {
     closeSiteCanvas(canvasState.win);
+
+    return;
+  }
+
+  const dir = zoomKey(event);
+
+  if (dir) {
+    event.preventDefault();
+    zoomAction(dir);
   }
 }
 

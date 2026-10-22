@@ -427,9 +427,14 @@ test('the top bar\'s zoom group is the overview\'s while it is open, with a hidd
   assert.ok(shell.includes("zoomFit.dataset.zoom = 'fit'") && shell.includes("t(win, 'bp_overview_fit')"), 'a "Fit all" button in the zoom group');
   assert.ok(shell.includes("fit.style.display = 'none'"), '"Fit all" is built hidden');
 
-  for (const action of ['in', 'out', 'fit', 'actual']) {
+  for (const action of ['fit', 'actual']) {
     assert.ok(shell.includes(`overviewModule?.().then((m) => m.overviewZoom(win, '${action}'))`), `the zoom group drives the row's ${action} through the one loader`);
   }
+
+  // − and + are one step (lpZoomStep), from a click or the +/- keys: while the overview is open, the row's step through the one loader.
+  assert.ok(shell.includes("overviewModule?.().then((m) => m.overviewZoom(win, dir))"), 'lpZoomStep drives the row\'s in/out through the one loader');
+  assert.ok(shell.includes("zoomOut.addEventListener('click', () => lpZoomStep(win, 'out'))") && shell.includes("zoomIn.addEventListener('click', () => lpZoomStep(win, 'in'))"), 'the buttons are that step');
+  assert.ok(shell.includes("win.addEventListener('keydown', (event) => onLpZoomKey(win, event))") && shell.includes('lpZoomStep(win, dir)'), 'the +/- keys are that step too');
 });
 
 test('the layer id is the shared one: the paint script spells it, lib/preview-frame.js reads it', () => {

@@ -10,7 +10,8 @@
  * without the bridge, the lines as tall as their tallest frame, the frame
  * of the entry being edited wearing the ring; the open is at 50 % from the
  * sheet's top-left corner with only the near frames loading, and «Fit all»
- * fits everything into the pane; zoom (buttons, ctrl/cmd + wheel round the pointer) and pan (drag,
+ * fits everything into the pane; zoom (buttons, the plain + and - keys — which
+ * closed are the preview's own zoom — and ctrl/cmd + wheel round the pointer) and pan (drag,
  * wheel) work and a pan opens nothing; Escape and the button close it and
  * leave the editor exactly as it was (the preview frame's src, transform and
  * window, the iframe count, the listeners); the breakpoint overview and the
@@ -675,6 +676,19 @@ try {
   const zoomedIn = await cp.evaluate(canvasShape, LAYER);
   step('the plus steps the zoom up and the label follows', zoomedIn.z > shape1.z + 0.001 && zoomedIn.label === `${Math.round(zoomedIn.z * 100)}%`, `${shape1.z.toFixed(3)} → ${zoomedIn.z.toFixed(3)} (${zoomedIn.label})`);
   step('zoomed in, the frames keep their viewport size × zoom and their srcs', zoomedIn.items.every((it, i) => Math.abs(it.w - FRAME.width * zoomedIn.z) <= 1.5 && it.src === shape1.items[i].src));
+  // The keys: a plain + steps in, a plain - steps out — the same ladder as the buttons. Focus is on the button just clicked, not in a field.
+  const lpZoomLabel = () => cp.evaluate(() => document.querySelector('#__sve-preview-chrome [data-sve-zoom] [data-zoom="label"]')?.textContent.trim());
+  const lpLabelBeforeKeys = await lpZoomLabel();
+  await page.keyboard.press('+');
+  await sleep(150);
+  const keyedIn = await cp.evaluate(canvasShape, LAYER);
+  step('the + key steps the zoom up one more step, the label following', keyedIn.z > zoomedIn.z + 0.001 && keyedIn.label === `${Math.round(keyedIn.z * 100)}%`, `${zoomedIn.z.toFixed(3)} → ${keyedIn.z.toFixed(3)} (${keyedIn.label})`);
+  await page.keyboard.press('-');
+  await sleep(150);
+  const keyedOut = await cp.evaluate(canvasShape, LAYER);
+  step('the - key steps it back down to where the button had it', Math.abs(keyedOut.z - zoomedIn.z) < 0.001, `${keyedIn.z.toFixed(3)} → ${keyedOut.z.toFixed(3)}`);
+  const lpLabelWhileOpen = await lpZoomLabel();
+  step('while the canvas is open, the keys left the preview’s own zoom alone', lpLabelWhileOpen === lpLabelBeforeKeys, `top bar reads "${lpLabelWhileOpen}" (was "${lpLabelBeforeKeys}")`);
   await realClick(page, cp, `${LAYER} [data-sc-zoom="fit"]`);
   await sleep(150);
   const refit = await cp.evaluate(canvasShape, LAYER);
@@ -760,6 +774,16 @@ try {
   step('iframes in the CP document back to before', after.iframes === iframesBefore, `${after.iframes} (before ${iframesBefore})`);
   step('the preview frame is untouched: same src, transform and window', after.src === mainBefore.src && after.transform === mainBefore.transform && after.marker === 'before', `src same=${after.src === mainBefore.src} transform "${after.transform}" (was "${mainBefore.transform}") window kept=${after.marker === 'before'}`);
   info('preview frame style and class', after.css === mainBefore.css && after.cls === mainBefore.cls ? 'identical to before' : `now "${after.css}" .${after.cls} — before "${mainBefore.css}" .${mainBefore.cls}`);
+  // Closed, the same keys are the preview's own zoom — the top bar's − and + (one step down its ladder, and back up).
+  const lpBefore = await lpZoomLabel();
+  await page.keyboard.press('-');
+  await sleep(250);
+  const lpDown = await lpZoomLabel();
+  await page.keyboard.press('+');
+  await sleep(250);
+  const lpBack = await lpZoomLabel();
+  const pct = (s) => parseInt(s, 10);
+  step('closed, the - key steps the preview’s own zoom (the top bar’s) down a step, and + brings it back', pct(lpDown) < pct(lpBefore) && lpBack === lpBefore, `top bar "${lpBefore}" → "${lpDown}" → "${lpBack}"`);
   const listenersAfter = await listenerSnapshot(cp);
   const own = { before: ownListeners(listenersBefore), open: ownListeners(listenersOpen), after: ownListeners(listenersAfter) };
   const show = (map) => Object.entries(map).map(([k, types]) => `${k} [${types.join(' ')}]`).join(', ');

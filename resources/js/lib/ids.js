@@ -21,6 +21,12 @@ export const SID_FIELD_ATTR = 'data-sid-field';
  * and the paint script spells the id — while the layer is absent, there are none.
  */
 export const BP_OVERVIEW_ID = '__sve-bp-overview';
+/**
+ * The site canvas's layer (site-canvas.js draws it, only while open). While
+ * it is in the document the `+`/`-` keys are the canvas's zoom, not the
+ * preview's (cp-shell/block-order.js looks for it by this id).
+ */
+export const SITE_CANVAS_ID = '__sve-site-canvas';
 
 // Live Preview shell (lp-panel.js draws these)
 export const LP_MODE_ID = '__sve-lp-mode';

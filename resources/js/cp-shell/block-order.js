@@ -8,8 +8,9 @@ import { bindTips, hideTip } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { featureOn, featureSaidOn } from '../lib/config.js';
-import { LP_CONTROL_H, LP_ICON_BTN_STYLE, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_PREVIEW_CHROME_ID, LP_TOOLBAR_GAP } from '../lib/ids.js';
+import { LP_CONTROL_H, LP_ICON_BTN_STYLE, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_PREVIEW_CHROME_ID, LP_TOOLBAR_GAP, SITE_CANVAS_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
+import { zoomKey } from '../lib/zoom-keys.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { activeContainers } from '../lib/publish-containers.js';
@@ -963,6 +964,54 @@ let lpOverviewZoom = null;
 /** CP windows whose `sve:overview-zoom` listener is bound: once each, however often the top bar is rebuilt. */
 const lpOverviewZoomBound = new WeakSet();
 
+/** CP windows whose `+`/`-` keydown is bound: once each, as above. */
+const lpZoomKeysBound = new WeakSet();
+
+/**
+ * One step of the top bar's zoom, 'in' or 'out' — what its − and + do, from
+ * a click or a key. While the overview is open the group is its row's zoom,
+ * a step on its ladder; otherwise the preview's own, a step on LP_ZOOM_STEPS
+ * (never past 100 %).
+ */
+function lpZoomStep(win, dir) {
+  if (lpOverviewZoom !== null) {
+    overviewModule?.().then((m) => m.overviewZoom(win, dir));
+
+    return;
+  }
+
+  const cur = lpStoredZoom(win);
+
+  if (dir === 'out') {
+    setLpZoom(win, [...LP_ZOOM_STEPS].reverse().find((step) => step < cur) ?? Math.max(25, cur - 10));
+
+    return;
+  }
+
+  const next = lpNextZoomIn(win);
+
+  if (next > cur) {
+    setLpZoom(win, next);
+  }
+}
+
+/**
+ * A plain `+` or `-` (lib/zoom-keys.js: no modifier, no field being typed
+ * in) is a step of the top bar's zoom — while Live Preview's top bar is
+ * there, and the site canvas is not open: open, the keys are its zoom
+ * (site-canvas.js binds them itself), and the preview under it is not seen.
+ */
+function onLpZoomKey(win, event) {
+  const dir = zoomKey(event);
+
+  if (!dir || !win.document.getElementById(LP_PREVIEW_CHROME_ID)?.isConnected || win.document.getElementById(SITE_CANVAS_ID)) {
+    return;
+  }
+
+  event.preventDefault();
+  lpZoomStep(win, dir);
+}
+
 export function ensureLpPreviewChrome(win) {
   const doc = win.document;
   const header = lpHeader(doc);
@@ -1077,6 +1126,14 @@ export function ensureLpPreviewChrome(win) {
     zoom.dataset.sveZoom = '';
     zoom.style.cssText = `${HEADER_GROUP_STYLE}gap:6px;`;
 
+    // The keys of the zoom group: bound once per window (this block runs
+    // again whenever Vue wipes the header); the handler looks for the top
+    // bar each time, so a window without Live Preview open ignores them.
+    if (!lpZoomKeysBound.has(win)) {
+      lpZoomKeysBound.add(win);
+      win.addEventListener('keydown', (event) => onLpZoomKey(win, event));
+    }
+
     const zoomOut = doc.createElement('button');
 
     zoomOut.type = 'button';
@@ -1086,19 +1143,7 @@ export function ensureLpPreviewChrome(win) {
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>';
     zoomOut.style.cssText =
       `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
-    zoomOut.addEventListener('click', () => {
-      // While the overview is open the group is its row's zoom, a step on its ladder.
-      if (lpOverviewZoom !== null) {
-        overviewModule?.().then((m) => m.overviewZoom(win, 'out'));
-
-        return;
-      }
-
-      const cur = lpStoredZoom(win);
-      const next = [...LP_ZOOM_STEPS].reverse().find((step) => step < cur) ?? Math.max(25, cur - 10);
-
-      setLpZoom(win, next);
-    });
+    zoomOut.addEventListener('click', () => lpZoomStep(win, 'out'));
 
     const zoomLabel = doc.createElement('button');
 
@@ -1131,19 +1176,7 @@ export function ensureLpPreviewChrome(win) {
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>';
     zoomIn.style.cssText =
       `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
-    zoomIn.addEventListener('click', () => {
-      if (lpOverviewZoom !== null) {
-        overviewModule?.().then((m) => m.overviewZoom(win, 'in'));
-
-        return;
-      }
-
-      const next = lpNextZoomIn(win);
-
-      if (next > lpStoredZoom(win)) {
-        setLpZoom(win, next);
-      }
-    });
+    zoomIn.addEventListener('click', () => lpZoomStep(win, 'in'));
 
     zoom.appendChild(zoomOut);
     zoom.appendChild(lpModeSeparator(doc));
