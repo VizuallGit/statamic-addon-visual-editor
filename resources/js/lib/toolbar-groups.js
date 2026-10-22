@@ -45,6 +45,7 @@ export const DEFAULT_ORDER = [
   'theme',
   'xray',
   'design_overlay',
+  'site_canvas',
   'ai',
   'aitext',
   'schema',

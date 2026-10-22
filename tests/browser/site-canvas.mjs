@@ -87,7 +87,7 @@ const skip = (name, why) => console.log(`skip ${name} — ${why}`);
 
 const LAYER = '#__sve-site-canvas';
 const STYLE = '#__sve-site-canvas-style';
-const BUTTON = '#__sve-preview-chrome [data-canvas]';
+const BUTTON = '#__sve-toolbar button[data-tab="site_canvas"]';
 const BP_LAYER = '#__sve-bp-overview';
 const BP_BUTTON = '#__sve-preview-chrome [data-overview]';
 const ENDPOINT = '/!/sve/site-canvas';
@@ -238,8 +238,9 @@ const canvasShape = (layerSel) => {
       return { id: item.dataset.id, title: item.querySelector('.sve-sc-title')?.textContent || '', note: item.querySelector('.sve-sc-note')?.textContent || '', current: item.hasAttribute('data-current'), x: r.x, y: r.y, w: r.width, h: r.height, src: frame?.getAttribute('src') || '', hitOnTop: top === hit, hitOn: top ? `${top.tagName.toLowerCase()}${top.className ? '.' + String(top.className).split(' ')[0] : ''}` : 'nothing', labelSize: parseFloat(getComputedStyle(item.querySelector('.sve-sc-label')).fontSize) * z };
     }),
     iframes: document.querySelectorAll('iframe').length,
-    pressed: document.querySelector('#__sve-preview-chrome [data-canvas]')?.getAttribute('aria-pressed'),
-    on: document.querySelector('#__sve-preview-chrome [data-canvas]')?.classList.contains('sve-sc-on'),
+    pressed: document.querySelector('#__sve-toolbar button[data-tab="site_canvas"]')?.getAttribute('aria-pressed'),
+    // Lit as every other icon in the row is: paintLpActiveControl's flat primary, not 'transparent'.
+    on: ((b) => !!b && b.style.background !== '' && b.style.background !== 'transparent')(document.querySelector('#__sve-toolbar button[data-tab="site_canvas"]')),
     empty: layer.querySelector('.sve-sc-empty')?.hidden,
   };
 };
@@ -500,14 +501,10 @@ try {
   // 2. Closed: the button is there and can be seen; nothing of the canvas exists.
   const btn = await visible(cp, BUTTON);
   step('button in the top bar is visible', btn.ok, btn.why);
-  step('button stands in #__sve-preview-chrome after the overview button and before the zoom group', await cp.evaluate((sel, bpSel) => {
+  step('button stands in the top bar’s icon row (#__sve-toolbar), not in #__sve-preview-chrome beside the sizes and zoom', await cp.evaluate((sel) => {
     const b = document.querySelector(sel);
-    const chrome = document.getElementById('__sve-preview-chrome');
-    const bp = document.querySelector(bpSel);
-    const zoom = chrome?.querySelector('[data-sve-zoom]');
-    const after = (a, c) => !!(a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
-    return !!b && chrome.contains(b) && (!bp || after(bp, b)) && !!zoom && !zoom.contains(b) && after(b, zoom);
-  }, BUTTON, BP_BUTTON));
+    return !!b && !!b.closest('#__sve-toolbar') && !document.getElementById('__sve-preview-chrome')?.contains(b);
+  }, BUTTON));
   if (config.strings) {
     const title = await cp.evaluate((sel) => document.querySelector(sel).getAttribute('title') || '', BUTTON);
     step('button has its translated name', !!title && title !== 'site_canvas_button', `"${title}"`);
@@ -851,8 +848,8 @@ try {
     return {
       style: !!document.querySelector(styleSel),
       iframes: document.querySelectorAll('iframe').length,
-      pressed: document.querySelector('#__sve-preview-chrome [data-canvas]')?.getAttribute('aria-pressed'),
-      on: document.querySelector('#__sve-preview-chrome [data-canvas]')?.classList.contains('sve-sc-on'),
+      pressed: document.querySelector('#__sve-toolbar button[data-tab="site_canvas"]')?.getAttribute('aria-pressed'),
+      on: ((b) => !!b && b.style.background !== '' && b.style.background !== 'transparent')(document.querySelector('#__sve-toolbar button[data-tab="site_canvas"]')),
       src: f?.getAttribute('src'),
       transform: f?.style.transform,
       css: f?.style.cssText,

@@ -44,6 +44,7 @@ class ToolbarPresets
         'theme',
         'xray',
         'design_overlay',
+        'site_canvas',
         'ai',
         'aitext',
         'schema',

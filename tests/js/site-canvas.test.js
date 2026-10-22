@@ -656,25 +656,34 @@ test('closed from the start: nothing is open until a Control Panel asks', () => 
   assert.equal(isSiteCanvasOpen(null), false);
 });
 
-test('no file imports it statically: the button import()s it, and it import()s the overview only to close it', () => {
+test('no file imports it statically: lazy-panels import()s it for the icon, and it import()s the overview only to close it', () => {
   const walk = (dir) => readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
 
     return statSync(path).isDirectory() ? walk(path) : /\.(js|vue)$/.test(name) ? [path] : [];
   });
+  // The module itself, not its facade lazy/site-canvas.js — that one is what the top bar imports.
   const users = walk(JS)
-    .filter((file) => !file.endsWith('site-canvas.js'))
-    .filter((file) => /(?:from\s*|import\(\s*)['"][^'"]*site-canvas\.js['"]/.test(readFileSync(file, 'utf8')))
+    .filter((file) => !file.endsWith('/site-canvas.js'))
+    .filter((file) => /(?:from\s*|import\(\s*)['"](?:\.\.?\/)+site-canvas\.js['"]/.test(readFileSync(file, 'utf8')))
     .map((file) => relative(JS, file));
 
-  assert.deepEqual(users, ['cp-shell/block-order.js']);
+  assert.deepEqual(users, ['lazy-panels.js']);
 
+  const loaders = readFileSync(join(JS, 'lazy-panels.js'), 'utf8');
+
+  assert.ok(!/from\s*['"][^'"]*site-canvas/.test(loaders), 'lazy-panels.js imports it statically');
+  assert.equal((loaders.match(/import\(\s*['"]\.\/site-canvas\.js['"]\s*\)/g) || []).length, 1);
+
+  // The button left the preview chrome: nothing in the bar beside the sizes and zoom knows the canvas.
   const shell = readFileSync(join(JS, 'cp-shell/block-order.js'), 'utf8');
 
-  assert.ok(!/from\s*['"][^'"]*site-canvas/.test(shell), 'block-order.js imports it statically');
-  assert.equal((shell.match(/import\(\s*['"]\.\.\/site-canvas\.js['"]\s*\)/g) || []).length, 1);
+  assert.ok(!/import\([^)]*site-canvas|data-canvas|dataset\.canvas/.test(shell), 'block-order.js still has the canvas button');
 
   const self = readFileSync(join(JS, 'site-canvas.js'), 'utf8');
+
+  assert.ok(!/from\s*['"][^'"]*lp-panel/.test(self), 'site-canvas.js imports the bar to paint its icon; it says so on the bus instead');
+  assert.ok(/emit\(\s*'site-canvas:state'/.test(self), 'site-canvas.js tells the bar when it opens and closes');
 
   assert.ok(!/from\s*['"][^'"]*breakpoint-overview/.test(self), 'site-canvas.js imports the overview statically');
   assert.ok(!/from\s*['"](?:\.\.?\/)+(?:preview|overlay-host|bridge|lp-replay)\.js['"]/.test(self), 'site-canvas.js reaches into the kernel');

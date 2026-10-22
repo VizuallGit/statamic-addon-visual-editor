@@ -41,6 +41,8 @@ import { bardStylesAllowed, openBardStyles } from '../lp-bard-styles.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
 import { isXrayOn, syncXrayToPreview, toggleXray, xrayAllowed } from '../lazy/xray.js';
 import { designAllowed, isDesignOn, syncDesignToPreview, toggleDesignMenu } from '../lazy/design-overlay.js';
+import { isSiteCanvasOpen, siteCanvasAllowed, toggleSiteCanvas } from '../lazy/site-canvas.js';
+import { on } from '../cp/bus.js';
 
 // ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
@@ -435,11 +437,11 @@ export const TOOLBAR_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><circle cx="12" cy="12" r="9"/>' +
     '<line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/></svg>',
+  // Building blocks: the patterns you place on a page.
   sections:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="7" height="7" rx="1"/>' +
-    '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
-    '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="14" y="3" width="7" height="7" rx="1"/>' +
+    '<path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"/></svg>',
   // The bars you sent — nesting, no page frame around them.
   listview:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
@@ -539,6 +541,13 @@ export const TOOLBAR_ICONS = {
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<path d="M3 15V5a2 2 0 0 1 2-2h10"/><rect x="7" y="7" width="14" height="14" rx="2"/>' +
     '<circle cx="11.5" cy="11.5" r="1.25"/><path d="m21 17-3.5-3.5L10 21"/></svg>',
+  // The site canvas: the site's pages as a tree — one above, two below. Not a
+  // grid (patterns, the breakpoint row) and not a frame over a frame (design).
+  site_canvas:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/>' +
+    '<rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/></svg>',
   // The page's blueprint: two stacked field rows.
   blueprint:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -605,6 +614,7 @@ export function ensureHeaderToolbar(win) {
     ensureHtmlTreeToolbarButton(win);
     ensureXrayToolbarButton(win);
     ensureDesignToolbarButton(win);
+    ensureSiteCanvasToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
@@ -1294,14 +1304,20 @@ export function ensureAiTextToolbarButton(win) {
 }
 
 /**
- * The switches that draw over the preview: X-ray (grid, flex, boxes …) and the
- * design overlay (a screenshot of the design laid over the page).
+ * The switches that draw over the preview: X-ray (grid, flex, boxes …), the
+ * design overlay (a screenshot of the design laid over the page) and the site
+ * canvas (every template and page as frames on one surface).
  *
  * Toggles like AI text — nothing docks; what they show is in the preview, over
  * the section being written. Each lives in its own lazy chunk and is reached
- * through its facade in lazy/, so a Live Preview where neither is on loads
- * neither. Every call into them is fenced: whatever goes wrong in one stays in
- * it, and this pass carries on painting the rest of the bar.
+ * through its facade in lazy/, so a Live Preview where none is on loads none.
+ * Every call into them is fenced: whatever goes wrong in one stays in it, and
+ * this pass carries on painting the rest of the bar.
+ *
+ * `sync` is for a switch that is remembered on: it has to follow the preview
+ * (a new document, another page) without a click. The canvas has none — it
+ * is never left open — and says on the bus when it opens and closes instead,
+ * because Escape and a click on a frame close it without the icon.
  */
 const PREVIEW_SWITCHES = {
   xray: {
@@ -1319,7 +1335,21 @@ const PREVIEW_SWITCHES = {
     toggle: toggleDesignMenu,
     sync: syncDesignToPreview,
   },
+  site_canvas: {
+    title: 'site_canvas_button',
+    allowed: siteCanvasAllowed,
+    isOn: isSiteCanvasOpen,
+    toggle: toggleSiteCanvas,
+  },
 };
+
+on('site-canvas:state', ({ win, open } = {}) => {
+  const btn = win?.document?.querySelector(`#${HEADER_TOOLBAR_ID} button[data-tab="site_canvas"]`);
+
+  if (btn) {
+    paintLpActiveControl(btn, !!open);
+  }
+});
 
 function fenced(run) {
   try {
@@ -1335,6 +1365,10 @@ export function ensureXrayToolbarButton(win) {
 
 export function ensureDesignToolbarButton(win) {
   ensurePreviewSwitchButton(win, 'design_overlay');
+}
+
+export function ensureSiteCanvasToolbarButton(win) {
+  ensurePreviewSwitchButton(win, 'site_canvas');
 }
 
 /**
@@ -1379,7 +1413,9 @@ function ensurePreviewSwitchButton(win, key) {
     paintLpActiveControl(btn, !!tool.isOn(win));
   }
 
-  fenced(() => tool.sync(win));
+  if (tool.sync) {
+    fenced(() => tool.sync(win));
+  }
 }
 
 /**
@@ -1841,6 +1877,7 @@ export function applyHeaderTab(win) {
   ensureHtmlTreeToolbarButton(win);
   ensureXrayToolbarButton(win);
   ensureDesignToolbarButton(win);
+  ensureSiteCanvasToolbarButton(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
   const glyph = doc.getElementById(LP_TOGGLE_ID);
@@ -2005,6 +2042,8 @@ export function applyHeaderTab(win) {
             ? !!isXrayOn(win)
           : tab === 'design_overlay'
             ? !!isDesignOn(win)
+          : tab === 'site_canvas'
+            ? !!isSiteCanvasOpen(win)
           : tab === 'schema'
             ? !!isSchemaOpen(win.document)
           : tab === 'globals'

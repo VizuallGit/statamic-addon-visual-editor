@@ -42,6 +42,7 @@ const loaders = {
   ai_text: () => import('./ai-text.js'),
   xray: () => import('./xray.js'),
   design_overlay: () => import('./design-overlay.js'),
+  site_canvas: () => import('./site-canvas.js'),
 };
 
 /**

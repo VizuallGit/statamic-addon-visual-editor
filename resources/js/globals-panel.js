@@ -1225,9 +1225,8 @@ export function ensureSectionLibraryButton(win) {
   btn.title = t(win, 'sections');
   btn.innerHTML =
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="7" height="7" rx="1"/>' +
-    '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
-    '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="14" y="3" width="7" height="7" rx="1"/>' +
+    '<path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"/></svg>';
   btn.style.cssText =
     'height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;cursor:pointer;' +
     'color:currentColor;background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';

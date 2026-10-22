@@ -7,7 +7,7 @@ import { bpBase, bpDevice, bpForDevice, bpFromWidth, bpInherits, breakpoints } f
 import { bindTips, hideTip } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
-import { featureOn, featureSaidOn } from '../lib/config.js';
+import { featureOn } from '../lib/config.js';
 import { LP_CONTROL_H, LP_ICON_BTN_STYLE, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_PREVIEW_CHROME_ID, LP_TOOLBAR_GAP, SITE_CANVAS_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { zoomKey } from '../lib/zoom-keys.js';
@@ -1099,27 +1099,9 @@ export function ensureLpPreviewChrome(win) {
       chrome.appendChild(overview);
     }
 
-    // The site canvas (site-canvas.js, a demo): every template and page as
-    // frames on one surface, a click making one the page being edited. Only
-    // when the settings say so (off by default; the endpoint is the server's,
-    // so a missing key is off). One button and one import() on click; nothing
-    // of the canvas exists until then, and the module paints the button itself.
-    if (featureSaidOn(win, 'site_canvas')) {
-      const canvas = doc.createElement('button');
-
-      canvas.type = 'button';
-      canvas.dataset.canvas = '';
-      canvas.title = t(win, 'site_canvas_button');
-      canvas.setAttribute('aria-pressed', 'false');
-      canvas.innerHTML =
-        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="${LP_ICON_IDLE_OPACITY}"><rect x="2.5" y="4" width="8" height="6" rx="1.25"/><rect x="13.5" y="4" width="8" height="6" rx="1.25"/><rect x="2.5" y="14" width="8" height="6" rx="1.25"/><rect x="13.5" y="14" width="8" height="6" rx="1.25"/></svg>`;
-      canvas.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
-      canvas.addEventListener('click', () => {
-        import('../site-canvas.js').then((m) => m.toggleSiteCanvas(win));
-      });
-
-      chrome.appendChild(canvas);
-    }
+    // The site canvas is not here: its icon stands in the left icon row with
+    // X-ray and the design overlay (cp-shell/header-toolbar.js, through
+    // lazy/site-canvas.js), away from the sizes and the zoom.
 
     const zoom = doc.createElement('div');
 

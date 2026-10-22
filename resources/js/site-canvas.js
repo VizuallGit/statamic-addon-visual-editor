@@ -6,10 +6,12 @@
  * canvas itself edits nothing.
  *
  * Owns one layer over the preview pane (`#__sve-site-canvas`), the frames on
- * it, its zoom and pan. The top-bar button `[data-canvas]`
- * (cp-shell/block-order.js, behind the `site_canvas` feature, off by default)
- * is the only way in: an `import()` on click. No file imports this module
- * statically, and it puts nothing on `window`.
+ * it, its zoom and pan. The top bar's icon `button[data-tab="site_canvas"]`
+ * (cp-shell/header-toolbar.js through lazy/site-canvas.js, behind the
+ * `site_canvas` feature, off by default) is the only way in: lazy-panels.js
+ * `import()`s this module on the click. No file imports it statically, and it
+ * puts nothing on `window`. The icon is the bar's to paint: this module says
+ * `site-canvas:state` on the bus as it opens and closes, and the bar follows.
  *
  * Two groups, laid out by rule, never by hand, each one line: a group's rows
  * are clusters along it, a wider gap between clusters than between frames;
@@ -115,10 +117,10 @@
  * here would drag their Vue surfaces into the pure helpers' Node tests.
  * Nothing from the kernel, nothing from cp-shell/.
  */
-import { ask, register } from './cp/bus.js';
+import { ask, emit, register } from './cp/bus.js';
 import { csrfToken } from './lib/csrf.js';
 import { t } from './lib/i18n.js';
-import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, SITE_CANVAS_ID } from './lib/ids.js';
+import { BP_OVERVIEW_ID, SITE_CANVAS_ID } from './lib/ids.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
@@ -126,7 +128,6 @@ import { zoomKey } from './lib/zoom-keys.js';
 
 export { SITE_CANVAS_ID };
 const STYLE_ID = '__sve-site-canvas-style';
-const ON_CLASS = 'sve-sc-on';
 
 /** The endpoint the list comes from, and the one the pages' columns go back to as a frame is dropped. */
 export const ENDPOINT = '/!/sve/site-canvas';
@@ -709,7 +710,7 @@ export function openSiteCanvas(win) {
   try {
     build(win, host);
     bind(win, view);
-    paintButton(win, true);
+    tellBar(win, true);
   } catch (error) {
     teardown(win);
 
@@ -775,7 +776,7 @@ function teardown(win) {
 
   state.layer?.remove();
   state.styles.forEach((style) => style.remove());
-  paintButton(owner, false);
+  tellBar(owner, false);
   Object.assign(canvasState, emptyState(), { generation: state.generation });
 }
 
@@ -892,8 +893,6 @@ ${L} .sve-sc-zoom button { display: inline-flex; align-items: center; justify-co
 ${L} .sve-sc-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-sc-zoom button:disabled { opacity: .4; cursor: default; }
 ${L} .sve-sc-zoom [data-sc-zoom="label"] { min-width: 3rem; font-variant-numeric: tabular-nums; }
-#${LP_PREVIEW_CHROME_ID} [data-canvas].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
-#${LP_PREVIEW_CHROME_ID} [data-canvas].${ON_CLASS} svg { opacity: 1; }
 `;
 }
 
@@ -1586,21 +1585,11 @@ function openEntry(win, frame) {
 
 // --- Paint ---------------------------------------------------------------------------
 
-/** The top-bar button says whether the canvas is open. Compared before written. */
-function paintButton(win, on) {
-  const btn = win?.document?.getElementById(LP_PREVIEW_CHROME_ID)?.querySelector('[data-canvas]');
-
-  if (!btn) {
-    return;
-  }
-
-  const pressed = on ? 'true' : 'false';
-
-  if (btn.getAttribute('aria-pressed') !== pressed) {
-    btn.setAttribute('aria-pressed', pressed);
-  }
-
-  if (btn.classList.contains(ON_CLASS) !== on) {
-    btn.classList.toggle(ON_CLASS, on);
-  }
+/**
+ * The top bar's icon says whether the canvas is open. Told on the bus and
+ * painted by the bar (cp-shell/header-toolbar.js): the icon is the bar's, and
+ * this module imports nothing of it.
+ */
+function tellBar(win, open) {
+  emit('site-canvas:state', { win, open });
 }
