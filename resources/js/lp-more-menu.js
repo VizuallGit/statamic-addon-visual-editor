@@ -16,7 +16,7 @@ import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templat
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
-import { HEADER_SURFACE, LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM } from './lib/ids.js';
+import { HEADER_SURFACE, LP_BACK_ID, LP_CHROME_H, LP_PUBLISH_ID, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM } from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { featureOn } from './lib/config.js';
@@ -805,10 +805,10 @@ export function ensureLpMoreButton(win) {
   pill.style.marginLeft = '0';
   pill.style.marginRight = '0';
 
-  // Last in the row: Close, then Reload, then this. Anchored on whichever of
-  // the two is actually there, so the order holds if reload is ever absent.
-  //
-  const anchor = doc.getElementById(LP_RELOAD_ID) || back;
+  // Last in the row: Close, Reload, Publish static, then this — the same
+  // anchor syncLpRightBarGaps uses. Anchoring on Reload while the gap-sync
+  // anchored on Publish moved this pill twice per layout pass.
+  const anchor = doc.getElementById(LP_PUBLISH_ID) || doc.getElementById(LP_RELOAD_ID) || back;
 
   if (pill.parentElement !== anchor.parentElement || pill.previousElementSibling !== anchor) {
     anchor.after(pill);

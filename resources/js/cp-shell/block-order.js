@@ -1233,30 +1233,13 @@ export function ensureLpPreviewChrome(win) {
   // above, so put back on every pass; the helper does nothing when it is there.
   ensureBreakpointAddButton(win, devicesEl);
 
-  // Place devices+zoom on the RIGHT — where Statamic's device <Select…> sat —
-  // immediately before Save & Publish. Never move the node when it's already
-  // there (Node.after on every observer pass freezes Live Preview).
-  const wantParent = header;
-  let anchor = null;
-
-  wantParent.querySelectorAll('button').forEach((btn) => {
-    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
-
-    if (/save\s*&\s*publish|gem\s*&\s*public|save\s*and\s*publish|gem og public/i.test(text)) {
-      anchor = btn;
-    }
-  });
-
-  // Prefer anchoring next to the save button's cluster so chrome sits left of it.
-  const cluster = anchor?.parentElement;
-
-  if (cluster && cluster !== header) {
-    if (chrome.parentElement !== cluster || chrome.nextElementSibling !== anchor) {
-      cluster.insertBefore(chrome, anchor);
-    }
-  } else if (anchor && chrome.nextElementSibling !== anchor) {
-    header.insertBefore(chrome, anchor);
-  } else if (chrome.parentElement !== header) {
+  // The chrome only has to be IN the header here; where it stands is
+  // syncLpRightBarGaps' call (before Save, in Save's cluster), and that runs
+  // just below. Looking for the save button a second time from here put the
+  // node at the header's end and the gap-sync moved it back — once a second,
+  // on every pass. A node that leaves the DOM loses its hover, so the «+»
+  // faded in again and the tooltips redrew while the pointer stood still.
+  if (!chrome.isConnected) {
     header.appendChild(chrome);
   }
 
