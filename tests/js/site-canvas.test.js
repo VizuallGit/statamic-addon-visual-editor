@@ -489,10 +489,10 @@ test('fit puts the whole sheet in the view with the margin clear, and never past
 });
 
 test('the canvas opens at 50 %: a step on the ladder, within the clamp, a frame 720 px wide on screen', () => {
-  assert.equal(ZOOM_DEFAULT, 0.5);
+  assert.equal(ZOOM_DEFAULT, 0.25);
   assert.equal(clampZoom(ZOOM_DEFAULT), ZOOM_DEFAULT);
   assert.equal(stepZoom(stepZoom(ZOOM_DEFAULT, 1), -1), ZOOM_DEFAULT, 'up a step and down again lands on it: it is on the ladder');
-  assert.equal(FRAME.width * ZOOM_DEFAULT, 720);
+  assert.equal(FRAME.width * ZOOM_DEFAULT, 360);
 });
 
 test('the zoom is clamped and steps along the ladder', () => {

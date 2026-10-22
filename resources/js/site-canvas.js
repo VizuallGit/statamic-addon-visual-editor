@@ -44,7 +44,7 @@
  * in the room beside it); the bar's − and + and the plain `+`/`-` keys
  * (lib/zoom-keys.js, shared with the preview's own zoom) step the ladder
  * round the view's middle; the room follows the pane's size. It opens at
- * ZOOM_DEFAULT (50 %), the sheet's top-left corner a margin in from the
+ * ZOOM_DEFAULT (25 %), the sheet's top-left corner a margin in from the
  * view's (in the middle, on an axis the sheet fits on); «Fit all» zooms the
  * whole sheet into the view. The scrollbars are not drawn: the room would
  * make them say "more" at every zoom.
@@ -155,8 +155,8 @@ export const ZOOM_MIN = 0.03;
 export const ZOOM_MAX = 1;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1];
 
-/** The zoom the canvas opens at: a step on the ladder, pages readable, two or three to a view. */
-export const ZOOM_DEFAULT = 0.5;
+/** The zoom the canvas opens at: a step on the ladder, the site's shape in one view. */
+export const ZOOM_DEFAULT = 0.25;
 
 /** Screen pixels kept clear round the sheet when it is fitted to the view. */
 export const FIT_MARGIN_PX = 24;
