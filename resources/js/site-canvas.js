@@ -354,11 +354,10 @@ export function dropIndicator(target, columns, items, draggedId, band, z, option
  *
  * `clusters`: on a line of several rows, the box each row takes — its
  * heading, its labels and its frames, from the line's top to its bottom,
- * so the boxes stand level and equally tall — for the plate drawn behind
- * it, which is what shows the row's frames belong together. A group of one
- * row has none: its heading says it all. The room the plate takes round the
- * box is the plate's own (CSS), bounded by half a frame gap so it never
- * reaches a neighbour.
+ * so the boxes stand level and equally tall. A divider is drawn midway in
+ * the row gap before every box but the line's first (`first`), which is
+ * what shows where one row's frames end and the next's begin. A group of
+ * one row has none: its heading says it all.
  */
 export function canvasLayout(groups, z, options = {}) {
   const {
@@ -410,7 +409,7 @@ export function canvasLayout(groups, z, options = {}) {
 
       if (headed) {
         headings.push({ kind: 'row', key, title: row.title, x, y, height: rowHead / scale });
-        clusters.push({ key, x: left, y: lineTop, width: 0, height: 0 }); // width and height once the line is laid
+        clusters.push({ key, x: left, y: lineTop, width: 0, height: 0, first: ri === 0 }); // width and height once the line is laid
       }
 
       row.columns.forEach((column, ci) => {
@@ -895,8 +894,9 @@ ${L} .sve-sc-sizer { position: relative; }
 ${L} .sve-sc-sheet { --z: 1; position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 ${L} .sve-sc-head { position: absolute; white-space: nowrap; line-height: 1.2; pointer-events: none; }
 ${L} .sve-sc-head[data-kind="group"] { font-size: calc(1.125rem / var(--z)); font-weight: 600; }
-${L} .sve-sc-head[data-kind="row"] { font-size: calc(.8125rem / var(--z)); font-weight: 600; opacity: .8; }
-${L} .sve-sc-plate { --inset: min(calc(.75rem / var(--z)), ${GAP / 2}px); position: absolute; box-sizing: content-box; padding: var(--inset); margin: calc(-1 * var(--inset)); border-radius: max(var(--inset), calc(.25rem / var(--z))); background: color-mix(in oklab, var(--sve-sc-fg) 4%, transparent); box-shadow: 0 0 0 calc(1px / var(--z)) color-mix(in oklab, var(--sve-sc-fg) 10%, transparent); pointer-events: none; }
+${L} .sve-sc-head[data-kind="row"] { font-size: calc(.8125rem / var(--z)); font-weight: 500; opacity: .7; }
+${L} .sve-sc-plate { position: absolute; pointer-events: none; }
+${L} .sve-sc-plate:not([data-first])::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-${ROW_GAP / 2}px - .5px / var(--z)); width: calc(1px / var(--z)); background: color-mix(in oklab, var(--sve-sc-fg) 18%, transparent); }
 ${L} .sve-sc-item { position: absolute; }
 ${L} .sve-sc-label { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: calc(.375rem / var(--z)); display: flex; align-items: baseline; gap: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: none; }
 ${L} .sve-sc-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -957,11 +957,16 @@ function populate(win, groups) {
 
   const at1 = canvasLayout(groups, 1);
 
-  // Behind everything else on the sheet: the plate that shows a row's frames belong together.
+  // Behind everything else on the sheet: a box per row of a line of several, with a divider before every box but the first.
   for (const cluster of at1.clusters) {
     const el = make(doc, 'div', 'sve-sc-plate');
 
     el.dataset.key = cluster.key;
+
+    if (cluster.first) {
+      el.dataset.first = '';
+    }
+
     sheet.appendChild(el);
     canvasState.plates.set(cluster.key, el);
   }

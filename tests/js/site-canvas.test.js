@@ -344,6 +344,7 @@ test('a cluster box behind each row of a line of several rows — its heading, l
     const templates = headings.find((heading) => heading.kind === 'group' && heading.key === 'templates');
 
     assert.deepEqual(clusters.map((cluster) => cluster.key), ['templates/services', 'templates/pages', 'templates/site'], `zoom ${z}: one box per row of the templates line, none for the pages`);
+    assert.deepEqual(clusters.map((cluster) => cluster.first), [true, false, false], 'the line’s first box is marked: no divider before it');
 
     const [services, pages, sitet] = clusters;
 
