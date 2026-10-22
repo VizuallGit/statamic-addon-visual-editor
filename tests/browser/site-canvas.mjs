@@ -294,7 +294,8 @@ let endpointCalls = 0;
 page.on('request', (req) => {
   const m = req.url().match(/\/(?:vendor\/visual-editor\/build|!\/sve\/build)\/assets\/([^?#]+)/);
   if (m) loadedAssets.add(m[1]);
-  if (req.url().replace(SITE_URL, '').split('?')[0] === ENDPOINT) endpointCalls++;
+  // The run's own look at the list (marked) is not the canvas asking.
+  if (req.url().replace(SITE_URL, '').split('?')[0] === ENDPOINT && req.headers()['x-sve-test'] !== 'probe') endpointCalls++;
 });
 const chunkLoaded = () => [...loadedAssets].filter((f) => /^site-canvas-/.test(f));
 // Which scripts each canvas frame's document loaded, by the frame that asked.
@@ -451,7 +452,8 @@ try {
     payload = payloadFromCheckout();
     info('list from this checkout’s controller', `${SSH ? `over ssh on ${SSH}` : 'in PHP here'}, ${Date.now() - t} ms`);
   } else {
-    payload = await cp.evaluate(async (url) => (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json(), ENDPOINT);
+    // The real endpoint, looked at once by the run (marked, so it is not counted as the canvas asking). Each call mints new tokens.
+    payload = await cp.evaluate(async (url) => (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-SVE-Test': 'probe' } })).json(), ENDPOINT);
   }
   const frames = payloadFrames(payload);
   const groups = payload?.groups || [];
@@ -572,9 +574,11 @@ try {
   step('every frame in view has a src (the open fits them all in), each with sve_view=canvas, no two alike', srcs.every((s) => s && new URL(s).searchParams.get('sve_view') === 'canvas') && new Set(srcs).size === srcs.length, `${srcs.length} URLs`);
   const currentItem = shape1.items.find((it) => it.current);
   const stripFlag = (u) => { const url = new URL(u); url.searchParams.delete('sve_view'); return url.toString(); };
+  // The real endpoint mints a token (and Statamic's live-preview nonce) anew on every call, so the canvas's answer and the run's probe agree on everything but those.
+  const sameTarget = (a, b) => { const x = new URL(a); const y = new URL(b); for (const k of ['token', 'live-preview']) { x.searchParams.delete(k); y.searchParams.delete(k); } return x.toString() === y.toString(); };
   const currentFromPreview = !!currentItem && !!mainSrc && mainSrc !== 'about:blank' && new URL(currentItem.src).searchParams.get('token') === new URL(mainSrc, SITE_URL).searchParams.get('token');
   step('the current frame loads the preview’s own URL (same token as the preview iframe), flagged', currentFromPreview, `canvas …${currentItem?.src.slice(-70)} | preview …${mainSrc.slice(-70)}`);
-  step('every other frame loads the endpoint’s URL for that entry, flagged', shape1.items.filter((it) => !it.current).every((it) => stripFlag(it.src) === new URL(byId.get(it.id).preview).toString()));
+  step('every other frame loads the endpoint’s URL for that entry, flagged, with a token', shape1.items.filter((it) => !it.current).every((it) => (SEAM ? stripFlag(it.src) === new URL(byId.get(it.id).preview).toString() : sameTarget(stripFlag(it.src), byId.get(it.id).preview) && /[?&]token=\w+/.test(it.src))));
 
   // 7. Inside the frames: a desktop viewport of the page's top, mirror.js alone, no bridge, nothing to click.
   const inside = [];
