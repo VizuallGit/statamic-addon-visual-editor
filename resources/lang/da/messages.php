@@ -704,6 +704,8 @@ return [
     'site_canvas_fit' => 'Vis alt',
     'site_canvas_empty' => 'Ingen sider eller skabeloner at vise',
     'site_canvas_failed' => 'Lærredet kunne ikke hentes',
+    'site_canvas_drag' => 'Åbn :title til redigering — træk for at flytte den',
+    'site_canvas_arrange_failed' => 'Opstillingen kunne ikke gemmes',
     'back_save_and_leave' => 'Gem og gå tilbage',
     'back_save_and_close' => 'Gem og luk',
     'back_save_publish_and_leave' => 'Gem, publicér og gå tilbage',

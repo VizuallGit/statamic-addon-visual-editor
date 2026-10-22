@@ -318,9 +318,11 @@ final class EditorRoutes
             Route::get('/!/sve/layout-pattern-preview', [LayoutPatternsController::class, 'preview'])
                 ->name('sve.layout-patterns.preview');
 
-            // The site canvas's frames: templates and pages, grouped, with their preview URLs.
-            Route::get('/!/sve/site-canvas', SiteCanvasController::class)
+            // The site canvas's frames: templates and pages, grouped, with their preview URLs; and the pages' columns as an editor drags them.
+            Route::get('/!/sve/site-canvas', [SiteCanvasController::class, 'index'])
                 ->name('sve.site-canvas');
+            Route::post('/!/sve/site-canvas/arrangement', [SiteCanvasController::class, 'arrange'])
+                ->name('sve.site-canvas.arrange');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)

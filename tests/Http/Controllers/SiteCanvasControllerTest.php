@@ -86,6 +86,7 @@ class SiteCanvasControllerTest extends TestCase
         }
 
         @rmdir(resource_path('views/site_canvas_services'));
+        File::deleteDirectory(storage_path('statamic-visual-editor/site-canvas'));
         User::findByEmail('site-canvas@example.com')?->delete();
         Features::flush();
 
@@ -98,6 +99,18 @@ class SiteCanvasControllerTest extends TestCase
         $entry->save();
 
         return $this->ids[] = $entry->id();
+    }
+
+    /** The titles of a row, column by column. */
+    protected static function titles(array $row): array
+    {
+        return array_map(fn ($column) => array_column($column, 'title'), $row['columns']);
+    }
+
+    /** The pages row's columns as the canvas gets them now. */
+    protected function pageColumns(): array
+    {
+        return $this->getJson('/!/sve/site-canvas')->assertOk()->json('groups.1.rows.0.columns');
     }
 
     public function test_a_guest_gets_nothing(): void
@@ -125,32 +138,58 @@ class SiteCanvasControllerTest extends TestCase
 
         $this->assertSame(['Services', 'Site'], array_column($rows, 'title'));
         $this->assertSame([self::SERVICES, 'site'], array_column($rows, 'key'));
-        // Index before show; the ghost (no view file) is nowhere.
-        $this->assertSame(['Services index', 'Services show'], array_column($rows[0]['frames'], 'title'));
-        $this->assertSame(['Layout'], array_column($rows[1]['frames'], 'title'));
+        // Index before show, one frame per column; the ghost (no view file) is nowhere.
+        $this->assertSame([['Services index'], ['Services show']], self::titles($rows[0]));
+        $this->assertSame([['Layout']], self::titles($rows[1]));
+        // Templates stay where they are.
+        $this->assertFalse($groups[0]['arrange']);
 
         $pages = $groups[1]['rows'];
 
         $this->assertCount(1, $pages);
         $this->assertSame(self::PAGES, $pages[0]['key']);
-        // No tree: by title.
-        $this->assertSame(['About us', 'Home'], array_column($pages[0]['frames'], 'title'));
+        // No tree: by title. Nothing saved: one page per column.
+        $this->assertSame([['About us'], ['Home']], self::titles($pages[0]));
+        $this->assertTrue($groups[1]['arrange']);
     }
 
     public function test_an_entry_of_another_collection_is_in_no_group(): void
     {
         $titles = collect($this->getJson('/!/sve/site-canvas')->json('groups'))
-            ->flatMap(fn ($group) => collect($group['rows'])->flatMap(fn ($row) => array_column($row['frames'], 'title')))
+            ->flatMap(fn ($group) => collect($group['rows'])->flatMap(fn ($row) => array_merge(...self::titles($row))))
             ->all();
 
         $this->assertNotContains('Cleaning', $titles);
         $this->assertNotContains('Ghost', $titles);
     }
 
+    public function test_the_pages_are_arranged_as_saved_and_a_save_answers_with_the_arrangement(): void
+    {
+        [$about, $home] = array_map(fn ($column) => $column[0]['id'], $this->pageColumns());
+
+        $this->postJson('/!/sve/site-canvas/arrangement', ['columns' => [[$home, $about]]])
+            ->assertOk()
+            ->assertExactJson(['columns' => [[$home, $about]]]);
+
+        // Home first, About us under it — and the file is the site's.
+        $this->assertSame([['Home', 'About us']], self::titles(['columns' => $this->pageColumns()]));
+        $this->assertFileExists(storage_path('statamic-visual-editor/site-canvas/default.yaml'));
+
+        // Something that is not a page is not kept; a page left out comes back at the end.
+        $this->postJson('/!/sve/site-canvas/arrangement', ['columns' => [['nowhere'], [$about]]])
+            ->assertOk()
+            ->assertExactJson(['columns' => [[$about], [$home]]]);
+
+        $this->postJson('/!/sve/site-canvas/arrangement', ['columns' => 'home'])->assertUnprocessable();
+
+        auth()->logout();
+        $this->postJson('/!/sve/site-canvas/arrangement', ['columns' => []])->assertStatus(403);
+    }
+
     public function test_a_frame_carries_the_live_preview_url_statamic_would_open_and_the_edit_url(): void
     {
         $groups = $this->getJson('/!/sve/site-canvas')->assertOk()->json('groups');
-        $home = collect($groups[1]['rows'][0]['frames'])->firstWhere('title', 'Home');
+        $home = collect($groups[1]['rows'][0]['columns'])->flatten(1)->firstWhere('title', 'Home');
         $entry = Entry::find($home['id']);
 
         $this->assertSame($entry->editUrl(), $home['edit']);
@@ -170,7 +209,7 @@ class SiteCanvasControllerTest extends TestCase
         $this->assertSame($entry->id(), LivePreview::item($token)?->id());
 
         // A template's URL is its own preview target, under a token of its own.
-        $show = collect($groups[0]['rows'][0]['frames'])->firstWhere('title', 'Services show');
+        $show = collect($groups[0]['rows'][0]['columns'])->flatten(1)->firstWhere('title', 'Services show');
 
         $this->assertStringContainsString('/!/sve/collection-view-preview/'.$show['id'], $show['preview']);
         $this->assertStringContainsString('token=', $show['preview']);

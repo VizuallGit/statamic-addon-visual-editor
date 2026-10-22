@@ -707,6 +707,8 @@ return [
     'site_canvas_fit' => 'Fit all',
     'site_canvas_empty' => 'No pages or templates to show',
     'site_canvas_failed' => 'The canvas could not be loaded',
+    'site_canvas_drag' => 'Open :title for editing — drag to move it',
+    'site_canvas_arrange_failed' => 'The arrangement could not be saved',
     'back_save_and_leave' => 'Save and go back',
     'back_save_and_close' => 'Save and close',
     'back_save_publish_and_leave' => 'Save, publish and go back',

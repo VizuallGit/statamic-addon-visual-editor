@@ -11,22 +11,29 @@
  * is the only way in: an `import()` on click. No file imports this module
  * statically, and it puts nothing on `window`.
  *
- * Two groups, laid out by rule, never by hand, each one line of frames: the
- * templates store's rows as clusters along the first — the collection they
- * draw (index and show for Services, say), the site's own views (layout, the
- * default page) last — a wider gap between clusters than between frames, each
- * cluster headed with its collection's name; and the pages collection's
- * entries in the order of their tree along the second, under one heading (a
- * group of one row is headed once). What stands in them comes from one place, the
- * `/!/sve/site-canvas` endpoint (SiteCanvasController): id, title, the Live
- * Preview URL to show and the edit URL to go to. Nothing is scraped from the
- * Control Panel. The answer is kept for the life of this Control Panel page —
- * a click on a frame boots a new one — so a second open draws at once. The
- * frame of the entry being edited takes the preview's own last URL
- * (`lp:lastPreviewUrl`) instead of the endpoint's, every time the canvas
- * opens: it shows the page as the preview shows it, unsaved edits and all,
- * and is the one frame that changes between two opens. The others keep the
- * URL they were given.
+ * Two groups, laid out by rule, never by hand, each one line: a group's rows
+ * are clusters along it, a wider gap between clusters than between frames;
+ * a row's columns stand side by side, each a stack of frames. The templates
+ * store's rows make the first line — the collection they draw (index and
+ * show for Services, say), the site's own views (layout, the default page)
+ * last — each cluster headed with its collection's name, one template a
+ * column. The pages collection's entries make the second, under one heading
+ * (a group of one row is headed once): its columns are the editors' own
+ * arrangement over the order of the tree — a page dragged into another's
+ * column stands under it; dragged out between two columns it starts one of
+ * its own (one page a column until someone moves one). That group is marked
+ * `arrange` by the endpoint, and only its frames can be picked up; a frame
+ * can be dropped on its own line only, never among the templates. The
+ * columns are posted back as they are dropped, and kept for the site. What
+ * stands in the groups comes from one place, the `/!/sve/site-canvas`
+ * endpoint (SiteCanvasController): id, title, the Live Preview URL to show
+ * and the edit URL to go to. Nothing is scraped from the Control Panel. The
+ * answer is kept for the life of this Control Panel page — a click on a
+ * frame boots a new one — so a second open draws at once. The frame of the
+ * entry being edited takes the preview's own last URL (`lp:lastPreviewUrl`)
+ * instead of the endpoint's, every time the canvas opens: it shows the page
+ * as the preview shows it, unsaved edits and all, and is the one frame that
+ * changes between two opens. The others keep the URL they were given.
  *
  * The sheet (one transform, `scale(z)`) lies in a scroll box with a view's
  * width and height of room round it on every side, so every pan is a scroll
@@ -40,12 +47,23 @@
  * whole sheet into the view. The scrollbars are not drawn: the room would
  * make them say "more" at every zoom.
  *
+ * A drag on a page's frame — past DRAG_PX, on a group marked `arrange` —
+ * picks the frame up: the sheet is laid out again without it as the
+ * pointer moves, its drop line drawn where it would land (dropTarget: into
+ * a column, above or below the frame under the pointer; or between two
+ * columns, a new one), and the pan stands still meanwhile. Dropped, the
+ * columns change (moveFrame), the sheet is laid out again, the columns are
+ * posted to `/!/sve/site-canvas/arrangement`; the answer — the server's
+ * columns over the pages as they are — is what is kept. A drag let go off
+ * the line, or cancelled, puts the frame back. A drag that did not pick
+ * anything up pans, as every drag did.
+ *
  * Every frame is an iframe a desktop viewport wide (FRAME.width, 1440 CSS
  * pixels) and as tall as its page: its document's scrollHeight as its `load`
  * fires, never under FRAME.minHeight, which is also its height until then —
  * so a page is measured in a frame of the minimum height, where a body with
  * a viewport-high floor cannot report a height it was given — scaled down
- * with the sheet's one transform. A line of frames is as tall as its tallest.
+ * with the sheet's one transform. A line is as tall as its tallest column.
  * As a page's height comes in, the sheet is laid out again at the zoom it
  * has, the view left where it is — the frames below the page move down, and
  * those then near the view load — unless «Fit all» was the last thing to
@@ -61,6 +79,18 @@
  * fires): every frame is a Live Preview render on the server, and the
  * preview being edited keeps its share of the server's workers. The rest
  * are empty shells until their turn, and keep their page once they have it.
+ *
+ * A drag on a frame of the `arrange` group — a pointer that moves past the
+ * click threshold on it, where the same movement on anything else pans —
+ * lifts it: the frame follows the pointer (a translate on its element; the
+ * sheet is not laid out again meanwhile), and a bar on the sheet says where
+ * it would land (dropTarget: the middle of a column is "into it, above or
+ * below the frames there", the edges and the gaps "a new column here";
+ * anywhere above its group's heading is nowhere, and the frame goes back).
+ * Dropped, the columns are the one thing that changes (moveFrame), the sheet
+ * is laid out again (the fit made again if «Fit all» stood), and the columns
+ * are posted; an answer that is not ok puts the columns back and says so.
+ * Escape during a drag puts the frame back and keeps the canvas.
  *
  * Closed, it costs nothing but the button. Everything open binds — listeners,
  * the ResizeObserver, the one animation frame — is a function in
@@ -86,6 +116,7 @@
  * Nothing from the kernel, nothing from cp-shell/.
  */
 import { ask, register } from './cp/bus.js';
+import { csrfToken } from './lib/csrf.js';
 import { t } from './lib/i18n.js';
 import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, SITE_CANVAS_ID } from './lib/ids.js';
 import { currentEntryId } from './lib/live-preview.js';
@@ -97,8 +128,9 @@ export { SITE_CANVAS_ID };
 const STYLE_ID = '__sve-site-canvas-style';
 const ON_CLASS = 'sve-sc-on';
 
-/** The endpoint the list comes from. */
+/** The endpoint the list comes from, and the one the pages' columns go back to as a frame is dropped. */
 export const ENDPOINT = '/!/sve/site-canvas';
+export const ARRANGE_ENDPOINT = '/!/sve/site-canvas/arrangement';
 
 /** The query flag InjectBridgeScript reads (mirror.js, no bridge), and the value that names these frames. */
 export const VIEW_FLAG = 'sve_view';
@@ -134,13 +166,20 @@ export const LOAD_MARGIN_PX = 200;
 /** Frames loading at once: each is a page the server renders, and the preview's own requests must not queue behind them. */
 export const LOAD_AT_ONCE = 4;
 
+/** Of a column's width, the share at each edge where a dragged frame means "a new column beside this one" rather than "into it". */
+export const DROP_EDGE = 0.15;
+
+/** Screen pixels: the bar that says where a dragged frame would land. */
+export const DROP_BAR_PX = 4;
+
 // --- Pure helpers (tests/js/site-canvas.test.js) ------------------------------------
 
 /**
  * The endpoint's answer as the groups the canvas draws: `{ key, title,
- * rows: [{ key, title, frames: [{ id, title, preview, edit }] }] }`. A frame
- * without an id, a preview URL or an edit URL is left out, and a row or
- * group left empty by that goes with it.
+ * arrange, rows: [{ key, title, columns: [[{ id, title, preview, edit }]] }] }`.
+ * A frame without an id, a preview URL or an edit URL is left out, and a
+ * column, row or group left empty by that goes with it. `arrange` is true
+ * only where the endpoint says so.
  */
 export function canvasGroups(payload) {
   const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -149,45 +188,168 @@ export function canvasGroups(payload) {
     .map((group) => ({
       key: String(group?.key || ''),
       title: String(group?.title || ''),
+      arrange: group?.arrange === true,
       rows: (Array.isArray(group?.rows) ? group.rows : [])
         .map((row) => ({
           key: String(row?.key || ''),
           title: String(row?.title || ''),
-          frames: (Array.isArray(row?.frames) ? row.frames : [])
-            .filter((frame) => frame && frame.id && frame.preview && frame.edit)
-            .map((frame) => ({
-              id: String(frame.id),
-              title: String(frame.title || frame.id),
-              preview: String(frame.preview),
-              edit: String(frame.edit),
-            })),
+          columns: (Array.isArray(row?.columns) ? row.columns : [])
+            .map((column) =>
+              (Array.isArray(column) ? column : [])
+                .filter((frame) => frame && frame.id && frame.preview && frame.edit)
+                .map((frame) => ({
+                  id: String(frame.id),
+                  title: String(frame.title || frame.id),
+                  preview: String(frame.preview),
+                  edit: String(frame.edit),
+                }))
+            )
+            .filter((column) => column.length > 0),
         }))
-        .filter((row) => row.frames.length > 0),
+        .filter((row) => row.columns.length > 0),
     }))
     .filter((group) => group.key && group.rows.length > 0);
 }
 
-/** Every frame of every group, in drawing order. */
+/** Every frame of every group, in drawing order: along a line, each column top to bottom. */
 export function canvasFrames(groups) {
-  return groups.flatMap((group) => group.rows.flatMap((row) => row.frames));
+  return groups.flatMap((group) => group.rows.flatMap((row) => row.columns.flat()));
+}
+
+/** A row's columns as ids. */
+export function columnIds(row) {
+  return row.columns.map((column) => column.map((frame) => frame.id));
+}
+
+/**
+ * `columns` (ids) with `id` moved to `target`: into column `target.column`
+ * at `target.row` — counted among that column's frames other than `id` —
+ * or into a new column of its own at `target.newColumn`, counted among the
+ * columns as they stand. A column left empty goes. The same columns back
+ * for an id not in them or no target.
+ */
+export function moveFrame(columns, id, target) {
+  if (!target || !columns.some((column) => column.includes(id))) {
+    return columns;
+  }
+
+  const next = columns.map((column) => column.filter((other) => other !== id));
+
+  if (Number.isInteger(target.column) && next[target.column]) {
+    const column = [...next[target.column]];
+
+    column.splice(Math.max(0, Math.min(column.length, target.row ?? column.length)), 0, id);
+    next[target.column] = column;
+  } else if (Number.isInteger(target.newColumn)) {
+    next.splice(Math.max(0, Math.min(next.length, target.newColumn)), 0, [id]);
+  } else {
+    return columns;
+  }
+
+  return next.filter((column) => column.length > 0);
+}
+
+/** Two sets of columns say the same thing. */
+export function sameColumns(a, b) {
+  return a.length === b.length && a.every((column, i) => column.length === b[i].length && column.every((id, j) => id === b[i][j]));
+}
+
+/**
+ * Where a frame held at `point` (sheet pixels) would land among `columns`
+ * (ids), read off `items` (canvasLayout's, for where the columns stand):
+ * over the middle of a column — its width less `edge` of it at each side —
+ * it goes into that column, above the frames there whose middle is below
+ * the point and below the rest (`draggedId` not counted: it is the one
+ * moving); anywhere else it starts a new column, after every column whose
+ * middle is left of the point. The templates' line, or anything else off
+ * the group, is the caller's to rule out.
+ */
+export function dropTarget(columns, items, point, draggedId, options = {}) {
+  const { frame = FRAME, edge = DROP_EDGE } = options;
+  const at = new Map(items.map((item) => [item.id, item]));
+  const lefts = columns.map((column) => at.get(column[0])?.x ?? 0);
+  const into = lefts.findIndex((left) => point.x >= left + frame.width * edge && point.x <= left + frame.width * (1 - edge));
+
+  if (into >= 0) {
+    const others = columns[into].filter((id) => id !== draggedId);
+    const row = others.filter((id) => {
+      const item = at.get(id);
+
+      return item && item.y + item.height / 2 < point.y;
+    }).length;
+
+    return { column: into, row };
+  }
+
+  return { newColumn: lefts.filter((left) => left + frame.width / 2 < point.x).length };
+}
+
+/**
+ * The bar that shows `target` on the sheet, in sheet pixels: across a
+ * column, midway in the gap above the frame the dragged one would stand
+ * over (above the first's label for the top; under the last for the
+ * bottom; where the dragged frame itself stands, for a column it would
+ * leave empty); or down the line — `band.top` to `band.bottom` — midway in
+ * the gap where a new column would open. `bar` screen pixels thick, so it
+ * is `bar / z` on the sheet.
+ */
+export function dropIndicator(target, columns, items, draggedId, band, z, options = {}) {
+  const { frame = FRAME, gap = GAP, label = LABEL_PX, bar = DROP_BAR_PX } = options;
+  const scale = z > 0 ? z : 1;
+  const thick = bar / scale;
+  const at = new Map(items.map((item) => [item.id, item]));
+
+  if (Number.isInteger(target?.column) && columns[target.column]) {
+    const column = columns[target.column];
+    const others = column.filter((id) => id !== draggedId);
+    const left = at.get(column[0])?.x ?? 0;
+    let y;
+
+    if (others.length === 0) {
+      y = (at.get(draggedId)?.y ?? 0) - label / scale - gap / 2;
+    } else if (target.row < others.length) {
+      y = at.get(others[target.row]).y - label / scale - gap / 2;
+    } else {
+      const last = at.get(others[others.length - 1]);
+
+      y = last.y + last.height + gap / 2;
+    }
+
+    return { x: left, y: y - thick / 2, width: frame.width, height: thick };
+  }
+
+  if (Number.isInteger(target?.newColumn)) {
+    const lefts = columns.map((column) => at.get(column[0])?.x ?? 0);
+    const x = target.newColumn < lefts.length ? lefts[target.newColumn] - gap / 2 : lefts[lefts.length - 1] + frame.width + gap / 2;
+
+    return { x: x - thick / 2, y: band.top, width: thick, height: Math.max(0, band.bottom - band.top) };
+  }
+
+  return null;
 }
 
 /**
  * Where everything stands on the sheet at zoom `z`, in sheet pixels — the
  * sheet div's own, before its transform. Frames are `frame.width` wide and
  * as tall as `heights` says of each (id → CSS pixels), `frame.minHeight`
- * for one it does not name. Each group is one line of frames, as tall as its
- * tallest: its rows stand along it in order, `gap` between a row's frames
- * and `rowGap` between one row and the next, so the rows read as clusters;
- * the groups stand under one another, `groupGap` apart. A group's heading
- * stands over its line; each row's over its first frame — unless the group
- * has one row only, which its own heading names (a group of one row is
- * headed once). The sheet is as wide as its widest line. Headings and
- * labels keep their screen size at every zoom, so the room they take on the
- * sheet is their pixels over `z`; `metrics` splits the sheet's height into
- * the part that scales (`fixedHeight`, sheet pixels) and the part that does
- * not (`screenHeight`, screen pixels), so that fitZoom can solve for `z` in
- * one step: height(z) = fixedHeight + screenHeight / z.
+ * for one it does not name. Each group is one line: its rows stand along it
+ * in order, `rowGap` between one row and the next, so the rows read as
+ * clusters; a row's columns stand `gap` apart, and a column's frames stack
+ * top to bottom, each under its label, `gap` between them. The line is as
+ * tall as its tallest column; the groups stand under one another, `groupGap`
+ * apart. A group's heading stands over its line (`bottom` says where the
+ * line ends); each row's over its first column — unless the group has one
+ * row only, which its own heading names (a group of one row is headed
+ * once). The sheet is as wide as its widest line. Headings and labels keep
+ * their screen size at every zoom, so the room they take on the sheet is
+ * their pixels over `z`; `metrics` splits the sheet's height into the part
+ * that scales (`fixedHeight`, sheet pixels) and the part that does not
+ * (`screenHeight`, screen pixels), so that fitZoom can solve for `z` in one
+ * step: height(z) = fixedHeight + screenHeight / z. A line's height is its
+ * columns' largest in each part on its own — the most labels, the tallest
+ * stack of frames and gaps — so the split holds at every zoom; a column of
+ * one tall page beside one of several short ones is at most a few labels
+ * taller than either needs.
  */
 export function canvasLayout(groups, z, options = {}) {
   const {
@@ -214,14 +376,17 @@ export function canvasLayout(groups, z, options = {}) {
       y += groupGap;
     }
 
-    headings.push({ kind: 'group', key: group.key, title: group.title, x: pad, y, height: groupHead / scale });
+    const heading = { kind: 'group', key: group.key, title: group.title, x: pad, y, height: groupHead / scale, bottom: y };
+
+    headings.push(heading);
     y += groupHead / scale;
     screen += groupHead;
 
     const headed = group.rows.length > 1;
-    const top = y + (headed ? rowHead / scale : 0) + label / scale; // the frames' top on this line
+    const top = y + (headed ? rowHead / scale : 0); // the first label's top on this line
     let x = pad;
-    let tallest = 0;
+    let deepest = 0; // frames in the column with the most
+    let tallest = 0; // sheet pixels of frames and gaps in the column with the most
 
     group.rows.forEach((row, ri) => {
       if (ri > 0) {
@@ -232,22 +397,39 @@ export function canvasLayout(groups, z, options = {}) {
         headings.push({ kind: 'row', key: `${group.key}/${row.key}`, title: row.title, x, y, height: rowHead / scale });
       }
 
-      row.frames.forEach((item, i) => {
-        if (i > 0) {
+      row.columns.forEach((column, ci) => {
+        if (ci > 0) {
           x += gap;
         }
 
-        const height = heightOf(item);
+        let cy = top;
+        let stack = 0;
 
-        items.push({ id: item.id, title: item.title, group: group.key, row: row.key, x, y: top, width: frame.width, height });
-        tallest = Math.max(tallest, height);
+        column.forEach((item, i) => {
+          if (i > 0) {
+            cy += gap;
+            stack += gap;
+          }
+
+          cy += label / scale;
+
+          const height = heightOf(item);
+
+          items.push({ id: item.id, title: item.title, group: group.key, row: row.key, column: ci, x, y: cy, width: frame.width, height });
+          cy += height;
+          stack += height;
+        });
+
+        deepest = Math.max(deepest, column.length);
+        tallest = Math.max(tallest, stack);
         x += frame.width;
       });
     });
 
     right = Math.max(right, x);
-    y = top + tallest;
-    screen += (headed ? rowHead : 0) + label;
+    y = top + deepest * (label / scale) + tallest;
+    screen += (headed ? rowHead : 0) + deepest * label;
+    heading.bottom = y;
   });
 
   const width = right + pad;
@@ -435,7 +617,8 @@ function emptyState() {
     heights: new Map(), // frame id -> its page's height (frameHeight), once its load has fired; absent until then
     zoom: 1,
     fitted: false, // «Fit all» set the view and nothing has moved it since: a page's height makes the fit again
-    pan: null,
+    pan: null, // { id, x, y, from, lift }: the pointer down on the scroller; `lift` the frame it is on, if that frame can be dragged
+    drag: null, // { entry, grab, pointer, target, bar }: a frame being dragged — grab its offset under the pointer (sheet px), bar the drop indicator
     loading: 0, // frames whose page is on its way (LOAD_AT_ONCE)
     loadFrame: 0, // the animation frame of a pending loadNear
     generation: 0, // bumped on every open; a fetch that lands after a close finds another
@@ -695,6 +878,10 @@ ${L} .sve-sc-frame { display: block; width: 100%; height: 100%; border: 0; backg
 ${L} .sve-sc-hit { position: absolute; inset: 0; cursor: pointer; outline: 1px solid rgba(0, 0, 0, .12); }
 ${L} .sve-sc-hit:hover { outline: calc(.1875rem / var(--z)) solid ${ring}; }
 ${L} .sve-sc-item[data-current] .sve-sc-hit { outline: calc(.1875rem / var(--z)) solid rgb(96, 165, 250); outline-offset: calc(.1875rem / var(--z)); }
+${L} .sve-sc-item[data-arrange] .sve-sc-hit { cursor: grab; }
+${L} .sve-sc-item[data-dragging] { z-index: 2; opacity: .85; }
+${L} .sve-sc-scroll[data-dragging], ${L} .sve-sc-scroll[data-dragging] .sve-sc-hit { cursor: grabbing; }
+${L} .sve-sc-drop { position: absolute; z-index: 1; border-radius: calc(.125rem / var(--z)); background: ${ring}; pointer-events: none; }
 ${L} .sve-sc-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: .875rem; opacity: .7; pointer-events: none; }
 ${L} .sve-sc-zoom { position: absolute; left: .75rem; bottom: .75rem; display: inline-flex; align-items: center; gap: .25rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .88); color: #fff; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .25); font: 500 .75rem/1 ui-sans-serif, system-ui, sans-serif; }
 ${L} .sve-sc-zoom button { display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
@@ -750,26 +937,32 @@ function populate(win, groups) {
     canvasState.heads.set(heading.key, el);
   }
 
-  for (const frame of frames) {
-    const item = make(doc, 'div', 'sve-sc-item');
-    const label = make(doc, 'div', 'sve-sc-label');
-    const el = make(doc, 'iframe', 'sve-sc-frame');
-    const hit = make(doc, 'div', 'sve-sc-hit');
+  for (const group of groups) {
+    for (const frame of canvasFrames([group])) {
+      const item = make(doc, 'div', 'sve-sc-item');
+      const label = make(doc, 'div', 'sve-sc-label');
+      const el = make(doc, 'iframe', 'sve-sc-frame');
+      const hit = make(doc, 'div', 'sve-sc-hit');
 
-    item.dataset.id = frame.id;
-    item.style.width = `${FRAME.width}px`;
-    label.textContent = frame.title;
-    el.title = frame.title;
-    el.tabIndex = -1;
-    hit.title = frame.id === current ? t(win, 'site_canvas_current') : t(win, 'site_canvas_open', { title: frame.title });
+      item.dataset.id = frame.id;
+      item.style.width = `${FRAME.width}px`;
+      label.textContent = frame.title;
+      el.title = frame.title;
+      el.tabIndex = -1;
+      hit.title = frame.id === current ? t(win, 'site_canvas_current') : t(win, group.arrange ? 'site_canvas_drag' : 'site_canvas_open', { title: frame.title });
 
-    if (frame.id === current) {
-      item.dataset.current = '';
+      if (frame.id === current) {
+        item.dataset.current = '';
+      }
+
+      if (group.arrange) {
+        item.dataset.arrange = '';
+      }
+
+      item.append(label, el, hit);
+      sheet.appendChild(item);
+      canvasState.entries.set(frame.id, { frame, group: group.key, arrange: group.arrange, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
     }
-
-    item.append(label, el, hit);
-    sheet.appendChild(item);
-    canvasState.entries.set(frame.id, { frame, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
   }
 
   applyZoom(ZOOM_DEFAULT);
@@ -1048,7 +1241,7 @@ function bind(win, view) {
   [...new Set([view, win])].forEach((target) => listen(target, 'keydown', onKey));
 
   listen(scroller, 'wheel', onWheel, { passive: false });
-  listen(scroller, 'scroll', scheduleLoad, { passive: true });
+  listen(scroller, 'scroll', onScroll, { passive: true });
   listen(scroller, 'pointerdown', onPanStart);
   listen(scroller, 'pointermove', onPanMove);
   listen(scroller, 'pointerup', onPanEnd);
@@ -1063,10 +1256,24 @@ function bind(win, view) {
   });
 }
 
-/** Escape closes; a plain `+` or `-` (lib/zoom-keys.js: no modifier, no field being typed in) steps the zoom round the view's middle, as the bar's buttons do. */
+/** A scroll: the frames now near load; a frame being dragged stays under the pointer as the sheet moves beneath it. */
+function onScroll() {
+  scheduleLoad();
+
+  if (canvasState.drag) {
+    moveDrag(canvasState.drag.pointer.x, canvasState.drag.pointer.y);
+  }
+}
+
+/** Escape puts a dragged frame back, else closes; a plain `+` or `-` (lib/zoom-keys.js: no modifier, no field being typed in) steps the zoom round the view's middle, as the bar's buttons do. */
 function onKey(event) {
   if (event.key === 'Escape' && !event.defaultPrevented) {
-    closeSiteCanvas(canvasState.win);
+    if (canvasState.drag) {
+      event.preventDefault();
+      endDrag(false);
+    } else {
+      closeSiteCanvas(canvasState.win);
+    }
 
     return;
   }
@@ -1111,7 +1318,12 @@ function onPanStart(event) {
   }
 
   event.preventDefault();
-  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY } };
+
+  // On a frame that can be dragged: a movement past the click threshold lifts it instead of panning.
+  const item = event.target.closest?.('.sve-sc-item');
+  const lift = item ? canvasState.entries.get(item.dataset.id) : null;
+
+  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY }, lift: lift?.arrange ? lift : null };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
 }
@@ -1120,6 +1332,16 @@ function onPanMove(event) {
   const { pan, scroller } = canvasState;
 
   if (!pan || pan.id !== event.pointerId) {
+    return;
+  }
+
+  if (pan.lift && !canvasState.drag && isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
+    startDrag(pan.lift, pan.from);
+  }
+
+  if (canvasState.drag) {
+    moveDrag(event.clientX, event.clientY);
+
     return;
   }
 
@@ -1147,6 +1369,12 @@ function onPanEnd(event) {
     scroller.releasePointerCapture(event.pointerId);
   }
 
+  if (canvasState.drag) {
+    endDrag(event.type === 'pointerup');
+
+    return;
+  }
+
   // A click, not a pan, on a frame: that entry becomes the page being edited.
   if (event.type !== 'pointerup' || isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
     return;
@@ -1157,6 +1385,168 @@ function onPanEnd(event) {
 
   if (entry) {
     openEntry(win, entry.frame);
+  }
+}
+
+// --- Arranging -----------------------------------------------------------------------
+
+/** A point on the screen as a point on the sheet, in sheet pixels. */
+function toSheet(clientX, clientY) {
+  const { scroller, zoom } = canvasState;
+  const rect = scroller.getBoundingClientRect();
+  const origin = sheetOrigin();
+
+  return { x: (clientX - rect.left + scroller.scrollLeft - origin.x) / zoom, y: (clientY - rect.top + scroller.scrollTop - origin.y) / zoom };
+}
+
+/** The group a dragged frame belongs to, its one row, and where its line stands. */
+function arrangeRow(entry) {
+  const { groups, layout } = canvasState;
+  const group = groups.find((candidate) => candidate.key === entry.group);
+  const heading = layout?.headings.find((candidate) => candidate.kind === 'group' && candidate.key === entry.group);
+
+  if (!group?.arrange || group.rows.length !== 1 || !heading) {
+    return null;
+  }
+
+  return { group, row: group.rows[0], band: { top: heading.y, bottom: heading.bottom } };
+}
+
+/** Lift `entry`: it follows the pointer from where it was grabbed; a bar on the sheet will say where it would land. */
+function startDrag(entry, from) {
+  const { scroller, sheet, layout } = canvasState;
+  const item = layout?.items.find((candidate) => candidate.id === entry.frame.id);
+
+  if (!item || !arrangeRow(entry)) {
+    return;
+  }
+
+  const grabbed = toSheet(from.x, from.y);
+  const bar = make(sheet.ownerDocument, 'div', 'sve-sc-drop');
+
+  bar.hidden = true;
+  sheet.appendChild(bar);
+  entry.item.dataset.dragging = '';
+  scroller.dataset.dragging = '';
+  canvasState.drag = { entry, grab: { x: grabbed.x - item.x, y: grabbed.y - item.y }, pointer: { x: from.x, y: from.y }, target: null, bar };
+}
+
+/** The dragged frame under the pointer, and the bar where it would land — nowhere above its group's heading. */
+function moveDrag(clientX, clientY) {
+  const { drag, layout, zoom } = canvasState;
+  const place = arrangeRow(drag.entry);
+  const item = layout.items.find((candidate) => candidate.id === drag.entry.frame.id);
+
+  drag.pointer = { x: clientX, y: clientY };
+
+  if (!place || !item) {
+    return;
+  }
+
+  const point = toSheet(clientX, clientY);
+  const id = drag.entry.frame.id;
+
+  setStyle(drag.entry.item, 'transform', `translate(${point.x - drag.grab.x - item.x}px, ${point.y - drag.grab.y - item.y}px)`);
+
+  const columns = columnIds(place.row);
+  const target = point.y >= place.band.top ? dropTarget(columns, layout.items, point, id) : null;
+  const bar = target ? dropIndicator(target, columns, layout.items, id, place.band, zoom) : null;
+
+  drag.target = target;
+
+  if (bar) {
+    setStyle(drag.bar, 'left', `${bar.x}px`);
+    setStyle(drag.bar, 'top', `${bar.y}px`);
+    setStyle(drag.bar, 'width', `${bar.width}px`);
+    setStyle(drag.bar, 'height', `${bar.height}px`);
+  }
+
+  if (drag.bar.hidden !== !bar) {
+    drag.bar.hidden = !bar;
+  }
+}
+
+/** Put the frame down: where the bar said, if `commit` and it said anywhere; back where it was otherwise. */
+function endDrag(commit) {
+  const { drag, scroller } = canvasState;
+
+  if (!drag) {
+    return;
+  }
+
+  canvasState.drag = null;
+  drag.bar.remove();
+  delete drag.entry.item.dataset.dragging;
+  delete scroller.dataset.dragging;
+  drag.entry.item.style.removeProperty('transform');
+
+  if (commit && drag.target) {
+    arrangeTo(drag.entry, drag.target);
+  }
+}
+
+/**
+ * The columns with `entry` moved to `target`: drawn at once, kept for a
+ * second open, posted for the site. The same columns back is nothing to
+ * do. An answer that is not ok puts the columns back as they were and says
+ * so — the canvas shows what the site has.
+ */
+function arrangeTo(entry, target) {
+  const { win } = canvasState;
+  const place = arrangeRow(entry);
+
+  if (!place) {
+    return;
+  }
+
+  const before = canvasState.groups;
+  const columns = moveFrame(columnIds(place.row), entry.frame.id, target);
+
+  if (sameColumns(columns, columnIds(place.row))) {
+    return;
+  }
+
+  const byId = new Map(canvasFrames([place.group]).map((frame) => [frame.id, frame]));
+  const after = before.map((group) => (group !== place.group ? group : { ...group, rows: [{ ...place.row, columns: columns.map((column) => column.map((id) => byId.get(id))) }] }));
+
+  showGroups(after);
+
+  saveArrangement(win, columns).catch(() => {
+    if (cachedGroups === after) {
+      showGroups(before);
+    }
+
+    win.Statamic?.$toast?.error(t(win, 'site_canvas_arrange_failed'));
+  });
+}
+
+/** `groups` are what the canvas draws from now on, this open and the next: laid out again at the zoom it has — the fit made again if «Fit all» stood. */
+function showGroups(groups) {
+  cachedGroups = groups;
+
+  if (!canvasState.layer) {
+    return;
+  }
+
+  canvasState.groups = groups;
+
+  if (canvasState.fitted) {
+    fitSheet();
+  } else {
+    applyZoom(canvasState.zoom);
+  }
+}
+
+async function saveArrangement(win, columns) {
+  const res = await win.fetch(ARRANGE_ENDPOINT, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+    body: JSON.stringify({ columns }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`site canvas: ${res.status}`);
   }
 }
 

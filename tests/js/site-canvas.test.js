@@ -4,6 +4,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  DROP_BAR_PX,
+  DROP_EDGE,
   FIT_MARGIN_PX,
   FRAME,
   GAP,
@@ -25,15 +27,20 @@ import {
   canvasGroups,
   canvasLayout,
   clampZoom,
+  columnIds,
   contentBox,
+  dropIndicator,
+  dropTarget,
   fitZoom,
   frameHeight,
   frameSrc,
   framesNear,
   isDrag,
+  moveFrame,
   nextLoads,
   isSiteCanvasOpen,
   restingScroll,
+  sameColumns,
   stepZoom,
   withViewFlag,
 } from '../../resources/js/site-canvas.js';
@@ -43,51 +50,77 @@ const BASE = 'http://site.test/cp/collections/pages/entries/p1?live-preview=1';
 
 const frame = (id, extra = {}) => ({ id, title: `Page ${id}`, preview: `http://site.test/${id}?live-preview=abc&token=tok-${id}`, edit: `http://site.test/cp/collections/pages/entries/${id}`, ...extra });
 
-/** What the endpoint answers for a site with two template collections, two site views and five pages. */
+/** A row's columns, one frame each. */
+const singles = (...frames) => frames.map((item) => [item]);
+
+/** What the endpoint answers for a site with two template collections, two site views and five pages, untouched: one page a column. */
 const PAYLOAD = {
   groups: [
     {
       key: 'templates',
       title: 'Skabeloner',
+      arrange: false,
       rows: [
-        { key: 'services', title: 'Services', frames: [frame('services-index'), frame('services-show')] },
-        { key: 'pages', title: 'Pages', frames: [frame('pages-index')] },
-        { key: 'site', title: 'Sitet', frames: [frame('layout'), frame('default')] },
+        { key: 'services', title: 'Services', columns: singles(frame('services-index'), frame('services-show')) },
+        { key: 'pages', title: 'Pages', columns: singles(frame('pages-index')) },
+        { key: 'site', title: 'Sitet', columns: singles(frame('layout'), frame('default')) },
       ],
     },
     {
       key: 'pages',
       title: 'Sider',
-      rows: [{ key: 'pages', title: 'Pages', frames: [frame('home'), frame('about'), frame('contact'), frame('services'), frame('news')] }],
+      arrange: true,
+      rows: [{ key: 'pages', title: 'Pages', columns: singles(frame('home'), frame('about'), frame('contact'), frame('services'), frame('news')) }],
+    },
+  ],
+};
+
+/** The same site once an editor has stood About and News under Contact: three columns. */
+const STACKED = {
+  groups: [
+    PAYLOAD.groups[0],
+    {
+      key: 'pages',
+      title: 'Sider',
+      arrange: true,
+      rows: [{ key: 'pages', title: 'Pages', columns: [[frame('home')], [frame('contact'), frame('about'), frame('news')], [frame('services')]] }],
     },
   ],
 };
 
 // --- grouping -----------------------------------------------------------------------
 
-test('the endpoint’s groups are drawn as they come: two groups, rows under them, frames in order', () => {
+test('the endpoint’s groups are drawn as they come: two groups, rows under them, columns of frames in order; only the group the endpoint marks can be arranged', () => {
   const groups = canvasGroups(PAYLOAD);
 
-  assert.deepEqual(groups.map((group) => [group.key, group.title, group.rows.length]), [['templates', 'Skabeloner', 3], ['pages', 'Sider', 1]]);
-  assert.deepEqual(groups[0].rows.map((row) => [row.title, row.frames.map((item) => item.id)]), [
-    ['Services', ['services-index', 'services-show']],
-    ['Pages', ['pages-index']],
-    ['Sitet', ['layout', 'default']],
+  assert.deepEqual(groups.map((group) => [group.key, group.title, group.arrange, group.rows.length]), [['templates', 'Skabeloner', false, 3], ['pages', 'Sider', true, 1]]);
+  assert.deepEqual(groups[0].rows.map((row) => [row.title, columnIds(row)]), [
+    ['Services', [['services-index'], ['services-show']]],
+    ['Pages', [['pages-index']]],
+    ['Sitet', [['layout'], ['default']]],
   ]);
   assert.deepEqual(canvasFrames(groups).map((item) => item.id), ['services-index', 'services-show', 'pages-index', 'layout', 'default', 'home', 'about', 'contact', 'services', 'news']);
+
+  // Stacked: a column's frames come top to bottom, before the next column's.
+  const stacked = canvasGroups(STACKED);
+
+  assert.deepEqual(columnIds(stacked[1].rows[0]), [['home'], ['contact', 'about', 'news'], ['services']]);
+  assert.deepEqual(canvasFrames([stacked[1]]).map((item) => item.id), ['home', 'contact', 'about', 'news', 'services']);
+  assert.equal(canvasGroups({ groups: [{ key: 'p', title: 'P', arrange: 'yes', rows: [{ key: 'p', columns: [[frame('a')]] }] }] })[0].arrange, false, 'arrange is true only when it is true');
 });
 
-test('a frame without an id, a preview URL or an edit URL is left out, and an empty row or group with it', () => {
+test('a frame without an id, a preview URL or an edit URL is left out, and an empty column, row or group with it', () => {
   const groups = canvasGroups({
     groups: [
-      { key: 'templates', title: 'T', rows: [{ key: 'x', title: 'X', frames: [{ id: 'a', title: 'A', preview: '', edit: '/e' }, { id: '', preview: '/p', edit: '/e' }] }] },
-      { key: 'pages', title: 'P', rows: [{ key: 'p', title: 'P', frames: [{ id: 'b', preview: '/p', edit: '/e' }] }] },
+      { key: 'templates', title: 'T', rows: [{ key: 'x', title: 'X', columns: [[{ id: 'a', title: 'A', preview: '', edit: '/e' }], [{ id: '', preview: '/p', edit: '/e' }]] }] },
+      { key: 'pages', title: 'P', rows: [{ key: 'p', title: 'P', columns: [[], [{ id: 'b', preview: '/p', edit: '/e' }], 'nonsense'] }] },
     ],
   });
 
   assert.deepEqual(groups.map((group) => group.key), ['pages']);
+  assert.deepEqual(columnIds(groups[0].rows[0]), [['b']], 'the empty column and the nonsense are gone');
   // No title: the id stands in, so every frame has a label.
-  assert.equal(groups[0].rows[0].frames[0].title, 'b');
+  assert.equal(groups[0].rows[0].columns[0][0].title, 'b');
 });
 
 test('nothing, or nonsense, from the endpoint is no groups', () => {
@@ -150,13 +183,13 @@ test('rows of any length stand on their group’s one line, a row gap — wider 
         key: 'templates',
         title: 'T',
         rows: [
-          { key: 'a', title: 'A', frames: [frame('a1')] },
-          { key: 'b', title: 'B', frames: [frame('b1'), frame('b2'), frame('b3'), frame('b4'), frame('b5')] },
-          { key: 'c', title: 'C', frames: [frame('c1'), frame('c2')] },
-          { key: 'd', title: 'D', frames: [frame('d1')] },
+          { key: 'a', title: 'A', columns: singles(frame('a1')) },
+          { key: 'b', title: 'B', columns: singles(frame('b1'), frame('b2'), frame('b3'), frame('b4'), frame('b5')) },
+          { key: 'c', title: 'C', columns: singles(frame('c1'), frame('c2')) },
+          { key: 'd', title: 'D', columns: singles(frame('d1')) },
         ],
       },
-      { key: 'pages', title: 'P', rows: [{ key: 'p', title: 'P again', frames: [frame('p1'), frame('p2')] }] },
+      { key: 'pages', title: 'P', rows: [{ key: 'p', title: 'P again', columns: singles(frame('p1'), frame('p2')) }] },
     ],
   });
   const { items, headings, metrics } = canvasLayout(groups, 1);
@@ -233,22 +266,22 @@ test('the height of a frame’s page: its scroll height in whole pixels, never u
   assert.equal(frameHeight(900, 1000), 1000, 'the minimum is the caller’s');
 });
 
-test('no two frames overlap, at any zoom, whatever the pages’ heights — a tall frame beside a long row of short ones too', () => {
+test('no two frames overlap, at any zoom, whatever the pages’ heights — a tall frame beside a long row of short ones, or beside a column of them, too', () => {
   const mixed = canvasGroups({
     groups: [{
       key: 'templates',
       title: 'T',
       rows: [
-        { key: 'a', title: 'A', frames: [frame('a1')] },
-        { key: 'b', title: 'B', frames: [frame('b1'), frame('b2'), frame('b3')] },
-        { key: 'c', title: 'C', frames: [frame('c1'), frame('c2'), frame('c3'), frame('c4'), frame('c5')] },
-        { key: 'd', title: 'D', frames: [frame('d1')] },
+        { key: 'a', title: 'A', columns: singles(frame('a1')) },
+        { key: 'b', title: 'B', columns: singles(frame('b1'), frame('b2'), frame('b3')) },
+        { key: 'c', title: 'C', columns: singles(frame('c1'), frame('c2'), frame('c3'), frame('c4'), frame('c5')) },
+        { key: 'd', title: 'D', columns: singles(frame('d1')) },
       ],
     }],
   });
-  const heights = new Map([['a1', 9000], ['b2', 3000], ['c3', 2400], ['c5', 7000], ['d1', 650], ['home', 4200], ['about', 2300]]);
+  const heights = new Map([['a1', 9000], ['b2', 3000], ['c3', 2400], ['c5', 7000], ['d1', 650], ['home', 4200], ['about', 2300], ['news', 1500]]);
 
-  for (const [groups, name] of [[canvasGroups(PAYLOAD), 'payload'], [mixed, 'mixed']]) {
+  for (const [groups, name] of [[canvasGroups(PAYLOAD), 'payload'], [mixed, 'mixed'], [canvasGroups(STACKED), 'stacked']]) {
     for (const z of [1, 0.5, 0.12, ZOOM_MIN]) {
       const { items } = canvasLayout(groups, z, { heights });
 
@@ -297,6 +330,141 @@ test('an empty sheet is padding alone', () => {
   const layout = canvasLayout([], 1);
 
   assert.deepEqual([layout.width, layout.height, layout.items, layout.headings], [PAD * 2, PAD * 2, [], []]);
+});
+
+// --- columns ------------------------------------------------------------------------
+
+test('a column’s frames stack top to bottom, each under its label, a gap between; the line is as tall as its tallest column, and the group heading says where it ends', () => {
+  const groups = canvasGroups(STACKED);
+  const heights = new Map([['home', 4200], ['about', 2300], ['news', 1500]]);
+  const { items, headings, height, metrics } = canvasLayout(groups, 1, { heights });
+  const item = (id) => items.find((it) => it.id === id);
+  const W = FRAME.width;
+
+  // Three columns across: home, the stack, services.
+  assert.deepEqual(['home', 'contact', 'services'].map((id) => item(id).x), [PAD, PAD + W + GAP, PAD + 2 * (W + GAP)]);
+  assert.ok(['about', 'news'].every((id) => item(id).x === item('contact').x), 'a stacked frame keeps its column’s x');
+  // Down the stack: contact (600), then about under it, then news — each a gap and a label below the one before.
+  assert.equal(item('about').y, item('contact').y + FRAME.minHeight + GAP + LABEL_PX);
+  assert.equal(item('news').y, item('about').y + 2300 + GAP + LABEL_PX);
+  assert.ok(item('home').y === item('contact').y && item('contact').y === item('services').y, 'the tops of the columns are level');
+
+  // The line: three labels deep at most, and the tallest stack is 600 + 2300 + 1500 + two gaps = 4592 (home alone is 4200).
+  const pagesGroup = headings.find((heading) => heading.kind === 'group' && heading.key === 'pages');
+  const stack = FRAME.minHeight + 2300 + 1500 + 2 * GAP;
+
+  assert.equal(pagesGroup.bottom, item('home').y - LABEL_PX + 3 * LABEL_PX + stack, 'the line ends under three labels and the tallest stack');
+  assert.equal(height, pagesGroup.bottom + PAD);
+  assert.equal(metrics.screenHeight, 2 * GROUP_HEAD_PX + ROW_HEAD_PX + LABEL_PX + 3 * LABEL_PX, 'screen pixels: the templates’ one label line, the pages’ three');
+  assert.equal(metrics.fixedHeight, 2 * PAD + GROUP_GAP + FRAME.minHeight + stack);
+
+  // At another zoom the split still holds, and the templates' heading bottom is its line's end.
+  const atHalf = canvasLayout(groups, 0.5, { heights });
+
+  assert.equal(atHalf.metrics.fixedHeight, metrics.fixedHeight);
+  assert.ok(Math.abs(atHalf.height - (metrics.fixedHeight + metrics.screenHeight / 0.5)) < 1e-6);
+  const templates = atHalf.headings.find((heading) => heading.kind === 'group' && heading.key === 'templates');
+
+  assert.equal(templates.bottom, atHalf.items.find((it) => it.id === 'layout').y + FRAME.minHeight);
+});
+
+test('the columns as ids, and whether two sets say the same', () => {
+  const row = canvasGroups(STACKED)[1].rows[0];
+
+  assert.deepEqual(columnIds(row), [['home'], ['contact', 'about', 'news'], ['services']]);
+  assert.ok(sameColumns([['a'], ['b', 'c']], [['a'], ['b', 'c']]));
+  assert.ok(!sameColumns([['a'], ['b', 'c']], [['a'], ['c', 'b']]));
+  assert.ok(!sameColumns([['a'], ['b']], [['a', 'b']]));
+  assert.ok(sameColumns([], []));
+});
+
+test('moveFrame: into a column at a row, or out into a new column; a column left empty goes; nowhere is the same columns back', () => {
+  const columns = [['home'], ['contact', 'about', 'news'], ['services']];
+
+  // Under contact (row 1 of the stack, counted without the one moving).
+  assert.deepEqual(moveFrame(columns, 'home', { column: 1, row: 1 }), [['contact', 'home', 'about', 'news'], ['services']], 'home under contact; its own column is gone');
+  assert.deepEqual(moveFrame(columns, 'about', { column: 0, row: 1 }), [['home', 'about'], ['contact', 'news'], ['services']], 'about under home');
+  assert.deepEqual(moveFrame(columns, 'news', { column: 1, row: 0 }), [['home'], ['news', 'contact', 'about'], ['services']], 'news to the top of its own column');
+  assert.deepEqual(moveFrame(columns, 'news', { column: 1, row: 2 }), columns, 'news to where it already stands (the last of the stack): unchanged');
+  assert.deepEqual(moveFrame(columns, 'home', { column: 2, row: 9 }), [['contact', 'about', 'news'], ['services', 'home']], 'a row past the end is the end');
+
+  // Out into a column of its own.
+  assert.deepEqual(moveFrame(columns, 'about', { newColumn: 0 }), [['about'], ['home'], ['contact', 'news'], ['services']], 'about first');
+  assert.deepEqual(moveFrame(columns, 'about', { newColumn: 3 }), [['home'], ['contact', 'news'], ['services'], ['about']], 'about last');
+  assert.deepEqual(moveFrame(columns, 'home', { newColumn: 3 }), [['contact', 'about', 'news'], ['services'], ['home']], 'home to the end: its old column goes, the others close up');
+  assert.deepEqual(moveFrame(columns, 'home', { newColumn: 0 }), columns, 'home to a new column before itself: where it is');
+  assert.deepEqual(moveFrame(columns, 'home', { newColumn: 1 }), columns, 'or just after itself: where it is');
+  assert.deepEqual(moveFrame(columns, 'services', { newColumn: 2 }), columns, 'services between the stack and itself: where it is');
+
+  // Nothing to do.
+  assert.deepEqual(moveFrame(columns, 'home', null), columns);
+  assert.deepEqual(moveFrame(columns, 'nobody', { newColumn: 0 }), columns);
+  assert.deepEqual(moveFrame(columns, 'home', { somewhere: 1 }), columns);
+  assert.deepEqual(moveFrame(columns, 'home', { column: 7, row: 0 }), columns, 'a column that is not there');
+});
+
+test('dropTarget: the middle of a column is into it, above or below its frames by their middles; the edges and the gaps are a new column there; the frame moving is not counted', () => {
+  const groups = canvasGroups(STACKED);
+  const heights = new Map([['home', 4200], ['about', 2300], ['news', 1500]]);
+  const { items } = canvasLayout(groups, 1, { heights });
+  const columns = columnIds(groups[1].rows[0]);
+  const item = (id) => items.find((it) => it.id === id);
+  const W = FRAME.width;
+  const mid = (id) => item(id).x + W / 2;
+
+  // Into the stack: above contact, between contact and about, between about and news, under news.
+  assert.deepEqual(dropTarget(columns, items, { x: mid('contact'), y: item('contact').y - 10 }, 'home'), { column: 1, row: 0 });
+  assert.deepEqual(dropTarget(columns, items, { x: mid('contact'), y: item('about').y - 10 }, 'home'), { column: 1, row: 1 });
+  assert.deepEqual(dropTarget(columns, items, { x: mid('contact'), y: item('news').y + 10 }, 'home'), { column: 1, row: 2 });
+  assert.deepEqual(dropTarget(columns, items, { x: mid('contact'), y: item('news').y + 1500 + 500 }, 'home'), { column: 1, row: 3 });
+  // Moving about itself: it is not counted, so under news is row 2.
+  assert.deepEqual(dropTarget(columns, items, { x: mid('contact'), y: item('news').y + 1400 }, 'about'), { column: 1, row: 2 });
+  // Into home's column, under home.
+  assert.deepEqual(dropTarget(columns, items, { x: mid('home'), y: item('home').y + 4200 + 300 }, 'news'), { column: 0, row: 1 });
+  // The edges of a column, and the gaps: a new column. Left of home: 0; between home and the stack: 1; right of services: 3.
+  assert.deepEqual(dropTarget(columns, items, { x: item('home').x + W * DROP_EDGE - 1, y: item('home').y }, 'news'), { newColumn: 0 }, 'home’s left edge');
+  assert.deepEqual(dropTarget(columns, items, { x: item('home').x - 500, y: item('home').y }, 'news'), { newColumn: 0 }, 'far left');
+  assert.deepEqual(dropTarget(columns, items, { x: item('home').x + W * (1 - DROP_EDGE) + 1, y: item('home').y }, 'news'), { newColumn: 1 }, 'home’s right edge');
+  assert.deepEqual(dropTarget(columns, items, { x: item('contact').x - GAP / 2, y: item('home').y }, 'news'), { newColumn: 1 }, 'the gap');
+  assert.deepEqual(dropTarget(columns, items, { x: item('services').x + W + 2000, y: item('home').y }, 'news'), { newColumn: 3 }, 'far right');
+  // Just inside the edge: into the column.
+  assert.deepEqual(dropTarget(columns, items, { x: item('home').x + W * DROP_EDGE + 1, y: item('home').y }, 'news'), { column: 0, row: 0 });
+});
+
+test('dropIndicator: a bar across the column midway in the gap above the frame the dragged one would stand over, or under the last; down the line midway in the gap where a new column would open', () => {
+  const groups = canvasGroups(STACKED);
+  const heights = new Map([['home', 4200], ['about', 2300], ['news', 1500]]);
+  const layout = canvasLayout(groups, 1, { heights });
+  const { items } = layout;
+  const columns = columnIds(groups[1].rows[0]);
+  const item = (id) => items.find((it) => it.id === id);
+  const heading = layout.headings.find((h) => h.kind === 'group' && h.key === 'pages');
+  const band = { top: heading.y, bottom: heading.bottom };
+  const W = FRAME.width;
+
+  // Into the stack above about (row 1): across the column, the gap above about's label, 4 px thick at zoom 1.
+  const above = dropIndicator({ column: 1, row: 1 }, columns, items, 'home', band, 1);
+
+  assert.deepEqual(above, { x: item('contact').x, y: item('about').y - LABEL_PX - GAP / 2 - DROP_BAR_PX / 2, width: W, height: DROP_BAR_PX });
+  // Under the last of the stack (row 3).
+  const under = dropIndicator({ column: 1, row: 3 }, columns, items, 'home', band, 1);
+
+  assert.deepEqual(under, { x: item('contact').x, y: item('news').y + 1500 + GAP / 2 - DROP_BAR_PX / 2, width: W, height: DROP_BAR_PX });
+  // Home dropped back into its own (otherwise empty) column: where home stands.
+  const own = dropIndicator({ column: 0, row: 0 }, columns, items, 'home', band, 1);
+
+  assert.equal(own.y, item('home').y - LABEL_PX - GAP / 2 - DROP_BAR_PX / 2);
+  // A new column between home and the stack: down the line, midway in the gap.
+  const between = dropIndicator({ newColumn: 1 }, columns, items, 'news', band, 1);
+
+  assert.deepEqual(between, { x: item('contact').x - GAP / 2 - DROP_BAR_PX / 2, y: band.top, width: DROP_BAR_PX, height: band.bottom - band.top });
+  // After the last column.
+  const last = dropIndicator({ newColumn: 3 }, columns, items, 'news', band, 1);
+
+  assert.equal(last.x, item('services').x + W + GAP / 2 - DROP_BAR_PX / 2);
+  // Thickness is screen pixels: at 50 % the bar is twice as thick on the sheet.
+  assert.equal(dropIndicator({ newColumn: 1 }, columns, items, 'news', band, 0.5).width, DROP_BAR_PX / 0.5);
+  assert.equal(dropIndicator(null, columns, items, 'news', band, 1), null);
 });
 
 // --- zoom ---------------------------------------------------------------------------

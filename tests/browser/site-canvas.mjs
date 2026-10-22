@@ -91,6 +91,7 @@ const BUTTON = '#__sve-preview-chrome [data-canvas]';
 const BP_LAYER = '#__sve-bp-overview';
 const BP_BUTTON = '#__sve-preview-chrome [data-overview]';
 const ENDPOINT = '/!/sve/site-canvas';
+const ARRANGE_ENDPOINT = '/!/sve/site-canvas/arrangement';
 const FRAME = { width: 1440, minHeight: 600 };
 // site-canvas.js GAP and ROW_GAP: sheet pixels between a row's frames, and between two rows (clusters) on a line.
 const GAP = 96;
@@ -266,7 +267,9 @@ const entryBefore = md5(entryFile);
 // not decided. With SVE_WORKTREE=1 the list is then this checkout's controller's.
 let SEAM = false;
 let payload = null;
-const payloadFrames = (p) => (p?.groups || []).flatMap((g) => (g.rows || []).flatMap((r) => (r.frames || []).map((f) => ({ ...f, group: g.key, groupTitle: g.title, row: r.key, rowTitle: r.title }))));
+const payloadFrames = (p) => (p?.groups || []).flatMap((g) => (g.rows || []).flatMap((r) => (r.columns || []).flatMap((column, ci) => (column || []).map((f, ri) => ({ ...f, group: g.key, groupTitle: g.title, row: r.key, rowTitle: r.title, column: ci, stack: ri })))));
+/** A row's columns as ids. */
+const payloadColumns = (row) => (row?.columns || []).map((column) => (column || []).map((f) => f.id));
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
@@ -298,11 +301,13 @@ page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`consol
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
 const loadedAssets = new Set();
 let endpointCalls = 0;
+let arrangeCalls = 0; // the canvas posting the pages' columns (the run's own restore is marked)
 page.on('request', (req) => {
   const m = req.url().match(/\/(?:vendor\/visual-editor\/build|!\/sve\/build)\/assets\/([^?#]+)/);
   if (m) loadedAssets.add(m[1]);
   // The run's own look at the list (marked) is not the canvas asking.
   if (req.url().replace(SITE_URL, '').split('?')[0] === ENDPOINT && req.headers()['x-sve-test'] !== 'probe') endpointCalls++;
+  if (req.url().replace(SITE_URL, '').split('?')[0] === ARRANGE_ENDPOINT && req.method() === 'POST' && req.headers()['x-sve-test'] !== 'probe') arrangeCalls++;
 });
 const chunkLoaded = () => [...loadedAssets].filter((f) => /^site-canvas-/.test(f));
 // Which scripts each canvas frame's document loaded, by the frame that asked.
@@ -486,7 +491,7 @@ try {
   }
   const frames = payloadFrames(payload);
   const groups = payload?.groups || [];
-  step('the endpoint lists two groups, templates then pages, each with rows and frames', groups.map((g) => g.key).join(',') === 'templates,pages' && frames.length > 0 && groups.every((g) => g.rows.length > 0), `${groups.map((g) => `${g.key} "${g.title}": ${g.rows.map((r) => `${r.title} ${r.frames.length}`).join(', ')}`).join(' | ')} — ${frames.length} frames`);
+  step('the endpoint lists two groups, templates then pages, each with rows of columns of frames; only the pages can be arranged', groups.map((g) => g.key).join(',') === 'templates,pages' && frames.length > 0 && groups.every((g) => g.rows.length > 0 && g.rows.every((r) => Array.isArray(r.columns) && r.columns.length > 0)) && groups.map((g) => g.arrange).join(',') === 'false,true', `${groups.map((g) => `${g.key} "${g.title}"${g.arrange ? ' (arrange)' : ''}: ${g.rows.map((r) => `${r.title} ${payloadColumns(r).map((c) => c.length).join('+')}`).join(', ')}`).join(' | ')} — ${frames.length} frames`);
   step('the entry being edited is among the pages', frames.some((f) => f.id === ENTRY_ID && f.group === 'pages'));
   step('every frame has an id, a title, a tokenised Live Preview URL and an edit URL', frames.every((f) => f.id && f.title && /[?&]token=/.test(f.preview) && /[?&]live-preview=/.test(f.preview) && /\/cp\//.test(f.edit)));
   step('no concrete entry of another collection is a frame: templates are index/show/layout/page views, pages are the pages collection', frames.every((f) => (f.group === 'templates' ? /\/collection-view-preview\//.test(f.preview) : /\/cp\/collections\/pages\//.test(f.edit))));
@@ -612,11 +617,12 @@ try {
   step('the frames are as tall as their pages, not one size: more than one height among them', heightsSeen.size > 1, `${heightsSeen.size} distinct heights: ${[...heightsSeen].sort((a, b) => a - b).join(' ')}`);
   // Each group is one line: its frames share a top, in the endpoint's order left to right; between two rows (clusters) the gap is the wide one, within a row the narrow one.
   const groupLines = groups.map((g) => {
-    const its = g.rows.flatMap((r) => r.frames.map((f) => ({ ...shape1.items.find((it) => it.id === f.id), row: r.key })));
+    // The first frame of each column: along the line (a stacked frame stands under its column's first, and is not in this walk).
+    const its = g.rows.flatMap((r) => r.columns.map((column) => ({ ...shape1.items.find((it) => it.id === column[0].id), row: r.key })));
     const gaps = its.slice(1).map((it, i) => ({ sheet: (it.x - (its[i].x + its[i].w)) / shape1.z, cluster: it.row !== its[i].row }));
     return { key: g.key, its, gaps };
   });
-  step('each group is one line: all its frames share a top, left to right in the endpoint’s order', groupLines.every(({ its }) => its.length > 0 && its.every((it) => it && Math.abs(it.y - its[0].y) <= 0.5 && (it === its[0] || it.x > its[its.indexOf(it) - 1].x))), groupLines.map(({ key, its }) => `${key}: ${its.length} at y ${Math.round(its[0]?.y)}`).join('; '));
+  step('each group is one line: its columns’ tops are level, left to right in the endpoint’s order', groupLines.every(({ its }) => its.length > 0 && its.every((it) => it && Math.abs(it.y - its[0].y) <= 0.5 && (it === its[0] || it.x > its[its.indexOf(it) - 1].x))), groupLines.map(({ key, its }) => `${key}: ${its.length} at y ${Math.round(its[0]?.y)}`).join('; '));
   step('within a cluster the frames stand a frame gap apart; between two clusters the wide row gap, so the clusters read as clusters', groupLines.every(({ gaps }) => gaps.every((g) => Math.abs(g.sheet - (g.cluster ? ROW_GAP : GAP)) <= 2)), groupLines.map(({ key, gaps }) => `${key}: ${gaps.map((g) => `${Math.round(g.sheet)}${g.cluster ? ' (cluster)' : ''}`).join(' ')} sheet px`).join('; '));
   const over = overlaps(shape1.items);
   step('no two frames overlap', over.length === 0, over.join(', ') || `${shape1.items.length} frames clear of each other`);
@@ -740,6 +746,73 @@ try {
   const scrolledRight = await cp.evaluate(canvasShape, LAYER);
   const rightRoom = maxScroll(scrolledDown)[0] - scrolledDown.scroll[0];
   step('a horizontal wheel scrolls it sideways', rightRoom > 0 ? scrolledRight.scroll[0] > scrolledDown.scroll[0] : scrolledRight.scroll[0] === scrolledDown.scroll[0], `scrollLeft ${scrolledDown.scroll[0]} → ${scrolledRight.scroll[0]} (${rightRoom} px of room to the right)`);
+
+  // 8b. Arrange: a page dragged under another stands in its column, the columns are posted and the endpoint answers them; a drop above the pages' heading is nowhere; dragged back out, the columns are as they were.
+  await realClick(page, cp, `${LAYER} [data-sc-zoom="fit"]`);
+  await sleep(300);
+  const pagesRow = groups.find((g) => g.key === 'pages')?.rows[0];
+  const columns0 = payloadColumns(pagesRow);
+  const arr0 = await cp.evaluate(canvasShape, LAYER);
+  const itemOf = (shape, id) => shape.items.find((it) => it.id === id);
+  const atPage = (pt) => ({ x: cpBox.x + pt.x, y: cpBox.y + pt.y });
+  /** A frame's box in sheet pixels, so two shapes compare whatever their zoom. */
+  const onSheetBox = (shape, it) => ({ x: (it.x - shape.sheet.x) / shape.z, y: (it.y - shape.sheet.y) / shape.z });
+  const samePlaces = (a, b) => a.items.every((it, i) => { const p = onSheetBox(a, it); const q = onSheetBox(b, b.items[i]); return Math.abs(p.x - q.x) <= 1 && Math.abs(p.y - q.y) <= 1; });
+  /** Press on `from`, move to `to` in steps (a look in the middle through `peek`), and release unless `hold`. CP-frame coordinates. */
+  const dragFrame = async (from, to, { peek = null, release = true } = {}) => {
+    const a = atPage(from); const b = atPage(to);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(a.x + (b.x - a.x) * (i / 12), a.y + (b.y - a.y) * (i / 12));
+    await sleep(60);
+    const seen = peek ? await peek() : null;
+    if (release) { await page.mouse.up(); await sleep(250); }
+    return seen;
+  };
+  const dragState = () => cp.evaluate((sel) => {
+    const layer = document.querySelector(sel);
+    const dragging = layer.querySelector('.sve-sc-item[data-dragging]');
+    const bar = layer.querySelector('.sve-sc-drop');
+    const r = bar && !bar.hidden ? bar.getBoundingClientRect() : null;
+    return { dragging: dragging?.dataset.id || null, transform: dragging ? getComputedStyle(dragging).transform : null, bar: r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null, cursor: getComputedStyle(layer.querySelector('.sve-sc-scroll')).cursor };
+  }, LAYER);
+  const canArrange = columns0.length >= 3 && columns0.every((c) => c.length === 1);
+  step('the pages come one a column, three or more of them, so a page can be stood under another', canArrange, `${columns0.length} columns: ${columns0.map((c) => c.length).join('+')}`);
+  if (canArrange) {
+    const [, [overId], [movingId]] = columns0; // the second page and the third: the third goes under the second
+    const over0 = itemOf(arr0, overId); const moving0 = itemOf(arr0, movingId);
+    const next0 = columns0[3] ? itemOf(arr0, columns0[3][0]) : null;
+    const from = { x: moving0.x + moving0.w / 2, y: moving0.y + moving0.h / 2 };
+    const to = { x: over0.x + over0.w / 2, y: over0.y + over0.h + Math.max(6, GAP * arr0.z) };
+    step('an arrangeable frame says so, and offers a grab cursor; a template frame does not', arr0.items.length > 0 && (await cp.evaluate((sel, id, tid) => { const page = document.querySelector(`${sel} .sve-sc-item[data-id="${id}"]`); const tpl = document.querySelector(`${sel} .sve-sc-item[data-id="${tid}"]`); return page?.hasAttribute('data-arrange') && getComputedStyle(page.querySelector('.sve-sc-hit')).cursor === 'grab' && !tpl?.hasAttribute('data-arrange') && getComputedStyle(tpl.querySelector('.sve-sc-hit')).cursor === 'pointer'; }, LAYER, movingId, frames.find((f) => f.group === 'templates')?.id)));
+    const mid = await dragFrame(from, to, { peek: dragState });
+    step('lifted, the frame follows the pointer (a transform, the sheet not laid out again) and a bar across the column under the page it would stand beneath says where it lands', !!mid && mid.dragging === movingId && mid.transform !== 'none' && !!mid.bar && mid.bar.w > mid.bar.h && Math.abs(mid.bar.x - over0.x) <= 1.5 && mid.bar.y > over0.y + over0.h - 1 && mid.cursor === 'grabbing', `dragging ${mid?.dragging}, bar ${mid?.bar ? `${Math.round(mid.bar.w)}×${Math.round(mid.bar.h)} at ${Math.round(mid.bar.x)},${Math.round(mid.bar.y)}` : 'none'} (column at x ${Math.round(over0.x)}, frame ends at y ${Math.round(over0.y + over0.h)}), cursor ${mid?.cursor}`);
+    const arr1 = await cp.evaluate(canvasShape, LAYER);
+    const over1 = itemOf(arr1, overId); const moving1 = itemOf(arr1, movingId);
+    const next1 = next0 ? itemOf(arr1, columns0[3][0]) : null;
+    const closedUp = !next1 || Math.abs(onSheetBox(arr1, next1).x - onSheetBox(arr0, moving0).x) <= 1;
+    step('dropped, it stands under that page in its column, a label and a gap below it; the columns to its right close up', Math.abs(moving1.x - over1.x) <= 1 && Math.abs(onSheetBox(arr1, moving1).y - (onSheetBox(arr1, over1).y + over1.h / arr1.z + GAP + 28)) <= 1.5 && closedUp && !(await dragState()).dragging && !(await dragState()).bar, `${movingId.slice(0, 8)} at ${Math.round(moving1.x)},${Math.round(moving1.y)} under ${overId.slice(0, 8)} at ${Math.round(over1.x)},${Math.round(over1.y)} (ends ${Math.round(over1.y + over1.h)}); next column on the sheet now at x ${next1 ? Math.round(onSheetBox(arr1, next1).x) : '—'} (the moved one stood at ${Math.round(onSheetBox(arr0, moving0).x)})`);
+    step('no two frames overlap after the drop', overlaps(arr1.items).length === 0, overlaps(arr1.items).join(', ') || 'clear');
+    const want1 = columns0.flatMap((c, i) => (i === 1 ? [[overId, movingId]] : i === 2 ? [] : [c]));
+    const posted = await until(async () => { const p = await cp.evaluate(async (url) => (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-SVE-Test': 'probe' } })).json(), ENDPOINT); const c = payloadColumns((p.groups || []).find((g) => g.key === 'pages')?.rows[0]); return JSON.stringify(c) === JSON.stringify(want1) ? c : null; }, 4000);
+    step('the columns were posted once and the endpoint answers them: the two pages one column, the rest as they were', !!posted && arrangeCalls === 1, `${arrangeCalls} post(s); endpoint ${posted ? 'answers the new columns' : 'does not answer the new columns'}`);
+    // Above the pages' heading — on the templates' line — is nowhere: no bar, and the drop changes nothing.
+    const templatesHead = arr1.heads.find((h) => h.kind === 'group');
+    const nowhere = await dragFrame({ x: moving1.x + moving1.w / 2, y: moving1.y + moving1.h / 2 }, { x: over1.x + over1.w / 2, y: templatesHead.y + 4 }, { peek: dragState });
+    const arr2 = await cp.evaluate(canvasShape, LAYER);
+    step('dragged up among the templates, the bar is gone (nowhere to land), and the drop leaves the columns as they were', !!nowhere && nowhere.dragging === movingId && !nowhere.bar && samePlaces(arr2, arr1) && arrangeCalls === 1, `bar ${nowhere?.bar ? 'shown' : 'none'}, ${arrangeCalls} post(s), frames where they were: ${samePlaces(arr2, arr1)}`);
+    // Back out: into the gap right of its column, a new column of its own — the columns as before.
+    const back = await dragFrame({ x: moving1.x + moving1.w / 2, y: moving1.y + moving1.h / 2 }, { x: over1.x + over1.w + Math.max(2, (GAP / 2) * arr1.z), y: over1.y + over1.h / 2 }, { peek: dragState });
+    const arr3 = await cp.evaluate(canvasShape, LAYER);
+    const restored = await until(async () => { const p = await cp.evaluate(async (url) => (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-SVE-Test': 'probe' } })).json(), ENDPOINT); const c = payloadColumns((p.groups || []).find((g) => g.key === 'pages')?.rows[0]); return JSON.stringify(c) === JSON.stringify(columns0) ? c : null; }, 4000);
+    step('dragged out into the gap beside its old column, the bar stands down the line there; dropped, it is a column of its own again and everything stands as before — on the sheet and at the endpoint', !!back && !!back.bar && back.bar.h > back.bar.w && samePlaces(arr3, arr0) && !!restored && arrangeCalls === 2, `bar ${back?.bar ? `${Math.round(back.bar.w)}×${Math.round(back.bar.h)}` : 'none'}; frames back: ${samePlaces(arr3, arr0)}; endpoint ${restored ? 'as before' : 'NOT as before'}; ${arrangeCalls} post(s)`);
+    if (!restored) {
+      // Leave the site as it was found.
+      const status = await cp.evaluate(async (url, columns) => (await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-SVE-Test': 'probe', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || window.Statamic?.$config?.get?.('csrfToken') || '' }, body: JSON.stringify({ columns }) })).status, ARRANGE_ENDPOINT, columns0);
+      info('the arrangement was put back by hand', `POST ${status}`);
+    }
+    step('a drag on a page frame opened nothing: the canvas is still open, the editor on the same entry', !!(await cp.$(LAYER)) && cp.url().includes(ENTRY_ID));
+  }
 
   // 9. Pan: a drag moves the view; it opens nothing.
   const panFrom = { x: layerRect.x + layerRect.w / 2, y: layerRect.y + layerRect.h / 2 };
