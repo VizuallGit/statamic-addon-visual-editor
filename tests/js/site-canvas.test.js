@@ -329,7 +329,33 @@ test('headings and labels keep their screen size: their room on the sheet is the
 test('an empty sheet is padding alone', () => {
   const layout = canvasLayout([], 1);
 
-  assert.deepEqual([layout.width, layout.height, layout.items, layout.headings], [PAD * 2, PAD * 2, [], []]);
+  assert.deepEqual([layout.width, layout.height, layout.items, layout.headings, layout.clusters], [PAD * 2, PAD * 2, [], [], []]);
+});
+
+test('a cluster box behind each row of a line of several rows — its heading, labels and frames, the line’s full height, so the boxes stand level and equally tall; none for a group of one row', () => {
+  const groups = canvasGroups(PAYLOAD);
+  const heights = new Map([['layout', 700], ['home', 4200]]);
+  const W = FRAME.width;
+
+  for (const z of [1, 0.5, 0.12]) {
+    const { items, headings, clusters } = canvasLayout(groups, z, { heights });
+    const item = (id) => items.find((it) => it.id === id);
+    const head = (title) => headings.find((heading) => heading.title === title);
+    const templates = headings.find((heading) => heading.kind === 'group' && heading.key === 'templates');
+
+    assert.deepEqual(clusters.map((cluster) => cluster.key), ['templates/services', 'templates/pages', 'templates/site'], `zoom ${z}: one box per row of the templates line, none for the pages`);
+
+    const [services, pages, sitet] = clusters;
+
+    // Each box starts at its row's first frame and ends at its last; its top is the row heading's, its bottom the line's end.
+    assert.deepEqual([services.x, services.width], [item('services-index').x, 2 * W + GAP]);
+    assert.deepEqual([pages.x, pages.width], [item('pages-index').x, W]);
+    assert.deepEqual([sitet.x, sitet.width], [item('layout').x, 2 * W + GAP]);
+    assert.ok(clusters.every((cluster) => cluster.y === head('Services').y && cluster.y + cluster.height === templates.bottom), `zoom ${z}: level, from the row headings to the line's end`);
+    assert.equal(sitet.y + sitet.height, item('layout').y + 700, 'the line ends under its tallest frame, and so does every box');
+    // The boxes keep half a row gap and more apart: room for the plates' own inset.
+    assert.ok(pages.x - (services.x + services.width) === ROW_GAP && sitet.x - (pages.x + pages.width) === ROW_GAP);
+  }
 });
 
 // --- columns ------------------------------------------------------------------------

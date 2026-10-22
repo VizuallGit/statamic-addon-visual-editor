@@ -229,7 +229,9 @@ const canvasShape = (layerSel) => {
     fit: { x: vr.x, y: vr.y, w: scroller.clientWidth, h: scroller.clientHeight - Math.max(0, layer.clientHeight - layer.querySelector('.sve-sc-zoom').offsetTop) },
     bar: (() => { const b = layer.querySelector('.sve-sc-zoom').getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; })(),
     scrollbars: [scroller.offsetWidth - scroller.clientWidth, scroller.offsetHeight - scroller.clientHeight],
-    heads: [...layer.querySelectorAll('.sve-sc-head')].map((h) => ({ kind: h.dataset.kind, text: h.textContent, x: h.getBoundingClientRect().x, y: h.getBoundingClientRect().y, size: parseFloat(getComputedStyle(h).fontSize) * z })),
+    heads: [...layer.querySelectorAll('.sve-sc-head')].map((h) => ({ kind: h.dataset.kind, text: h.textContent, x: h.getBoundingClientRect().x, y: h.getBoundingClientRect().y, w: h.getBoundingClientRect().width, h: h.getBoundingClientRect().height, size: parseFloat(getComputedStyle(h).fontSize) * z })),
+    // The plate behind each cluster of a line of several rows, as drawn (its inset in); `hairline` the ring round it on screen.
+    plates: [...layer.querySelectorAll('.sve-sc-plate')].map((p) => { const r = p.getBoundingClientRect(); const cs = getComputedStyle(p); const px = (cs.boxShadow.match(/-?[\d.]+px/g) || []).map(parseFloat); return { key: p.dataset.key, x: r.x, y: r.y, w: r.width, h: r.height, inset: parseFloat(cs.paddingLeft) * z, hairline: (px[3] ?? NaN) * z, pointer: cs.pointerEvents }; }),
     items: [...layer.querySelectorAll('.sve-sc-item')].map((item) => {
       const r = item.getBoundingClientRect();
       const frame = item.querySelector('iframe');
@@ -608,6 +610,25 @@ try {
   const rowsExpected = groups.flatMap((g) => (g.rows.length > 1 ? g.rows.map((r) => r.title) : []));
   step('a row heading over each cluster of a group with several rows, left to right on its line; none for a group of one row', rowHeads.map((h) => h.text).join('|') === rowsExpected.join('|') && rowHeads.every((h, i) => i === 0 || h.y > rowHeads[i - 1].y + 0.5 || (Math.abs(h.y - rowHeads[i - 1].y) <= 0.5 && h.x > rowHeads[i - 1].x)), `${rowHeads.map((h) => `"${h.text}" at ${Math.round(h.x)},${Math.round(h.y)}`).join(', ')}; groups of one row: ${groups.filter((g) => g.rows.length === 1).map((g) => `"${g.title}"`).join(', ') || 'none'}`);
   step('headings and labels keep their screen size whatever the zoom', groupHeads.every((h) => Math.abs(h.size - 18) < 0.5) && rowHeads.every((h) => Math.abs(h.size - 13) < 0.5) && shape1.items.every((it) => Math.abs(it.labelSize - 12) < 0.5), `group ${groupHeads[0]?.size.toFixed(1)} px, row ${rowHeads[0]?.size.toFixed(1)} px, label ${shape1.items[0]?.labelSize.toFixed(1)} px on screen at zoom ${shape1.z.toFixed(3)}`);
+
+  // A plate behind each cluster of a group with several rows says which frames belong together: it holds the row's heading and its frames (labels included) with a little room round them, the plates on a line stand level and equally tall, none reaches a neighbour or a group heading, and a group of one row has none — its heading says it all. It is drawing only: it takes no pointer.
+  {
+    const within = (inner, outer, slack = 0.5) => inner.x >= outer.x - slack && inner.y >= outer.y - slack && inner.x + inner.w <= outer.x + outer.w + slack && inner.y + inner.h <= outer.y + outer.h + slack;
+    const platesExpected = groups.flatMap((g) => (g.rows.length > 1 ? g.rows.map((r) => `${g.key}/${r.key}`) : []));
+    const plateFor = (g, r) => shape1.plates.find((p) => p.key === `${g.key}/${r.key}`);
+    const holds = groups.flatMap((g) => (g.rows.length > 1 ? g.rows.map((r, i) => {
+      const plate = plateFor(g, r);
+      const head = rowHeads.find((h) => h.text === r.title);
+      const its = r.columns.flat().map((f) => shape1.items.find((it) => it.id === f.id)).filter(Boolean);
+      // Above a frame its label: 28 screen px of room the layout keeps for it.
+      const boxes = its.map((it) => ({ x: it.x, y: it.y - 28, w: it.w, h: it.h + 28 }));
+      // The heading starts inside the plate (its text may run past a narrow cluster at a small zoom — the layout does not measure text); every frame and its label is wholly inside.
+      return !!plate && !!head && head.x >= plate.x - 0.5 && head.y >= plate.y - 0.5 && head.y + head.h <= plate.y + plate.h + 0.5 && boxes.every((b) => within(b, plate)) && plate.inset > 0.5 && (its[0] ? its[0].x - plate.x >= plate.inset - 0.5 : true);
+    }) : [])).every(Boolean);
+    const line = groups.filter((g) => g.rows.length > 1).every((g) => { const ps = g.rows.map((r) => plateFor(g, r)).filter(Boolean); return ps.length === g.rows.length && ps.every((p) => Math.abs(p.y - ps[0].y) <= 0.5 && Math.abs(p.h - ps[0].h) <= 0.5) && ps.slice(1).every((p, i) => p.x > ps[i].x + ps[i].w + 0.5); });
+    const clearOfHeads = shape1.plates.every((p) => groupHeads.every((h) => !(p.x < h.x + h.w && h.x < p.x + p.w && p.y < h.y + h.size * 1.25 && h.y < p.y + p.h)));
+    step('a plate behind each cluster of a group with several rows holds its heading and frames with room round them; the plates on a line are level, equally tall and apart; none for a group of one row; no pointer', shape1.plates.map((p) => p.key).join('|') === platesExpected.join('|') && holds && line && clearOfHeads && shape1.plates.every((p) => p.pointer === 'none' && Math.abs(p.hairline - 1) < 0.25), `${shape1.plates.map((p) => `${p.key} ${Math.round(p.w)}×${Math.round(p.h)} at ${Math.round(p.x)},${Math.round(p.y)} (inset ${p.inset.toFixed(1)} px, ring ${p.hairline.toFixed(2)} px)`).join('; ') || 'no plates'}; expected ${platesExpected.join('|') || 'none'}; holds ${holds}, level+apart ${line}, clear of group headings ${clearOfHeads}`);
+  }
 
   // 5. One frame per entry: 1440 wide × as tall as its page, scaled, none overlapping, under its group.
   const byId = new Map(frames.map((f) => [f.id, f]));
