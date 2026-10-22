@@ -33,6 +33,12 @@ export function componentSrcFromType(type) {
  * Antlers is replaced by a marker rather than a space, so `bg-{{ color }}` is
  * dropped whole. Blanking it would leave `bg-`, a class the page never has, and
  * one such fragment is enough to make the whole selector match nothing.
+ *
+ * The `[ ]` marks stand on their own between spaces (`[ {{ _class }} ]`), so
+ * the split is on whitespace alone and the bare brackets are dropped after.
+ * Splitting on the brackets themselves cut `prose-headings:max-w-[30ch]` into
+ * `prose-headings:max-w-` — the same kind of fragment — and a component whose
+ * root wore one arbitrary value was never found on the page.
  */
 export function staticClasses(openTag) {
   const match = String(openTag || '').match(/\sclass\s*=\s*(["'])([\s\S]*?)\1/i);
@@ -43,8 +49,8 @@ export function staticClasses(openTag) {
 
   return match[2]
     .replace(/\{\{[\s\S]*?\}\}/g, '\u0000')
-    .split(/[\s[\]]+/)
-    .filter((name) => name && !name.includes('\u0000') && /^[A-Za-z_][\w:./%!#-]*$/.test(name));
+    .split(/\s+/)
+    .filter((name) => name && !name.includes('\u0000') && /^[A-Za-z_][\w:./%!#\[\]()-]*$/.test(name));
 }
 
 const escapeClass = (name) =>
@@ -55,7 +61,11 @@ const escapeClass = (name) =>
  * with something too vague to point at.
  */
 export function rootSelector(html) {
-  const root = parseHtmlTree(html)[0];
+  // The first tag at the top of the file — not the first node. A component
+  // may open with Antlers that writes no markup (`{{ if _aspect }} … {{ /if }}`
+  // working out a size) before its tag; that block was taken for the root,
+  // and the component was never found on the page.
+  const root = parseHtmlTree(html).find((node) => !node.kind);
 
   if (!root) {
     return null;

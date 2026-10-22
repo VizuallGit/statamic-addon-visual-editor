@@ -1812,9 +1812,13 @@ export function renderHtmlTree(win) {
   // bracketed name of a section root is usually `{{ _class }}` — nothing at all.
   const rootId = rows.find((item) => !item.kind)?.id;
 
-  // Inside a component the root is named for the component, the way the
-  // header's root is named "Header": the tree is that file and says so.
-  const rootName = htmlTreeRootName(win, sections, openUid);
+  // Inside a component the root is drawn as the tag it is — a `div` with its
+  // classes, like any row — not as the component. The component is the file
+  // you are standing in (the box, the sidebar's name and Exit say so); its
+  // first tag wearing the component's mark read as one more component to
+  // open, and offered to be made a component again. Only the components it
+  // calls wear the mark here.
+  const rootName = inComponent ? '' : htmlTreeRootName(win, sections, openUid);
 
   // The section this file belongs to, so its root tag can wear the same name
   // and mark the shut row wears. One row, two states — not two rows. Not
@@ -1904,10 +1908,6 @@ export function renderHtmlTree(win) {
     // alias again, so the default must be what the alias is measured against.
     const base = row.id === rootId && rootName ? rootName : row.klass;
     const isRoot = row.id === rootId;
-    // The open component's root: the component's own mark and colour, the
-    // way the header's root wears the header's — the box around the rows
-    // reads the same family (HtmlTreeList.vue).
-    const componentRoot = isRoot && inComponent;
 
     return {
       ...row,
@@ -1938,19 +1938,22 @@ export function renderHtmlTree(win) {
             ? t(win, 'html_tree_frame_main')
             : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
       current: row.id === htmlTreeActiveId,
-      letter: componentRoot ? '' : icon.letter || '',
+      letter: icon.letter || '',
       svg: chromeKind && row.id === chromeRootId
         ? HTML_ICONS[chromeKind]
         : row === mainRaw
           ? HTML_ICONS.main
-          : isRoot && openSection ? openSection.svg : componentRoot ? HTML_ICONS.component : icon.svg || '',
+          : isRoot && openSection ? openSection.svg : icon.svg || '',
       frame: chromeKind && row.id === chromeRootId ? chromeKind : row === mainRaw ? 'main' : '',
       // The frame's rows wear the frame's own families — header, main,
       // footer — each with its colour in the Live Preview settings. The
       // <body> wears main's.
       cat: chromeKind && row.id === chromeRootId
         ? chromeKind
-        : row === mainRaw || body ? 'main' : componentRoot ? 'component' : frameCall || tagFamily(row.tag, row.kind, row.antlers),
+        : row === mainRaw || body ? 'main' : frameCall || tagFamily(row.tag, row.kind, row.antlers),
+      // The first tag of the open component's own file. It is the component,
+      // so it is not offered to be made one (the menu).
+      componentRoot: isRoot && inComponent,
       // The open section IS its first tag row. Carrying the uid here is what
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
@@ -3105,6 +3108,13 @@ function openHtmlTreeMenu(win, event, id) {
   }
 
   if (!htmlTreeUi.canEdit) {
+    return;
+  }
+
+  // The open component's own root already is a component; making it one
+  // again would wrap the file in a copy of itself. The tags under it may
+  // still become components of their own.
+  if (row.componentRoot) {
     return;
   }
 

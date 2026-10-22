@@ -371,9 +371,15 @@ export function injectStyles(doc) {
             opacity: 0.3;
             transition: opacity 0.2s ease;
         }
+        /* Every instance of the open component, in the tree's component
+           colour — the same teal the component rows wear — so where the
+           component renders, and how many times, reads at a glance.
+           !important as on a focused global section: an instance that is
+           also a field's inner node wears the transparent field outline
+           with !important, and the focus ring must still show over it. */
         html.sve-component-focus [data-sve-component-focused] {
-            outline: 2px solid #7c3aed;
-            outline-offset: -2px;
+            outline: 2px solid #0f766e !important;
+            outline-offset: -2px !important;
         }
         /* Before you step in, a global section reads as ONE thing you click into,
            not a pile of separately editable fields — so nested field outlines

@@ -433,3 +433,5 @@ function enterGlobalFocus(win, section, reopen = true) {
 export const CHROME_ATTR = 'data-sve-chrome';
 export const CHROME_FOCUS_ATTR = 'data-sve-chrome-focused';
 export const CHROME_BAR_ID = '__sve-chrome-bar';
+// The Close chip in the focused half's own corner (header-footer.js mounts it).
+export const CHROME_CLOSE_ID = '__sve-chrome-close';

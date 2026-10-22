@@ -10,7 +10,7 @@ import { controlsFrom, drawnPlaceholder, findPrecedingSetSibling, openToolbarMen
 import { widthDragJustEnded } from './grid.js';
 import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
 import { INSERT_LAYER_ID } from './outline-nav.js';
-import { CHROME_ATTR, CHROME_BAR_ID, confirmEnterGlobal, rebindGlobalFocus } from './global-sections.js';
+import { CHROME_ATTR, CHROME_BAR_ID, CHROME_CLOSE_ID, confirmEnterGlobal, rebindGlobalFocus } from './global-sections.js';
 import { chromeEditable, confirmEnterChrome, hasChromeFocusClass, requestCloseChrome } from './header-footer.js';
 import { finishEditing, wrapUpBeltTarget } from './editing.js';
 import { hideMoveControl } from './row-caps-move.js';
@@ -207,8 +207,8 @@ export function createClickHandler(win) {
       return;
     }
 
-    // The chrome (header/footer) bar owns its own clicks.
-    if (event.target.closest(`#${CHROME_BAR_ID}`)) {
+    // The chrome (header/footer) bar and the half's own Close chip own their clicks.
+    if (event.target.closest(`#${CHROME_BAR_ID}, #${CHROME_CLOSE_ID}`)) {
       return;
     }
 

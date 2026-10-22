@@ -4,7 +4,7 @@
  */
 import { bridgeState } from '../bridge/state.js';
 import { featureOn, t } from '../bridge.js';
-import { CHROME_ATTR, CHROME_BAR_ID, CHROME_FOCUS_ATTR, cpDialogTheme, exitGlobalFocus, showPreviewConfirm, sveFocusBarStyle, svePrimaryBtn, sveSecondaryBtn } from './global-sections.js';
+import { CHROME_ATTR, CHROME_BAR_ID, CHROME_CLOSE_ID, CHROME_FOCUS_ATTR, cpDialogTheme, exitGlobalFocus, showPreviewConfirm, sveFocusBarStyle, svePrimaryBtn, sveSecondaryBtn } from './global-sections.js';
 import { alongBandBottom } from './viewport.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
@@ -136,6 +136,92 @@ export function rebindChromeFocus(win, kind, attempt = 0) {
   if (!doc.getElementById(CHROME_BAR_ID)) {
     mountChromeBar(win, chromeKind);
   }
+
+  mountChromeClose(win, again);
+}
+
+/**
+ * The way out, written on the half: a Close chip over its top-right corner,
+ * opposite the label that names it. The bar under the preview says the same
+ * — but the bar stands at the bottom of the band, and standing in the header
+ * the eye is at the top. Same door as the bar and Escape
+ * (`requestCloseChrome`): the Control Panel asks about unsaved edits first.
+ *
+ * Over the half, not in it. The half is the site's markup, and two morphs
+ * own that markup — the preview's Alpine morph against server HTML, and the
+ * dock's Instant paint against the file — and both take out what the server
+ * did not send. A chip appended to the header lived until the next paint. So
+ * the chip hangs off <html> like the bar and the confirm card, and is placed
+ * at the half's corner in document coordinates: measured when mounted, when
+ * the viewport resizes, and when the half's own box changes (a dock paint, a
+ * morph). The rebind after a morph only re-points it at the new node.
+ */
+let chromeCloseWatch = null;
+
+function placeChromeClose(win, el, chip) {
+  const rect = el.getBoundingClientRect();
+
+  chip.style.top = `${rect.top + win.scrollY}px`;
+  chip.style.left = `${rect.right + win.scrollX}px`;
+}
+
+function mountChromeClose(win, el) {
+  const doc = win.document;
+
+  if (!el) {
+    return;
+  }
+
+  let chip = doc.getElementById(CHROME_CLOSE_ID);
+
+  if (!chip) {
+    chip = doc.createElement('button');
+    chip.id = CHROME_CLOSE_ID;
+    chip.type = 'button';
+    chip.setAttribute('data-sve-chrome-ui', '');
+    chip.setAttribute('aria-label', t('close'));
+    chip.textContent = `${t('close')} ✕`;
+    chip.style.cssText =
+      'position:absolute;z-index:9998;margin:0;border:0;transform:translateX(-100%);' +
+      'background:#60a5fa;color:#fff;font:500 10px/1 sans-serif;letter-spacing:.02em;' +
+      'padding:4px 8px;border-radius:0 0 0 4px;cursor:pointer;pointer-events:auto;opacity:1;';
+    // The chip is the half's way out, not one of its fields: the page's click
+    // handling must not see the press as a click on the header.
+    chip.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+    });
+    chip.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      requestCloseChrome(win);
+    });
+    doc.documentElement.appendChild(chip);
+  }
+
+  if (chromeCloseWatch?.el !== el) {
+    chromeCloseWatch?.stop();
+
+    const place = () => placeChromeClose(win, el, chip);
+    const sizes = new win.ResizeObserver(place);
+
+    sizes.observe(el);
+    win.addEventListener('resize', place);
+    chromeCloseWatch = {
+      el,
+      stop() {
+        sizes.disconnect();
+        win.removeEventListener('resize', place);
+      },
+    };
+  }
+
+  placeChromeClose(win, el, chip);
+}
+
+function unmountChromeClose(doc) {
+  chromeCloseWatch?.stop();
+  chromeCloseWatch = null;
+  doc.getElementById(CHROME_CLOSE_ID)?.remove();
 }
 
 /** @deprecated name — soft rebind, never exit/enter. */
@@ -150,6 +236,7 @@ export function exitChromeFocus(win, closePanel = true) {
   doc.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(CHROME_FOCUS_ATTR));
   clearChromeFocusClasses(doc);
   doc.getElementById(CHROME_BAR_ID)?.remove();
+  unmountChromeClose(doc);
   chromeSaveBtn = null;
   chromeStatusEl = null;
   chromeDirty = false;
@@ -176,6 +263,8 @@ function enterChromeFocus(win, el, reopen = true) {
       mountChromeBar(win, el.getAttribute(CHROME_ATTR) || 'header');
     }
 
+    mountChromeClose(win, el);
+
     return;
   }
 
@@ -191,6 +280,7 @@ function enterChromeFocus(win, el, reopen = true) {
   bridgeState.chromeFocusEl = el;
   rememberChromeKind(kind);
   mountChromeBar(win, kind);
+  mountChromeClose(win, el);
 
   if (reopen) {
     win.parent.postMessage({ source: SOURCE, type: MSG.OPEN_CHROME, kind }, win.location.origin);
