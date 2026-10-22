@@ -17,6 +17,7 @@ import {
   ROW_HEAD_PX,
   VIEW_FLAG,
   VIEW_VALUE,
+  ZOOM_DEFAULT,
   ZOOM_MAX,
   ZOOM_MIN,
   anchoredScroll,
@@ -305,6 +306,13 @@ test('fit puts the whole sheet in the view with the margin clear, and never past
 
   assert.equal(fitZoom({ width: 100000, height: 100000 }, at1), ZOOM_MAX, 'a huge view: 100 %, not more');
   assert.equal(fitZoom(view, canvasLayout([], 1)), 1, 'nothing to fit: 100 %');
+});
+
+test('the canvas opens at 50 %: a step on the ladder, within the clamp, a frame 720 px wide on screen', () => {
+  assert.equal(ZOOM_DEFAULT, 0.5);
+  assert.equal(clampZoom(ZOOM_DEFAULT), ZOOM_DEFAULT);
+  assert.equal(stepZoom(stepZoom(ZOOM_DEFAULT, 1), -1), ZOOM_DEFAULT, 'up a step and down again lands on it: it is on the ladder');
+  assert.equal(FRAME.width * ZOOM_DEFAULT, 720);
 });
 
 test('the zoom is clamped and steps along the ladder', () => {

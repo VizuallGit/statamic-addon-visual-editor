@@ -29,10 +29,11 @@
  * width and height of room round it on every side, so every pan is a scroll
  * position — drag, wheel in both directions — and a zoom round the pointer
  * keeps the point under it exactly (the nearest sheet point, for a pointer
- * in the room beside it); the room follows the pane's size. It opens fitted
- * and centred — from the top-left edge instead, where a small pane and
- * ZOOM_MIN leave the sheet bigger than the view. The scrollbars are not
- * drawn: the room would make them say "more" at every zoom.
+ * in the room beside it); the room follows the pane's size. It opens at
+ * ZOOM_DEFAULT (50 %), the sheet's top-left corner a margin in from the
+ * view's (in the middle, on an axis the sheet fits on); «Fit all» zooms the
+ * whole sheet into the view. The scrollbars are not drawn: the room would
+ * make them say "more" at every zoom.
  *
  * Every frame is an iframe a desktop viewport wide (FRAME.width, 1440 CSS
  * pixels) and as tall as its page: its document's scrollHeight as its `load`
@@ -40,9 +41,12 @@
  * so a page is measured in a frame of the minimum height, where a body with
  * a viewport-high floor cannot report a height it was given — scaled down
  * with the sheet's one transform. A line of frames is as tall as its tallest.
- * As a page's height comes in, the sheet is laid out again: fitted anew while
- * the view is as it opened, left where it is once the user has panned or
- * zoomed (`moved`). Its URL carries `sve_view=canvas`, which InjectBridgeScript
+ * As a page's height comes in, the sheet is laid out again at the zoom it
+ * has, the view left where it is — the frames below the page move down, and
+ * those then near the view load — unless «Fit all» was the last thing to
+ * set the view (`fitted`, until a pan or a zoom): then the fit is made
+ * again, so «Fit all» keeps meaning the whole sheet while pages still come.
+ * Its URL carries `sve_view=canvas`, which InjectBridgeScript
  * answers with mirror.js alone: no bridge, so no badges, no hover, no inline
  * edit and nothing sent back; and nothing here ever posts to it, so it never
  * morphs — the canvas does not follow the fields while it is open. A
@@ -113,6 +117,9 @@ export const LABEL_PX = 28;
 export const ZOOM_MIN = 0.03;
 export const ZOOM_MAX = 1;
 const ZOOM_STEPS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1];
+
+/** The zoom the canvas opens at: a step on the ladder, pages readable, two or three to a view. */
+export const ZOOM_DEFAULT = 0.5;
 
 /** Screen pixels kept clear round the sheet when it is fitted to the view. */
 export const FIT_MARGIN_PX = 24;
@@ -452,7 +459,7 @@ function emptyState() {
     heads: new Map(), // heading key -> element
     heights: new Map(), // frame id -> its page's height (frameHeight), once its load has fired; absent until then
     zoom: 1,
-    moved: false, // the user has panned or zoomed: the opening fit no longer holds, a page's height leaves the view where it is
+    fitted: false, // «Fit all» set the view and nothing has moved it since: a page's height makes the fit again
     pan: null,
     loading: 0, // frames whose page is on its way (LOAD_AT_ONCE)
     loadFrame: 0, // the animation frame of a pending loadNear
@@ -742,7 +749,7 @@ function place() {
  * The groups onto the sheet: headings, labels, empty frames and their hit
  * layers, each frame with the URL it will load when its turn comes (the
  * preview's own for the entry being edited, the endpoint's for the rest);
- * then the zoom that shows them all.
+ * at ZOOM_DEFAULT, the sheet at rest from its top-left corner.
  */
 function populate(win, groups) {
   const { sheet, empty, scroller } = canvasState;
@@ -790,15 +797,17 @@ function populate(win, groups) {
     canvasState.entries.set(frame.id, { frame, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
   }
 
-  fitSheet();
+  applyZoom(ZOOM_DEFAULT);
+  centreSheet();
 }
 
-/** The whole sheet in the fit view, at rest. */
+/** «Fit all»: the whole sheet in the fit view, at rest — and kept so as pages' heights come, until the view is moved. */
 function fitSheet() {
   const { groups, heights } = canvasState;
 
   applyZoom(fitZoom(fitView(), canvasLayout(groups, 1, { heights })));
   centreSheet();
+  canvasState.fitted = true;
 }
 
 /**
@@ -914,7 +923,7 @@ function fitView() {
   return { width: scroller.clientWidth, height: Math.max(1, scroller.clientHeight - strip) };
 }
 
-/** The sheet at rest after a fit: in the middle of the fit view, or from its top-left edge where it is bigger than that. */
+/** The sheet at rest at the zoom it has: in the middle of the fit view on an axis it fits on, its edge a margin in from the view's on one it does not — the open at ZOOM_DEFAULT, a fit that ZOOM_MIN stopped short. */
 function centreSheet() {
   const { scroller, layout, zoom } = canvasState;
   const origin = sheetOrigin();
@@ -949,7 +958,7 @@ function keepRoom() {
 function zoomAction(action) {
   const { zoom } = canvasState;
 
-  canvasState.moved = true;
+  canvasState.fitted = false;
 
   if (action === 'in') {
     setZoom(stepZoom(zoom, 1));
@@ -1000,20 +1009,20 @@ function loadNear() {
  * A page has loaded: its frame takes the page's height, read once, now,
  * from the frame's own document (the preview is the same origin as the
  * Control Panel; a frame whose document cannot be read stays at the
- * minimum). The sheet is laid out again with it — fitted anew while the
- * view is as it opened, left where it is once the user has moved it, the
- * frames below it moving down — and the frames then near the view load.
+ * minimum). The sheet is laid out again with it at the zoom it has, the
+ * view left where it is — the frames below move down — and the frames
+ * then near the view load; after a «Fit all» nothing has moved, the fit is
+ * made again instead.
  */
 function measured(entry) {
-  const { heights, moved, zoom } = canvasState;
-  const height = frameHeight(entry.el.contentDocument?.documentElement?.scrollHeight);
+  const { heights, zoom, fitted } = canvasState;
 
-  heights.set(entry.frame.id, height);
+  heights.set(entry.frame.id, frameHeight(entry.el.contentDocument?.documentElement?.scrollHeight));
 
-  if (moved) {
-    applyZoom(zoom);
-  } else {
+  if (fitted) {
     fitSheet();
+  } else {
+    applyZoom(zoom);
   }
 }
 
@@ -1091,7 +1100,8 @@ function onKey(event) {
  * both directions — nothing to do here.
  */
 function onWheel(event) {
-  canvasState.moved = true;
+  // A scroll or a zoom: either moves the view off the fit.
+  canvasState.fitted = false;
 
   if (!event.ctrlKey && !event.metaKey) {
     return;
@@ -1129,7 +1139,7 @@ function onPanMove(event) {
   }
 
   if (isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
-    canvasState.moved = true;
+    canvasState.fitted = false;
   }
 
   scroller.scrollLeft -= event.clientX - pan.x;

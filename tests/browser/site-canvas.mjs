@@ -8,8 +8,9 @@
  * two groups with their rows, every frame 1440 wide and as tall as its page
  * (never under the minimum, nothing cut off) loaded through Live Preview
  * without the bridge, the lines as tall as their tallest frame, the frame
- * of the entry being edited wearing the ring; the open fits everything into
- * the pane; zoom (buttons, ctrl/cmd + wheel round the pointer) and pan (drag,
+ * of the entry being edited wearing the ring; the open is at 50 % from the
+ * sheet's top-left corner with only the near frames loading, and «Fit all»
+ * fits everything into the pane; zoom (buttons, ctrl/cmd + wheel round the pointer) and pan (drag,
  * wheel) work and a pan opens nothing; Escape and the button close it and
  * leave the editor exactly as it was (the preview frame's src, transform and
  * window, the iframe count, the listeners); the breakpoint overview and the
@@ -403,6 +404,28 @@ async function framesPainted(cp, t0, expected) {
   }, 120000, 200);
   return { count: all, firstAt, allAt: all ? Date.now() - t0 : null };
 }
+/**
+ * At 50 % only the frames near the view load, and a page's height can bring
+ * more near: the near set is settled when every frame with a src has painted
+ * its page and no frame was given a src between two looks.
+ */
+async function nearPainted(cp, t0) {
+  let firstAt = null;
+  let last = -1;
+  const count = await until(async () => {
+    const handles = await cp.$$(`${LAYER} iframe.sve-sc-frame[src]`);
+    const states = [];
+    for (const h of handles) {
+      const f = await h.contentFrame();
+      states.push(!!f && f.url() !== 'about:blank' && (await f.evaluate(() => document.readyState === 'complete' && document.body?.children.length > 0).catch(() => false)));
+    }
+    if (firstAt === null && states.some(Boolean)) firstAt = Date.now() - t0;
+    const settled = handles.length > 0 && states.every(Boolean) && handles.length === last;
+    last = handles.length;
+    return settled ? handles.length : null;
+  }, 120000, 250);
+  return { count: count ?? 0, firstAt, allAt: count ? Date.now() - t0 : null };
+}
 async function closeByEscape(cp) {
   await page.keyboard.press('Escape');
   return until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
@@ -495,19 +518,48 @@ try {
   });
   const listenersBefore = await listenerSnapshot(cp);
 
-  // 3. Open with a real click: the layer, the frames, their pages — timed.
+  // At rest on an axis: centred where the sheet fits the view above the zoom bar (`fit`); its edge FIT_MARGIN_PX (24) in from the view's where it does not.
+  const FIT_MARGIN_PX = 24;
+  const ZOOM_MIN = 0.03;
+  const ZOOM_DEFAULT = 0.5;
+  const LOAD_MARGIN_PX = 200;
+  const atRest = (s) => ['x', 'y'].every((axis) => {
+    const size = axis === 'x' ? 'w' : 'h';
+    return s.sheet[size] <= s.fit[size] + 0.5
+      ? Math.abs((s.sheet[axis] + s.sheet[size] / 2) - (s.fit[axis] + s.fit[size] / 2)) <= 1.5
+      : Math.abs((s.sheet[axis] - s.fit[axis]) - FIT_MARGIN_PX) <= 1.5;
+  });
+  const restDetail = (s) => `zoom ${s.z.toFixed(3)} (${s.label}); sheet ${Math.round(s.sheet.w)}x${Math.round(s.sheet.h)} at ${Math.round(s.sheet.x - s.view.x)},${Math.round(s.sheet.y - s.view.y)} in a ${s.client.join('x')} pane (${Math.round(s.fit.h)} above the zoom bar)`;
+  // A frame is near the view when its rect crosses the view grown by the load margin.
+  const near = (s, it) => it.x < s.view.x + s.view.w + LOAD_MARGIN_PX && it.x + it.w > s.view.x - LOAD_MARGIN_PX && it.y < s.view.y + s.view.h + LOAD_MARGIN_PX && it.y + it.h > s.view.y - LOAD_MARGIN_PX;
+
+  // 3. Open with a real click: the layer, the frames at 50 %, the near ones' pages — timed.
   const open1 = await openCanvas(cp, frames.length);
   step('click opens the layer', open1.layerAt !== null, `${open1.layerAt} ms after the click`);
   step('the module was fetched on the click, once', chunkLoaded().length === 1, chunkLoaded().join(' ') || 'no chunk');
   step('the endpoint was asked once', endpointCalls === 1, `${endpointCalls} call(s)`);
   step(`every frame is drawn: ${frames.length} items`, open1.itemsAt !== null, `${open1.itemsAt} ms after the click`);
-  const painted1 = await framesPainted(cp, open1.t0, frames.length);
-  step('every frame painted its page', painted1.count === frames.length, `first page ${painted1.firstAt} ms, all ${painted1.count ?? 0} of ${frames.length} by ${painted1.allAt} ms after the click`);
+  const nearPainted1 = await nearPainted(cp, open1.t0);
+  const shape0 = await cp.evaluate(canvasShape, LAYER);
+  if (process.env.SVE_DEBUG) await page.screenshot({ path: `${tmpdir()}/sve-site-canvas-open.png` });
+  step('the open is 50 %, and the label reads it', Math.abs(shape0.z - ZOOM_DEFAULT) < 0.001 && shape0.label === '50%', `zoom ${shape0.z.toFixed(3)} "${shape0.label}"`);
+  step('at 50 % the sheet rests from its top-left corner, a margin in from the view’s — or in the middle, on an axis it fits on', atRest(shape0), restDetail(shape0));
+  step('a frame is 720 px wide on screen at the open', shape0.items.every((it) => Math.abs(it.w - FRAME.width * ZOOM_DEFAULT) <= 1.5), `${shape0.items[0]?.w.toFixed(1)} px`);
+  const withSrc0 = shape0.items.filter((it) => it.src);
+  const nearNow0 = shape0.items.filter((it) => near(shape0, it));
+  step('only the frames near the view were given their page; the rest are empty shells until they come near', withSrc0.length >= 1 && withSrc0.length < frames.length && nearNow0.every((it) => it.src), `${withSrc0.length} of ${frames.length} have a src (${withSrc0.map((it) => `"${it.title}"`).join(', ')}); ${nearNow0.length} near the view now, all with one`);
+  step('every frame given its page painted it', nearPainted1.count === withSrc0.length && nearPainted1.count >= 1, `${nearPainted1.count} painted, first ${nearPainted1.firstAt} ms after the click`);
+
+  // «Fit all»: everything near, everything loads — the rest of the run looks at the fitted sheet.
+  const tFit = Date.now();
+  await realClick(page, cp, `${LAYER} [data-sc-zoom="fit"]`);
+  const painted1 = await framesPainted(cp, tFit, frames.length);
+  step('after «Fit all», every frame painted its page', painted1.count === frames.length, `all ${painted1.count ?? 0} of ${frames.length} by ${painted1.allAt} ms after the click on «Fit all»`);
   step(`at most ${LOAD_AT_ONCE} pages were on their way at once (the load cap), and each page was asked for once`, loadingPeak >= 1 && loadingPeak <= LOAD_AT_ONCE && frameDocuments === frames.length, `peak ${loadingPeak} in flight; ${frameDocuments} frame documents for ${frames.length} frames`);
-  info('time from the click', `layer ${open1.layerAt} ms · items ${open1.itemsAt} ms · first page ${painted1.firstAt} ms · all pages ${painted1.allAt} ms`);
+  info('time from the click', `layer ${open1.layerAt} ms · items ${open1.itemsAt} ms · first near page ${nearPainted1.firstAt} ms · all pages ${painted1.allAt} ms after «Fit all»`);
 
   const shape1 = await cp.evaluate(canvasShape, LAYER);
-  if (process.env.SVE_DEBUG) await page.screenshot({ path: `${tmpdir()}/sve-site-canvas-open.png` });
+  if (process.env.SVE_DEBUG) await page.screenshot({ path: `${tmpdir()}/sve-site-canvas-fit.png` });
   const geometry = await cp.evaluate((layerSel) => {
     const layer = document.querySelector(layerSel);
     const pane = document.querySelector('.live-preview-contents');
@@ -532,18 +584,9 @@ try {
   // A fit fills the view above the zoom bar's strip (`fit`), so a fitted sheet never stands under the bar.
   const inView = (s) => s.sheet.x >= s.fit.x - 0.5 && s.sheet.y >= s.fit.y - 0.5 && s.sheet.x + s.sheet.w <= s.fit.x + s.fit.w + 0.5 && s.sheet.y + s.sheet.h <= s.fit.y + s.fit.h + 0.5;
   const centred = (s) => Math.abs((s.sheet.x + s.sheet.w / 2) - (s.fit.x + s.fit.w / 2)) <= 1.5 && Math.abs((s.sheet.y + s.sheet.h / 2) - (s.fit.y + s.fit.h / 2)) <= 1.5;
-  // At rest after a fit: centred on an axis the sheet fits on; its edge FIT_MARGIN_PX (24) in from the view's on one it does not (ZOOM_MIN stopped the fit short — a small pane).
-  const FIT_MARGIN_PX = 24;
-  const ZOOM_MIN = 0.03;
-  const atRest = (s) => ['x', 'y'].every((axis) => {
-    const size = axis === 'x' ? 'w' : 'h';
-    return s.sheet[size] <= s.fit[size] + 0.5
-      ? Math.abs((s.sheet[axis] + s.sheet[size] / 2) - (s.fit[axis] + s.fit[size] / 2)) <= 1.5
-      : Math.abs((s.sheet[axis] - s.fit[axis]) - FIT_MARGIN_PX) <= 1.5;
-  });
   const fitsWhole = (s) => inView(s) && centred(s);
-  const fitDetail = (s) => `zoom ${s.z.toFixed(3)} (${s.label}); sheet ${Math.round(s.sheet.w)}x${Math.round(s.sheet.h)} at ${Math.round(s.sheet.x - s.view.x)},${Math.round(s.sheet.y - s.view.y)} in a ${s.client.join('x')} pane (${Math.round(s.fit.h)} above the zoom bar)${fitsWhole(s) ? '' : s.z <= ZOOM_MIN + 1e-6 ? ' — ZOOM_MIN reached, the sheet starts at the top-left margin' : ''}`;
-  step('the open fits everything: the whole sheet in the pane above the zoom bar, centred, zoomed down to do it — or, where ZOOM_MIN stops that, from its top-left edge', shape1.z < 1 && (fitsWhole(shape1) || (shape1.z <= ZOOM_MIN + 1e-6 && atRest(shape1))), fitDetail(shape1));
+  const fitDetail = (s) => `${restDetail(s)}${fitsWhole(s) ? '' : s.z <= ZOOM_MIN + 1e-6 ? ' — ZOOM_MIN reached, the sheet starts at the top-left margin' : ''}`;
+  step('«Fit all» fits everything: the whole sheet in the pane above the zoom bar, centred, zoomed down to do it — or, where ZOOM_MIN stops that, from its top-left edge', shape1.z < ZOOM_DEFAULT && (fitsWhole(shape1) || (shape1.z <= ZOOM_MIN + 1e-6 && atRest(shape1))), fitDetail(shape1));
   step('a view’s width and height of room round the sheet, and no scrollbar drawn', Math.abs(shape1.room[0] - shape1.client[0]) <= 1 && Math.abs(shape1.room[1] - shape1.client[1]) <= 1 && shape1.scrollbars[0] === 0 && shape1.scrollbars[1] === 0, `room ${shape1.room.join('x')}, scroll area ${shape1.scrollSize.join('x')}, scrollbars ${shape1.scrollbars.join('x')} px`);
   step('the zoom label reads the zoom', shape1.label === `${Math.round(shape1.z * 100)}%`, `"${shape1.label}" for ${shape1.z.toFixed(3)}`);
 
@@ -581,7 +624,7 @@ try {
   // 6. Every frame's src: the view flag on, one URL each; the current one the preview's own URL, the rest the endpoint's.
   const mainSrc = await cp.evaluate(() => document.getElementById('live-preview-iframe').getAttribute('src') || '');
   const srcs = shape1.items.map((it) => it.src);
-  step('every frame in view has a src (the open fits them all in), each with sve_view=canvas, no two alike', srcs.every((s) => s && new URL(s).searchParams.get('sve_view') === 'canvas') && new Set(srcs).size === srcs.length, `${srcs.length} URLs`);
+  step('fitted, every frame is near and has a src, each with sve_view=canvas, no two alike', srcs.every((s) => s && new URL(s).searchParams.get('sve_view') === 'canvas') && new Set(srcs).size === srcs.length, `${srcs.length} URLs`);
   const currentItem = shape1.items.find((it) => it.current);
   const stripFlag = (u) => { const url = new URL(u); url.searchParams.delete('sve_view'); return url.toString(); };
   // The real endpoint mints a token (and Statamic's live-preview nonce) anew on every call, so the canvas's answer and the run's probe agree on everything but those.
@@ -635,7 +678,7 @@ try {
   await realClick(page, cp, `${LAYER} [data-sc-zoom="fit"]`);
   await sleep(150);
   const refit = await cp.evaluate(canvasShape, LAYER);
-  step('"Fit all" is the opening zoom again, the sheet at rest as it opened', Math.abs(refit.z - shape1.z) < 0.001 && (fitsWhole(refit) || (refit.z <= ZOOM_MIN + 1e-6 && atRest(refit))), fitDetail(refit));
+  step('"Fit all" after a zoom-in is the same fit again, the sheet at rest', Math.abs(refit.z - shape1.z) < 0.001 && (fitsWhole(refit) || (refit.z <= ZOOM_MIN + 1e-6 && atRest(refit))), fitDetail(refit));
   // Ctrl + wheel over a point: the sheet point under the pointer stays under it — the nearest sheet point, for a pointer in the room beside the sheet.
   const layerRect = await absoluteRect(cp, `${LAYER} .sve-sc-scroll`);
   const pointer = { x: layerRect.x + layerRect.w * 0.3, y: layerRect.y + layerRect.h * 0.4 };
@@ -731,14 +774,16 @@ try {
   const open2 = await openCanvas(cp, frames.length);
   step('the button opens it again', open2.layerAt !== null && open2.itemsAt !== null, `layer ${open2.layerAt} ms, items ${open2.itemsAt} ms`);
   step('reopened, the list is the one already fetched: no second endpoint call, no second chunk', endpointCalls === 1 && chunkLoaded().length === 1, `${endpointCalls} call(s)`);
-  // The frames are made anew on each open and given their pages a few at a time again.
-  const painted2 = await framesPainted(cp, open2.t0, frames.length);
-  step('reopened, every frame painted its page again', painted2.count === frames.length, `all ${painted2.count ?? 0} of ${frames.length} by ${painted2.allAt} ms after the click`);
+  // The frames are made anew on each open, at 50 % again, and the near ones given their pages a few at a time again.
+  const painted2 = await nearPainted(cp, open2.t0);
   const shape2 = await cp.evaluate(canvasShape, LAYER);
-  step('reopened at the fitting zoom, the ring on the same entry', Math.abs(shape2.z - shape1.z) < 0.001 && shape2.items.find((it) => it.current)?.id === ENTRY_ID);
+  step('reopened at 50 %, at rest from the top-left corner, the ring on the same entry', Math.abs(shape2.z - ZOOM_DEFAULT) < 0.001 && atRest(shape2) && shape2.items.find((it) => it.current)?.id === ENTRY_ID, restDetail(shape2));
+  step('reopened, the frames near the view painted their pages again', painted2.count >= 1 && painted2.count === shape2.items.filter((it) => it.src).length, `${painted2.count} by ${painted2.allAt} ms after the click`);
   const mainSrc2 = await cp.evaluate(() => document.getElementById('live-preview-iframe').getAttribute('src') || '');
-  const current2 = shape2.items.find((it) => it.current)?.src || '';
-  step('reopened, the current frame is the preview’s URL as it is now; every other frame the URL it had', !!current2 && new URL(current2).searchParams.get('token') === new URL(mainSrc2, SITE_URL).searchParams.get('token') && shape2.items.filter((it) => !it.current).every((it) => it.src === shape1.items.find((o) => o.id === it.id)?.src));
+  const current2 = shape2.items.find((it) => it.current);
+  // The current frame has a src only if it is near the view at 50 % in this pane; given one, it is the preview's URL as it is now.
+  const currentOk2 = !current2?.src || new URL(current2.src).searchParams.get('token') === new URL(mainSrc2, SITE_URL).searchParams.get('token');
+  step('reopened, every frame given its page has the URL it had — the current one the preview’s URL as it is now, when it is near', currentOk2 && shape2.items.filter((it) => !it.current && it.src).every((it) => it.src === shape1.items.find((o) => o.id === it.id)?.src), current2?.src ? `current …${current2.src.slice(-40)}` : `the current frame ("${current2?.title}") is not near the view at 50 % in this ${shape2.client.join('x')} pane — no src yet, as designed`);
   await realClick(page, cp, BUTTON);
   const closedByButton = await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
   step('the same button closes it', !!closedByButton);
@@ -772,6 +817,9 @@ try {
   if (target) {
     const open3 = await openCanvas(cp, frames.length);
     step('opened once more for the click', open3.itemsAt !== null);
+    // «Fit all» brings every frame into view; the target may stand outside it at 50 %.
+    await realClick(page, cp, `${LAYER} [data-sc-zoom="fit"]`);
+    await sleep(150);
     const t0 = Date.now();
     await realClick(page, cp, `${LAYER} .sve-sc-item[data-id="${target.id}"] .sve-sc-hit`);
     const closedOnClick = await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER).catch(() => true), 3000);
