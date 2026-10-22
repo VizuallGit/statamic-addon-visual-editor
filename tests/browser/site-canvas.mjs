@@ -5,9 +5,10 @@
  * Proves, in a real Live Preview, what the owner asked for: the button is in
  * the top bar; closed, the canvas costs nothing (no chunk fetched, no layer,
  * no extra iframe); open, there is one frame per template and per page, in
- * two groups with their rows, every frame 1440 wide and as tall as its page
- * (never under the minimum, nothing cut off) loaded through Live Preview
- * without the bridge, the lines as tall as their tallest frame, the frame
+ * two groups, each one line of frames — the templates in clusters a wide gap
+ * apart, each under its collection's heading; the pages under one heading —
+ * every frame 1440 wide and as tall as its page (never under the minimum,
+ * nothing cut off) loaded through Live Preview without the bridge, the frame
  * of the entry being edited wearing the ring; the open is at 50 % from the
  * sheet's top-left corner with only the near frames loading, and «Fit all»
  * fits everything into the pane; zoom (buttons, the plain + and - keys — which
@@ -91,6 +92,9 @@ const BP_LAYER = '#__sve-bp-overview';
 const BP_BUTTON = '#__sve-preview-chrome [data-overview]';
 const ENDPOINT = '/!/sve/site-canvas';
 const FRAME = { width: 1440, minHeight: 600 };
+// site-canvas.js GAP and ROW_GAP: sheet pixels between a row's frames, and between two rows (clusters) on a line.
+const GAP = 96;
+const ROW_GAP = 288;
 // site-canvas.js LOAD_AT_ONCE: frames whose page is on its way at the same time.
 const LOAD_AT_ONCE = 4;
 
@@ -595,9 +599,9 @@ try {
   const groupHeads = shape1.heads.filter((h) => h.kind === 'group');
   const rowHeads = shape1.heads.filter((h) => h.kind === 'row');
   step('two group headings, templates then pages, with the endpoint’s titles', groupHeads.length === 2 && groupHeads.map((h) => h.text).join('|') === groups.map((g) => g.title).join('|') && groupHeads[0].y < groupHeads[1].y, groupHeads.map((h) => `"${h.text}" at y ${Math.round(h.y)}`).join(', '));
-  const rowsExpected = groups.flatMap((g) => g.rows.map((r) => r.title));
-  // Short rows share a line (reading order: along it, then down), so a heading is never higher than the one before, and to its right when level with it.
-  step('one row heading per row, in order: along a line, then down', rowHeads.map((h) => h.text).join('|') === rowsExpected.join('|') && rowHeads.every((h, i) => i === 0 || h.y > rowHeads[i - 1].y + 0.5 || (Math.abs(h.y - rowHeads[i - 1].y) <= 0.5 && h.x > rowHeads[i - 1].x)), rowHeads.map((h) => `"${h.text}" at ${Math.round(h.x)},${Math.round(h.y)}`).join(', '));
+  // A group of one row is headed once (the pages: "Pages" over "Pages" would say it twice); a group of several has a heading over each cluster, along the line.
+  const rowsExpected = groups.flatMap((g) => (g.rows.length > 1 ? g.rows.map((r) => r.title) : []));
+  step('a row heading over each cluster of a group with several rows, left to right on its line; none for a group of one row', rowHeads.map((h) => h.text).join('|') === rowsExpected.join('|') && rowHeads.every((h, i) => i === 0 || h.y > rowHeads[i - 1].y + 0.5 || (Math.abs(h.y - rowHeads[i - 1].y) <= 0.5 && h.x > rowHeads[i - 1].x)), `${rowHeads.map((h) => `"${h.text}" at ${Math.round(h.x)},${Math.round(h.y)}`).join(', ')}; groups of one row: ${groups.filter((g) => g.rows.length === 1).map((g) => `"${g.title}"`).join(', ') || 'none'}`);
   step('headings and labels keep their screen size whatever the zoom', groupHeads.every((h) => Math.abs(h.size - 18) < 0.5) && rowHeads.every((h) => Math.abs(h.size - 13) < 0.5) && shape1.items.every((it) => Math.abs(it.labelSize - 12) < 0.5), `group ${groupHeads[0]?.size.toFixed(1)} px, row ${rowHeads[0]?.size.toFixed(1)} px, label ${shape1.items[0]?.labelSize.toFixed(1)} px on screen at zoom ${shape1.z.toFixed(3)}`);
 
   // 5. One frame per entry: 1440 wide × as tall as its page, scaled, none overlapping, under its group.
@@ -606,13 +610,14 @@ try {
   step('every frame is 1440 × zoom wide on screen, and no less than the minimum height × zoom tall', shape1.items.every((it) => Math.abs(it.w - FRAME.width * shape1.z) <= 1.5 && it.h >= FRAME.minHeight * shape1.z - 1.5), `${shape1.items[0]?.w.toFixed(1)} ≈ ${FRAME.width}×${shape1.z.toFixed(3)}; heights ${shape1.items.map((it) => Math.round(it.h / shape1.z)).join(' ')} sheet px`);
   const heightsSeen = new Set(shape1.items.map((it) => Math.round(it.h / shape1.z)));
   step('the frames are as tall as their pages, not one size: more than one height among them', heightsSeen.size > 1, `${heightsSeen.size} distinct heights: ${[...heightsSeen].sort((a, b) => a - b).join(' ')}`);
-  // Within a row, frames on a line share its top, and the next line starts under the tallest frame of the one before.
-  const rowLines = [...new Set(frames.map((f) => `${f.group}/${f.row}`))].map((key) => {
-    const its = shape1.items.filter((it) => `${byId.get(it.id)?.group}/${byId.get(it.id)?.row}` === key);
-    const tops = [...new Set(its.map((it) => Math.round(it.y)))].sort((a, b) => a - b);
-    return { key, lines: tops.map((top) => its.filter((it) => Math.round(it.y) === top)) };
+  // Each group is one line: its frames share a top, in the endpoint's order left to right; between two rows (clusters) the gap is the wide one, within a row the narrow one.
+  const groupLines = groups.map((g) => {
+    const its = g.rows.flatMap((r) => r.frames.map((f) => ({ ...shape1.items.find((it) => it.id === f.id), row: r.key })));
+    const gaps = its.slice(1).map((it, i) => ({ sheet: (it.x - (its[i].x + its[i].w)) / shape1.z, cluster: it.row !== its[i].row }));
+    return { key: g.key, its, gaps };
   });
-  step('within a row, the next line of frames starts under the tallest frame of the one before', rowLines.every(({ lines }) => lines.every((line, i) => i === 0 || line[0].y >= Math.max(...lines[i - 1].map((it) => it.y + it.h)) - 0.5)), rowLines.map(({ key, lines }) => `${key}: ${lines.map((line) => `${line.length} at y ${Math.round(line[0].y)} (tallest ${Math.round(Math.max(...line.map((it) => it.h)) / shape1.z)} sheet px)`).join(', ')}`).join('; '));
+  step('each group is one line: all its frames share a top, left to right in the endpoint’s order', groupLines.every(({ its }) => its.length > 0 && its.every((it) => it && Math.abs(it.y - its[0].y) <= 0.5 && (it === its[0] || it.x > its[its.indexOf(it) - 1].x))), groupLines.map(({ key, its }) => `${key}: ${its.length} at y ${Math.round(its[0]?.y)}`).join('; '));
+  step('within a cluster the frames stand a frame gap apart; between two clusters the wide row gap, so the clusters read as clusters', groupLines.every(({ gaps }) => gaps.every((g) => Math.abs(g.sheet - (g.cluster ? ROW_GAP : GAP)) <= 2)), groupLines.map(({ key, gaps }) => `${key}: ${gaps.map((g) => `${Math.round(g.sheet)}${g.cluster ? ' (cluster)' : ''}`).join(' ')} sheet px`).join('; '));
   const over = overlaps(shape1.items);
   step('no two frames overlap', over.length === 0, over.join(', ') || `${shape1.items.length} frames clear of each other`);
   const templateItems = shape1.items.filter((it) => byId.get(it.id)?.group === 'templates');

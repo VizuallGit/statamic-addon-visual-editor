@@ -11,10 +11,13 @@
  * is the only way in: an `import()` on click. No file imports this module
  * statically, and it puts nothing on `window`.
  *
- * Two groups, laid out by rule, never by hand: the templates store's rows
- * under the collection they draw (index and show for Services, say; the site's
- * own views in a row of their own), and the pages collection's entries in the
- * order of their tree. What stands in them comes from one place, the
+ * Two groups, laid out by rule, never by hand, each one line of frames: the
+ * templates store's rows as clusters along the first — the collection they
+ * draw (index and show for Services, say), the site's own views (layout, the
+ * default page) last — a wider gap between clusters than between frames, each
+ * cluster headed with its collection's name; and the pages collection's
+ * entries in the order of their tree along the second, under one heading (a
+ * group of one row is headed once). What stands in them comes from one place, the
  * `/!/sve/site-canvas` endpoint (SiteCanvasController): id, title, the Live
  * Preview URL to show and the edit URL to go to. Nothing is scraped from the
  * Control Panel. The answer is kept for the life of this Control Panel page —
@@ -104,13 +107,11 @@ export const VIEW_VALUE = 'canvas';
 /** One frame, in CSS pixels: a desktop viewport's width, and the least height a frame has — its height until its page has said how tall it is. */
 export const FRAME = { width: 1440, minHeight: 600 };
 
-/** Sheet pixels (they scale with the zoom): between frames, round the sheet, between the two groups. */
+/** Sheet pixels (they scale with the zoom): between frames, round the sheet, between two rows on a line (three frame gaps, so the clusters read as clusters), between the two groups. */
 export const GAP = 96;
 export const PAD = 96;
+export const ROW_GAP = 288;
 export const GROUP_GAP = 192;
-
-/** Frames per line before a row wraps. */
-export const COLS = 4;
 
 /** Screen pixels, the same at every zoom: a group heading, a row heading, a frame's label above it. */
 export const GROUP_HEAD_PX = 48;
@@ -175,28 +176,26 @@ export function canvasFrames(groups) {
  * Where everything stands on the sheet at zoom `z`, in sheet pixels — the
  * sheet div's own, before its transform. Frames are `frame.width` wide and
  * as tall as `heights` says of each (id → CSS pixels), `frame.minHeight`
- * for one it does not name; `cols` to a line, each line of frames as tall
- * as its tallest. A group's rows flow along a line, each a block of its
- * heading over its frames, until the next block's columns would not fit,
- * which starts a new line (two short template rows share one line; a row of
- * more than `cols` frames wraps within itself). The groups stand apart by
- * `groupGap`. Headings and labels keep their screen size at every zoom, so
- * the room they take on the sheet is their pixels over `z`; `metrics` splits
- * the sheet's height into the part that scales (`fixedHeight`, sheet pixels)
- * and the part that does not (`screenHeight`, screen pixels), so that fitZoom
- * can solve for `z` in one step: height(z) = fixedHeight + screenHeight / z.
- * A line of blocks is as tall as its blocks' largest in each part on its
- * own — the most label lines, the tallest frames and gaps — so the split
- * holds at every zoom; a line of one tall frame beside a two-lined block of
- * short ones is at most a label taller than either needs.
+ * for one it does not name. Each group is one line of frames, as tall as its
+ * tallest: its rows stand along it in order, `gap` between a row's frames
+ * and `rowGap` between one row and the next, so the rows read as clusters;
+ * the groups stand under one another, `groupGap` apart. A group's heading
+ * stands over its line; each row's over its first frame — unless the group
+ * has one row only, which its own heading names (a group of one row is
+ * headed once). The sheet is as wide as its widest line. Headings and
+ * labels keep their screen size at every zoom, so the room they take on the
+ * sheet is their pixels over `z`; `metrics` splits the sheet's height into
+ * the part that scales (`fixedHeight`, sheet pixels) and the part that does
+ * not (`screenHeight`, screen pixels), so that fitZoom can solve for `z` in
+ * one step: height(z) = fixedHeight + screenHeight / z.
  */
 export function canvasLayout(groups, z, options = {}) {
   const {
-    cols = COLS,
     frame = FRAME,
     heights = new Map(),
     gap = GAP,
     pad = PAD,
+    rowGap = ROW_GAP,
     groupGap = GROUP_GAP,
     groupHead = GROUP_HEAD_PX,
     rowHead = ROW_HEAD_PX,
@@ -207,7 +206,7 @@ export function canvasLayout(groups, z, options = {}) {
   const headings = [];
   let y = pad;
   let screen = 0;
-  let maxCols = 0;
+  let right = pad; // the right edge of the widest line
   const heightOf = (item) => heights.get(item.id) ?? frame.minHeight;
 
   groups.forEach((group, gi) => {
@@ -219,66 +218,39 @@ export function canvasLayout(groups, z, options = {}) {
     y += groupHead / scale;
     screen += groupHead;
 
-    let used = 0; // columns taken on the current line
-    let deepest = 0; // label lines of the block with the most on it
-    let tallest = 0; // sheet pixels of frames and gaps of the block with the most on it
+    const headed = group.rows.length > 1;
+    const top = y + (headed ? rowHead / scale : 0) + label / scale; // the frames' top on this line
+    let x = pad;
+    let tallest = 0;
 
-    const closeLine = () => {
-      y += rowHead / scale + deepest * (label / scale) + tallest;
-      screen += rowHead + deepest * label;
-      used = 0;
-      deepest = 0;
-      tallest = 0;
-    };
-
-    group.rows.forEach((row) => {
-      const span = Math.min(cols, row.frames.length);
-      const lines = Math.ceil(row.frames.length / cols);
-      // Each of the block's frame lines is as tall as its tallest frame.
-      const lineTops = [];
-      const lineHeights = Array.from({ length: lines }, (_, line) => Math.max(...row.frames.slice(line * cols, (line + 1) * cols).map(heightOf)));
-
-      if (used > 0 && used + span > cols) {
-        closeLine();
-        y += gap;
+    group.rows.forEach((row, ri) => {
+      if (ri > 0) {
+        x += rowGap;
       }
 
-      const x0 = pad + used * (frame.width + gap);
-
-      headings.push({ kind: 'row', key: `${group.key}/${row.key}`, title: row.title, x: x0, y, height: rowHead / scale });
-
-      let top = y + rowHead / scale;
-
-      for (const height of lineHeights) {
-        lineTops.push(top + label / scale);
-        top += label / scale + height + gap;
+      if (headed) {
+        headings.push({ kind: 'row', key: `${group.key}/${row.key}`, title: row.title, x, y, height: rowHead / scale });
       }
 
       row.frames.forEach((item, i) => {
-        items.push({
-          id: item.id,
-          title: item.title,
-          group: group.key,
-          row: row.key,
-          x: x0 + (i % cols) * (frame.width + gap),
-          y: lineTops[Math.floor(i / cols)],
-          width: frame.width,
-          height: heightOf(item),
-        });
-      });
+        if (i > 0) {
+          x += gap;
+        }
 
-      used += span;
-      deepest = Math.max(deepest, lines);
-      tallest = Math.max(tallest, lineHeights.reduce((sum, height) => sum + height, 0) + (lines - 1) * gap);
-      maxCols = Math.max(maxCols, used);
+        const height = heightOf(item);
+
+        items.push({ id: item.id, title: item.title, group: group.key, row: row.key, x, y: top, width: frame.width, height });
+        tallest = Math.max(tallest, height);
+        x += frame.width;
+      });
     });
 
-    if (used > 0) {
-      closeLine();
-    }
+    right = Math.max(right, x);
+    y = top + tallest;
+    screen += (headed ? rowHead : 0) + label;
   });
 
-  const width = pad * 2 + Math.max(0, maxCols * (frame.width + gap) - gap);
+  const width = right + pad;
   const height = items.length ? y + pad : pad * 2;
 
   return { width, height, items, headings, metrics: { fixedHeight: height - screen / scale, screenHeight: screen } };

@@ -4,7 +4,6 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  COLS,
   FIT_MARGIN_PX,
   FRAME,
   GAP,
@@ -14,6 +13,7 @@ import {
   LOAD_AT_ONCE,
   LOAD_MARGIN_PX,
   PAD,
+  ROW_GAP,
   ROW_HEAD_PX,
   VIEW_FLAG,
   VIEW_VALUE,
@@ -99,72 +99,85 @@ test('nothing, or nonsense, from the endpoint is no groups', () => {
 
 // --- layout -------------------------------------------------------------------------
 
-test('frames are a desktop viewport wide and the minimum tall until their page has said, and wrap at the column count; short rows share a line, groups stand under one another', () => {
+test('frames are a desktop viewport wide and the minimum tall until their page has said; each group is one line, its rows clusters along it, the groups under one another', () => {
   const { items, headings, width } = canvasLayout(canvasGroups(PAYLOAD), 1);
+  const W = FRAME.width;
 
   assert.equal(items.length, 10);
-  assert.ok(items.every((item) => item.width === FRAME.width && item.height === FRAME.minHeight));
+  assert.ok(items.every((item) => item.width === W && item.height === FRAME.minHeight));
 
-  // The pages row has five frames: four on one line, one on the next, same x as the first.
+  // The templates line: Services (two frames), a row gap, Pages (one), a row gap, Sitet (two) — all on one line, a frame gap within a row.
+  const templates = items.filter((item) => item.group === 'templates');
+  const x = { services: PAD, pages: PAD + 2 * W + GAP + ROW_GAP, site: PAD + 3 * W + GAP + 2 * ROW_GAP };
+
+  assert.deepEqual(templates.map((item) => item.x), [x.services, x.services + W + GAP, x.pages, x.site, x.site + W + GAP]);
+  assert.ok(templates.every((item) => item.y === templates[0].y), 'one line: every template frame shares its top');
+
+  // The pages line: five frames side by side, a frame gap apart — no wrapping.
   const pages = items.filter((item) => item.group === 'pages');
 
-  assert.deepEqual(pages.map((item) => item.x), [PAD, PAD + FRAME.width + GAP, PAD + 2 * (FRAME.width + GAP), PAD + 3 * (FRAME.width + GAP), PAD]);
-  assert.ok(pages[4].y > pages[0].y + FRAME.minHeight, 'the fifth frame is on the next line');
-  assert.equal(width, PAD * 2 + COLS * (FRAME.width + GAP) - GAP);
+  assert.deepEqual(pages.map((item) => item.x), [0, 1, 2, 3, 4].map((i) => PAD + i * (W + GAP)));
+  assert.ok(pages.every((item) => item.y === pages[0].y), 'one line: every page frame shares its top');
 
-  // Headings: one per group, one per row, in order, each above what it names.
+  // As wide as the widest line (the templates', with its two row gaps), padded.
+  assert.equal(width, x.site + 2 * W + GAP + PAD);
+  assert.ok(x.site + 2 * W + GAP > pages[4].x + W, 'the templates line is the wider here');
+
+  // Headings: one per group; one per row of a group with several rows, over its first frame; none for a group of one row — its heading names it.
   assert.deepEqual(headings.map((heading) => [heading.kind, heading.title]), [
     ['group', 'Skabeloner'],
     ['row', 'Services'],
     ['row', 'Pages'],
     ['row', 'Sitet'],
     ['group', 'Sider'],
-    ['row', 'Pages'],
   ]);
-  // Template rows flow along a line: Services (2) and Pages (1) share the first, three columns; Sitet (2) would make five, so it starts the next.
   const [services, pagesRow, sitet] = headings.filter((heading) => heading.kind === 'row');
-  const byRow = (key) => items.filter((item) => item.group === 'templates' && item.row === key);
 
-  assert.equal(services.x, PAD);
-  assert.equal(pagesRow.x, PAD + 2 * (FRAME.width + GAP));
-  assert.equal(pagesRow.y, services.y, 'two short rows share a line');
-  assert.deepEqual(byRow('pages').map((item) => [item.x, item.y]), [[PAD + 2 * (FRAME.width + GAP), byRow('services')[0].y]]);
-  assert.equal(sitet.x, PAD);
-  assert.ok(sitet.y >= byRow('services')[0].y + FRAME.minHeight + GAP, 'the row that does not fit starts a new line under the first');
-  assert.ok(byRow('site')[0].y > sitet.y, 'its frames stand under its heading');
+  assert.deepEqual([services.x, pagesRow.x, sitet.x], [x.services, x.pages, x.site]);
+  assert.ok(services.y === pagesRow.y && pagesRow.y === sitet.y, 'the row headings stand level on the line');
+  assert.equal(templates[0].y, services.y + ROW_HEAD_PX + LABEL_PX, 'the frames stand under the row heading and their label');
 
   const pagesGroup = headings.find((heading) => heading.kind === 'group' && heading.title === 'Sider');
-  const lastTemplate = items.filter((item) => item.group === 'templates').at(-1);
 
-  assert.ok(pagesGroup.y >= lastTemplate.y + FRAME.minHeight + GROUP_GAP, 'the second group stands a group gap under the first');
-  assert.ok(pages[0].y > pagesGroup.y, 'the pages stand under their heading');
+  assert.equal(pagesGroup.y, templates[0].y + FRAME.minHeight + GROUP_GAP, 'the second group stands a group gap under the first line');
+  assert.equal(pages[0].y, pagesGroup.y + GROUP_HEAD_PX + LABEL_PX, 'the pages stand under their one heading and their label — no row heading in between');
 });
 
-test('a row of more than the column count takes whole lines of its own; a line’s height is its deepest block’s', () => {
+test('rows of any length stand on their group’s one line, a row gap — wider than a frame gap — between clusters; a group of one row is headed once', () => {
   const groups = canvasGroups({
-    groups: [{
-      key: 'templates',
-      title: 'T',
-      rows: [
-        { key: 'a', title: 'A', frames: [frame('a1')] },
-        { key: 'b', title: 'B', frames: [frame('b1'), frame('b2'), frame('b3'), frame('b4'), frame('b5')] },
-        { key: 'c', title: 'C', frames: [frame('c1'), frame('c2')] },
-        { key: 'd', title: 'D', frames: [frame('d1')] },
-      ],
-    }],
+    groups: [
+      {
+        key: 'templates',
+        title: 'T',
+        rows: [
+          { key: 'a', title: 'A', frames: [frame('a1')] },
+          { key: 'b', title: 'B', frames: [frame('b1'), frame('b2'), frame('b3'), frame('b4'), frame('b5')] },
+          { key: 'c', title: 'C', frames: [frame('c1'), frame('c2')] },
+          { key: 'd', title: 'D', frames: [frame('d1')] },
+        ],
+      },
+      { key: 'pages', title: 'P', rows: [{ key: 'p', title: 'P again', frames: [frame('p1'), frame('p2')] }] },
+    ],
   });
   const { items, headings, metrics } = canvasLayout(groups, 1);
   const head = (title) => headings.find((heading) => heading.title === title);
-  const row = (key) => items.filter((item) => item.row === key);
+  const item = (id) => items.find((it) => it.id === id);
+  const W = FRAME.width;
 
-  // A (1) alone cannot share with B (5 > 4 columns): B starts a new line and spans two; C and D share the line after.
-  assert.ok(head('B').y > row('a')[0].y + FRAME.minHeight, 'B under A');
-  assert.equal(row('b').map((item) => item.x).join(), [PAD, PAD + (FRAME.width + GAP), PAD + 2 * (FRAME.width + GAP), PAD + 3 * (FRAME.width + GAP), PAD].join());
-  assert.ok(head('C').y > row('b')[4].y + FRAME.minHeight, 'C under B’s second line');
-  assert.equal(head('D').y, head('C').y, 'C and D share a line');
-  assert.equal(head('D').x, PAD + 2 * (FRAME.width + GAP));
-  // Screen pixels: one group heading, three lines of row headings, 1 + 2 + 1 lines of labels.
-  assert.equal(metrics.screenHeight, GROUP_HEAD_PX + 3 * ROW_HEAD_PX + 4 * LABEL_PX);
+  assert.ok(ROW_GAP > GAP);
+  assert.ok(items.filter((it) => it.group === 'templates').every((it) => it.y === item('a1').y), 'nine frames, one line');
+  assert.equal(item('b1').x, item('a1').x + W + ROW_GAP, 'B starts a row gap after A');
+  assert.equal(item('b5').x, item('b1').x + 4 * (W + GAP), 'B’s five frames a frame gap apart, no wrapping');
+  assert.equal(item('c1').x, item('b5').x + W + ROW_GAP);
+  assert.equal(item('d1').x, item('c2').x + W + ROW_GAP);
+  assert.ok(['A', 'B', 'C', 'D'].every((title) => head(title).y === head('A').y), 'the four row headings stand level');
+  assert.deepEqual(['A', 'B', 'C', 'D'].map((title) => head(title).x), ['a1', 'b1', 'c1', 'd1'].map((id) => item(id).x), 'each over its row’s first frame');
+
+  // The pages group has one row: the group heading alone, and the frames straight under it and their label.
+  assert.equal(head('P again'), undefined, 'no row heading for a group of one row');
+  assert.equal(item('p1').y, head('P').y + GROUP_HEAD_PX + LABEL_PX);
+  // Screen pixels: two group headings, one line of row headings (the templates'), one line of labels per group.
+  assert.equal(metrics.screenHeight, 2 * GROUP_HEAD_PX + ROW_HEAD_PX + 2 * LABEL_PX);
 });
 
 test('a frame is as tall as its page says; a line of frames is as tall as its tallest; a page that has not said is the minimum', () => {
@@ -184,20 +197,19 @@ test('a frame is as tall as its page says; a line of frames is as tall as its ta
   assert.equal(item('layout').height, 700);
   assert.ok(items.every((it) => it.width === FRAME.width), 'every frame keeps the viewport width');
 
-  // The pages row: home, about, contact, services on the first line — as tall as home — and news on the next, under it.
-  assert.equal(item('news').y, item('home').y + 4200 + LABEL_PX + GAP);
-  assert.equal(item('news').x, item('home').x);
-  assert.ok([item('about'), item('contact'), item('services')].every((it) => it.y === item('home').y), 'frames on a line share its top');
+  // The pages line: all five share a top, whatever their heights; the line is as tall as home.
+  assert.ok([item('about'), item('contact'), item('services'), item('news')].every((it) => it.y === item('home').y), 'frames on a line share its top');
 
-  // The templates: Services (short, two frames) and Pages share a line; Sitet has layout at 700, so its line is 700 tall and the pages group follows that.
+  // The templates line: layout at 700 is its tallest, so the line is 700 tall and the pages group follows that.
   const sitet = headings.find((heading) => heading.title === 'Sitet');
   const pagesGroup = headings.find((heading) => heading.kind === 'group' && heading.title === 'Sider');
 
   assert.equal(pagesGroup.y, sitet.y + ROW_HEAD_PX + LABEL_PX + 700 + GROUP_GAP);
+  assert.equal(height, item('home').y + 4200 + PAD, 'the sheet ends a pad under the tallest page');
 
   // The sheet is as tall as the sum of its parts, and the metrics still split it: the frames and gaps scale, the headings and labels do not.
-  const screen = 2 * GROUP_HEAD_PX + 3 * ROW_HEAD_PX + (1 + 1 + 2) * LABEL_PX;
-  const sheet = 2 * PAD + GROUP_GAP + FRAME.minHeight + GAP + 700 + 4200 + GAP + FRAME.minHeight;
+  const screen = 2 * GROUP_HEAD_PX + ROW_HEAD_PX + 2 * LABEL_PX;
+  const sheet = 2 * PAD + GROUP_GAP + 700 + 4200;
 
   assert.equal(metrics.screenHeight, screen);
   assert.equal(metrics.fixedHeight, sheet);
@@ -221,7 +233,7 @@ test('the height of a frame’s page: its scroll height in whole pixels, never u
   assert.equal(frameHeight(900, 1000), 1000, 'the minimum is the caller’s');
 });
 
-test('no two frames overlap, at any zoom, whatever the pages’ heights — a tall frame beside a two-lined block of short ones too', () => {
+test('no two frames overlap, at any zoom, whatever the pages’ heights — a tall frame beside a long row of short ones too', () => {
   const mixed = canvasGroups({
     groups: [{
       key: 'templates',
@@ -254,15 +266,15 @@ test('no two frames overlap, at any zoom, whatever the pages’ heights — a ta
     }
   }
 
-  // In the mixed sheet, A (one frame, 9000 tall) and B (three short frames) share a line; C (five frames, two lines) takes the next; D the one after, under C's tallest.
-  const { items, headings } = canvasLayout(mixed, 1, { heights });
+  // In the mixed sheet, A (one frame, 9000 tall), B, C and D all stand on the one line, each as tall as its page says: the line is as tall as A, and the sheet ends a pad under it.
+  const { items, headings, height } = canvasLayout(mixed, 1, { heights });
   const head = (title) => headings.find((heading) => heading.title === title);
   const item = (id) => items.find((it) => it.id === id);
 
-  assert.equal(head('B').y, head('A').y, 'A and B share a line');
-  assert.ok(head('C').y >= item('a1').y + 9000 + GAP, 'C stands under the tall frame of A');
-  assert.equal(item('c5').y, item('c1').y + 2400 + LABEL_PX + GAP, 'C’s second line stands under its first line’s tallest frame');
-  assert.ok(head('D').y >= item('c5').y + 7000 + GAP, 'D stands under C’s tallest frame');
+  assert.ok(['B', 'C', 'D'].every((title) => head(title).y === head('A').y), 'one line of four clusters');
+  assert.equal(item('c5').x, item('c4').x + FRAME.width + GAP);
+  assert.equal(item('d1').x, item('c5').x + FRAME.width + ROW_GAP);
+  assert.equal(height, item('a1').y + 9000 + PAD, 'the line is as tall as A, the tallest');
 });
 
 test('headings and labels keep their screen size: their room on the sheet is their pixels over the zoom, and the metrics add up', () => {
@@ -270,8 +282,8 @@ test('headings and labels keep their screen size: their room on the sheet is the
   const at1 = canvasLayout(groups, 1);
   const atHalf = canvasLayout(groups, 0.5);
 
-  // Two groups; three lines of rows (Services and Pages share one, Sitet has one, the pages row one); labels: one line each, two for the pages row.
-  const screen = 2 * GROUP_HEAD_PX + 3 * ROW_HEAD_PX + (1 + 1 + 2) * LABEL_PX;
+  // Two groups, one line each: row headings on the templates' line only (the pages group has one row), a line of labels on each.
+  const screen = 2 * GROUP_HEAD_PX + ROW_HEAD_PX + 2 * LABEL_PX;
 
   assert.equal(at1.metrics.screenHeight, screen);
   assert.equal(atHalf.metrics.screenHeight, screen);
@@ -419,12 +431,14 @@ test('a sheet centred in the view starts inside it: a negative scroll origin, an
   const groups = canvasGroups(PAYLOAD);
   const z = 0.2;
   const layout = canvasLayout(groups, z);
-  // The view is wider than the sheet; the sheet's edge stands 150 px in.
-  const view = { scrollLeft: -150, scrollTop: 0, width: layout.width * z + 300, height: 400 };
+  // The view is wider than the sheet; the sheet's edge stands 150 px in. Tall enough for the templates' line, not for the pages' under it.
+  const view = { scrollLeft: -150, scrollTop: 0, width: layout.width * z + 300, height: 300 };
   const near = framesNear(layout.items, z, view, 0);
 
   assert.ok(near.includes('services-index'));
   assert.ok(near.includes('services-show'));
+  assert.ok(near.includes('default'), 'the whole templates line is in the view');
+  assert.ok(!near.includes('home'));
   assert.ok(!near.includes('news'));
 });
 
