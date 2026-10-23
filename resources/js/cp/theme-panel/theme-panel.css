@@ -1009,6 +1009,91 @@
   background: repeating-conic-gradient(#71717a 0 25%, #3f3f46 0 50%) 0 0 / 0.5rem 0.5rem;
 }
 
+/* A theme color picked from a list that shows each color */
+.sve-theme__color {
+  padding: 0;
+}
+.sve-theme__color.is-open {
+  border-color: #0d9488;
+}
+.sve-theme__color-button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  height: 100%;
+  padding: 0 0.75rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+.sve-theme__highlight .sve-theme__color {
+  padding: 0;
+}
+.sve-theme__highlight .sve-theme__color-button {
+  padding: 0 0.5rem;
+}
+.sve-theme__color-button .sve-theme__chevron {
+  margin-left: auto;
+}
+.sve-theme__color-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The list, in the top layer: the popover's own inset and margin are reset, the place is set from the button */
+.sve-theme__color-list {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0.25rem;
+  border: 1px solid #3c3c3c;
+  border-radius: 0.5rem;
+  background: #1E1E21;
+  color: #fff;
+  font-size: 0.75rem;
+  min-width: 11rem;
+  overflow-y: auto;
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45);
+}
+.sve-theme__color-list::backdrop {
+  background: transparent;
+}
+.sve-theme__color-group {
+  padding: 0.5rem 0.5rem 0.125rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  opacity: 0.5;
+}
+.sve-theme__color-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3125rem 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sve-theme__color-option:hover,
+.sve-theme__color-option:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  outline: 0;
+}
+.sve-theme__color-option.is-on {
+  background: rgba(13, 148, 136, 0.3);
+}
+
 /* Colors: rename by lightness — the button, and what it costs */
 .sve-theme__rename {
   display: flex;

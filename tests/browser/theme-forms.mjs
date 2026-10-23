@@ -194,6 +194,33 @@ const pickAndRead = (cp, selector, value, prop) => cp.evaluate((sel, v, p) => {
   return { ok: true, painted: doc ? doc.documentElement.style.getPropertyValue(p).trim() : null };
 }, selector, value, prop);
 
+/** A color row is a button that opens a list of swatches: open it, click the option, read what the preview painted. */
+const pickColor = (cp, token, value, prop) => cp.evaluate(async (panel, t, v, p) => {
+  const button = document.querySelector(`${panel} [data-sve-input="${t}"]`);
+
+  if (!button) {
+    return { ok: false, painted: null };
+  }
+
+  button.click();
+  await new Promise((r) => requestAnimationFrame(r));
+
+  const option = document.querySelector(`[data-sve-options="${t}"] [data-value="${v}"]`);
+
+  if (!option) {
+    document.querySelector(`[data-sve-options="${t}"] [role="option"]`)?.click();
+
+    return { ok: false, painted: null };
+  }
+
+  option.click();
+  await new Promise((r) => requestAnimationFrame(r));
+
+  const doc = document.querySelector('#live-preview-iframe')?.contentDocument;
+
+  return { ok: true, painted: doc ? doc.documentElement.style.getPropertyValue(p).trim() : null };
+}, PANEL, token, value, prop);
+
 /** A real form control in the preview: the page's own when it has one, else one made for a moment. */
 const control = (preview, tag = 'input') => preview.evaluate((t) => {
   const own = document.querySelector(t === 'input' ? 'input[type="text"], input[type="email"]' : t);
@@ -352,17 +379,32 @@ try {
     !!sample && sample.visible && sample.text && sample.textarea && sample.checkbox && sample.radio && !!sample.send, JSON.stringify(sample));
   step('its labels are strings, not keys', !!sample && !!sample.placeholder && !/^forms_|^theme_/.test(sample.placeholder) && !/^forms_/.test(sample.send), `${sample?.placeholder} / ${sample?.send}`);
 
-  const rows = await cp.evaluate((p, names) => ({
-    fields: document.querySelectorAll(`${p} .sve-theme__body .sve-theme__field`).length,
-    selects: names.filter((n) => !!document.querySelector(`${p} select[data-sve-input="${n}"]`)),
-    values: Object.fromEntries(names.map((n) => [n, document.querySelector(`${p} select[data-sve-input="${n}"]`)?.value ?? null])),
-    groups: document.querySelector(`${p} select[data-sve-input="input-bg"]`)?.querySelectorAll('optgroup').length || 0,
-  }), PANEL, ROWS);
+  const rows = await cp.evaluate(async (p, names) => {
+    // A select's value is its own; a color row's is on its button.
+    const valueOf = (el) => (el ? (el.tagName === 'SELECT' ? el.value : el.dataset.value) : null);
+    const bg = document.querySelector(`${p} [data-sve-input="input-bg"]`);
 
-  step('ten rows, one select per token', rows.fields === 10 && rows.selects.length === 10, `${rows.fields} rows; missing: ${ROWS.filter((n) => !rows.selects.includes(n)).join(' ')}`);
+    bg?.click();
+    await new Promise((r) => requestAnimationFrame(r));
+
+    const groups = document.querySelectorAll('[data-sve-options="input-bg"] .sve-theme__color-group').length;
+    const swatches = document.querySelectorAll('[data-sve-options="input-bg"] [role="option"] .sve-theme__forms-swatch').length;
+
+    bg?.click();
+
+    return {
+      fields: document.querySelectorAll(`${p} .sve-theme__body .sve-theme__field`).length,
+      selects: names.filter((n) => !!document.querySelector(`${p} [data-sve-input="${n}"]`)),
+      values: Object.fromEntries(names.map((n) => [n, valueOf(document.querySelector(`${p} [data-sve-input="${n}"]`))])),
+      groups,
+      swatches,
+    };
+  }, PANEL, ROWS);
+
+  step('ten rows, one control per token', rows.fields === 10 && rows.selects.length === 10, `${rows.fields} rows; missing: ${ROWS.filter((n) => !rows.selects.includes(n)).join(' ')}`);
   step('the rows show the values in site.css', rows.values['input-radius'] === '0.375rem' && rows.values['input-bg'] === 'var(--color-white)'
     && rows.values['input-bg-opacity'] === '100%' && rows.values['input-check-size'] === '1.1em', JSON.stringify(rows.values));
-  step('a color row lists basics plus a group per theme color', rows.groups > 2, `${rows.groups} groups`);
+  step('a color row lists basics plus a group per theme color, each color with its swatch', rows.groups > 2 && rows.swatches > rows.groups, `${rows.groups} groups, ${rows.swatches} swatches`);
 
   const shot1 = await shot(cp, page, '1-defaults');
 
@@ -382,7 +424,7 @@ try {
 
   step('Opacity → 50%: painted, and the field\'s white is half see-through', half.painted === '50%' && alphaOf(halfField.bg) === 0.5, `${JSON.stringify(half)} bg=${halfField.bg}`);
 
-  const clear = await pickAndRead(cp, `${PANEL} select[data-sve-input="input-bg"]`, 'transparent', '--input-bg');
+  const clear = await pickColor(cp, 'input-bg', 'transparent', '--input-bg');
   const clearField = await control(preview);
 
   step('Background → transparent: painted, and the field has no background', clear.painted === 'transparent' && alphaOf(clearField.bg) === 0, `${JSON.stringify(clear)} bg=${clearField.bg}`);
@@ -405,7 +447,7 @@ try {
   step('Buttons: back to what site.css has', btnBack.ok && btnBack.painted === buttonWas, JSON.stringify(btnBack));
   await click(page, cp, tab('forms'));
   step('Forms keeps its unsaved values over a tab switch', await waitFor(cp, (p) => document.querySelector(`${p} select[data-sve-input="input-radius"]`)?.value === '0.5rem'
-    && document.querySelector(`${p} select[data-sve-input="input-bg"]`)?.value === 'transparent', PANEL));
+    && document.querySelector(`${p} [data-sve-input="input-bg"]`)?.dataset.value === 'transparent', PANEL));
 
   // ── Save, then the file and a fresh render ────────────────────────────
   await click(page, cp, `${PANEL} .sve-theme__save`);
