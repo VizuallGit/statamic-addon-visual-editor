@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/theme-panel/tokens.js';
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
-import { BORDERS, CHECK_SIZES, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
+import { BORDERS, CHECK_SIZES, HIGHLIGHT_TOKENS, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
 import { checkSample, fieldSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
 
 const CSS = `@import "tailwindcss";
@@ -132,6 +132,21 @@ test('a new size’s Tailwind lines land after their neighbours, in number order
     --size-1200: 9rem;
     --size-1300: 10rem;
 }`);
+});
+
+test('body color, background and gutter reach the page on every render', () => {
+  for (const name of ['body-color', 'body-bg']) {
+    assert.ok(TYPE_TOKENS.includes(name), name);
+    assert.ok(isManaged(name), name);
+  }
+
+  assert.ok(isManaged('gutter'));
+  assert.ok(TYPE_TOKENS.includes('heading-color'));
+  assert.ok(isManaged('heading-color'));
+
+  for (const name of HIGHLIGHT_TOKENS) {
+    assert.ok(isManaged(name), name);
+  }
 });
 
 test('the Title tokens are typography the page gets on every render', () => {

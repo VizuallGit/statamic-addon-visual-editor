@@ -24,7 +24,7 @@ import { themePanelUi as ui } from './cp/theme-panel/store.js';
 import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, nudgeSteps, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
-import { BUTTON_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { BUTTON_TOKENS, HIGHLIGHT_DEFAULTS, HIGHLIGHT_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
@@ -132,6 +132,8 @@ function remember(css) {
   ui.savedSteps = Object.fromEntries(ui.families.map((f) => [f.name, f.steps.map((s) => String(s.name))]));
   ui.sizes = [...tokens].filter(([name]) => name.startsWith('size-')).map(([name, value]) => sizeUi(name, value)).filter(Boolean);
   ui.maxViewport = parseSize(tokens.get('container-width'))?.max || inferViewport(ui.sizes.map((s) => s.value)) || 1280;
+  ui.gutter = tokens.get('gutter') || 'var(--size-700)';
+  ui.highlights = Object.fromEntries(HIGHLIGHT_TOKENS.map((name) => [name, tokens.get(name) || HIGHLIGHT_DEFAULTS[name]]));
   ui.type = Object.fromEntries(TYPE_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.button = Object.fromEntries(BUTTON_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.input = Object.fromEntries(INPUT_TOKENS.map((name) => [name, tokens.get(name) || '']));
@@ -337,6 +339,12 @@ function sizeText(size) {
 function desiredTokens() {
   const out = { 'container-width': containerValue() };
 
+  if (ui.gutter) {
+    out.gutter = ui.gutter;
+  }
+
+  Object.assign(out, ui.highlights);
+
   for (const size of ui.sizes) {
     if (size.problem) {
       continue;
@@ -385,7 +393,7 @@ function tokenChanges() {
 
     // A heading level set back to "as the headings" loses its own line, and so
     // does a Title value set back to its default.
-    if ((LEVEL_TOKENS.includes(name) || TITLE_TOKENS.includes(name)) && !ui.type[name]) {
+    if ((LEVEL_TOKENS.includes(name) || TITLE_TOKENS.includes(name) || name === 'heading-color') && !ui.type[name]) {
       changes[name] = null;
     }
   }
@@ -863,6 +871,22 @@ const handlers = (win) => ({
 
     if (Number.isFinite(n) && n > MIN_VIEWPORT) {
       ui.maxViewport = n;
+      changed(win);
+    }
+  },
+  onGutter: (value) => {
+    const next = String(value || '').replace(/\s+/g, '');
+
+    if (/^var\(--size-[\w-]+\)$/.test(next)) {
+      ui.gutter = next;
+      changed(win);
+    }
+  },
+  onHighlight: (name, value) => {
+    const next = String(value || '').trim();
+
+    if (HIGHLIGHT_TOKENS.includes(name) && next) {
+      ui.highlights[name] = next;
       changed(win);
     }
   },

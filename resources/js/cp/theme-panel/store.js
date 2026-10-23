@@ -11,7 +11,7 @@ import { reactive } from 'vue';
  *
  * `sizes` (Spacing): `{ key, name, min, max, fresh, problem }` in px, the
  * `--size-*` scale; `maxViewport` is where they stop growing (the container
- * width), in px.
+ * width), in px. `gutter` is `--gutter`, a `var(--size-*)` from that scale.
  *
  * `type`, `button` and `input` (Typography, Button, Forms): the tokens' CSS
  * values as they stand in the file, by token name (`input` holds the
@@ -53,6 +53,8 @@ export const themePanelUi = reactive({
   openKey: '',
   sizes: [],
   maxViewport: 1280,
+  gutter: 'var(--size-700)',
+  highlights: {},
   selectedSize: '',
   type: {},
   button: {},

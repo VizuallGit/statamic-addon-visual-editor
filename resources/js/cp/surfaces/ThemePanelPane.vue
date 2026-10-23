@@ -188,6 +188,8 @@ const props = defineProps({
   onSelectSize: { type: Function, required: true },
   onRemoveSize: { type: Function, required: true },
   onViewport: { type: Function, required: true },
+  onGutter: { type: Function, required: true },
+  onHighlight: { type: Function, required: true },
   onAddFont: { type: Function, required: true },
   onType: { type: Function, required: true },
   onClassQuery: { type: Function, required: true },

@@ -1,4 +1,13 @@
 <template>
+  <div class="sve-theme__section" data-sve-highlights>
+    <span class="sve-theme__section-title">{{ ui.labels.colors_highlights }}</span>
+    <p class="sve-theme__hint">{{ ui.labels.colors_highlight_hint }}</p>
+    <label v-for="name in highlights" :key="name" class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.colors_highlight }} {{ name.slice(-1) }}</span>
+      <ThemeColorSelect :token="name" :value="ui.highlights[name] || ''" :label="ui.labels.colors_highlight" :on-change="(v) => h.onHighlight(name, v)" />
+    </label>
+  </div>
+
   <section
     v-for="f in ui.families"
     :key="f.key"
@@ -175,6 +184,10 @@
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { reactive } from 'vue';
 import { MAX_VARIANTS, hexToOklch, isCoreColor as isCore, namedByLightness, nudgeRange } from '../theme-panel/palette.js';
+import { HIGHLIGHT_TOKENS } from '../theme-panel/presets.js';
+import ThemeColorSelect from './ThemeColorSelect.vue';
+
+const highlights = HIGHLIGHT_TOKENS;
 
 defineProps({ h: { type: Object, required: true } });
 
