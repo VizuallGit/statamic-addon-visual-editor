@@ -102,10 +102,67 @@ final class SectionRootTags
         return $out;
     }
 
-    /** The first opening tag in a template's HTML pane, lowercased; '' when there is none. */
+    /**
+     * What the file's first row is: its first opening tag, lowercased — or
+     * `component`, when a partial call comes before any tag. '' when there is
+     * neither.
+     *
+     * A section written as one component call (`{{ partial:components/intro_style
+     * … }}` and nothing else) has no tag of its own; the tree's first row for
+     * it is the component. Shut, the row said `section` — the fallback — and
+     * turned into `component` the moment it was opened. The call is read the
+     * way the tree reads it (dock-partials.js `findPartials`): `partial:src`
+     * or `partial src="…"`, Antlers comments blanked, a src with `..` skipped.
+     */
     public static function of(string $html): string
     {
-        $masked = static::mask($html);
+        $tag = static::firstTag(static::mask($html));
+        $call = static::firstPartialCall($html);
+
+        if ($call !== null && ($tag === null || $call < $tag['at'])) {
+            return 'component';
+        }
+
+        return $tag['name'] ?? '';
+    }
+
+    /**
+     * Where the first partial call opens; null when the file has none.
+     */
+    protected static function firstPartialCall(string $text): ?int
+    {
+        $masked = preg_replace_callback('/\{\{#[\s\S]*?#\}\}/', fn (array $m) => str_repeat(' ', strlen($m[0])), $text) ?? $text;
+
+        if (! preg_match_all('/\{\{\s*partial(?::([^\s}]+)|(?=[\s}]))([\s\S]*?)\}\}/i', $masked, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        foreach ($matches as $match) {
+            $colon = trim($match[1][0] ?? '');
+            $src = $colon;
+
+            if ($src === '' && preg_match('/\bsrc\s*=\s*(["\'])([^"\']+)\1/i', $match[2][0] ?? '', $attr)) {
+                $src = trim($attr[2]);
+            }
+
+            if ($src === '' || str_contains($src, '..')) {
+                continue;
+            }
+
+            return $match[0][1];
+        }
+
+        return null;
+    }
+
+    /**
+     * The first opening tag in the Antlers-blanked text: its offset and its
+     * lowercased name; null when there is none.
+     *
+     * @return array{at: int, name: string}|null
+     */
+    protected static function firstTag(string $masked): ?array
+    {
         $i = 0;
 
         while (($i = strpos($masked, '<', $i)) !== false) {
@@ -120,7 +177,7 @@ final class SectionRootTags
                 $gt = strpos($masked, '>', $i + 2);
 
                 if ($gt === false) {
-                    return '';
+                    return null;
                 }
 
                 $i = $gt + 1;
@@ -137,7 +194,7 @@ final class SectionRootTags
             $gt = strpos($masked, '>', $i);
 
             if ($gt === false) {
-                return '';
+                return null;
             }
 
             if ($match[1] === '/') {
@@ -146,10 +203,10 @@ final class SectionRootTags
                 continue;
             }
 
-            return strtolower($match[2]);
+            return ['at' => $i, 'name' => strtolower($match[2])];
         }
 
-        return '';
+        return null;
     }
 
     /**

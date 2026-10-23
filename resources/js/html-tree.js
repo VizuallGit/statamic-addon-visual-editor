@@ -1023,7 +1023,10 @@ function sectionRootTagOf(win, type) {
   return templateRootTag(type) || sectionRootTag(win, type) || 'section';
 }
 
-/** The first tag of a section's file in hand; '' while it is not. */
+/**
+ * The first tag of a section's file in hand — `component` when the file opens
+ * with a component call — ; '' while it is not.
+ */
 function templateRootTag(type) {
   const html = htmlTreeTemplates.get(type);
 
@@ -1127,8 +1130,10 @@ function htmlTreeSections(win, doc) {
           || type,
         // Its first tag's mark — the one it unfolds into. The set's own icon
         // used to go here, so the same section wore one shut and another open.
-        svg: htmlTreeIcon(tag, '', null).svg || HTML_ICONS.section,
-        cat: tagFamily(tag),
+        // A section that is one component call unfolds into the component: the
+        // cube and the component family, shut as open.
+        svg: htmlTreeIcon(tag, rootKind(tag), null).svg || HTML_ICONS.section,
+        cat: tagFamily(tag, rootKind(tag)),
         enabled: row.enabled !== false,
         // Markup only: no fieldset, so no fields icon on its root.
         static: isStaticType(win, type),
@@ -1296,10 +1301,19 @@ function firstTagId(nodes) {
   return firstTagNode(nodes)?.id || '';
 }
 
-/** The first real tag in document order, looking inside conditions and loops. */
+/**
+ * The first real tag in document order, looking inside conditions and loops —
+ * or the first component call, when that comes first.
+ *
+ * A section written as one component call has no tag of its own; what it
+ * unfolds into is the component. Standing for the file, that row wears the
+ * section's name and mark, and the shut row says `component` — not `section`
+ * shut and `intro_style` open, two names for one thing. The server reads the
+ * same rule (SectionRootTags::of), so the row is right on its first paint.
+ */
 function firstTagNode(nodes) {
   for (const node of nodes || []) {
-    if (!node.kind) {
+    if (isRootNode(node)) {
       return node;
     }
 
@@ -1311,6 +1325,16 @@ function firstTagNode(nodes) {
   }
 
   return null;
+}
+
+/** A node that can stand for a file: an HTML tag, or a component call. */
+function isRootNode(node) {
+  return !node.kind || node.kind === 'component';
+}
+
+/** The kind a root row of this tag has: `component` for a component call, else none. */
+function rootKind(tag) {
+  return tag === 'component' ? 'component' : '';
 }
 
 /**
@@ -1810,7 +1834,8 @@ export function renderHtmlTree(win) {
   // The first tag stands for the whole file, so that is where the file's own
   // name goes. A class there says nothing you cannot read one row down, and the
   // bracketed name of a section root is usually `{{ _class }}` — nothing at all.
-  const rootId = rows.find((item) => !item.kind)?.id;
+  // A file that opens with a component call: that call (firstTagNode).
+  const rootId = rows.find(isRootNode)?.id;
 
   // Inside a component the root is drawn as the tag it is — a `div` with its
   // classes, like any row — not as the component. The component is the file
