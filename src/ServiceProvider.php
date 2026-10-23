@@ -62,6 +62,7 @@ use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
 use MarioHamann\StatamicVisualEditor\Tags\SveTw;
 use MarioHamann\StatamicVisualEditor\Tags\SveProp;
 use MarioHamann\StatamicVisualEditor\Tags\SveCache;
+use MarioHamann\StatamicVisualEditor\Tags\SveComponent;
 use MarioHamann\StatamicVisualEditor\Tags\SveDefaults;
 use Statamic\Events\AddonSettingsSaved;
 use Statamic\Events\BlueprintSaved;
@@ -109,6 +110,7 @@ class ServiceProvider extends AddonServiceProvider
         SveProp::class,
         SveDefaults::class,
         SveCache::class,
+        SveComponent::class,
     ];
 
     protected $modifiers = [
@@ -298,6 +300,18 @@ class ServiceProvider extends AddonServiceProvider
         // here: it has to run BEFORE the addon's other globals listeners in
         // `$listen`. Moved from the site's AppServiceProvider in WP8.
         Event::listen(GlobalVariablesBlueprintFound::class, [WrapResponsiveGlobalFields::class, 'handle']);
+
+        // In Live Preview a component's render carries the server's mark of
+        // where it is (ComponentMark). Registered first, so it reads the
+        // file's text as the Engine read it — before any other preparser has
+        // rewritten a line of it.
+        $this->app->extend(AntlersParser::class, function ($parser) {
+            if (method_exists($parser, 'preparse')) {
+                $parser->preparse([ComponentMark::class, 'preparse']);
+            }
+
+            return $parser;
+        });
 
         // `:handle ?? default` in a section template becomes Antlers the
         // runtime can render. Official preparser hook — not a wrap of Engine.
