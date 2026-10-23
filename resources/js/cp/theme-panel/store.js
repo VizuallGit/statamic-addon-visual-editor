@@ -8,6 +8,9 @@ import { reactive } from 'vue';
  * `fresh` for a color not saved yet (only its name can change), `problem` a
  * nameProblem() key while the name is not usable.
  * `savedSteps` are each color's step names as saved, by color name.
+ * `highlights` (Colors, below the palette): `{ key, name, value, problem }`,
+ * each a name pointing at a palette color (highlights.js); `savedHighlights`
+ * the saved ones, name => value.
  *
  * `sizes` (Spacing): `{ key, name, min, max, fresh, problem }` in px, the
  * `--size-*` scale; `maxViewport` is where they stop growing (the container
@@ -54,7 +57,8 @@ export const themePanelUi = reactive({
   sizes: [],
   maxViewport: 1280,
   gutter: 'var(--size-700)',
-  highlights: {},
+  highlights: [],
+  savedHighlights: {},
   selectedSize: '',
   type: {},
   button: {},

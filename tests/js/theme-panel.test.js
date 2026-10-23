@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/theme-panel/tokens.js';
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
-import { BORDERS, CHECK_SIZES, HIGHLIGHT_TOKENS, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
+import { BORDERS, CHECK_SIZES, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
+import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from '../../resources/js/cp/theme-panel/highlights.js';
 import { checkSample, fieldSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
 
 const CSS = `@import "tailwindcss";
@@ -141,12 +142,66 @@ test('body color, background and gutter reach the page on every render', () => {
   }
 
   assert.ok(isManaged('gutter'));
-  assert.ok(TYPE_TOKENS.includes('heading-color'));
-  assert.ok(isManaged('heading-color'));
+});
 
-  for (const name of HIGHLIGHT_TOKENS) {
-    assert.ok(isManaged(name), name);
-  }
+test('headings have no color token: they inherit from the body and the section', () => {
+  assert.ok(!TYPE_TOKENS.includes('heading-color'));
+  assert.ok(!isManaged('heading-color'));
+});
+
+test('a highlight is a color token pointing at a palette color', () => {
+  const tokens = readTokens(`@theme {
+    --color-primary: #112233;
+    --color-primary-500: #223344;
+    --color-highlight-1: var(--color-primary-500);
+    --color-brand: var( --color-primary );
+    --color-gray: var(--color-primary);
+    --size-700: 1rem;
+    --gutter: var(--size-700);
+}`);
+
+  assert.deepEqual(readHighlights(tokens), [
+    { name: 'highlight-1', value: 'var(--color-primary-500)' },
+    { name: 'brand', value: 'var( --color-primary )' },
+    { name: 'gray', value: 'var(--color-primary)' },
+  ]);
+  assert.ok(isHighlightValue('var(--color-primary)'));
+  assert.ok(!isHighlightValue('#112233'));
+  assert.ok(!isHighlightValue('var(--size-700)'));
+  assert.ok(!isHighlightValue('var(--highlight-1)'));
+});
+
+test('a highlight name is free, lowercase and not a palette color', () => {
+  const families = [{ name: 'primary', steps: [{ name: 500 }] }];
+
+  assert.equal(highlightNameProblem('highlight-1', [], families), null);
+  assert.equal(highlightNameProblem('accent-2', ['highlight-1'], families), null);
+  assert.equal(highlightNameProblem('', [], families), 'empty');
+  assert.equal(highlightNameProblem('Accent', [], families), 'format');
+  assert.equal(highlightNameProblem('highlight-1', ['highlight-1'], families), 'taken');
+  assert.equal(highlightNameProblem('primary', [], families), 'taken');
+  assert.equal(highlightNameProblem('primary-500', [], families), 'taken');
+  assert.equal(highlightNameProblem('white', [], families), 'taken');
+});
+
+test('a new highlight counts on from the highest default name', () => {
+  assert.equal(nextHighlightName([]), 'highlight-1');
+  assert.equal(nextHighlightName(['highlight-1', 'highlight-2']), 'highlight-3');
+  assert.equal(nextHighlightName(['brand', 'highlight-4', 'highlight-2']), 'highlight-5');
+});
+
+test('writeTokens adds a highlight to the theme and removes a gone one', () => {
+  const css = `@theme {
+    --color-primary: #112233;
+    --color-highlight-1: var(--color-primary);
+    --size-700: 1rem;
+}`;
+
+  assert.equal(writeTokens(css, { 'color-highlight-2': 'var(--color-primary)', 'color-highlight-1': null }), `@theme {
+    --color-primary: #112233;
+    --size-700: 1rem;
+    --color-highlight-2: var(--color-primary);
+}`);
 });
 
 test('the Title tokens are typography the page gets on every render', () => {

@@ -27,6 +27,8 @@ const props = defineProps({
   /** The token it writes, for the select's `data-sve-input`. */
   token: { type: String, default: '' },
   label: { type: String, default: '' },
+  /** Only the palette's colors — no white, black or transparent (a highlight points at the palette). */
+  paletteOnly: { type: Boolean, default: false },
   onChange: { type: Function, required: true },
 });
 
@@ -50,7 +52,7 @@ const groups = computed(() => {
     }))
     .filter((g) => g.options.length);
 
-  return [{ key: 'basics', label: ui.labels.forms_basics || '', options: basics }, ...families];
+  return props.paletteOnly ? families : [{ key: 'basics', label: ui.labels.forms_basics || '', options: basics }, ...families];
 });
 
 const known = computed(() => groups.value.some((g) => g.options.some((o) => o.value === props.value)));

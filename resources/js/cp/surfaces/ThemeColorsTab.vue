@@ -1,13 +1,4 @@
 <template>
-  <div class="sve-theme__section" data-sve-highlights>
-    <span class="sve-theme__section-title">{{ ui.labels.colors_highlights }}</span>
-    <p class="sve-theme__hint">{{ ui.labels.colors_highlight_hint }}</p>
-    <label v-for="name in highlights" :key="name" class="sve-theme__field">
-      <span class="sve-theme__label">{{ ui.labels.colors_highlight }} {{ name.slice(-1) }}</span>
-      <ThemeColorSelect :token="name" :value="ui.highlights[name] || ''" :label="ui.labels.colors_highlight" :on-change="(v) => h.onHighlight(name, v)" />
-    </label>
-  </div>
-
   <section
     v-for="f in ui.families"
     :key="f.key"
@@ -178,16 +169,37 @@
       </template>
     </div>
   </section>
+
+  <!-- Highlights: a name that points at a palette color. No steps, no color of
+       its own — only the palette's colors to choose from. -->
+  <div class="sve-theme__section sve-theme__highlights" data-sve-highlights>
+    <div class="sve-theme__highlights-head">
+      <span class="sve-theme__section-title">{{ ui.labels.colors_highlights }}</span>
+      <button type="button" class="sve-theme__add" data-sve-highlight-add :title="ui.labels.colors_highlight_add" :aria-label="ui.labels.colors_highlight_add" @click="h.onAddHighlight">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <p class="sve-theme__hint">{{ ui.labels.colors_highlight_hint }}</p>
+    <div v-if="ui.highlights.length" class="sve-theme__highlight-list">
+      <div v-for="x in ui.highlights" :key="x.key" class="sve-theme__highlight" data-sve-highlight>
+        <span class="sve-theme__input sve-theme__highlight-name" :class="{ 'is-bad': x.problem }">
+          <input :value="x.name" :aria-label="ui.labels.colors_name" data-sve-highlight-name spellcheck="false" @input="h.onHighlightName(x.key, $event.target.value)">
+        </span>
+        <ThemeColorSelect palette-only :token="`color-${x.name}`" :value="x.value" :label="ui.labels.colors_color" :on-change="(v) => h.onHighlightValue(x.key, v)" />
+        <button type="button" class="sve-theme__highlight-remove" :title="ui.labels.colors_highlight_remove" :aria-label="ui.labels.colors_highlight_remove" @click="h.onRemoveHighlight(x.key)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <span v-if="x.problem" class="sve-theme__hint sve-theme__highlight-problem">{{ ui.labels[`colors_name_${x.problem}`] || ui.labels.colors_name_format }}</span>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { reactive } from 'vue';
 import { MAX_VARIANTS, hexToOklch, isCoreColor as isCore, namedByLightness, nudgeRange } from '../theme-panel/palette.js';
-import { HIGHLIGHT_TOKENS } from '../theme-panel/presets.js';
 import ThemeColorSelect from './ThemeColorSelect.vue';
-
-const highlights = HIGHLIGHT_TOKENS;
 
 defineProps({ h: { type: Object, required: true } });
 

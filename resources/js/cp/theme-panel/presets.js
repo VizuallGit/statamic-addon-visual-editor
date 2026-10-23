@@ -28,15 +28,15 @@ export const TITLE_TOKENS = [
 
 /**
  * Typography: body (color, background, family, size, weight, line height),
- * headings (family, weight, line height, capitals, one shared color) and each
- * level's size — plus its own weight and line height when it has them — and
- * the Title block. The shared color points at a highlight. There is no color
- * per heading tag, so a section can still set the color back and inherit.
+ * headings (family, weight, line height, capitals) and each level's size —
+ * plus its own weight and line height when it has them — and the Title block.
+ * Headings have no color token: a color on h1–h6 would stop them inheriting
+ * the body's, and then the section's, text color.
  */
 export const TYPE_TOKENS = [
   'body-color', 'body-bg',
   'font-base', 'font-size', 'body-weight', 'line-height',
-  'font-heading', 'heading-weight', 'heading-line-height', 'heading-text-transform', 'heading-color',
+  'font-heading', 'heading-weight', 'heading-line-height', 'heading-text-transform',
   'font-size-h1', 'font-size-h2', 'font-size-h3', 'font-size-h4', 'font-size-h5', 'font-size-h6',
   ...LEVEL_TOKENS,
   ...TITLE_TOKENS,
@@ -60,21 +60,6 @@ export const TRACKINGS = [
 ];
 
 export const BUTTON_TOKENS = ['button-font', 'button-size', 'button-weight', 'button-radius', 'button-transform'];
-
-/**
- * Four named colors under the palette. Each points at a palette color.
- * Headings use one of them (`--heading-color`). Changing the highlight
- * updates every place that points at it. A section with its own text color
- * sets `--heading-color` back, so the headings inherit.
- */
-export const HIGHLIGHT_TOKENS = ['highlight-1', 'highlight-2', 'highlight-3', 'highlight-4'];
-
-export const HIGHLIGHT_DEFAULTS = {
-  'highlight-1': 'var(--color-primary)',
-  'highlight-2': 'var(--color-secondary)',
-  'highlight-3': 'var(--color-tertiary)',
-  'highlight-4': 'var(--color-quaternary)',
-};
 
 /**
  * Forms: the site's text inputs, textareas and selects (background and its
@@ -149,7 +134,7 @@ export function sizeRef(value) {
  * every render — the same list as its MANAGED pattern (app/Tags/ThemeTokens.php
  * on the site), so what the panel paints is what the page will get.
  */
-const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|gutter|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-color|body-bg|heading-color|highlight-[1-4]|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius|input-[\w-]+)$/;
+const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|gutter|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-color|body-bg|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius|input-[\w-]+)$/;
 
 export function isManaged(name) {
   return MANAGED.test(name);

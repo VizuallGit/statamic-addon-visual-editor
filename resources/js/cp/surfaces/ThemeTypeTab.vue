@@ -2,14 +2,6 @@
   <div class="sve-theme__section" data-sve-type-body>
     <span class="sve-theme__section-title">{{ ui.labels.type_body }}</span>
     <label class="sve-theme__field">
-      <span class="sve-theme__label">{{ ui.labels.type_color }}</span>
-      <ThemeColorSelect token="body-color" :value="valueOf('body-color')" :label="ui.labels.type_color" :on-change="(v) => h.onType('body-color', v)" />
-    </label>
-    <label class="sve-theme__field">
-      <span class="sve-theme__label">{{ ui.labels.type_background }}</span>
-      <ThemeColorSelect token="body-bg" :value="valueOf('body-bg')" :label="ui.labels.type_background" :on-change="(v) => h.onType('body-bg', v)" />
-    </label>
-    <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_font }}</span>
       <span class="sve-theme__input">
         <select :value="firstFamily(ui.type['font-base'])" @change="h.onType('font-base', withFamily(ui.type['font-base'], $event.target.value))">
@@ -45,21 +37,20 @@
         <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       </span>
     </label>
+    <!-- Last: the page's text and background. Headings inherit the text color,
+         and a section that sets its own color wins. -->
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_color }}</span>
+      <ThemeColorSelect token="body-color" :value="valueOf('body-color')" :label="ui.labels.type_color" :on-change="(v) => h.onType('body-color', v)" />
+    </label>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_background }}</span>
+      <ThemeColorSelect token="body-bg" :value="valueOf('body-bg')" :label="ui.labels.type_background" :on-change="(v) => h.onType('body-bg', v)" />
+    </label>
   </div>
 
   <div class="sve-theme__section" data-sve-type-headings>
     <span class="sve-theme__section-title">{{ ui.labels.type_headings }}</span>
-    <label class="sve-theme__field">
-      <span class="sve-theme__label">{{ ui.labels.type_heading_color }}</span>
-      <span class="sve-theme__input">
-        <select :value="ui.type['heading-color'] || ''" data-sve-type="heading-color" @change="h.onType('heading-color', $event.target.value)">
-          <option value="">{{ ui.labels.type_heading_same }}</option>
-          <option v-for="n in [1, 2, 3, 4]" :key="n" :value="`var(--highlight-${n})`">{{ ui.labels.colors_highlight }} {{ n }}</option>
-        </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </span>
-    </label>
-    <p class="sve-theme__hint">{{ ui.labels.type_heading_color_hint }}</p>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_font }}</span>
       <span class="sve-theme__input">

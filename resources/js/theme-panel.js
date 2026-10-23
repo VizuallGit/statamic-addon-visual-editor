@@ -24,7 +24,8 @@ import { themePanelUi as ui } from './cp/theme-panel/store.js';
 import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, nudgeSteps, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
-import { BUTTON_TOKENS, HIGHLIGHT_DEFAULTS, HIGHLIGHT_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { BUTTON_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from './cp/theme-panel/highlights.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
@@ -133,7 +134,11 @@ function remember(css) {
   ui.sizes = [...tokens].filter(([name]) => name.startsWith('size-')).map(([name, value]) => sizeUi(name, value)).filter(Boolean);
   ui.maxViewport = parseSize(tokens.get('container-width'))?.max || inferViewport(ui.sizes.map((s) => s.value)) || 1280;
   ui.gutter = tokens.get('gutter') || 'var(--size-700)';
-  ui.highlights = Object.fromEntries(HIGHLIGHT_TOKENS.map((name) => [name, tokens.get(name) || HIGHLIGHT_DEFAULTS[name]]));
+  // A highlight keeps its key over a save, so its row stays where it is.
+  const highlightKeys = new Map(ui.highlights.map((x) => [x.name, x.key]));
+
+  ui.savedHighlights = Object.fromEntries(readHighlights(tokens).map((x) => [x.name, x.value]));
+  ui.highlights = readHighlights(tokens).map(({ name, value }) => ({ key: highlightKeys.get(name) || `highlight-${++keySeq}`, name, value, problem: null }));
   ui.type = Object.fromEntries(TYPE_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.button = Object.fromEntries(BUTTON_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.input = Object.fromEntries(INPUT_TOKENS.map((name) => [name, tokens.get(name) || '']));
@@ -343,7 +348,11 @@ function desiredTokens() {
     out.gutter = ui.gutter;
   }
 
-  Object.assign(out, ui.highlights);
+  for (const x of ui.highlights) {
+    if (!x.problem) {
+      out[`color-${x.name}`] = x.value;
+    }
+  }
 
   for (const size of ui.sizes) {
     if (size.problem) {
@@ -393,7 +402,12 @@ function tokenChanges() {
 
     // A heading level set back to "as the headings" loses its own line, and so
     // does a Title value set back to its default.
-    if ((LEVEL_TOKENS.includes(name) || TITLE_TOKENS.includes(name) || name === 'heading-color') && !ui.type[name]) {
+    if ((LEVEL_TOKENS.includes(name) || TITLE_TOKENS.includes(name)) && !ui.type[name]) {
+      changes[name] = null;
+    }
+
+    // A highlight that is gone (or renamed) loses its line.
+    if (name.startsWith('color-') && isHighlightValue(savedTokens.get(name)) && !(name in want)) {
       changes[name] = null;
     }
   }
@@ -444,7 +458,15 @@ function propertiesFor(families, tokens) {
   }
 
   for (const [name, value] of Object.entries(tokens)) {
-    if (value !== null && isManaged(name)) {
+    if (value === null) {
+      continue;
+    }
+
+    // A highlight is a color token too: `--color-highlight-1` and the short `--highlight-1`.
+    if (name.startsWith('color-') && isHighlightValue(value)) {
+      want.set(`--${name}`, value);
+      want.set(`--${name.slice('color-'.length)}`, `var(--${name})`);
+    } else if (isManaged(name)) {
       want.set(`--${name}`, value);
     }
   }
@@ -485,6 +507,14 @@ function changed(win) {
 
 const findColor = (key) => ui.families.find((f) => f.key === key) || null;
 const findSize = (key) => ui.sizes.find((s) => s.key === key) || null;
+const findHighlight = (key) => ui.highlights.find((x) => x.key === key) || null;
+
+/** Every highlight's name against the others and the palette — a rename or removal can free or take a name. */
+function checkHighlights() {
+  for (const x of ui.highlights) {
+    x.problem = highlightNameProblem(x.name, ui.highlights.filter((o) => o !== x).map((o) => o.name), ui.families);
+  }
+}
 
 /**
  * A family's tints and shades as its counts make them, not nudged. A saved
@@ -524,7 +554,7 @@ function remake(f, previousBase = f.value) {
 
 /** Why `name` cannot be a new color, or null. The preview is asked whether the site already has `--name`. */
 function colorProblem(win, f, name) {
-  const problem = nameProblem(name, ui.families.filter((o) => o !== f).map((o) => o.name));
+  const problem = nameProblem(name, [...ui.families.filter((o) => o !== f), ...ui.highlights].map((o) => o.name));
 
   if (problem) {
     return problem;
@@ -882,13 +912,43 @@ const handlers = (win) => ({
       changed(win);
     }
   },
-  onHighlight: (name, value) => {
-    const next = String(value || '').trim();
 
-    if (HIGHLIGHT_TOKENS.includes(name) && next) {
-      ui.highlights[name] = next;
+  // Highlights: a name pointing at a palette color, under the palette.
+  onAddHighlight: () => {
+    const first = ui.families.find((f) => f.name && !f.problem && (f.value || f.steps?.length));
+
+    if (!first) {
+      return;
+    }
+
+    const value = first.value ? `var(--color-${first.name})` : `var(--color-${first.name}-${first.steps[0].name})`;
+
+    ui.highlights.push({ key: `highlight-${++keySeq}`, name: nextHighlightName(ui.highlights.map((x) => x.name)), value, problem: null });
+    changed(win);
+  },
+  onHighlightName: (key, name) => {
+    const x = findHighlight(key);
+
+    if (!x) {
+      return;
+    }
+
+    x.name = String(name || '').trim();
+    checkHighlights();
+    changed(win);
+  },
+  onHighlightValue: (key, value) => {
+    const x = findHighlight(key);
+
+    if (x && isHighlightValue(value)) {
+      x.value = String(value).trim();
       changed(win);
     }
+  },
+  onRemoveHighlight: (key) => {
+    ui.highlights = ui.highlights.filter((x) => x.key !== key);
+    checkHighlights();
+    changed(win);
   },
 
   // Fonts: added at once, no Save — the dropdowns and the preview have them straight away.
@@ -1147,7 +1207,7 @@ export async function saveTheme(win) {
     return true;
   }
 
-  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem) || ui.props.some((p) => p.problem) || ui.classes.some((c) => c.problem)) {
+  if (ui.families.some((f) => f.problem) || ui.highlights.some((x) => x.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem) || ui.props.some((p) => p.problem) || ui.classes.some((c) => c.problem)) {
     const braces = ui.utilities.some((u) => u.problem === 'braces');
 
     ui.status = t(win, braces ? 'theme_utilities_braces' : 'theme_panel_fix_names');
