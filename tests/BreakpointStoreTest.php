@@ -126,6 +126,62 @@ class BreakpointStoreTest extends TestCase
         }
     }
 
+    public function test_a_guest_may_not_delete_a_size(): void
+    {
+        $this->deleteJson('/!/sve/breakpoints/tablet')->assertStatus(403);
+    }
+
+    public function test_a_removed_size_leaves_the_others_written_down_and_the_cascade_closes_over_it(): void
+    {
+        $list = Store::remove('tablet');
+
+        // The file holds the two defaults that remain — not nothing, which rows() would read as "all three".
+        $saved = YAML::file(Features::settingsPath())->parse();
+        $this->assertSame(['laptop', 'mobile'], array_column($saved['breakpoints'], 'handle'));
+
+        // Mobile now runs up to where laptop starts.
+        $this->assertSame(['laptop', 'mobile'], array_column($list, 'handle'));
+        $this->assertTrue($list[0]['base']);
+        $this->assertSame('(width < 64em)', $list[1]['media']);
+        $this->assertSame('max-lg', $list[1]['tw']);
+
+        $this->assertSame(['laptop', 'mobile'], Breakpoints::handles(), 'the cached list was forgotten by the save');
+    }
+
+    public function test_a_handle_not_in_the_list_cannot_be_removed(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        try {
+            Store::remove('toaster');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('handle', $e->errors());
+            $this->assertFalse(File::exists(Features::settingsPath()), 'nothing was written');
+
+            throw $e;
+        }
+    }
+
+    public function test_the_last_size_stays(): void
+    {
+        config(['statamic-visual-editor.breakpoints' => [
+            ['handle' => 'only', 'min' => 0, 'unit' => 'em'],
+        ]]);
+        $this->forget();
+
+        $this->expectException(ValidationException::class);
+
+        try {
+            Store::remove('only');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('handle', $e->errors());
+            $this->assertFalse(File::exists(Features::settingsPath()), 'nothing was written');
+            $this->assertSame(['only'], Breakpoints::handles());
+
+            throw $e;
+        }
+    }
+
     public function test_the_sixth_size_is_refused(): void
     {
         config(['statamic-visual-editor.breakpoints' => [

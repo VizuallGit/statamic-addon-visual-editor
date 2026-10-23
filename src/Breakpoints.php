@@ -40,6 +40,7 @@ class Breakpoints
     public const UNITS = Rows::UNITS;
     public const ROOT_PX = Rows::ROOT_PX;
     public const MAX = Rows::MAX;
+    public const MIN = Rows::MIN;
     public const LABEL_KEYS = Labels::LABEL_KEYS;
     public const DIRECTIONS = Rows::DIRECTIONS;
 

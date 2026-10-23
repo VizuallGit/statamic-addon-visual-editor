@@ -1,8 +1,9 @@
 /**
  * The popover behind the «+» beside Live Preview's size buttons: one more
- * screen size, saved into the addon's settings (POST /!/sve/breakpoints) and
- * drawn at once — the size buttons, the CSS panel's size tabs, the Tailwind
- * row and the overview all read the one list this hands back.
+ * screen size (POST /!/sve/breakpoints), or one fewer (DELETE
+ * /!/sve/breakpoints/{handle}), saved into the addon's settings and drawn
+ * at once — the size buttons, the CSS panel's size tabs, the Tailwind row
+ * and the overview all read the one list this hands back.
  *
  * Loaded on the first click (cp-shell/breakpoint-add-button.js imports it
  * then), so a Control Panel where nobody adds a size never carries the form.
@@ -19,7 +20,9 @@ import LpBreakpointAdd from '../cp/surfaces/LpBreakpointAdd.vue';
 import { csrfToken } from '../lib/csrf.js';
 import { remToPx } from '../lib/dom.js';
 import { t } from '../lib/i18n.js';
+import { LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
 import { bindMenuDismiss } from '../lp-menu-dismiss.js';
+import { BP_ADD_ATTR } from './breakpoint-add-button.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
 
 const HOST_ID = '__sve-bp-add-host';
@@ -29,13 +32,18 @@ const POPOVER_WIDTH_REM = 21;
 const VIEWPORT_PAD = 8;
 
 /**
- * How many sizes the list holds at most — Breakpoints::MAX, sent by
- * ControlPanelScript as `sveBreakpointsMax`. The form gives way to a note at
- * that count. The Store refuses a save past it either way; this only spares
- * the round trip.
+ * How many sizes the list holds at most and at least — Breakpoints::MAX and
+ * ::MIN, sent by ControlPanelScript as `sveBreakpointsMax` / `…Min`. The
+ * form gives way to a note at the top count; the remove button goes quiet at
+ * the bottom one. The Store refuses either way; this only spares the round
+ * trip.
  */
 function maxSizes(win) {
   return Number(win.Statamic?.$config?.get?.('sveBreakpointsMax'));
+}
+
+function minSizes(win) {
+  return Number(win.Statamic?.$config?.get?.('sveBreakpointsMin'));
 }
 
 /** The pictures a size may have, in the order to offer them. Only the ones this build draws. */
@@ -68,12 +76,18 @@ export function dismissBreakpointAdd() {
   anchor.setAttribute('aria-expanded', 'false');
 }
 
-async function save(win, payload) {
+/**
+ * One request against the list, add or remove. The answer is the list as
+ * the next page load would read it; it goes where the page load would have
+ * put it, and every reader of `breakpoints()` sees it. Returns the list as
+ * well, for the popover to redraw its own rows from.
+ */
+async function request(win, method, url, payload) {
   let res;
 
   try {
-    res = await win.fetch(ENDPOINT, {
-      method: 'POST',
+    res = await win.fetch(url, {
+      method,
       credentials: 'same-origin',
       headers: {
         Accept: 'application/json',
@@ -81,7 +95,7 @@ async function save(win, payload) {
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-TOKEN': csrfToken(win),
       },
-      body: JSON.stringify(payload),
+      body: payload === undefined ? undefined : JSON.stringify(payload),
     });
   } catch {
     return { ok: false, errors: {} };
@@ -102,23 +116,61 @@ async function save(win, payload) {
     return { ok: false, errors: {} };
   }
 
-  applyBreakpointList(win, await res.json());
-  dismissBreakpointAdd();
+  const data = await res.json();
 
-  return { ok: true };
+  applyBreakpointList(win, data);
+
+  return { ok: true, rows: breakpoints(win) };
+}
+
+async function save(win, payload) {
+  const result = await request(win, 'POST', ENDPOINT, payload);
+
+  if (result.ok) {
+    dismissBreakpointAdd();
+  }
+
+  return result;
+}
+
+/**
+ * The popover stays open after a removal so the list is seen to shrink. The
+ * device group is redrawn from the new list meanwhile, with a new «+» in it;
+ * the popover follows that node, so it stays lit and a click on it still
+ * counts as inside.
+ */
+async function remove(win, handle) {
+  const result = await request(win, 'DELETE', `${ENDPOINT}/${encodeURIComponent(handle)}`);
+
+  if (result.ok && open) {
+    const anchor = win.document.querySelector(`#${LP_PREVIEW_CHROME_ID} [data-sve-devices] > [${BP_ADD_ATTR}]`);
+
+    if (anchor && anchor !== open.anchor) {
+      open.anchor.setAttribute('aria-expanded', 'false');
+      open.anchor = anchor;
+      anchor.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  return result;
 }
 
 function popoverProps(win, anchor) {
   const rect = anchor.getBoundingClientRect();
-  const rows = breakpoints(win);
   const max = maxSizes(win);
-  const taken = (px) => rows.some((row) => Math.abs(Number(row.min_px) - px) < 0.5);
+  const min = minSizes(win);
 
   return {
     top: Math.round(rect.bottom + 8),
     left: Math.round(Math.max(VIEWPORT_PAD, Math.min(rect.left, win.innerWidth - remToPx(win, POPOVER_WIDTH_REM) - VIEWPORT_PAD))),
     strings: {
       title: t(win, 'bp_add_title'),
+      sizes: t(win, 'bp_remove_title'),
+      remove: t(win, 'bp_remove'),
+      removeConfirm: t(win, 'bp_remove_confirm'),
+      removeLast: t(win, 'bp_remove_last'),
+      removeHint: t(win, 'bp_remove_hint'),
+      removeFailed: t(win, 'bp_remove_failed'),
       name: t(win, 'bp_add_name'),
       namePlaceholder: t(win, 'bp_add_name_placeholder'),
       handle: t(win, 'bp_add_handle'),
@@ -138,11 +190,16 @@ function popoverProps(win, anchor) {
       full: t(win, 'bp_add_error_max', { max }),
     },
     icons: ICON_ORDER.filter((key) => LP_DEVICE_ICONS[key]).map((key) => ({ key, svg: LP_DEVICE_ICONS[key] })),
-    presets: PRESETS.map((preset) => ({ ...preset, taken: taken(preset.px) })),
+    presets: PRESETS,
     units: UNITS,
     direction: bpDirection(win),
-    full: rows.length >= max,
+    // The list as it stands when the popover opens; the popover keeps its own
+    // copy from here and takes each answer's list in its place.
+    rows: breakpoints(win),
+    max,
+    min,
     onSave: (payload) => save(win, payload),
+    onRemove: (handle) => remove(win, handle),
     onClose: dismissBreakpointAdd,
   };
 }
@@ -155,9 +212,11 @@ function openPopover(win, anchor) {
   doc.body.appendChild(host);
 
   const app = mountSurface(LpBreakpointAdd, host, popoverProps(win, anchor));
+  // `open.anchor`, not the one captured here: a removal redraws the group,
+  // and the «+» the popover belongs to is then a new node.
   const unbind = bindMenuDismiss(
     win,
-    (target) => host.contains(target) || anchor.contains(target),
+    (target) => host.contains(target) || !!open?.anchor?.contains(target),
     dismissBreakpointAdd
   );
 

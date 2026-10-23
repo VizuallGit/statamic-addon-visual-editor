@@ -259,7 +259,7 @@ final class EditorRoutes
             Route::post('/!/sve/schema', [SchemaController::class, 'store'])
                 ->name('sve.schema.store');
 
-            // One more screen size, from the «+» beside Live Preview's size buttons.
+            // One more screen size, or one fewer, from the «+» beside Live Preview's size buttons.
             Route::post('/!/sve/breakpoints', [BreakpointsController::class, 'store'])
                 ->name('sve.breakpoints.store');
 
@@ -269,6 +269,9 @@ final class EditorRoutes
                 ->name('sve.chrome-prefs.destroy');
 
             Route::get('/!/sve/entry-activity/{entry}', EntryActivityController::class)
+            Route::delete('/!/sve/breakpoints/{handle}', [BreakpointsController::class, 'destroy'])
+                ->where('handle', '[a-z][a-z0-9_]*')
+                ->name('sve.breakpoints.destroy');
                 ->name('sve.entry-activity');
 
             Route::get('/!/sve/comments/{entry}', [CommentsController::class, 'index'])

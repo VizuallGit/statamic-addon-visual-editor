@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 
-// The «+» popover beside Live Preview's size buttons: one more screen size.
-// cp-shell/breakpoint-add.js builds the props and does the save; this only
-// collects the row and reports it. Nothing here derives a media query or a
-// Tailwind variant — PHP does, from the one list, when the row is saved.
+// The «+» popover beside Live Preview's size buttons: the sizes the site
+// has, each with a way out, and one more below. cp-shell/breakpoint-add.js
+// builds the props and talks to the server; this collects a row and reports
+// it, or names the one to take out. Nothing here derives a media query or
+// a Tailwind variant — PHP does, from the one list, on every save.
 const props = defineProps({
   top: { type: Number, required: true },
   left: { type: Number, required: true },
@@ -12,16 +13,71 @@ const props = defineProps({
   strings: { type: Object, required: true },
   // [{ key, svg }] — the pictures a size may have, in the order to offer them.
   icons: { type: Array, required: true },
-  // [{ key: 'md', px: 768, taken: false }] — Tailwind's scale as starting points.
+  // [{ key: 'md', px: 768 }] — Tailwind's scale as starting points.
   presets: { type: Array, required: true },
   units: { type: Array, required: true },
   // 'desktop' | 'mobile' — shown, not decided, here.
   direction: { type: String, required: true },
-  // The site is at its limit: the form gives way to the message.
-  full: { type: Boolean, default: false },
+  // The list as it stood when the popover opened, widest first. Kept as
+  // this component's own state from here: every answer from the server is
+  // the whole list, and it takes the place of this one.
+  rows: { type: Array, required: true },
+  // Breakpoints::MAX / ::MIN. At the top count the form gives way to a note;
+  // at the bottom one the remove buttons go quiet.
+  max: { type: Number, required: true },
+  min: { type: Number, required: true },
   onSave: { type: Function, required: true },
+  // (handle) => { ok, rows?, errors? }
+  onRemove: { type: Function, required: true },
   onClose: { type: Function, required: true },
 });
+
+const rows = ref([...props.rows]);
+const full = computed(() => rows.value.length >= props.max);
+const canRemove = computed(() => rows.value.length > props.min);
+// The handle whose × has been pressed once and waits for the second press.
+const confirming = ref('');
+const removing = ref('');
+const removeFailed = ref('');
+
+/** A preset is spent when a size already starts at its pixel width. */
+function taken(preset) {
+  return rows.value.some((row) => Math.abs(Number(row.min_px) - preset.px) < 0.5);
+}
+
+function iconFor(row) {
+  return props.icons.find((item) => item.key === row.icon)?.svg || '';
+}
+
+/** First press asks, second press within the same row removes. */
+async function removeRow(row) {
+  if (!canRemove.value || removing.value) {
+    return;
+  }
+
+  if (confirming.value !== row.handle) {
+    confirming.value = row.handle;
+    removeFailed.value = '';
+
+    return;
+  }
+
+  removing.value = row.handle;
+  removeFailed.value = '';
+
+  const result = await props.onRemove(row.handle);
+
+  removing.value = '';
+  confirming.value = '';
+
+  if (result?.ok && Array.isArray(result.rows)) {
+    rows.value = result.rows;
+
+    return;
+  }
+
+  removeFailed.value = Object.values(result?.errors || {})[0] || props.strings.removeFailed;
+}
 
 const name = ref('');
 const icon = ref(props.icons.find((item) => item.key === 'tablet_landscape')?.key || props.icons[0]?.key || 'desktop');
@@ -50,7 +106,7 @@ const canSave = computed(() =>
 
 /** A preset fills the width and a matching preview width; everything stays editable. */
 function usePreset(preset) {
-  if (preset.taken) {
+  if (taken(preset)) {
     return;
   }
 
@@ -116,7 +172,43 @@ async function submit() {
     @click.stop
     @keydown.escape.stop.prevent="onClose"
   >
-    <div class="sve-bp-add__title">{{ strings.title }}</div>
+    <div class="sve-bp-add__title">{{ strings.sizes }}</div>
+
+    <ul class="sve-bp-add__rows" :aria-label="strings.sizes">
+      <li
+        v-for="row in rows"
+        :key="row.handle"
+        class="sve-bp-add__rowitem"
+        :data-confirming="confirming === row.handle ? '' : undefined"
+      >
+        <span class="sve-bp-add__rowicon" aria-hidden="true" v-html="iconFor(row)"></span>
+        <span class="sve-bp-add__rowlabel">{{ row.label }}</span>
+        <span class="sve-bp-add__rowfrom">{{ row.min }}{{ row.unit }}</span>
+        <button
+          v-if="confirming === row.handle"
+          type="button"
+          class="sve-bp-add__remove sve-bp-add__remove--confirm"
+          :disabled="removing !== ''"
+          @click="removeRow(row)"
+        >{{ removing === row.handle ? strings.saving : strings.removeConfirm }}</button>
+        <button
+          v-else
+          type="button"
+          class="sve-bp-add__remove"
+          :disabled="!canRemove || removing !== ''"
+          :title="canRemove ? strings.remove.replace(':label', row.label) : strings.removeLast"
+          :aria-label="canRemove ? strings.remove.replace(':label', row.label) : strings.removeLast"
+          @click="removeRow(row)"
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </li>
+    </ul>
+
+    <p v-if="confirming" class="sve-bp-add__hint sve-bp-add__hint--block">{{ strings.removeHint }}</p>
+    <p v-if="removeFailed" class="sve-bp-add__error">{{ removeFailed }}</p>
+
+    <div class="sve-bp-add__title sve-bp-add__title--next">{{ strings.title }}</div>
 
     <p v-if="full" class="sve-bp-add__note">{{ strings.full }}</p>
 
@@ -161,7 +253,7 @@ async function submit() {
             :key="preset.key"
             type="button"
             class="sve-bp-add__preset"
-            :disabled="preset.taken"
+            :disabled="taken(preset)"
             :title="preset.px + 'px'"
             @click="usePreset(preset)"
           ><span>{{ preset.key }} <small>{{ preset.px }}</small></span></button>
@@ -242,6 +334,109 @@ async function submit() {
   padding: 0.125rem 0.25rem 0.5rem;
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+/* The second heading, over the form: a hairline above, as a new section. */
+.sve-bp-add__title--next {
+  margin-top: 0.5rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* The sizes the site has. One line each: picture, name, where it starts,
+   and the way out at the right edge. */
+.sve-bp-add__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sve-bp-add__rowitem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.75rem;
+  padding: 0 0.25rem 0 0.375rem;
+  border-radius: 0.375rem;
+}
+
+.sve-bp-add__rowitem:hover,
+.sve-bp-add__rowitem[data-confirming] {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sve-bp-add__rowicon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sve-bp-add__rowicon svg {
+  display: block;
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+.sve-bp-add__rowlabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sve-bp-add__rowfrom {
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* The × — quiet until the row is hovered; red once asked; disabled when the
+   list is at its minimum, with the reason in its title. */
+.sve-bp-add__remove {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 1.375rem;
+  min-width: 1.375rem;
+  padding: 0;
+  border-radius: 0.3125rem;
+  color: rgba(255, 255, 255, 0.55);
+  font: inherit;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+
+.sve-bp-add__remove:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.sve-bp-add__remove:focus-visible {
+  outline: 0.125rem solid var(--theme-color-primary, #4f46e5);
+}
+
+.sve-bp-add__remove:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.sve-bp-add__remove--confirm {
+  padding: 0 0.5rem;
+  background: #b91c1c;
+  color: #fff;
+  font-weight: 600;
+}
+
+.sve-bp-add__remove--confirm:hover:not(:disabled) {
+  background: #dc2626;
 }
 
 .sve-bp-add__form {

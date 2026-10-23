@@ -106,6 +106,7 @@ final class ControlPanelScript
                 // How many sizes the list holds at most — the popover gives way
                 // to a note at that count, instead of a save the Store refuses.
                 'sveBreakpointsMax' => Breakpoints::MAX,
+                'sveBreakpointsMin' => Breakpoints::MIN,
                 // Hashed Tailwind compiler chunk — dock-instant-preview imports it
                 // so a new class can paint before the section morph comes back.
                 'sveTwCompile' => static::twCompileUrl(),

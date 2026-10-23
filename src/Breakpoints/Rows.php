@@ -75,6 +75,15 @@ final class Rows
      */
     public const MAX = 5;
 
+    /**
+     * Og aldrig færre end én: den sidste række er sitets basis — det hvert
+     * responsivt felt og hver CSS-fane skriver i, når ingen størrelse er
+     * valgt. Uden den er der ingen knap i Live Preview og ingen fane at
+     * skrive i. `rows()` ville også falde tilbage til de tre standarder ved
+     * en tom liste, så «slet alle» ville ikke give tom, men give dem igen.
+     */
+    public const MIN = 1;
+
     /** Hvilken ende af listen der er basis. */
     public const DIRECTIONS = ['desktop', 'mobile'];
 

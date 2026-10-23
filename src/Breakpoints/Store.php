@@ -15,9 +15,11 @@ use Statamic\Facades\User;
  * the screen's grid edits. One list, one file — the screen shows the new
  * row next time it opens, and nothing reads a second store.
  *
- * Add only. Renaming or removing a size orphans every value content has
- * saved under its handle; that stays a deliberate act on the settings
- * screen, with its warning in view.
+ * Add and remove. Removing a size orphans every value content has saved
+ * under its handle — they stay in the entries, unread, until the handle
+ * comes back. The popover says so beside the button; renaming stays on
+ * the settings screen. Never below {@see Rows::MIN} rows: the last one is
+ * the base every field and tab writes in.
  */
 final class Store
 {
@@ -50,8 +52,52 @@ final class Store
 
         $row = static::validate($input, $existing);
 
-        $rows = array_merge($existing, [$row]);
+        return static::write(array_merge($existing, [$row]));
+    }
 
+    /**
+     * Take the row with `$handle` out and save the rest.
+     *
+     * Refused when the handle is not in the list, and when the list would
+     * go below {@see Rows::MIN}. The remaining rows are written as they are
+     * read now, as {@see add()} writes them — so removing one of the three
+     * defaults on a site that never opened the settings screen writes the
+     * other two down, instead of leaving nothing and getting all three back.
+     *
+     * @return array<int, array<string, mixed>> the list as the browser reads it
+     *
+     * @throws ValidationException
+     */
+    public static function remove(string $handle): array
+    {
+        $existing = Rows::rows();
+        $handles = array_column($existing, 'handle');
+
+        $validator = Validator::make(['handle' => $handle], [
+            'handle' => ['required', 'string', 'in:'.implode(',', $handles)],
+        ], [
+            'handle.in' => __('sve::messages.bp_remove_error_unknown'),
+        ]);
+
+        $validator->after(function ($v) use ($existing) {
+            if (count($existing) <= Rows::MIN) {
+                $v->errors()->add('handle', __('sve::messages.bp_remove_error_min', ['min' => Rows::MIN]));
+            }
+        });
+
+        $validator->validate();
+
+        return static::write(array_values(array_filter($existing, fn ($row) => $row['handle'] !== $handle)));
+    }
+
+    /**
+     * The one write: the whole list, where the settings screen writes it.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    protected static function write(array $rows): array
+    {
         Addon::get(static::ADDON_ID)->settings()->set('breakpoints', array_values($rows))->save();
 
         // AddonSettingsSaved forgets the cached list; this is the fresh one.
