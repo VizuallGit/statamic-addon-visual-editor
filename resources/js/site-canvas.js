@@ -21,12 +21,16 @@
  * last — each cluster headed with its collection's name, one template a
  * column. The pages collection's entries make the second, under one heading
  * (a group of one row is headed once): its columns are the editors' own
- * arrangement over the order of the tree — a page dragged into another's
+ * arrangement over the tree's top pages — a page dragged into another's
  * column stands under it; dragged out between two columns it starts one of
- * its own (one page a column until someone moves one). That group is marked
- * `arrange` by the endpoint, and only its frames can be picked up; a frame
- * can be dropped on its own line only, never among the templates. The
- * columns are posted back as they are dropped, and kept for the site. What
+ * its own (one page a column until someone moves one). A page under another
+ * in the tree stands under its parent (`depth`, its label stepped in) and
+ * goes where the parent goes: the parent and its children are one unit
+ * (columnUnits) — picked up together, dropped among other units, never
+ * split. That group is marked `arrange` by the endpoint, and only its top
+ * frames can be picked up; a unit can be dropped on its own line only,
+ * never among the templates. The columns — the units' ids — are posted
+ * back as they are dropped, and kept for the site. What
  * stands in the groups comes from one place, the `/!/sve/site-canvas`
  * endpoint (SiteCanvasController): id, title, the Live Preview URL to show
  * and the edit URL to go to. Nothing is scraped from the Control Panel. The
@@ -177,10 +181,12 @@ export const DROP_BAR_PX = 4;
 
 /**
  * The endpoint's answer as the groups the canvas draws: `{ key, title,
- * arrange, rows: [{ key, title, columns: [[{ id, title, preview, edit }]] }] }`.
- * A frame without an id, a preview URL or an edit URL is left out, and a
- * column, row or group left empty by that goes with it. `arrange` is true
- * only where the endpoint says so.
+ * arrange, rows: [{ key, title, columns: [[{ id, title, preview, edit,
+ * depth }]] }] }`. A frame without an id, a preview URL or an edit URL is
+ * left out, and a column, row or group left empty by that goes with it.
+ * `arrange` is true only where the endpoint says so. `depth` is how far
+ * under the top page of its unit a frame stands — 0 for one that stands on
+ * its own, which is every frame the endpoint does not mark.
  */
 export function canvasGroups(payload) {
   const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -204,6 +210,7 @@ export function canvasGroups(payload) {
                   note: typeof frame.note === 'string' ? frame.note : '',
                   preview: String(frame.preview),
                   edit: String(frame.edit),
+                  depth: Number.isInteger(frame.depth) && frame.depth > 0 ? frame.depth : 0,
                 }))
             )
             .filter((column) => column.length > 0),
@@ -218,9 +225,61 @@ export function canvasFrames(groups) {
   return groups.flatMap((group) => group.rows.flatMap((row) => row.columns.flat()));
 }
 
-/** A row's columns as ids. */
+/**
+ * A column's units: each frame that stands on its own (depth 0) with the
+ * frames under it (depth above 0) that follow, as the endpoint stacks
+ * them. A unit is what a drag picks up and what a drop stands among: a
+ * child never leaves its parent. A column that begins under something
+ * (nothing at depth 0 before it) begins a unit all the same.
+ */
+export function columnUnits(column) {
+  const units = [];
+
+  for (const frame of column) {
+    if (frame.depth === 0 || units.length === 0) {
+      units.push([frame]);
+    } else {
+      units[units.length - 1].push(frame);
+    }
+  }
+
+  return units;
+}
+
+/** A row's columns as the ids of their units — the top frame's id names a unit. */
 export function columnIds(row) {
-  return row.columns.map((column) => column.map((frame) => frame.id));
+  return row.columns.map((column) => columnUnits(column).map((unit) => unit[0].id));
+}
+
+/** A row's units by id: the top frame first, those under it after. */
+export function unitFrames(row) {
+  return new Map(row.columns.flatMap((column) => columnUnits(column).map((unit) => [unit[0].id, unit])));
+}
+
+/**
+ * Where a row's units stand, read off `items` (canvasLayout's, per frame):
+ * one item a unit, with the top frame's id and left, from the top frame's
+ * top to the last frame's bottom — so dropTarget and dropIndicator reckon
+ * with a parent and its children as one thing.
+ */
+export function unitItems(row, items) {
+  const at = new Map(items.map((item) => [item.id, item]));
+  const out = [];
+
+  for (const unit of unitFrames(row).values()) {
+    const placed = unit.map((frame) => at.get(frame.id)).filter(Boolean);
+
+    if (placed.length === 0) {
+      continue;
+    }
+
+    const top = placed[0];
+    const last = placed[placed.length - 1];
+
+    out.push({ ...top, height: last.y + last.height - top.y });
+  }
+
+  return out;
 }
 
 /**
@@ -877,6 +936,8 @@ ${L} .sve-sc-item { position: absolute; }
 ${L} .sve-sc-label { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: calc(.375rem / var(--z)); display: flex; align-items: baseline; gap: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: none; }
 ${L} .sve-sc-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 ${L} .sve-sc-note { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .6; }
+${L} .sve-sc-item[data-depth] .sve-sc-label { padding-left: calc(var(--depth) * 1.5rem / var(--z)); }
+${L} .sve-sc-item[data-depth] .sve-sc-title::before { content: '↳ '; opacity: .6; }
 ${L} .sve-sc-item[data-current] .sve-sc-label { opacity: 1; }
 ${L} .sve-sc-item[data-current] .sve-sc-title { font-weight: 600; }
 ${L} .sve-sc-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
@@ -961,21 +1022,29 @@ function populate(win, groups) {
         label.appendChild(make(doc, 'span', 'sve-sc-note')).textContent = frame.note;
       }
 
+      // A page under another is picked up with its parent, never on its own.
+      const arrange = group.arrange && frame.depth === 0;
+
       el.title = frame.note ? `${frame.title} — ${frame.note}` : frame.title;
       el.tabIndex = -1;
-      hit.title = frame.id === current ? t(win, 'site_canvas_current') : t(win, group.arrange ? 'site_canvas_drag' : 'site_canvas_open', { title: frame.title });
+      hit.title = frame.id === current ? t(win, 'site_canvas_current') : t(win, arrange ? 'site_canvas_drag' : 'site_canvas_open', { title: frame.title });
 
       if (frame.id === current) {
         item.dataset.current = '';
       }
 
-      if (group.arrange) {
+      if (arrange) {
         item.dataset.arrange = '';
+      }
+
+      if (frame.depth > 0) {
+        item.dataset.depth = String(frame.depth);
+        item.style.setProperty('--depth', String(frame.depth));
       }
 
       item.append(label, el, hit);
       sheet.appendChild(item);
-      canvasState.entries.set(frame.id, { frame, group: group.key, arrange: group.arrange, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
+      canvasState.entries.set(frame.id, { frame, group: group.key, arrange, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
     }
   }
 
@@ -1337,7 +1406,7 @@ function onPanStart(event) {
   const item = event.target.closest?.('.sve-sc-item');
   const lift = item ? canvasState.entries.get(item.dataset.id) : null;
 
-  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY }, lift: lift && arrangeRow(lift) ? lift : null };
+  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY }, lift: lift?.arrange && arrangeRow(lift) ? lift : null };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
 }
@@ -1430,26 +1499,35 @@ function arrangeRow(entry) {
   return { group, row: group.rows[0], band: { top: heading.y, bottom: heading.bottom } };
 }
 
-/** Lift `entry`: it follows the pointer from where it was grabbed; a bar on the sheet will say where it would land. */
+/** The elements of `entry`'s unit — its own and those of the frames under it — which move as one. */
+function unitElements(entry, row) {
+  const unit = unitFrames(row).get(entry.frame.id) ?? [entry.frame];
+
+  return unit.map((frame) => canvasState.entries.get(frame.id)?.item).filter(Boolean);
+}
+
+/** Lift `entry` and the frames under it: they follow the pointer from where it was grabbed; a bar on the sheet will say where they would land. */
 function startDrag(entry, from) {
   const { scroller, sheet, layout } = canvasState;
   const item = layout?.items.find((candidate) => candidate.id === entry.frame.id);
+  const place = arrangeRow(entry);
 
-  if (!item || !arrangeRow(entry)) {
+  if (!item || !place) {
     return;
   }
 
   const grabbed = toSheet(from.x, from.y);
   const bar = make(sheet.ownerDocument, 'div', 'sve-sc-drop');
+  const elements = unitElements(entry, place.row);
 
   bar.hidden = true;
   sheet.appendChild(bar);
-  entry.item.dataset.dragging = '';
+  elements.forEach((el) => (el.dataset.dragging = ''));
   scroller.dataset.dragging = '';
-  canvasState.drag = { entry, grab: { x: grabbed.x - item.x, y: grabbed.y - item.y }, pointer: { x: from.x, y: from.y }, target: null, bar };
+  canvasState.drag = { entry, elements, grab: { x: grabbed.x - item.x, y: grabbed.y - item.y }, pointer: { x: from.x, y: from.y }, target: null, bar };
 }
 
-/** The dragged frame under the pointer, and the bar where it would land — nowhere above its group's heading. */
+/** The dragged unit under the pointer, and the bar where it would land — nowhere above its group's heading. */
 function moveDrag(clientX, clientY) {
   const { drag, layout, zoom } = canvasState;
   const place = arrangeRow(drag.entry);
@@ -1463,12 +1541,14 @@ function moveDrag(clientX, clientY) {
 
   const point = toSheet(clientX, clientY);
   const id = drag.entry.frame.id;
+  const transform = `translate(${point.x - drag.grab.x - item.x}px, ${point.y - drag.grab.y - item.y}px)`;
 
-  setStyle(drag.entry.item, 'transform', `translate(${point.x - drag.grab.x - item.x}px, ${point.y - drag.grab.y - item.y}px)`);
+  drag.elements.forEach((el) => setStyle(el, 'transform', transform));
 
   const columns = columnIds(place.row);
-  const target = point.y >= place.band.top ? dropTarget(columns, layout.items, point, id) : null;
-  const bar = target ? dropIndicator(target, columns, layout.items, id, place.band, zoom) : null;
+  const units = unitItems(place.row, layout.items);
+  const target = point.y >= place.band.top ? dropTarget(columns, units, point, id) : null;
+  const bar = target ? dropIndicator(target, columns, units, id, place.band, zoom) : null;
 
   drag.target = target;
 
@@ -1494,9 +1574,11 @@ function endDrag(commit) {
 
   canvasState.drag = null;
   drag.bar.remove();
-  delete drag.entry.item.dataset.dragging;
+  drag.elements.forEach((el) => {
+    delete el.dataset.dragging;
+    el.style.removeProperty('transform');
+  });
   delete scroller.dataset.dragging;
-  drag.entry.item.style.removeProperty('transform');
 
   if (commit && drag.target) {
     arrangeTo(drag.entry, drag.target);
@@ -1504,10 +1586,10 @@ function endDrag(commit) {
 }
 
 /**
- * The columns with `entry` moved to `target`: drawn at once, kept for a
- * second open, posted for the site. The same columns back is nothing to
- * do. An answer that is not ok puts the columns back as they were and says
- * so — the canvas shows what the site has.
+ * The columns with `entry`'s unit moved to `target`: drawn at once, kept
+ * for a second open, posted for the site (the units' ids — the top pages').
+ * The same columns back is nothing to do. An answer that is not ok puts the
+ * columns back as they were and says so — the canvas shows what the site has.
  */
 function arrangeTo(entry, target) {
   const { win } = canvasState;
@@ -1524,8 +1606,8 @@ function arrangeTo(entry, target) {
     return;
   }
 
-  const byId = new Map(canvasFrames([place.group]).map((frame) => [frame.id, frame]));
-  const after = before.map((group) => (group !== place.group ? group : { ...group, rows: [{ ...place.row, columns: columns.map((column) => column.map((id) => byId.get(id))) }] }));
+  const units = unitFrames(place.row);
+  const after = before.map((group) => (group !== place.group ? group : { ...group, rows: [{ ...place.row, columns: columns.map((column) => column.flatMap((id) => units.get(id))) }] }));
 
   showGroups(after);
 

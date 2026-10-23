@@ -33,9 +33,13 @@ use Statamic\Support\Str;
  * own views (the layout, the default page, the 404) stand in a row of their
  * own. Pages are the entries of the previews collection — the site's pages —
  * in one row whose columns are the editors' own arrangement
- * (SiteCanvasArrangement) over the order of the tree: that group is marked
- * `arrange`, and the canvas posts its columns back here as a page is
- * dragged. A concrete service entry is in neither group.
+ * (SiteCanvasArrangement) over the tree's top level, each top page followed
+ * in its column by the pages under it in the tree, every frame marked with
+ * its `depth` under that top page (0 for the top page itself): a child
+ * stands under its parent wherever the parent is put, and is never a
+ * column of its own. That group is marked `arrange`, and the canvas posts
+ * its columns back here — the top pages' ids — as a page is dragged. A
+ * concrete service entry is in neither group.
  *
  * Every frame carries a `note` saying where it stands in the site: on a page,
  * the template it is drawn with when that is one of its own; on a template,
@@ -80,7 +84,8 @@ class SiteCanvasController extends Controller
 
     /**
      * The pages' columns as an editor has just dragged them: laid over the
-     * pages that exist, saved for the site, and answered as saved.
+     * top pages that exist — a child's id is not kept, its place is under
+     * its parent — saved for the site, and answered as saved.
      */
     public function arrange(Request $request)
     {
@@ -93,7 +98,7 @@ class SiteCanvasController extends Controller
             'columns.*.*' => 'string|max:80',
         ]);
 
-        $ids = $this->pageEntries($this->site())->map(fn (EntryContract $entry) => (string) $entry->id())->values()->all();
+        $ids = array_keys($this->pageUnits($this->site()));
 
         return response()->json(['columns' => (new SiteCanvasArrangement)->save($this->site(), $data['columns'], $ids)]);
     }
@@ -302,8 +307,8 @@ class SiteCanvasController extends Controller
 
     /**
      * The site's pages, in one row whose columns are the saved arrangement
-     * over the pages as they are: untouched, one page a column in the
-     * collection's order.
+     * over the top pages as they are — untouched, one top page a column in
+     * the tree's order — each top page followed by the pages under it.
      *
      * @return list<array{key: string, title: string, columns: list<list<array<string, mixed>>>}>
      */
@@ -316,26 +321,68 @@ class SiteCanvasController extends Controller
             return [];
         }
 
-        $frames = $this->pageEntries($site)
-            ->map(function (EntryContract $entry) {
-                $frame = $this->frame($entry);
+        $units = collect($this->pageUnits($site))
+            ->map(fn (array $unit) => collect($unit)
+                ->map(function (array $page) {
+                    [$entry, $depth] = $page;
+                    $frame = $this->frame($entry);
 
-                return $frame ? $frame + ['note' => $this->pageNote($entry)] : null;
-            })
-            ->filter()
-            ->keyBy('id');
+                    return $frame ? $frame + ['note' => $this->pageNote($entry), 'depth' => $depth] : null;
+                })
+                ->filter()
+                ->values()
+                ->all())
+            ->filter();
 
-        if ($frames->isEmpty()) {
+        if ($units->isEmpty()) {
             return [];
         }
 
-        $columns = (new SiteCanvasArrangement)->columns($site, $frames->keys()->all());
+        $columns = (new SiteCanvasArrangement)->columns($site, $units->keys()->all());
 
         return [[
             'key' => $handle,
             'title' => $collection->title(),
-            'columns' => array_map(fn (array $column) => array_map(fn (string $id) => $frames[$id], $column), $columns),
+            'columns' => array_map(fn (array $column) => array_merge(...array_map(fn (string $id) => $units[$id], $column)), $columns),
         ]];
+    }
+
+    /**
+     * The pages as the tree stands them: each top page with the pages under
+     * it, depth-first in the tree's order — one unit a top page, keyed by its
+     * id, each page with its depth under the top page (0 for the top page).
+     * Without a tree every page is a unit of one, in `pageEntries`' order.
+     *
+     * @return array<string, list<array{EntryContract, int}>>
+     */
+    protected function pageUnits(string $site): array
+    {
+        $handle = (string) config('statamic-visual-editor.previews.collection', 'pages');
+        $tree = Collection::findByHandle($handle)?->structure()?->in($site);
+
+        if (! $tree) {
+            return $this->pageEntries($site)->mapWithKeys(fn (EntryContract $entry) => [(string) $entry->id() => [[$entry, 0]]])->all();
+        }
+
+        $units = [];
+
+        foreach ($tree->pages()->all() as $top) {
+            if (! $entry = $top->entry()) {
+                continue;
+            }
+
+            $unit = [[$entry, 0]];
+
+            foreach ($top->flattenedPages() as $page) {
+                if ($child = $page->entry()) {
+                    $unit[] = [$child, $page->depth() - $top->depth()];
+                }
+            }
+
+            $units[(string) $entry->id()] = $unit;
+        }
+
+        return $units;
     }
 
     /**
@@ -355,8 +402,8 @@ class SiteCanvasController extends Controller
 
     /**
      * The pages collection's entries for `$site`: the order of its tree when
-     * it has one, by title otherwise. Read once a request — the notes and the
-     * row both ask.
+     * it has one, by title otherwise. Read once a request — the notes ask,
+     * and the row for a collection without a tree.
      *
      * @return LaravelCollection<int, EntryContract>
      */

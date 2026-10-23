@@ -307,6 +307,38 @@ class SiteCanvasControllerTest extends TestCase
         $this->postJson('/!/sve/site-canvas/arrangement', ['columns' => []])->assertStatus(403);
     }
 
+    public function test_a_page_under_another_in_the_tree_stands_under_its_parent_and_goes_where_the_parent_goes(): void
+    {
+        $team = $this->entry(self::PAGES, 'team', ['title' => 'Team']);
+        $jobs = $this->entry(self::PAGES, 'jobs', ['title' => 'Jobs']);
+        $slug = fn (string $slug) => Entry::query()->where('collection', self::PAGES)->where('slug', $slug)->first()->id();
+        [$home, $about] = [$slug('home'), $slug('about')];
+
+        $pages = Collection::findByHandle(self::PAGES);
+        $pages->structureContents(['root' => true])->save();
+        $pages->structure()->in('default')->tree([
+            ['entry' => $home],
+            ['entry' => $about, 'children' => [['entry' => $team, 'children' => [['entry' => $jobs]]]]],
+        ])->save();
+
+        // The tree's order, one top page a column; the children in their parent's column after it, each as deep as it stands.
+        $columns = $this->pageColumns();
+
+        $this->assertSame([['Home'], ['About us', 'Team', 'Jobs']], self::titles(['columns' => $columns]));
+        $this->assertSame([0, 0, 1, 2], array_column(array_merge(...$columns), 'depth'));
+
+        // The arrangement is over the top pages: a child's id is not kept, it is where its parent is; the top pages are what is answered.
+        $this->postJson('/!/sve/site-canvas/arrangement', ['columns' => [[$team], [$about, $home]]])
+            ->assertOk()
+            ->assertExactJson(['columns' => [[$about, $home]]]);
+
+        $this->assertSame([['About us', 'Team', 'Jobs', 'Home']], self::titles(['columns' => $this->pageColumns()]));
+
+        // The children go before tearDown takes Home: with Home gone About us would be the root, and a root has no children.
+        Entry::find($jobs)->delete();
+        Entry::find($team)->delete();
+    }
+
     public function test_a_frame_carries_the_live_preview_url_statamic_would_open_and_the_edit_url(): void
     {
         $groups = $this->canvas();

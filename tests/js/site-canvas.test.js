@@ -28,6 +28,9 @@ import {
   canvasLayout,
   clampZoom,
   columnIds,
+  columnUnits,
+  unitFrames,
+  unitItems,
   contentBox,
   dropIndicator,
   dropTarget,
@@ -378,6 +381,59 @@ test('the columns as ids, and whether two sets say the same', () => {
   assert.ok(sameColumns([], []));
 });
 
+test('a page under another in the tree is one unit with its parent: named by the parent’s id, laid out as one thing from the parent’s top to the last child’s bottom', () => {
+  // About us with Team and, under Team, Jobs; Contact on its own under it in the same column; Home alone.
+  const groups = canvasGroups({
+    groups: [{
+      key: 'pages',
+      title: 'Sider',
+      arrange: true,
+      rows: [{
+        key: 'pages',
+        title: 'Pages',
+        columns: [
+          [frame('home', { depth: 0 })],
+          [frame('about'), frame('team', { depth: 1 }), frame('jobs', { depth: 2 }), frame('contact', { depth: 0 })],
+        ],
+      }],
+    }],
+  });
+  const row = groups[0].rows[0];
+
+  assert.deepEqual(row.columns[1].map((item) => item.depth), [0, 1, 2, 0], 'depth as the endpoint says it; 0 where it says nothing');
+  assert.equal(canvasGroups({ groups: [{ key: 'p', title: 'P', rows: [{ key: 'p', columns: [[frame('a', { depth: -3 })], [frame('b', { depth: '2' })]] }] }] })[0].rows[0].columns.flat().every((item) => item.depth === 0), true, 'nonsense is 0');
+
+  assert.deepEqual(columnUnits(row.columns[1]).map((unit) => unit.map((item) => item.id)), [['about', 'team', 'jobs'], ['contact']], 'the children follow their parent; the next top page begins a unit');
+  assert.deepEqual(columnIds(row), [['home'], ['about', 'contact']], 'the columns as units: the children are not columns of their own, nor rows to drop between');
+  assert.deepEqual([...unitFrames(row).keys()], ['home', 'about', 'contact']);
+  assert.deepEqual(unitFrames(row).get('about').map((item) => item.id), ['about', 'team', 'jobs']);
+
+  const heights = new Map([['about', 800], ['team', 1000], ['jobs', 600]]);
+  const { items } = canvasLayout(groups, 1, { heights });
+  const at = new Map(items.map((item) => [item.id, item]));
+  const units = unitItems(row, items);
+
+  assert.deepEqual(units.map((unit) => unit.id), ['home', 'about', 'contact']);
+  assert.equal(units[1].x, at.get('about').x);
+  assert.equal(units[1].y, at.get('about').y, 'from the parent’s top');
+  assert.equal(units[1].y + units[1].height, at.get('jobs').y + at.get('jobs').height, 'to the last child’s bottom');
+  assert.equal(units[2].height, at.get('contact').height, 'a unit of one is its frame');
+
+  // Dropping Home into the column: above About us, between About us’ unit and Contact, or under Contact — never between About us and Team.
+  const columns = columnIds(row);
+  const x = at.get('about').x + FRAME.width / 2;
+
+  assert.deepEqual(dropTarget(columns, units, { x, y: at.get('about').y - 1 }, 'home'), { column: 1, row: 0 });
+  assert.deepEqual(dropTarget(columns, units, { x, y: at.get('team').y + 10 }, 'home'), { column: 1, row: 0 }, 'over Team, still above the unit’s middle: above About us');
+  assert.deepEqual(dropTarget(columns, units, { x, y: at.get('jobs').y + 10 }, 'home'), { column: 1, row: 1 }, 'past the unit’s middle: between the unit and Contact');
+  assert.deepEqual(dropTarget(columns, units, { x, y: at.get('contact').y + at.get('contact').height }, 'home'), { column: 1, row: 2 });
+  assert.deepEqual(moveFrame(columns, 'home', { column: 1, row: 1 }), [['about', 'home', 'contact']], 'home lands between the units, and About us keeps its children in the frames drawn from it');
+
+  const bar = dropIndicator({ column: 1, row: 1 }, columns, units, 'home', { top: 0, bottom: 1 }, 1);
+
+  assert.equal(bar.y + bar.height / 2, at.get('jobs').y + at.get('jobs').height + GAP / 2, 'the bar for "between" stands under the last child, not under the parent');
+});
+
 test('moveFrame: into a column at a row, or out into a new column; a column left empty goes; nowhere is the same columns back', () => {
   const columns = [['home'], ['contact', 'about', 'news'], ['services']];
 
@@ -488,7 +544,7 @@ test('fit puts the whole sheet in the view with the margin clear, and never past
   assert.equal(fitZoom(view, canvasLayout([], 1)), 1, 'nothing to fit: 100 %');
 });
 
-test('the canvas opens at 50 %: a step on the ladder, within the clamp, a frame 720 px wide on screen', () => {
+test('the canvas opens at 25 %: a step on the ladder, within the clamp, a frame 360 px wide on screen', () => {
   assert.equal(ZOOM_DEFAULT, 0.25);
   assert.equal(clampZoom(ZOOM_DEFAULT), ZOOM_DEFAULT);
   assert.equal(stepZoom(stepZoom(ZOOM_DEFAULT, 1), -1), ZOOM_DEFAULT, 'up a step and down again lands on it: it is on the ladder');
