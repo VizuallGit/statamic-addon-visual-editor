@@ -839,6 +839,65 @@ function propertyOf(name) {
 }
 
 /**
+ * The picked tag's classes as the file has them, for a utility made of them
+ * (dock/tw-utility.js). `{{ … }}` classes and the `[ … ]` scope are left out:
+ * neither is a utility. Null without a pick, or while the file is locked.
+ *
+ * @returns {{ tag: string, raws: string[] }|null}
+ */
+export function twPickedClasses() {
+  if (locked()) {
+    return null;
+  }
+
+  const current = currentValue();
+
+  if (!current) {
+    return null;
+  }
+
+  return {
+    tag: node.component ? '' : String(node.tag || ''),
+    raws: currentChips(current.value).filter((chip) => !chip.dynamic).map((chip) => chip.raw),
+  };
+}
+
+/**
+ * `raws` off the picked tag, `name` where the first of them stood: the classes
+ * a utility was made of, swapped for the utility. Everything else on the tag
+ * stays where it is.
+ */
+export function twReplaceClasses(win, raws, name) {
+  if (locked() || !name) {
+    return;
+  }
+
+  const current = currentValue();
+
+  if (!current) {
+    return;
+  }
+
+  const drop = new Set(raws);
+  // From the end, so each swap leaves the offsets before it as they were.
+  const chips = currentChips(current.value)
+    .filter((chip) => !chip.dynamic && drop.has(chip.raw))
+    .sort((a, b) => b.from - a.from);
+
+  if (!chips.length) {
+    return;
+  }
+
+  let next = current.value;
+
+  chips.forEach((chip, index) => {
+    next = replaceToken(next, chip, index === chips.length - 1 ? name : '');
+  });
+
+  commit(win, current.html, next);
+}
+
+/**
  * The tag's classes as the file has them this instant.
  *
  * Read from the source, not from the last draw: the icon row asks between

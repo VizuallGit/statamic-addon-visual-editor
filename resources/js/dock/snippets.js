@@ -16,6 +16,13 @@
  * it does for a component); the whole pane takes the whole CSS and the JS
  * pane with it. From the CSS pane, the CSS alone.
  *
+ * The CSS pane's button has a second face. In Tailwind mode the pane shows
+ * the picked tag's classes, not CSS, and there is nothing to copy — so the
+ * button reads Utility and hands the tag's classes to tw-utility.js, which
+ * writes them as one `@utility` into site.css. Which face shows follows the
+ * dock's `data-sve-style`, painted by style-modes.js; the click reads the
+ * same state.
+ *
  * Its own surface: this module, CodeDockSnippets.vue, and PHP that only reads
  * and writes the folder. Nothing here reaches preview, overlay or bridge.
  */
@@ -34,6 +41,8 @@ import { DATA_MENU_ID, closeDataMenu, hookDataMenu, pickerButton, placeDataMenu 
 import { closeCssMenu, indentFromPrevious, lineIndentOf } from './css-tools.js';
 import { finishHtmlEdit, insertHtmlElement } from './html-tools.js';
 import { insertAiSnippet } from './dock-api.js';
+import { dockState } from './state.js';
+import { saveTwUtility } from './tw-utility.js';
 
 const LIST_API = '/!/sve/snippets';
 const ONE_API = '/!/sve/snippet';
@@ -41,6 +50,10 @@ const ONE_API = '/!/sve/snippet';
 /** Two sheets, one laid over the other: text copied in, not pointed at. */
 const SNIPPET_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+
+/** A pair of braces: one rule in site.css — the mark the Utilities tab wears. */
+const UTILITY_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>';
 
 const HEADERS = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
 
@@ -309,6 +322,21 @@ function openSnippetsMenu(win, anchor, pane) {
     .catch(() => paint([], false));
 }
 
+/**
+ * One face of the button: its mark and its word. The word is on the button,
+ * not in a tooltip — an icon alone at the end of the row was taken for one
+ * more writing tool, and this is not one.
+ */
+function face(doc, icon, text, mode) {
+  const span = doc.createElement('span');
+
+  span.setAttribute('data-sve-snippet-face', mode);
+  span.innerHTML = icon;
+  span.appendChild(doc.createTextNode(text));
+
+  return span;
+}
+
 function bindPane(win, dock, selector, pane) {
   const host = dock.querySelector(selector);
 
@@ -318,15 +346,32 @@ function bindPane(win, dock, selector, pane) {
 
   host._sveBound = true;
 
-  const btn = pickerButton(win, host, 'data-sve-snippet-btn', SNIPPET_ICON, t(win, 'code_dock_snippets'));
+  const doc = win.document;
+  const btn = pickerButton(win, host, 'data-sve-snippet-btn', '', t(win, 'code_dock_snippets'));
 
   btn.setAttribute('data-sve-snippet-pane', pane);
+  // The word is visible, so it is the name; a tooltip would say it twice.
+  btn.removeAttribute('title');
+  btn.removeAttribute('aria-label');
+  btn.replaceChildren(face(doc, SNIPPET_ICON, t(win, 'snippet_button'), pane === 'css' ? 'css' : 'html'));
+
+  if (pane === 'css') {
+    btn.appendChild(face(doc, UTILITY_ICON, t(win, 'tw_utility_button'), 'tw'));
+  }
+
   btn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
 
+    if (pane === 'css' && dockState.styleMode === 'tw') {
+      closeDataMenu(doc);
+      saveTwUtility(win);
+
+      return;
+    }
+
     if (btn.hasAttribute('data-open')) {
-      closeDataMenu(win.document);
+      closeDataMenu(doc);
 
       return;
     }

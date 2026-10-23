@@ -597,6 +597,14 @@ export function ensureStyle(doc) {
   display: flex;
   align-items: center;
 }
+/* A snippet is not one of the row's writing tools, so a hairline sets it
+   apart — the colour of the rows' own lines, a shade up to be seen on them. */
+#${DOCK_ID} [data-sve-snippet-tools],
+#${DOCK_ID} [data-sve-css-snippet-tools] {
+  margin-left: 0.35em;
+  padding-left: 0.6em;
+  border-left: 1px solid rgba(255,255,255,.12);
+}
 /* The CSS row's tools do not grow, so the snippet button is sent to the end
    itself — the same place it has in the HTML pane's row. */
 #${DOCK_ID} [data-sve-css-snippet-tools] {
@@ -1002,6 +1010,26 @@ export function ensureStyle(doc) {
   width: auto;
   min-width: 1.65em;
   padding: 0 0.3em;
+}
+/* The snippet button says its word, in the row's own small capitals. */
+#${DOCK_ID} [data-sve-snippet-btn] {
+  width: auto;
+  margin-right: 0;
+  padding: 0 0.5em 0 0.4em;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  opacity: .78;
+}
+#${DOCK_ID} [data-sve-snippet-btn] [data-sve-snippet-face] {
+  gap: 0.35em;
+  align-items: center;
+}
+/* Which face the CSS pane's button shows follows the pane's language
+   (style-modes.js paints data-sve-style). The HTML pane's has one face. */
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-css-snippet-tools] [data-sve-snippet-face="css"],
+#${DOCK_ID}:not([data-sve-style="tw"]) [data-sve-css-snippet-tools] [data-sve-snippet-face="tw"] {
+  display: none;
 }
 #${DOCK_ID} [data-sve-data-vars] span,
 #${DOCK_ID} [data-sve-antlers-btn] span,
