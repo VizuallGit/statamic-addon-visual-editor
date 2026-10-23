@@ -1011,14 +1011,15 @@ export function ensureStyle(doc) {
   min-width: 1.65em;
   padding: 0 0.3em;
 }
-/* The snippet button says its word, in the row's own small capitals. */
+/* The snippet button says its word (Snippet / Utility) in the row's size,
+   but in normal case and without the row's tracking. */
 #${DOCK_ID} [data-sve-snippet-btn] {
   width: auto;
   margin-right: 0;
   padding: 0 0.5em 0 0.4em;
   font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
+  letter-spacing: normal;
+  text-transform: none;
   opacity: .78;
 }
 #${DOCK_ID} [data-sve-snippet-btn] [data-sve-snippet-face] {
