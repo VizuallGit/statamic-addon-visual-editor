@@ -54,6 +54,8 @@ defineProps({
           </button>
           <div data-sve-visual-edit-tools></div>
           <div data-sve-antlers-tools></div>
+          <!-- Snippets: saved pieces of this site's own markup (dock/snippets.js). -->
+          <div data-sve-snippet-tools></div>
         </div>
         <!--
           What is wrong with the file, in words (dock/problems.js paints it;
@@ -69,6 +71,8 @@ defineProps({
             <span data-sve-css-label>{{ cssLabel }}</span>
             <button type="button" data-sve-css-add-class></button>
             <div data-sve-css-tools></div>
+            <!-- The same snippets, the CSS side of them (dock/snippets.js). -->
+            <div data-sve-css-snippet-tools></div>
           </div>
         </div>
         <div data-sve-css-head></div>

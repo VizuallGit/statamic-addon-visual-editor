@@ -11,6 +11,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalSectionStashControll
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SnippetController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
 use Statamic\Statamic;
 
@@ -70,6 +71,9 @@ final class DockRoutes
                 // whitespace rule applies to it.
                 Route::post('/!/sve/component', [ComponentController::class, 'store'])
                     ->name('sve.component.store');
+                // A snippet is template text as well: the same whitespace rule.
+                Route::post('/!/sve/snippet', [SnippetController::class, 'store'])
+                    ->name('sve.snippet.store');
                 Route::post('/!/sve/site-css', [SiteCssController::class, 'update'])
                     ->name('sve.site-css.update');
                 Route::post('/!/sve/site-css/create', [SiteCssController::class, 'store'])

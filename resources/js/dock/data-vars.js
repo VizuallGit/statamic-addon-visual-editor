@@ -38,7 +38,7 @@ export function closeDataMenu(doc) {
   dataMenuUnhook = null;
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-data-vars][data-open], [data-sve-antlers-btn][data-open], [data-sve-visual-edit-btn][data-open]').forEach((el) => el.removeAttribute('data-open'));
+  doc?.querySelectorAll('[data-sve-data-vars][data-open], [data-sve-antlers-btn][data-open], [data-sve-visual-edit-btn][data-open], [data-sve-snippet-btn][data-open]').forEach((el) => el.removeAttribute('data-open'));
 }
 
 /**
@@ -204,7 +204,7 @@ function insertDataVar(row, group) {
  * rule. Measured, because the menu is wider than the CSS pickers and its
  * height depends on how many fields the section turned out to have.
  */
-function placeDataMenu(win, anchor, menu) {
+export function placeDataMenu(win, anchor, menu) {
   const rect = anchor.getBoundingClientRect();
   const pad = 8;
   const width = menu.offsetWidth || 368;
@@ -340,7 +340,7 @@ export function openPickerMenu(win, anchor, { title, placeholder, tabs, data, on
 }
 
 /** Closes on Escape and on a click outside; follows the anchor on scroll and resize. */
-function hookDataMenu(win, anchor, menu) {
+export function hookDataMenu(win, anchor, menu) {
   const doc = win.document;
   const reposition = () => placeDataMenu(win, anchor, menu);
   const onDown = (event) => {
@@ -374,7 +374,7 @@ const VISUAL_EDIT_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 5.1"/><path d="m5.1 8-2.9-.8"/><path d="M14 4.1 12 6"/><path d="m6 12-1.9 2"/></svg>';
 
 /** An icon button like the Data one, in the pane's label row. */
-function pickerButton(win, host, attr, icon, title) {
+export function pickerButton(win, host, attr, icon, title) {
   const btn = win.document.createElement('button');
 
   btn.type = 'button';

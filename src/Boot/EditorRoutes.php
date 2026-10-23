@@ -36,6 +36,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SnippetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
@@ -137,6 +138,12 @@ final class EditorRoutes
             // Same query-parameter pattern as section-types: handles hold slashes.
             Route::get('/!/sve/components', [ComponentController::class, 'index'])
                 ->name('sve.components.index');
+            // The dock's snippet library (Snippet.php): the list, and one by
+            // name — a query parameter, like the other handles here.
+            Route::get('/!/sve/snippets', [SnippetController::class, 'index'])
+                ->name('sve.snippets.index');
+            Route::get('/!/sve/snippet', [SnippetController::class, 'show'])
+                ->name('sve.snippet.show');
             Route::get('/!/sve/section-template/partials', [SectionTemplateController::class, 'partials'])
                 ->name('sve.section-template.partials');
             Route::get('/!/sve/section-template/history', [SectionTemplateController::class, 'history'])

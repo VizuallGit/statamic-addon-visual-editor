@@ -19,6 +19,7 @@ class GitSyncTest extends TestCase
         $this->assertContains(base_path('content'), $paths);
         $this->assertContains(resource_path('views'), $paths);
         $this->assertContains(resource_path('visual-editor'), $paths);
+        $this->assertContains(resource_path('snippets'), $paths);
         $this->assertContains(resource_path('css'), $paths);
         $this->assertContains(storage_path('statamic-visual-editor'), $paths);
         $this->assertContains(public_path('fonts'), $paths);

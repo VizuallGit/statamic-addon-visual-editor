@@ -416,6 +416,8 @@ export function ensureStyle(doc) {
 #${DOCK_ID}[data-sve-code-locked] [data-sve-data-vars],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-antlers-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-visual-edit-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-snippet-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-css-snippet-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-add-class] {
   pointer-events: none;
   opacity: .28;
@@ -587,11 +589,18 @@ export function ensureStyle(doc) {
   flex: 1 1 auto;
 }
 #${DOCK_ID} [data-sve-antlers-tools],
-#${DOCK_ID} [data-sve-visual-edit-tools] {
+#${DOCK_ID} [data-sve-visual-edit-tools],
+#${DOCK_ID} [data-sve-snippet-tools],
+#${DOCK_ID} [data-sve-css-snippet-tools] {
   pointer-events: auto;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+}
+/* The CSS row's tools do not grow, so the snippet button is sent to the end
+   itself — the same place it has in the HTML pane's row. */
+#${DOCK_ID} [data-sve-css-snippet-tools] {
+  margin-left: auto;
 }
 #${DOCK_ID} [data-sve-css-chrome] {
   flex: 0 0 auto;
@@ -969,6 +978,7 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-data-vars],
 #${DOCK_ID} [data-sve-antlers-btn],
 #${DOCK_ID} [data-sve-visual-edit-btn],
+#${DOCK_ID} [data-sve-snippet-btn],
 #${DOCK_ID} [data-sve-html-tidy] {
   pointer-events: auto;
   flex: 0 0 auto;
@@ -996,6 +1006,7 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-data-vars] span,
 #${DOCK_ID} [data-sve-antlers-btn] span,
 #${DOCK_ID} [data-sve-visual-edit-btn] span,
+#${DOCK_ID} [data-sve-snippet-btn] span,
 #${DOCK_ID} [data-sve-html-tidy] svg {
   display: flex;
   line-height: 1;
@@ -1006,10 +1017,30 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-antlers-btn][data-open],
 #${DOCK_ID} [data-sve-visual-edit-btn]:hover,
 #${DOCK_ID} [data-sve-visual-edit-btn][data-open],
+#${DOCK_ID} [data-sve-snippet-btn]:hover,
+#${DOCK_ID} [data-sve-snippet-btn][data-open],
 #${DOCK_ID} [data-sve-html-tidy]:hover {
   background: rgba(255,255,255,.16);
   opacity: 1;
 }
+/* The snippet picker's one action, at its foot: what the pane holds, saved. */
+[data-sve-data-menu] [data-sve-snippet-save] {
+  all: unset;
+  flex: 0 0 auto;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5em 0.6em;
+  border-radius: 0.35em;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  background: #3858e9;
+  cursor: pointer;
+}
+[data-sve-data-menu] [data-sve-snippet-save]:hover { background: #4a68ee; }
 #${CSS_MENU_ID} [data-sve-css-swatches] {
   display: grid;
   grid-template-columns: repeat(8, 16px);

@@ -32,6 +32,7 @@ class GitSync
             resource_path('views'),
             resource_path('visual-editor'),
             resource_path('css'),
+            Snippet::directory(),
             storage_path('statamic-visual-editor'),
             Fonts\Folder::path(),
         ];

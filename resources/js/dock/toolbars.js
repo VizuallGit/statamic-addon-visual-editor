@@ -20,6 +20,7 @@ import { paintCssHead } from './css-sizes.js';
 import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane, toggleHtmlPagination } from './html-tools.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
+import { bindSnippets } from './snippets.js';
 
 /** Windows whose size-tab row already follows the breakpoint list — bound once each. */
 const sizeTabsBound = new WeakSet();
@@ -354,4 +355,5 @@ export function bindHtmlTools(win, dock) {
   bindAntlersSnippets(win, dock);
   bindVisualEditSnippets(win, dock);
   bindDataVars(win, dock);
+  bindSnippets(win, dock);
 }
