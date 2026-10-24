@@ -332,6 +332,11 @@ test('the frame: a transparent row, Page settings as a full square of its own, e
   assert.doesNotMatch(FRAME, /[{;]order:|::before/);
 });
 
+test('the frame: the group «+» is cut out of the group by 2px of the header\'s own colour, around its thin ring — hovered too', () => {
+  assert.match(FRAME, /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{[^}]*box-shadow:0 0 0 1px rgba\(128,128,128,\.35\),0 0 0 3px var\(--sve-toolbar-bg,transparent\);/);
+  assert.match(FRAME, /\[data-sve-toolbar-add\]:focus-visible\{background:var\(--theme-color-primary,#4f46e5\);color:#fff;box-shadow:0 0 0 2px var\(--sve-toolbar-bg,transparent\)\}/);
+});
+
 test('the frame: a group\'s own surface shows the grab hand only where there is a second group; its icons keep their own cursor', () => {
   assert.match(FRAME, /#__sve-toolbar:has\(>\[data-sve-toolbar-group\]~\[data-sve-toolbar-group\]\)>\[data-sve-toolbar-group\]\{cursor:grab\}/);
   assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-group\]>\*\{cursor:default\}/);
@@ -339,8 +344,8 @@ test('the frame: a group\'s own surface shows the grab hand only where there is 
   assert.doesNotMatch(FRAME, /grip/);
 });
 
-test('the frame: the new-group square always in the row, 1rem after the last group — a group\'s height, 1:1, a ring in the groups\' grey, no surface until hovered', () => {
-  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{display:flex;flex-shrink:0;margin-left:calc\(1rem - 8px\)\}/);
+test('the frame: the new-group square always in the row, one gap after the last group as the groups stand — a group\'s height, 1:1, a ring in the groups\' grey, no surface until hovered', () => {
+  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{display:flex;flex-shrink:0\}/);
   assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button\{[^}]*width:32px;height:32px;[^}]*border:1px solid rgba\(128,128,128,\.16\);[^}]*border-radius:\.5rem;[^}]*background:transparent\}/);
   assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button:hover,[^{]*>button:focus-visible\{background:rgba\(128,128,128,\.16\);border-color:transparent\}/);
   assert.doesNotMatch(FRAME, /new-group\][^{]*\{[^}]*(opacity:0|position:absolute)/);

@@ -29,7 +29,8 @@ const ADD_ICON_SVG =
  * mirrored to the left edge. Idle it is the group's own grey
  * (`--sve-toolbar-ring`: the group surface mixed over the header, set on the
  * header by header-toolbar.js) with the same thin ring; hovered, focused or
- * open it is primary without the ring.
+ * open it is primary without the ring. Around it, 2px of the header's own
+ * colour (`--sve-toolbar-bg`, set beside the ring) cut it out of the group.
  */
 function css() {
   const group = `#${LP_PREVIEW_CHROME_ID} [data-sve-devices]`;
@@ -39,10 +40,12 @@ function css() {
     `${group}{position:relative}`,
     `${group}>${add}{position:absolute;top:50%;left:-.5rem;transform:translateY(-50%);width:1rem;height:1rem;box-sizing:border-box;` +
       'display:inline-flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:50%;cursor:pointer;' +
-      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});box-shadow:0 0 0 1px rgba(128,128,128,.35);` +
+      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});` +
+      'box-shadow:0 0 0 1px rgba(128,128,128,.35),0 0 0 3px var(--sve-toolbar-bg,transparent);' +
       'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
     `${group}:hover>${add},${group}:focus-within>${add},${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{opacity:1;pointer-events:auto}`,
-    `${group}>${add}:hover,${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
+    `${group}>${add}:hover,${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{background:var(--theme-color-primary,#4f46e5);color:#fff;` +
+      'box-shadow:0 0 0 2px var(--sve-toolbar-bg,transparent)}',
   ].join('\n');
 }
 

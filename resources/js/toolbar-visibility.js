@@ -115,12 +115,15 @@ function frameCss() {
       `padding:${LP_CONTROL_PAD}px;gap:${ROW_GAP}px;border-radius:.5rem;background:${HEADER_SURFACE}}`,
     // The «+»: half out over the group's right edge, in the gap to the next.
     // Shown on hover or focus within the group, and when it has focus itself.
+    // Around its thin ring, 2px of the header's own colour cut it out of the group.
     `${group}>${add}{position:absolute;top:50%;right:-.5rem;transform:translateY(-50%);width:1rem;height:1rem;box-sizing:border-box;` +
       'display:inline-flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:50%;cursor:pointer;' +
-      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});box-shadow:0 0 0 1px rgba(128,128,128,.35);` +
+      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});` +
+      'box-shadow:0 0 0 1px rgba(128,128,128,.35),0 0 0 3px var(--sve-toolbar-bg,transparent);' +
       'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
     `${group}:hover>${add},${group}:focus-within>${add},${group}>${add}:focus-visible{opacity:1;pointer-events:auto}`,
-    `${group}>${add}:hover,${group}>${add}:focus-visible{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
+    `${group}>${add}:hover,${group}>${add}:focus-visible{background:var(--theme-color-primary,#4f46e5);color:#fff;` +
+      'box-shadow:0 0 0 2px var(--sve-toolbar-bg,transparent)}',
     // A whole group is grabbed by its own surface, around and between the
     // icons — where there is another group to move past. The icons keep
     // their own cursor; a frame's padding is the tool's, not the group's.
@@ -129,9 +132,8 @@ function frameCss() {
     `${bar}[data-sve-dragging-group],${bar}[data-sve-dragging-group] *{cursor:grabbing!important}`,
     // The new-group square: a group's height, 1:1, always there but quiet — a
     // ring in the groups' grey and a faint «+»; hovered, the groups' surface
-    // and a whole «+». In the row, 1rem after the last group, more than the
-    // gap between groups: the last group's «+» stands half out into it.
-    `${newGroup}{display:flex;flex-shrink:0;margin-left:calc(1rem - ${LP_TOOLBAR_GAP}px)}`,
+    // and a whole «+». In the row, one gap after the last group, as the groups stand.
+    `${newGroup}{display:flex;flex-shrink:0}`,
     `${newGroup}>button{flex-shrink:0;box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;margin:0;padding:0;` +
       `border:1px solid ${HEADER_SURFACE};display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;` +
       'cursor:pointer;color:currentColor;background:transparent}',

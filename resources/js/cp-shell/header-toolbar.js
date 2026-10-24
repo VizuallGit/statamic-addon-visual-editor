@@ -1969,12 +1969,17 @@ export function applyHeaderTab(win) {
 
   // On the header, not the bar: the «+» beside Live Preview's size buttons
   // (breakpoint-add-button.js) paints with it too, and that group is not in
-  // the bar. Everything in the bar still inherits it from here.
+  // the bar. Everything in the bar still inherits it from here. The header's
+  // own colour goes along: the «+» cuts its ring out of the group with it.
   const ringHost = lpHeader(doc) || bar;
   const ring = `color-mix(in srgb, rgb(128 128 128) 16%, ${headerBg})`;
 
   if (ringHost && ringHost.style.getPropertyValue('--sve-toolbar-ring') !== ring) {
     ringHost.style.setProperty('--sve-toolbar-ring', ring);
+  }
+
+  if (ringHost && ringHost.style.getPropertyValue('--sve-toolbar-bg') !== headerBg) {
+    ringHost.style.setProperty('--sve-toolbar-bg', headerBg);
   }
 
   const sectionsBtn = bar?.querySelector('button[data-tab="sections"]');

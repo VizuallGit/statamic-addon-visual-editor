@@ -722,8 +722,8 @@ try {
 
   const square = await squareState(cp);
 
-  step('away from the bar the new-group square is still there right of the last group: its height, 1:1, 1rem away',
-    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 16 && square.top === 0, JSON.stringify(square));
+  step('away from the bar the new-group square is still there right of the last group: its height, 1:1, one gap away',
+    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 8 && square.top === 0, JSON.stringify(square));
   step('at rest it is a ring in the groups\' grey, no surface, its «+» at 20%', square?.ring && !square.surface && square.plus === '0.2', JSON.stringify(square));
   await shot(page, '7-new-group-square');
 
