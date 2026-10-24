@@ -3,18 +3,17 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Facades\Statamic\Fields\FieldtypeRepository as Fieldtype;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\PreviewCollectionsFieldtype;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Collection;
 use Statamic\Facades\User;
 use Statamic\Fields\Field;
 use Statamic\Fieldtypes\Collections;
 
 /**
- * The addon settings' picker for "Open in Live Preview" on rows: a collection
- * without a URL stays in the list — last, its title saying why — and a save
- * that names it is refused with the same reason.
+ * The addon settings' list for "Open in Live Preview" on rows: every collection
+ * as a checkbox, one without a URL locked (previewable: false, listed last), and
+ * never read as chosen or written — so a hand-edited one cannot block a save.
  */
 class PreviewCollectionsFieldtypeTest extends TestCase
 {
@@ -52,14 +51,9 @@ class PreviewCollectionsFieldtypeTest extends TestCase
         $this->actingAs($user);
     }
 
-    private function field(): Field
+    private function fieldtype(): PreviewCollectionsFieldtype
     {
-        return new Field('open_in_preview_collections', ['type' => 'sve_preview_collections', 'mode' => 'select']);
-    }
-
-    private function closed(string $title): string
-    {
-        return __('sve::messages.preview_collections_no_url_title', ['title' => $title]);
+        return (new Field('open_in_preview_collections', ['type' => 'sve_preview_collections']))->fieldtype();
     }
 
     public function test_the_handle_is_its_own_and_collections_stays_statamics(): void
@@ -68,48 +62,44 @@ class PreviewCollectionsFieldtypeTest extends TestCase
         $this->assertSame(Collections::class, get_class(Fieldtype::find('collections')));
     }
 
-    public function test_a_collection_without_a_url_is_listed_last_saying_why(): void
+    public function test_a_collection_without_a_url_is_listed_last_and_locked(): void
     {
         $this->collection('sve_pc_bare');
         $this->collection('sve_pc_routed', '{slug}');
         $this->actingAsSuper();
 
-        $items = collect($this->field()->fieldtype()->getIndexItems(new Request))
-            ->filter(fn ($item) => str_starts_with($item['id'], 'sve_pc_'))
-            ->values();
+        $listed = collect($this->fieldtype()->preload()['collections'])
+            ->filter(fn ($collection) => str_starts_with($collection['handle'], 'sve_pc_'))
+            ->values()
+            ->all();
 
-        $this->assertSame(['sve_pc_routed', 'sve_pc_bare'], $items->pluck('id')->all());
-        $this->assertSame(['Sve_pc_routed', $this->closed('Sve_pc_bare')], $items->pluck('title')->all());
+        $this->assertSame([
+            ['handle' => 'sve_pc_routed', 'title' => 'Sve_pc_routed', 'previewable' => true],
+            ['handle' => 'sve_pc_bare', 'title' => 'Sve_pc_bare', 'previewable' => false],
+        ], $listed);
     }
 
-    public function test_a_chosen_collection_without_a_url_says_why_where_it_is_shown(): void
+    public function test_the_editors_stores_are_not_listed(): void
     {
-        $this->collection('sve_pc_bare');
-        $this->collection('sve_pc_routed', '{slug}');
         $this->actingAsSuper();
 
-        $titles = $this->field()->fieldtype()->getItemData(['sve_pc_routed', 'sve_pc_bare'])->pluck('title')->all();
+        $handles = collect($this->fieldtype()->preload()['collections'])->pluck('handle')->all();
 
-        $this->assertSame(['Sve_pc_routed', $this->closed('Sve_pc_bare')], $titles);
+        foreach (Stores::all() as $store) {
+            $this->assertNotContains($store, $handles);
+        }
     }
 
-    public function test_saving_a_collection_without_a_url_is_refused_with_the_reason(): void
+    public function test_a_collection_without_a_url_is_never_read_as_chosen_or_saved(): void
     {
         $this->collection('sve_pc_bare');
         $this->collection('sve_pc_routed', '{slug}');
-        $this->actingAsSuper();
 
-        $rules = $this->field()->rules();
+        $fieldtype = $this->fieldtype();
+        $value = ['sve_pc_routed', 'sve_pc_bare', 'sve_pc_gone', 'sve_pc_routed'];
 
-        $refused = Validator::make(['open_in_preview_collections' => ['sve_pc_routed', 'sve_pc_bare']], $rules);
-
-        $this->assertTrue($refused->fails());
-        $this->assertSame(
-            [__('sve::messages.preview_collections_no_url', ['title' => 'Sve_pc_bare'])],
-            $refused->errors()->get('open_in_preview_collections'),
-        );
-
-        $this->assertFalse(Validator::make(['open_in_preview_collections' => ['sve_pc_routed']], $rules)->fails());
-        $this->assertFalse(Validator::make(['open_in_preview_collections' => null], $rules)->fails());
+        $this->assertSame(['sve_pc_routed'], $fieldtype->preProcess($value));
+        $this->assertSame(['sve_pc_routed'], $fieldtype->process($value));
+        $this->assertSame([], $fieldtype->process(null));
     }
 }

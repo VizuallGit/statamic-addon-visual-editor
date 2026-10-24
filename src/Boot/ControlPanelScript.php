@@ -10,6 +10,7 @@ use MarioHamann\StatamicVisualEditor\SetMeta;
 use MarioHamann\StatamicVisualEditor\SetPreviewImages;
 use MarioHamann\StatamicVisualEditor\Stores;
 use Illuminate\Support\Facades\View;
+use Inertia\Inertia;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Breakpoints\Store;
 use MarioHamann\StatamicVisualEditor\Features;
@@ -31,6 +32,12 @@ final class ControlPanelScript
 {
     public static function register(): void
     {
+        // The collections with an "Open in Live Preview" label, again with every
+        // Inertia visit: `provideToScript` is read once per page load, and a
+        // change saved in the addon settings must reach the next listing without
+        // one (open-in-preview.js).
+        Inertia::share('sveOpenInPreview', fn () => ScriptCollections::openInPreviewCollections());
+
         // Provide the set preview-image map to the CP script. Bound to the CP
         // scripts partial so it only runs on Control Panel page renders (not the
         // front-end), and after routing so the blueprints are resolvable.

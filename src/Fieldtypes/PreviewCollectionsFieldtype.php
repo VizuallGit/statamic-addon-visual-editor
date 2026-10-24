@@ -2,75 +2,70 @@
 
 namespace MarioHamann\StatamicVisualEditor\Fieldtypes;
 
-use Closure;
 use MarioHamann\StatamicVisualEditor\Boot\ScriptCollections;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Site;
-use Statamic\Fieldtypes\Collections;
+use Statamic\Fields\Fieldtype;
 
 /**
- * The collections whose rows get "Open in Live Preview" (addon settings).
+ * Which collections get the "Open in Live Preview" label on their rows.
  *
- * Statamic's own collections picker under a handle of its own, so `collections`
- * everywhere else is untouched: same select, same values. The one difference
- * is a collection that cannot open in Live Preview — no URL, so no page to
- * show (ScriptCollections::previewable). It stays in the list, last, its title
- * saying why, and a save that names it is refused with the same reason.
- * Statamic's select has no per-option disabled state, so the title and the
- * rule are how it reads as not selectable.
+ * A checkbox per collection rather than Statamic's collections dropdown: that
+ * dropdown cannot lock one option, and a collection without a URL has no page to
+ * open — so it is listed, greyed out and locked, instead of picked and refused.
+ *
+ * The list is the Live Preview picker's own (ScriptCollections::pickerCollections),
+ * the editor's stores already left out. A collection without a URL is never read
+ * as chosen and never written, so a hand-edited one cannot block a save.
  */
-class PreviewCollectionsFieldtype extends Collections
+class PreviewCollectionsFieldtype extends Fieldtype
 {
     protected $selectable = false;
 
     protected static $handle = 'sve_preview_collections';
 
-    public function getIndexItems($request)
+    public function component(): string
     {
-        [$open, $closed] = parent::getIndexItems($request)->partition(fn ($item) => static::opens($item['id']));
-
-        return $open
-            ->concat($closed->map(fn ($item) => [...$item, 'title' => static::closedTitle($item['title'])]))
-            ->values();
+        return 'sve-preview-collections';
     }
 
-    protected function toItemArray($id, $site = null)
+    public function preload(): array
     {
-        $item = parent::toItemArray($id, $site);
+        [$open, $closed] = collect(ScriptCollections::pickerCollections())
+            ->map(fn ($collection) => [
+                'handle' => $collection['handle'],
+                'title' => $collection['title'],
+                'previewable' => $collection['previewable'],
+            ])
+            ->partition(fn ($collection) => $collection['previewable']);
 
-        if (($item['invalid'] ?? false) || static::opens($id)) {
-            return $item;
-        }
-
-        return [...$item, 'title' => static::closedTitle($item['title'])];
+        return ['collections' => $open->concat($closed)->values()->all()];
     }
 
-    public function rules(): array
+    public function preProcess($data)
     {
-        return [
-            ...parent::rules(),
-            function (string $attribute, $value, Closure $fail) {
-                foreach ((array) $value as $handle) {
-                    $collection = is_string($handle) ? Collection::findByHandle($handle) : null;
-
-                    if ($collection && ! static::opens($handle)) {
-                        $fail(__('sve::messages.preview_collections_no_url', ['title' => $collection->title()]));
-                    }
-                }
-            },
-        ];
+        return $this->normalize($data);
     }
 
-    protected static function opens(string $handle): bool
+    public function process($data)
     {
-        $collection = Collection::findByHandle($handle);
+        return $this->normalize($data);
+    }
+
+    /** @return list<string> */
+    protected function normalize($data): array
+    {
         $site = Site::selected()?->handle() ?? Site::default()->handle();
 
-        return $collection !== null && ScriptCollections::previewable($collection, $site);
-    }
+        return collect(is_array($data) ? $data : [])
+            ->filter(fn ($handle) => is_string($handle) && $handle !== '')
+            ->unique()
+            ->filter(function ($handle) use ($site) {
+                $collection = Collection::findByHandle($handle);
 
-    protected static function closedTitle(string $title): string
-    {
-        return __('sve::messages.preview_collections_no_url_title', ['title' => $title]);
+                return $collection && ScriptCollections::previewable($collection, $site);
+            })
+            ->values()
+            ->all();
     }
 }

@@ -29,13 +29,6 @@ class HideStoresFromCollectionsListTest extends TestCase
         $this->assertSame(['pages', 'cases'], $this->handles($response));
     }
 
-    public function test_the_open_in_preview_settings_picker_leaves_them_out_too(): void
-    {
-        $response = $this->pick($this->relationshipRequest('sve_preview_collections'));
-
-        $this->assertSame(['pages', 'cases'], $this->handles($response));
-    }
-
     public function test_the_columns_survive_the_filtering(): void
     {
         $response = $this->pick($this->relationshipRequest('collections'));

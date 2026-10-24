@@ -639,10 +639,9 @@ return [
     'open_in_live_preview_title' => 'Open :title in Live Preview',
     'home_preview_button' => 'Live Preview',
     'home_preview_button_title' => 'Open the front page in Live Preview',
-    // A collection without a URL in the settings' picker for those labels
-    // (PreviewCollectionsFieldtype): its title in the list, and the save error.
-    'preview_collections_no_url_title' => ':title — no URL, cannot open in Live Preview',
-    'preview_collections_no_url' => ':title has no URL and therefore cannot be opened in Live Preview.',
+    // Under a locked collection in the settings' list for those labels
+    // (PreviewCollectionsFieldtype).
+    'preview_collections_no_url' => 'No URL, so it cannot be opened in Live Preview.',
     'close_live_preview' => 'Close live preview',
     'close_live_preview_title' => 'Close Live Preview',
     'more_lp_title' => 'More',

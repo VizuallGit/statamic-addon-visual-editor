@@ -310,22 +310,20 @@ export function markLivePreviewOpening(win, button) {
 }
 
 export function initOpenInPreview(win) {
-  const collections = openInPreviewCollections(win);
-
   // Only on a Control Panel page of its own. Inside an iframe this document is
   // the editor in the overlay or a screen framed in a Live Preview drawer, and
   // neither is a list to put labels on — the drawer decides for itself where a
   // row opens (lp-collections.js).
-  if (!collections.length || isEmbeddedInSite(win)) {
+  if (isEmbeddedInSite(win)) {
     return;
   }
-
-  ensureOpenPreviewStyles(win.document);
 
   // The rows are Statamic's Vue, drawn after boot and redrawn on sort, paging
   // and every Inertia visit; the one honest signal that a row is on screen is
   // the DOM. One observer, one pass per animation frame; the pass only adds
   // what is missing, so its own writes are the last mutation it causes.
+  let collections = [];
+  let observer = null;
   let scheduled = false;
 
   const pass = () => {
@@ -340,8 +338,40 @@ export function initOpenInPreview(win) {
     }
   };
 
-  new win.MutationObserver(schedule).observe(win.document.body, { childList: true, subtree: true });
-  schedule();
+  // The list as of this page load, then as of every Inertia visit: a change
+  // saved in the addon settings reaches the next listing without a reload. An
+  // empty list watches nothing; the one pass after it takes labels away.
+  const follow = (list) => {
+    collections = list;
+
+    if (!list.length) {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+        schedule();
+      }
+
+      return;
+    }
+
+    if (!observer) {
+      ensureOpenPreviewStyles(win.document);
+      observer = new win.MutationObserver(schedule);
+      observer.observe(win.document.body, { childList: true, subtree: true });
+    }
+
+    schedule();
+  };
+
+  win.document.addEventListener('inertia:navigate', (event) => {
+    const list = event.detail?.page?.props?.sveOpenInPreview;
+
+    if (Array.isArray(list)) {
+      follow(list);
+    }
+  });
+
+  follow(openInPreviewCollections(win));
 }
 
 // Notified with `true`/`false` whenever the entry is written back (or fails to

@@ -50,6 +50,7 @@ import './components/fieldtypes/IconButtonGroupFieldtype.js';
 import './components/fieldtypes/UniqueSetsFieldtype.js';
 import './components/fieldtypes/EntryFieldFieldtype.js';
 import './components/fieldtypes/GlobalsPickerFieldtype.js';
+import './components/fieldtypes/PreviewCollectionsFieldtype.js';
 import './components/fieldtypes/ToolbarAccessFieldtype.js';
 // `default-sets-fieldtype` is registered by side/default-sets-count.js on
 // Statamic.booted (the count version); the older DefaultSetsFieldtype.js it
