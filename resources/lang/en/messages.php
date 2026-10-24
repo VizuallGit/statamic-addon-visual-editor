@@ -36,8 +36,6 @@ return [
 
     // Global (synced) sections
     'global_badge' => 'Global — synced',
-    'global_bar' => 'You are inside a :section — edit it here; changes apply to every page',
-    'global_bar_section' => 'global section',
     'global_panel_title' => 'Global section',
     'global_panel_note' => '— changes apply to every page',
     'save_global_section' => 'Save the global section',
@@ -548,11 +546,13 @@ return [
     'tab_footer' => 'Footer',
     'chrome_header' => 'header',
     'chrome_footer' => 'footer',
-    'chrome_bar' => 'Editing the :chrome.',
-    'chrome_bar_dirty' => 'Content changed — not saved yet.',
-    'chrome_bar_clean' => 'No content changes yet.',
-    'global_bar' => 'You are currently editing the global section :section.',
-    'global_bar_fallback' => 'section',
+    // The focus frame around a header, footer, global section or component (focus-frame.js)
+    'focus_label_header' => 'Header',
+    'focus_label_footer' => 'Footer',
+    'focus_label_global' => 'Global section',
+    'focus_label_global_named' => 'Global section · :name',
+    'focus_label_component' => 'Component · :name',
+    'focus_dirty' => 'Not saved',
     'chrome_designs' => 'Design',
     'chrome_content' => 'Edit content',
     'chrome_library_hint' => 'Click a design to apply it.',

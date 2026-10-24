@@ -8,10 +8,11 @@ import { ACTIVE_ATTR, SID_ATTR, SID_FIELD_ATTR, featureOn, t } from '../bridge.j
 import { normText } from './messages.js';
 import { controlsFrom, drawnPlaceholder, findPrecedingSetSibling, openToolbarMenu, requestInlineEdit } from './inline-edit.js';
 import { widthDragJustEnded } from './grid.js';
-import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
+import { GLOBAL_ATTR, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
 import { INSERT_LAYER_ID } from './outline-nav.js';
-import { CHROME_ATTR, CHROME_BAR_ID, CHROME_CLOSE_ID, confirmEnterGlobal, rebindGlobalFocus } from './global-sections.js';
+import { CHROME_ATTR, confirmEnterGlobal, rebindGlobalFocus, requestCloseGlobal } from './global-sections.js';
 import { chromeEditable, confirmEnterChrome, hasChromeFocusClass, requestCloseChrome } from './header-footer.js';
+import { focusFrameOwns } from './focus-frame.js';
 import { finishEditing, wrapUpBeltTarget } from './editing.js';
 import { hideMoveControl } from './row-caps-move.js';
 import { applyOutlineTone } from './drag.js';
@@ -179,8 +180,9 @@ export function createClickHandler(win) {
       return;
     }
 
-    // The global-section bar owns its own clicks.
-    if (event.target.closest(`#${GLOBAL_BAR_ID}`)) {
+    // The focus frame's chips — the way out of the header, the footer, a global
+    // section or a component — own their own clicks.
+    if (focusFrameOwns(event.target)) {
       return;
     }
 
@@ -204,11 +206,6 @@ export function createClickHandler(win) {
     // [data-sve-global] — but the "+" inserts INTO the section it sits on. A
     // click on one is editing the focused section, never a leave.
     if (event.target.closest?.(`#${INSERT_LAYER_ID}`)) {
-      return;
-    }
-
-    // The chrome (header/footer) bar and the half's own Close chip own their clicks.
-    if (event.target.closest(`#${CHROME_BAR_ID}, #${CHROME_CLOSE_ID}`)) {
       return;
     }
 
@@ -264,12 +261,14 @@ export function createClickHandler(win) {
         return;
       }
     } else if (bridgeState.globalFocusEl || bridgeState.globalFocusId) {
-      // Inside a global section, the rest of the page is locked: a click out
-      // there does nothing at all. Leaving is a decision you make on the bar at
-      // the bottom — Save or Close — or with Escape, not something that happens
-      // to you because the pointer landed an inch too far to the left.
+      // Inside a global section, a click on the faded page is the way out —
+      // the same door as the frame's Close and Escape, and the same door the
+      // header and the footer have: the Control Panel asks about unsaved
+      // edits first, and only then drops the section's focus. The click goes
+      // no further; what it landed on is clicked again once the page is lit.
       event.preventDefault();
       event.stopPropagation();
+      requestCloseGlobal(win);
 
       return;
     }

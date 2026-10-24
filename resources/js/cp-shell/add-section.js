@@ -1875,6 +1875,12 @@ export function createMessageListener(doc = document, win = window) {
       // The dock is open whenever the preview knows about components at all —
       // the map is only sent while a template is loaded.
       ask('dock:open-template', `view:partials/${data.src}`);
+    } else if (data.type === MSG.REQUEST_CLOSE_COMPONENT) {
+      // The frame's Close or Escape in the preview: the same step out the
+      // tree's and the props panel's Exit take — back to the template the
+      // component sits in, or the dock closes. A component is a file and is
+      // saved on the way out; there is nothing to ask about.
+      ask('dock:exit-component');
     } else if (data.type === MSG.OPEN_GLOBAL) {
       handleOpenGlobal(data, doc, win);
     } else if (data.type === MSG.OPEN_CHROME) {

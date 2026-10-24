@@ -1348,4 +1348,3 @@ export function peerRect(el) {
   return new DOMRect(left, top, Math.max(a.right, b.right) - left, Math.max(a.bottom, b.bottom) - top);
 }
 export const GLOBAL_FOCUS_ATTR = 'data-sve-global-focused';
-export const GLOBAL_BAR_ID = '__sve-global-bar';

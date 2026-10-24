@@ -78,6 +78,7 @@ export const MSG = Object.freeze({
   POPUP: 'popup',
   REMOVE_ROW: 'remove-row',
   REQUEST_CLOSE_CHROME: 'request-close-chrome',
+  REQUEST_CLOSE_COMPONENT: 'request-close-component',
   REQUEST_CLOSE_GLOBAL: 'request-close-global',
   ROW_CAPS: 'row-caps',
   ROW_CAPS_RESULT: 'row-caps-result',

@@ -414,6 +414,8 @@ export function handleRequestCloseChrome(win) {
 
 /**
  * Preview asked to leave a global section. Warn if that section is dirty.
+ * Cancel · Save · Close without saving — the same three the header and the
+ * footer offer, so the way out reads the same whichever shared thing it is.
  */
 export function handleRequestCloseGlobal(win) {
   const finish = () => {
@@ -430,7 +432,15 @@ export function handleRequestCloseGlobal(win) {
   confirmCloseDiscard(
     win,
     { titleKey: 'global_close_title', bodyKey: 'global_close_body' },
-    () => finish()
+    () => finish(),
+    () => {},
+    () => {
+      saveGlobalSectionPanel(win, (ok) => {
+        if (ok) {
+          finish();
+        }
+      });
+    }
   );
 }
 

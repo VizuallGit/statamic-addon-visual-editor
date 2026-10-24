@@ -15,6 +15,7 @@ register('dock:save-now', () => {
 import { SUNDAY_AUG30 } from '../sunday-aug30.js';
 import { topLevelSectionUid } from '../cp.js';
 import { isCodeDockArmed, templateDockAllowed } from '../code-dock-state.js';
+import { componentSrcFromType } from '../component-signature.js';
 import { ask, emit, on, register } from '../cp/bus.js';
 import { mountPane } from '../cp/mount-pane.js';
 import CodeDockChrome from '../cp/surfaces/CodeDockChrome.vue';
@@ -1129,9 +1130,15 @@ register('dock:component-exit-state', () => {
  * Leave the open component. Both roads out save on the way — `goBackTemplate`
  * and `closeCodeDock` each flush first — so there is no version of this that
  * loses what was typed.
+ *
+ * "Component" here is what the preview focuses: any partial the dock holds
+ * (`componentSrcFromType`, the test `syncComponentFocus` sends the frame on),
+ * not only `partials/components/*`. The tree's and the props panel's Exit
+ * still show for those alone (`dock:component-exit-state`); the frame's Close
+ * in the preview arrives for a focused block too, and leaves it the same way.
  */
 register('dock:exit-component', (levels = 1) => {
-  if (!dockState.lastWin || !componentSrcOf(currentTemplateType())) {
+  if (!dockState.lastWin || !componentSrcFromType(currentTemplateType())) {
     return false;
   }
 

@@ -148,8 +148,8 @@ try {
     }
     return waitIn(cp, `#__sve-chrome-host[data-sve-chrome-kind="${kind}"], #__sve-globals-panel[data-sve-chrome-kind="${kind}"]`, 15000);
   };
-  /** Leave the half through its bar's last button (Close), so the next click is a page click again. */
-  const leaveChrome = async () => { const lp = await livePreview(); await clickIn(lp, () => { const bar = document.querySelector('[id*="chrome-bar"]'); const b = bar ? [...bar.querySelectorAll('button')].pop() : null; if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }); await sleep(1500); };
+  /** Leave the half through its frame's Close chip, so the next click is a page click again. */
+  const leaveChrome = async () => { const lp = await livePreview(); await clickIn(lp, () => { const b = document.querySelector('[data-sve-focus-frame="header"] [data-sve-focus-close], [data-sve-focus-frame="footer"] [data-sve-focus-close]'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }); await sleep(1500); };
 
   /** Type a probe after the root line and measure: Instant, then the morph keeping it, then the file holding it. */
   const probe = async (name, rel, rootNeedle, cls, text, hostSel) => {
@@ -236,7 +236,7 @@ try {
         await clickIn(g, () => { const b = [...document.querySelectorAll('#__sve-preview-confirm [data-sve-actions] button')].pop(); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
       }
       const hostG = await waitIn(cp2, '#__sve-global-section-host', 15000);
-      const afterG = await (await lp2()).evaluate(() => ({ html: document.documentElement.className, globalAttr: !!document.querySelector('[data-sve-global]'), bar: !!document.querySelector('[id*="global-bar"]'), active: document.querySelector('[data-sid-active]')?.getAttribute('data-sid') || '' })).catch(() => null);
+      const afterG = await (await lp2()).evaluate(() => ({ html: document.documentElement.className, globalAttr: !!document.querySelector('[data-sve-global]'), bar: !!document.querySelector('[data-sve-focus-frame="global"]'), active: document.querySelector('[data-sid-active]')?.getAttribute('data-sid') || '' })).catch(() => null);
       const cpG = await cp2.evaluate(() => ({ host: !!document.getElementById('__sve-global-section-host'), panel: !!document.getElementById('__sve-global-section-panel'), ids: [...document.querySelectorAll('[id^="__sve-global"]')].map((e) => e.id) }));
       console.log(`info global: confirm shown=${askedG}; preview=${JSON.stringify(afterG)}; cp=${JSON.stringify(cpG)}`);
       step('global: section editor open', hostG);

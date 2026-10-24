@@ -7,11 +7,12 @@ import { handleAiTextMessage, initAiText } from '../ai-text-bridge.js';
 import { bridgeState } from '../bridge/state.js';
 import { ACTIVE_ATTR, HOVER_ATTR, PULSE_DURATION, SECTION_ORDERABLE_ATTR, SID_ATTR, SID_FIELD_ATTR, t } from '../bridge.js';
 import { applyOutlineTone, createDragPointerDown, createDragPointerMove, createDragPointerUp, endDrag, parseCssColor, restoreZoom, solidBackgroundFor, zoomOutForDrag } from './drag.js';
-import { COMPONENT_NAME, COMPONENT_SRC, applyComponentFocus, applyComponentMap, applyHtmlPick, pointAnchor } from './component-pick.js';
+import { COMPONENT_NAME, COMPONENT_SRC, applyComponentFocus, applyComponentMap, applyHtmlPick, pointAnchor, requestCloseComponent } from './component-pick.js';
 import { applyRowCaps, hideMoveControl } from './row-caps-move.js';
 import { exitChromeFocus, hasChromeFocusClass, markDisabledChrome, rebindChromeFocus, rememberedChromeKind, requestCloseChrome, setChromeDirtyUI } from './header-footer.js';
-import { GLOBAL_BAR_ID, openRowToolbar } from './row-toolbar.js';
-import { cpDialogTheme, exitGlobalFocus, mountGlobalBar, rebindGlobalFocus, requestCloseGlobal, setGlobalSectionDirtyUI, tagGlobalSections } from './global-sections.js';
+import { focusFrameOpen } from './focus-frame.js';
+import { openRowToolbar } from './row-toolbar.js';
+import { cpDialogTheme, exitGlobalFocus, rebindGlobalFocus, refreshGlobalFrameLabel, requestCloseGlobal, setGlobalSectionDirtyUI, tagGlobalSections } from './global-sections.js';
 import { createMouseMoveHandler, startEditing } from './editing.js';
 import { enhanceHighlightBraces, findTextAfterSetUid, openToolbarMenu, requestInlineEdit, syncSidPlaceholders } from './inline-edit.js';
 import { injectCpVariables, injectStyles } from './messages.js';
@@ -399,7 +400,7 @@ export function createMessageReceiver(win) {
     }
 
     if (data.type === MSG.SVE_CHROME_DIRTY) {
-      setChromeDirtyUI(!!data.dirty, data.fields, win);
+      setChromeDirtyUI(!!data.dirty);
 
       return;
     }
@@ -408,14 +409,9 @@ export function createMessageReceiver(win) {
       // The label arrives with the dirty state because it comes from the same
       // place: the values the panel streams up. It can be null on the first
       // reply, before the form has hydrated — keep the last real one.
-      if (data.label) {
-        const changed = bridgeState.globalSectionLabel !== data.label;
-
+      if (data.label && bridgeState.globalSectionLabel !== data.label) {
         bridgeState.globalSectionLabel = data.label;
-
-        if (changed && win.document.getElementById(GLOBAL_BAR_ID)) {
-          mountGlobalBar(win);
-        }
+        refreshGlobalFrameLabel();
       }
 
       setGlobalSectionDirtyUI(!!data.dirty);
@@ -870,7 +866,9 @@ export function initBridge(win = window) {
     syncSidPlaceholders(win.document);
   });
 
-  // Escape asks to leave chrome / global focus (CP warns if dirty).
+  // Escape asks to leave the component / chrome / global focus (CP warns if
+  // dirty). Innermost first: a component open inside a focused header is
+  // left before the header is.
   //
   // Capture: site-inert stops a key pressed on the page before the document's
   // bubble phase, where this used to listen. An Escape the AI text popover
@@ -893,7 +891,14 @@ export function initBridge(win = window) {
         return;
       }
 
-      if (bridgeState.chromeFocusEl || hasChromeFocusClass(win.document)) {
+      // The component's frame, not `componentFocus`: the dock holds the
+      // header's own file as a `view:` too, so componentFocus is set while
+      // the header is edited — with no instance marked (header-footer.js
+      // owns the half; isPickChrome keeps it out of the component's hits)
+      // and so no frame. Escape there leaves the header, not the dock.
+      if (focusFrameOpen('component')) {
+        requestCloseComponent(win);
+      } else if (bridgeState.chromeFocusEl || hasChromeFocusClass(win.document)) {
         requestCloseChrome(win);
       } else if (bridgeState.globalFocusEl) {
         requestCloseGlobal(win);

@@ -4,8 +4,8 @@
  */
 import { bridgeState } from '../bridge/state.js';
 import { featureOn, t } from '../bridge.js';
-import { CHROME_ATTR, CHROME_BAR_ID, CHROME_CLOSE_ID, CHROME_FOCUS_ATTR, cpDialogTheme, exitGlobalFocus, showPreviewConfirm, sveFocusBarStyle, svePrimaryBtn, sveSecondaryBtn } from './global-sections.js';
-import { alongBandBottom } from './viewport.js';
+import { CHROME_ATTR, CHROME_FOCUS_ATTR, exitGlobalFocus, showPreviewConfirm } from './global-sections.js';
+import { mountFocusFrame, setFocusFrameDirty, unmountFocusFrame } from './focus-frame.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== header-footer =====
@@ -133,95 +133,30 @@ export function rebindChromeFocus(win, kind, attempt = 0) {
     bridgeState.chromeFocusKind = chromeKind;
   }
 
-  if (!doc.getElementById(CHROME_BAR_ID)) {
-    mountChromeBar(win, chromeKind);
-  }
-
-  mountChromeClose(win, again);
+  // A morph replaces the half's markup, and the frame is re-pointed at the
+  // new node — mounting is idempotent, so this is the same call as the entry.
+  mountChromeFrame(win, chromeKind, again);
 }
 
 /**
- * The way out, written on the half: a Close chip over its top-right corner,
- * opposite the label that names it. The bar under the preview says the same
- * — but the bar stands at the bottom of the band, and standing in the header
- * the eye is at the top. Same door as the bar and Escape
- * (`requestCloseChrome`): the Control Panel asks about unsaved edits first.
- *
- * Over the half, not in it. The half is the site's markup, and two morphs
- * own that markup — the preview's Alpine morph against server HTML, and the
- * dock's Instant paint against the file — and both take out what the server
- * did not send. A chip appended to the header lived until the next paint. So
- * the chip hangs off <html> like the bar and the confirm card, and is placed
- * at the half's corner in document coordinates: measured when mounted, when
- * the viewport resizes, and when the half's own box changes (a dock paint, a
- * morph). The rebind after a morph only re-points it at the new node.
+ * The frame on the half: its name in the corner, and the way out opposite —
+ * the same frame a global section and a component get (focus-frame.js). The
+ * Control Panel asks about unsaved edits before the focus drops
+ * (`requestCloseChrome`), and drives Save's visibility through `setChromeDirtyUI`.
  */
-let chromeCloseWatch = null;
-
-function placeChromeClose(win, el, chip) {
-  const rect = el.getBoundingClientRect();
-
-  chip.style.top = `${rect.top + win.scrollY}px`;
-  chip.style.left = `${rect.right + win.scrollX}px`;
-}
-
-function mountChromeClose(win, el) {
-  const doc = win.document;
-
-  if (!el) {
-    return;
-  }
-
-  let chip = doc.getElementById(CHROME_CLOSE_ID);
-
-  if (!chip) {
-    chip = doc.createElement('button');
-    chip.id = CHROME_CLOSE_ID;
-    chip.type = 'button';
-    chip.setAttribute('data-sve-chrome-ui', '');
-    chip.setAttribute('aria-label', t('close'));
-    chip.textContent = `${t('close')} ✕`;
-    chip.style.cssText =
-      'position:absolute;z-index:9998;margin:0;border:0;transform:translateX(-100%);' +
-      'background:#60a5fa;color:#fff;font:500 10px/1 sans-serif;letter-spacing:.02em;' +
-      'padding:4px 8px;border-radius:0 0 0 4px;cursor:pointer;pointer-events:auto;opacity:1;';
-    // The chip is the half's way out, not one of its fields: the page's click
-    // handling must not see the press as a click on the header.
-    chip.addEventListener('pointerdown', (event) => {
-      event.stopPropagation();
-    });
-    chip.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      requestCloseChrome(win);
-    });
-    doc.documentElement.appendChild(chip);
-  }
-
-  if (chromeCloseWatch?.el !== el) {
-    chromeCloseWatch?.stop();
-
-    const place = () => placeChromeClose(win, el, chip);
-    const sizes = new win.ResizeObserver(place);
-
-    sizes.observe(el);
-    win.addEventListener('resize', place);
-    chromeCloseWatch = {
-      el,
-      stop() {
-        sizes.disconnect();
-        win.removeEventListener('resize', place);
-      },
-    };
-  }
-
-  placeChromeClose(win, el, chip);
-}
-
-function unmountChromeClose(doc) {
-  chromeCloseWatch?.stop();
-  chromeCloseWatch = null;
-  doc.getElementById(CHROME_CLOSE_ID)?.remove();
+function mountChromeFrame(win, kind, el) {
+  mountFocusFrame(win, {
+    kind,
+    el,
+    t,
+    label: t(kind === 'footer' ? 'focus_label_footer' : 'focus_label_header'),
+    dirtyable: true,
+    dirty: chromeDirty,
+    onSave: () => {
+      win.parent.postMessage({ source: SOURCE, type: MSG.SAVE_CHROME }, win.location.origin);
+    },
+    onClose: () => requestCloseChrome(win),
+  });
 }
 
 /** @deprecated name — soft rebind, never exit/enter. */
@@ -235,10 +170,8 @@ export function exitChromeFocus(win, closePanel = true) {
 
   doc.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(CHROME_FOCUS_ATTR));
   clearChromeFocusClasses(doc);
-  doc.getElementById(CHROME_BAR_ID)?.remove();
-  unmountChromeClose(doc);
-  chromeSaveBtn = null;
-  chromeStatusEl = null;
+  unmountFocusFrame('header');
+  unmountFocusFrame('footer');
   chromeDirty = false;
   bridgeState.chromeFocusEl = null;
   bridgeState.chromeFocusKind = null;
@@ -259,11 +192,7 @@ export function exitChromeFocus(win, closePanel = true) {
  */
 function enterChromeFocus(win, el, reopen = true) {
   if (bridgeState.chromeFocusEl === el && hasChromeFocusClass(win.document, el.getAttribute(CHROME_ATTR) || 'header')) {
-    if (!win.document.getElementById(CHROME_BAR_ID)) {
-      mountChromeBar(win, el.getAttribute(CHROME_ATTR) || 'header');
-    }
-
-    mountChromeClose(win, el);
+    mountChromeFrame(win, el.getAttribute(CHROME_ATTR) || 'header', el);
 
     return;
   }
@@ -279,8 +208,7 @@ function enterChromeFocus(win, el, reopen = true) {
   applyChromeFocusClass(doc, kind);
   bridgeState.chromeFocusEl = el;
   rememberChromeKind(kind);
-  mountChromeBar(win, kind);
-  mountChromeClose(win, el);
+  mountChromeFrame(win, kind, el);
 
   if (reopen) {
     win.parent.postMessage({ source: SOURCE, type: MSG.OPEN_CHROME, kind }, win.location.origin);
@@ -289,34 +217,13 @@ function enterChromeFocus(win, el, reopen = true) {
   win.parent.postMessage({ source: SOURCE, type: MSG.SVE_CHROME_DIRTY_QUERY }, win.location.origin);
 }
 
-let chromeSaveBtn = null;
-let chromeStatusEl = null;
 let chromeDirty = false;
-// The half's global set has no fields: nothing can change, so no bar.
-let chromeBarOff = false;
 
-export function setChromeDirtyUI(dirty, fields = null, win = null) {
+/** Whether the half's global set holds unsaved edits — the Control Panel drives it. */
+export function setChromeDirtyUI(dirty) {
   chromeDirty = !!dirty;
-
-  if (typeof fields === 'number' && win) {
-    chromeBarOff = fields === 0;
-
-    if (chromeBarOff) {
-      win.document.getElementById(CHROME_BAR_ID)?.remove();
-      chromeSaveBtn = null;
-      chromeStatusEl = null;
-    } else if (bridgeState.chromeFocusEl && !win.document.getElementById(CHROME_BAR_ID)) {
-      mountChromeBar(win, bridgeState.chromeFocusEl.getAttribute(CHROME_ATTR) || 'header');
-    }
-  }
-
-  if (chromeSaveBtn) {
-    chromeSaveBtn.style.display = chromeDirty ? '' : 'none';
-  }
-
-  if (chromeStatusEl) {
-    chromeStatusEl.textContent = chromeDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
-  }
+  setFocusFrameDirty('header', chromeDirty);
+  setFocusFrameDirty('footer', chromeDirty);
 }
 
 export function requestCloseChrome(win) {
@@ -338,64 +245,4 @@ export function confirmEnterChrome(win, el) {
     cancelLabel: t('cancel'),
     onConfirm: () => enterChromeFocus(win, el),
   });
-}
-
-function mountChromeBar(win, kind) {
-  const doc = win.document;
-  const theme = cpDialogTheme(win);
-
-  doc.getElementById(CHROME_BAR_ID)?.remove();
-
-  if (chromeBarOff) {
-    return;
-  }
-
-  const bar = doc.createElement('div');
-
-  bar.id = CHROME_BAR_ID;
-  bar.style.cssText = sveFocusBarStyle(theme);
-  alongBandBottom(win, bar, 24);
-
-  const text = doc.createElement('span');
-
-  text.style.cssText = `font-weight:400;color:${theme.muted};`;
-  text.innerHTML = t('chrome_bar', {
-    chrome: `<b style="font-weight:700;color:${theme.color};">${t(kind === 'footer' ? 'chrome_footer' : 'chrome_header')}</b>`,
-  });
-
-  const status = doc.createElement('span');
-
-  status.style.cssText = `font-weight:400;color:${theme.muted};`;
-  status.textContent = chromeDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
-  chromeStatusEl = status;
-
-  text.appendChild(doc.createTextNode(' '));
-  text.appendChild(status);
-  bar.appendChild(text);
-
-  const barButton = (label, style) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.style.cssText = style;
-    bar.appendChild(btn);
-
-    return btn;
-  };
-
-  // Save only when Theme Settings has unsaved edits (CP drives visibility).
-  chromeSaveBtn = barButton(t('save'), svePrimaryBtn(theme, { compact: true }));
-  chromeSaveBtn.style.display = chromeDirty ? '' : 'none';
-  chromeSaveBtn.addEventListener('click', (event) => {
-    event.stopPropagation();
-    win.parent.postMessage({ source: SOURCE, type: MSG.SAVE_CHROME }, win.location.origin);
-  });
-
-  barButton(t('close'), sveSecondaryBtn(theme, { compact: true })).addEventListener('click', (event) => {
-    event.stopPropagation();
-    requestCloseChrome(win);
-  });
-
-  doc.documentElement.appendChild(bar);
 }

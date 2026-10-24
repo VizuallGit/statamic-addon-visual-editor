@@ -4,8 +4,9 @@
  */
 import { findPickRoots, HT_PATH_ATTR, isPickChrome, stampHtmlPickAll, unstampHtmlPick } from '../html-pick-align.js';
 import { bridgeState } from '../bridge/state.js';
-import { ACTIVE_ATTR, COMPONENT_DIM, COMPONENT_FOCUSED, SID_ATTR } from '../bridge.js';
+import { ACTIVE_ATTR, COMPONENT_DIM, COMPONENT_FOCUSED, SID_ATTR, t } from '../bridge.js';
 import { applyOutlineTone } from './drag.js';
+import { mountFocusFrame, unmountFocusFrame } from './focus-frame.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { watchAddedMatches } from '../lib/added-matches.js';
 
@@ -26,6 +27,9 @@ export function applyComponentFocus(win) {
   if (!selector) {
     unwatchComponentFocus();
     clearComponentFocus(doc);
+    // The focus is lifted, not redrawn: the frame goes with it. (The marks are
+    // cleared and put back on every redraw below; the frame is only moved.)
+    unmountFocusFrame('component');
 
     return;
   }
@@ -84,6 +88,23 @@ export function applyComponentFocus(win) {
   });
 
   doc.documentElement.classList.add('sve-component-focus');
+
+  // The frame on the first instance: the component's name in the corner and
+  // the way out opposite — the same frame the header and a global section
+  // get (focus-frame.js). A component is a file and saves itself, so the
+  // frame never shows "not saved" or Save; Close asks the dock to step out.
+  mountFocusFrame(win, {
+    kind: 'component',
+    el: hits[0],
+    t,
+    label: t('focus_label_component', { name: bridgeState.componentFocus.name || '' }),
+    onClose: () => requestCloseComponent(win),
+  });
+}
+
+/** Ask the Control Panel to step the dock out of the open component (`dock:exit-component`). */
+export function requestCloseComponent(win) {
+  win.parent.postMessage({ source: SOURCE, type: MSG.REQUEST_CLOSE_COMPONENT }, win.location.origin);
 }
 
 function clearComponentFocus(doc) {

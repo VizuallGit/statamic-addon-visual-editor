@@ -33,8 +33,6 @@ return [
 
     // Global (synced) sections
     'global_badge' => 'Global — synkroniseret',
-    'global_bar' => 'Du er inde i en :section — rediger den her; ændringer gælder alle sider',
-    'global_bar_section' => 'global sektion',
     'global_panel_title' => 'Global sektion',
     'global_panel_note' => '— ændringer gælder alle sider',
     'save_global_section' => 'Gem den globale sektion',
@@ -545,11 +543,13 @@ return [
     'tab_footer' => 'Footer',
     'chrome_header' => 'header',
     'chrome_footer' => 'footer',
-    'chrome_bar' => 'Du redigerer lige nu :chrome.',
-    'chrome_bar_dirty' => 'Indhold ændret — ikke gemt endnu.',
-    'chrome_bar_clean' => 'Ingen indholdsændringer endnu.',
-    'global_bar' => 'Du redigerer lige nu den globale sektion :section.',
-    'global_bar_fallback' => 'sektionen',
+    // Rammen om header, footer, global sektion eller komponent (focus-frame.js)
+    'focus_label_header' => 'Header',
+    'focus_label_footer' => 'Footer',
+    'focus_label_global' => 'Global sektion',
+    'focus_label_global_named' => 'Global sektion · :name',
+    'focus_label_component' => 'Komponent · :name',
+    'focus_dirty' => 'Ikke gemt',
     'chrome_designs' => 'Design',
     'chrome_content' => 'Rediger indhold',
     'chrome_library_hint' => 'Klik et design for at anvende det.',

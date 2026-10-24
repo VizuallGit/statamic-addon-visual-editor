@@ -332,19 +332,24 @@ export function injectStyles(doc) {
             opacity: 0;
             transition: opacity 0.15s ease;
         }
-        [data-sve-global]:hover > [data-sve-global-badge],
-        [data-sve-global][data-sve-global-focused] > [data-sve-global-badge] {
+        [data-sve-global]:hover > [data-sve-global-badge] {
             opacity: 1;
         }
+        /* Once focused, the frame (focus-frame.js) names the section in the
+           same corner — the hover badge steps aside for it. */
+        [data-sve-global][data-sve-global-focused] > [data-sve-global-badge] {
+            display: none;
+        }
         [data-sve-global]:not([data-sve-global-focused]):hover {
-            outline: 2px dashed #7c3aed;
-            outline-offset: -2px;
+            outline: 1px dashed #7c3aed;
+            outline-offset: -1px;
             cursor: pointer;
         }
         /* Inside a global section, the page around it is out of reach: faded and
            not clickable, so it reads as "right now I am editing this, and only
-           this". Nothing is hidden — you can still see where you are. The bar at
-           the bottom is the way out. */
+           this". Nothing is hidden — you can still see where you are. The frame's
+           Close, Escape and a click on the faded page are the way out — the
+           same three doors the header and the footer have. */
         html.sve-global-focus section[data-sid]:not([data-sve-global-focused]),
         html.sve-global-focus article[data-sid]:not([data-sve-global-focused]),
         html.sve-global-focus [data-sid-section-orderable]:not([data-sve-global-focused]) {
@@ -359,16 +364,19 @@ export function injectStyles(doc) {
             pointer-events: none;
             transition: opacity 0.2s ease;
         }
+        /* One hairline, as on the header and a component: the section is lit
+           by the rest fading, and the line only says where its edge is. */
         [data-sve-global-focused] {
-            outline: 2px solid #7c3aed !important;
-            outline-offset: -2px;
+            outline: 1px solid #7c3aed !important;
+            outline-offset: -1px;
         }
         /* Editing a component: the page around it fades so it is obvious which
            piece the dock is writing. Unlike a global section this is not a
            lock — the page stays clickable, because it says where you are, it
-           does not ask you to leave. */
+           does not ask you to leave. Same fade as the header and a global
+           section, so the three read as one state in three colours. */
         html.sve-component-focus [data-sve-component-dim] {
-            opacity: 0.3;
+            opacity: 0.35;
             transition: opacity 0.2s ease;
         }
         /* Every instance of the open component, in the tree's component
@@ -378,8 +386,8 @@ export function injectStyles(doc) {
            also a field's inner node wears the transparent field outline
            with !important, and the focus ring must still show over it. */
         html.sve-component-focus [data-sve-component-focused] {
-            outline: 2px solid #0f766e !important;
-            outline-offset: -2px !important;
+            outline: 1px solid #0f766e !important;
+            outline-offset: -1px !important;
         }
         /* Before you step in, a global section reads as ONE thing you click into,
            not a pile of separately editable fields — so nested field outlines
@@ -420,10 +428,14 @@ export function injectStyles(doc) {
             pointer-events: none;
             opacity: 0;
         }
-        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome]:hover::before,
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome]:hover::before {
+            opacity: 1;
+        }
+        /* Once focused, the frame (focus-frame.js) names the half in the same
+           corner — the hover label steps aside for it. */
         html.sve-chrome-focus-header [data-sve-chrome="header"]::before,
         html.sve-chrome-focus-footer [data-sve-chrome="footer"]::before {
-            opacity: 1;
+            display: none;
         }
         html:not([class*="sve-chrome-focus-"]) [data-sve-chrome]:hover {
             outline: 1px dashed #60a5fa;

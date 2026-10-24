@@ -4,10 +4,11 @@
  */
 import { bridgeState } from '../bridge/state.js';
 import { SID_ATTR, t } from '../bridge.js';
-import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR } from './row-toolbar.js';
+import { GLOBAL_ATTR, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR } from './row-toolbar.js';
 import { setupInserters } from './inserters.js';
 import { exitChromeFocus } from './header-footer.js';
-import { alongBandBottom, centreInBand } from './viewport.js';
+import { mountFocusFrame, setFocusFrameDirty, setFocusFrameLabel, unmountFocusFrame } from './focus-frame.js';
+import { centreInBand } from './viewport.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== global-sections =====
@@ -77,9 +78,7 @@ export function exitGlobalFocus(win, closePanel = true) {
 
   doc.querySelectorAll(`[${GLOBAL_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(GLOBAL_FOCUS_ATTR));
   doc.documentElement.classList.remove('sve-global-focus');
-  doc.getElementById(GLOBAL_BAR_ID)?.remove();
-  globalSaveBtn = null;
-  globalStatusEl = null;
+  unmountFocusFrame('global');
   globalSectionDirty = false;
   bridgeState.globalSectionLabel = null;
   bridgeState.globalFocusEl = null;
@@ -129,11 +128,43 @@ export function rebindGlobalFocus(win, sourceId, attempt = 0) {
   bridgeState.globalFocusEl = sections[0];
   bridgeState.globalFocusId = sourceId;
 
-  // A morph replaces the whole page, bar included — put it back, or stepping
-  // into a global section and typing one character loses the way to save it.
-  if (!doc.getElementById(GLOBAL_BAR_ID)) {
-    mountGlobalBar(win);
-  }
+  // A morph replaces the section's markup — the frame is re-pointed at the new
+  // node, or stepping into a global section and typing one character loses
+  // the way to save it.
+  mountGlobalFrame(win, sections[0]);
+}
+
+/** What the frame calls the section: the set's display name, once the panel has streamed it. */
+function globalFrameLabel() {
+  const name = bridgeState.globalSectionLabel;
+
+  return name ? t('focus_label_global_named', { name }) : t('focus_label_global');
+}
+
+/** The name arrives with the first values the panel streams — after the frame is up. */
+export function refreshGlobalFrameLabel() {
+  setFocusFrameLabel('global', globalFrameLabel());
+}
+
+/**
+ * The frame on the section: its name in the corner, and the way out opposite —
+ * the same frame the header, the footer and a component get (focus-frame.js).
+ * The Control Panel asks about unsaved edits before the focus drops
+ * (`requestCloseGlobal`), and drives Save's visibility through `setGlobalSectionDirtyUI`.
+ */
+function mountGlobalFrame(win, el) {
+  mountFocusFrame(win, {
+    kind: 'global',
+    el,
+    t,
+    label: globalFrameLabel(),
+    dirtyable: true,
+    dirty: globalSectionDirty,
+    onSave: () => {
+      win.parent.postMessage({ source: SOURCE, type: MSG.SAVE_GLOBAL_SECTION }, win.location.origin);
+    },
+    onClose: () => requestCloseGlobal(win),
+  });
 }
 
 /**
@@ -200,16 +231,6 @@ function sveDangerBtn(theme, { compact = false } = {}) {
   return (
     `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
     'background:#dc2626;color:#fff;'
-  );
-}
-
-/** Floating focus bar (header/footer/global) — same surface as dialog cards. */
-export function sveFocusBarStyle(theme) {
-  return (
-    'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
-    `display:flex;align-items:center;gap:10px;background:${theme.bg};color:${theme.color};` +
-    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);' +
-    'font:500 13px/1.3 ui-sans-serif,system-ui,sans-serif;user-select:none;'
   );
 }
 
@@ -291,88 +312,12 @@ export function requestCloseGlobal(win) {
   win.parent.postMessage({ source: SOURCE, type: MSG.REQUEST_CLOSE_GLOBAL }, win.location.origin);
 }
 
-let globalSaveBtn = null;
-let globalStatusEl = null;
 let globalSectionDirty = false;
+
+/** Whether the section's entry holds unsaved edits — the Control Panel drives it. */
 export function setGlobalSectionDirtyUI(dirty) {
   globalSectionDirty = !!dirty;
-
-  if (globalSaveBtn) {
-    globalSaveBtn.style.display = globalSectionDirty ? '' : 'none';
-  }
-
-  if (globalStatusEl) {
-    globalStatusEl.textContent = globalSectionDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
-  }
-}
-
-/**
- * The bar that says which global section is being edited, whether it holds
- * unsaved work, and where to save it.
- *
- * The same bar the header and footer get, for the same reason: stepping into
- * something shared has to keep saying so, and the page behind it can no longer
- * be trusted to — what you are looking at is one of several places this section
- * appears. Built here rather than in the CP because it belongs over the page, in
- * the preview's own coordinates; the CP's panel is beside it, not on it.
- */
-export function mountGlobalBar(win) {
-  const doc = win.document;
-  const theme = cpDialogTheme(win);
-
-  doc.getElementById(GLOBAL_BAR_ID)?.remove();
-
-  const bar = doc.createElement('div');
-
-  bar.id = GLOBAL_BAR_ID;
-  bar.style.cssText = sveFocusBarStyle(theme);
-  alongBandBottom(win, bar, 24);
-
-  const text = doc.createElement('span');
-
-  text.style.cssText = `font-weight:400;color:${theme.muted};`;
-  text.innerHTML = t('global_bar', {
-    section: `<b style="font-weight:700;color:${theme.color};">${bridgeState.globalSectionLabel || t('global_bar_fallback')}</b>`,
-  });
-
-  const status = doc.createElement('span');
-
-  status.style.cssText = `font-weight:400;color:${theme.muted};`;
-  status.textContent = globalSectionDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
-  globalStatusEl = status;
-
-  text.appendChild(doc.createTextNode(' '));
-  text.appendChild(status);
-  bar.appendChild(text);
-
-  const barButton = (label, style) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.style.cssText = style;
-    bar.appendChild(btn);
-
-    return btn;
-  };
-
-  // Save only while there is something to save — the CP drives the flag.
-  globalSaveBtn = barButton(t('save'), svePrimaryBtn(theme, { compact: true }));
-  globalSaveBtn.style.display = globalSectionDirty ? '' : 'none';
-  globalSaveBtn.addEventListener('click', (event) => {
-    event.stopPropagation();
-    win.parent.postMessage(
-      { source: SOURCE, type: MSG.SAVE_GLOBAL_SECTION },
-      win.location.origin
-    );
-  });
-
-  barButton(t('close'), sveSecondaryBtn(theme, { compact: true })).addEventListener('click', (event) => {
-    event.stopPropagation();
-    requestCloseGlobal(win);
-  });
-
-  doc.documentElement.appendChild(bar);
+  setFocusFrameDirty('global', globalSectionDirty);
 }
 
 /**
@@ -387,9 +332,7 @@ function enterGlobalFocus(win, section, reopen = true) {
 
   // Already focused on this synced source (any of its rendered sections).
   if (bridgeState.globalFocusId && bridgeState.globalFocusId === sourceId && bridgeState.globalFocusEl) {
-    if (!win.document.getElementById(GLOBAL_BAR_ID)) {
-      mountGlobalBar(win);
-    }
+    mountGlobalFrame(win, bridgeState.globalFocusEl);
 
     return;
   }
@@ -407,7 +350,7 @@ function enterGlobalFocus(win, section, reopen = true) {
   doc.documentElement.classList.add('sve-global-focus');
   bridgeState.globalFocusEl = section;
   bridgeState.globalFocusId = sourceId;
-  mountGlobalBar(win);
+  mountGlobalFrame(win, section);
 
   // Open the source entry in the left Live Preview editor — same slot a normal
   // section uses. Inline edit borrows that form's values (sectionPanelContainer).
@@ -432,6 +375,3 @@ function enterGlobalFocus(win, section, reopen = true) {
 
 export const CHROME_ATTR = 'data-sve-chrome';
 export const CHROME_FOCUS_ATTR = 'data-sve-chrome-focused';
-export const CHROME_BAR_ID = '__sve-chrome-bar';
-// The Close chip in the focused half's own corner (header-footer.js mounts it).
-export const CHROME_CLOSE_ID = '__sve-chrome-close';

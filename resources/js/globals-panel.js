@@ -350,19 +350,10 @@ export function notifyChromeDirty(win) {
     saveBtn.style.opacity = dirty ? '1' : LP_ICON_IDLE_OPACITY;
   }
 
-  // How many fields the half's global set has rides along: none, and the
-  // preview shows no bar — there is nothing that could ever change there.
-  const set = globalSets(win).find((candidate) => candidate.handle === chromeGlobalHandle(win, activeChromeKind));
-
-  sendToPreview(
-    {
-      source: SOURCE,
-      type: MSG.SVE_CHROME_DIRTY,
-      dirty,
-      fields: typeof set?.fields === 'number' ? set.fields : null,
-    },
-    win
-  );
+  // Only the state rides along. A half whose global set has no fields is never
+  // dirty, so its frame simply never shows Save — the frame needs no field
+  // count to know that.
+  sendToPreview({ source: SOURCE, type: MSG.SVE_CHROME_DIRTY, dirty }, win);
 }
 
 /**
