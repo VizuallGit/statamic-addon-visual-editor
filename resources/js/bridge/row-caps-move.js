@@ -4,6 +4,7 @@
  */
 import { bridgeState } from '../bridge/state.js';
 import { SECTION_ORDERABLE_ATTR } from '../bridge.js';
+import { focusFrameChipRects } from './focus-frame.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== row-caps-move =====
@@ -113,7 +114,16 @@ export function positionMoveControl(win) {
   if (isSection) {
     const left = Math.max(rect.right - width - 10, 10);
     const clash = bridgeState.pillBox && left + width > bridgeState.pillBox.left;
-    const min = clash ? bridgeState.pillBox.bottom + 8 : 10;
+    let min = clash ? bridgeState.pillBox.bottom + 8 : 10;
+
+    // A focus frame's chips (the label, Close) own the section's top edge:
+    // the control starts below them, with a gap, never over Close.
+    for (const chip of focusFrameChipRects()) {
+      if (left < chip.right && left + width > chip.left && rect.top < chip.bottom + 10 && rect.bottom > chip.top) {
+        min = Math.max(min, chip.bottom + 10);
+      }
+    }
+
     const top = Math.min(Math.max(rect.top + 10, min), Math.max(rect.bottom - height - 10, min));
 
     bridgeState.moveCtrlEl.style.top = `${top}px`;

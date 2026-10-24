@@ -115,6 +115,12 @@ function keepClick(el, run) {
 function place(win, frame) {
   const { el, root } = frame;
 
+  // A morph of the whole document can take the frame out with the markup it
+  // replaces. The frame is ours, not the server's: hang it back on <html>.
+  if (!root.isConnected) {
+    win.document.documentElement.appendChild(root);
+  }
+
   // The anchor was morphed away and not yet re-pointed: leave the frame where
   // it stood rather than at 0,0 — the next mount for this kind moves it.
   if (!el.isConnected) {
