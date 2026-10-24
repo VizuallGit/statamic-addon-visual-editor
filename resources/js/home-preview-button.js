@@ -11,24 +11,29 @@
  * button. Nothing is decided here.
  *
  * The button is a real link, so ⌘-click and the middle button open a tab the
- * ordinary way. It sits in Statamic's global header beside the "View Site"
- * icon: the header is Statamic's Vue, found by its own data attributes (named
- * in CONTRACTS, scripts/statamic-update-check.py on the site), and the button
- * is a sibling it never knows about. Not inside an iframe — there this
- * document is the editor in the overlay, or a screen framed in a drawer.
+ * ordinary way. It sits in Statamic's global header just before the search,
+ * dressed like it (Statamic's own size, radius and colour variables): the
+ * header is Statamic's Vue, found by its own marks (named in CONTRACTS,
+ * scripts/statamic-update-check.py on the site), and the button is a sibling
+ * it never knows about. Not inside an iframe — there this document is the
+ * editor in the overlay, or a screen framed in a drawer.
+ *
+ * While the overlay boots, the loading dots stand in the label's place and the
+ * label fades: same grid cell, so the button keeps its width.
  */
 import { watchPage } from './cp/page-watch.js';
 import { t } from './lib/i18n.js';
 import { injectStyle } from './lib/style.js';
 import { isEmbeddedInSite } from './lib/live-preview.js';
+import { ENTRY_OPEN_ATTR, ENTRY_OPEN_INSIDE_ATTR } from './lib/entry-opening.js';
 import { goToPreview } from './open-in-preview.js';
 
 export const HOME_PREVIEW_ATTR = 'data-sve-home-preview';
 const STYLE_ID = '__sve-home-preview-style';
 
-/** The global header, and the control the button stands after. */
+/** The global header, and its search (the command palette's dialog trigger). */
 export const GLOBAL_HEADER_MARK = '[data-global-header-breadcrumbs]';
-export const GLOBAL_HEADER_SLOT = '[data-expand-layout-control]';
+export const GLOBAL_HEADER_SEARCH = 'button[aria-haspopup="dialog"]';
 
 const ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -46,13 +51,16 @@ function ensureStyles(doc) {
   injectStyle(doc, STYLE_ID, `
 @layer sve {
   [${HOME_PREVIEW_ATTR}] {
-    display: inline-flex;
+    display: inline-grid;
+    grid-template-areas: "icon label";
     align-items: center;
-    gap: .4em;
+    column-gap: .4em;
     flex: 0 0 auto;
-    height: 2rem;
+    height: calc(var(--spacing) * 8);
     padding: 0 .625rem;
-    border-radius: .5rem;
+    border-radius: var(--radius-xl);
+    background-color: color-mix(in oklab, var(--color-black) 40%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-white) 10%, transparent);
     font-size: .8125rem;
     font-weight: 500;
     line-height: 1;
@@ -60,21 +68,40 @@ function ensureStyles(doc) {
     color: rgba(255, 255, 255, .85);
     text-decoration: none;
     cursor: pointer;
-    transition: background-color .12s ease, color .12s ease;
+    transition: color .12s ease, box-shadow .12s ease;
   }
   [${HOME_PREVIEW_ATTR}]:hover,
   [${HOME_PREVIEW_ATTR}]:focus-visible {
-    background: rgba(255, 255, 255, .15);
-    color: #fff;
+    background: linear-gradient(to bottom, color-mix(in oklab, var(--color-primary) 90%, transparent), var(--color-primary));
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-primary) 100%, black 20%);
+    color: var(--color-white);
     text-decoration: none;
   }
   [${HOME_PREVIEW_ATTR}] svg {
+    grid-area: icon;
     width: 1rem;
     height: 1rem;
-    flex: 0 0 auto;
+  }
+  [${HOME_PREVIEW_ATTR}] > span:not([${ENTRY_OPEN_ATTR}]) {
+    grid-area: label;
+    transition: opacity .15s ease;
+  }
+  [${HOME_PREVIEW_ATTR}] > [${ENTRY_OPEN_ATTR}] {
+    grid-area: label;
+    justify-self: center;
+  }
+  [${HOME_PREVIEW_ATTR}]:has(> [${ENTRY_OPEN_ATTR}]) > span:not([${ENTRY_OPEN_ATTR}]) {
+    opacity: 0;
   }
 }
 `);
+}
+
+/** The header's item holding Statamic's search; the button stands before it. */
+function searchItem(doc) {
+  const header = doc.querySelector(GLOBAL_HEADER_MARK)?.closest('header');
+
+  return header?.querySelector(GLOBAL_HEADER_SEARCH)?.closest('header > div > *') ?? null;
 }
 
 /** Put the button in the header if the header is there and the button is not. */
@@ -85,9 +112,9 @@ export function ensureHomePreviewButton(win, home) {
     return;
   }
 
-  const slot = doc.querySelector(GLOBAL_HEADER_MARK)?.closest('header')?.querySelector(GLOBAL_HEADER_SLOT);
+  const search = searchItem(doc);
 
-  if (!slot) {
+  if (!search) {
     return;
   }
 
@@ -96,6 +123,7 @@ export function ensureHomePreviewButton(win, home) {
   const button = doc.createElement('a');
 
   button.setAttribute(HOME_PREVIEW_ATTR, '');
+  button.setAttribute(ENTRY_OPEN_INSIDE_ATTR, '');
   button.setAttribute('href', home.url);
   button.title = home.title ? t(win, 'open_in_live_preview_title', { title: home.title }) : t(win, 'home_preview_button_title');
   button.setAttribute('aria-label', button.title);
@@ -110,7 +138,7 @@ export function ensureHomePreviewButton(win, home) {
     goToPreview(win, home.url, button);
   });
 
-  slot.after(button);
+  search.before(button);
 }
 
 export function initHomePreviewButton(win = window) {

@@ -74,7 +74,7 @@ export function ensureOpenPreviewStyles(doc) {
     white-space: nowrap;
     color: inherit;
     text-decoration: none;
-    opacity: .65;
+    opacity: .58;
     transition: opacity .12s ease, border-color .12s ease;
   }
   [${OPEN_PREVIEW_LABEL_ATTR}]:hover,
@@ -99,15 +99,10 @@ const OPEN_PREVIEW_ICON =
 
 /**
  * The label standing beside `anchor`, if one does. The loading dots
- * (showEntryOpening) sit between the title and the label while the overlay
- * boots; they are stepped over.
+ * (showEntryOpening) stand after the label, not between it and the title.
  */
 function labelAfter(anchor) {
-  let next = anchor.nextElementSibling;
-
-  while (next?.hasAttribute?.(ENTRY_OPEN_ATTR)) {
-    next = next.nextElementSibling;
-  }
+  const next = anchor.nextElementSibling;
 
   return next?.hasAttribute?.(OPEN_PREVIEW_LABEL_ATTR) ? next : null;
 }

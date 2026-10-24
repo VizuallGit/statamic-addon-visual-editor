@@ -1,15 +1,15 @@
 /**
- * The loading dots beside an entry's link (lib/entry-opening.js): put up by
- * the click that opens the overlay, taken down by the overlay host's
- * `sve-overlay-idle` — owned there, so the top bar's Live Preview button is
- * not left with dots on a site that named no open-in-preview collections
- * (there, open-in-preview.js's init never runs).
+ * The loading dots on the control that opened the overlay
+ * (lib/entry-opening.js): put up by the click that opens the overlay, taken
+ * down by the overlay host's `sve-overlay-idle` — owned there, so the top
+ * bar's Live Preview button is not left with dots on a site that named no
+ * open-in-preview collections (there, open-in-preview.js's init never runs).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ENTRY_OPEN_ATTR, showEntryOpening } from '../../resources/js/lib/entry-opening.js';
+import { ENTRY_OPEN_ATTR, ENTRY_OPEN_INSIDE_ATTR, showEntryOpening } from '../../resources/js/lib/entry-opening.js';
 
-/** The little an element needs here: attributes, siblings, children, `after`, `remove`. */
+/** The little an element needs here: attributes, tree, `after`, `closest`, `remove`. */
 class El {
   constructor(tag, attributes = {}) {
     this.tagName = tag.toUpperCase();
@@ -41,6 +41,14 @@ class El {
       return this.tagName === 'A' && 'href' in this.attrs;
     }
 
+    if (selector === 'a[href*="/entries/"]') {
+      return this.tagName === 'A' && String(this.attrs.href ?? '').includes('/entries/');
+    }
+
+    if (selector === '.page-tree-branch') {
+      return String(this.attrs.class ?? '').split(' ').includes('page-tree-branch');
+    }
+
     if (selector === `[${ENTRY_OPEN_ATTR}]`) {
       return ENTRY_OPEN_ATTR in this.attrs;
     }
@@ -48,12 +56,22 @@ class El {
     return false;
   }
 
-  closest() {
+  get descendants() {
+    return this.children.flatMap((child) => [child, ...child.descendants]);
+  }
+
+  closest(selector) {
+    for (let el = this; el; el = el.parent) {
+      if (el.matches(selector)) {
+        return el;
+      }
+    }
+
     return null;
   }
 
-  querySelector() {
-    return null;
+  querySelector(selector) {
+    return this.descendants.find((el) => el.matches(selector)) ?? null;
   }
 
   appendChild(child) {
@@ -99,7 +117,7 @@ function fakeWindow() {
   };
   const head = new El('head');
   const body = new El('body');
-  const all = () => [...head.children, ...body.children];
+  const all = () => [...head.descendants, ...body.descendants];
   const doc = {
     defaultView: win,
     head,
@@ -114,23 +132,41 @@ function fakeWindow() {
   return { win, doc, body };
 }
 
-test('the top-bar button gets dots with no open-in-preview collections, and loses them when the overlay is idle', () => {
+test('the top-bar button holds its dots inside with no open-in-preview collections, and loses them when the overlay is idle', () => {
   const { win, doc, body } = fakeWindow();
-  const button = body.appendChild(new El('a', { href: 'https://site.test/cp/collections/pages/entries/home?live-preview=1', 'data-sve-home-preview': '' }));
+  const button = body.appendChild(new El('a', {
+    href: 'https://site.test/cp/collections/pages/entries/home?live-preview=1',
+    'data-sve-home-preview': '',
+    [ENTRY_OPEN_INSIDE_ATTR]: '',
+  }));
+  const label = button.appendChild(new El('span'));
 
   showEntryOpening(doc, button, button.href);
 
-  const dots = button.nextElementSibling;
+  const dots = label.nextElementSibling;
 
-  assert.ok(dots, 'dots stand after the button');
+  assert.ok(dots, 'dots stand inside the button, after its label');
   assert.equal(dots.hasAttribute(ENTRY_OPEN_ATTR), true);
+  assert.equal(button.nextElementSibling, null, 'nothing was put after the button');
   assert.equal(win.listenerCount('sve-overlay-idle'), 1);
 
   win.dispatch('sve-overlay-idle');
 
-  assert.equal(button.nextElementSibling, null, 'the dots are gone');
+  assert.deepEqual(button.children, [label], 'the dots are gone');
   assert.equal(doc.querySelectorAll(`[${ENTRY_OPEN_ATTR}]`).length, 0);
   assert.equal(win.listenerCount('sve-overlay-idle'), 0, 'the listener went with them');
+});
+
+test('a row label in the page tree gets its dots after itself, so the label does not move', () => {
+  const { doc, body } = fakeWindow();
+  const branch = body.appendChild(new El('div', { class: 'page-tree-branch' }));
+  const title = branch.appendChild(new El('a', { href: '/cp/collections/pages/entries/about' }));
+  const label = branch.appendChild(new El('a', { href: '/cp/collections/pages/entries/about?live-preview=1', 'data-sve-open-preview': '' }));
+
+  showEntryOpening(doc, label, label.href);
+
+  assert.equal(title.nextElementSibling, label, 'nothing between the title and the label');
+  assert.equal(label.nextElementSibling?.hasAttribute(ENTRY_OPEN_ATTR), true, 'the dots stand right of the label');
 });
 
 test('a second opening before the first settles leaves one set of dots, and idle clears everything', () => {
