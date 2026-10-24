@@ -921,14 +921,20 @@ export function showMoveControl(win, moveEl) {
   // off the row, and the cursor has to cross that gap to reach it — but in the
   // gap `event.target` is neither the row nor the control, so the hover handler
   // would switch to the section's control and this one would vanish before it's
-  // reached. Tall transparent strips (plus geometric hit-testing in
-  // pointerInMoveControlZone) keep the control reachable.
-  ['top:100%', 'bottom:100%'].forEach((edge) => {
-    const bridge = doc.createElement('div');
+  // reached. Tall transparent strips keep the control reachable.
+  //
+  // Not for a section: its control is pinned inside the section's own box, so
+  // there is no gap to cross — and the strip above would lie over the focus
+  // frame's chips at the section's top edge and take the clicks meant for
+  // Close / Save.
+  if (!isSection) {
+    ['top:100%', 'bottom:100%'].forEach((edge) => {
+      const bridge = doc.createElement('div');
 
-    bridge.style.cssText = `position:absolute;left:-12px;right:-12px;${edge};height:24px;`;
-    ctrl.appendChild(bridge);
-  });
+      bridge.style.cssText = `position:absolute;left:-12px;right:-12px;${edge};height:24px;`;
+      ctrl.appendChild(bridge);
+    });
+  }
 
   doc.body.appendChild(ctrl);
   bridgeState.moveCtrlEl = ctrl;

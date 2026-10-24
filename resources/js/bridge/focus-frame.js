@@ -12,6 +12,11 @@
  * something to save, so a clean header, a clean global section and a
  * component all wear the same frame.
  *
+ * One kind, one frame — but a frame may have several boxes. A component is a
+ * file, and the page may use it in more than one place; every place is the
+ * same file, so every place wears the same label and the same way out. The
+ * boxes share their state and their callbacks; only their anchors differ.
+ *
  * Over the thing, not in it. The thing is the site's markup, and two morphs
  * own that markup — the preview's Alpine morph against server HTML, and the
  * dock's Instant paint against the file — and both take out what the server
@@ -49,8 +54,9 @@ export const FOCUS_COLORS = Object.freeze({
 /** Same type as the label chips the page draws on hover (`[data-sve-chrome]::before`, `[data-sve-global-badge]`). */
 const CHIP_FONT = '500 10px/1 sans-serif';
 
-export function focusFrameId(kind) {
-  return `__sve-focus-frame-${kind}`;
+/** The id of a frame's first box; further boxes of the same kind count up from it. */
+export function focusFrameId(kind, index = 0) {
+  return index ? `__sve-focus-frame-${kind}-${index}` : `__sve-focus-frame-${kind}`;
 }
 
 /** One frame per kind — a component can be open inside a focused header. */
@@ -73,11 +79,13 @@ export function focusFrameChipRects() {
   const rects = [];
 
   for (const frame of frames.values()) {
-    for (const el of [frame.label, frame.actions]) {
-      const rect = el.getBoundingClientRect();
+    for (const box of frame.boxes) {
+      for (const el of [box.label, box.actions]) {
+        const rect = el.getBoundingClientRect();
 
-      if (rect.width && rect.height) {
-        rects.push(rect);
+        if (rect.width && rect.height) {
+          rects.push(rect);
+        }
       }
     }
   }
@@ -112,8 +120,8 @@ function keepClick(el, run) {
   });
 }
 
-function place(win, frame) {
-  const { el, root } = frame;
+function place(win, box) {
+  const { el, root } = box;
 
   // A morph of the whole document can take the frame out with the markup it
   // replaces. The frame is ours, not the server's: hang it back on <html>.
@@ -121,7 +129,7 @@ function place(win, frame) {
     win.document.documentElement.appendChild(root);
   }
 
-  // The anchor was morphed away and not yet re-pointed: leave the frame where
+  // The anchor was morphed away and not yet re-pointed: leave the box where
   // it stood rather than at 0,0 — the next mount for this kind moves it.
   if (!el.isConnected) {
     return;
@@ -135,17 +143,17 @@ function place(win, frame) {
   root.style.height = `${rect.height}px`;
 }
 
-function watch(win, frame) {
-  frame.unwatch?.();
+function watch(win, box) {
+  box.unwatch?.();
 
-  const run = () => place(win, frame);
+  const run = () => place(win, box);
   const sizes = typeof win.ResizeObserver === 'function' ? new win.ResizeObserver(run) : null;
 
-  sizes?.observe(frame.el);
+  sizes?.observe(box.el);
   win.addEventListener('resize', run);
   win.addEventListener('scroll', run, { capture: true, passive: true });
 
-  frame.unwatch = () => {
+  box.unwatch = () => {
     sizes?.disconnect();
     win.removeEventListener('resize', run);
     win.removeEventListener('scroll', run, { capture: true });
@@ -155,65 +163,38 @@ function watch(win, frame) {
 function paintDirty(frame) {
   const show = frame.dirtyable && frame.dirty ? '' : 'none';
 
-  frame.status.style.display = show;
-  frame.save.style.display = show;
+  for (const box of frame.boxes) {
+    box.status.style.display = show;
+    box.save.style.display = show;
+  }
 }
 
-/**
- * Put the frame of `kind` around `el`, or move the frame already up to it.
- *
- * Idempotent on purpose: the rebind after a morph and the first entry are the
- * same call, so a frame is never built twice and never missing after a redraw.
- * `label` names the thing; `dirtyable` says whether it can ever hold unsaved
- * work (a half's global set, a global section's entry — not a component's
- * file); `dirty` is the state as the caller knows it right now.
- */
-export function mountFocusFrame(win, { kind, el, label, t, dirtyable = false, dirty = false, onSave = null, onClose }) {
-  if (!el || !kind) {
-    return null;
-  }
+function dropBox(box) {
+  box.unwatch?.();
+  box.root.remove();
+}
 
-  let frame = frames.get(kind);
-
-  if (frame) {
-    frame.onSave = onSave;
-    frame.onClose = onClose;
-    frame.dirtyable = dirtyable;
-    frame.dirty = dirty;
-
-    if (label != null) {
-      frame.label.textContent = label;
-    }
-
-    if (frame.el !== el) {
-      frame.el = el;
-      watch(win, frame);
-    }
-
-    paintDirty(frame);
-    place(win, frame);
-
-    return frame;
-  }
-
+/** One box of a frame: the outline laid over `el`, its label top-left, its actions top-right. */
+function buildBox(win, frame, el, index) {
   const doc = win.document;
+  const { kind, t } = frame;
   const color = FOCUS_COLORS[kind] || FOCUS_COLORS.global;
 
-  doc.getElementById(focusFrameId(kind))?.remove();
+  doc.getElementById(focusFrameId(kind, index))?.remove();
 
   const root = doc.createElement('div');
 
-  root.id = focusFrameId(kind);
+  root.id = focusFrameId(kind, index);
   root.setAttribute(FOCUS_FRAME_ATTR, kind);
   root.setAttribute('data-sve-ui', '');
   root.style.cssText =
     'position:absolute;z-index:9998;margin:0;padding:0;pointer-events:none;box-sizing:border-box;';
 
-  const labelEl = doc.createElement('span');
+  const label = doc.createElement('span');
 
-  labelEl.setAttribute(FOCUS_LABEL_ATTR, '');
-  labelEl.textContent = label || '';
-  labelEl.style.cssText =
+  label.setAttribute(FOCUS_LABEL_ATTR, '');
+  label.textContent = frame.label || '';
+  label.style.cssText =
     `position:absolute;top:0;left:0;box-sizing:border-box;font:${CHIP_FONT};letter-spacing:.02em;` +
     `padding:4px 8px;border-radius:0 0 4px 0;background:${color};color:#fff;white-space:nowrap;pointer-events:none;`;
 
@@ -244,15 +225,67 @@ export function mountFocusFrame(win, { kind, el, label, t, dirtyable = false, di
   keepClick(close, () => frame.onClose?.());
 
   actions.append(status, save, close);
-  root.append(labelEl, actions);
+  root.append(label, actions);
   doc.documentElement.appendChild(root);
 
-  frame = { kind, el, root, label: labelEl, actions, status, save, close, dirtyable, dirty, onSave, onClose, unwatch: null };
-  frames.set(kind, frame);
+  const box = { el, root, label, actions, status, save, close, unwatch: null };
+
+  watch(win, box);
+
+  return box;
+}
+
+/**
+ * Put the frame of `kind` around `el` — or around each of `els` — or move the
+ * frame already up to them.
+ *
+ * Idempotent on purpose: the rebind after a morph and the first entry are the
+ * same call, so a frame is never built twice and never missing after a redraw.
+ * `label` names the thing; `dirtyable` says whether it can ever hold unsaved
+ * work (a half's global set, a global section's entry — not a component's
+ * file); `dirty` is the state as the caller knows it right now.
+ */
+export function mountFocusFrame(win, { kind, el = null, els = null, label, t, dirtyable = false, dirty = false, onSave = null, onClose }) {
+  const targets = (els || [el]).filter((node) => node);
+
+  if (!targets.length || !kind) {
+    return null;
+  }
+
+  let frame = frames.get(kind);
+
+  if (!frame) {
+    frame = { kind, t, label: label || '', boxes: [], dirtyable, dirty, onSave, onClose };
+    frames.set(kind, frame);
+  }
+
+  frame.onSave = onSave;
+  frame.onClose = onClose;
+  frame.dirtyable = dirtyable;
+  frame.dirty = dirty;
+
+  if (label != null) {
+    frame.label = label;
+  }
+
+  // One box per anchor, in order: re-point the ones there, build the missing, drop the surplus.
+  frame.boxes.splice(targets.length).forEach(dropBox);
+
+  targets.forEach((target, index) => {
+    const box = frame.boxes[index];
+
+    if (!box) {
+      frame.boxes[index] = buildBox(win, frame, target, index);
+    } else if (box.el !== target) {
+      box.el = target;
+      watch(win, box);
+    }
+
+    frame.boxes[index].label.textContent = frame.label;
+  });
 
   paintDirty(frame);
-  watch(win, frame);
-  place(win, frame);
+  frame.boxes.forEach((box) => place(win, box));
 
   return frame;
 }
@@ -274,7 +307,10 @@ export function setFocusFrameLabel(kind, label) {
   const frame = frames.get(kind);
 
   if (frame && label != null) {
-    frame.label.textContent = label;
+    frame.label = label;
+    frame.boxes.forEach((box) => {
+      box.label.textContent = label;
+    });
   }
 }
 
@@ -285,8 +321,7 @@ export function unmountFocusFrame(kind) {
     return false;
   }
 
-  frame.unwatch?.();
-  frame.root.remove();
+  frame.boxes.forEach(dropBox);
   frames.delete(kind);
 
   return true;

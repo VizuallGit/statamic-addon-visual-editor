@@ -281,6 +281,47 @@ test('mounting again moves the frame to the new element and keeps its state; it 
   assert.equal(focusFrameOpen('header'), false);
 });
 
+test('a component used in several places wears one frame per place — same label, same way out, same state', () => {
+  const { win, html } = fakeWindow();
+  const above = new El('div', { top: -1800, left: 0, width: 800, height: 40 });
+  const inView = new El('div', { top: 120, left: 0, width: 800, height: 140 });
+  const later = new El('div', { top: 900, left: 0, width: 800, height: 140 });
+  const closed = [];
+
+  mountFocusFrame(win, { kind: 'component', els: [above, inView], t, label: 'Component · section_heading', onClose: () => closed.push(1) });
+
+  let boxes = html.all(`[${FOCUS_FRAME_ATTR}="component"]`);
+
+  assert.equal(boxes.length, 2, 'one box per instance');
+  assert.deepEqual(boxes.map((box) => box.id), [focusFrameId('component'), focusFrameId('component', 1)]);
+  assert.deepEqual(boxes.map((box) => box.style.top), ['-1700px', '220px'], 'each laid over its own instance');
+  assert.deepEqual(boxes.map((box) => box.find(`[${FOCUS_LABEL_ATTR}]`).textContent), ['Component · section_heading', 'Component · section_heading']);
+
+  boxes[1].find(`[${FOCUS_CLOSE_ATTR}]`).dispatch('click');
+  assert.deepEqual(closed, [1], 'Close on the instance in view runs the one onClose');
+
+  // A redraw with the instances re-pointed, one more of them: boxes re-used, one added, none doubled.
+  mountFocusFrame(win, { kind: 'component', els: [above, inView, later], t, label: 'Component · section_heading', onClose() {} });
+  boxes = html.all(`[${FOCUS_FRAME_ATTR}="component"]`);
+  assert.equal(boxes.length, 3);
+  assert.equal(boxes[2].style.top, '1000px');
+  assert.equal(win.listenerCount('resize'), 3, 'one watch per box');
+
+  // Fewer instances after a morph: the surplus box goes, its watch with it.
+  mountFocusFrame(win, { kind: 'component', els: [inView], t, label: 'Component · section_heading', onClose() {} });
+  boxes = html.all(`[${FOCUS_FRAME_ATTR}="component"]`);
+  assert.equal(boxes.length, 1);
+  assert.equal(boxes[0].style.top, '220px');
+  assert.equal(win.listenerCount('resize'), 1);
+
+  setFocusFrameLabel('component', 'Component · renamed');
+  assert.equal(boxes[0].find(`[${FOCUS_LABEL_ATTR}]`).textContent, 'Component · renamed');
+
+  assert.equal(unmountFocusFrame('component'), true);
+  assert.equal(html.all(`[${FOCUS_FRAME_ATTR}]`).length, 0);
+  assert.equal(win.listenerCount('resize'), 0);
+});
+
 test('a chip keeps its clicks to itself, and the page handler can tell a chip from the page', () => {
   const { win, html } = fakeWindow();
   const el = new El('footer', { top: 500, left: 0, width: 100, height: 50 });

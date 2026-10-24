@@ -89,13 +89,15 @@ export function applyComponentFocus(win) {
 
   doc.documentElement.classList.add('sve-component-focus');
 
-  // The frame on the first instance that has a box: the component's name in
-  // the corner and the way out opposite — the same frame the header and a
-  // global section get (focus-frame.js). An instance without a box (a hidden
-  // duplicate, a display:contents wrapper) would put the frame at nothing. A
+  // The frame on every instance that has a box: the component's name in the
+  // corner and the way out opposite — the same frame the header and a global
+  // section get (focus-frame.js). The page may use the file in several places
+  // and the editor is looking at one of them, not necessarily the first in the
+  // document; each wears the frame. An instance without a box (a hidden
+  // duplicate, a display:contents wrapper) would put a frame at nothing. A
   // component is a file and saves itself, so the frame never shows "not
   // saved" or Save; Close asks the dock to step out.
-  const framed = hits.find((el) => {
+  const framed = hits.filter((el) => {
     const rect = el.getBoundingClientRect();
 
     return rect.width > 0 && rect.height > 0;
@@ -103,7 +105,7 @@ export function applyComponentFocus(win) {
 
   mountFocusFrame(win, {
     kind: 'component',
-    el: framed || hits[0],
+    els: framed.length ? framed : [hits[0]],
     t,
     label: t('focus_label_component', { name: bridgeState.componentFocus.name || '' }),
     onClose: () => requestCloseComponent(win),
