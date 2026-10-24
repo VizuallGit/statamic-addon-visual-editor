@@ -10,9 +10,9 @@ use Statamic\Fields\Fieldtype;
 /**
  * Which collections get the "Open in Live Preview" label on their rows.
  *
- * A checkbox per collection rather than Statamic's collections dropdown: that
- * dropdown cannot lock one option, and a collection without a URL has no page to
- * open — so it is listed, greyed out and locked, instead of picked and refused.
+ * A dropdown like Statamic's collections field, drawn by its own component:
+ * Statamic's cannot lock one option, and a collection without a URL has no page
+ * to open — so it is listed last, at half opacity, and cannot be chosen.
  *
  * The list is the Live Preview picker's own (ScriptCollections::pickerCollections),
  * the editor's stores already left out. A collection without a URL is never read
@@ -34,7 +34,9 @@ class PreviewCollectionsFieldtype extends Fieldtype
         [$open, $closed] = collect(ScriptCollections::pickerCollections())
             ->map(fn ($collection) => [
                 'handle' => $collection['handle'],
-                'title' => $collection['title'],
+                'title' => $collection['previewable']
+                    ? $collection['title']
+                    : __('sve::messages.preview_collections_no_url_title', ['title' => $collection['title']]),
                 'previewable' => $collection['previewable'],
             ])
             ->partition(fn ($collection) => $collection['previewable']);

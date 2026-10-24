@@ -633,7 +633,7 @@ return [
     'open_in_live_preview_title' => 'Åbn :title i Live Preview',
     'home_preview_button' => 'Live Preview',
     'home_preview_button_title' => 'Åbn forsiden i Live Preview',
-    'preview_collections_no_url' => 'Ingen URL, så den kan ikke åbnes i Live Preview.',
+    'preview_collections_no_url_title' => ':title — ingen URL, kan ikke åbnes i Live Preview',
     'close_live_preview' => 'Luk live preview',
     'close_live_preview_title' => 'Luk Live Preview',
     'more_lp_title' => 'Mere',

@@ -1,10 +1,10 @@
 /**
  * Which collections get the "Open in Live Preview" label on their rows.
  *
- * Statamic's own checkbox per collection. One without a URL is disabled — it
- * has no page to open — and says so underneath; Statamic greys it out.
+ * Statamic's own Combobox, set up the way its collections dropdown is. A
+ * collection without a URL is listed last at half opacity and cannot be chosen:
+ * picking it leaves the value as it was.
  */
-import { t } from '../../lib/i18n.js';
 (function () {
     'use strict';
 
@@ -24,35 +24,36 @@ import { t } from '../../lib/i18n.js';
                     Array.isArray(props.meta?.collections) ? props.meta.collections : []
                 );
                 const selected = computed(() => (Array.isArray(props.value) ? props.value : []));
+                const previewable = computed(
+                    () => new Set(collections.value.filter((c) => c.previewable).map((c) => c.handle))
+                );
 
-                function isChecked(handle) {
-                    return selected.value.includes(handle);
+                function select(handles) {
+                    emit('update:value', (Array.isArray(handles) ? handles : []).filter((h) => previewable.value.has(h)));
                 }
 
-                function toggle(handle, checked) {
-                    emit(
-                        'update:value',
-                        checked
-                            ? [...selected.value.filter((h) => h !== handle), handle]
-                            : selected.value.filter((h) => h !== handle)
-                    );
-                }
-
-                return { collections, isChecked, toggle, t: (key, replacements) => t(window, key, replacements) };
+                return { collections, selected, select };
             },
 
             template: `
-                <div class="flex flex-col gap-2">
-                    <ui-checkbox
-                        v-for="collection in collections"
-                        :key="collection.handle"
-                        :label="collection.title"
-                        :description="collection.previewable ? null : t('preview_collections_no_url')"
-                        :disabled="!collection.previewable"
-                        :model-value="collection.previewable && isChecked(collection.handle)"
-                        @update:model-value="toggle(collection.handle, $event)"
-                    />
-                </div>
+                <ui-combobox
+                    searchable
+                    multiple
+                    :options="collections"
+                    :model-value="selected"
+                    option-label="title"
+                    option-value="handle"
+                    :placeholder="__('Choose...')"
+                    @update:model-value="select"
+                >
+                    <template #option="option">
+                        <div
+                            class="truncate grow"
+                            :style="option.previewable ? null : { opacity: 0.5, cursor: 'not-allowed' }"
+                            :textContent="option.title"
+                        />
+                    </template>
+                </ui-combobox>
             `,
         });
     });

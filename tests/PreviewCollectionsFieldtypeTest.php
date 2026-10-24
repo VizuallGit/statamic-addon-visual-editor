@@ -11,8 +11,8 @@ use Statamic\Fields\Field;
 use Statamic\Fieldtypes\Collections;
 
 /**
- * The addon settings' list for "Open in Live Preview" on rows: every collection
- * as a checkbox, one without a URL locked (previewable: false, listed last), and
+ * The addon settings' dropdown for "Open in Live Preview" on rows: one without a
+ * URL is locked (previewable: false, listed last, its title saying why), and
  * never read as chosen or written — so a hand-edited one cannot block a save.
  */
 class PreviewCollectionsFieldtypeTest extends TestCase
@@ -75,7 +75,11 @@ class PreviewCollectionsFieldtypeTest extends TestCase
 
         $this->assertSame([
             ['handle' => 'sve_pc_routed', 'title' => 'Sve_pc_routed', 'previewable' => true],
-            ['handle' => 'sve_pc_bare', 'title' => 'Sve_pc_bare', 'previewable' => false],
+            [
+                'handle' => 'sve_pc_bare',
+                'title' => __('sve::messages.preview_collections_no_url_title', ['title' => 'Sve_pc_bare']),
+                'previewable' => false,
+            ],
         ], $listed);
     }
 

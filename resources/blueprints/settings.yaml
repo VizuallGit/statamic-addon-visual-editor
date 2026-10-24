@@ -682,7 +682,7 @@ tabs:
             field:
               type: sve_preview_collections
               display: Collections
-              instructions: 'Only these. A collection left out here shows no label, which is what you want for the ones that are records rather than pages. A collection without a URL is greyed out and cannot be chosen: there is no page to render, so there would be nothing to open.'
+              instructions: 'Only these. A collection left out here shows no label, which is what you want for the ones that are records rather than pages. A collection without a URL is listed last, greyed out, and cannot be chosen: there is no page to render, so there would be nothing to open.'
               if:
                 enabled: 'equals true'
                 open_in_preview: 'equals true'
