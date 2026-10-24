@@ -119,6 +119,10 @@ export const TOOLBAR_GROUPS_KEY = 'sve-toolbar-groups';
 export const TOOLBAR_GROUP_ATTR = 'data-sve-toolbar-group';
 /** On the small «+» at a group's right edge: the group's id. */
 export const TOOLBAR_ADD_ATTR = 'data-sve-toolbar-add';
+/** On the grip at a group's top-left corner: drag it to move the whole group. */
+export const TOOLBAR_GRIP_ATTR = 'data-sve-toolbar-group-grip';
+/** On the square right of the last group: its «+» starts a new group. */
+export const TOOLBAR_NEW_GROUP_ATTR = 'data-sve-toolbar-new-group';
 /** Per-user presets of their own, JSON [{ id: 'u-…', name, tools, dock, panes }]. */
 export const TOOLBAR_PRESETS_KEY = 'sve-toolbar-presets';
 /** The preset this user last picked, by id — marked when two presets are the same bar. */

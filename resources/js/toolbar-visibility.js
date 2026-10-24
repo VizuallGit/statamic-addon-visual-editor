@@ -13,18 +13,23 @@
  *
  *   - WHERE icons stand is the DOM: one box per group
  *     (`[data-sve-toolbar-group]`), the tools inside it in the user's order,
- *     a small «+» at the group's right edge. A pass that makes a button hands
- *     it to placeToolbarButton; syncToolbarGroups then puts every tool where
- *     the layout says — and only moves a node that is not already there, so
- *     the observer that re-runs the passes has nothing to react to.
+ *     a grip at the group's top-left corner and a small «+» at its right edge;
+ *     after the last box, a square whose «+» starts a new group. A pass that
+ *     makes a button hands it to placeToolbarButton; syncToolbarGroups then
+ *     puts every tool where the layout says — and only moves a node that is
+ *     not already there, so the observer that re-runs the passes has nothing
+ *     to react to.
  *
  * Page settings is always first, always shown, and drawn in a box of its own,
  * apart from the groups. A hidden tool keeps its place in its group: a preset
- * that shows it again finds it where the user put it.
+ * that shows it again finds it where the user put it. A group is never empty:
+ * the new-group square makes one with the tool picked for it, and a group
+ * whose last tool moves out is gone.
  *
- * The Live Preview settings menu (⋮ → Top bar), the drag in the bar
- * (toolbar-drag.js) and the «+» (toolbar-add-menu.js) are the writers. A tool
- * this user has no access to never gets a button, so it never reaches a list.
+ * The Live Preview settings menu (⋮ → Top bar), the drag in the bar — of a
+ * tool or a whole group (toolbar-drag.js) — and the two «+» (toolbar-add-menu.js)
+ * are the writers. A tool this user has no access to never gets a button, so
+ * it never reaches a list.
  *
  * May import: chrome-prefs.js and lib/ — header-toolbar.js imports this file.
  */
@@ -39,9 +44,11 @@ import {
   LP_ICON_IDLE_OPACITY,
   LP_TOOLBAR_GAP,
   TOOLBAR_ADD_ATTR,
+  TOOLBAR_GRIP_ATTR,
   TOOLBAR_GROUP_ATTR,
   TOOLBAR_GROUPS_KEY,
   TOOLBAR_HIDDEN_KEY,
+  TOOLBAR_NEW_GROUP_ATTR,
   TOOLBAR_ORDER_KEY,
   TOOLBAR_PRESET_KEY,
   TOOLBAR_PRESET_PANES_KEY,
@@ -77,22 +84,39 @@ const ADD_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
   'stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
+const GRIP_ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+  '<circle cx="9" cy="6" r="2"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/>' +
+  '<circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/><circle cx="15" cy="18" r="2"/></svg>';
+
+/** The new-group square's «+»: a tool icon's size and stroke, as the groups draw them. */
+const NEW_GROUP_ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" stroke-linecap="round" aria-hidden="true" style="display:block"><path d="M12 5v14M5 12h14"/></svg>';
+
 const bar = `#${HEADER_TOOLBAR_ID}`;
 const group = `${bar}>[${TOOLBAR_GROUP_ATTR}]`;
 const add = `[${TOOLBAR_ADD_ATTR}]`;
+const grip = `[${TOOLBAR_GRIP_ATTR}]`;
+const newGroup = `${bar}>[${TOOLBAR_NEW_GROUP_ATTR}]`;
 
 /**
  * The row's own surface comes off: each group draws its own, one topbar gap
  * apart, and Page settings stands in front as a full square of its own — grey
  * at rest, the whole of it blue when on. Paint only: the buttons stay what
  * the passes made them, their inline size overruled here, not rewritten.
+ *
+ * The new-group square stands outside the row's flow, just right of it, so
+ * the header lays out as it did; its strip over the gap keeps the row hovered
+ * on the way from the last group to the square.
  */
 function frameCss() {
   const settings = `${bar}>button[data-tab="settings"]`;
   const idle = `${settings}:not([aria-pressed="true"])`;
+  const manyGroups = `${bar}:has(>[${TOOLBAR_GROUP_ATTR}]~[${TOOLBAR_GROUP_ATTR}])`;
 
   return [
-    `${bar}{background:transparent!important;padding:0!important;gap:${LP_TOOLBAR_GAP}px!important}`,
+    `${bar}{position:relative;background:transparent!important;padding:0!important;gap:${LP_TOOLBAR_GAP}px!important}`,
     `${settings}{flex-shrink:0;width:${LP_CHROME_H}px!important;height:${LP_CHROME_H}px!important;margin:0!important;border-radius:.5rem!important;opacity:1!important}`,
     `${idle}{background:${HEADER_SURFACE}!important}`,
     `${idle}:hover{background:${HEADER_ICON_HOVER}!important}`,
@@ -107,6 +131,23 @@ function frameCss() {
       'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
     `${group}:hover>${add},${group}:focus-within>${add},${group}>${add}:focus-visible{opacity:1;pointer-events:auto}`,
     `${group}>${add}:hover,${group}>${add}:focus-visible{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
+    // The grip: the same small disc, on the top-left corner. Only where there
+    // is another group to move past.
+    `${group}>${grip}{position:absolute;top:-.375rem;left:-.375rem;width:1rem;height:1rem;box-sizing:border-box;` +
+      'display:inline-flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:50%;cursor:grab;' +
+      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});box-shadow:0 0 0 1px rgba(128,128,128,.35);` +
+      'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
+    `${manyGroups}>[${TOOLBAR_GROUP_ATTR}]:hover>${grip},${manyGroups}>[${TOOLBAR_GROUP_ATTR}]>${grip}:focus-visible{opacity:1;pointer-events:auto}`,
+    `${group}>${grip}:hover,${group}>${grip}:focus-visible{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
+    `${bar}[data-sve-dragging-group],${bar}[data-sve-dragging-group] ${grip}{cursor:grabbing}`,
+    // The new-group square: a group's height and surface, 1:1, a gap's strip in front.
+    `${newGroup}{position:absolute;top:0;left:100%;display:flex;box-sizing:border-box;height:${LP_CHROME_H}px;padding-left:${LP_TOOLBAR_GAP}px;` +
+      'opacity:0;pointer-events:none;transition:opacity .12s}',
+    `${bar}:hover>[${TOOLBAR_NEW_GROUP_ATTR}],${bar}[data-sve-dragging]>[${TOOLBAR_NEW_GROUP_ATTR}],${newGroup}:has(>button:focus-visible){opacity:1;pointer-events:auto}`,
+    `${newGroup}>button{flex-shrink:0;box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;margin:0;padding:0;border:none;` +
+      `display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;cursor:pointer;color:currentColor;background:${HEADER_SURFACE}}`,
+    `${newGroup}>button:hover,${newGroup}>button:focus-visible{background:${HEADER_ICON_HOVER}}`,
+    `${newGroup}>button svg{opacity:${LP_ICON_IDLE_OPACITY}}`,
   ];
 }
 
@@ -267,11 +308,42 @@ function addButton(win, id) {
   return btn;
 }
 
+/** The grip at a group's corner. The drag and its arrow keys are toolbar-drag.js's, bound on the bar. */
+function gripButton(win) {
+  const btn = win.document.createElement('button');
+  const label = t(win, 'lp_settings_toolbar_group_move');
+
+  btn.type = 'button';
+  btn.setAttribute(TOOLBAR_GRIP_ATTR, '');
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.innerHTML = GRIP_ICON_SVG;
+
+  return btn;
+}
+
+/** The square right of the last group. What its «+» does on click is toolbar-add-menu.js's. */
+function newGroupSquare(win) {
+  const doc = win.document;
+  const square = doc.createElement('div');
+  const btn = doc.createElement('button');
+  const label = t(win, 'toolbar_drag_new_group');
+
+  square.setAttribute(TOOLBAR_NEW_GROUP_ATTR, '');
+  btn.type = 'button';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.innerHTML = NEW_GROUP_ICON_SVG;
+  square.appendChild(btn);
+
+  return square;
+}
+
 /**
  * Put every tool where the layout says — Page settings first, then one box
- * per group with its tools in order and the «+» last — moving only what is
- * not already there. A box whose group is gone is taken out once its tools
- * have been placed elsewhere.
+ * per group with its tools in order, the grip and the «+» last, then the
+ * new-group square — moving only what is not already there. A box whose
+ * group is gone is taken out once its tools have been placed elsewhere.
  */
 export function syncToolbarGroups(win) {
   const doc = win.document;
@@ -296,6 +368,7 @@ export function syncToolbarGroups(win) {
     if (!box) {
       box = doc.createElement('div');
       box.setAttribute(TOOLBAR_GROUP_ATTR, item.id);
+      box.appendChild(gripButton(win));
       box.appendChild(addButton(win, item.id));
     }
 
@@ -330,9 +403,14 @@ export function syncToolbarGroups(win) {
     });
 
     const plus = box.querySelector(`:scope>${add}`);
+    const handle = box.querySelector(`:scope>${grip}`);
 
     if (plus && box.lastElementChild !== plus) {
       box.appendChild(plus);
+    }
+
+    if (handle && plus && handle.nextElementSibling !== plus) {
+      box.insertBefore(handle, plus);
     }
   });
 
@@ -341,6 +419,23 @@ export function syncToolbarGroups(win) {
   [...barNode.querySelectorAll(`:scope>[${TOOLBAR_GROUP_ATTR}]`)]
     .filter((box) => !ids.has(box.getAttribute(TOOLBAR_GROUP_ATTR)))
     .forEach((box) => box.remove());
+
+  let square = barNode.querySelector(`:scope>[${TOOLBAR_NEW_GROUP_ATTR}]`);
+
+  // No group, nothing to start one from: no square either.
+  if (!layout.length) {
+    square?.remove();
+
+    return;
+  }
+
+  if (!square) {
+    square = newGroupSquare(win);
+  }
+
+  if (square.parentElement !== barNode || square.previousElementSibling !== cursor) {
+    cursor.after(square);
+  }
 }
 
 /** The sheet and the groups, for what is stored. Cheap enough for every toolbar pass. */
@@ -428,6 +523,17 @@ export function moveToolbarToolToNewGroup(win, key, groupIndex, name = '') {
 export function addToolbarToolToGroup(win, key, groupId) {
   moveToolbarTool(win, key, groupId, Infinity);
   setToolbarToolShown(win, key, true);
+}
+
+/** The new-group square: a tool in a group of its own after the last, and shown. Returns the group's id. */
+export function addToolbarToolToNewGroup(win, key) {
+  const id = moveToolbarToolToNewGroup(win, key, toolbarLayout(win).length);
+
+  if (id) {
+    setToolbarToolShown(win, key, true);
+  }
+
+  return id;
 }
 
 export function renameToolbarGroup(win, id, name) {

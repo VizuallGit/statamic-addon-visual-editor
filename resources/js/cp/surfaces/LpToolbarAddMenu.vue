@@ -2,8 +2,8 @@
 import { computed } from 'vue';
 
 // The «+» popover of a top-bar group: every tool as a tile, the ones already
-// in the bar greyed out. toolbar-add-menu.js builds the props and owns the
-// write; this only reports the pick.
+// in the bar greyed out — or, for a new group, every one to pick. toolbar-add-menu.js
+// builds the props and owns the write; this only reports the pick.
 const props = defineProps({
   top: { type: Number, required: true },
   left: { type: Number, required: true },
@@ -12,11 +12,14 @@ const props = defineProps({
   emptyLabel: { type: String, required: true },
   // [{ key, label, icon, shown, … }] from toolbarTools().
   tools: { type: Array, required: true },
+  // A new group: a tool in the bar moves into it, so none is greyed out.
+  pickAny: { type: Boolean, default: false },
   onPick: { type: Function, required: true },
   onClose: { type: Function, required: true },
 });
 
-const allShown = computed(() => props.tools.every((tool) => tool.shown));
+const greyed = (tool) => !props.pickAny && tool.shown;
+const nothingToPick = computed(() => props.tools.every(greyed));
 </script>
 
 <template>
@@ -32,7 +35,7 @@ const allShown = computed(() => props.tools.every((tool) => tool.shown));
   >
     <div class="sve-tb-add__title">{{ title }}</div>
 
-    <p v-if="allShown" class="sve-tb-add__empty">{{ emptyLabel }}</p>
+    <p v-if="nothingToPick" class="sve-tb-add__empty">{{ emptyLabel }}</p>
 
     <div v-else class="sve-tb-add__grid">
       <button
@@ -41,8 +44,8 @@ const allShown = computed(() => props.tools.every((tool) => tool.shown));
         type="button"
         class="sve-tb-add__tile"
         :data-sve-toolbar-add-tool="tool.key"
-        :disabled="tool.shown"
-        :title="tool.shown ? shownLabel : tool.label"
+        :disabled="greyed(tool)"
+        :title="greyed(tool) ? shownLabel : tool.label"
         :aria-label="tool.label"
         @click="onPick(tool.key)"
       >

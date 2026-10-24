@@ -1,6 +1,9 @@
 /**
- * The small «+» at a top-bar group's right edge: a popover with every tool,
- * one click puts it in that group (and shows it if it was hidden).
+ * The two «+» of the top bar, one popover with every tool:
+ *   - at a group's right edge, one click puts a tool in that group (and shows
+ *     it if it was hidden); the tools already in the bar are greyed out;
+ *   - on the square right of the last group, one click starts a new group
+ *     with that tool — any tool, the ones in the bar move out of their group.
  *
  * One delegated `click` on the bar; toolbar-visibility.js owns the groups and
  * does the write.
@@ -10,11 +13,11 @@
  */
 import { t } from './lib/i18n.js';
 import { remToPx } from './lib/dom.js';
-import { HEADER_TOOLBAR_ID, TOOLBAR_ADD_ATTR } from './lib/ids.js';
+import { HEADER_TOOLBAR_ID, TOOLBAR_ADD_ATTR, TOOLBAR_NEW_GROUP_ATTR } from './lib/ids.js';
 import { bindMenuDismiss } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpToolbarAddMenu from './cp/surfaces/LpToolbarAddMenu.vue';
-import { addToolbarToolToGroup, toolbarGroups, toolbarTools } from './toolbar-visibility.js';
+import { addToolbarToolToGroup, addToolbarToolToNewGroup, toolbarGroups, toolbarTools } from './toolbar-visibility.js';
 
 const HOST_ID = '__sve-toolbar-add-menu-host';
 // LpToolbarAddMenu's width; the popover is pulled left so it stays on screen.
@@ -36,20 +39,33 @@ export function dismissToolbarAddMenu() {
   host.remove();
 }
 
+/** `groupId` '' = the new-group square. */
 function menuProps(win, plus, groupId) {
   const rect = plus.getBoundingClientRect();
   const group = toolbarGroups(win).find((item) => item.id === groupId);
+  const title = !groupId
+    ? t(win, 'toolbar_drag_new_group')
+    : group?.name
+      ? t(win, 'toolbar_add_title', { name: group.name })
+      : t(win, 'toolbar_add_title_unnamed');
 
   return {
     top: Math.round(rect.bottom + 8),
     left: Math.round(Math.min(rect.left, win.innerWidth - remToPx(win, MENU_WIDTH_REM) - VIEWPORT_PAD)),
-    title: group?.name ? t(win, 'toolbar_add_title', { name: group.name }) : t(win, 'toolbar_add_title_unnamed'),
+    title,
     shownLabel: t(win, 'toolbar_add_shown'),
     emptyLabel: t(win, 'toolbar_add_empty'),
-    // Every tool: the popover greys out the ones already in the bar.
+    // Every tool: a group's popover greys out the ones already in the bar;
+    // a new group may start with any of them.
     tools: toolbarTools(win),
+    pickAny: !groupId,
     onPick: (key) => {
-      addToolbarToolToGroup(win, key, groupId);
+      if (groupId) {
+        addToolbarToolToGroup(win, key, groupId);
+      } else {
+        addToolbarToolToNewGroup(win, key);
+      }
+
       dismissToolbarAddMenu();
     },
     onClose: dismissToolbarAddMenu,
@@ -75,7 +91,8 @@ function openMenu(win, plus, groupId) {
 }
 
 function onClick(win, bar, event) {
-  const plus = event.target instanceof win.Element ? event.target.closest(`[${TOOLBAR_ADD_ATTR}]`) : null;
+  const target = event.target instanceof win.Element ? event.target : null;
+  const plus = target?.closest(`[${TOOLBAR_ADD_ATTR}], [${TOOLBAR_NEW_GROUP_ATTR}]>button`) || null;
 
   if (!plus || !bar.contains(plus)) {
     return;
@@ -83,7 +100,7 @@ function onClick(win, bar, event) {
 
   event.stopPropagation();
 
-  const groupId = plus.getAttribute(TOOLBAR_ADD_ATTR);
+  const groupId = plus.getAttribute(TOOLBAR_ADD_ATTR) || '';
   const same = menu?.groupId === groupId;
 
   dismissToolbarAddMenu();

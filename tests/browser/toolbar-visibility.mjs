@@ -10,7 +10,11 @@
  * moves the icon in the bar and survives a reload; New group in the menu takes
  * a dropped row into a group of its own; the «+» at a group's edge adds a
  * hidden tool to it; an icon dragged in the bar itself joins another group,
- * or makes a new one when dropped in the gap; Reset groups undoes it all.
+ * or makes a new one when dropped in the gap; a whole group dragged by the
+ * grip at its corner moves past another, and ← on the grip moves it one place;
+ * the square right of the last group shows on hover, its «+» starts a new
+ * group with any tool, and an icon dropped on it does the same; Reset groups
+ * undoes it all.
  * Then the presets: the site's Developer and Content editor (skipped when the
  * site's PHP does not provide them yet), and one of the user's own — saved,
  * picked again, kept by the reset, deleted.
@@ -260,6 +264,28 @@ async function dragIcon(page, frame, key, x) {
   await page.mouse.up();
   await sleep(300);
 }
+
+const gripOf = (id) => `${BAR} > [data-sve-toolbar-group="${id}"] > [data-sve-toolbar-group-grip]`;
+const NEW_GROUP = `${BAR} > [data-sve-toolbar-new-group]`;
+
+/** Drag a group by its grip, with the real mouse, to page coordinate `x` on the bar's line. */
+async function dragGroup(page, frame, id, x) {
+  const from = await pointIn(frame, gripOf(id));
+
+  // Onto the box first: the grip only takes the pointer while its group is hovered.
+  await page.mouse.move(from.x + 6, from.y + 6);
+  await sleep(200);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + (x < from.x ? -12 : 12), from.y, { steps: 4 });
+  await page.mouse.move(x, from.y, { steps: 16 });
+  await sleep(100);
+  await page.mouse.up();
+  await sleep(300);
+}
+
+/** The tools whose button is pressed (open), to see a drag opened nothing. */
+const pressedTools = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab][aria-pressed="true"]`)].map((el) => el.dataset.tab).join(), BAR);
 
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/toolbar-visibility-${name}.png` });
 
@@ -633,6 +659,98 @@ try {
 
   step('an icon dropped in the gap makes a new group there', regrouped.length === 2 && regrouped[0].join() === mover, JSON.stringify(regrouped));
   step('the group it emptied is gone', regrouped[1]?.includes(addable) && !(await storedGroups(cp)).some((g) => g.id === secondId), JSON.stringify(await storedGroups(cp)));
+
+  // ── A whole group, by the grip at its corner ──────────────────────────
+  const [loneId, restId] = await groupBoxIds(cp);
+  const loneRect = await rectIn(cp, `${BAR} > [data-sve-toolbar-group="${loneId}"]`);
+  const pressedBefore = await pressedTools(cp);
+
+  await dragGroup(page, cp, restId, loneRect.left + 4);
+  step('a group dragged by its grip moves in front of the other', (await groupBoxIds(cp)).join() === [restId, loneId].join(), (await groupBoxIds(cp)).join(' '));
+  step('and is stored in that order', (await storedGroups(cp)).map((g) => g.id).join() === [restId, loneId].join());
+  step('Page settings stays first after a group drag', (await barOrder(cp))[0] === 'settings');
+  step('the group drag opened nothing', (await pressedTools(cp)) === pressedBefore, await pressedTools(cp));
+  await shot(page, '6-group-dragged');
+
+  // ── The new-group square ──────────────────────────────────────────────
+  const squareState = (frame) => frame.evaluate((bar) => {
+    const square = document.querySelector(`${bar} > [data-sve-toolbar-new-group]`);
+    const btn = square?.querySelector(':scope > button');
+    const last = [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)].filter((box) => box.getBoundingClientRect().width > 0).pop();
+
+    if (!btn || !last) {
+      return null;
+    }
+
+    const r = btn.getBoundingClientRect();
+    const l = last.getBoundingClientRect();
+
+    return {
+      opacity: getComputedStyle(square).opacity,
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      gap: Math.round(r.left - l.right),
+      top: Math.round(r.top - l.top),
+      surface: getComputedStyle(btn).backgroundColor === getComputedStyle(last).backgroundColor,
+    };
+  }, BAR);
+
+  const lastRect = await rectIn(cp, `${BAR} > [data-sve-toolbar-group="${loneId}"]`);
+
+  await page.mouse.move(lastRect.left + 10, lastRect.y);
+  await sleep(250);
+
+  const square = await squareState(cp);
+
+  step('hovering the bar shows the new-group square right of the last group: its height and surface, 1:1, one gap away',
+    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 8 && square.top === 0 && square.surface, JSON.stringify(square));
+  await shot(page, '7-new-group-square');
+  await page.mouse.move(10, 880);
+  await sleep(250);
+  step('away from the bar the square is gone again', (await squareState(cp))?.opacity === '0', JSON.stringify(await squareState(cp)));
+
+  await page.mouse.move(lastRect.left + 10, lastRect.y);
+  await sleep(200);
+  await click(page, cp, `${NEW_GROUP} > button`);
+  step('its «+» opens the tool menu', !!(await cp.waitForSelector('#__sve-toolbar-add-menu', { timeout: 5000 }).catch(() => null)));
+  step('every tool can be picked for a new group', await cp.evaluate(() => {
+    const tiles = [...document.querySelectorAll('#__sve-toolbar-add-menu [data-sve-toolbar-add-tool]')];
+
+    return tiles.length > 0 && tiles.every((tile) => !tile.disabled);
+  }));
+
+  const starter = (await groupBoxes(cp))[0].find((key) => key !== addable);
+
+  await click(page, cp, `#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${starter}"]`);
+  await sleep(300);
+
+  const withNew = await groupBoxes(cp);
+
+  step('the picked tool starts a new group, last in the bar', withNew.length === 3 && withNew[2].join() === starter, JSON.stringify(withNew));
+  step('the tool menu closed', !(await cp.$('#__sve-toolbar-add-menu')));
+
+  const squareRect = await rectIn(cp, `${NEW_GROUP} > button`);
+  const dropped = withNew[0].find((key) => key !== starter);
+
+  await dragIcon(page, cp, dropped, squareRect.left + 16);
+
+  const withDropped = await groupBoxes(cp);
+
+  step('an icon dropped on the square starts a new group there too', withDropped.length === 4 && withDropped[3].join() === dropped, JSON.stringify(withDropped));
+
+  // ── The grip's arrow keys ─────────────────────────────────────────────
+  const idsBeforeKey = await groupBoxIds(cp);
+  const lastId = idsBeforeKey[idsBeforeKey.length - 1];
+
+  await cp.focus(gripOf(lastId));
+  await page.keyboard.press('ArrowLeft');
+  await sleep(200);
+
+  const idsAfterKey = await groupBoxIds(cp);
+
+  step('← on a grip moves its group one place left', idsAfterKey[idsAfterKey.length - 2] === lastId, idsAfterKey.join(' '));
+  step('and the grip keeps the focus', await cp.evaluate((sel) => document.activeElement === document.querySelector(sel), gripOf(lastId)));
+  await cp.evaluate(() => document.activeElement?.blur());
 
   // ── Reset groups ──────────────────────────────────────────────────────
   await openMenuTab(page, cp, 'toolbar');
