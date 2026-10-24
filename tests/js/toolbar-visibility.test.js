@@ -323,7 +323,7 @@ test('page settings and anything that is not a tab key never reach the sheet', (
 });
 
 test('the frame: a transparent row, Page settings as a full square of its own, each group its own surface with a «+» at its edge', () => {
-  assert.match(FRAME, /#__sve-toolbar\{position:relative;background:transparent!important;padding:0!important;gap:8px!important\}/);
+  assert.match(FRAME, /#__sve-toolbar\{background:transparent!important;padding:0!important;gap:8px!important\}/);
   assert.match(FRAME, /button\[data-tab="settings"\]\{flex-shrink:0;width:32px!important;height:32px!important;margin:0!important;border-radius:\.5rem!important;opacity:1!important\}/);
   assert.match(FRAME, /\[data-tab="settings"\]:not\(\[aria-pressed="true"\]\)\{background:rgba\(128,128,128,\.16\)!important\}/);
   assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-group\]\{position:relative;display:inline-flex;[^}]*height:32px;padding:5px;gap:4px;border-radius:\.5rem;background:rgba\(128,128,128,\.16\)\}/);
@@ -339,14 +339,15 @@ test('the frame: a group\'s own surface shows the grab hand only where there is 
   assert.doesNotMatch(FRAME, /grip/);
 });
 
-test('the frame: the new-group square right of the row, out of its flow — a group\'s height and surface, 1:1 — shown on hover of the row and while a tool is dragged', () => {
-  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{position:absolute;top:0;left:100%;[^}]*height:32px;padding-left:1rem;opacity:0;pointer-events:none/);
-  assert.match(FRAME, /#__sve-toolbar:hover>\[data-sve-toolbar-new-group\],#__sve-toolbar\[data-sve-dragging\]>\[data-sve-toolbar-new-group\],[^{]*\{opacity:1;pointer-events:auto\}/);
-  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button\{[^}]*width:32px;height:32px;[^}]*border-radius:\.5rem;[^}]*background:rgba\(128,128,128,\.16\)\}/);
+test('the frame: the new-group square always in the row, 1rem after the last group — a group\'s height, 1:1, a ring in the groups\' grey, no surface until hovered', () => {
+  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{display:flex;flex-shrink:0;margin-left:calc\(1rem - 8px\)\}/);
+  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button\{[^}]*width:32px;height:32px;[^}]*border:1px solid rgba\(128,128,128,\.16\);[^}]*border-radius:\.5rem;[^}]*background:transparent\}/);
+  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button:hover,[^{]*>button:focus-visible\{background:rgba\(128,128,128,\.16\);border-color:transparent\}/);
+  assert.doesNotMatch(FRAME, /new-group\][^{]*\{[^}]*(opacity:0|position:absolute)/);
 });
 
-test('the frame: the square\'s «+» rests fainter than the icons, and is whole on hover or focus', () => {
-  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]>button svg\{opacity:\.5;transition:opacity \.12s\}/);
+test('the frame: the square\'s «+» rests faint, and is whole on hover or focus', () => {
+  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]>button svg\{opacity:\.2;transition:opacity \.12s\}/);
   assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button:hover svg,[^{]*\[data-sve-toolbar-new-group\]>button:focus-visible svg\{opacity:1\}/);
 });
 

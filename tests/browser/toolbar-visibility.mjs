@@ -12,7 +12,7 @@
  * hidden tool to it; an icon dragged in the bar itself joins another group,
  * or makes a new one when dropped in the gap; a group's own surface shows the
  * grab hand (its icons do not), and the group dragged by it moves past another;
- * the square right of the last group shows on hover, its «+» starts a new
+ * the square right of the last group is always there, quiet until hovered, its «+» starts a new
  * group with any tool, and an icon dropped on it does the same; Reset groups
  * undoes it all.
  * Then the presets: the site's Developer and Content editor (skipped when the
@@ -701,6 +701,8 @@ try {
     const r = btn.getBoundingClientRect();
     const l = last.getBoundingClientRect();
 
+    const groupBg = getComputedStyle(last).backgroundColor;
+
     return {
       opacity: getComputedStyle(square).opacity,
       plus: getComputedStyle(btn.querySelector('svg')).opacity,
@@ -708,31 +710,31 @@ try {
       h: Math.round(r.height),
       gap: Math.round(r.left - l.right),
       top: Math.round(r.top - l.top),
-      surface: getComputedStyle(btn).backgroundColor === getComputedStyle(last).backgroundColor,
+      ring: getComputedStyle(btn).borderTopColor === groupBg,
+      surface: getComputedStyle(btn).backgroundColor === groupBg,
     };
   }, BAR);
 
   const lastRect = await rectIn(cp, `${BAR} > [data-sve-toolbar-group="${loneId}"]`);
 
-  await page.mouse.move(lastRect.left + 10, lastRect.y);
+  await page.mouse.move(10, 880);
   await sleep(250);
 
   const square = await squareState(cp);
 
-  step('hovering the bar shows the new-group square right of the last group: its height and surface, 1:1, 1rem away',
-    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 16 && square.top === 0 && square.surface, JSON.stringify(square));
-  step('its «+» rests at half opacity', square?.plus === '0.5', JSON.stringify(square));
+  step('away from the bar the new-group square is still there right of the last group: its height, 1:1, 1rem away',
+    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 16 && square.top === 0, JSON.stringify(square));
+  step('at rest it is a ring in the groups\' grey, no surface, its «+» at 20%', square?.ring && !square.surface && square.plus === '0.2', JSON.stringify(square));
   await shot(page, '7-new-group-square');
 
   const squarePoint = await pointIn(cp, `${NEW_GROUP} > button`);
 
-  await page.mouse.move(lastRect.right - 4, lastRect.y);
   await page.mouse.move(squarePoint.x, squarePoint.y, { steps: 8 });
   await sleep(250);
-  step('and is whole when the pointer is on it', (await squareState(cp))?.plus === '1', JSON.stringify(await squareState(cp)));
-  await page.mouse.move(10, 880);
-  await sleep(250);
-  step('away from the bar the square is gone again', (await squareState(cp))?.opacity === '0', JSON.stringify(await squareState(cp)));
+
+  const hovered = await squareState(cp);
+
+  step('hovered it takes the groups\' surface and its «+» is whole', hovered?.surface && hovered.plus === '1', JSON.stringify(hovered));
 
   await page.mouse.move(lastRect.left + 10, lastRect.y);
   await sleep(200);

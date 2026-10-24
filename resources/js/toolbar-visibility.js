@@ -99,10 +99,6 @@ const newGroup = `${bar}>[${TOOLBAR_NEW_GROUP_ATTR}]`;
  * apart, and Page settings stands in front as a full square of its own — grey
  * at rest, the whole of it blue when on. Paint only: the buttons stay what
  * the passes made them, their inline size overruled here, not rewritten.
- *
- * The new-group square stands outside the row's flow, just right of it, so
- * the header lays out as it did; its strip over the gap keeps the row hovered
- * on the way from the last group to the square.
  */
 function frameCss() {
   const settings = `${bar}>button[data-tab="settings"]`;
@@ -110,7 +106,7 @@ function frameCss() {
   const manyGroups = `${bar}:has(>[${TOOLBAR_GROUP_ATTR}]~[${TOOLBAR_GROUP_ATTR}])`;
 
   return [
-    `${bar}{position:relative;background:transparent!important;padding:0!important;gap:${LP_TOOLBAR_GAP}px!important}`,
+    `${bar}{background:transparent!important;padding:0!important;gap:${LP_TOOLBAR_GAP}px!important}`,
     `${settings}{flex-shrink:0;width:${LP_CHROME_H}px!important;height:${LP_CHROME_H}px!important;margin:0!important;border-radius:.5rem!important;opacity:1!important}`,
     `${idle}{background:${HEADER_SURFACE}!important}`,
     `${idle}:hover{background:${HEADER_ICON_HOVER}!important}`,
@@ -131,16 +127,16 @@ function frameCss() {
     `${manyGroups}>[${TOOLBAR_GROUP_ATTR}]{cursor:grab}`,
     `${group}>*{cursor:default}`,
     `${bar}[data-sve-dragging-group],${bar}[data-sve-dragging-group] *{cursor:grabbing!important}`,
-    // The new-group square: a group's height and surface, 1:1. Its strip in
-    // front is wider than the gap between groups: the last group's «+» stands
-    // half out into it.
-    `${newGroup}{position:absolute;top:0;left:100%;display:flex;box-sizing:border-box;height:${LP_CHROME_H}px;padding-left:1rem;` +
-      'opacity:0;pointer-events:none;transition:opacity .12s}',
-    `${bar}:hover>[${TOOLBAR_NEW_GROUP_ATTR}],${bar}[data-sve-dragging]>[${TOOLBAR_NEW_GROUP_ATTR}],${newGroup}:has(>button:focus-visible){opacity:1;pointer-events:auto}`,
-    `${newGroup}>button{flex-shrink:0;box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;margin:0;padding:0;border:none;` +
-      `display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;cursor:pointer;color:currentColor;background:${HEADER_SURFACE}}`,
-    `${newGroup}>button:hover,${newGroup}>button:focus-visible{background:${HEADER_ICON_HOVER}}`,
-    `${newGroup}>button svg{opacity:.5;transition:opacity .12s}`,
+    // The new-group square: a group's height, 1:1, always there but quiet — a
+    // ring in the groups' grey and a faint «+»; hovered, the groups' surface
+    // and a whole «+». In the row, 1rem after the last group, more than the
+    // gap between groups: the last group's «+» stands half out into it.
+    `${newGroup}{display:flex;flex-shrink:0;margin-left:calc(1rem - ${LP_TOOLBAR_GAP}px)}`,
+    `${newGroup}>button{flex-shrink:0;box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;margin:0;padding:0;` +
+      `border:1px solid ${HEADER_SURFACE};display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;` +
+      'cursor:pointer;color:currentColor;background:transparent}',
+    `${newGroup}>button:hover,${newGroup}>button:focus-visible{background:${HEADER_SURFACE};border-color:transparent}`,
+    `${newGroup}>button svg{opacity:.2;transition:opacity .12s}`,
     `${newGroup}>button:hover svg,${newGroup}>button:focus-visible svg{opacity:1}`,
   ];
 }
