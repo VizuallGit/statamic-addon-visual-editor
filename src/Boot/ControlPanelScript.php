@@ -91,9 +91,17 @@ final class ControlPanelScript
                 // The Navigation structures, for the HTML tree's Nav loop.
                 'sveNavigations' => ScriptCollections::navigations(),
                 'sveSectionTag' => (string) config('statamic-visual-editor.templates.section_tag', ''),
-                // The collections whose entries open in the preview rather than
-                // the publish form (Addons > Statamic Visual Editor).
+                // The collections whose rows carry an "Open in Live Preview"
+                // label in the listings and the page tree (Addons > Statamic
+                // Visual Editor).
                 'sveOpenInPreview' => ScriptCollections::openInPreviewCollections(),
+                // Can an entry of this collection open in Live Preview? By
+                // handle, the editor's stores included — the Live Preview
+                // Collections drawer reads it before it moves to an entry.
+                'svePreviewable' => ScriptCollections::previewableMap(),
+                // The front page as a Live Preview URL, for the top bar's
+                // Live Preview button; null keeps the button away.
+                'sveHomePreview' => ScriptCollections::homePreview(),
                 'sveCollectionTemplatesCollection' => Stores::collectionTemplates(),
                 'sveCollectionPresets' => CollectionPresets::all(),
                 // The one breakpoint list: Live Preview's device buttons, the

@@ -11,7 +11,7 @@ import { closeCodeDockPopups } from '../code-dock-lazy.js';
 import { ensurePanel, markLivePreviewReady } from '../lazy-panels.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, HEADER_ICON_HOVER, LP_BACK_ID, LP_COVER_ID } from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
-import { livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
+import { isEmbeddedInSite, livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
 import { syncStoredVideoHolds } from '../video-holds.js';
 import { syncStoredAlpineStates } from '../alpine-states.js';
@@ -2544,13 +2544,10 @@ export function scrollBardToTextAfterSet(afterSetUid, containerEl) {
   scrollToWithBardOffset(nodeWrapper.nextElementSibling ?? nodeWrapper);
 }
 
-/**
- * True when the CP is running inside the front end's edit overlay (a full-screen
- * iframe on the site) rather than as a page of its own.
- */
-export function isEmbeddedInSite(win) {
-  return win.parent !== win.self;
-}
+// `isEmbeddedInSite` lives in lib/live-preview.js since the top bar's Live
+// Preview button (home-preview-button.js) needed it outside the shell.
+// Re-exported for the cp.js barrel and every panel that imports it from there.
+export { isEmbeddedInSite };
 
 /** Tell the hosting site something happened. No-op when we aren't embedded. */
 export function postToHost(win, type, data = {}) {

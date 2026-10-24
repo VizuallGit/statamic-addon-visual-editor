@@ -1,16 +1,14 @@
 /**
  * Settings toggle: `open_in_preview`
- * Open entries straight into Live Preview.
+ * An "Open in Live Preview" label on the rows of the named collections.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { t } from './lib/i18n.js';
-import { sveState } from './cp-state.js';
-import { SELECTORS } from './cp-selectors.js';
 import { postToHost } from './cp.js';
 import { injectStyle } from './lib/style.js';
 import { unwrapRef } from './lib/values.js';
-import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
-import { ENTRY_EDIT_PATH } from './lib/ids.js';
+import { isEmbeddedInSite, lpHeader } from './lib/live-preview.js';
+import { previewUrlFor } from './lib/entry-open.js';
 import { publishContainers } from './lib/publish-containers.js';
 import { entrySaveSettling, entryValuesBaseline, scheduleEntryBaseline, scheduleEntryBaselineAfterSave, serializeEntryValues } from './inline-edit.js';
 
@@ -21,19 +19,22 @@ async function openOverlay(win, url) {
 }
 
 // ===== open-in-preview =====
-// --- Opening an entry straight into the preview -------------------------------
+// --- A second door on the row: "Open in Live Preview" -------------------------
 //
-// For the collections named on the settings screen, clicking an entry lands in
-// Live Preview instead of the publish form behind it. Closing "back to admin"
-// returns to the collection listing — never the entry form. Collections left
-// off the list open exactly as Statamic ships them.
+// For the collections named on the settings screen, every row in the
+// collection listing and in the page tree carries a small label beside the
+// title. The label opens the entry in Live Preview — in the overlay, with a
+// note of where it was opened from, so × leads back to the list. The title
+// itself does what Statamic ships: it opens the publish form.
 //
-// The one thing every route in shares is the entry's own edit URL: the listing,
-// the page tree, search, the dashboard. So that URL is what's watched, in two
-// places, because a click is not always what makes the move. Both end in the
-// same `?live-preview=1` the front-end edit button already uses.
-
-/** `/cp/collections/{handle}/entries/{id}` — the screen this feature is about. */
+// The label is a real link to `?live-preview=1`, so ⌘-click and the middle
+// button open a tab the ordinary way; a plain click goes through goToPreview.
+//
+// Statamic's Vue draws the rows and redraws them — on sort, on paging, on a
+// move in the tree — so the label is a sibling it never knows about: one
+// observer sees the rows arrive and puts a label beside each title that has
+// none. Nothing is wrapped, nothing is replaced, and no click is taken from
+// Statamic's own elements.
 
 export function openInPreviewCollections(win) {
   const list = win.Statamic?.$config?.get?.('sveOpenInPreview');
@@ -41,39 +42,128 @@ export function openInPreviewCollections(win) {
   return Array.isArray(list) ? list : [];
 }
 
+export const OPEN_PREVIEW_LABEL_ATTR = 'data-sve-open-preview';
+const OPEN_PREVIEW_STYLE_ID = '__sve-open-preview-style';
+
 /**
- * The URL to open instead, or null to leave the move alone.
+ * The title link of a row, in the two places Statamic lists entries:
  *
- * Already inside Live Preview, the answer is always null: moving between entries
- * in there is the picker's job, and it knows things this doesn't — whether there
- * is unsaved work, and what to do about it.
+ *   - the collection listing's title cell (`a.title-index-field`)
+ *   - the page tree's branch (`.page-tree-branch` → its one `a[href]`)
+ *
+ * Both are named in CONTRACTS (scripts/statamic-update-check.py on the site).
  */
-export function previewUrlFor(win, href, collections) {
-  if (livePreviewEditorEl(win.document)) {
-    return null;
+export const ROW_TITLE_LINKS = 'a.title-index-field[href], .page-tree-branch a[href]';
+
+export function ensureOpenPreviewStyles(doc) {
+  injectStyle(doc, OPEN_PREVIEW_STYLE_ID, `
+@layer sve {
+  [${OPEN_PREVIEW_LABEL_ATTR}] {
+    display: inline-flex;
+    align-items: center;
+    gap: .3em;
+    flex: 0 0 auto;
+    margin-inline-start: .625rem;
+    padding: .125em .5em;
+    border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+    border-radius: .375rem;
+    font-size: .6875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: inherit;
+    text-decoration: none;
+    opacity: .65;
+    transition: opacity .12s ease, border-color .12s ease;
+  }
+  [${OPEN_PREVIEW_LABEL_ATTR}]:hover,
+  [${OPEN_PREVIEW_LABEL_ATTR}]:focus-visible {
+    opacity: 1;
+    border-color: color-mix(in srgb, currentColor 55%, transparent);
+    text-decoration: none;
+  }
+  [${OPEN_PREVIEW_LABEL_ATTR}] svg {
+    width: .875em;
+    height: .875em;
+    flex: 0 0 auto;
+  }
+}
+`);
+}
+
+const OPEN_PREVIEW_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+
+/**
+ * The label standing beside `anchor`, if one does. The loading dots
+ * (showEntryOpening) sit between the title and the label while the overlay
+ * boots; they are stepped over.
+ */
+function labelAfter(anchor) {
+  let next = anchor.nextElementSibling;
+
+  while (next?.hasAttribute?.(ENTRY_OPEN_ATTR)) {
+    next = next.nextElementSibling;
   }
 
-  let url;
+  return next?.hasAttribute?.(OPEN_PREVIEW_LABEL_ATTR) ? next : null;
+}
 
-  try {
-    url = new URL(href, win.location.origin);
-  } catch {
-    return null;
+/**
+ * Put the label beside every title link of a named collection under `root`,
+ * and keep the ones already there true to the row they stand beside: Vue may
+ * reuse a row's element for another entry after a sort, so an existing label
+ * is re-pointed rather than trusted.
+ */
+export function labelRows(win, root, collections) {
+  const doc = win.document;
+  const origin = win.location.origin;
+
+  for (const anchor of root.querySelectorAll(ROW_TITLE_LINKS)) {
+    const url = previewUrlFor(anchor.getAttribute('href'), origin, collections);
+    const existing = labelAfter(anchor);
+
+    if (!url) {
+      existing?.remove();
+
+      continue;
+    }
+
+    const label = existing ?? doc.createElement('a');
+
+    if (label.getAttribute('href') !== url) {
+      const title = (anchor.textContent || '').trim();
+
+      label.setAttribute('href', url);
+      label.title = title ? t(win, 'open_in_live_preview_title', { title }) : t(win, 'open_in_live_preview');
+    }
+
+    if (existing) {
+      continue;
+    }
+
+    label.setAttribute(OPEN_PREVIEW_LABEL_ATTR, '');
+    label.innerHTML = `${OPEN_PREVIEW_ICON}<span>${t(win, 'open_in_live_preview')}</span>`;
+    label.addEventListener('click', (event) => {
+      // Anything but a plain left click belongs to the browser: a middle click
+      // or ⌘-click is asking for a tab, and the link says where.
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        event.stopPropagation();
+
+        return;
+      }
+
+      // Ours alone: the row around it would otherwise read the click as its own
+      // (the tree's branch opens the entry on any click inside it).
+      event.preventDefault();
+      event.stopPropagation();
+
+      goToPreview(win, label.getAttribute('href'), label);
+    });
+    anchor.after(label);
   }
-
-  if (url.origin !== win.location.origin || url.searchParams.get('live-preview') === '1') {
-    return null;
-  }
-
-  const match = url.pathname.match(ENTRY_EDIT_PATH);
-
-  if (!match || !collections.includes(match[1])) {
-    return null;
-  }
-
-  url.searchParams.set('live-preview', '1');
-
-  return url.toString();
 }
 
 // Where the entry was opened from, so the way out leads back there.
@@ -315,84 +405,36 @@ export function showEntryOpening(doc, fromEl, url) {
 export function initOpenInPreview(win) {
   const collections = openInPreviewCollections(win);
 
-  if (!collections.length) {
+  // Only on a Control Panel page of its own. Inside an iframe this document is
+  // the editor in the overlay or a screen framed in a Live Preview drawer, and
+  // neither is a list to put labels on — the drawer decides for itself where a
+  // row opens (lp-collections.js).
+  if (!collections.length || isEmbeddedInSite(win)) {
     return;
   }
 
-  // The link, caught on the way down so it never reaches Inertia's own handler.
-  win.document.addEventListener(
-    'click',
-    (event) => {
-      // Anything but a plain left click belongs to the browser: a middle click or
-      // ⌘-click is asking for a tab, and a tab should open what the link says.
-      if (event.defaultPrevented || event.button !== 0) {
-        return;
-      }
+  ensureOpenPreviewStyles(win.document);
 
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
+  // The rows are Statamic's Vue, drawn after boot and redrawn on sort, paging
+  // and every Inertia visit; the one honest signal that a row is on screen is
+  // the DOM. One observer, one pass per animation frame; the pass only adds
+  // what is missing, so its own writes are the last mutation it causes.
+  let scheduled = false;
 
-      const anchor = event.target?.closest?.('a[href]');
-
-      if (!anchor || (anchor.target && anchor.target !== '_self')) {
-        return;
-      }
-
-      const url = previewUrlFor(win, anchor.href, collections);
-
-      if (!url) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-
-      goToPreview(win, url, anchor);
-    },
-    true
-  );
-
-  // And the move that no link made: a row that navigates from JavaScript never
-  // produces a click on an `<a>`, so it would otherwise slip past. Cancelled and
-  // re-issued from the next tick, so the router isn't asked to start a visit
-  // while it is still calling one off.
-  //
-  // Waited for rather than read once: this runs as the CP boots, and the router
-  // is put on `__STATAMIC__` by Inertia's own start-up. Asking too early and
-  // giving up would lose the net for the whole session.
-  const hookRouter = (attempts = 0) => {
-    const router = win.__STATAMIC__?.inertia?.router;
-
-    if (typeof router?.on !== 'function') {
-      if (attempts < 50) {
-        win.setTimeout(() => hookRouter(attempts + 1), 100);
-      }
-
-      return;
-    }
-
-    router.on('before', (event) => {
-      const visit = event.detail?.visit;
-
-      if (!visit || (visit.method && String(visit.method).toLowerCase() !== 'get')) {
-        return;
-      }
-
-      const url = previewUrlFor(win, String(visit.url), collections);
-
-      if (!url) {
-        return;
-      }
-
-      win.setTimeout(() => goToPreview(win, url), 0);
-
-      return false;
-    });
+  const pass = () => {
+    scheduled = false;
+    labelRows(win, win.document, collections);
   };
 
-  hookRouter();
+  const schedule = () => {
+    if (!scheduled) {
+      scheduled = true;
+      win.requestAnimationFrame(pass);
+    }
+  };
+
+  new win.MutationObserver(schedule).observe(win.document.body, { childList: true, subtree: true });
+  schedule();
 
   win.addEventListener('sve-overlay-idle', () => clearEntryOpening(win.document));
 }

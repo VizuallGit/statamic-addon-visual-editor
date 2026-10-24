@@ -12,8 +12,11 @@ import {
   FRAMED_SELECT_STYLE,
   LP_SAVE_TIMEOUT,
   autoOpenLivePreview,
+  confirmLeaveIfDirty,
   coverForNavigation,
   isEmbeddedInSite,
+  leaveToOrigin,
+  postToHost,
   sendToPreview,
 } from './cp.js';
 import { COLLECTION_PICKER_ID, LP_PRIMARY_FLAT, NEW_ENTRY_ID } from './lib/ids.js';
@@ -24,7 +27,7 @@ import { activeContainers } from './lib/publish-containers.js';
 import { dismissChromeForPageEdit, isGlobalsOverlayOpen } from './section-library.js';
 import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, parkGlobalsPanel, saveGlobalsPanel } from './globals-panel.js';
 import { clearSectionsStash, closeGlobalSectionPanel, hasUnsavedGlobalSection, saveGlobalSectionPanel } from './global-section.js';
-import { discardChanges, dismissDirtyWarning, hasUnsavedChanges, leaveQuietly, onEntrySave, saveButtonIn } from './open-in-preview.js';
+import { discardChanges, dismissDirtyWarning, forgetOrigin, hasUnsavedChanges, leaveQuietly, onEntrySave, saveButtonIn } from './open-in-preview.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 async function gotoOverlay(win, url) {
@@ -49,6 +52,18 @@ export function pickerCollections(win) {
   const list = win.Statamic?.$config?.get?.('sveCollections');
 
   return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Can an entry of a collection open in Live Preview? Handle → yes/no, for
+ * every collection this user may edit, the editor's stores included — the
+ * server's answer (`svePreviewable`, ScriptCollections::previewableMap), the
+ * same one the picker's `previewable` flag comes from.
+ */
+export function previewableCollections(win) {
+  const map = win.Statamic?.$config?.get?.('svePreviewable');
+
+  return map && typeof map === 'object' ? map : {};
 }
 
 function fieldScalar(value) {
@@ -674,6 +689,30 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
     },
     onCancel
   );
+}
+
+/**
+ * Leaves Live Preview for a plain Control Panel screen — the publish form of
+ * an entry that has no page to preview. The opposite of navigateFromLp, on
+ * the same terms: unsaved work is asked about first, and the way out is the
+ * one × takes (grid-rows.js leaveToAdmin): the overlay host is told to close
+ * onto the URL, or the Control Panel visits it itself.
+ */
+export function leaveLpTo(win, url) {
+  confirmLeaveIfDirty(win, () => {
+    // Settling on a form is an answer to "where does this end": the note that
+    // would have led × back to a listing is for the entry that was open here.
+    forgetOrigin(win);
+
+    if (isEmbeddedInSite(win)) {
+      dismissDirtyWarning(win);
+      postToHost(win, 'lp-close', { url });
+
+      return;
+    }
+
+    leaveToOrigin(win, url);
+  });
 }
 
 /**

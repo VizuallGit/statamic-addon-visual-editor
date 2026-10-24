@@ -666,14 +666,14 @@ tabs:
                 ai_text: 'equals true'
       -
         display: 'Opening an entry'
-        instructions: 'Where a click in the Control Panel lands. Named collections skip the publish form and open in the preview instead; everything else opens the way Statamic ships.'
+        instructions: 'Ways into Live Preview from the Control Panel. The entry title always opens the publish form, as Statamic ships; these add a second door beside it.'
         fields:
           -
             handle: open_in_preview
             field:
               type: toggle
-              display: 'Open entries in Live Preview'
-              instructions: 'Clicking an entry — in a listing, in the page tree, in search — goes straight into the preview rather than the form behind it. The form is not gone: closing the preview puts you in it, on the same entry.'
+              display: '"Open in Live Preview" on rows'
+              instructions: 'Every row of the named collections — in the listing and in the page tree — gets a small "Open in Live Preview" label beside the title. The label opens the entry in Live Preview; closing it brings you back to the list. The title itself still opens the form.'
               default: false
               if:
                 enabled: 'equals true'
@@ -682,11 +682,20 @@ tabs:
             field:
               type: collections
               display: Collections
-              instructions: 'Only these. A collection left out here opens its ordinary editor, which is what you want for the ones that are records rather than pages. Collections without a route are ignored even when named: there is no page to render, so there would be nothing to open.'
+              instructions: 'Only these. A collection left out here shows no label, which is what you want for the ones that are records rather than pages. Collections without a route are ignored even when named: there is no page to render, so there would be nothing to open.'
               mode: select
               if:
                 enabled: 'equals true'
                 open_in_preview: 'equals true'
+          -
+            handle: home_preview_button
+            field:
+              type: toggle
+              display: 'Live Preview button in the top bar'
+              instructions: 'A Live Preview button in the Control Panel''s top bar, on every page, that opens the site''s front page in Live Preview. Stays away when there is no entry at `/` or you may not edit it.'
+              default: true
+              if:
+                enabled: 'equals true'
       -
         display: 'Section library tabs'
         instructions: 'Which tabs the section library offers. Requires the section library itself to be on.'

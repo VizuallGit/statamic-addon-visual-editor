@@ -71,6 +71,10 @@ class Features
         'html_tree',
         'inline_edit',
         'open_in_preview',
+        // A Live Preview button in the Control Panel's top bar, on every CP
+        // page: opens the front page in Live Preview. On unless the settings
+        // or config say false; off, it is one button and nothing else.
+        'home_preview_button',
         'template_dock',
         'site_css',
         'file_manager',

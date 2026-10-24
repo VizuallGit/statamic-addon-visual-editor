@@ -27,6 +27,15 @@ export function livePreviewEditorEl(doc) {
   return doc.querySelector('.live-preview-editor');
 }
 
+/**
+ * True when the CP is running inside an iframe — the edit overlay on the
+ * site or on a CP listing, or a screen framed in a Live Preview drawer —
+ * rather than as a page of its own.
+ */
+export function isEmbeddedInSite(win) {
+  return win.parent !== win.self;
+}
+
 /** Whether a button or link reads as Statamic's "open Live Preview", in any CP language. */
 export function isLivePreviewControl(el) {
   const text = `${el.textContent || ''} ${el.getAttribute('title') || ''}`;

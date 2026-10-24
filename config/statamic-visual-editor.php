@@ -81,10 +81,18 @@ return [
     |                      flag on the visual_edit tags stops taking effect and a
     |                      click focuses the field in the panel instead — so a
     |                      site can turn this off without touching its templates.
-    | - open_in_preview:    clicking an entry opens the preview instead of the
-    |                      publish form. Which collections that covers is listed
-    |                      beside it; a collection without a route is skipped,
-    |                      since it has no page to render.
+    | - open_in_preview:    every row of the named collections — in the
+    |                      listing and in the page tree — carries a small
+    |                      "Open in Live Preview" label beside the title. The
+    |                      title itself still opens the publish form, as
+    |                      Statamic ships. Which collections that covers is
+    |                      listed beside it; a collection without a route is
+    |                      skipped, since it has no page to render.
+    | - home_preview_button: a Live Preview button in the Control Panel's top
+    |                      bar, on every page, that opens the site's front page
+    |                      (the entry at `/`) in Live Preview. On by default;
+    |                      away when there is no such entry or the user may
+    |                      not edit it.
     | - template_dock:     clicking a section opens a bottom panel with that
     |                      section's Antlers file (HTML / CSS / JS). Saving
     |                      writes the file on this server. Off by default.
@@ -160,6 +168,7 @@ return [
         'html_tree' => true,
         'inline_edit' => true,
         'open_in_preview' => false,
+        'home_preview_button' => true,
         'template_dock' => false,
         'site_css' => false,
         'file_manager' => false,

@@ -632,6 +632,13 @@ return [
     'back_to_admin_title' => 'Close Live Preview and return to the Control Panel',
     'open_in_new_tab' => 'Open in new tab',
     'open_in_new_tab_title' => 'Open the page in a new tab — the editor stays open',
+    // The label beside an entry's title in a listing or the page tree
+    // (open-in-preview.js), and the top bar's front-page button
+    // (home-preview-button.js).
+    'open_in_live_preview' => 'Open in Live Preview',
+    'open_in_live_preview_title' => 'Open :title in Live Preview',
+    'home_preview_button' => 'Live Preview',
+    'home_preview_button_title' => 'Open the front page in Live Preview',
     'close_live_preview' => 'Close live preview',
     'close_live_preview_title' => 'Close Live Preview',
     'more_lp_title' => 'More',

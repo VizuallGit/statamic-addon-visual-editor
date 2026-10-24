@@ -25,10 +25,10 @@ final class ScriptCollections
      *
      * All of them, not only the previewable ones: jumping straight to "new blog
      * post" is worth having even where there's no page to show. `previewable`
-     * says which can actually open in Live Preview — that needs a route, and an
-     * entry without one has no page to render. The flag is computed, not
-     * configured, so a collection starts previewing itself the day it's given a
-     * route. Permission-filtered: the picker offers what you may edit.
+     * says which can actually open in Live Preview (see `previewable()`). The
+     * flag is computed, not configured, so a collection starts previewing
+     * itself the day it's given a route. Permission-filtered: the picker
+     * offers what you may edit.
      */
     public static function pickerCollections(): array
     {
@@ -49,12 +49,80 @@ final class ScriptCollections
             ->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),
-                'previewable' => (bool) $collection->route($site),
+                'previewable' => static::previewable($collection, $site),
                 'createUrl' => $collection->createEntryUrl($site),
             ])
             ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
+    }
+
+    /**
+     * `previewable()` for every collection this user may edit, by handle —
+     * the editor's own stores included. The Collections drawer in Live
+     * Preview can land on any collection, the stores among them (the Templates
+     * store opens in Live Preview, the others do not), and it reads this
+     * before it moves. Same answer as the picker's flag, from the same
+     * function.
+     *
+     * @return array<string, bool>
+     */
+    public static function previewableMap(): array
+    {
+        if (! $user = User::current()) {
+            return [];
+        }
+
+        $site = Site::selected()?->handle() ?? Site::default()->handle();
+
+        return Collection::all()
+            ->filter(fn ($collection) => $user->can('edit', $collection))
+            ->mapWithKeys(fn ($collection) => [$collection->handle() => static::previewable($collection, $site)])
+            ->all();
+    }
+
+    /**
+     * Can an entry of this collection open in Live Preview?
+     *
+     * Asked of the entry class itself — `livePreviewUrl()` is what Statamic's
+     * own publish form asks before it draws the Live Preview button. For an
+     * ordinary collection that means a route on this site; the Templates
+     * store (`CollectionTemplateEntry`) answers yes without one, because its
+     * preview target is the addon's own endpoint. One question, one answer,
+     * wherever it is asked.
+     */
+    public static function previewable($collection, string $site): bool
+    {
+        // A probe id: the URL needs one, and a fresh entry has none.
+        return Entry::make()->id('sve-probe')->collection($collection)->locale($site)->livePreviewUrl() !== null;
+    }
+
+    /**
+     * The site's front page, for the Control Panel's top-bar button: the entry
+     * at `/` on the selected site, as a Live Preview URL. Null when there is no
+     * such entry, when it cannot be previewed, or when this user may not edit
+     * it — and the button stays away.
+     *
+     * @return array{id: string, title: string, url: string}|null
+     */
+    public static function homePreview(): ?array
+    {
+        if (! Features::enabled('home_preview_button') || ! $user = User::current()) {
+            return null;
+        }
+
+        $site = Site::selected()?->handle() ?? Site::default()->handle();
+        $entry = Entry::findByUri('/', $site);
+
+        if (! $entry || ! $user->can('edit', $entry) || $entry->livePreviewUrl() === null) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $entry->id(),
+            'title' => (string) ($entry->value('title') ?? ''),
+            'url' => $entry->editUrl().'?live-preview=1',
+        ];
     }
 
     /**
@@ -84,12 +152,13 @@ final class ScriptCollections
     }
 
     /**
-     * The collections a click lands in the preview rather than the form.
+     * The collections whose rows carry an "Open in Live Preview" label in the
+     * Control Panel's listings and page tree.
      *
-     * Filtered down to the ones that can actually be previewed. A collection
-     * without a route has no page to render, so Statamic draws no Live Preview
-     * button — an entry there would sit behind the cover waiting for something
-     * that is never coming. Named or not, those open the ordinary editor.
+     * Filtered down to the ones that can actually be previewed (`previewable()`).
+     * A collection without a route has no page to render, so Statamic draws no
+     * Live Preview button — an entry there would sit behind the cover waiting
+     * for something that is never coming. Named or not, those get no label.
      *
      * @return array<int, string>
      */
@@ -108,7 +177,11 @@ final class ScriptCollections
         $site = Site::selected()?->handle() ?? Site::default()->handle();
 
         return collect($chosen)
-            ->filter(fn ($handle) => (bool) Collection::findByHandle($handle)?->route($site))
+            ->filter(function ($handle) use ($site) {
+                $collection = Collection::findByHandle($handle);
+
+                return $collection && static::previewable($collection, $site);
+            })
             ->values()
             ->all();
     }
