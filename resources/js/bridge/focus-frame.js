@@ -65,6 +65,26 @@ export function focusFrameOpen(kind) {
   return frames.has(kind);
 }
 
+/**
+ * The viewport boxes of every open frame's chips (label, actions) — what the
+ * row toolbar keeps clear of, so Close is never under "move up".
+ */
+export function focusFrameChipRects() {
+  const rects = [];
+
+  for (const frame of frames.values()) {
+    for (const el of [frame.label, frame.actions]) {
+      const rect = el.getBoundingClientRect();
+
+      if (rect.width && rect.height) {
+        rects.push(rect);
+      }
+    }
+  }
+
+  return rects;
+}
+
 function chip(doc, attr, color, { fill = true, bold = false, radius = '0' } = {}) {
   const el = doc.createElement('button');
 
@@ -221,7 +241,7 @@ export function mountFocusFrame(win, { kind, el, label, t, dirtyable = false, di
   root.append(labelEl, actions);
   doc.documentElement.appendChild(root);
 
-  frame = { kind, el, root, label: labelEl, status, save, close, dirtyable, dirty, onSave, onClose, unwatch: null };
+  frame = { kind, el, root, label: labelEl, actions, status, save, close, dirtyable, dirty, onSave, onClose, unwatch: null };
   frames.set(kind, frame);
 
   paintDirty(frame);

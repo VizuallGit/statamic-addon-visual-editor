@@ -11,6 +11,7 @@ import { sidTemplatePayload } from './inserters.js';
 import { ICONS, applyBlockFormat, applyControlValue, applyHighlightColor, applyVizuStyle, bardCommand, clearVizuSpanProp, detectCpDark, headingIcon, letterIcon, openControlMenu, openHighlightColorMenu, openToolbarMenu, positionEditToolbar, readSelectionVizuProp, removeEditToolbar, sendEditInput, setVizuSpanProp, styleIdentHtml, toggleSpanClass, toolbarThemeFor, updateEditToolbarState } from './inline-edit.js';
 import { hideMoveControl, requestRowCaps } from './row-caps-move.js';
 import { finishEditing } from './editing.js';
+import { focusFrameChipRects } from './focus-frame.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== row-toolbar =====
@@ -454,9 +455,21 @@ function positionHoverBelt(win) {
   }
 
   const maxLeft = win.innerWidth - hoverBeltEl.offsetWidth - 8;
+  const left = Math.max(8, Math.min(rect.left, maxLeft));
+  const width = hoverBeltEl.offsetWidth || 200;
+
+  // A focus frame's chips (the label, Close) own the top edge of what they
+  // frame. The belt steps down below them, with a gap, rather than over them.
+  for (const chip of focusFrameChipRects()) {
+    const overlaps = left < chip.right && left + width > chip.left && top < chip.bottom && top + barHeight > chip.top;
+
+    if (overlaps) {
+      top = chip.bottom + 10;
+    }
+  }
 
   hoverBeltEl.style.top = `${top}px`;
-  hoverBeltEl.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
+  hoverBeltEl.style.left = `${left}px`;
 }
 
 export function pointerInHoverBeltGap(event) {
