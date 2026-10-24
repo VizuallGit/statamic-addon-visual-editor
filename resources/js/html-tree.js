@@ -18,7 +18,7 @@ import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './
 import HtmlTreePane from './cp/surfaces/HtmlTreePane.vue';
 import HtmlTreeList from './cp/surfaces/HtmlTreeList.vue';
 import { htmlTreeUi, readHtmlTreeLook } from './cp/html-tree/store.js';
-import { flattenHtmlTree, isTaglessRow, isVoidTag, parseTemplateTree } from './html-tree-parse.js';
+import { componentName, flattenHtmlTree, isTaglessRow, isVoidTag, parseTemplateTree } from './html-tree-parse.js';
 import {
   componentPropsOn,
   fetchComponentProps,
@@ -3177,7 +3177,9 @@ function openComponentRow(win, row, show) {
   if (!hasToken(row.src)) {
     show([
       {
-        label: t(win, 'component_open_named', { name: row.name || row.src }),
+        // The file that opens, by its own name. The row may wear another: a
+        // section written as one component call wears the section's.
+        label: t(win, 'component_open_named', { name: componentName(row.src) || row.src }),
         onPick: () => openComponent(win, `view:partials/${row.src}`),
       },
     ]);
@@ -4370,15 +4372,52 @@ register('html-tree:open-section', (uid) => {
   return { uid: section.uid, ids: section.ids };
 });
 
-register('html-tree:from-preview', ({ path, src } = {}) => {
+register('html-tree:from-preview', ({ path, src, uid } = {}) => {
   // A field waiting for something to point at gets the click first. Nothing is
   // armed the rest of the time, so the tree's own behaviour is untouched.
   if (componentBindPick(window, path)) {
     return;
   }
 
+  if (!path) {
+    pointHtmlTreeAtSection(window, uid);
+
+    return;
+  }
+
   selectHtmlTreeByPath(window, componentPathFor(path, src) || path);
 });
+
+/**
+ * A click on a section, before any tag of its file could be stamped.
+ *
+ * A click on the page is answered with a path once the dock holds the file
+ * and its tags are aligned with what was clicked (`reportAwaitedPick`). A
+ * section written as one component call has no tag to align: the answer
+ * never comes, and the list went on holding every section shut — with the
+ * dock already on the section's file. The click said which section all the
+ * same. So the shell passes the uid on as the click lands; the list stops
+ * holding the sections shut, and the dock's next paint unfolds the one it
+ * then holds. A file with tags still gets its path a moment later and the
+ * row under the click is marked, as before.
+ */
+function pointHtmlTreeAtSection(win, uid) {
+  if (!uid || !htmlTreeShutStart || !htmlTreePanel(win.document)) {
+    return;
+  }
+
+  const sections = htmlTreeSections(win, win.document);
+
+  if (!sections.some((section) => section.uid === uid || section.ids.includes(uid))) {
+    return;
+  }
+
+  // Folds and the marked row belong to the list that was shut.
+  htmlTreeShutStart = false;
+  htmlTreeFolds.clear();
+  htmlTreeActiveId = null;
+  renderHtmlTree(win);
+}
 
 /**
  * Pick mode, asked for by something other than the tree.

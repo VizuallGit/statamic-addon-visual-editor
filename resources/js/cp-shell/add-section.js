@@ -1821,6 +1821,10 @@ export function createMessageListener(doc = document, win = window) {
 
       if (dockUid) {
         syncCodeDock(win, doc, dockUid);
+        // The HTML tree hears the same click: a section whose file has no tag
+        // to stamp never gets the path report above, and the tree would hold
+        // every section shut while the dock sat on this one.
+        ask('html-tree:from-preview', { uid: dockUid });
       }
 
       // The selection panel takes the row — the block clicked, or the section —
