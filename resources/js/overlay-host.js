@@ -604,19 +604,6 @@ function createHost(win) {
       /* private mode */
     }
 
-    if (isCpHost(win)) {
-      detachFrames();
-      saved = false;
-
-      if (!fromHistory) {
-        quietlyPopOverlayHistory(win);
-      }
-
-      morph(() => root.classList.remove('sve-editing'));
-
-      return;
-    }
-
     let dest = null;
 
     if (target) {
@@ -632,6 +619,28 @@ function createHost(win) {
     }
 
     const elsewhere = dest && dest.pathname !== win.location.pathname;
+
+    if (isCpHost(win)) {
+      // Asked to close onto another Control Panel screen (the editor leaving
+      // Live Preview for an entry's plain publish form): go there, frames up,
+      // as the site host does below. Without a destination, just lift.
+      if (elsewhere) {
+        win.location.href = dest.href;
+
+        return;
+      }
+
+      detachFrames();
+      saved = false;
+
+      if (!fromHistory) {
+        quietlyPopOverlayHistory(win);
+      }
+
+      morph(() => root.classList.remove('sve-editing'));
+
+      return;
+    }
 
     if (saved || elsewhere) {
       if (elsewhere) {

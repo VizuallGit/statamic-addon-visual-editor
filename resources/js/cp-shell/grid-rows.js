@@ -1145,8 +1145,13 @@ export function leaveToFrontend(win) {
   leaveToAdmin(win);
 }
 
-/** Save or discard first when the form is dirty, then run `leave`. */
-export function confirmLeaveIfDirty(win, leave) {
+/**
+ * Save or discard first when the form is dirty, then run `leave`. `onCancel`
+ * runs when the trip is called off — the question dismissed, or a save that
+ * did not go through — so a control that already shows the destination can
+ * show the present again (the entry picker).
+ */
+export function confirmLeaveIfDirty(win, leave, onCancel = () => {}) {
   if (!hasUnsavedWork(win)) {
     leave();
 
@@ -1158,11 +1163,15 @@ export function confirmLeaveIfDirty(win, leave) {
     () => {
       saveGlobalsPanel(win, (ok) => {
         if (!ok) {
+          onCancel();
+
           return;
         }
 
         saveGlobalSectionPanel(win, (sectionOk) => {
           if (!sectionOk) {
+            onCancel();
+
             return;
           }
 
@@ -1181,7 +1190,8 @@ export function confirmLeaveIfDirty(win, leave) {
       discardGlobalsChanges(win);
       clearSectionsStash(win, { refresh: false });
       leave();
-    }
+    },
+    onCancel
   );
 }
 

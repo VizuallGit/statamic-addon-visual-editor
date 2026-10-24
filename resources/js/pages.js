@@ -698,21 +698,46 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
  * one × takes (grid-rows.js leaveToAdmin): the overlay host is told to close
  * onto the URL, or the Control Panel visits it itself.
  */
-export function leaveLpTo(win, url) {
-  confirmLeaveIfDirty(win, () => {
-    // Settling on a form is an answer to "where does this end": the note that
-    // would have led × back to a listing is for the entry that was open here.
-    forgetOrigin(win);
+export function leaveLpTo(win, url, onCancel = () => {}) {
+  confirmLeaveIfDirty(
+    win,
+    () => {
+      // Settling on a form is an answer to "where does this end": the note that
+      // would have led × back to a listing is for the entry that was open here.
+      forgetOrigin(win);
 
-    if (isEmbeddedInSite(win)) {
-      dismissDirtyWarning(win);
-      postToHost(win, 'lp-close', { url });
+      if (isEmbeddedInSite(win)) {
+        dismissDirtyWarning(win);
+        postToHost(win, 'lp-close', { url });
 
-      return;
-    }
+        return;
+      }
 
-    leaveToOrigin(win, url);
-  });
+      leaveToOrigin(win, url);
+    },
+    onCancel
+  );
+}
+
+/**
+ * Opens an entry picked inside Live Preview — the picker's select, its "New"
+ * — where it belongs: in Live Preview when its collection can be previewed,
+ * on its plain publish form in the Control Panel when it cannot. The same
+ * answer the Collections drawer acts on (lp-collections.js), from the same
+ * server map, through the same two ways out.
+ */
+export function openEntryFromLp(win, anchor, handle, id, onCancel = () => {}) {
+  const url =
+    `${win.location.origin}/cp/collections/${encodeURIComponent(handle)}` +
+    `/entries/${encodeURIComponent(id)}`;
+
+  if (previewableCollections(win)[handle] === true) {
+    navigateFromLp(win, anchor, `${url}?live-preview=1`, onCancel);
+
+    return;
+  }
+
+  leaveLpTo(win, url, onCancel);
 }
 
 /**
@@ -1019,14 +1044,9 @@ function mountCollectionPicker(win, header, collections) {
       return;
     }
 
-    const collection = selected();
-    const url =
-      `${win.location.origin}/cp/collections/${encodeURIComponent(collection.handle)}` +
-      `/entries/${encodeURIComponent(entrySelect.value)}${collection.previewable ? '?live-preview=1' : ''}`;
-
     // Stay-put has to look like staying put: if the trip is called off, the
     // picker goes back to naming the entry that's actually open.
-    navigateFromLp(win, entrySelect, url, () => {
+    openEntryFromLp(win, entrySelect, selected().handle, entrySelect.value, () => {
       entrySelect.value = currentEntryId(win) ?? '';
     });
   });
@@ -1034,15 +1054,9 @@ function mountCollectionPicker(win, header, collections) {
   newBtn.addEventListener('click', () => {
     const collection = selected();
 
-    newEntryDialog(win, collection, (id) => {
-      const url =
-        `${win.location.origin}/cp/collections/${encodeURIComponent(collection.handle)}` +
-        `/entries/${encodeURIComponent(id)}${collection.previewable ? '?live-preview=1' : ''}`;
-
-      // The entry already exists by now, so there is nothing unsaved to ask about
-      // — but this is the route that knows how to land in a preview.
-      navigateFromLp(win, newBtn, url);
-    });
+    // The new entry already exists by now; what may be unsaved is the one
+    // open here, and the route out asks about that.
+    newEntryDialog(win, collection, (id) => openEntryFromLp(win, newBtn, collection.handle, id));
   });
 
   wrap.appendChild(collectionSelect);

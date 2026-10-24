@@ -9,6 +9,7 @@ import { injectStyle } from './lib/style.js';
 import { unwrapRef } from './lib/values.js';
 import { isEmbeddedInSite, lpHeader } from './lib/live-preview.js';
 import { previewUrlFor } from './lib/entry-open.js';
+import { ENTRY_OPEN_ATTR, ENTRY_OPEN_STYLE_ID, clearEntryOpening, ensureEntryOpenStyles, entryTitleAnchor, showEntryOpening } from './lib/entry-opening.js';
 import { publishContainers } from './lib/publish-containers.js';
 import { entrySaveSettling, entryValuesBaseline, scheduleEntryBaseline, scheduleEntryBaselineAfterSave, serializeEntryValues } from './inline-edit.js';
 
@@ -245,37 +246,9 @@ export function goToPreview(win, url, fromEl) {
   openOverlay(win, url);
 }
 
-export const ENTRY_OPEN_STYLE_ID = '__sve-entry-open-style';
-export const ENTRY_OPEN_ATTR = 'data-sve-entry-loading';
-
-export function ensureEntryOpenStyles(doc) {
-  injectStyle(doc, ENTRY_OPEN_STYLE_ID, `
-[${ENTRY_OPEN_ATTR}] {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-inline-start: 8px;
-  height: 8px;
-  pointer-events: none;
-  flex: 0 0 auto;
-}
-[${ENTRY_OPEN_ATTR}] i {
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: .22;
-  animation: sve-entry-dots 1s ease-in-out infinite;
-}
-[${ENTRY_OPEN_ATTR}] i:nth-child(2) { animation-delay: .15s; }
-[${ENTRY_OPEN_ATTR}] i:nth-child(3) { animation-delay: .3s; }
-[${ENTRY_OPEN_ATTR}] i:nth-child(4) { animation-delay: .45s; }
-@keyframes sve-entry-dots {
-  0%, 100% { opacity: .22; }
-  50% { opacity: .88; }
-}
-`);
-}
+// The loading dots beside an entry's link live in lib/entry-opening.js and
+// take themselves down on `sve-overlay-idle`; re-exported for the shell.
+export { ENTRY_OPEN_ATTR, ENTRY_OPEN_STYLE_ID, clearEntryOpening, ensureEntryOpenStyles, entryTitleAnchor, showEntryOpening };
 
 export const LP_OPENING_ATTR = 'data-sve-lp-opening';
 const LP_OPENING_STYLE_ID = '__sve-lp-opening-style';
@@ -341,67 +314,6 @@ export function markLivePreviewOpening(win, button) {
   win.addEventListener('sve-overlay-idle', done);
 }
 
-export function clearEntryOpening(doc) {
-  doc.querySelectorAll(`[${ENTRY_OPEN_ATTR}]`).forEach((el) => el.remove());
-}
-
-export function entryTitleAnchor(doc, fromEl, url) {
-  if (fromEl?.closest) {
-    const branch = fromEl.closest('.page-tree-branch');
-    const inBranch = branch?.querySelector('a[href*="/entries/"]');
-
-    if (inBranch) {
-      return inBranch;
-    }
-
-    if (fromEl.matches?.('a[href]')) {
-      return fromEl;
-    }
-
-    const nested = fromEl.querySelector?.('a[href*="/entries/"]');
-
-    if (nested) {
-      return nested;
-    }
-  }
-
-  let path = '';
-
-  try {
-    path = new URL(url, doc.defaultView.location.origin).pathname;
-  } catch {
-    return null;
-  }
-
-  const links = [...doc.querySelectorAll(`a[href*="/entries/"]`)];
-
-  return links.find((a) => {
-    try {
-      return new URL(a.href, doc.defaultView.location.origin).pathname === path;
-    } catch {
-      return false;
-    }
-  }) || null;
-}
-
-export function showEntryOpening(doc, fromEl, url) {
-  ensureEntryOpenStyles(doc);
-  clearEntryOpening(doc);
-
-  const anchor = entryTitleAnchor(doc, fromEl, url);
-
-  if (!anchor) {
-    return;
-  }
-
-  const dots = doc.createElement('span');
-
-  dots.setAttribute(ENTRY_OPEN_ATTR, '');
-  dots.setAttribute('aria-hidden', 'true');
-  dots.innerHTML = '<i></i><i></i><i></i><i></i>';
-  anchor.after(dots);
-}
-
 export function initOpenInPreview(win) {
   const collections = openInPreviewCollections(win);
 
@@ -435,8 +347,6 @@ export function initOpenInPreview(win) {
 
   new win.MutationObserver(schedule).observe(win.document.body, { childList: true, subtree: true });
   schedule();
-
-  win.addEventListener('sve-overlay-idle', () => clearEntryOpening(win.document));
 }
 
 // Notified with `true`/`false` whenever the entry is written back (or fails to
