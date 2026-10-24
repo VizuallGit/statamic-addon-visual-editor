@@ -70,12 +70,19 @@ class SectionImportTest extends TestCase
     public function test_the_root_the_import_writes_is_the_root_the_scaffold_declares()
     {
         // The import promotes a pasted element to the section root by giving it
-        // these three. If the scaffold ever changes what a root wears, this is
-        // what says so before a section is imported without it.
+        // the id and the visual_edit the scaffold declares. If the scaffold ever
+        // changes what a root wears, this is what says so before a section is
+        // imported without it.
+        //
+        // `{{ _class }}` is the import's own, not the scaffold's: a new blank
+        // section starts with `class=""` — the classes are the author's to
+        // write (d1c91b80) — while an imported section gets `[ {{ _class }} ]`
+        // because its CSS pane is scoped with `@scope(.{{ _class }})`.
         $scaffold = SectionTypeMaker::staticScaffold();
 
         $this->assertStringContainsString('id="id-{{ id }}"', $scaffold);
-        $this->assertStringContainsString('{{ _class }}', $scaffold);
+        $this->assertStringContainsString('class=""', $scaffold);
+        $this->assertStringNotContainsString('{{ _class }}', $scaffold);
         $this->assertStringContainsString(
             '{{ visual_edit outline_inside="true" section_orderable="true" }}',
             $scaffold
