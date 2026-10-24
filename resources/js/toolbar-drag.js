@@ -1,13 +1,14 @@
 /**
  * Drag in the Live Preview top bar: a tool's icon between the tools of a
  * group, into another group, or out into a new group of its own — or a whole
- * group, by the grip at its corner, to the left or right of the others.
+ * group, grabbed by its own surface around and between the icons, to the left
+ * or right of the others.
  *
  * One delegated `pointerdown` on the bar arms a gesture; nothing moves until
  * the pointer has travelled a few pixels, so a plain click still opens the
  * tool. The drop goes through toolbar-visibility.js, which owns the groups and
  * redraws the bar — this module only reads the bar's DOM to find the slot.
- * The grip's arrow keys move its group one place, through the same write.
+ * By keyboard, groups move in the Live Preview settings menu (⋮ → Top bar).
  *
  * May import: ./toolbar-visibility.js, ./lib/*. Does not import the kernel.
  */
@@ -19,7 +20,6 @@ import {
   LP_CHROME_H,
   LP_TOOLBAR_GAP,
   TOOLBAR_ADD_ATTR,
-  TOOLBAR_GRIP_ATTR,
   TOOLBAR_GROUP_ATTR,
   TOOLBAR_NEW_GROUP_ATTR,
 } from './lib/ids.js';
@@ -32,8 +32,6 @@ const GROUP_TOOLS = ':scope > button[data-tab], :scope > [id^="__sve-frame-"]';
 const DRAG_THRESHOLD = 6;
 // A box takes the pointer this far past its edges facing away from a neighbour.
 const BOX_SLACK = 4;
-// How far right of the last box a drop still makes a new group.
-const TAIL_REACH = 48;
 // Half the 4px gap between tools inside a group box: where the line sits.
 const TOOL_GAP_HALF = 2;
 
@@ -64,7 +62,7 @@ function groupTools(box) {
 
 /** The tool node a press landed on, or null when this press is not a drag handle. */
 function pressedTool(target) {
-  if (target.closest(`[${TOOLBAR_ADD_ATTR}], [${TOOLBAR_GRIP_ATTR}], [${TOOLBAR_NEW_GROUP_ATTR}]`)) {
+  if (target.closest(`[${TOOLBAR_ADD_ATTR}], [${TOOLBAR_NEW_GROUP_ATTR}]`)) {
     return null;
   }
 
@@ -87,11 +85,16 @@ function pressedTool(target) {
   return toolKey(node) === 'settings' ? null : node;
 }
 
-/** The group box whose grip a press landed on, or null. */
-function pressedGroup(target) {
-  const box = target.closest(`[${TOOLBAR_GRIP_ATTR}]`)?.parentElement;
+/**
+ * The group box a press landed on — its own surface, not an icon or its «+» —
+ * when there is another group to move past, as the grab cursor says; or null.
+ */
+function pressedGroup(bar, target) {
+  if (target.parentElement !== bar || !target.hasAttribute(TOOLBAR_GROUP_ATTR)) {
+    return null;
+  }
 
-  return box?.hasAttribute(TOOLBAR_GROUP_ATTR) ? box : null;
+  return allBoxes(bar).length > 1 ? target : null;
 }
 
 /**
@@ -186,8 +189,11 @@ function slotAt(bar, x) {
     }
   }
 
-  if (x > last.right + BOX_SLACK && x <= last.right + TAIL_REACH) {
-    return { newGroupIndex: all.length, rects, at: last.right + LP_TOOLBAR_GAP, align: 'start' };
+  // Right of the last box, up to the end of the new-group square.
+  const square = bar.querySelector(`:scope > [${TOOLBAR_NEW_GROUP_ATTR}] > button`)?.getBoundingClientRect();
+
+  if (square && x > last.right + BOX_SLACK && x <= square.right + BOX_SLACK) {
+    return { newGroupIndex: all.length, rects, at: square.left, align: 'start' };
   }
 
   // Left of the first box is Page settings — still in the bar.
@@ -283,7 +289,7 @@ function startDrag(g) {
   g.active = true;
 
   try {
-    g.capture.setPointerCapture(g.pointerId);
+    g.node.setPointerCapture(g.pointerId);
   } catch {
     /* pointer already gone: pointerup / cancel cleans up */
   }
@@ -325,8 +331,8 @@ function endGesture() {
   delete g.bar.dataset.sveDraggingGroup;
   g.node.style.opacity = g.opacity;
 
-  if (g.capture.hasPointerCapture?.(g.pointerId)) {
-    g.capture.releasePointerCapture(g.pointerId);
+  if (g.node.hasPointerCapture?.(g.pointerId)) {
+    g.node.releasePointerCapture(g.pointerId);
   }
 }
 
@@ -410,7 +416,7 @@ function onDown(win, bar, event) {
     return;
   }
 
-  const box = pressedGroup(event.target);
+  const box = pressedGroup(bar, event.target);
   const node = box || pressedTool(event.target);
 
   if (!node) {
@@ -422,10 +428,8 @@ function onDown(win, bar, event) {
     win,
     bar,
     kind: box ? 'group' : 'tool',
-    // Dimmed while it moves: the group's box, or the tool's node.
+    // Holds the pointer and is dimmed while it moves: the group's box, or the tool's node.
     node,
-    // Holds the pointer: the grip itself, so its grabbing cursor stays on.
-    capture: box ? event.target.closest(`[${TOOLBAR_GRIP_ATTR}]`) : node,
     key: box ? box.getAttribute(TOOLBAR_GROUP_ATTR) : toolKey(node),
     pointerId: event.pointerId,
     x: event.clientX,
@@ -444,39 +448,6 @@ function onDown(win, bar, event) {
   win.addEventListener('blur', endGesture);
 }
 
-/** ← / → on a grip: its group one place past the next shown group that way. */
-function onGripKey(win, bar, event) {
-  if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || gesture?.active || !(event.target instanceof win.Element)) {
-    return;
-  }
-
-  const box = pressedGroup(event.target);
-
-  if (!box) {
-    return;
-  }
-
-  event.preventDefault();
-
-  const all = allBoxes(bar);
-  const step = event.key === 'ArrowLeft' ? -1 : 1;
-  let at = all.indexOf(box) + step;
-
-  while (at >= 0 && at < all.length && !isShown(all[at])) {
-    at += step;
-  }
-
-  if (at < 0 || at >= all.length) {
-    return;
-  }
-
-  const id = box.getAttribute(TOOLBAR_GROUP_ATTR);
-
-  moveToolbarGroup(win, id, at);
-  // The redraw moved the box, and a node that moves loses focus.
-  bar.querySelector(`:scope>[${TOOLBAR_GROUP_ATTR}="${id}"]>[${TOOLBAR_GRIP_ATTR}]`)?.focus();
-}
-
 /** Called on every Live Preview pass: binds once per bar element. */
 export function bindToolbarDrag(win) {
   const bar = win.document.getElementById(HEADER_TOOLBAR_ID);
@@ -487,5 +458,4 @@ export function bindToolbarDrag(win) {
 
   bar.dataset.sveDragBound = '1';
   bar.addEventListener('pointerdown', (event) => onDown(win, bar, event));
-  bar.addEventListener('keydown', (event) => onGripKey(win, bar, event));
 }

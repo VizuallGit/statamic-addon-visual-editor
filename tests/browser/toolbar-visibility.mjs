@@ -10,8 +10,8 @@
  * moves the icon in the bar and survives a reload; New group in the menu takes
  * a dropped row into a group of its own; the «+» at a group's edge adds a
  * hidden tool to it; an icon dragged in the bar itself joins another group,
- * or makes a new one when dropped in the gap; a whole group dragged by the
- * grip at its corner moves past another, and ← on the grip moves it one place;
+ * or makes a new one when dropped in the gap; a group's own surface shows the
+ * grab hand (its icons do not), and the group dragged by it moves past another;
  * the square right of the last group shows on hover, its «+» starts a new
  * group with any tool, and an icon dropped on it does the same; Reset groups
  * undoes it all.
@@ -265,16 +265,17 @@ async function dragIcon(page, frame, key, x) {
   await sleep(300);
 }
 
-const gripOf = (id) => `${BAR} > [data-sve-toolbar-group="${id}"] > [data-sve-toolbar-group-grip]`;
+const groupBox = (id) => `${BAR} > [data-sve-toolbar-group="${id}"]`;
 const NEW_GROUP = `${BAR} > [data-sve-toolbar-new-group]`;
 
-/** Drag a group by its grip, with the real mouse, to page coordinate `x` on the bar's line. */
+/**
+ * Drag a group by its own surface — 2 px into its padding, left of the first
+ * icon — with the real mouse, to page coordinate `x` on the bar's line.
+ */
 async function dragGroup(page, frame, id, x) {
-  const from = await pointIn(frame, gripOf(id));
+  const box = await rectIn(frame, groupBox(id));
+  const from = { x: box.left + 2, y: box.y };
 
-  // Onto the box first: the grip only takes the pointer while its group is hovered.
-  await page.mouse.move(from.x + 6, from.y + 6);
-  await sleep(200);
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(from.x + (x < from.x ? -12 : 12), from.y, { steps: 4 });
@@ -660,13 +661,28 @@ try {
   step('an icon dropped in the gap makes a new group there', regrouped.length === 2 && regrouped[0].join() === mover, JSON.stringify(regrouped));
   step('the group it emptied is gone', regrouped[1]?.includes(addable) && !(await storedGroups(cp)).some((g) => g.id === secondId), JSON.stringify(await storedGroups(cp)));
 
-  // ── A whole group, by the grip at its corner ──────────────────────────
+  // ── A whole group, by its own surface ─────────────────────────────────
   const [loneId, restId] = await groupBoxIds(cp);
-  const loneRect = await rectIn(cp, `${BAR} > [data-sve-toolbar-group="${loneId}"]`);
+  const loneRect = await rectIn(cp, groupBox(loneId));
   const pressedBefore = await pressedTools(cp);
+  const cursors = await cp.evaluate((sel) => {
+    const box = document.querySelector(sel);
+    const b = box.getBoundingClientRect();
+    const tool = box.querySelector(':scope > button[data-tab], :scope > [id^="__sve-frame-"] > button[data-tab]');
+
+    return {
+      surface: document.elementFromPoint(b.left + 2, b.top + b.height / 2) === box,
+      box: getComputedStyle(box).cursor,
+      icon: getComputedStyle(tool).cursor,
+      grip: !!document.querySelector('[data-sve-toolbar-group-grip]'),
+    };
+  }, groupBox(restId));
+
+  step('a group\'s own surface shows the grab hand, its icons their own pointer, and there is no grip',
+    cursors.surface && cursors.box === 'grab' && cursors.icon === 'pointer' && !cursors.grip, JSON.stringify(cursors));
 
   await dragGroup(page, cp, restId, loneRect.left + 4);
-  step('a group dragged by its grip moves in front of the other', (await groupBoxIds(cp)).join() === [restId, loneId].join(), (await groupBoxIds(cp)).join(' '));
+  step('a group dragged by its surface moves in front of the other', (await groupBoxIds(cp)).join() === [restId, loneId].join(), (await groupBoxIds(cp)).join(' '));
   step('and is stored in that order', (await storedGroups(cp)).map((g) => g.id).join() === [restId, loneId].join());
   step('Page settings stays first after a group drag', (await barOrder(cp))[0] === 'settings');
   step('the group drag opened nothing', (await pressedTools(cp)) === pressedBefore, await pressedTools(cp));
@@ -687,6 +703,7 @@ try {
 
     return {
       opacity: getComputedStyle(square).opacity,
+      plus: getComputedStyle(btn.querySelector('svg')).opacity,
       w: Math.round(r.width),
       h: Math.round(r.height),
       gap: Math.round(r.left - l.right),
@@ -702,9 +719,17 @@ try {
 
   const square = await squareState(cp);
 
-  step('hovering the bar shows the new-group square right of the last group: its height and surface, 1:1, one gap away',
-    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 8 && square.top === 0 && square.surface, JSON.stringify(square));
+  step('hovering the bar shows the new-group square right of the last group: its height and surface, 1:1, 1rem away',
+    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 16 && square.top === 0 && square.surface, JSON.stringify(square));
+  step('its «+» rests at half opacity', square?.plus === '0.5', JSON.stringify(square));
   await shot(page, '7-new-group-square');
+
+  const squarePoint = await pointIn(cp, `${NEW_GROUP} > button`);
+
+  await page.mouse.move(lastRect.right - 4, lastRect.y);
+  await page.mouse.move(squarePoint.x, squarePoint.y, { steps: 8 });
+  await sleep(250);
+  step('and is whole when the pointer is on it', (await squareState(cp))?.plus === '1', JSON.stringify(await squareState(cp)));
   await page.mouse.move(10, 880);
   await sleep(250);
   step('away from the bar the square is gone again', (await squareState(cp))?.opacity === '0', JSON.stringify(await squareState(cp)));
@@ -737,20 +762,6 @@ try {
   const withDropped = await groupBoxes(cp);
 
   step('an icon dropped on the square starts a new group there too', withDropped.length === 4 && withDropped[3].join() === dropped, JSON.stringify(withDropped));
-
-  // ── The grip's arrow keys ─────────────────────────────────────────────
-  const idsBeforeKey = await groupBoxIds(cp);
-  const lastId = idsBeforeKey[idsBeforeKey.length - 1];
-
-  await cp.focus(gripOf(lastId));
-  await page.keyboard.press('ArrowLeft');
-  await sleep(200);
-
-  const idsAfterKey = await groupBoxIds(cp);
-
-  step('← on a grip moves its group one place left', idsAfterKey[idsAfterKey.length - 2] === lastId, idsAfterKey.join(' '));
-  step('and the grip keeps the focus', await cp.evaluate((sel) => document.activeElement === document.querySelector(sel), gripOf(lastId)));
-  await cp.evaluate(() => document.activeElement?.blur());
 
   // ── Reset groups ──────────────────────────────────────────────────────
   await openMenuTab(page, cp, 'toolbar');

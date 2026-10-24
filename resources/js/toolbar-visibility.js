@@ -12,9 +12,10 @@
  *     the real button, so a hidden tool opens the one way it always did.
  *
  *   - WHERE icons stand is the DOM: one box per group
- *     (`[data-sve-toolbar-group]`), the tools inside it in the user's order,
- *     a grip at the group's top-left corner and a small «+» at its right edge;
- *     after the last box, a square whose «+» starts a new group. A pass that
+ *     (`[data-sve-toolbar-group]`), the tools inside it in the user's order
+ *     and a small «+» at its right edge; the box's own surface, around and
+ *     between the icons, is where the whole group is grabbed. After the last
+ *     box, a square whose «+» starts a new group. A pass that
  *     makes a button hands it to placeToolbarButton; syncToolbarGroups then
  *     puts every tool where the layout says — and only moves a node that is
  *     not already there, so the observer that re-runs the passes has nothing
@@ -44,7 +45,6 @@ import {
   LP_ICON_IDLE_OPACITY,
   LP_TOOLBAR_GAP,
   TOOLBAR_ADD_ATTR,
-  TOOLBAR_GRIP_ATTR,
   TOOLBAR_GROUP_ATTR,
   TOOLBAR_GROUPS_KEY,
   TOOLBAR_HIDDEN_KEY,
@@ -84,11 +84,6 @@ const ADD_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
   'stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
-const GRIP_ICON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
-  '<circle cx="9" cy="6" r="2"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/>' +
-  '<circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/><circle cx="15" cy="18" r="2"/></svg>';
-
 /** The new-group square's «+»: a tool icon's size and stroke, as the groups draw them. */
 const NEW_GROUP_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -97,7 +92,6 @@ const NEW_GROUP_ICON_SVG =
 const bar = `#${HEADER_TOOLBAR_ID}`;
 const group = `${bar}>[${TOOLBAR_GROUP_ATTR}]`;
 const add = `[${TOOLBAR_ADD_ATTR}]`;
-const grip = `[${TOOLBAR_GRIP_ATTR}]`;
 const newGroup = `${bar}>[${TOOLBAR_NEW_GROUP_ATTR}]`;
 
 /**
@@ -131,23 +125,23 @@ function frameCss() {
       'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
     `${group}:hover>${add},${group}:focus-within>${add},${group}>${add}:focus-visible{opacity:1;pointer-events:auto}`,
     `${group}>${add}:hover,${group}>${add}:focus-visible{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
-    // The grip: the same small disc, on the top-left corner. Only where there
-    // is another group to move past.
-    `${group}>${grip}{position:absolute;top:-.375rem;left:-.375rem;width:1rem;height:1rem;box-sizing:border-box;` +
-      'display:inline-flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:50%;cursor:grab;' +
-      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});box-shadow:0 0 0 1px rgba(128,128,128,.35);` +
-      'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
-    `${manyGroups}>[${TOOLBAR_GROUP_ATTR}]:hover>${grip},${manyGroups}>[${TOOLBAR_GROUP_ATTR}]>${grip}:focus-visible{opacity:1;pointer-events:auto}`,
-    `${group}>${grip}:hover,${group}>${grip}:focus-visible{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
-    `${bar}[data-sve-dragging-group],${bar}[data-sve-dragging-group] ${grip}{cursor:grabbing}`,
-    // The new-group square: a group's height and surface, 1:1, a gap's strip in front.
-    `${newGroup}{position:absolute;top:0;left:100%;display:flex;box-sizing:border-box;height:${LP_CHROME_H}px;padding-left:${LP_TOOLBAR_GAP}px;` +
+    // A whole group is grabbed by its own surface, around and between the
+    // icons — where there is another group to move past. The icons keep
+    // their own cursor; a frame's padding is the tool's, not the group's.
+    `${manyGroups}>[${TOOLBAR_GROUP_ATTR}]{cursor:grab}`,
+    `${group}>*{cursor:default}`,
+    `${bar}[data-sve-dragging-group],${bar}[data-sve-dragging-group] *{cursor:grabbing!important}`,
+    // The new-group square: a group's height and surface, 1:1. Its strip in
+    // front is wider than the gap between groups: the last group's «+» stands
+    // half out into it.
+    `${newGroup}{position:absolute;top:0;left:100%;display:flex;box-sizing:border-box;height:${LP_CHROME_H}px;padding-left:1rem;` +
       'opacity:0;pointer-events:none;transition:opacity .12s}',
     `${bar}:hover>[${TOOLBAR_NEW_GROUP_ATTR}],${bar}[data-sve-dragging]>[${TOOLBAR_NEW_GROUP_ATTR}],${newGroup}:has(>button:focus-visible){opacity:1;pointer-events:auto}`,
     `${newGroup}>button{flex-shrink:0;box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;margin:0;padding:0;border:none;` +
       `display:inline-flex;align-items:center;justify-content:center;border-radius:.5rem;cursor:pointer;color:currentColor;background:${HEADER_SURFACE}}`,
     `${newGroup}>button:hover,${newGroup}>button:focus-visible{background:${HEADER_ICON_HOVER}}`,
-    `${newGroup}>button svg{opacity:${LP_ICON_IDLE_OPACITY}}`,
+    `${newGroup}>button svg{opacity:.5;transition:opacity .12s}`,
+    `${newGroup}>button:hover svg,${newGroup}>button:focus-visible svg{opacity:1}`,
   ];
 }
 
@@ -308,20 +302,6 @@ function addButton(win, id) {
   return btn;
 }
 
-/** The grip at a group's corner. The drag and its arrow keys are toolbar-drag.js's, bound on the bar. */
-function gripButton(win) {
-  const btn = win.document.createElement('button');
-  const label = t(win, 'lp_settings_toolbar_group_move');
-
-  btn.type = 'button';
-  btn.setAttribute(TOOLBAR_GRIP_ATTR, '');
-  btn.title = label;
-  btn.setAttribute('aria-label', label);
-  btn.innerHTML = GRIP_ICON_SVG;
-
-  return btn;
-}
-
 /** The square right of the last group. What its «+» does on click is toolbar-add-menu.js's. */
 function newGroupSquare(win) {
   const doc = win.document;
@@ -341,7 +321,7 @@ function newGroupSquare(win) {
 
 /**
  * Put every tool where the layout says — Page settings first, then one box
- * per group with its tools in order, the grip and the «+» last, then the
+ * per group with its tools in order and the «+» last, then the
  * new-group square — moving only what is not already there. A box whose
  * group is gone is taken out once its tools have been placed elsewhere.
  */
@@ -368,7 +348,6 @@ export function syncToolbarGroups(win) {
     if (!box) {
       box = doc.createElement('div');
       box.setAttribute(TOOLBAR_GROUP_ATTR, item.id);
-      box.appendChild(gripButton(win));
       box.appendChild(addButton(win, item.id));
     }
 
@@ -403,14 +382,9 @@ export function syncToolbarGroups(win) {
     });
 
     const plus = box.querySelector(`:scope>${add}`);
-    const handle = box.querySelector(`:scope>${grip}`);
 
     if (plus && box.lastElementChild !== plus) {
       box.appendChild(plus);
-    }
-
-    if (handle && plus && handle.nextElementSibling !== plus) {
-      box.insertBefore(handle, plus);
     }
   });
 

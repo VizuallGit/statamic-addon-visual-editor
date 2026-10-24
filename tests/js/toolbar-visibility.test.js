@@ -33,7 +33,6 @@ import {
 import {
   HEADER_TOOLBAR_ID,
   TOOLBAR_ADD_ATTR,
-  TOOLBAR_GRIP_ATTR,
   TOOLBAR_GROUP_ATTR,
   TOOLBAR_GROUPS_KEY,
   TOOLBAR_HIDDEN_KEY,
@@ -287,15 +286,9 @@ function fakeWin({ stored = null, order = null, groups = null, row = null } = {}
   };
 }
 
-/** The row as a picture: `settings [g-a: code, ⠿, +] [g-b: pages, ⠿, +] (+)` — ⠿ the grip, (+) the new-group square. */
+/** The row as a picture: `settings [g-a: code, +] [g-b: pages, +] (+)` — (+) the new-group square. */
 function picture(bar) {
-  const inBox = (child) => {
-    if (child.hasAttribute(TOOLBAR_ADD_ATTR)) {
-      return '+';
-    }
-
-    return child.hasAttribute(TOOLBAR_GRIP_ATTR) ? '⠿' : child.dataset.tab || child.id.replace('__sve-frame-', '');
-  };
+  const inBox = (child) => (child.hasAttribute(TOOLBAR_ADD_ATTR) ? '+' : child.dataset.tab || child.id.replace('__sve-frame-', ''));
 
   return bar.children
     .map((node) => {
@@ -339,15 +332,22 @@ test('the frame: a transparent row, Page settings as a full square of its own, e
   assert.doesNotMatch(FRAME, /[{;]order:|::before/);
 });
 
-test('the frame: a grip on each group\'s top-left corner, shown on hover only where there is a second group', () => {
-  assert.match(FRAME, /\[data-sve-toolbar-group\]>\[data-sve-toolbar-group-grip\]\{position:absolute;top:-\.375rem;left:-\.375rem;width:1rem;height:1rem;[^}]*cursor:grab;[^}]*opacity:0;pointer-events:none/);
-  assert.match(FRAME, /#__sve-toolbar:has\(>\[data-sve-toolbar-group\]~\[data-sve-toolbar-group\]\)>\[data-sve-toolbar-group\]:hover>\[data-sve-toolbar-group-grip\],[^{]*\{opacity:1;pointer-events:auto\}/);
+test('the frame: a group\'s own surface shows the grab hand only where there is a second group; its icons keep their own cursor', () => {
+  assert.match(FRAME, /#__sve-toolbar:has\(>\[data-sve-toolbar-group\]~\[data-sve-toolbar-group\]\)>\[data-sve-toolbar-group\]\{cursor:grab\}/);
+  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-group\]>\*\{cursor:default\}/);
+  assert.match(FRAME, /#__sve-toolbar\[data-sve-dragging-group\],#__sve-toolbar\[data-sve-dragging-group\] \*\{cursor:grabbing!important\}/);
+  assert.doesNotMatch(FRAME, /grip/);
 });
 
 test('the frame: the new-group square right of the row, out of its flow — a group\'s height and surface, 1:1 — shown on hover of the row and while a tool is dragged', () => {
-  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{position:absolute;top:0;left:100%;[^}]*height:32px;padding-left:8px;opacity:0;pointer-events:none/);
+  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{position:absolute;top:0;left:100%;[^}]*height:32px;padding-left:1rem;opacity:0;pointer-events:none/);
   assert.match(FRAME, /#__sve-toolbar:hover>\[data-sve-toolbar-new-group\],#__sve-toolbar\[data-sve-dragging\]>\[data-sve-toolbar-new-group\],[^{]*\{opacity:1;pointer-events:auto\}/);
   assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button\{[^}]*width:32px;height:32px;[^}]*border-radius:\.5rem;[^}]*background:rgba\(128,128,128,\.16\)\}/);
+});
+
+test('the frame: the square\'s «+» rests fainter than the icons, and is whole on hover or focus', () => {
+  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]>button svg\{opacity:\.5;transition:opacity \.12s\}/);
+  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button:hover svg,[^{]*\[data-sve-toolbar-new-group\]>button:focus-visible svg\{opacity:1\}/);
 });
 
 // ── Hidden ──────────────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ test('with nothing stored the row is one group in the default order, Page settin
   const win = fakeWin({ row: row() });
 
   syncToolbarLayout(win);
-  assert.equal(picture(win.bar), 'settings [g-default: pages, sections, performance, code, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-default: pages, sections, performance, code, +] (+)');
   assert.equal(win.store.has(TOOLBAR_GROUPS_KEY), false);
 
   const plus = win.bar.querySelector(`[${TOOLBAR_ADD_ATTR}]`);
@@ -424,7 +424,7 @@ test('stored groups place the tools, frames and all; a tool no group knows joins
   });
 
   syncToolbarLayout(win);
-  assert.equal(picture(win.bar), 'settings [g-a: code, ⠿, +] [g-b: pages, sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, sections, performance, +] (+)');
   assert.equal(win.bar.children[1].title, '', 'the group name is not a tooltip on the box');
   assert.equal(win.bar.children[2].title, '');
 
@@ -439,7 +439,7 @@ test('a button a pass has just made is placed, not left at the end of the row', 
 
   syncToolbarLayout(win);
   placeToolbarButton(win, fakeButton('ai'));
-  assert.equal(picture(win.bar), 'settings [g-a: code, ⠿, +] [g-b: pages, ai, sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, ai, sections, performance, +] (+)');
 
   // Already in the row and in place: nothing moves.
   moves = 0;
@@ -477,23 +477,23 @@ test('moving a tool stores the groups and redraws the row; the group it empties 
 
   syncToolbarLayout(win);
   moveToolbarTool(win, 'code', 'g-default', 0);
-  assert.equal(picture(win.bar), 'settings [g-default: code, pages, sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-default: code, pages, sections, performance, +] (+)');
 
   const id = moveToolbarToolToNewGroup(win, 'performance', 1, '  Speed  ');
 
   assert.match(id, /^g-[a-z0-9]+$/);
-  assert.equal(picture(win.bar), `settings [g-default: code, pages, sections, ⠿, +] [${id}: performance, ⠿, +] (+)`);
+  assert.equal(picture(win.bar), `settings [g-default: code, pages, sections, +] [${id}: performance, +] (+)`);
   assert.equal(toolbarLayout(win)[1].name, 'Speed', 'the name is stored, trimmed');
   assert.equal(win.bar.children[2].title, '', 'and not shown as a tooltip on the box');
 
   moveToolbarToolBefore(win, 'code', id, 'performance');
-  assert.equal(picture(win.bar), `settings [g-default: pages, sections, ⠿, +] [${id}: code, performance, ⠿, +] (+)`);
+  assert.equal(picture(win.bar), `settings [g-default: pages, sections, +] [${id}: code, performance, +] (+)`);
 
   moveToolbarToolBefore(win, 'pages', id, null);
-  assert.equal(picture(win.bar), `settings [g-default: sections, ⠿, +] [${id}: code, performance, pages, ⠿, +] (+)`);
+  assert.equal(picture(win.bar), `settings [g-default: sections, +] [${id}: code, performance, pages, +] (+)`);
 
   moveToolbarToolBefore(win, 'sections', id, 'code');
-  assert.equal(picture(win.bar), `settings [${id}: sections, code, performance, pages, ⠿, +] (+)`);
+  assert.equal(picture(win.bar), `settings [${id}: sections, code, performance, pages, +] (+)`);
   assert.deepEqual(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)), [{ id, name: 'Speed', tools: ['sections', 'code', 'performance', 'pages'] }]);
 });
 
@@ -501,24 +501,20 @@ test('the «+» puts a tool at the end of the group and shows it', () => {
   const win = fakeWin({ stored: '["code"]', groups: '[{"id":"g-a","tools":["pages"]},{"id":"g-b","tools":["sections"]}]', row: row() });
 
   syncToolbarLayout(win);
-  assert.equal(picture(win.bar), 'settings [g-a: pages, ⠿, +] [g-b: sections, performance, code, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: pages, +] [g-b: sections, performance, code, +] (+)');
 
   addToolbarToolToGroup(win, 'code', 'g-a');
-  assert.equal(picture(win.bar), 'settings [g-a: pages, code, ⠿, +] [g-b: sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: pages, code, +] [g-b: sections, performance, +] (+)');
   assert.equal(win.store.has(TOOLBAR_HIDDEN_KEY), false);
 });
 
-test('each box carries a grip before its «+»; the new-group square stands after the last box, and goes when there is no group', () => {
+test('the new-group square stands after the last box, and goes when there is no group', () => {
   const win = fakeWin({ groups: '[{"id":"g-a","tools":["code"]},{"id":"g-b","tools":["pages"]}]', row: row() });
 
   syncToolbarLayout(win);
 
-  const grip = win.bar.querySelector(`[${TOOLBAR_GRIP_ATTR}]`);
   const square = win.bar.querySelector(`:scope>[${TOOLBAR_NEW_GROUP_ATTR}]`);
 
-  assert.equal(grip.tagName, 'button');
-  assert.equal(grip.type, 'button');
-  assert.equal(grip.title, 'lp_settings_toolbar_group_move', 'Move group — the key, as the fake window has no string for it');
   assert.equal(win.bar.lastElementChild, square);
   assert.equal(square.firstElementChild.tagName, 'button');
   assert.equal(square.firstElementChild.getAttribute('aria-label'), 'toolbar_drag_new_group');
@@ -529,18 +525,18 @@ test('each box carries a grip before its «+»; the new-group square stands afte
   assert.equal(picture(bare.bar), 'settings');
 });
 
-test('a group moved by its grip goes to its new place; the square stays last; a second pass moves nothing', () => {
+test('a dragged group goes to its new place; the square stays last; a second pass moves nothing', () => {
   const win = fakeWin({ groups: '[{"id":"g-a","tools":["code"]},{"id":"g-b","tools":["pages"]},{"id":"g-c","tools":["sections"]}]', row: row() });
 
   syncToolbarLayout(win);
-  assert.equal(picture(win.bar), 'settings [g-a: code, ⠿, +] [g-b: pages, ⠿, +] [g-c: sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, +] [g-c: sections, performance, +] (+)');
 
   moveToolbarGroup(win, 'g-c', 0);
-  assert.equal(picture(win.bar), 'settings [g-c: sections, performance, ⠿, +] [g-a: code, ⠿, +] [g-b: pages, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-c: sections, performance, +] [g-a: code, +] [g-b: pages, +] (+)');
   assert.deepEqual(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)).map((group) => group.id), ['g-c', 'g-a', 'g-b']);
 
   moveToolbarGroup(win, 'g-c', 2);
-  assert.equal(picture(win.bar), 'settings [g-a: code, ⠿, +] [g-b: pages, ⠿, +] [g-c: sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, +] [g-c: sections, performance, +] (+)');
 
   moves = 0;
   syncToolbarLayout(win);
@@ -551,17 +547,17 @@ test('the new-group square starts a group of its own after the last with the too
   const win = fakeWin({ stored: '["code"]', groups: '[{"id":"g-a","tools":["pages"]},{"id":"g-b","tools":["sections","performance"]}]', row: row() });
 
   syncToolbarLayout(win);
-  assert.equal(picture(win.bar), 'settings [g-a: pages, ⠿, +] [g-b: sections, performance, code, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: pages, +] [g-b: sections, performance, code, +] (+)');
 
   const hiddenOne = addToolbarToolToNewGroup(win, 'code');
 
   assert.match(hiddenOne, /^g-[a-z0-9]+$/);
-  assert.equal(picture(win.bar), `settings [g-a: pages, ⠿, +] [g-b: sections, performance, ⠿, +] [${hiddenOne}: code, ⠿, +] (+)`);
+  assert.equal(picture(win.bar), `settings [g-a: pages, +] [g-b: sections, performance, +] [${hiddenOne}: code, +] (+)`);
   assert.equal(win.store.has(TOOLBAR_HIDDEN_KEY), false, 'and shown');
 
   const fromGroup = addToolbarToolToNewGroup(win, 'pages');
 
-  assert.equal(picture(win.bar), `settings [g-b: sections, performance, ⠿, +] [${hiddenOne}: code, ⠿, +] [${fromGroup}: pages, ⠿, +] (+)`);
+  assert.equal(picture(win.bar), `settings [g-b: sections, performance, +] [${hiddenOne}: code, +] [${fromGroup}: pages, +] (+)`);
   assert.equal(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)).some((group) => group.id === 'g-a'), false, 'the group it emptied is gone');
   assert.equal(addToolbarToolToNewGroup(win, 'x"y'), '', 'not a tool: nothing');
 });
@@ -575,14 +571,14 @@ test('a group renamed keeps its name without a tooltip on the box; deleted, its 
   assert.equal(win.bar.children[1].title, '', 'no tooltip on the box');
 
   deleteToolbarGroup(win, 'g-b');
-  assert.equal(picture(win.bar), 'settings [g-a: code, pages, sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: code, pages, sections, performance, +] (+)');
 
   deleteToolbarGroup(win, 'g-a');
-  assert.equal(picture(win.bar), 'settings [g-a: code, pages, sections, performance, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-a: code, pages, sections, performance, +] (+)');
 
   resetToolbarGroups(win);
   assert.equal(win.store.has(TOOLBAR_GROUPS_KEY), false);
-  assert.equal(picture(win.bar), 'settings [g-default: pages, sections, performance, code, ⠿, +] (+)');
+  assert.equal(picture(win.bar), 'settings [g-default: pages, sections, performance, code, +] (+)');
 });
 
 // ── Open from the menu ──────────────────────────────────────────────────
