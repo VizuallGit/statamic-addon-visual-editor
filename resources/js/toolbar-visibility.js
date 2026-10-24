@@ -299,13 +299,9 @@ export function syncToolbarGroups(win) {
       box.appendChild(addButton(win, item.id));
     }
 
-    if ((box.getAttribute('title') || '') !== item.name) {
-      if (item.name) {
-        box.setAttribute('title', item.name);
-      } else {
-        box.removeAttribute('title');
-      }
-    }
+    // No group name as a tooltip on the box: it showed beside the tool's own
+    // tip and read as a second label. The name lives in the rename menu.
+    box.removeAttribute('title');
 
     if (box.parentElement !== barNode || box.previousElementSibling !== cursor) {
       if (cursor) {

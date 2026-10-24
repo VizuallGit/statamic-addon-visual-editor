@@ -454,9 +454,10 @@ export function finishEditing(win, cancelled) {
  * on hover; plain blocks keep their actions in the click toolbar.
  */
 function updateMoveControlFromPointer(win, event) {
-  // A component is a file, not a row: while one is open there is nothing to
-  // move, duplicate or remove, so the section control stays away entirely.
-  if (bridgeState.componentFocus) {
+  // A component is a file, not a row, and inside a focused global section the
+  // page's rows are not what is being edited: while either is open there is
+  // nothing to move, duplicate or remove, so the section control stays away.
+  if (bridgeState.componentFocus || bridgeState.globalFocusEl) {
     hideMoveControl(win);
 
     return;

@@ -26,6 +26,7 @@ import {
   writePaneChoices,
   writePickedPreset,
   writeUserPresets,
+  toolbarLayout,
 } from '../../resources/js/toolbar-visibility.js';
 import {
   HEADER_TOOLBAR_ID,
@@ -403,7 +404,7 @@ test('stored groups place the tools, frames and all; a tool no group knows joins
 
   syncToolbarLayout(win);
   assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, sections, performance, +]');
-  assert.equal(win.bar.children[1].title, 'Code');
+  assert.equal(win.bar.children[1].title, '', 'the group name is not a tooltip on the box');
   assert.equal(win.bar.children[2].title, '');
 
   moves = 0;
@@ -461,7 +462,8 @@ test('moving a tool stores the groups and redraws the row; the group it empties 
 
   assert.match(id, /^g-[a-z0-9]+$/);
   assert.equal(picture(win.bar), `settings [g-default: code, pages, sections, +] [${id}: performance, +]`);
-  assert.equal(win.bar.children[2].title, 'Speed');
+  assert.equal(toolbarLayout(win)[1].name, 'Speed', 'the name is stored, trimmed');
+  assert.equal(win.bar.children[2].title, '', 'and not shown as a tooltip on the box');
 
   moveToolbarToolBefore(win, 'code', id, 'performance');
   assert.equal(picture(win.bar), `settings [g-default: pages, sections, +] [${id}: code, performance, +]`);
@@ -485,12 +487,13 @@ test('the «+» puts a tool at the end of the group and shows it', () => {
   assert.equal(win.store.has(TOOLBAR_HIDDEN_KEY), false);
 });
 
-test('a group renamed shows its name on the box; deleted, its tools join the group beside it; reset is one group again', () => {
+test('a group renamed keeps its name without a tooltip on the box; deleted, its tools join the group beside it; reset is one group again', () => {
   const win = fakeWin({ groups: '[{"id":"g-a","tools":["code"]},{"id":"g-b","tools":["pages"]}]', row: row() });
 
   syncToolbarLayout(win);
   renameToolbarGroup(win, 'g-a', ' Kode ');
-  assert.equal(win.bar.children[1].title, 'Kode');
+  assert.equal(toolbarLayout(win)[0].name, 'Kode');
+  assert.equal(win.bar.children[1].title, '', 'no tooltip on the box');
 
   deleteToolbarGroup(win, 'g-b');
   assert.equal(picture(win.bar), 'settings [g-a: code, pages, sections, performance, +]');
