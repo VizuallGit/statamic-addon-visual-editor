@@ -680,9 +680,9 @@ tabs:
           -
             handle: open_in_preview_collections
             field:
-              type: collections
+              type: sve_preview_collections
               display: Collections
-              instructions: 'Only these. A collection left out here shows no label, which is what you want for the ones that are records rather than pages. Collections without a route are ignored even when named: there is no page to render, so there would be nothing to open.'
+              instructions: 'Only these. A collection left out here shows no label, which is what you want for the ones that are records rather than pages. A collection without a URL is listed last and cannot be saved here: there is no page to render, so there would be nothing to open.'
               mode: select
               if:
                 enabled: 'equals true'

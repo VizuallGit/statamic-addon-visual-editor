@@ -21,6 +21,7 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\SveLiteSections;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\BardDefaultFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\GlobalsPickerFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\PreviewCollectionsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ToolbarAccessFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\EntryFieldFieldtype;
@@ -92,6 +93,7 @@ class ServiceProvider extends AddonServiceProvider
         IconButtonGroupFieldtype::class,
         UniqueSetsFieldtype::class,
         GlobalsPickerFieldtype::class,
+        PreviewCollectionsFieldtype::class,
         ToolbarAccessFieldtype::class,
         DefaultSetsFieldtype::class,
         BardDefaultFieldtype::class,

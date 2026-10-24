@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\PreviewCollectionsFieldtype;
 use MarioHamann\StatamicVisualEditor\Stores;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -29,7 +30,8 @@ use Symfony\Component\HttpFoundation\Response;
  * The field's dropdown is filtered here rather than by registering our own
  * `collections` fieldtype: only the list you choose *from* changes, so a field
  * already configured with a store keeps showing it, and no native fieldtype is
- * replaced.
+ * replaced. The addon settings' picker built on it
+ * (PreviewCollectionsFieldtype) is the same list and is filtered the same way.
  */
 class HideStoresFromCollectionsList
 {
@@ -57,8 +59,8 @@ class HideStoresFromCollectionsList
     }
 
     /**
-     * Whether this relationship request is the `collections` fieldtype asking for
-     * its options. The fieldtype's config rides along base64-encoded, the same way
+     * Whether this relationship request is a collections picker asking for its
+     * options. The fieldtype's config rides along base64-encoded, the same way
      * Statamic's own controller reads it.
      */
     protected function isCollectionsField(Request $request): bool
@@ -71,7 +73,7 @@ class HideStoresFromCollectionsList
 
         $config = json_decode($json, true);
 
-        return is_array($config) && ($config['type'] ?? null) === 'collections';
+        return is_array($config) && in_array($config['type'] ?? null, ['collections', PreviewCollectionsFieldtype::handle()], true);
     }
 
     /**
