@@ -36,11 +36,29 @@ export function isEmbeddedInSite(win) {
   return win.parent !== win.self;
 }
 
-/** Whether a button or link reads as Statamic's "open Live Preview", in any CP language. */
+/**
+ * Whether a button or link reads as Statamic's "open Live Preview", in any
+ * CP language.
+ *
+ * Statamic's own control, not the editor's: the top bar's Live Preview button
+ * and the rows' "Open in Live Preview" labels say the same words, open the
+ * overlay themselves, and are marked `data-sve-*` like everything the editor
+ * draws. Reading them as Statamic's would open the overlay on the page they
+ * stand on instead of the page they name.
+ */
 export function isLivePreviewControl(el) {
+  if (isEditorDrawn(el)) {
+    return false;
+  }
+
   const text = `${el.textContent || ''} ${el.getAttribute('title') || ''}`;
 
   return /live.?preview|forhåndsvis|vorschau|voorbeeld|aperçu|vista previa/i.test(text);
+}
+
+/** Drawn by the editor: it carries one of the editor's `data-sve-*` marks. */
+export function isEditorDrawn(el) {
+  return Array.from(el.attributes || []).some((attribute) => attribute.name.startsWith('data-sve-'));
 }
 
 /**
