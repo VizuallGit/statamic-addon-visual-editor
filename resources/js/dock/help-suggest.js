@@ -41,8 +41,8 @@ export const HELP_MAX = 3;
  * @param {Array}  [options.fields]          the section's Data rows
  * @param {boolean} [options.sectionPartial] the file is a page section's partial
  * @param {string} [options.shellRoot]       SectionTypeMaker's scaffold (or its root tag)
- * @param {{ src: string, handles: string[] }} [options.blockPartials]
- *                                          the site's block partials: `blocks/{type}` and the handles it holds
+ * @param {{ src: string, handles: string[], image: string }} [options.blockPartials]
+ *                                          the site's partials: `blocks/{type}`, the handles it holds, the image partial
  * @param {number[]} [options.locked]        more locked ranges, flat: from, to, …
  * @returns {Array<{ id: string, key: string, args: object, meta: string,
  *   changes: Array<{ from: number, to: number, insert: string }>, selection: number|null,

@@ -1,7 +1,8 @@
 /**
  * Images. A file field is never written as `<img>` by hand: the house draws
- * it with the image component, which also draws the placeholder when the
- * field is empty — so no `{{ if }}` around it.
+ * it with the image partial (`ctx.blockPartials.image`, from PHP — only when
+ * the site has the file), which also draws the placeholder when the field
+ * is empty — so no `{{ if }}` around it.
  *
  *   div  empty → the media wrapper around one image line
  *   img        → the image line in the tag's place
@@ -25,29 +26,30 @@ import {
 
 export function mediaRule(ctx) {
   const { source, node } = ctx;
+  const partial = ctx.blockPartials.image;
   const inside = node.tag === 'div' ? emptyInside(ctx) : null;
 
-  if (node.tag !== 'img' && !inside) {
+  if (!partial || (node.tag !== 'img' && !inside)) {
     return [];
   }
 
   const files = unusedFirst(source, rowsInScope(ctx).filter((row) => ASSET_TYPES.has(row.type)));
 
   return files.map((row) => {
-    const insert = inside ? wrapper(ctx, row).join('\n') : imageLine(row, staticClass(source, node));
+    const insert = inside ? wrapper(ctx, row, partial).join('\n') : imageLine(partial, row, staticClass(source, node));
 
     return {
       id: `media:${row.var}`,
       key: 'code_dock_help_media',
       args: { name: row.label || row.var },
-      meta: row.value || 'components/image',
+      meta: row.value || partial,
       changes: [{ from: node.from, to: inside ? inside.to : node.to, insert }],
       selection: node.from + insert.length,
     };
   });
 }
 
-function wrapper(ctx, row) {
+function wrapper(ctx, row, partial) {
   const base = indentOf(ctx.source, ctx.node.from);
   const open = openTagOf(ctx);
   const head = withVisualEdit(
@@ -55,11 +57,11 @@ function wrapper(ctx, row) {
     `{{ visual_edit field="${row.var}" outline_inside="true" inline_edit="true" }}`
   );
 
-  return [head, `${base}${INDENT}${imageLine(row, '')}`, `${base}</div>`];
+  return [head, `${base}${INDENT}${imageLine(partial, row, '')}`, `${base}</div>`];
 }
 
-function imageLine(row, klass) {
-  return `{{ partial:components/image :imagePath="${row.var}" class="${klass}" }}`;
+function imageLine(partial, row, klass) {
+  return `{{ partial:${partial} :imagePath="${row.var}" class="${klass}" }}`;
 }
 
 /** `src`, `loading` and `alt` where they are missing — or, with a src, the alt alone. */

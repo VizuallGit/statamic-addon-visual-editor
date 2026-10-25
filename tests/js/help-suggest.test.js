@@ -44,7 +44,7 @@ const BLOCKS = [
   { var: 'media', label: 'Media', type: 'assets', loop: true, parent: 'blocks › media' },
 ];
 
-const PARTIALS = { src: 'blocks/{type}', handles: ['headline', 'richtext', 'links', 'media', 'icon', 'title', 'text', 'content'] };
+const PARTIALS = { src: 'blocks/{type}', handles: ['headline', 'richtext', 'links', 'media', 'icon', 'title', 'text', 'content'], image: 'components/image' };
 
 /** A replicator with one set the site has a block partial for, and one it has not. */
 const MIXED_SETS = [
@@ -326,25 +326,25 @@ test('the block partials reach the rules as { src, handles }, and a set’s src 
     blocks: [],
     sectionPartial: false,
     shellRoot: '',
-    blockPartials: { src: 'blocks/{type}', handles: ['headline', 'richtext', 7] },
+    blockPartials: { src: 'blocks/{type}', handles: ['headline', 'richtext', 7], image: 'components/image' },
   });
 
-  assert.deepEqual(ctx.blockPartials, { src: 'blocks/{type}', handles: ['headline', 'richtext'] });
+  assert.deepEqual(ctx.blockPartials, { src: 'blocks/{type}', handles: ['headline', 'richtext'], image: 'components/image' });
   assert.equal(hasBlockPartial(ctx, 'richtext'), true);
   assert.equal(hasBlockPartial(ctx, 'hero'), false);
   assert.equal(blockPartialSrc(ctx, 'richtext'), 'blocks/richtext');
 
   const none = buildContext(html, at, { rows: [], blocks: [], blockPartials: null });
-  assert.deepEqual(none.blockPartials, { src: '', handles: [] });
+  assert.deepEqual(none.blockPartials, { src: '', handles: [], image: '' });
   assert.equal(hasBlockPartial(none, 'richtext'), false);
 });
 
 test('blockPartials(win): what PHP hands over, or nothing from an older PHP', () => {
   const win = (value) => ({ Statamic: { $config: { get: (key) => (key === 'sveBlockPartials' ? value : undefined) } } });
 
-  assert.deepEqual(blockPartials(win({ src: 'blocks/{type}', handles: ['links'] })), { src: 'blocks/{type}', handles: ['links'] });
-  assert.deepEqual(blockPartials(win(undefined)), { src: '', handles: [] });
-  assert.deepEqual(blockPartials({}), { src: '', handles: [] });
+  assert.deepEqual(blockPartials(win({ src: 'blocks/{type}', handles: ['links'], image: 'components/image' })), { src: 'blocks/{type}', handles: ['links'], image: 'components/image' });
+  assert.deepEqual(blockPartials(win(undefined)), { src: '', handles: [], image: '' });
+  assert.deepEqual(blockPartials({}), { src: '', handles: [], image: '' });
 });
 
 test('help-rules/index.js: the rules in the order their rows show, the id last', () => {
@@ -545,7 +545,7 @@ test('a <div> takes text only from Bard or Markdown — never a text or textarea
 
 test('an empty <div> over a file field: the media wrapper, one image partial line and no <img>', () => {
   const { html, at } = caret('<div>|</div>');
-  const suggestions = helpSuggestions(html, at, { fields: MEDIA });
+  const suggestions = helpSuggestions(html, at, { fields: MEDIA, blockPartials: PARTIALS });
 
   assert.deepEqual(ids(suggestions), ['media:media', 'class', 'id']);
 
@@ -566,11 +566,27 @@ test('an empty <div> over a file field: the media wrapper, one image partial lin
   assert.ok(!out.includes('<img'));
 });
 
+test('no image help on a site without the image partial — the <img> still gets its attributes', () => {
+  const div = caret('<div>|</div>');
+  const img = caret('<img|>');
+  const none = { src: 'blocks/{type}', handles: ['media'], image: '' };
+
+  assert.deepEqual(ids(helpSuggestions(div.html, div.at, { fields: MEDIA, blockPartials: none })), ['class', 'id']);
+  assert.deepEqual(ids(helpSuggestions(div.html, div.at, { fields: MEDIA })), ['class', 'id']);
+  assert.deepEqual(ids(helpSuggestions(img.html, img.at, { fields: MEDIA, blockPartials: none })), ['img-attrs', 'class', 'id']);
+
+  // The partial's name is the site's, not a constant here.
+  const other = helpSuggestions(img.html, img.at, { fields: MEDIA, blockPartials: { ...none, image: 'components/picture' } })[0];
+
+  assert.equal(apply(img.html, other), '{{ partial:components/picture :imagePath="media" class="" }}');
+  assert.equal(other.meta, 'components/picture');
+});
+
 test('a <div>: loops first, then Bard, then the image — the class gives way, the id stays last', () => {
   const { html, at } = caret('<div>|</div>');
   const fields = [{ var: 'body', label: 'Body', type: 'bard' }, ...MEDIA, ...GRID];
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields })), ['loop:items', 'text:body', 'media:media', 'id']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields, blockPartials: PARTIALS })), ['loop:items', 'text:body', 'media:media', 'id']);
 });
 
 test('a <div> inside the blocks loop: what the sets hold that fits a div', () => {
@@ -773,7 +789,7 @@ test('an <a> without href and no link field: href="" before the class, the caret
 
 test('an <img> where a file field prints: the image partial in its place, the static class kept', () => {
   const { html, at } = caret('<img class="w-full h-full object-cover"|>');
-  const suggestions = helpSuggestions(html, at, { fields: MEDIA });
+  const suggestions = helpSuggestions(html, at, { fields: MEDIA, blockPartials: PARTIALS });
 
   assert.deepEqual(ids(suggestions), ['media:media', 'img-attrs', 'id']);
 
@@ -785,11 +801,11 @@ test('an <img> where a file field prints: the image partial in its place, the st
 
   const bare = caret('<img src="{{ url }}" class="{{ klass }}"|>');
 
-  assert.equal(apply(bare.html, helpSuggestions(bare.html, bare.at, { fields: MEDIA })[0]), '{{ partial:components/image :imagePath="media" class="" }}');
+  assert.equal(apply(bare.html, helpSuggestions(bare.html, bare.at, { fields: MEDIA, blockPartials: PARTIALS })[0]), '{{ partial:components/image :imagePath="media" class="" }}');
 
   const loop = caret('{{ collection:news }}\n    <img|>\n{{ /collection:news }}');
 
-  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: MEDIA })), ['img-attrs', 'class']);
+  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: MEDIA, blockPartials: PARTIALS })), ['img-attrs', 'class']);
 });
 
 test('an <img> without src: src, lazy loading and alt — only the ones missing, the caret in src', () => {

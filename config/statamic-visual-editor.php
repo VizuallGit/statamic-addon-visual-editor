@@ -587,6 +587,13 @@ return [
         | way, and never as markup guessed in the dock. Empty: no partials.
         */
         'blocks' => 'blocks/{type}',
+
+        /*
+        | The partial a section draws a file field with — `{{ partial:components/image
+        | :imagePath="media" }}` — instead of an `<img>` written by hand. The
+        | dock's help offers it only when the file is there. Empty: no image help.
+        */
+        'image_partial' => 'components/image',
     ],
 
     /*

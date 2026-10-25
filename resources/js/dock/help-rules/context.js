@@ -37,13 +37,16 @@
  *   isRoot         the file's first element
  *   sectionPartial the file is a page section's partial
  *   shellRoot      SectionTypeMaker::scaffold() — the root a section starts as
- *   blockPartials  the site's shared block partials: `{ src, handles }` —
+ *   blockPartials  the site's shared partials: `{ src, handles, image }` —
  *                  `src` is what a section writes for a set, with its token
  *                  (`blocks/{type}`); `handles` what the folder holds
  *                  ('headline', 'richtext', 'links', …). A replicator set
  *                  with one of these names is rendered as
  *                  `{{ partial src="blocks/{type}" }}`, the house way.
- *                  `src` is '' when the site has no such folder.
+ *                  `src` is '' when the site has no such folder. `image` is
+ *                  the partial a file field is drawn with
+ *                  (`components/image`), '' when the site has none — then
+ *                  no image help is offered.
  *
  * May import: html-tree-parse.js, antlers-blocks.js. Nothing from the dock.
  */
@@ -83,7 +86,7 @@ export const VISUAL_EDIT = /\{\{\s*visual_edit\b[\s\S]*?\}\}/;
  * @param {string} source
  * @param {number} pos
  * @param {{ rows: Array, blocks: Array, sectionPartial: boolean, shellRoot: string,
- *   blockPartials: { src: string, handles: string[] } }} given
+ *   blockPartials: { src: string, handles: string[], image: string } }} given
  */
 export function buildContext(source, pos, given) {
   const masked = maskAntlers(source);
@@ -109,6 +112,7 @@ export function buildContext(source, pos, given) {
     blockPartials: {
       src: typeof partials.src === 'string' ? partials.src : '',
       handles: Array.isArray(partials.handles) ? partials.handles.filter((name) => typeof name === 'string') : [],
+      image: typeof partials.image === 'string' ? partials.image : '',
     },
   };
 }
