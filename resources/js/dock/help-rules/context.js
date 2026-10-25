@@ -123,6 +123,16 @@ export function hasBlockPartial(ctx, handle) {
   return !!ctx.blockPartials.src && ctx.blockPartials.handles.includes(handle);
 }
 
+/** `set → src` for bodyLines: a set's block partial on this site, '' for a set without one. */
+export function partialFor(ctx) {
+  return (set) => (hasBlockPartial(ctx, set) ? blockPartialSrc(ctx, set) : '');
+}
+
+/** Whether one of a replicator's sets is rendered by a block partial. */
+export function hasPartialSet(ctx, loop) {
+  return loop.type === 'replicator' && rowsOfLoop(ctx.rows, loop).some((group) => hasBlockPartial(ctx, group.set));
+}
+
 /* ---- Where the caret stands ---------------------------------------------- */
 
 /**
@@ -358,14 +368,23 @@ export function rowsOfLoop(rows, loop) {
 
 /* ---- Markup for a loop's rows --------------------------------------------- */
 
+const noPartial = () => '';
+
 /**
  * The markup inside one row of a loop: a line per text field, and the loops
  * inside it written the same way, a level or two down. A replicator with more
  * than one set gets a branch per set, the way the house's sections are built.
+ *
+ * `partialOf(set)` is the `src` of a set's block partial, or '' (see
+ * partialFor): such a set is written as `{{ partial src="…" }}`, its fields
+ * left to the partial. Left out, every set is written field by field.
  */
-export function bodyLines(rows, loop, indent, depth) {
-  const groups = rowsOfLoop(rows, loop).filter((group) => group.rows.some(isWritable));
-  const lineOf = (group, at) => group.rows.filter(isWritable).flatMap((row) => fieldLines(rows, row, at, depth));
+export function bodyLines(rows, loop, indent, depth, partialOf = noPartial) {
+  const groups = rowsOfLoop(rows, loop).filter((group) => partialOf(group.set) || group.rows.some(isWritable));
+  const lineOf = (group, at) =>
+    partialOf(group.set)
+      ? [`${at}{{ partial src="${partialOf(group.set)}" }}`]
+      : group.rows.filter(isWritable).flatMap((row) => fieldLines(rows, row, at, depth, partialOf));
 
   if (!groups.length) {
     return [indent];
@@ -390,13 +409,13 @@ export function isWritable(row) {
   return TEXT_TYPES.has(row.type) || ROW_LOOP_TYPES.has(row.type);
 }
 
-export function fieldLines(rows, row, indent, depth) {
+export function fieldLines(rows, row, indent, depth, partialOf = noPartial) {
   if (ROW_LOOP_TYPES.has(row.type)) {
     if (depth >= MAX_LOOP_DEPTH) {
       return [];
     }
 
-    return [`${indent}{{ ${row.var} }}`, ...bodyLines(rows, row, `${indent}${INDENT}`, depth + 1), `${indent}{{ /${row.var} }}`];
+    return [`${indent}{{ ${row.var} }}`, ...bodyLines(rows, row, `${indent}${INDENT}`, depth + 1, partialOf), `${indent}{{ /${row.var} }}`];
   }
 
   const tag = BLOCK_TEXT_TYPES.has(row.type) ? 'div' : TITLE_HANDLE.test(row.var) ? 'h3' : 'p';

@@ -13,11 +13,16 @@
  * help-suggest.js or the editor changes.
  */
 import { sectionRule } from './section.js';
+import { blocksRule } from './blocks.js';
+import { linkRule } from './link.js';
 import { listRule } from './list.js';
 import { textRule } from './text.js';
+import { imgRule, mediaRule } from './media.js';
 import { classRule, idRule } from './attrs.js';
 
-export const RULES = [sectionRule, listRule, textRule, classRule];
+// A <div> offers its loops, then Bard, then the image; an <a> its link before
+// any text; an <img> the image line before the attributes it lacks.
+export const RULES = [sectionRule, blocksRule, linkRule, listRule, textRule, mediaRule, imgRule, classRule];
 
 export const TAIL_RULES = [idRule];
 
