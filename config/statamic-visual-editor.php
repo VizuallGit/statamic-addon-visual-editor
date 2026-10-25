@@ -578,6 +578,15 @@ return [
         | a bare `<section>`.
         */
         'section_tag' => 'id="id-{{ id }}" class="wrapper" {{ visual_edit outline_inside="true" section_orderable="true" }}',
+
+        /*
+        | The `{{ partial src }}` a section writes for a replicator's sets —
+        | one shared partial per set type. The dock's help reads the folder
+        | for the handles it has (`headline`, `richtext`, `links`, …), so a
+        | set with one of those names is offered as that partial, the house
+        | way, and never as markup guessed in the dock. Empty: no partials.
+        */
+        'blocks' => 'blocks/{type}',
     ],
 
     /*

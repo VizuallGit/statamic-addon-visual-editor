@@ -45,7 +45,7 @@ import { addClassButton, finishHtmlEdit, openAddClass } from './html-tools.js';
 import { helpOnClick, helpOpensPicker } from './help-state.js';
 import { dataVarsSet } from '../data-vars.js';
 import { lockedRanges } from '../lib/locked-tags.js';
-import { sectionScaffold } from '../lib/config.js';
+import { blockPartials, sectionScaffold } from '../lib/config.js';
 import { t } from '../lib/i18n.js';
 import { findAntlersBlocks } from '../antlers-blocks.js';
 import {
@@ -246,6 +246,7 @@ async function openAtCaret(state) {
     fields,
     sectionPartial: sectionPartial(),
     shellRoot: sectionScaffold(win),
+    blockPartials: blockPartials(win),
     locked: lockedRanges(full),
   })
     .map((item) => shiftSuggestion(item, offset))
@@ -330,7 +331,9 @@ function accept(state, index) {
 
   closePopup(state);
 
-  if (item.id === 'loop-ask') {
+  // What follows a row is the rule's `after` (help-rules/context.js), never
+  // its id — a new rule says what it wants without a line here.
+  if (item.after === 'loop') {
     openLoop(state, item.loop.from);
 
     return;
@@ -345,7 +348,7 @@ function accept(state, index) {
   // pane is in — with nothing written until a class is picked. Only while
   // the + is on screen to open it by; the CSS pane shut, the class is
   // written here as when the setting is off.
-  if (item.id === 'class' && helpOpensPicker(state.win)) {
+  if (item.after === 'class' && helpOpensPicker(state.win)) {
     const btn = addClassButton(state.win);
 
     if (btn) {
@@ -370,7 +373,7 @@ function accept(state, index) {
   finishHtmlEdit();
 
   // Between the quotes of the class just written, the site's classes are the next question.
-  if (item.id === 'class') {
+  if (item.after === 'class') {
     cm.autocomplete.startCompletion(view);
   }
 }

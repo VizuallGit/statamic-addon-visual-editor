@@ -1046,6 +1046,7 @@ return [
     'code_dock_help_shell' => 'Make it a section',
     'code_dock_help_class' => 'Add a class',
     'code_dock_help_class_same' => 'Same classes as the <:tag> above',
+    'code_dock_help_id' => 'Add an id',
     'code_dock_help_text' => 'Text from :name',
     'code_dock_help_loop' => 'Repeat over :name',
     'code_dock_help_loop_ask' => 'What should :name repeat?',

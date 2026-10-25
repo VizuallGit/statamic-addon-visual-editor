@@ -1035,6 +1035,7 @@ return [
     'code_dock_help_shell' => 'Gør til sektion',
     'code_dock_help_class' => 'Tilføj klasse',
     'code_dock_help_class_same' => 'Samme klasser som <:tag> ovenover',
+    'code_dock_help_id' => 'Tilføj id',
     'code_dock_help_text' => 'Hent tekst fra :name',
     'code_dock_help_loop' => 'Gentag over :name',
     'code_dock_help_loop_ask' => 'Hvad skal :name gentage?',

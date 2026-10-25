@@ -5,6 +5,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HELP_MAX, helpSuggestions, shiftSuggestion } from '../../resources/js/dock/help-suggest.js';
+import { RULES, TAIL_RULES, runRules } from '../../resources/js/dock/help-rules/index.js';
+import { blockPartialSrc, buildContext, hasBlockPartial } from '../../resources/js/dock/help-rules/context.js';
+import { blockPartials } from '../../resources/js/lib/config.js';
 
 /** SectionTypeMaker::scaffold(), as the dock is handed it. */
 const SCAFFOLD = [
@@ -227,11 +230,101 @@ test('a scoped pane: the file is asked, the pane is written', () => {
   assert.equal(shiftSuggestion(loop, 10).selection, null);
 });
 
-test('never more than the popup shows, and nothing for a caret outside markup', () => {
+test('never more than the popup shows — plus the id row, always last — and nothing for a caret outside markup', () => {
   const { html, at } = caret('<p|></p>');
   const fields = ['a', 'b', 'c', 'd'].map((name) => ({ var: name, label: name, type: 'text' }));
+  const suggestions = helpSuggestions(html, at, { fields });
 
-  assert.equal(helpSuggestions(html, at, { fields }).length, HELP_MAX);
+  assert.equal(suggestions.length, HELP_MAX + 1);
+  assert.equal(suggestions.at(-1).id, 'id');
   assert.deepEqual(helpSuggestions('<p></p>\n', 8), []);
   assert.deepEqual(helpSuggestions('<p></p>', -1), []);
+});
+
+test('an id: empty, after the class rows, with the caret between the quotes', () => {
+  const { html, at } = caret('<div class="box">\n    <p>|</p>\n</div>');
+  const suggestions = helpSuggestions(html, at);
+
+  assert.deepEqual(ids(suggestions), ['class', 'id']);
+
+  const id = suggestions[1];
+  const next = apply(html, id);
+
+  assert.equal(next, '<div class="box">\n    <p id=""></p>\n</div>');
+  assert.equal(next.slice(id.selection - 4, id.selection + 1), 'id=""');
+  assert.equal(id.after, undefined);
+});
+
+test('no id on an element that has one, inside a loop, or where the shell writes it', () => {
+  const has = caret('<div id="top">|</div>');
+  assert.ok(!ids(helpSuggestions(has.html, has.at)).includes('id'));
+
+  const inLoop = caret('<ul>{{ items }}<li>|</li>{{ /items }}</ul>');
+  assert.ok(!ids(helpSuggestions(inLoop.html, inLoop.at, { fields: GRID })).includes('id'));
+
+  const inCollection = caret('{{ collection:services }}<h3>|</h3>{{ /collection:services }}');
+  assert.ok(!ids(helpSuggestions(inCollection.html, inCollection.at)).includes('id'));
+
+  const root = caret('<section>|</section>');
+  assert.deepEqual(ids(helpSuggestions(root.html, root.at, { sectionPartial: true, shellRoot: SCAFFOLD })), ['shell']);
+});
+
+test('what the editor does after a row: the class opens the picker, a loop tag the loop panel', () => {
+  const { html, at } = caret('<p|></p>');
+  const byId = Object.fromEntries(helpSuggestions(html, at).map((item) => [item.id, item]));
+
+  assert.equal(byId.class.after, 'class');
+
+  const loop = caret('<ul>{{ it|ems }}<li></li>{{ /items }}</ul>');
+  assert.equal(helpSuggestions(loop.html, loop.at, { fields: GRID })[0].after, 'loop');
+
+  const same = caret('<p class="lead"></p>\n<p|></p>');
+  assert.equal(helpSuggestions(same.html, same.at).find((item) => item.id === 'class-same').after, undefined);
+});
+
+test('the registry: primary rules fill the cap in order and see what came before; tail rules come after the cap', () => {
+  const ctx = { node: { tag: 'x' } };
+  const row = (id) => ({ id, key: 'k', args: {}, meta: '', changes: [], selection: null });
+  const rules = [
+    () => [row('a'), row('b')],
+    (_, offered) => (offered.some((item) => item.id === 'a') ? [row('c')] : []),
+    () => [row('d'), null],
+  ];
+  const tail = [(_, offered) => [row(`tail:${offered.length}`)]];
+
+  assert.deepEqual(ids(runRules(ctx, 3, rules, tail)), ['a', 'b', 'c', 'tail:3']);
+  assert.deepEqual(ids(runRules(ctx, 10, rules, tail)), ['a', 'b', 'c', 'd', 'tail:4']);
+});
+
+test('the block partials reach the rules as { src, handles }, and a set’s src is written from them', () => {
+  const { html, at } = caret('<div>|</div>');
+  const ctx = buildContext(html, at, {
+    rows: [],
+    blocks: [],
+    sectionPartial: false,
+    shellRoot: '',
+    blockPartials: { src: 'blocks/{type}', handles: ['headline', 'richtext', 7] },
+  });
+
+  assert.deepEqual(ctx.blockPartials, { src: 'blocks/{type}', handles: ['headline', 'richtext'] });
+  assert.equal(hasBlockPartial(ctx, 'richtext'), true);
+  assert.equal(hasBlockPartial(ctx, 'hero'), false);
+  assert.equal(blockPartialSrc(ctx, 'richtext'), 'blocks/richtext');
+
+  const none = buildContext(html, at, { rows: [], blocks: [], blockPartials: null });
+  assert.deepEqual(none.blockPartials, { src: '', handles: [] });
+  assert.equal(hasBlockPartial(none, 'richtext'), false);
+});
+
+test('blockPartials(win): what PHP hands over, or nothing from an older PHP', () => {
+  const win = (value) => ({ Statamic: { $config: { get: (key) => (key === 'sveBlockPartials' ? value : undefined) } } });
+
+  assert.deepEqual(blockPartials(win({ src: 'blocks/{type}', handles: ['links'] })), { src: 'blocks/{type}', handles: ['links'] });
+  assert.deepEqual(blockPartials(win(undefined)), { src: '', handles: [] });
+  assert.deepEqual(blockPartials({}), { src: '', handles: [] });
+});
+
+test('help-rules/index.js: the rules in the order their rows show, the id last', () => {
+  assert.deepEqual(RULES.map((rule) => rule.name), ['sectionRule', 'listRule', 'textRule', 'classRule']);
+  assert.deepEqual(TAIL_RULES.map((rule) => rule.name), ['idRule']);
 });
