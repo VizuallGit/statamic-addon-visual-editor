@@ -128,6 +128,17 @@ export function sectionRootTag(win, type) {
   return typeof tag === 'string' ? tag : '';
 }
 
+/**
+ * The markup a new section starts as — SectionTypeMaker::scaffold(), handed
+ * over as `sveSectionScaffold` — so the dock's help writes the same root the
+ * maker does. '' from a PHP older than the bundle.
+ */
+export function sectionScaffold(win) {
+  const text = win.Statamic?.$config?.get?.('sveSectionScaffold');
+
+  return typeof text === 'string' ? text : '';
+}
+
 /** The scaffold presets the site offers (`sveCollectionPresets`), always a list. */
 export function collectionPresets(win) {
   const list = win.Statamic?.$config?.get?.('sveCollectionPresets');

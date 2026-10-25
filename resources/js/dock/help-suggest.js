@@ -123,6 +123,25 @@ export function helpSuggestions(html, at, options = {}) {
     .slice(0, HELP_MAX);
 }
 
+/**
+ * The same suggestion in a pane's coordinates, when the pane shows a slice of
+ * the file that starts at `offset`: the changes and the caret move back by
+ * it; the loop (an address in the file) does not.
+ */
+export function shiftSuggestion(suggestion, offset) {
+  const by = Number(offset) || 0;
+
+  if (!by) {
+    return suggestion;
+  }
+
+  return {
+    ...suggestion,
+    changes: suggestion.changes.map((change) => ({ ...change, from: change.from - by, to: change.to - by })),
+    selection: suggestion.selection == null ? null : suggestion.selection - by,
+  };
+}
+
 function inRanges(flat, pos) {
   for (let i = 0; i + 1 < flat.length; i += 2) {
     if (pos >= flat[i] && pos < flat[i + 1]) {

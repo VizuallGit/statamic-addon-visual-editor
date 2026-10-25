@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { HELP_MAX, helpSuggestions } from '../../resources/js/dock/help-suggest.js';
+import { HELP_MAX, helpSuggestions, shiftSuggestion } from '../../resources/js/dock/help-suggest.js';
 
 /** SectionTypeMaker::scaffold(), as the dock is handed it. */
 const SCAFFOLD = [
@@ -204,6 +204,27 @@ test('nothing inside a locked element, or a range the dock locked', () => {
   const ranged = caret('<div|></div>');
 
   assert.deepEqual(helpSuggestions(ranged.html, ranged.at, { locked: [0, 11] }), []);
+});
+
+test('a scoped pane: the file is asked, the pane is written', () => {
+  // The pane shows the <p> alone; the file holds the section around it.
+  const file = '<section>\n    <p></p>\n</section>';
+  const pane = '<p></p>';
+  const offset = file.indexOf(pane);
+  const fields = [{ var: 'title', label: 'Title', type: 'text' }];
+  const [inFile] = helpSuggestions(file, offset + 2, { fields });
+  const inPane = shiftSuggestion(inFile, offset);
+
+  assert.equal(inPane.id, 'text:title');
+  assert.equal(apply(pane, inPane), '<p {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</p>');
+  assert.equal(inPane.selection, inFile.selection - offset);
+  assert.equal(shiftSuggestion(inFile, 0), inFile, 'the whole file in the pane: nothing to move');
+
+  // The loop's address stays the file's: it is looked up again there.
+  const loop = { id: 'loop-ask', changes: [], selection: null, loop: { from: 40 } };
+
+  assert.equal(shiftSuggestion(loop, 10).loop.from, 40);
+  assert.equal(shiftSuggestion(loop, 10).selection, null);
 });
 
 test('never more than the popup shows, and nothing for a caret outside markup', () => {

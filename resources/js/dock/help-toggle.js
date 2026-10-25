@@ -43,7 +43,16 @@ export function bindHelpToggle(win, dock) {
   });
 
   paint();
-  onHelpSwitch((changed) => {
+
+  // The dock may be rebuilt (dock-api.js drops a dock whose chrome is stale);
+  // a listener for a button no longer in it lets go the first time it hears.
+  const stop = onHelpSwitch((changed) => {
+    if (!btn.isConnected) {
+      stop();
+
+      return;
+    }
+
     if (changed === win) {
       paint();
     }

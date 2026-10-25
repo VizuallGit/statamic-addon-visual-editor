@@ -74,6 +74,38 @@ test('the switch tells who listens, and stops when asked', () => {
   assert.deepEqual(heard, [[true, true]]);
 });
 
+test('the default ticked while the switch is untouched is heard like the switch', () => {
+  const win = fakeWin();
+  const heard = [];
+  const stop = onHelpSwitch((changed, on) => heard.push([changed === win, on]));
+
+  setHelpDefault(win, true);
+  setHelpDefault(win, true, 'the same answer again says nothing');
+  setHelpOn(win, false);
+  // Switched off by hand: the default changing underneath says nothing now.
+  setHelpDefault(win, false);
+  setHelpDefault(win, true);
+  stop();
+
+  assert.deepEqual(heard, [[true, true], [true, false]]);
+});
+
+test('forgetting the switch is heard when it changes the answer', () => {
+  const win = fakeWin();
+  const heard = [];
+  const stop = onHelpSwitch((changed, on) => heard.push(on));
+
+  setHelpOn(win, true);
+  forgetHelpSwitch(win);
+  forgetHelpSwitch(win, 'nothing to forget twice');
+  setHelpDefault(win, true);
+  setHelpOn(win, true);
+  forgetHelpSwitch(win, 'the default says the same: silence');
+  stop();
+
+  assert.deepEqual(heard, [true, false, true, true]);
+});
+
 test('the default is a preference the server keeps', () => {
   assert.ok(CHROME_KEYS.includes(HELP_DEFAULT_KEY));
 

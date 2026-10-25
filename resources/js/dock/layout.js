@@ -326,6 +326,7 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
 #${DOCK_ID} [data-sve-all][aria-pressed="true"],
+#${DOCK_ID} [data-sve-help-btn][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
   opacity: 1;
   color: #7dd3fc;
@@ -590,6 +591,7 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} [data-sve-antlers-tools],
 #${DOCK_ID} [data-sve-visual-edit-tools],
+#${DOCK_ID} [data-sve-help-tools],
 #${DOCK_ID} [data-sve-snippet-tools],
 #${DOCK_ID} [data-sve-css-snippet-tools] {
   pointer-events: auto;
@@ -986,6 +988,7 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-data-vars],
 #${DOCK_ID} [data-sve-antlers-btn],
 #${DOCK_ID} [data-sve-visual-edit-btn],
+#${DOCK_ID} [data-sve-help-btn],
 #${DOCK_ID} [data-sve-snippet-btn],
 #${DOCK_ID} [data-sve-html-tidy] {
   pointer-events: auto;
@@ -1035,6 +1038,7 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-data-vars] span,
 #${DOCK_ID} [data-sve-antlers-btn] span,
 #${DOCK_ID} [data-sve-visual-edit-btn] span,
+#${DOCK_ID} [data-sve-help-btn] span,
 #${DOCK_ID} [data-sve-snippet-btn] span,
 #${DOCK_ID} [data-sve-html-tidy] svg {
   display: flex;
@@ -1046,6 +1050,7 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-antlers-btn][data-open],
 #${DOCK_ID} [data-sve-visual-edit-btn]:hover,
 #${DOCK_ID} [data-sve-visual-edit-btn][data-open],
+#${DOCK_ID} [data-sve-help-btn]:hover,
 #${DOCK_ID} [data-sve-snippet-btn]:hover,
 #${DOCK_ID} [data-sve-snippet-btn][data-open],
 #${DOCK_ID} [data-sve-html-tidy]:hover {

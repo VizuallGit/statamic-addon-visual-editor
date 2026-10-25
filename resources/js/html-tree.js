@@ -58,13 +58,18 @@ import { serializePickTree } from './html-pick-align.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
 import { extractComponent } from './component-extract.js';
+import { addAntlersBranch, writeAntlersExpression } from './antlers-edit.js';
 import {
-  addAntlersBranch,
-  writeAntlersExpression,
-  writeLoopSource,
-  writeLoopTag,
-} from './antlers-edit.js';
-import { NAV_PAGES } from './antlers-blocks.js';
+  loopDepthEdit,
+  loopIncludeHomeEdit,
+  loopInspectModel,
+  loopKindEdit,
+  loopLimitEdit,
+  loopOffsetEdit,
+  loopSortDirEdit,
+  loopSortFieldEdit,
+  loopSourceEdit,
+} from './loop-inspector.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
@@ -1757,63 +1762,45 @@ export function renderHtmlTree(win) {
     openPageMenu(win, anchor, (url) => commitComponentValue(win, handle, url, false));
   htmlTreeUi.onLoopKind = (kind) => setHtmlTreeLoopKind(win, kind);
   htmlTreeUi.onAddBranch = (kind) => addHtmlTreeBranch(win, kind);
+  // The loop's controls write through loop-inspector.js, the module the dock's
+  // help popup writes through too. The one thing held here is the sort
+  // direction chosen before its field (htmlTreeSortDraft).
   htmlTreeUi.onLoopSortField = (value) => {
     const row = activeAntlersRow();
-    const field = String(value || '').trim();
 
     if (!row) {
       return;
     }
 
-    // The field completes a direction chosen a moment ago; without one at all,
-    // ascending is what "sorted" means.
     const draft = htmlTreeSortDraft?.id === row.id ? htmlTreeSortDraft.dir : '';
-    const dir = row.sortDir || draft || 'asc';
 
     htmlTreeSortDraft = null;
-    applyAntlersEdit(win, (html, node) => writeLoopTag(html, node, { sortField: field, sortDir: dir }));
+    applyAntlersEdit(win, loopSortFieldEdit(row, value, draft));
   };
   htmlTreeUi.onLoopSortDir = (value) => {
     const row = activeAntlersRow();
-    const dir = String(value || '');
 
     if (!row) {
       return;
     }
 
+    const next = loopSortDirEdit(row, value);
+
     // Nothing to write yet: hold the choice and show the field it needs.
-    if ((dir === 'asc' || dir === 'desc') && !row.sortField) {
-      htmlTreeSortDraft = { id: row.id, dir };
+    if (next.draft) {
+      htmlTreeSortDraft = { id: row.id, dir: next.draft };
       paintHtmlTreeInspector(win, row);
 
       return;
     }
 
     htmlTreeSortDraft = null;
-
-    // Dropping the sort drops the field with it: a leftover `sort:title` on a
-    // loop the panel says is unsorted is a lie the next reader has to unpick.
-    applyAntlersEdit(win, (html, node) =>
-      writeLoopTag(html, node, {
-        sortDir: dir,
-        sortField: dir === 'asc' || dir === 'desc' ? node.sortField : '',
-      })
-    );
+    applyAntlersEdit(win, next.edit);
   };
-  htmlTreeUi.onLoopDepth = (value) =>
-    applyAntlersEdit(win, (html, row) =>
-      writeLoopTag(html, row, { navDepth: String(value || '').replace(/\D/g, '') })
-    );
-  htmlTreeUi.onLoopIncludeHome = (value) =>
-    applyAntlersEdit(win, (html, row) => writeLoopTag(html, row, { includeHome: !!value }));
-  htmlTreeUi.onLoopLimit = (value) =>
-    applyAntlersEdit(win, (html, row) =>
-      writeLoopTag(html, row, { limit: String(value || '').replace(/\D/g, '') })
-    );
-  htmlTreeUi.onLoopOffset = (value) =>
-    applyAntlersEdit(win, (html, row) =>
-      writeLoopTag(html, row, { offset: String(value || '').replace(/\D/g, '') })
-    );
+  htmlTreeUi.onLoopDepth = (value) => applyAntlersEdit(win, loopDepthEdit(value));
+  htmlTreeUi.onLoopIncludeHome = (value) => applyAntlersEdit(win, loopIncludeHomeEdit(value));
+  htmlTreeUi.onLoopLimit = (value) => applyAntlersEdit(win, loopLimitEdit(value));
+  htmlTreeUi.onLoopOffset = (value) => applyAntlersEdit(win, loopOffsetEdit(value));
   // The publish form is the Control Panel's own components, so it gets an app
   // that can see them. The inspector says when its placeholder is there.
   htmlTreeUi.onPropHost = (el) => (el ? callValues.mount(el) : callValues.unmount());
@@ -3544,33 +3531,6 @@ function moveSectionOnPage(win, uid, targetUid, place) {
  * — is edited where it already can be, so the panel stays empty rather than
  * inventing a second place to do the same thing.
  */
-function siteCollections(win) {
-  const list = win.Statamic?.$config?.get?.('sveCollections');
-
-  return Array.isArray(list) ? list : [];
-}
-
-/**
- * The site's Navigation structures, for the Nav loop.
- *
- * The pages collection's own tree is not one of them and is added by the panel,
- * because `{{ nav }}` reaches it by handle rather than through a navigation. A
- * site with none configured therefore still has something to loop.
- */
-function siteNavigations(win) {
-  const list = win.Statamic?.$config?.get?.('sveNavigations');
-
-  return Array.isArray(list) ? list : [];
-}
-
-/** Every source the Nav loop offers: the pages tree first, then the navigations. */
-function navSources(win) {
-  return [
-    { handle: NAV_PAGES, title: t(win, 'antlers_nav_pages') },
-    ...siteNavigations(win).map((nav) => ({ handle: nav.handle, title: nav.title })),
-  ];
-}
-
 function paintHtmlTreeInspector(win, row) {
   if (row?.kind === 'component') {
     paintComponentValues(win, row);
@@ -3609,93 +3569,13 @@ function paintHtmlTreeInspector(win, row) {
     return;
   }
 
+  // A loop's panel is the shared one (loop-inspector.js): the dock's help popup
+  // shows the same model and writes with the same edits.
   if (row.antlers === 'loop') {
-    const collection = row.loopKind === 'collection';
-    const nav = row.loopKind === 'nav';
-    const draft = htmlTreeSortDraft?.id === row.id ? htmlTreeSortDraft.dir : '';
-    const dir = row.sortDir || draft;
-    const kinds = [
-      { id: 'field', label: t(win, 'antlers_loop_field') },
-      { id: 'collection', label: t(win, 'antlers_loop_collection') },
-      { id: 'nav', label: t(win, 'antlers_loop_nav') },
-    ];
-
-    // A navigation has no sorting and no limit to offer, because the tag has
-    // neither: its order is the order it was dragged into. Depth is what
-    // shortens it, and the front page is a question only the pages tree has.
-    if (nav) {
-      const source = row.expr || NAV_PAGES;
-
-      htmlTreeUi.inspect = {
-        key,
-        title: t(win, 'antlers_loop'),
-        mode: 'loop',
-        loopKind: 'nav',
-        kinds,
-        navs: navSources(win),
-        value: source,
-        placeholder: t(win, 'antlers_pick_nav'),
-        nav: {
-          depthTitle: t(win, 'antlers_nav_depth'),
-          depth: row.navDepth || '',
-          depths: [
-            { id: '', label: t(win, 'antlers_nav_depth_all') },
-            { id: '1', label: t(win, 'antlers_nav_depth_1') },
-            { id: '2', label: t(win, 'antlers_nav_depth_2') },
-            { id: '3', label: t(win, 'antlers_nav_depth_3') },
-          ],
-          // Only the pages tree has a front page to leave in or out.
-          homeAsked: source === NAV_PAGES,
-          homeLabel: t(win, 'antlers_nav_include_home'),
-          includeHome: !!row.includeHome,
-        },
-        branches: [],
-      };
-
-      return;
-    }
-
-    htmlTreeUi.inspect = {
+    htmlTreeUi.inspect = loopInspectModel(win, row, {
       key,
-      title: t(win, 'antlers_loop'),
-      mode: 'loop',
-      loopKind: collection ? 'collection' : 'field',
-      kinds,
-      collections: siteCollections(win),
-      value: row.expr || '',
-      placeholder: t(win, collection ? 'antlers_pick_collection' : 'antlers_loop_placeholder'),
-      sort: {
-        title: t(win, 'antlers_sort'),
-        dir,
-        // Random has nothing to sort by, and neither has "as it comes".
-        needsField: dir === 'asc' || dir === 'desc',
-        field: row.sortField || '',
-        // The field picker lists the section's own fields. A collection is
-        // sorted by its entries' fields, which are not those — so there it is
-        // typed, and the placeholder names the ones every collection has.
-        pickable: !collection,
-        placeholder: t(win, collection ? 'antlers_sort_field_entry' : 'antlers_sort_field'),
-        dirs: [
-          { id: '', label: t(win, 'antlers_sort_none') },
-          { id: 'asc', label: t(win, 'antlers_sort_asc') },
-          { id: 'desc', label: t(win, 'antlers_sort_desc') },
-          { id: 'random', label: t(win, 'antlers_sort_random') },
-        ],
-      },
-      // Paginated, the limit is how many go on each page — the same parameter,
-      // a different promise, so it says which.
-      limit: {
-        title: t(win, row.paginate ? 'antlers_limit_per_page' : 'antlers_limit'),
-        value: row.limit || '',
-        placeholder: t(win, 'antlers_limit_placeholder'),
-      },
-      offset: {
-        title: t(win, 'antlers_offset'),
-        value: row.offset || '',
-        placeholder: t(win, 'antlers_offset_placeholder'),
-      },
-      branches: [],
-    };
+      draft: htmlTreeSortDraft?.id === row.id ? htmlTreeSortDraft.dir : '',
+    });
 
     return;
   }
@@ -3980,18 +3860,14 @@ function commitComponentValue(win, handle, value, bound) {
 
 function commitHtmlTreeInspector(win, value) {
   applyAntlersEdit(win, (html, row) =>
-    row.antlers === 'loop'
-      ? writeLoopSource(html, row, row.loopKind === 'collection' ? 'collection' : 'field', value)
-      : writeAntlersExpression(html, row, value)
+    row.antlers === 'loop' ? loopSourceEdit(row, value)(html, row) : writeAntlersExpression(html, row, value)
   );
 }
 
 /**
- * Switching a loop between a field and a collection.
- *
- * Nothing is written until there is somewhere to point: turning a field loop
- * into a collection with no collection chosen would break the template, so the
- * panel just offers the picker and waits.
+ * Switching a loop between a field, a collection and a navigation — the
+ * shared rule (loop-inspector.js): nothing is written until there is
+ * somewhere to point.
  */
 function setHtmlTreeLoopKind(win, kind) {
   const row = activeAntlersRow();
@@ -4000,34 +3876,11 @@ function setHtmlTreeLoopKind(win, kind) {
     return;
   }
 
-  const current =
-    row.loopKind === 'collection' ? 'collection' : row.loopKind === 'nav' ? 'nav' : 'field';
+  const edit = loopKindEdit(win, row, kind);
 
-  if (kind === current) {
-    return;
+  if (edit) {
+    applyAntlersEdit(win, edit);
   }
-
-  // The pages tree needs nothing configured, so the Nav kind always has a
-  // source to start on — unlike a collection, which needs one to exist.
-  if (kind === 'nav') {
-    applyAntlersEdit(win, (html, node) => writeLoopSource(html, node, 'nav', NAV_PAGES));
-
-    return;
-  }
-
-  if (kind === 'collection') {
-    const first = siteCollections(win)[0]?.handle;
-
-    if (!first) {
-      return;
-    }
-
-    applyAntlersEdit(win, (html, node) => writeLoopSource(html, node, 'collection', first));
-
-    return;
-  }
-
-  applyAntlersEdit(win, (html, node) => writeLoopSource(html, node, 'field', node.handle || 'items'));
 }
 
 function addHtmlTreeBranch(win, kind) {

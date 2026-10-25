@@ -24,8 +24,19 @@ export function helpDefaultOn(win) {
   return !!win && chromeGet(win, HELP_DEFAULT_KEY) === '1';
 }
 
+/**
+ * The user's default, from the settings tick. While this Live Preview still
+ * follows the default (its switch not clicked), what `helpOn` answers changes
+ * with it, so the listeners hear it the same way they hear the switch.
+ */
 export function setHelpDefault(win, on) {
+  const before = helpOn(win);
+
   chromeSet(win, HELP_DEFAULT_KEY, on ? '1' : '0');
+
+  if (!session.has(win) && helpOn(win) !== before) {
+    tell(win, !!on);
+  }
 }
 
 /** Whether help is on in this Live Preview: the switch once clicked, the default until then. */
@@ -36,18 +47,39 @@ export function helpOn(win) {
 /** The pane's switch. This Live Preview only — the default stays as the user set it. */
 export function setHelpOn(win, on) {
   session.set(win, !!on);
+  tell(win, !!on);
+}
 
+function tell(win, on) {
   for (const listener of [...listeners]) {
-    listener(win, !!on);
+    listener(win, on);
   }
 }
 
-/** Live Preview closed: the next one starts from the default again. */
+/**
+ * Live Preview closed: the next one starts from the default again. The
+ * listeners hear it when that changes the answer, so an editor still mounted
+ * from this session (the dock is not rebuilt between two) lets help go.
+ */
 export function forgetHelpSwitch(win) {
+  if (!session.has(win)) {
+    return;
+  }
+
+  const before = session.get(win);
+
   session.delete(win);
+
+  if (helpOn(win) !== before) {
+    tell(win, helpOn(win));
+  }
 }
 
-/** Told when the switch is clicked. Returns the way to stop listening. */
+/**
+ * Told `(win, on)` when what `helpOn(win)` answers changes: the switch
+ * clicked, or the default ticked while the switch is untouched. Returns the
+ * way to stop listening.
+ */
 export function onHelpSwitch(listener) {
   listeners.add(listener);
 

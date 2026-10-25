@@ -101,6 +101,25 @@ function dataVarsQuery(win, at) {
   };
 }
 
+/**
+ * The section's rows with this moment's values — the Data button's Section
+ * tab, for help mode (dock/help-editor.js) to offer. The same fetch and the
+ * same cache as the button; the loop scope is left out of the query, since
+ * the section's rows do not depend on where in the file one stands.
+ */
+export function sectionDataRows(win) {
+  const { view, kind } = dataVarsView(win);
+  const query = {
+    collection: dataVarsCollection(win) || '',
+    set: dataVarsSet(currentTemplateType()),
+    view,
+    kind,
+    scope: '',
+  };
+
+  return fetchDataVars(win, query).then((raw) => withValues(raw?.section || [], currentSectionValues(win)));
+}
+
 /** The page's own values — the whole entry, not the section inside it. */
 function currentPageValues(win) {
   const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];

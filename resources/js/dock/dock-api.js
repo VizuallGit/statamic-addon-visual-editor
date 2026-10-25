@@ -50,6 +50,7 @@ import { DATA_ICON, DOCK_ID, HANDLES, SCOPE_ICON, UNLOCK_ID, css, editors, html,
 import { bindCssTools, bindHtmlTidy, bindHtmlTools, bindStyleMode } from './toolbars.js';
 import { bindCssAddClass } from './html-tools.js';
 import { bindHistory, bindStrip, paintStrip } from './history-strip.js';
+import { attachHelp } from './help-attach.js';
 import { bindHtmlScope, clearHtmlScopeRange, currentFullHtml, currentSectionValues, flushCssScope, goBackTemplate, htmlEditorText, htmlScopeEnabled, openNestedTemplate, openRenameClassMenu, paintHtmlScope, paintLock, showHtmlFull, showHtmlScope, syncScopedHtml, writeHandleEditor, writeHtmlEditor } from './scope.js';
 import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
 import { mountEditor, paintHostWait } from './editor.js';
@@ -77,6 +78,7 @@ async function ensureDockAsync(win) {
       dock.querySelector('[data-sve-html-tidy]') &&
       dock.querySelector('[data-sve-data-vars]') &&
       dock.querySelector('[data-sve-visual-edit-tools]') &&
+      dock.querySelector('[data-sve-help-tools]') &&
       dock.querySelector('[data-sve-html-scope]') &&
       dock.querySelector('[data-sve-code-lock]') &&
       dock.querySelector('[data-sve-code-back]') &&
@@ -193,6 +195,9 @@ async function ensureDockAsync(win) {
         title: t(win, 'code_dock_css_rename_class'),
       });
     }
+
+    // Help mode: nothing until it is on (dock/help-attach.js).
+    attachHelp(win, editors.html);
   }
 
   return dock;

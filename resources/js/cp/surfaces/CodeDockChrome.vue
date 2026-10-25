@@ -53,6 +53,8 @@ defineProps({
             <span v-html="dataIcon"></span>
           </button>
           <div data-sve-visual-edit-tools></div>
+          <!-- Help: suggestions at the caret, on or off for this Live Preview (dock/help-toggle.js). -->
+          <div data-sve-help-tools></div>
           <div data-sve-antlers-tools></div>
           <!-- Snippets: saved pieces of this site's own markup (dock/snippets.js). -->
           <div data-sve-snippet-tools></div>
