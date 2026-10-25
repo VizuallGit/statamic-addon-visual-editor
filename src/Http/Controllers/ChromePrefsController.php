@@ -31,6 +31,7 @@ class ChromePrefsController
         'sve-code-dock-panes',
         'sve-code-dock-widths',
         'sve-code-dock-armed',
+        'sve-code-dock-help',
         'sve-ai-panel-mode',
         'sve-listview-tab',
         'sve-toolbar-hidden',

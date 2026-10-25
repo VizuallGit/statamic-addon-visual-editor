@@ -6,6 +6,7 @@ import { ref } from 'vue';
 // the tree and the HTML pane both read them.
 const props = defineProps({
   codeDock: { type: Object, required: true },
+  codeDockHelp: { type: Object, default: () => ({ show: false }) },
   htmlTree: { type: Object, required: true },
   familyColors: { type: Object, required: true },
   on: { type: Object, required: true },
@@ -15,11 +16,17 @@ const props = defineProps({
 // or closed the dock since the menu was built.
 const codeDockOn = ref(props.on.dockOn ? props.on.dockOn() : props.codeDock.on);
 const htmlTreeOn = ref(props.htmlTree.on);
+const codeDockHelpOn = ref(!!props.codeDockHelp.on);
 const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
 
 function setCodeDock(value) {
   codeDockOn.value = value;
   props.on.codeDock(value);
+}
+
+function setCodeDockHelp(value) {
+  codeDockHelpOn.value = value;
+  props.on.codeDockHelp(value);
 }
 
 function setHtmlTree(value) {
@@ -46,10 +53,14 @@ function resetFamilyColors() {
 </script>
 
 <template>
-  <div v-if="codeDock.show || htmlTree.show" class="sve-lp-settings__section">
+  <div v-if="codeDock.show || codeDockHelp.show || htmlTree.show" class="sve-lp-settings__section">
     <label v-if="codeDock.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="codeDockOn" @change="setCodeDock($event.target.checked)">
       <span :title="codeDock.label">{{ codeDock.label }}</span>
+    </label>
+    <label v-if="codeDockHelp.show" class="sve-lp-settings__row">
+      <input type="checkbox" :checked="codeDockHelpOn" @change="setCodeDockHelp($event.target.checked)">
+      <span :title="codeDockHelp.label">{{ codeDockHelp.label }}</span>
     </label>
     <label v-if="htmlTree.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="htmlTreeOn" @change="setHtmlTree($event.target.checked)">

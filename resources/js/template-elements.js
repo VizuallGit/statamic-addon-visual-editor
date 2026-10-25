@@ -8,8 +8,9 @@
  *
  * Plain elements. The dock's section button writes the attributes a page
  * section's partial needs (`id-{{ id }}`, `visual_edit`); a template is not a
- * section and has neither. Every element starts with an empty class list in
- * the dock's brackets, ready for the class strip.
+ * section and has neither. Every element starts with an empty class, ready for
+ * the class strip; no empty `[ ]` — the dock writes `[ name ]` itself the
+ * moment CSS is written for the element.
  *
  * Pure — no editor, no bus — so the placement is tested on its own.
  *
@@ -53,7 +54,7 @@ export function templateElement(tag) {
   }
 
   const name = TEMPLATE_TAGS.includes(tag) ? tag : 'div';
-  const classes = name === 'section' ? '[ ] py-800' : '[ ]';
+  const classes = name === 'section' ? 'py-800' : '';
 
   return `<${name} class="${classes}">\n    \n</${name}>`;
 }

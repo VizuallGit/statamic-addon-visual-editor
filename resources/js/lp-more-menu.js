@@ -14,6 +14,7 @@ import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
 import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
+import { helpDefaultOn, setHelpDefault } from './dock/help-state.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
@@ -286,6 +287,13 @@ function treeProps(win) {
       show: featureOn(win, 'template_dock'),
       on: isCodeDockArmed(win),
       label: t(win, 'lp_settings_code_dock'),
+    },
+    // Help in the HTML pane, on from the start or not. The user's default:
+    // the pane's own switch changes one Live Preview and never writes this.
+    codeDockHelp: {
+      show: featureOn(win, 'template_dock'),
+      on: helpDefaultOn(win),
+      label: t(win, 'lp_settings_code_dock_help'),
     },
     // The tree's face is a preference, not a feature: the panel reads it on
     // every paint, and the store flips it live while the panel is open.
@@ -580,7 +588,7 @@ function deleteOwnPreset(win, id) {
 
 function settingsProps(win, rect) {
   const tree = treeProps(win);
-  const hasTree = tree.codeDock.show || tree.htmlTree.show || tree.familyColors.show;
+  const hasTree = tree.codeDock.show || tree.codeDockHelp.show || tree.htmlTree.show || tree.familyColors.show;
 
   return {
     top: Math.round(rect.bottom + 8),
@@ -637,6 +645,7 @@ function bindSettingHandlers(win) {
       presetSave: (name) => saveOwnPreset(win, name),
       presetDelete: (id) => deleteOwnPreset(win, id),
       codeDock: (on) => setCodeDock(win, on),
+      codeDockHelp: (on) => setHelpDefault(win, on),
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
       familyReset: () => resetFamilyColors(win),
