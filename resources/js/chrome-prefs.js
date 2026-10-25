@@ -34,6 +34,8 @@ export const CHROME_KEYS = [
   'sve-html-scope-v2',
   'sve-code-dock-autosave',
   'sve-code-dock-help',
+  'sve-code-dock-help-click',
+  'sve-code-dock-help-picker',
   'sve-previews-auto',
   'sve-ai-panel-mode',
   'sve-ai-launcher-open',

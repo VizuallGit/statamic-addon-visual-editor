@@ -14,7 +14,7 @@ import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
 import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
-import { helpDefaultOn, setHelpDefault } from './dock/help-state.js';
+import { helpDefaultOn, helpOnClick, helpOpensPicker, setHelpDefault, setHelpOnClick, setHelpOpensPicker } from './dock/help-state.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
@@ -294,6 +294,9 @@ function treeProps(win) {
       show: featureOn(win, 'template_dock'),
       on: helpDefaultOn(win),
       label: t(win, 'lp_settings_code_dock_help'),
+      // How it behaves once on: the user's too, read by the help as it goes.
+      click: { on: helpOnClick(win), label: t(win, 'lp_settings_code_dock_help_click') },
+      picker: { on: helpOpensPicker(win), label: t(win, 'lp_settings_code_dock_help_picker') },
     },
     // The tree's face is a preference, not a feature: the panel reads it on
     // every paint, and the store flips it live while the panel is open.
@@ -646,6 +649,8 @@ function bindSettingHandlers(win) {
       presetDelete: (id) => deleteOwnPreset(win, id),
       codeDock: (on) => setCodeDock(win, on),
       codeDockHelp: (on) => setHelpDefault(win, on),
+      codeDockHelpClick: (on) => setHelpOnClick(win, on),
+      codeDockHelpPicker: (on) => setHelpOpensPicker(win, on),
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
       familyReset: () => resetFamilyColors(win),

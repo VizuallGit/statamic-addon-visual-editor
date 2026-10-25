@@ -7,13 +7,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CHROME_KEYS } from '../../resources/js/chrome-prefs.js';
 import {
+  HELP_CLICK_KEY,
   HELP_DEFAULT_KEY,
+  HELP_PICKER_KEY,
   forgetHelpSwitch,
   helpDefaultOn,
   helpOn,
+  helpOnClick,
+  helpOpensPicker,
   onHelpSwitch,
   setHelpDefault,
   setHelpOn,
+  setHelpOnClick,
+  setHelpOpensPicker,
 } from '../../resources/js/dock/help-state.js';
 
 function fakeWin() {
@@ -106,10 +112,30 @@ test('forgetting the switch is heard when it changes the answer', () => {
   assert.deepEqual(heard, [true, false, true, true]);
 });
 
-test('the default is a preference the server keeps', () => {
-  assert.ok(CHROME_KEYS.includes(HELP_DEFAULT_KEY));
-
+test('the default and the two ways are preferences the server keeps', () => {
   const php = readFileSync(new URL('../../src/Http/Controllers/ChromePrefsController.php', import.meta.url), 'utf8');
 
-  assert.ok(php.includes(`'${HELP_DEFAULT_KEY}'`), 'ChromePrefsController::KEYS');
+  for (const key of [HELP_DEFAULT_KEY, HELP_CLICK_KEY, HELP_PICKER_KEY]) {
+    assert.ok(CHROME_KEYS.includes(key), `CHROME_KEYS ${key}`);
+    assert.ok(php.includes(`'${key}'`), `ChromePrefsController::KEYS ${key}`);
+  }
+});
+
+test('how it behaves: on a click and into the picker, until the user says otherwise', () => {
+  const win = fakeWin();
+
+  assert.equal(helpOnClick(win), true);
+  assert.equal(helpOpensPicker(win), true);
+
+  setHelpOnClick(win, false);
+  setHelpOpensPicker(win, false);
+  assert.equal(helpOnClick(win), false);
+  assert.equal(helpOpensPicker(win), false);
+
+  setHelpOnClick(win, true);
+  assert.equal(helpOnClick(win), true);
+  assert.equal(helpOpensPicker(win), false, 'the two are not one setting');
+
+  // Neither is the switch: help itself stays as it was.
+  assert.equal(helpOn(win), false);
 });

@@ -688,6 +688,8 @@ return [
     'lp_settings_width' => 'Width',
     'lp_settings_code_dock' => 'HTML dock from the start',
     'lp_settings_code_dock_help' => 'Help in the HTML dock on from the start',
+    'lp_settings_code_dock_help_click' => 'Help also when clicking into a tag (not only after a typed >)',
+    'lp_settings_code_dock_help_picker' => '«Add a class» opens the class picker (Tailwind or CSS, as the style pane is)',
     'lp_settings_html_tree_tags' => 'HTML tree: coloured tags (off = the classic cards)',
     'lp_settings_colors' => 'HTML tree and code: colours',
     'lp_settings_colors_reset' => 'Default colours',

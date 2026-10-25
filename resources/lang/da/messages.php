@@ -680,6 +680,8 @@ return [
     'lp_settings_width' => 'Bredde',
     'lp_settings_code_dock' => 'HTML-dock fra starten',
     'lp_settings_code_dock_help' => 'Hjælp i HTML-docken tændt fra start',
+    'lp_settings_code_dock_help_click' => 'Hjælp også ved klik i et tag (ikke kun efter et skrevet >)',
+    'lp_settings_code_dock_help_picker' => '«Tilføj klasse» åbner klassevælgeren (Tailwind eller CSS, som stilpanelet står)',
     'lp_settings_html_tree_tags' => 'HTML-træ: farvede tags (fra = de klassiske kort)',
     'lp_settings_colors' => 'HTML-træ og kode: farver',
     'lp_settings_colors_reset' => 'Standardfarver',

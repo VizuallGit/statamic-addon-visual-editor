@@ -16,7 +16,11 @@
  * toolbar's buttons: ⌘Z takes it back in one step, and the lock keeps it out
  * of a locked element. The loop panel writes through `dock:set-html`, the
  * way the HTML tree's panel does, with loop-inspector.js's edits — the two
- * write the same tag.
+ * write the same tag. «Add a class» opens the pane's own class picker
+ * (openAddClass, what the + does) when the user has it so (help-state.js:
+ * helpOpensPicker); a click into a tag asks only when they have it so
+ * (helpOnClick). Both are read when they matter, so a tick in the settings
+ * holds from the next click on.
  *
  * The keys (Tab, Enter, arrows, Esc) are bound at the highest precedence but
  * answer false while no popup is open, so Tab, the Tailwind list and
@@ -37,7 +41,8 @@ import { ensureHelpStyles } from './help-styles.js';
 import { sectionDataRows } from './data-vars.js';
 import { currentFullHtml } from './scope.js';
 import { currentTemplateType } from './dock-api.js';
-import { finishHtmlEdit } from './html-tools.js';
+import { addClassButton, finishHtmlEdit, openAddClass } from './html-tools.js';
+import { helpOnClick, helpOpensPicker } from './help-state.js';
 import { dataVarsSet } from '../data-vars.js';
 import { lockedRanges } from '../lib/locked-tags.js';
 import { sectionScaffold } from '../lib/config.js';
@@ -136,8 +141,11 @@ function helpExtension(state) {
       }
     }),
     EditorView.domEventHandlers({
+      // A click into a tag asks too — unless the user has the help wait for a typed `>`.
       click: () => {
-        schedule(state);
+        if (helpOnClick(state.win)) {
+          schedule(state);
+        }
 
         return false;
       },
@@ -330,6 +338,21 @@ function accept(state, index) {
 
   if (view.state.readOnly || !item.changes.length) {
     return;
+  }
+
+  // «Add a class» as the pane's + : the dock's picker for the tag under the
+  // caret — Tailwind's list or the site's class names, whichever the style
+  // pane is in — with nothing written until a class is picked. Only while
+  // the + is on screen to open it by; the CSS pane shut, the class is
+  // written here as when the setting is off.
+  if (item.id === 'class' && helpOpensPicker(state.win)) {
+    const btn = addClassButton(state.win);
+
+    if (btn) {
+      openAddClass(state.win, btn);
+
+      return;
+    }
   }
 
   state.writing = true;

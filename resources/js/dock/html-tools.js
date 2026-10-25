@@ -720,6 +720,30 @@ function openAddClassMenu(win, anchor) {
   void loadClassDefs(win).then(paint);
 }
 
+/**
+ * The class picker for the tag under the HTML caret, by the anchor: the
+ * Tailwind list when the style pane is in Tailwind, the site's class names
+ * otherwise. What the pane's + does — and what the help's «Add a class» does
+ * when the user has it open the picker.
+ */
+export function openAddClass(win, anchor) {
+  if (dockState.styleMode === 'tw') {
+    closeCssMenu(win.document);
+    twOpenAddMenu(win, anchor);
+
+    return;
+  }
+
+  openAddClassMenu(win, anchor);
+}
+
+/** The pane's + button, when it is on screen to open a menu by — the CSS pane shut, it is not. */
+export function addClassButton(win) {
+  const btn = win?.document.querySelector(`#${DOCK_ID} [data-sve-css-add-class]`);
+
+  return btn && btn.getClientRects().length ? btn : null;
+}
+
 export function bindCssAddClass(win, dock) {
   const btn = dock.querySelector('[data-sve-css-add-class]');
 
@@ -734,14 +758,6 @@ export function bindCssAddClass(win, dock) {
   btn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-
-    if (dockState.styleMode === 'tw') {
-      closeCssMenu(win.document);
-      twOpenAddMenu(win, btn);
-
-      return;
-    }
-
-    openAddClassMenu(win, btn);
+    openAddClass(win, btn);
   });
 }

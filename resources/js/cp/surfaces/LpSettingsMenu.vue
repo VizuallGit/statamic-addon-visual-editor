@@ -273,6 +273,10 @@ const on = {
   opacity: 0.6;
   cursor: default;
 }
+/* A row that belongs to the one above it (how the help behaves, under its tick). */
+.sve-lp-settings__row--sub {
+  padding-left: 1.375rem;
+}
 .sve-lp-settings__row input {
   margin: 0;
   flex: none;

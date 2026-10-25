@@ -285,16 +285,15 @@ async function closeMenu(page, cp) {
   }
 }
 
-/** Tick or untick «help on from the start» in ⋮ → HTML tree; leaves the menu closed. */
-async function setHelpDefault(page, cp, on) {
+/** Tick or untick one of the help's rows in ⋮ → HTML tree (by its string key); leaves the menu closed. */
+async function setHelpTick(page, cp, key, on) {
   await openMenuTab(page, cp, 'tree');
 
-  const hit = await cp.evaluate((menu) => {
+  const hit = await cp.evaluate((menu, k) => {
     // The strings are PHP's (sveStrings); a site whose PHP is older than this
     // build shows the key itself, so both are looked for.
-    const key = 'lp_settings_code_dock_help';
-    const label = window.Statamic?.$config?.get?.('sveStrings')?.[key] || key;
-    const row = [...document.querySelectorAll(`${menu} label.sve-lp-settings__row`)].find((el) => (el.textContent || '').includes(label));
+    const label = window.Statamic?.$config?.get?.('sveStrings')?.[k] || k;
+    const row = [...document.querySelectorAll(`${menu} label.sve-lp-settings__row`)].find((el) => (el.textContent || '').trim() === label.trim());
     const box = row?.querySelector('input[type="checkbox"]');
 
     if (!box) {
@@ -306,7 +305,7 @@ async function setHelpDefault(page, cp, on) {
     const b = box.getBoundingClientRect();
 
     return { x: b.x + b.width / 2, y: b.y + b.height / 2, checked: box.checked };
-  }, MENU);
+  }, MENU, key);
 
   if (!hit) {
     await closeMenu(page, cp);
@@ -428,11 +427,11 @@ try {
   step('typing is the editor’s own: <p></p> closed by it', (await paneDoc(cp))?.includes('<p></p>'));
 
   // ── The default from ⋮ → HTML tree turns it on for this Live Preview ───
-  step('the default ticked in the settings', await setHelpDefault(page, cp, true));
+  step('the default ticked in the settings', await setHelpTick(page, cp, 'lp_settings_code_dock_help', true));
   step('…switches the icon on', await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', HELP_BTN, 5000), `aria-pressed=${await pressed(cp)}`);
   await sleep(800);
   step('…and loads the editor side', helpLoaded(requests));
-  step('the default unticked switches it off again', await setHelpDefault(page, cp, false) && (await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'false', HELP_BTN, 5000)), `aria-pressed=${await pressed(cp)}`);
+  step('the default unticked switches it off again', await setHelpTick(page, cp, 'lp_settings_code_dock_help', false) && (await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'false', HELP_BTN, 5000)), `aria-pressed=${await pressed(cp)}`);
 
   // ── The icon switches it on by hand ────────────────────────────────────
   await click(page, cp, HELP_BTN);
@@ -505,6 +504,97 @@ try {
   const afterTab = await paneDoc(cp);
 
   step('Tab without a popup writes nothing of ours', !!afterTab && !/visual_edit field="\w+" outline_inside/.test(afterTab.slice(0, afterTab.length - (beforeTab?.length || 0) + 60)) && afterTab.length - (beforeTab?.length || 0) <= 8, `${afterTab?.length - beforeTab?.length} chars`);
+
+  // ── «Add a class»: the pane's picker (the setting on), class="" in the pane (off) ──
+  const PICKERS = '#__sve-tw-menu, #__sve-css-menu';
+  const classOptionIndex = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-sve-help-option]`)].findIndex((el) => /class|klasse/i.test(el.textContent || '') && !/same|samme/i.test(el.textContent || '')), POPUP);
+  const pickClass = async () => {
+    const placedP = await newLineAfterRoot(cp);
+
+    if (!placedP) {
+      return { opened: false };
+    }
+
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('<p>', { delay: 30 });
+
+    const opened = await waitSeen(cp, POPUP, 6000);
+    const index = opened ? await classOptionIndex() : -1;
+
+    for (let i = 0; i < index; i++) {
+      await page.keyboard.press('ArrowDown');
+    }
+
+    const before = await paneDoc(cp);
+
+    if (index >= 0) {
+      await page.keyboard.press('Enter');
+      await sleep(600);
+    }
+
+    return { opened, index, before, after: await paneDoc(cp) };
+  };
+
+  const viaPicker = await pickClass();
+
+  step('«Add a class» is offered on a fresh <p>', viaPicker.opened && viaPicker.index >= 0, `index ${viaPicker.index}`);
+  step('…and opens the pane’s class picker, nothing written yet', (await has(cp, PICKERS)) && viaPicker.after === viaPicker.before, `picker ${await has(cp, PICKERS)}; doc ${viaPicker.after === viaPicker.before ? 'unchanged' : 'changed'}`);
+  await shot(page, 'picker');
+  await page.keyboard.press('Escape');
+  await sleep(300);
+  step('Esc closes the picker', await waitGone(cp, PICKERS, 3000));
+
+  step('the picker setting unticked', await setHelpTick(page, cp, 'lp_settings_code_dock_help_picker', false));
+
+  const inline = await pickClass();
+
+  step('…then «Add a class» writes class="" in the pane with the caret inside', inline.opened && inline.index >= 0 && /<p class="">/.test(inline.after || '') && !(await has(cp, PICKERS)), (inline.after || '').slice(placed?.at || 0, (placed?.at || 0) + 60).replace(/\n/g, '⏎'));
+  step('…and the Tailwind list opens between the quotes', await waitSeen(cp, `${PANE} .cm-tooltip-autocomplete`, 4000));
+  await page.keyboard.press('Escape');
+  await sleep(200);
+  step('the picker setting ticked again', await setHelpTick(page, cp, 'lp_settings_code_dock_help_picker', true));
+
+  // ── The click setting: off, a click into a tag asks nothing; a typed > still does ──
+  step('the click setting unticked', await setHelpTick(page, cp, 'lp_settings_code_dock_help_click', false));
+  await cp.evaluate(`(() => { const view = ${VIEW_OF}; const doc = view.state.doc.toString(); const at = doc.indexOf('<p class=""'); view.dispatch({ selection: { anchor: at + 2 }, scrollIntoView: true }); view.focus(); })()`);
+
+  const caretXY = await cp.evaluate(`(() => { const view = ${VIEW_OF}; const c = view.coordsAtPos(view.state.selection.main.head); return c && { x: c.left + 1, y: (c.top + c.bottom) / 2 }; })()`);
+  const cpBox = await (await cp.frameElement()).boundingBox();
+
+  await page.mouse.click(cpBox.x + caretXY.x, cpBox.y + caretXY.y);
+  await sleep(1000);
+  step('click setting off: a click into a tag opens no popup', !(await has(cp, POPUP)));
+
+  const placedTyped = await newLineAfterRoot(cp);
+
+  step('caret after the root tag for a typed tag', !!placedTyped);
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('<p>', { delay: 30 });
+  step('click setting off: a typed > still opens the popup', await waitSeen(cp, POPUP, 6000));
+  await page.keyboard.press('Escape');
+  step('the click setting ticked again', await setHelpTick(page, cp, 'lp_settings_code_dock_help_click', true));
+
+  // ── A loop's own tag: «What should … repeat?» → Enter → the loop panel ──
+  const LOOP_PANEL = '[data-sve-help-loop]';
+  const loopAt = await cp.evaluate(`(() => { const view = ${VIEW_OF}; const doc = view.state.doc.toString(); const at = doc.search(/\\{\\{ blocks \\}\\}/); if (at < 0) return null; view.dispatch({ selection: { anchor: at + 4 }, scrollIntoView: true }); view.focus(); const c = view.coordsAtPos(at + 4); return c && { x: c.left + 1, y: (c.top + c.bottom) / 2 }; })()`);
+
+  step('a loop tag to click into', !!loopAt);
+
+  if (loopAt) {
+    await page.mouse.click(cpBox.x + loopAt.x, cpBox.y + loopAt.y);
+    step('the loop’s own tag asks what it repeats', await waitSeen(cp, POPUP, 6000) && /repeat|gentage/i.test(await cp.evaluate((sel) => document.querySelector(`${sel} [data-sve-help-option]`)?.textContent || '', POPUP)));
+    await page.keyboard.press('Enter');
+    step('Enter opens the loop panel', await waitSeen(cp, LOOP_PANEL, 3000));
+    await shot(page, 'loop-panel');
+
+    const kinds = await cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-sve-help-seg] button`)].map((b) => `${b.textContent.trim()}${b.hasAttribute('data-active') ? '*' : ''}`), LOOP_PANEL);
+
+    step('the panel shows Field as the kind, with Collection and Nav beside it', kinds.length === 3 && /\*$/.test(kinds[0]), kinds.join(' '));
+    await page.keyboard.press('Escape');
+    step('Esc closes the loop panel', await waitGone(cp, LOOP_PANEL, 3000));
+  }
 
   // ── The icon switches it off: the next tag typed opens nothing ─────────
   await click(page, cp, HELP_BTN);

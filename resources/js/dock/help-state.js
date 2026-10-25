@@ -15,9 +15,34 @@ import { chromeGet, chromeSet } from '../chrome-prefs.js';
 
 /** In CHROME_KEYS and ChromePrefsController::KEYS. */
 export const HELP_DEFAULT_KEY = 'sve-code-dock-help';
+/** How forward the help is: '0' = only after a typed `>`, never on a click into a tag. */
+export const HELP_CLICK_KEY = 'sve-code-dock-help-click';
+/** What «Add a class» does: '0' = writes class="" in the pane; otherwise opens the dock's class picker. */
+export const HELP_PICKER_KEY = 'sve-code-dock-help-picker';
 
 const session = new WeakMap();
 const listeners = new Set();
+
+/**
+ * The two ways the help behaves, the user's as well (same settings tab), read
+ * when they matter — a tick changes the next click or the next Tab, no reload.
+ * Both on until the user says otherwise.
+ */
+export function helpOnClick(win) {
+  return !!win && chromeGet(win, HELP_CLICK_KEY) !== '0';
+}
+
+export function setHelpOnClick(win, on) {
+  chromeSet(win, HELP_CLICK_KEY, on ? '1' : '0');
+}
+
+export function helpOpensPicker(win) {
+  return !!win && chromeGet(win, HELP_PICKER_KEY) !== '0';
+}
+
+export function setHelpOpensPicker(win, on) {
+  chromeSet(win, HELP_PICKER_KEY, on ? '1' : '0');
+}
 
 /** The user's default: on from the start, or not. */
 export function helpDefaultOn(win) {

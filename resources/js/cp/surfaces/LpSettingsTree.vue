@@ -17,6 +17,8 @@ const props = defineProps({
 const codeDockOn = ref(props.on.dockOn ? props.on.dockOn() : props.codeDock.on);
 const htmlTreeOn = ref(props.htmlTree.on);
 const codeDockHelpOn = ref(!!props.codeDockHelp.on);
+const codeDockHelpClick = ref(props.codeDockHelp.click ? !!props.codeDockHelp.click.on : true);
+const codeDockHelpPicker = ref(props.codeDockHelp.picker ? !!props.codeDockHelp.picker.on : true);
 const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
 
 function setCodeDock(value) {
@@ -27,6 +29,16 @@ function setCodeDock(value) {
 function setCodeDockHelp(value) {
   codeDockHelpOn.value = value;
   props.on.codeDockHelp(value);
+}
+
+function setCodeDockHelpClick(value) {
+  codeDockHelpClick.value = value;
+  props.on.codeDockHelpClick(value);
+}
+
+function setCodeDockHelpPicker(value) {
+  codeDockHelpPicker.value = value;
+  props.on.codeDockHelpPicker(value);
 }
 
 function setHtmlTree(value) {
@@ -61,6 +73,15 @@ function resetFamilyColors() {
     <label v-if="codeDockHelp.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="codeDockHelpOn" @change="setCodeDockHelp($event.target.checked)">
       <span :title="codeDockHelp.label">{{ codeDockHelp.label }}</span>
+    </label>
+    <!-- How the help behaves once on — whichever way it was turned on. -->
+    <label v-if="codeDockHelp.show && codeDockHelp.click" class="sve-lp-settings__row sve-lp-settings__row--sub">
+      <input type="checkbox" :checked="codeDockHelpClick" @change="setCodeDockHelpClick($event.target.checked)">
+      <span :title="codeDockHelp.click.label">{{ codeDockHelp.click.label }}</span>
+    </label>
+    <label v-if="codeDockHelp.show && codeDockHelp.picker" class="sve-lp-settings__row sve-lp-settings__row--sub">
+      <input type="checkbox" :checked="codeDockHelpPicker" @change="setCodeDockHelpPicker($event.target.checked)">
+      <span :title="codeDockHelp.picker.label">{{ codeDockHelp.picker.label }}</span>
     </label>
     <label v-if="htmlTree.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="htmlTreeOn" @change="setHtmlTree($event.target.checked)">
