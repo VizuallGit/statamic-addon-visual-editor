@@ -454,8 +454,11 @@ try {
 
   info(`popup: ${options.join(' | ')}`);
   step('the popup offers the loop over the section’s list (≤ 3 rows, then the id row last)', options.length >= 1 && options.length <= 4 && options.some((text) => /replicator|grid|løkke|loop|gentag/i.test(text)), options.join(' | '));
-  // The label, or its raw key against a PHP older than the bundle.
-  step('the id row is last and never pushes a field off the list', /(\bid\b|code_dock_help_id)/i.test(options.at(-1) || '') && options.slice(0, -1).every((text) => !/code_dock_help_id|\bid=""/.test(text)), options.at(-1) || '(no rows)');
+  // A row's text is its label and its meta run together: «Add an id» + `id=""`
+  // (or the raw key against a PHP older than the bundle).
+  const isIdRow = (text) => /code_dock_help_id|\bid(?=\b|id="")/i.test(text);
+
+  step('the id row is last and never pushes a field off the list', isIdRow(options.at(-1) || '') && options.slice(0, -1).every((text) => !isIdRow(text)), options.at(-1) || '(no rows)');
 
   const where = await cp.evaluate(`(() => {
     const view = ${VIEW_OF};
