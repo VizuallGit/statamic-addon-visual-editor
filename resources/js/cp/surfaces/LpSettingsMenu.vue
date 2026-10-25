@@ -140,7 +140,8 @@ const on = {
 .sve-lp-settings {
   position: fixed;
   z-index: 2147483001;
-  width: 20rem;
+  width: 24rem;
+  max-width: calc(100vw - 1rem);
   max-height: calc(100vh - 4.5rem);
   display: flex;
   flex-direction: column;
