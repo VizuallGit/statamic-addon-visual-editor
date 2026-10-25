@@ -371,10 +371,10 @@ try {
   step('a second press closes it', await waitGone(cp, XRAY_BAR));
   await setToolShown(page, cp, 'xray', true);
 
-  // ── A hidden Globals opens under the bar's left edge ──────────────────
-  await setToolShown(page, cp, 'globals', false);
-  step('Globals hidden: its frame is gone', !(await seen(cp, frame('globals'))));
-  await press(page, combo('tool:globals'));
+  // ── A hidden Pages opens under the bar's left edge ──────────────────
+  await setToolShown(page, cp, 'pages', false);
+  step('Pages hidden: its frame is gone', !(await seen(cp, frame('pages'))));
+  await press(page, combo('tool:pages'));
 
   const underBar = await waitSeen(cp, UNDER_BAR, 5000) && await cp.evaluate((sels) => {
     const [holder, picker, bar] = sels.map((sel) => document.querySelector(sel));
@@ -392,14 +392,14 @@ try {
       ok: Math.abs(h.left - (b.left + gap)) < 2 && Math.abs(h.top - (b.bottom + gap)) < 2,
       why: `holder at ${Math.round(h.left)},${Math.round(h.top)}; bar left ${Math.round(b.left)}, bottom ${Math.round(b.bottom)}; bar node ${!!bar}`,
     };
-  }, [UNDER_BAR, GLOBALS_PICKER, BAR]);
+  }, [UNDER_BAR, PAGES_PICKER, BAR]);
 
-  step(`${combo('tool:globals')} with Globals hidden: its picker stands under the bar's left edge`, underBar?.ok === true, underBar?.why || 'no holder');
-  step('the icon stays hidden', !(await seen(cp, frame('globals'))) && !(await seen(cp, icon('globals'))));
-  await shot(page, 'globals-hidden-open');
-  await press(page, combo('tool:globals'));
+  step(`${combo('tool:pages')} with Pages hidden: its picker stands under the bar's left edge`, underBar?.ok === true, underBar?.why || 'no holder');
+  step('the icon stays hidden', !(await seen(cp, frame('pages'))) && !(await seen(cp, icon('pages'))));
+  await shot(page, 'pages-hidden-open');
+  await press(page, combo('tool:pages'));
   step('a second press takes it away again', await waitGone(cp, UNDER_BAR));
-  await setToolShown(page, cp, 'globals', true);
+  await setToolShown(page, cp, 'pages', true);
 
   // ── After a click on the page: the preview takes the key ──────────────
   step('the preview document can take focus', await focusPreview(cp));

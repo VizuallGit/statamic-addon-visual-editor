@@ -35,6 +35,8 @@ import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, press
 import { hasUnsavedChanges } from './open-in-preview.js';
 import { confirmLeaveGlobalsOverlay, handleRequestCloseChrome } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { comboFromEvent, isMac } from './lib/shortcuts.js';
+import { ask } from './cp/bus.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -737,6 +739,7 @@ export function ensureGlobalsPanelSaveWatch(win) {
       if (frame.contentWindow) {
         globalsAcceptValues = true;
         watchGlobalsPanelSaves(frame.contentWindow, win);
+        hearShortcutsIn(frame.contentWindow, win);
       }
     } catch {
       /* iframe not ready */
@@ -745,6 +748,29 @@ export function ensureGlobalsPanelSaveWatch(win) {
 
   arm();
   frame.addEventListener('load', arm);
+}
+
+/**
+ * The panel's form takes the focus when it opens, so the next keypress lands
+ * in its document, not Live Preview's. Same origin: listen there, in the
+ * bubble phase so a field's own shortcut (⌘B in Bard) still wins, and run
+ * the shortcut over the bus (toolbar-shortcuts.js owns the list) — ⌘G closes
+ * the panel its first press opened. Once per document: the frame loads anew
+ * for every set.
+ */
+function hearShortcutsIn(iwin, win) {
+  if (!iwin || iwin.__sveShortcutsHeard) {
+    return;
+  }
+
+  iwin.__sveShortcutsHeard = true;
+  iwin.addEventListener('keydown', (event) => {
+    const combo = comboFromEvent(event, isMac(iwin.navigator));
+
+    if (combo && ask('shortcuts:run', { win, combo })) {
+      event.preventDefault();
+    }
+  });
 }
 
 export function clearGlobalsStash(win, { refresh = true, force = false } = {}) {
