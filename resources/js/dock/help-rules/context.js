@@ -37,13 +37,16 @@
  *   isRoot         the file's first element
  *   sectionPartial the file is a page section's partial
  *   shellRoot      SectionTypeMaker::scaffold() — the root a section starts as
- *   blockPartials  the site's shared block partials: `{ src, handles }` —
+ *   blockPartials  the site's shared partials: `{ src, handles, image }` —
  *                  `src` is what a section writes for a set, with its token
  *                  (`blocks/{type}`); `handles` what the folder holds
  *                  ('headline', 'richtext', 'links', …). A replicator set
  *                  with one of these names is rendered as
  *                  `{{ partial src="blocks/{type}" }}`, the house way.
- *                  `src` is '' when the site has no such folder.
+ *                  `src` is '' when the site has no such folder. `image` is
+ *                  the partial a file field is drawn with
+ *                  (`components/image`), '' when the site has none — then
+ *                  no image help is offered.
  *
  * May import: html-tree-parse.js, antlers-blocks.js. Nothing from the dock.
  */
@@ -83,7 +86,7 @@ export const VISUAL_EDIT = /\{\{\s*visual_edit\b[\s\S]*?\}\}/;
  * @param {string} source
  * @param {number} pos
  * @param {{ rows: Array, blocks: Array, sectionPartial: boolean, shellRoot: string,
- *   blockPartials: { src: string, handles: string[] } }} given
+ *   blockPartials: { src: string, handles: string[], image: string } }} given
  */
 export function buildContext(source, pos, given) {
   const masked = maskAntlers(source);
@@ -109,6 +112,7 @@ export function buildContext(source, pos, given) {
     blockPartials: {
       src: typeof partials.src === 'string' ? partials.src : '',
       handles: Array.isArray(partials.handles) ? partials.handles.filter((name) => typeof name === 'string') : [],
+      image: typeof partials.image === 'string' ? partials.image : '',
     },
   };
 }
@@ -121,6 +125,16 @@ export function blockPartialSrc(ctx, handle) {
 /** Whether a replicator set is rendered by one of the site's block partials. */
 export function hasBlockPartial(ctx, handle) {
   return !!ctx.blockPartials.src && ctx.blockPartials.handles.includes(handle);
+}
+
+/** `set → src` for bodyLines: a set's block partial on this site, '' for a set without one. */
+export function partialFor(ctx) {
+  return (set) => (hasBlockPartial(ctx, set) ? blockPartialSrc(ctx, set) : '');
+}
+
+/** Whether one of a replicator's sets is rendered by a block partial. */
+export function hasPartialSet(ctx, loop) {
+  return loop.type === 'replicator' && rowsOfLoop(ctx.rows, loop).some((group) => hasBlockPartial(ctx, group.set));
 }
 
 /* ---- Where the caret stands ---------------------------------------------- */
@@ -358,14 +372,23 @@ export function rowsOfLoop(rows, loop) {
 
 /* ---- Markup for a loop's rows --------------------------------------------- */
 
+const noPartial = () => '';
+
 /**
  * The markup inside one row of a loop: a line per text field, and the loops
  * inside it written the same way, a level or two down. A replicator with more
  * than one set gets a branch per set, the way the house's sections are built.
+ *
+ * `partialOf(set)` is the `src` of a set's block partial, or '' (see
+ * partialFor): such a set is written as `{{ partial src="…" }}`, its fields
+ * left to the partial. Left out, every set is written field by field.
  */
-export function bodyLines(rows, loop, indent, depth) {
-  const groups = rowsOfLoop(rows, loop).filter((group) => group.rows.some(isWritable));
-  const lineOf = (group, at) => group.rows.filter(isWritable).flatMap((row) => fieldLines(rows, row, at, depth));
+export function bodyLines(rows, loop, indent, depth, partialOf = noPartial) {
+  const groups = rowsOfLoop(rows, loop).filter((group) => partialOf(group.set) || group.rows.some(isWritable));
+  const lineOf = (group, at) =>
+    partialOf(group.set)
+      ? [`${at}{{ partial src="${partialOf(group.set)}" }}`]
+      : group.rows.filter(isWritable).flatMap((row) => fieldLines(rows, row, at, depth, partialOf));
 
   if (!groups.length) {
     return [indent];
@@ -390,13 +413,13 @@ export function isWritable(row) {
   return TEXT_TYPES.has(row.type) || ROW_LOOP_TYPES.has(row.type);
 }
 
-export function fieldLines(rows, row, indent, depth) {
+export function fieldLines(rows, row, indent, depth, partialOf = noPartial) {
   if (ROW_LOOP_TYPES.has(row.type)) {
     if (depth >= MAX_LOOP_DEPTH) {
       return [];
     }
 
-    return [`${indent}{{ ${row.var} }}`, ...bodyLines(rows, row, `${indent}${INDENT}`, depth + 1), `${indent}{{ /${row.var} }}`];
+    return [`${indent}{{ ${row.var} }}`, ...bodyLines(rows, row, `${indent}${INDENT}`, depth + 1, partialOf), `${indent}{{ /${row.var} }}`];
   }
 
   const tag = BLOCK_TEXT_TYPES.has(row.type) ? 'div' : TITLE_HANDLE.test(row.var) ? 'h3' : 'p';

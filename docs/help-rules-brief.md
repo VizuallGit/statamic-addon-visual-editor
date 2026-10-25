@@ -1,5 +1,11 @@
 # Help rules in the HTML dock — brief for Opus (step 2 of 3)
 
+> **Status:** done and merged (v1.1.620). The matrix below is implemented in
+> `help-rules/{blocks,link,media,text,list,attrs}.js`. The image partial now
+> comes from PHP as `blockPartials.image` (`templates.image_partial`), so no
+> image help is offered on a site without the file. Open product questions
+> from step 2 are listed at the end.
+
 You are extending **help mode** in the Visual Editor's template dock. When an
 author types a tag (or clicks into one) in the HTML pane, a small popup offers
 up to three things to write next, plus an `id` row last. Step 1 (done) split
@@ -285,3 +291,15 @@ resources/js/dock/help-rules/index.js      # the order: section, blocks, media, 
 - which existing tests you changed and why;
 - «Needs Fable»: anything that wanted a context field, a PHP input or an
   editor `after` that does not exist. Do not work around it.
+
+## Open after step 2 (product decisions, not bugs)
+
+- **Links partial only for a field named `links`** — `blocks/links` reads
+  `{{ links }}`; the context does not know which field a partial reads.
+- **`<a>` with fixed text while a link field is in scope** gets neither a
+  link row nor an `href` row (the brief said «empty `<a>`»).
+- **Bard in inline tags** (headings, `span`, `a`) is still offered by the
+  text rule; only `button` and `p` are excluded. Invalid-but-renders HTML.
+- **A `div` with fixed text** gets the Bard row too (the text rule replaces
+  fixed text on every tag).
+- **Grids inside an `li` in a loop** get no nested wrapper; only replicators do.
