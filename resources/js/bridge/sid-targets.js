@@ -342,9 +342,11 @@ export function createClickHandler(win) {
       const section = event.target.closest?.('[data-sid-section-orderable]');
       const picked = stamped && section && stamped !== section && stamped.contains(section) ? null : stamped;
 
-      // Picking a tag for the tree and editing the text in it are not rivals:
-      // the click can say which tag it was and still open the field. Only a
-      // click that lands somewhere with nothing to edit is swallowed here.
+      // Picking a tag for the tree and selecting the row it sits in are not
+      // rivals: the click says which tag it was, then goes on below to the
+      // row's own message, the one the panel, the dock and the block tree
+      // listen for. Swallowing the click here left a section clicked in the
+      // preview unselected whenever the dock held that section's file.
       const editable =
         featureOn('inline_edit') && !!event.target.closest?.('[data-sid-inline-edit]');
 
@@ -374,10 +376,6 @@ export function createClickHandler(win) {
           },
           win.location.origin
         );
-
-        if (!editable) {
-          return;
-        }
       } else {
         // Nothing to report yet — this element belongs to a file the dock has
         // not opened. The click below moves it there; `reportAwaitedPick`

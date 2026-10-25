@@ -196,16 +196,36 @@ export function initSelectionPanel(win) {
     }
   };
 
+  // The selection the panel last painted, and the timer of a switch not yet
+  // made. One switch at a time: a selection that arrives while one is pending
+  // rides on that timer, and the switch applies whatever is selected when it
+  // runs — never the selection it was scheduled for. Applying the scheduled
+  // one let an older click win over a newer: the first click blurred the
+  // panel's field and waited, the second found nothing focused and painted
+  // at once, and 80 ms later the first painted over it.
+  let applied = null;
+  let pendingSwitch = 0;
+
   onContainerContext((list) => {
     setPanelContexts(list);
-    paint(win, currentSelection(), null);
+    applied = currentSelection();
+    paint(win, applied, null);
   });
 
-  onSelection((selection, previous) => {
-    const apply = () => {
-      setPanelSelection(selection);
-      paint(win, selection, previous);
-    };
+  const apply = () => {
+    const selection = currentSelection();
+    const previous = applied;
+
+    pendingSwitch = 0;
+    applied = selection;
+    setPanelSelection(selection);
+    paint(win, selection, previous);
+  };
+
+  onSelection(() => {
+    if (pendingSwitch) {
+      return;
+    }
 
     // A field in the panel still focused when its tree goes is a field whose
     // blur handler runs after its element is gone — Bard's reaches for
@@ -218,7 +238,7 @@ export function initSelectionPanel(win) {
       log(`blur before switch: ${active.tagName.toLowerCase()} focused=${active === active.ownerDocument.activeElement} hasFocus=${active.ownerDocument.hasFocus()}`);
       active.blur();
       log(`after blur: active=${active.ownerDocument.activeElement?.tagName?.toLowerCase()}`);
-      win.setTimeout(apply, 80);
+      pendingSwitch = win.setTimeout(apply, 80);
 
       return;
     }

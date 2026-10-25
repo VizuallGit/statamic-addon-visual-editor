@@ -55,7 +55,17 @@ const rootEl = ref(null);
 
 watch(
   () => shownKeyOf(resolvedSelection.value),
-  async (key) => {
+  async (key, _previous, onCleanup) => {
+    // The key changed again while this run was waiting: the newer run owns
+    // `shownUid` now. A late write here put an older key on show — the panel
+    // then had a header and no fields, the v-if below seeing two different
+    // keys.
+    let stale = false;
+
+    onCleanup(() => {
+      stale = true;
+    });
+
     // A field still focused when its tree goes is a field whose blur handler
     // runs after its element is gone — Bard's reaches for `$el.contains` a
     // millisecond after the blur and throws. Let go of the focus first, and
@@ -65,10 +75,19 @@ watch(
     if (active && rootEl.value?.contains(active) && typeof active.blur === 'function') {
       active.blur();
       await new Promise((resolve) => setTimeout(resolve, 80));
+
+      if (stale) {
+        return;
+      }
     }
 
     shownUid.value = null;
     await nextTick();
+
+    if (stale) {
+      return;
+    }
+
     shownUid.value = key;
   },
   { immediate: true }
