@@ -471,14 +471,17 @@ function mountPopup(state, kind, component) {
 
   ensureHelpStyles(doc);
 
-  const el = doc.createElement('div');
+  const host = doc.createElement('div');
 
-  doc.body.appendChild(el);
+  doc.body.appendChild(host);
 
   const app = createApp(component);
 
-  app.mount(el);
+  app.mount(host);
 
+  // The component's root is the fixed element the styles place; the host is
+  // only where Vue was told to render.
+  const el = host.firstElementChild || host;
   const reposition = () => place(state, el);
   const onDown = (event) => {
     if (el.contains(event.target) || event.target.closest?.('[data-sve-data-menu]')) {
@@ -510,6 +513,7 @@ function mountPopup(state, kind, component) {
   state.open = {
     kind,
     el,
+    host,
     app,
     unhook: () => {
       doc.removeEventListener('pointerdown', onDown, true);
@@ -554,5 +558,5 @@ function closePopup(state) {
   state.open = null;
   open.unhook();
   open.app.unmount();
-  open.el.remove();
+  open.host.remove();
 }
