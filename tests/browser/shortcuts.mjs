@@ -204,8 +204,9 @@ async function openLivePreview(page) {
   const cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
 
   await page.keyboard.press('Escape');
-  await cp.waitForSelector(`${BAR} button`, { timeout: 20000 });
-  await sleep(2000);
+  // A user's first Live Preview loads cold — the whole CP cluster from disk.
+  await cp.waitForSelector(`${BAR} button`, { timeout: 60000 });
+  await sleep(3000);
 
   return cp;
 }
