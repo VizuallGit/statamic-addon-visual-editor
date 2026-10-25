@@ -30,6 +30,13 @@ export function bindMenuDismiss(win, isInside, dismiss) {
       return;
     }
 
+    // Esc while a shortcut is being recorded in the menu ends the recording
+    // (cp/surfaces/ShortcutInput.vue marks it), not the menu. This listener is
+    // on the window in capture, so it hears the key before the recorder does.
+    if (event.target?.closest?.('[data-sve-shortcut-recording]')) {
+      return;
+    }
+
     event.preventDefault();
     dismiss();
   };

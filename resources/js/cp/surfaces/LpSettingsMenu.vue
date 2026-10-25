@@ -4,10 +4,12 @@ import LpSettingsPresets from './LpSettingsPresets.vue';
 import LpSettingsSidebars from './LpSettingsSidebars.vue';
 import LpSettingsTree from './LpSettingsTree.vue';
 import LpSettingsToolbar from './LpSettingsToolbar.vue';
+import LpSettingsShortcuts from './LpSettingsShortcuts.vue';
 
-// The ⋮ menu: the presets on top — a click switches — then three tabs, one
+// The ⋮ menu: the presets on top — a click switches — then four tabs, one
 // job each. Sidebars = what is open and how wide, for the preset that is on;
-// HTML tree = the tree's face and the tag colours; Top bar = which icons show.
+// HTML tree = the tree's face and the tag colours; Top bar = which icons show;
+// Shortcuts = this user's own keyboard shortcuts.
 // A switch opens the tab again, so it shows the new preset. lp-more-menu.js
 // builds the props and owns every write; the tabs only report.
 const props = defineProps({
@@ -21,6 +23,7 @@ const props = defineProps({
   sidebars: { type: Object, required: true },
   tree: { type: Object, required: true },
   toolbar: { type: Object, required: true },
+  shortcuts: { type: Object, required: true },
   resetLabel: { type: String, required: true },
   resetTitle: { type: String, required: true },
   onTab: { type: Function, required: true },
@@ -120,6 +123,7 @@ const on = {
       <LpSettingsSidebars v-if="current === 'sidebars'" :key="`sidebars-${switched}`" v-bind="sidebars" :active-id="activeId" :on="on" />
       <LpSettingsTree v-else-if="current === 'tree'" :key="`tree-${switched}`" v-bind="tree" :on="on" />
       <LpSettingsToolbar v-else-if="current === 'toolbar'" :key="`toolbar-${switched}`" v-bind="toolbar" :on="on" />
+      <LpSettingsShortcuts v-else-if="current === 'shortcuts'" v-bind="shortcuts" :on="on" />
     </div>
 
     <div class="sve-lp-settings__foot">
@@ -131,7 +135,7 @@ const on = {
 </template>
 
 <style>
-/* Not scoped: the three tab components share these parts. Everything sits
+/* Not scoped: the tab components share these parts. Everything sits
    under .sve-lp-settings, and the menu is the only thing that uses it. */
 .sve-lp-settings {
   position: fixed;
@@ -162,7 +166,7 @@ const on = {
   background: #2a2a2d;
   flex: none;
 }
-/* Equal thirds that never push each other out: a long label ends in … */
+/* Equal parts that never push each other out: a long label ends in … */
 .sve-lp-settings__tab {
   all: unset;
   box-sizing: border-box;
@@ -320,6 +324,17 @@ const on = {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+/* Shortcuts tab: icon and name on the left, the recorder on the right. */
+.sve-lp-settings__shortcut-name {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.sve-lp-settings__tool > .sve-shortcut {
+  flex: 0 1 auto;
 }
 /* The row being dragged lifts a little; the others make room as it passes. */
 .sve-lp-settings__tool.is-dragging {

@@ -15,7 +15,11 @@ import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShort
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
-import { placeToolbarButton, syncToolbarLayout } from '../toolbar-visibility.js';
+import { placeToolbarButton, readHiddenTools, syncToolbarLayout } from '../toolbar-visibility.js';
+import { startShortcuts } from '../toolbar-shortcuts.js';
+import { bindMenuDismiss } from '../lp-menu-dismiss.js';
+import { remToPx } from '../lib/dom.js';
+import { barEdge } from '../lib/under-bar.js';
 import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
@@ -155,6 +159,62 @@ export function syncToolbarIconSeps(bar) {
 export const FLOATING_GROUP_STYLE =
   `${HEADER_GROUP_STYLE}background:linear-gradient(${HEADER_SURFACE},${HEADER_SURFACE}),` +
   'var(--theme-color-content-bg,#fff);box-shadow:0 1px 4px rgba(0,0,0,.18);color:currentColor;';
+
+/**
+ * The floating group under the bar's left edge that holds a Pages or Globals
+ * control while its icon is hidden. The user took the icon off the bar — its
+ * frame, and the control's place in it, went with it — and a keyboard
+ * shortcut opened the tool anyway (toolbar-visibility.js pressToolbarTool):
+ * the icon stays hidden, so the control stands here. A portal on the body,
+ * like the bar's dropdowns, since Live Preview's stacking contexts would trap
+ * it anywhere else; and it closes like a dropdown — a click outside, Esc or a
+ * click in the preview — which closes the tab, as the icon's own click would.
+ */
+export const UNDER_BAR_ID = '__sve-under-bar';
+
+let unbindUnderBar = null;
+
+function underBarHolder(win) {
+  const doc = win.document;
+  let holder = doc.getElementById(UNDER_BAR_ID);
+
+  if (!holder) {
+    holder = doc.createElement('div');
+    holder.id = UNDER_BAR_ID;
+    holder.style.cssText = `${FLOATING_GROUP_STYLE}position:fixed;z-index:2147483001;gap:6px;`;
+    doc.body.appendChild(holder);
+    unbindUnderBar = bindMenuDismiss(
+      win,
+      (target) => holder.contains(target),
+      () => {
+        setHeaderTab(win, null);
+        applyHeaderTab(win);
+      }
+    );
+  }
+
+  const at = barEdge(win);
+
+  if (at) {
+    const gap = remToPx(win, 0.375);
+
+    holder.style.left = `${Math.round(at.left + gap)}px`;
+    holder.style.top = `${Math.round(at.bottom + gap)}px`;
+  }
+
+  return holder;
+}
+
+/** Gone once nothing stands in it — its listeners with it. */
+function dropUnderBarHolder(win) {
+  const holder = win.document.getElementById(UNDER_BAR_ID);
+
+  if (holder && !holder.childElementCount) {
+    unbindUnderBar?.();
+    unbindUnderBar = null;
+    holder.remove();
+  }
+}
 
 // null = nothing expanded (the simplest header). Persisted so it survives the
 // header being rebuilt on every preview update.
@@ -597,6 +657,9 @@ export function ensureHeaderToolbar(win) {
   // and re-show buttons on every pass, and hand each new one to
   // placeToolbarButton.
   syncToolbarLayout(win);
+  // The keyboard shortcuts: listening once, and the preview's list kept in
+  // step with the icons this pass leaves in the bar (toolbar-shortcuts.js).
+  startShortcuts(win);
 
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();
@@ -2006,8 +2069,32 @@ export function applyHeaderTab(win) {
   // ellers ville den lande foran stregen der skiller dem.
   const anchorFor = (key) => doc.getElementById(seamId(key)) || iconOf(key);
 
-  place(anchorFor('pages'), controls.pages);
-  place(anchorFor('globals'), controls.globals);
+  // An icon the user hid takes its frame off the bar, and the control's place
+  // in it. Open anyway — a shortcut pressed the hidden icon — the control
+  // stands under the bar's left edge instead; the icon stays hidden.
+  const hiddenTools = readHiddenTools(win);
+
+  FRAMED_TABS.forEach((key) => {
+    const el = controls[key];
+
+    if (!el) {
+      return;
+    }
+
+    if (el.style.display !== 'none' && hiddenTools.includes(key)) {
+      const holder = underBarHolder(win);
+
+      if (el.parentElement !== holder) {
+        holder.appendChild(el);
+      }
+
+      return;
+    }
+
+    place(anchorFor(key), el);
+  });
+
+  dropUnderBarHolder(win);
 
   // A tab whose "open" state is a panel on screen is lit by that panel, not by
   // the remembered tab. The tab outlives the panel — it is stored, so it survives

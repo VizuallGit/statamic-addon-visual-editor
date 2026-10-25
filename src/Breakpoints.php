@@ -234,6 +234,8 @@ class Breakpoints
             'media' => $row['media'],
             'media_px' => $row['media_px'],
             'tw' => $row['tw'],
+            // Størrelsens egen genvej; '' følger den indbyggede (Shortcuts).
+            'shortcut' => $row['shortcut'] ?? '',
         ], static::all());
     }
 }

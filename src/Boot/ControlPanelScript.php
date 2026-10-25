@@ -16,6 +16,7 @@ use MarioHamann\StatamicVisualEditor\Breakpoints\Store;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
+use MarioHamann\StatamicVisualEditor\Shortcuts;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\ToolbarPresets;
 use Statamic\Facades\User;
@@ -89,6 +90,9 @@ final class ControlPanelScript
                 // where they are edited — only for a user who may edit them.
                 'sveToolbarPresets' => ToolbarPresets::all(),
                 'sveToolbarPresetsUrl' => ToolbarPresets::settingsUrl(),
+                // The keyboard shortcuts' built-in and site layers, the locked
+                // ones and the tools' names; each user's own are a chrome pref.
+                'sveShortcuts' => Shortcuts::forScript(),
                 'sveAiReady' => AiChat::ready(),
                 'sveAiTextReady' => AiCopy::ready(),
                 'sveComments' => static::commentsPayload(),

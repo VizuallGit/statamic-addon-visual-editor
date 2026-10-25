@@ -198,8 +198,26 @@ class BreakpointsTest extends TestCase
         $row = Breakpoints::forScript()[0];
 
         $this->assertSame(
-            ['handle', 'label', 'device', 'icon', 'base', 'direction', 'min', 'unit', 'min_px', 'max', 'media', 'media_px', 'tw'],
+            ['handle', 'label', 'device', 'icon', 'base', 'direction', 'min', 'unit', 'min_px', 'max', 'media', 'media_px', 'tw', 'shortcut'],
             array_keys($row)
+        );
+        $this->assertSame('', $row['shortcut'], 'a default row follows the built-in shortcut');
+    }
+
+    public function test_a_rows_own_shortcut_is_read_clean_and_carried_to_the_browser(): void
+    {
+        config(['statamic-visual-editor.breakpoints' => [
+            ['handle' => 'wide', 'min' => 90, 'unit' => 'em', 'shortcut' => 'Alt+Mod+W'],
+            ['handle' => 'laptop', 'min' => 64, 'unit' => 'em', 'shortcut' => 'none'],
+            ['handle' => 'tablet', 'min' => 48, 'unit' => 'em', 'shortcut' => 'mod+s'],
+            ['handle' => 'mobile', 'min' => 0, 'unit' => 'em', 'shortcut' => 'w'],
+        ]]);
+        Breakpoints::forget();
+
+        $this->assertSame(
+            ['wide' => 'mod+alt+w', 'laptop' => 'none', 'tablet' => '', 'mobile' => ''],
+            array_column(Breakpoints::forScript(), 'shortcut', 'handle'),
+            'none is kept; a locked or broken one is not a shortcut'
         );
     }
 }

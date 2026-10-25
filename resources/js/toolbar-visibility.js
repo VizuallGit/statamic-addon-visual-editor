@@ -650,6 +650,31 @@ export function openToolbarTool(win, key) {
   return true;
 }
 
+/**
+ * A keyboard shortcut's press: exactly a click on the tool's icon, so a second
+ * press closes what the first opened, as a second click does. Nothing else is
+ * touched — not the hidden icons, the groups or the presets: a hidden icon
+ * stays hidden. What opens from a hidden icon finds its own place: Pages and
+ * Globals put their control under the bar's left edge (header-toolbar.js),
+ * the design overlay its menu (design-overlay.js); the rest open a panel, a
+ * drawer or a popup over the bar, wherever the icon is.
+ *
+ * Nothing happens, and false comes back, when the bar has no such icon (a
+ * tool this user has no access to) or when the bar has nothing for it on
+ * this page (Patterns without a page builder).
+ */
+export function pressToolbarTool(win, key) {
+  const btn = toolbarButton(win, key);
+
+  if (!btn || btn.style.display === 'none') {
+    return false;
+  }
+
+  btn.click();
+
+  return true;
+}
+
 function peek(win, btn, key) {
   const frame = win.document.getElementById(`${HEADER_FRAME_PREFIX}${key}`);
   const els = frame ? [btn, frame] : [btn];

@@ -454,6 +454,17 @@ tabs:
               if:
                 enabled: 'equals true'
       -
+        display: 'Keyboard shortcuts'
+        instructions: 'A shortcut does exactly what a click on the icon does, and pressing it again closes what it opened — a hidden icon stays hidden. ⌘ on a Mac, Ctrl on Windows. Greyed out is the built-in shortcut, which applies until you record one here; Backspace while recording means none. This is the site''s default: every editor can change their own in Live Preview under ⋮ → Shortcuts. A screen size''s shortcut is set on its row under Screen sizes.'
+        fields:
+          -
+            handle: shortcuts
+            field:
+              type: sve_shortcuts
+              hide_display: true
+              if:
+                enabled: 'equals true'
+      -
         display: 'Editing on the page'
         fields:
           -
@@ -931,6 +942,13 @@ tabs:
                     display: 'Device name'
                     instructions: "Live Preview's own name for the button. Leave it and the handle is used."
                     width: 100
+                -
+                  handle: shortcut
+                  field:
+                    type: sve_shortcut
+                    display: Shortcut
+                    instructions: 'Pressing it is a click on the size''s button. Empty follows the built-in one (Desktop ⌘D, Tablet ⌥⌘T, Mobile ⌘M; Ctrl on Windows); a size you add has none until you record one. Every editor can change their own under ⋮ → Shortcuts.'
+                    width: 50
               if:
                 enabled: 'equals true'
       -

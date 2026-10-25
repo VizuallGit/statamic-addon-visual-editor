@@ -1,5 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import ShortcutInput from './ShortcutInput.vue';
+import { conflictsWith, formatCombo, isMac, resolveShortcutLayers, shortcutsConfig, siteShortcuts } from '../../lib/shortcuts.js';
+import { t } from '../../lib/i18n.js';
 
 // The «+» popover beside Live Preview's size buttons: the sizes the site
 // has, each with a way out, and one more below. cp-shell/breakpoint-add.js
@@ -100,6 +103,42 @@ const handle = computed(() =>
 
 const handleHint = computed(() => (handle.value ? props.strings.handle.replace(':handle', handle.value) : ''));
 
+// The new size's keyboard shortcut: the site's own for it, written on its
+// row. Its words are read here, as ShortcutInput reads its own, rather than
+// handed in with `strings` by the shell's host. The site's layer is the
+// setting plus the rows as they stand, so a row added or removed here counts.
+const shortcut = ref('');
+const keys = shortcutsConfig(window);
+const mac = isMac(window.navigator);
+const shortcutLabel = t(window, 'bp_add_shortcut');
+const shortcutHint = t(window, 'bp_add_shortcut_hint');
+const shortcuts = computed(() => resolveShortcutLayers(keys.builtIn, siteShortcuts(keys.site, rows.value, keys.locked), {}));
+const sizeAction = computed(() => `size:${handle.value}`);
+
+/** The shortcut a size has on this site, as the row lists it. */
+function rowShortcut(row) {
+  return formatCombo(shortcuts.value.map[`size:${row.handle}`] || '', mac);
+}
+
+/**
+ * Another action with the shortcut. A built-in one gives it up to the new
+ * size — the site's layer is over the built-in — so it may be moved here; one
+ * the site gave it is changed where the site gave it, not from here.
+ */
+function shortcutOwner(combo) {
+  const other = conflictsWith(shortcuts.value.map, combo, sizeAction.value);
+
+  if (!other) {
+    return null;
+  }
+
+  const label = other.startsWith('size:')
+    ? rows.value.find((row) => `size:${row.handle}` === other)?.label
+    : keys.labels[other];
+
+  return { action: other, label: label || other, movable: shortcuts.value.level[other] === 0 };
+}
+
 const canSave = computed(() =>
   !saving.value && handle.value !== '' && min.value !== '' && Number(min.value) >= 0 && Number(width.value) >= 240
 );
@@ -145,6 +184,7 @@ async function submit() {
     min: Number(min.value),
     unit: unit.value,
     width: Math.round(Number(width.value)),
+    shortcut: shortcut.value,
   });
 
   saving.value = false;
@@ -183,6 +223,7 @@ async function submit() {
       >
         <span class="sve-bp-add__rowicon" aria-hidden="true" v-html="iconFor(row)"></span>
         <span class="sve-bp-add__rowlabel">{{ row.label }}</span>
+        <span v-if="rowShortcut(row)" class="sve-bp-add__rowkey" data-sve-bp-shortcut>{{ rowShortcut(row) }}</span>
         <span class="sve-bp-add__rowfrom">{{ row.min }}{{ row.unit }}</span>
         <button
           v-if="confirming === row.handle"
@@ -300,6 +341,23 @@ async function submit() {
       <p class="sve-bp-add__hint sve-bp-add__hint--block">{{ strings.fromHint }}</p>
       <p class="sve-bp-add__hint sve-bp-add__hint--block">{{ direction === 'mobile' ? strings.directionMobile : strings.directionDesktop }}</p>
 
+      <div class="sve-bp-add__field" data-sve-bp-add-shortcut>
+        <span class="sve-bp-add__label">{{ shortcutLabel }}</span>
+        <span class="sve-bp-add__shortcut">
+          <ShortcutInput
+            :value="shortcut"
+            :inherited="keys.builtIn[sizeAction] || ''"
+            :mac="mac"
+            :locked="keys.locked"
+            :owner="shortcutOwner"
+            :label="shortcutLabel"
+            @change="(value) => (shortcut = value)"
+          />
+        </span>
+        <span v-if="errors.shortcut" class="sve-bp-add__error">{{ errors.shortcut }}</span>
+        <span v-else class="sve-bp-add__hint">{{ shortcutHint }}</span>
+      </div>
+
       <p v-if="failed" class="sve-bp-add__error">{{ failed }}</p>
 
       <div class="sve-bp-add__actions">
@@ -393,6 +451,27 @@ async function submit() {
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.55);
+}
+
+/* The size's keyboard shortcut, before where it starts. */
+.sve-bp-add__rowkey {
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* The recorder sits at the field's start, its note under it, left-aligned. */
+.sve-bp-add__shortcut {
+  display: flex;
+}
+
+.sve-bp-add__shortcut .sve-shortcut {
+  justify-content: flex-start;
+}
+
+.sve-bp-add__shortcut .sve-shortcut__note {
+  text-align: left;
 }
 
 /* The × — quiet until the row is hovered; red once asked; disabled when the

@@ -117,6 +117,15 @@ export const MSG = Object.freeze({
   SVE_PILL_BOX_REQUEST: 'sve-pill-box-request',
   SVE_RESTORE_CHROME: 'sve-restore-chrome',
   SVE_ROW_LABEL: 'sve-row-label',
+  // Preview → CP: a keyboard shortcut was pressed in the preview document —
+  // `combo` as lib/shortcuts.js writes it. The preview has already kept the
+  // browser from its own (print, bookmark …); the CP runs the action.
+  SVE_SHORTCUT: 'sve-shortcut',
+  // CP → preview: the shortcuts that run something right now, `combos` as a
+  // list — the preview takes only these from the browser, nothing else.
+  SVE_SHORTCUTS: 'sve-shortcuts',
+  // Preview → CP, at boot: send me the shortcuts.
+  SVE_SHORTCUTS_REQUEST: 'sve-shortcuts-request',
   SVE_THEME_SCALE: 'sve-theme-scale',
   SVE_THEME_SCALE_VALUES: 'sve-theme-scale-values',
   // CP → preview: a <video> of the open section is held paused (or let go) —

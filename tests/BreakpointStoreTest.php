@@ -76,6 +76,42 @@ class BreakpointStoreTest extends TestCase
 
         // And the cached list was forgotten by the save itself.
         $this->assertSame(['laptop', 'tablet_landscape', 'tablet', 'mobile'], Breakpoints::handles());
+
+        // No shortcut was given: none is written, and the browser reads '' — the built-in one, if any.
+        $this->assertArrayNotHasKey('shortcut', $saved['breakpoints'][3]);
+        $this->assertSame('', $list[1]['shortcut']);
+    }
+
+    public function test_a_new_sizes_shortcut_is_written_on_its_row_as_normalize_writes_it(): void
+    {
+        $list = Store::add([
+            'handle' => 'wide',
+            'icon' => 'widescreen',
+            'min' => 90,
+            'unit' => 'em',
+            'width' => 1600,
+            'shortcut' => 'Alt+Mod+W',
+        ]);
+
+        $saved = YAML::file(Features::settingsPath())->parse();
+        $rows = array_column($saved['breakpoints'], null, 'handle');
+
+        $this->assertSame('mod+alt+w', $rows['wide']['shortcut']);
+        $this->assertArrayNotHasKey('shortcut', $rows['laptop'], 'the rows written down beside it keep the built-in one');
+        $this->assertSame('mod+alt+w', array_column($list, 'shortcut', 'handle')['wide']);
+    }
+
+    public function test_a_locked_or_broken_shortcut_is_refused_and_nothing_is_written(): void
+    {
+        foreach (['mod+s' => 'bp_add_error_shortcut_locked', 'w' => 'bp_add_error_shortcut', 'mod+f1' => 'bp_add_error_shortcut'] as $shortcut => $message) {
+            try {
+                Store::add(['handle' => 'wide', 'icon' => 'desktop', 'min' => 90, 'unit' => 'em', 'width' => 1600, 'shortcut' => $shortcut]);
+                $this->fail("expected a refusal for {$shortcut}");
+            } catch (ValidationException $e) {
+                $this->assertSame([__("sve::messages.{$message}")], $e->errors()['shortcut'] ?? null, $shortcut);
+                $this->assertFalse(File::exists(Features::settingsPath()), 'nothing was written');
+            }
+        }
     }
 
     public function test_a_handle_already_in_the_list_is_refused(): void

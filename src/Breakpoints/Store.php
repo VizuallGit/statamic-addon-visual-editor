@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Breakpoints;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
+use MarioHamann\StatamicVisualEditor\Shortcuts;
 use Statamic\Facades\Addon;
 use Statamic\Facades\User;
 
@@ -121,6 +122,7 @@ final class Store
             'unit' => ['required', 'string', 'in:'.implode(',', Rows::UNITS)],
             'width' => ['required', 'integer', 'min:240', 'max:3840'],
             'height' => ['nullable', 'integer', 'min:320', 'max:4320'],
+            'shortcut' => ['nullable', 'string', 'max:64'],
         ]);
 
         $validator->after(function ($v) use ($input, $existing, $handles, $edges) {
@@ -148,13 +150,24 @@ final class Store
                     }
                 }
             }
+
+            $shortcut = $input['shortcut'] ?? null;
+
+            if (is_string($shortcut) && trim($shortcut) !== '') {
+                if (Shortcuts::normalize($shortcut) === '') {
+                    $v->errors()->add('shortcut', __('sve::messages.bp_add_error_shortcut'));
+                } elseif (Shortcuts::isLocked($shortcut)) {
+                    $v->errors()->add('shortcut', __('sve::messages.bp_add_error_shortcut_locked'));
+                }
+            }
         });
 
         $data = $validator->validate();
 
         $label = trim((string) ($data['label'] ?? ''));
+        $shortcut = Shortcuts::clean($data['shortcut'] ?? null);
 
-        return [
+        return array_filter([
             'handle' => $data['handle'],
             'label' => $label !== '' ? $label : ucfirst($data['handle']),
             // Live Preview's device key — unique because the handle is.
@@ -164,6 +177,8 @@ final class Store
             'unit' => $data['unit'],
             'width' => (int) $data['width'],
             'height' => (int) ($data['height'] ?? 900),
-        ];
+            // The site's own shortcut for the new size — written only when it has one.
+            'shortcut' => $shortcut !== '' ? $shortcut : null,
+        ], fn ($value) => $value !== null);
     }
 }

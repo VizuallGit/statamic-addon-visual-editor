@@ -11,6 +11,7 @@ import {
   moveToolbarToolToNewGroup,
   openToolbarTool,
   placeToolbarButton,
+  pressToolbarTool,
   readHiddenTools,
   readPaneChoices,
   readPickedPreset,
@@ -627,6 +628,54 @@ test('a shown tool, or one already open, is just pressed', () => {
   assert.equal(open.hasAttribute(PEEK_ATTR), false);
   assert.equal(win.observers.length, 0);
   assert.equal(openToolbarTool(win, 'nope'), false);
+});
+
+// ── Pressed by a keyboard shortcut ──────────────────────────────────────
+
+test('a shortcut presses the icon exactly as a click: a second press is a second click', () => {
+  const settings = fakeButton('settings');
+  const globals = fakeButton('globals');
+  const win = fakeWin({ row: [settings, globals] });
+
+  assert.equal(pressToolbarTool(win, 'globals'), true);
+  assert.equal(pressToolbarTool(win, 'globals'), true);
+  assert.equal(pressToolbarTool(win, 'settings'), true, 'Page settings too');
+  assert.equal(globals.clicks, 2);
+  assert.equal(settings.clicks, 1);
+});
+
+test('a hidden tool opens without its icon coming back: no peek, nothing written', () => {
+  const xray = fakeButton('xray');
+  const win = fakeWin({ stored: '["xray"]', row: [xray] });
+
+  assert.equal(pressToolbarTool(win, 'xray'), true);
+  assert.equal(xray.clicks, 1);
+  assert.equal(xray.hasAttribute(PEEK_ATTR), false);
+  assert.equal(win.observers.length, 0);
+  assert.deepEqual(readHiddenTools(win), ['xray']);
+  assert.equal(win.store.get(TOOLBAR_HIDDEN_KEY), '["xray"]');
+});
+
+test('a hidden tool whose control or menu is placed from its icon is pressed as any other: it finds its own place', () => {
+  ['pages', 'globals', 'collections', 'templates', 'design_overlay'].forEach((key) => {
+    const btn = fakeButton(key);
+    const win = fakeWin({ stored: JSON.stringify([key]), row: [btn] });
+
+    assert.equal(pressToolbarTool(win, key), true, key);
+    assert.equal(btn.clicks, 1, key);
+    assert.equal(btn.hasAttribute(PEEK_ATTR), false, `${key}: the icon stays hidden`);
+    assert.deepEqual(readHiddenTools(win), [key]);
+  });
+});
+
+test('no icon for the tool, or nothing for it on this page: nothing happens', () => {
+  const sections = fakeButton('sections', { display: 'none' });
+  const win = fakeWin({ row: [sections] });
+
+  assert.equal(pressToolbarTool(win, 'sections'), false, 'Patterns without a page builder');
+  assert.equal(sections.clicks, 0);
+  assert.equal(pressToolbarTool(win, 'ai'), false, 'no access, no icon');
+  assert.equal(pressToolbarTool(fakeWin(), 'globals'), false, 'no top bar');
 });
 
 // ── Presets ─────────────────────────────────────────────────────────────

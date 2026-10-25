@@ -26,6 +26,7 @@ import { csrfToken } from './lib/csrf.js';
 import { remToPx } from './lib/dom.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { barEdge, onScreen } from './lib/under-bar.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { HEADER_TOOLBAR_ID } from './lib/ids.js';
 import { paintLpActiveControl } from './lp-panel.js';
@@ -592,9 +593,12 @@ function openMenu(win) {
   // Live Preview's stacking contexts would trap it anywhere else.
   doc.body.appendChild(el);
 
-  // Under the icon, its left edge on the icon's, kept inside the window.
-  if (anchor) {
-    const at = anchor.getBoundingClientRect();
+  // Under the icon, its left edge on the icon's, kept inside the window. An
+  // icon the user hid from the bar has no place on it — a shortcut opened
+  // this — so then under the bar itself, at its left edge.
+  const at = onScreen(anchor) ? anchor.getBoundingClientRect() : barEdge(win);
+
+  if (at) {
     const gap = remToPx(win, 0.375);
     const room = win.innerWidth - el.offsetWidth - gap;
 

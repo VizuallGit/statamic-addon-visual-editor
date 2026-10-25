@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Breakpoints;
 
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\Shortcuts;
 
 /**
  * The rows as they are written — settings screen, then config, then the
@@ -160,6 +161,14 @@ final class Rows
                 'height' => (int) ($row['height'] ?? 900),
                 'icon' => (string) ($row['icon'] ?? 'desktop'),
             ];
+
+            // Størrelsens egen genvej, kun når den har én: en tom følger den
+            // indbyggede, og en række uden nøglen skrives tilbage uden den.
+            $shortcut = Shortcuts::clean($row['shortcut'] ?? null);
+
+            if ($shortcut !== '') {
+                $rows[$handle]['shortcut'] = $shortcut;
+            }
         }
 
         // Uden et basis-breakpoint har ingenting et sted at stå: det der ikke

@@ -123,6 +123,8 @@ export function breakpoints(win = window) {
       media: row.media || '',
       media_px: row.media_px || '',
       tw: row.tw || '',
+      // The site's own keyboard shortcut for this size; '' follows the built-in one (lib/shortcuts.js).
+      shortcut: typeof row.shortcut === 'string' ? row.shortcut : '',
     }));
 
   return cached.length ? cached : FALLBACK;

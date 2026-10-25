@@ -1,7 +1,8 @@
 /**
  * Overflow menu to the right of Close: the presets on top (a click switches),
- * then Live Preview defaults + reset in three tabs (sidebars, HTML tree, top
- * bar icons) — Sidebars and Top bar for the preset that is on. Right-click or
+ * then Live Preview defaults + reset in four tabs (sidebars, HTML tree, top
+ * bar icons, keyboard shortcuts) — Sidebars and Top bar for the preset that
+ * is on; Shortcuts for this user, whatever the preset. Right-click or
  * Shift-click on the button opens the short list instead: the presets, one
  * click to switch. Does not import the kernel.
  */
@@ -16,7 +17,18 @@ import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templat
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
-import { HEADER_SURFACE, LP_BACK_ID, LP_CHROME_H, LP_PUBLISH_ID, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM } from './lib/ids.js';
+import {
+  HEADER_SURFACE,
+  HEADER_TOOLBAR_ID,
+  LP_BACK_ID,
+  LP_CHROME_H,
+  LP_PREVIEW_CHROME_ID,
+  LP_PUBLISH_ID,
+  LP_RELOAD_ID,
+  LP_SIDE_DEFAULT_REM,
+  LP_SIDE_MAX_REM,
+  LP_SIDE_MIN_REM,
+} from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { featureOn } from './lib/config.js';
@@ -54,6 +66,9 @@ import {
 } from './toolbar-visibility.js';
 import { PRESET_NAME_MAX, SIDEBAR_TOOLS, activePreset, cleanPreset, newPresetId, presetHidden, presetPanes, presetSidebar } from './lib/toolbar-presets.js';
 import { GROUP_NAME_MAX } from './lib/toolbar-groups.js';
+import { breakpoints } from './breakpoints.js';
+import { isMac } from './lib/shortcuts.js';
+import { resetUserShortcuts, setUserShortcut, shortcutLayers } from './toolbar-shortcuts.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -361,6 +376,33 @@ function toolbarProps(win) {
   };
 }
 
+/**
+ * What the Shortcuts tab lists: Page settings and every icon in the bar,
+ * hidden ones too, as the Top bar tab shows them; then the screen sizes,
+ * each with its button's picture. Read off the bar and the size buttons, so a
+ * tool this user has no icon for is not there.
+ */
+function shortcutsProps(win) {
+  const doc = win.document;
+  const settings = doc.querySelector(`#${HEADER_TOOLBAR_ID} button[data-tab="settings"]`);
+  const sizeIcon = (device) =>
+    doc.querySelector(`#${LP_PREVIEW_CHROME_ID} [data-sve-devices] > button[data-device="${device}"] svg`)?.outerHTML || '';
+
+  return {
+    toolbarLabel: t(win, 'lp_settings_shortcuts_toolbar'),
+    sizesLabel: t(win, 'lp_settings_shortcuts_sizes'),
+    hint: t(win, 'lp_settings_shortcuts_hint'),
+    resetLabel: t(win, 'lp_settings_shortcuts_reset'),
+    emptyLabel: t(win, 'lp_settings_toolbar_empty'),
+    mac: isMac(win.navigator),
+    tools: [
+      settings ? { action: 'tool:settings', label: settings.title || t(win, 'panel'), icon: settings.querySelector('svg')?.outerHTML || '' } : null,
+      ...toolbarTools(win).map((tool) => ({ action: `tool:${tool.key}`, label: tool.label, icon: tool.icon })),
+    ].filter(Boolean),
+    sizes: breakpoints(win).map((row) => ({ action: `size:${row.handle}`, label: row.label, icon: sizeIcon(row.device) })),
+  };
+}
+
 /** The preset that is on now — the one the presets row marks; '' when none is. */
 function activePresetId(win) {
   const tools = toolbarTools(win);
@@ -548,12 +590,14 @@ function settingsProps(win, rect) {
       { id: 'sidebars', label: t(win, 'lp_settings_tab_sidebars') },
       hasTree ? { id: 'tree', label: t(win, 'lp_settings_tab_tree') } : null,
       { id: 'toolbar', label: t(win, 'lp_settings_tab_toolbar') },
+      { id: 'shortcuts', label: t(win, 'lp_settings_tab_shortcuts') },
     ].filter(Boolean),
     tab: lastTab,
     presets: presetsProps(win),
     sidebars: sidebarsProps(win),
     tree,
     toolbar: toolbarProps(win),
+    shortcuts: shortcutsProps(win),
     resetLabel: t(win, 'reset_lp_settings'),
     resetTitle: t(win, 'reset_lp_settings_title'),
   };
@@ -611,6 +655,10 @@ function bindSettingHandlers(win) {
         dismissLpMoreMenu();
         openToolbarTool(win, key);
       },
+      // This user's own keyboard shortcuts — the layers read back after each write.
+      shortcutLayers: () => shortcutLayers(win),
+      shortcutSet: (action, value, moveFrom) => setUserShortcut(win, action, value, moveFrom),
+      shortcutsReset: () => resetUserShortcuts(win),
     },
     onReset: () => {
       const own = readUserPresets(win);
@@ -624,6 +672,9 @@ function bindSettingHandlers(win) {
       writeUserPresets(win, own);
       writePaneChoices(win, choices);
       syncToolbarLayout(win);
+      // The reset took this user's own shortcuts with the rest of the layout;
+      // said here, so the preview hears the site's apply again.
+      resetUserShortcuts(win);
     },
     onClose: dismissLpMoreMenu,
   };

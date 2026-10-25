@@ -22,6 +22,7 @@ import { repositionInserters, setupInserters } from './inserters.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './video-hold.js';
 import { applyAlpineStates, guardDialogs, setAlpineState, watchAlpineStart } from './alpine-state.js';
+import { installShortcuts, setShortcuts } from './shortcuts.js';
 import { installSiteInert } from './site-inert.js';
 
 // ===== outline-nav =====
@@ -352,6 +353,12 @@ export function createMessageReceiver(win) {
 
     if (data.type === MSG.SVE_ALPINE_STATE) {
       setAlpineState(win, data);
+
+      return;
+    }
+
+    if (data.type === MSG.SVE_SHORTCUTS) {
+      setShortcuts(data);
 
       return;
     }
@@ -798,6 +805,9 @@ export function initBridge(win = window) {
   watchAlpineStart(win);
   // Nor the Alpine states the tree has set; the panel remembers those too.
   win.parent.postMessage({ source: SOURCE, type: MSG.SVE_ALPINE_STATES_REQUEST }, win.location.origin);
+  // Nor the keyboard shortcuts: a keypress here must be kept from the browser
+  // before the CP can hear of it (bridge/shortcuts.js asks for the list).
+  installShortcuts(win);
 
   win.addEventListener('statamic:preview-updated', () => {
     // Holds put back, and autoplay put right, on every draw — not only while
