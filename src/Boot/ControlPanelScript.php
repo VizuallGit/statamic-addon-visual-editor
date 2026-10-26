@@ -3,7 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
 use MarioHamann\StatamicVisualEditor\AiChat;
-use MarioHamann\StatamicVisualEditor\AiProvider;
+use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\AiCopy;
 use MarioHamann\StatamicVisualEditor\CollectionPresets;
 use MarioHamann\StatamicVisualEditor\RowLimits;
@@ -96,7 +96,7 @@ final class ControlPanelScript
                 'sveShortcuts' => Shortcuts::forScript(),
                 // Cursor or Claude behind the grey text: on Cursor only a comment
                 // and ⌘K ask it (dock/ghost-state.js).
-                'sveGhostProvider' => AiProvider::current(),
+                'sveGhostProvider' => DockGhost::provider(),
                 'sveAiReady' => AiChat::ready(),
                 'sveAiTextReady' => AiCopy::ready(),
                 'sveComments' => static::commentsPayload(),

@@ -619,8 +619,10 @@ tabs:
               options:
                 cursor: Cursor
                 claude: Claude
-              if:
-                enabled: 'equals true'
+              if_any:
+                ai_panel: 'equals true'
+                ai_text: 'equals true'
+                dock_ghost: 'equals true'
           -
             handle: ai_api_key
             field:
