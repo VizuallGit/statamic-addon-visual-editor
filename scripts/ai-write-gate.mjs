@@ -1,4 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
 
 /*
@@ -14,17 +16,39 @@ import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
  *   files   — existing files this run may change (the selected section,
  *             files the user named in the message)
  *   create  — folders a new file may be made in; never an existing file
+ *             (new sections, collections, blueprints, entries, saved sections)
+ *   assets  — the folder images from a web page are saved in (save_image),
+ *             new files only
  *   rules   — the rules file, which is only ever appended to (add_rule)
+ *
+ * A web page the user points at is read with fetch_page, and its images
+ * saved with save_image — public addresses only, never the server's own
+ * network.
  *
  * page_sections.yaml is not in any of them: a new section is registered by
  * PHP after the run (register_section only records the request), so the list
  * every page depends on is never rewritten by a model.
  */
 
-const NEW_FILE = /\.(ya?ml|antlers\.html)$/;
+const NEW_FILE = /\.(ya?ml|antlers\.html|md)$/;
+
+/** Images save_image may make. */
+const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
+
+/** Characters of a web page's text fetch_page hands back. */
+export const PAGE_CHARS = 30000;
+
+/** The largest image save_image downloads. */
+const IMAGE_BYTES = 15 * 1024 * 1024;
 
 export const LOCKED_HINT =
-  'Tell the user which file you need to change and why, and stop. They open it by naming the file in their next message (for example "you may change site.css").';
+  'That file is closed to the AI — a secret, an installed or built file, or the site\'s own PHP. Say what you would change there and why, and carry on with the rest.';
+
+/** Files the open part of the site may hold: content, theme and markup — never PHP. */
+const OPEN_FILE = /\.(ya?ml|md|html?|css|js|mjs|json|txt|svg|xml)$/i;
+
+/** Never written, wherever they are. */
+const SECRET = /(^|\/)\.env|(^|\/)auth\.json$|\.(key|pem|php)$/i;
 
 /**
  * @param {string} cwd  the site root
@@ -35,6 +59,9 @@ export function createGate(cwd, scope) {
   const files = new Set((scope.files || []).map((path) => clean(path)).filter(Boolean));
   const create = (scope.create || []).map((path) => clean(path).replace(/\/?$/, '/')).filter((path) => path !== '/');
   const rules = scope.rules ? clean(scope.rules) : null;
+  const open = (scope.open || []).filter((prefix) => typeof prefix === 'string' && prefix !== '');
+  const closed = (scope.closed || []).filter((prefix) => typeof prefix === 'string' && prefix !== '');
+  const assets = scope.assets ? clean(scope.assets).replace(/\/?$/, '/') : null;
   const made = new Set();
   const written = [];
   const register = [];
@@ -82,14 +109,25 @@ export function createGate(cwd, scope) {
     return refuse(`LOCKED: ${rel || 'that path'} is not open in this run. ${LOCKED_HINT}`);
   }
 
+  /** In the open part of the site (Build mode: content and theme), and not closed inside it. */
+  function opened(rel) {
+    return (
+      rel !== '' &&
+      OPEN_FILE.test(rel) &&
+      !SECRET.test(rel) &&
+      open.some((prefix) => rel.startsWith(prefix)) &&
+      !closed.some((prefix) => rel === prefix || rel.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`))
+    );
+  }
+
   /** May this run change the file that is there now? */
   function mayChange(rel) {
-    return rel !== '' && (files.has(rel) || made.has(rel)) && inside(rel);
+    return rel !== '' && (files.has(rel) || made.has(rel) || opened(rel)) && inside(rel);
   }
 
   /** May this run make a file that is not there yet? */
   function mayCreate(rel) {
-    return rel !== '' && NEW_FILE.test(rel) && create.some((folder) => rel.startsWith(folder)) && inside(rel);
+    return rel !== '' && ((NEW_FILE.test(rel) && create.some((folder) => rel.startsWith(folder))) || opened(rel)) && inside(rel);
   }
 
   function put(rel, content) {
@@ -193,11 +231,57 @@ export function createGate(cwd, scope) {
     return `${handle} will be added to the "${group}" group in page_sections.yaml when you are done. Do not edit page_sections.yaml yourself.`;
   }
 
+  /** A web page as text the agent can use: its title, its images, its words. */
+  async function fetchPage({ url } = {}) {
+    const res = await publicFetch(url);
+
+    if (typeof res === 'string') {
+      return refuse(res);
+    }
+
+    return pageText(await res.text(), res.url || url);
+  }
+
+  /** An image from the web saved in the assets folder, as a new file. */
+  async function saveImage({ url, path } = {}) {
+    const rel = clean(path);
+
+    if (!assets || !rel.startsWith(assets) || !IMAGE.test(rel) || !inside(rel)) {
+      return refuse(`path must be a new image file (.jpg, .png, .webp, .gif, .svg, .avif) under ${assets || 'the assets folder'}.`);
+    }
+
+    if (existsSync(absolute(rel))) {
+      return refuse(`${rel} is there already — give the new image another name.`);
+    }
+
+    const res = await publicFetch(url);
+
+    if (typeof res === 'string') {
+      return refuse(res);
+    }
+
+    if (!String(res.headers.get('content-type') || '').startsWith('image/')) {
+      return refuse(`${url} is not an image.`);
+    }
+
+    const bytes = Buffer.from(await res.arrayBuffer());
+
+    if (bytes.length > IMAGE_BYTES) {
+      return refuse(`${url} is larger than ${IMAGE_BYTES / 1024 / 1024} MB.`);
+    }
+
+    put(rel, bytes);
+
+    return `Saved ${rel} (${Math.round(bytes.length / 1024)} KB). In an assets field it is ${rel.slice(assets.length)}.`;
+  }
+
   return {
     writeFile,
     editFile,
     addRule,
     registerSection,
+    fetchPage,
+    saveImage,
     get written() {
       return [...written];
     },
@@ -209,6 +293,122 @@ export function createGate(cwd, scope) {
 
 function refuse(text) {
   return { content: [{ type: 'text', text }], isError: true };
+}
+
+/** An address on the server's own machine or network — never fetched for the agent. */
+export function privateAddress(ip) {
+  const v4 = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+
+  if (isIP(v4) === 4) {
+    const [a, b] = v4.split('.').map(Number);
+
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b < 128) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b < 32) || (a === 192 && b === 168);
+  }
+
+  const v6 = ip.toLowerCase();
+
+  return v6 === '::' || v6 === '::1' || v6.startsWith('fc') || v6.startsWith('fd') || v6.startsWith('fe80');
+}
+
+/**
+ * GET a public http(s) address, following up to five redirects, each checked:
+ * the response, or why not as a string.
+ */
+async function publicFetch(url) {
+  let next = String(url || '');
+
+  for (let hop = 0; hop < 6; hop += 1) {
+    let parsed;
+
+    try {
+      parsed = new URL(next);
+    } catch {
+      return `${next} is not a web address.`;
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.hostname === 'localhost') {
+      return `${next} is not a public web address.`;
+    }
+
+    const host = parsed.hostname.replace(/^\[|\]$/g, '');
+    const addresses = isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => [])).map((row) => row.address);
+
+    if (!addresses.length || addresses.some(privateAddress)) {
+      return `${next} is not a public web address.`;
+    }
+
+    const res = await fetch(parsed.href, {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(20000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (Statamic Visual Editor)', Accept: 'text/html,image/*,*/*' },
+    }).catch((err) => `${parsed.href} could not be reached: ${err?.message || err}`);
+
+    if (typeof res === 'string') {
+      return res;
+    }
+
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      next = new URL(res.headers.get('location'), parsed.href).href;
+
+      continue;
+    }
+
+    return res.ok ? res : `${parsed.href} answered ${res.status}.`;
+  }
+
+  return `${url} redirects too many times.`;
+}
+
+/** A page's title, images (with their alt text) and words, for the agent. */
+export function pageText(html, base) {
+  const absolute = (src) => {
+    try {
+      return new URL(src, base).href;
+    } catch {
+      return null;
+    }
+  };
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '';
+  const images = [];
+
+  for (const [tag] of html.matchAll(/<img\b[^>]*>|<meta\b[^>]*og:image[^>]*>/gi)) {
+    const src = (tag.match(/\s(?:data-src|src|content)=["']([^"']+)["']/i) || [])[1];
+    const alt = (tag.match(/\salt=["']([^"']*)["']/i) || [])[1] || '';
+    const href = src && !src.startsWith('data:') ? absolute(src) : null;
+
+    if (href && !images.some((row) => row.href === href)) {
+      images.push({ href, alt });
+    }
+  }
+
+  const text = html
+    .replace(/<(script|style|noscript|svg|template)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<\/(p|div|section|article|li|h[1-6]|tr|br)>|<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim();
+
+  return [
+    `Title: ${decodeTitle(title)}`,
+    `URL: ${base}`,
+    '',
+    `Images (${images.length}):`,
+    ...images.slice(0, 80).map((row) => `- ${row.href}${row.alt ? ` — ${row.alt}` : ''}`),
+    '',
+    'Text:',
+    text.length > PAGE_CHARS ? `${text.slice(0, PAGE_CHARS)}\n… (cut at ${PAGE_CHARS} characters)` : text,
+  ].join('\n');
+}
+
+function decodeTitle(title) {
+  return title.replace(/\s+/g, ' ').replace(/&amp;/g, '&').trim();
 }
 
 /** The gate as the SDK's custom tools. */
@@ -254,6 +454,29 @@ export function gateTools(gate, { rules = false } = {}) {
       },
       execute: (args) => gate.registerSection(args),
     },
+  };
+
+  tools.fetch_page = {
+    description: 'Read a web page the user points at: its title, its images (with their addresses and alt text) and its text. Public web addresses only.',
+    inputSchema: {
+      type: 'object',
+      properties: { url: { type: 'string', description: 'The page\'s full address, https://…' } },
+      required: ['url'],
+    },
+    execute: (args) => gate.fetchPage(args),
+  };
+
+  tools.save_image = {
+    description: 'Save an image from the web as a new file in the site\'s assets folder, to use in an assets field. Never replaces a file.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'The image\'s address, as fetch_page listed it.' },
+        path: { type: 'string', description: 'Where it goes, a new file under the assets folder, e.g. public/assets/employees/jane-doe.jpg' },
+      },
+      required: ['url', 'path'],
+    },
+    execute: (args) => gate.saveImage(args),
   };
 
   if (rules) {

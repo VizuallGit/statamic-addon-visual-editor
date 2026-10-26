@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, existsSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createGate, gateTools } from '../../scripts/ai-write-gate.mjs';
+import { createGate, gateTools, pageText, privateAddress } from '../../scripts/ai-write-gate.mjs';
 
 const SECTION = 'resources/views/partials/page_sections/hero/style_1.antlers.html';
 const FIELDSET = 'resources/fieldsets/hero/style_1.yaml';
@@ -133,6 +133,69 @@ test('register_section only records a well-formed request, once', () => {
 test('the tools offered: add_rule only when the rules file is open', () => {
   const s = site();
 
-  assert.deepEqual(Object.keys(gateTools(createGate(s.root, scope), { rules: true })).sort(), ['add_rule', 'edit_file', 'register_section', 'write_file']);
-  assert.deepEqual(Object.keys(gateTools(createGate(s.root, { ...scope, rules: null }))).sort(), ['edit_file', 'register_section', 'write_file']);
+  assert.deepEqual(Object.keys(gateTools(createGate(s.root, scope), { rules: true })).sort(), ['add_rule', 'edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
+  assert.deepEqual(Object.keys(gateTools(createGate(s.root, { ...scope, rules: null }))).sort(), ['edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
 });
+
+/* ---- Build mode on the open site: content and theme, no file to name ---- */
+
+const BUILD = {
+  files: [],
+  create: [],
+  open: ['content/', 'resources/', 'public/'],
+  closed: ['resources/addons/', 'resources/fieldsets/page_sections.yaml', 'public/build/', 'public/vendor/'],
+  assets: 'public/assets/',
+  rules: RULES,
+};
+
+test('build mode makes a taxonomy, its blueprint and an entry, and changes site.css — no file named', () => {
+  const s = site();
+  const gate = createGate(s.root, BUILD);
+
+  assert.equal(text(gate.writeFile({ path: 'content/taxonomies/skills.yaml', content: 'title: Skills\n' })), 'Wrote content/taxonomies/skills.yaml.');
+  assert.equal(text(gate.writeFile({ path: 'resources/blueprints/taxonomies/skills/skill.yaml', content: 'title: Skill\n' })), 'Wrote resources/blueprints/taxonomies/skills/skill.yaml.');
+  assert.equal(text(gate.writeFile({ path: 'content/collections/employees/jane-doe.md', content: '---\nid: 1\ntitle: Jane\n---\n' })), 'Wrote content/collections/employees/jane-doe.md.');
+  assert.equal(text(gate.editFile({ path: 'resources/css/site.css', old_string: 'black', new_string: 'navy' })), 'Edited resources/css/site.css.');
+  assert.equal(s.read('resources/css/site.css'), 'body { color: navy; }\n');
+});
+
+test('build mode never writes secrets, PHP, built files, the addon settings or page_sections.yaml', () => {
+  const s = site();
+  const gate = createGate(s.root, BUILD);
+
+  for (const path of ['.env', 'content/.env', 'resources/views/evil.blade.php', 'app/Models/User.yaml', 'config/app.yaml', 'resources/addons/visual-editor.yaml', 'resources/fieldsets/page_sections.yaml', 'public/build/manifest.json', 'public/vendor/x.js', '../outside.yaml']) {
+    assert.ok(refused(gate.writeFile({ path, content: 'x' })), path);
+  }
+
+  assert.equal(s.read('resources/fieldsets/page_sections.yaml'), 'title: Page sections\n');
+});
+
+test('save_image only makes new image files in the assets folder', async () => {
+  const s = site();
+  const gate = createGate(s.root, BUILD);
+
+  assert.ok(refused(await gate.saveImage({ url: 'https://example.com/a.jpg', path: 'resources/views/a.jpg' })));
+  assert.ok(refused(await gate.saveImage({ url: 'https://example.com/a.jpg', path: 'public/assets/a.php' })));
+  assert.ok(refused(await gate.saveImage({ url: 'http://127.0.0.1/a.jpg', path: 'public/assets/a.jpg' })));
+  assert.ok(refused(await gate.fetchPage({ url: 'http://localhost/admin' })));
+  assert.ok(refused(await gate.fetchPage({ url: 'file:///etc/passwd' })));
+});
+
+test('the server\'s own network is never fetched', () => {
+  for (const ip of ['127.0.0.1', '10.0.0.5', '192.168.1.1', '172.16.0.1', '169.254.169.254', '::1', '::ffff:127.0.0.1', 'fd00::1']) {
+    assert.equal(privateAddress(ip), true, ip);
+  }
+
+  assert.equal(privateAddress('8.8.8.8'), false);
+});
+
+test('a web page is read as its title, images and text', () => {
+  const page = pageText('<html><head><title>Om os &amp; team</title><meta property="og:image" content="/og.jpg"><style>.x{}</style></head><body><h1>Team</h1><img src="img/jane.jpg" alt="Jane Doe"><p>Jane er designer.</p><script>alert(1)</script></body></html>', 'https://example.com/team/');
+
+  assert.match(page, /^Title: Om os & team/);
+  assert.match(page, /- https:\/\/example\.com\/og\.jpg/);
+  assert.match(page, /- https:\/\/example\.com\/team\/img\/jane\.jpg — Jane Doe/);
+  assert.match(page, /Jane er designer\./);
+  assert.doesNotMatch(page, /alert|\.x\{/);
+});
+

@@ -83,61 +83,26 @@ class AiWriteScopeTest extends TestCase
 
     public function test_write_mode_opens_nothing(): void
     {
-        $this->assertNull(WriteScope::for('write', 'hero/style_1', 'you may change site.css'));
+        $this->assertNull(WriteScope::for('write'));
     }
 
-    public function test_build_mode_opens_the_selected_section_and_the_fieldset_it_imports(): void
+    public function test_build_mode_opens_the_site_s_content_and_theme_without_naming_a_file(): void
     {
-        $scope = WriteScope::for('build', 'featured_section/style_1', 'Make the heading bigger');
+        $scope = WriteScope::for('build');
 
-        // The import, not the handle: featured_section/… imports featured_sections.….
-        $this->assertSame([
-            'resources/views/partials/page_sections/featured_section/style_1.antlers.html',
-            'resources/fieldsets/featured_sections/style_1.yaml',
-        ], $scope['files']);
-        $this->assertSame(WriteScope::CREATE, $scope['create']);
+        $this->assertSame(['content/', 'resources/', 'public/'], $scope['open']);
+        $this->assertSame('public/assets/', $scope['assets']);
         $this->assertSame('resources/visual-editor/ai-rules.md', $scope['rules']);
     }
 
-    public function test_the_sites_css_header_and_shared_fieldsets_stay_closed_unless_named(): void
+    public function test_secrets_built_files_and_the_page_builder_s_list_stay_closed(): void
     {
-        $files = WriteScope::for('build', 'hero/style_1', 'Change the colours and my links, and fix the header')['files'];
+        $closed = WriteScope::for('build')['closed'];
 
-        $this->assertNotContains('resources/css/site.css', $files);
-        $this->assertNotContains('resources/fieldsets/links.yaml', $files);
-        $this->assertNotContains('resources/views/partials/site_head.antlers.html', $files);
-    }
-
-    public function test_a_file_named_with_its_extension_is_opened(): void
-    {
-        $files = WriteScope::for('build', 'hero/style_1', 'Du må ændre farverne i site.css, og links.yaml + site_head.antlers.html.')['files'];
-
-        $this->assertContains('resources/css/site.css', $files);
-        $this->assertContains('resources/fieldsets/links.yaml', $files);
-        $this->assertContains('resources/views/partials/site_head.antlers.html', $files);
-    }
-
-    public function test_a_bare_name_that_fits_several_files_opens_none_and_the_folder_says_which(): void
-    {
-        $this->assertSame([], WriteScope::named('fix style_1.antlers.html'));
-        $this->assertSame(['resources/views/partials/page_sections/hero/style_1.antlers.html'], WriteScope::named('fix hero/style_1.antlers.html'));
-    }
-
-    public function test_names_are_words_with_an_extension(): void
-    {
-        $this->assertSame(['site.css' => true, 'resources/css/site.css' => true], WriteScope::namesIn('Ret site.css (resources/css/site.css).'));
-        $this->assertSame([], WriteScope::namesIn('my links, the header, colours'));
-        $this->assertSame(['links.yaml' => true], WriteScope::namesIn('You may change Links.YAML'));
-    }
-
-    public function test_a_template_locked_in_the_dock_stays_closed_even_when_selected(): void
-    {
-        SectionTemplate::setLocked(base_path('resources/views/partials/page_sections/hero/style_1.antlers.html'), true);
-
-        $files = WriteScope::for('build', 'hero/style_1', 'hero/style_1.antlers.html')['files'];
-
-        $this->assertNotContains('resources/views/partials/page_sections/hero/style_1.antlers.html', $files);
-        $this->assertContains('resources/fieldsets/hero/style_1.yaml', $files);
+        $this->assertContains('resources/addons/', $closed);
+        $this->assertContains('resources/fieldsets/page_sections.yaml', $closed);
+        $this->assertContains('public/build/', $closed);
+        $this->assertContains('public/vendor/', $closed);
     }
 
     public function test_a_new_section_is_added_to_its_group_and_every_other_set_stays(): void
@@ -185,15 +150,5 @@ class AiWriteScopeTest extends TestCase
         $this->assertNotContains('hero/style_1.old', array_column($newest, 'handle'));
         $this->assertNotContains('hero/style_1', array_column(HouseStyle::newest('hero/style_1'), 'handle'));
         $this->assertStringContainsString("<section>hero</section>", HouseStyle::prompt());
-    }
-
-    public function test_a_file_named_after_a_no_is_left_closed(): void
-    {
-        $this->assertSame([], WriteScope::named('Gør det uden at røre site.css'));
-        $this->assertSame([], WriteScope::named('Do not change site.css, please.'));
-        $this->assertSame([], WriteScope::named('Undgå links.yaml'));
-        $this->assertSame([], WriteScope::named("Don't touch site.css"));
-        $this->assertSame(['resources/css/site.css'], WriteScope::named('Rør ikke links.yaml. Men du må ændre site.css.'));
-        $this->assertSame(['resources/css/site.css'], WriteScope::named('Du må gerne ændre site.css'));
     }
 }

@@ -48,7 +48,7 @@ TXT;
         }
 
         return <<<'TXT'
-BUILD MODE — edit the selected section's files on disk with write_file / edit_file (or create a new section type only when they explicitly ask for one).
+BUILD MODE — do what they ask on disk with your tools: change the selected section, or make and change anything else of the site's content and theme the request needs — a new section with its fieldset, a collection, a taxonomy, a blueprint, entries, a global section, images from a link.
 TXT;
     }
 
@@ -80,7 +80,7 @@ TXT;
      * What the agent may change, as it is told — the same scope the gate
      * enforces, so the prompt and the tools never disagree.
      *
-     * @param  array{files: list<string>, create: list<string>, rules: string}|null  $scope
+     * @param  array{open: list<string>, closed: list<string>, assets: string, rules: string}|null  $scope
      */
     public static function writeScope(?array $scope): string
     {
@@ -90,23 +90,20 @@ WHAT YOU CAN CHANGE — nothing. You have no tools that write and no shell. Put 
 TXT;
         }
 
-        $files = $scope['files'] === [] ? "  (none — no section is selected)\n" : '';
-
-        foreach ($scope['files'] as $file) {
-            $files .= "  - {$file}\n";
-        }
-
-        $create = implode(' and ', $scope['create']);
+        $open = implode(', ', $scope['open'] ?? []);
+        $closed = implode(', ', $scope['closed'] ?? []);
+        $assets = $scope['assets'] ?? 'public/assets/';
 
         return <<<TXT
-WHAT YOU CAN CHANGE — enforced by your tools, and it outranks every rule in this prompt, the site's own rules included.
-There is no shell: no git, no terminal, no commands. You write only with write_file, edit_file, register_section and add_rule, and they refuse anything not listed here as LOCKED:
-- these existing files:
-{$files}- new files (never an existing one) under {$create}, only when they ask for a new section
-- {$scope['rules']}, through add_rule only
+WHAT YOU CAN CHANGE — as a developer working in this site's repository would: the whole of its content and theme ({$open}). Make and change whatever the request needs; no file has to be named first.
+- Content: collections, entries, taxonomies and terms, navigation, globals, saved (global) sections — content/…
+- The theme: blueprints, fieldsets, section partials and other templates, CSS and JS — resources/…
+- Images: save_image puts a picture from the web in {$assets}; in an assets field an image is its path inside that folder.
+- A new section type: its partial and fieldset, then register_section (it adds the section to the page builder after you finish — never edit page_sections.yaml).
+- The site's AI rules ({$scope['rules']}): add_rule appends one.
+You write with write_file, edit_file, register_section, add_rule and save_image. There is no shell — no git, no terminal, no commands — and no tool that deletes. Closed: {$closed}, .env and every .php file, and the site's PHP code (app/, config/, routes/); say what you would change there and why, and do the rest.
 
-Everything else is closed: the site's CSS (site.css and everything in resources/css — colours, spacing, fonts, the base styles), the header and the footer, other sections, shared fieldsets (links, basic_blocks, common …) and page_sections.yaml. Content and globals (theme settings, site settings) are never written here — they are changed in the Control Panel and the Theme panel.
-Do not work around a lock: no copies of a closed file, no <style> that overrides the site's tokens, no "reset" or "restore" of anything. If the request needs a closed file, say which file (its path under resources/) and why in a sentence or two and stop. The user opens it by naming the file with its extension in their message, e.g. "du må ændre site.css".
+Statamic is flat files. Before you make something new, read an existing file of the same kind — a collection's YAML, a taxonomy's, a blueprint, an entry, a saved section — and write yours the same way; an entry has its own `id:` (a new UUID) and its `blueprint:`. When something new needs a blueprint (a collection, a taxonomy, a global set), make the blueprint too, and connect what belongs together (a collection to its taxonomy, a section to its fieldset). A web page the user points at: read it with fetch_page, take the text and the image addresses from there, and save each image you use with save_image. When you are done, Statamic reads what you made, and changed CSS, JS and templates are built.
 Never undo, reset or restore anything the user did not ask you to change.
 TXT;
     }

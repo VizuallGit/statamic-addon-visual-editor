@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\AiChat\Conversation;
 use MarioHamann\StatamicVisualEditor\AiChat\Prompt;
+use MarioHamann\StatamicVisualEditor\AiChat\WriteScope;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -49,19 +50,17 @@ class AiChatPromptTest extends TestCase
         $this->assertStringContainsString('no shell', $text);
     }
 
-    public function test_build_mode_is_told_exactly_which_files_are_open(): void
+    public function test_build_mode_is_told_it_may_build_anything_in_content_and_theme(): void
     {
-        $text = Prompt::writeScope([
-            'files' => ['resources/views/partials/page_sections/hero/style_2.antlers.html', 'resources/fieldsets/hero/style_2.yaml'],
-            'create' => ['resources/fieldsets/', 'resources/views/partials/page_sections/'],
-            'rules' => 'resources/visual-editor/ai-rules.md',
-        ]);
+        $text = Prompt::writeScope(WriteScope::for('build'));
 
-        $this->assertStringContainsString("  - resources/views/partials/page_sections/hero/style_2.antlers.html\n  - resources/fieldsets/hero/style_2.yaml\n", $text);
+        $this->assertStringContainsString('the whole of its content and theme (content/, resources/, public/)', $text);
+        $this->assertStringContainsString('no file has to be named first', $text);
+        $this->assertStringContainsString('taxonomies', $text);
         $this->assertStringContainsString('There is no shell', $text);
-        $this->assertStringContainsString('site.css', $text);
-        $this->assertStringContainsString('page_sections.yaml', $text);
-        $this->assertStringContainsString('du må ændre site.css', $text);
+        $this->assertStringContainsString('never edit page_sections.yaml', $text);
+        $this->assertStringContainsString('fetch_page', $text);
+        $this->assertStringNotContainsString('du må ændre site.css', $text);
     }
 
     public function test_the_prompt_carries_the_write_scope_and_never_asks_for_page_sections_to_be_rewritten(): void

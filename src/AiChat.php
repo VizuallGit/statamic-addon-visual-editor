@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Illuminate\Support\Facades\Artisan;
 use MarioHamann\StatamicVisualEditor\AiChat\Conversation;
 use MarioHamann\StatamicVisualEditor\AiChat\Prompt;
 use MarioHamann\StatamicVisualEditor\AiChat\Registration;
@@ -54,7 +55,7 @@ class AiChat
 
         $mode = Prompt::modeOf($mode);
         $messages = Conversation::sanitize($messages);
-        $write = WriteScope::for($mode, $handle, (string) (end($messages)['content'] ?? ''));
+        $write = WriteScope::for($mode);
 
         $out = app(AiProvider::agent())::run(Prompt::prompt($handle, $messages, $mode, $write), $images, $write, $model, $stopped);
 
@@ -70,11 +71,18 @@ class AiChat
         // (site.css's @source scans the views), are only on the page once they
         // are built into public/build — the build a save in the Stylesheets
         // panel runs. Once per run, after the agent is done.
-        if (array_filter($out['written'], fn (string $path) => str_starts_with($path, 'resources/css/') || str_starts_with($path, 'resources/views/')) !== []) {
+        if (array_filter($out['written'], fn (string $path) => str_starts_with($path, 'resources/css/') || str_starts_with($path, 'resources/views/') || str_starts_with($path, 'resources/js/')) !== []) {
             $build = SiteBuild::afterSave(['kind' => 'css', 'imported' => true])['build'];
             $reply .= "\n\n".($build['ok']
                 ? __('sve::messages.ai_panel_css_built')
                 : __('sve::messages.ai_panel_css_not_built', ['reason' => __('sve::messages.theme_utilities_reason_'.$build['reason'])]));
+        }
+
+        // New collections, blueprints, entries and saved sections: on a server
+        // whose stache does not watch files, Statamic sees them only once it
+        // reads its files again. Once per run, after the agent is done.
+        if (array_filter($out['written'], fn (string $path) => str_starts_with($path, 'content/') || str_starts_with($path, 'resources/blueprints/') || str_starts_with($path, 'resources/fieldsets/')) !== []) {
+            static::refreshStache();
         }
 
         if ($out['written'] !== [] || $registered !== []) {
@@ -90,6 +98,16 @@ class AiChat
             'mode' => $mode,
             'status' => $out['status'],
         ];
+    }
+
+    /** Statamic reads its content and blueprints again (`please stache:refresh`). */
+    protected static function refreshStache(): void
+    {
+        try {
+            Artisan::call('statamic:stache:refresh');
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
