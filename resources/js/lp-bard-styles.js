@@ -22,6 +22,8 @@ import { csrfToken } from './lib/csrf.js';
 import { reloadEverything } from './lp-reload.js';
 
 let opening = false;
+/** The open surface's own close (BardStyles.vue requestClose), while it is open. */
+let requestClose = null;
 
 /**
  * Switched on (and this user let in) on the settings screen, the addon is there
@@ -76,7 +78,15 @@ function tokens(win) {
  * on the click: this file is loaded on every Control Panel page.
  */
 export function openBardStyles(win) {
-  if (opening || win.document.querySelector('[data-sve-bard-styles]')) {
+  // Open already: the icon's second press closes it, as ✕ does — asking first
+  // when there are unsaved changes.
+  if (win.document.querySelector('[data-sve-bard-styles]')) {
+    void requestClose?.();
+
+    return;
+  }
+
+  if (opening) {
     return;
   }
 
@@ -116,7 +126,12 @@ export function openBardStyles(win) {
         tokens: () => tokens(win),
         reload: () => reloadEverything(win),
         confirmClose,
-        onClose: () => {},
+        bindClose: (close) => {
+          requestClose = close;
+        },
+        onClose: () => {
+          requestClose = null;
+        },
       });
     } catch (err) {
       console.error('[sve] open bard styles', err);

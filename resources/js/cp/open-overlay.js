@@ -12,15 +12,19 @@ export function openCpOverlay(doc, component, props) {
     host.remove();
   };
 
+  // What the surface's own ✕ does: the caller's onClose, then gone.
+  const close = () => {
+    props.onClose?.();
+    dismiss();
+  };
+
   app = mountSurface(component, host, {
     ...props,
-    onClose: () => {
-      props.onClose?.();
-      dismiss();
-    },
+    onClose: close,
   });
 
   return {
+    close,
     dismiss,
     host,
     app,

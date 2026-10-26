@@ -297,6 +297,8 @@ const props = defineProps({
   /** () => Promise<'save'|'discard'|'cancel'> — asked when closing with unsaved changes */
   confirmClose: { type: Function, required: true },
   onClose: { type: Function, required: true },
+  /** (close) => void — handed the same close as ✕ (it asks about unsaved changes), for the icon's second press */
+  bindClose: { type: Function, default: null },
 });
 
 const t = (key, replacements) => props.t(key, replacements);
@@ -607,6 +609,8 @@ async function requestClose() {
 
   props.onClose();
 }
+
+props.bindClose?.(requestClose);
 
 function reload() {
   props.reload();

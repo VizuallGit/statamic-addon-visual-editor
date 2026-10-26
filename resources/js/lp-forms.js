@@ -19,6 +19,8 @@ import { t } from './lib/i18n.js';
 import { cpRoot } from './lib/config.js';
 
 let opening = false;
+/** The drawer on screen, if any: the icon's second press closes it. */
+let drawer = null;
 
 /**
  * Can this user do anything useful on the Forms screen? `configure forms` is
@@ -35,6 +37,12 @@ export function formsAllowed(win) {
  * file is loaded on every Control Panel page.
  */
 export function openForms(win, { url = '', subtitle = '' } = {}) {
+  if (drawer?.host.isConnected) {
+    drawer.close();
+
+    return;
+  }
+
   if (opening) {
     return;
   }
@@ -48,7 +56,7 @@ export function openForms(win, { url = '', subtitle = '' } = {}) {
         import('./cp/surfaces/FieldsetOverlay.vue'),
       ]);
 
-      openCpOverlay(win.document, FieldsetOverlay, {
+      drawer = openCpOverlay(win.document, FieldsetOverlay, {
         heading: t(win, 'lp_forms_heading'),
         subtitle,
         src: url || `${cpRoot(win)}/forms`,

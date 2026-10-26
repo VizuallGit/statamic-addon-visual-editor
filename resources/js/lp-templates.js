@@ -15,6 +15,8 @@ import { csrfToken } from './lib/csrf.js';
 import { navigateFromLp } from './pages.js';
 
 let opening = false;
+/** The drawer on screen, if any: the icon's second press closes it. */
+let drawer = null;
 
 /**
  * The board's own two gates, read as the server reads them: the feature is on
@@ -42,6 +44,12 @@ export function inLivePreview(win, url) {
  * own, asked for on the click — this file is loaded on every Control Panel page.
  */
 export function openTemplateBoard(win, anchor = null) {
+  if (drawer?.host.isConnected) {
+    drawer.close();
+
+    return;
+  }
+
   if (opening) {
     return;
   }
@@ -55,8 +63,6 @@ export function openTemplateBoard(win, anchor = null) {
         import('./cp/surfaces/FieldsetOverlay.vue'),
         import('./template-board.js'),
       ]);
-
-      let drawer = null;
 
       drawer = openCpOverlay(win.document, FieldsetOverlay, {
         heading: t(win, 'template_board_title'),

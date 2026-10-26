@@ -27,6 +27,8 @@ import { inLivePreview } from './lp-templates.js';
 import { leaveLpTo, navigateFromLp, previewableCollections } from './pages.js';
 
 let opening = false;
+/** The drawer on screen, if any: the icon's second press closes it. */
+let drawer = null;
 
 /**
  * Open the drawer on the Collections screen, or on `url` — a collection's or a
@@ -35,6 +37,12 @@ let opening = false;
  * Control Panel page.
  */
 export function openCollections(win, { anchor = null, url = '', subtitle = '' } = {}) {
+  if (drawer?.host.isConnected) {
+    drawer.close();
+
+    return;
+  }
+
   if (opening) {
     return;
   }
@@ -47,8 +55,6 @@ export function openCollections(win, { anchor = null, url = '', subtitle = '' } 
         import('./cp/open-overlay.js'),
         import('./cp/surfaces/FieldsetOverlay.vue'),
       ]);
-
-      let drawer = null;
 
       drawer = openCpOverlay(win.document, FieldsetOverlay, {
         heading: t(win, 'lp_collections_heading'),

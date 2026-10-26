@@ -218,9 +218,11 @@ export function syncPreviewShortcuts(win, { onlyIfChanged = false } = {}) {
  *     the site (overlay-host.js): the focus stays there until the editor is
  *     clicked. Heard in capture, before the site's own handlers, and only
  *     while this editor is the open one — closed, ⌘P prints again;
- *   - an iframe in the editor that took the focus (a panel's form), found as
- *     this window loses the focus to it. Heard in the bubble phase, so a
- *     field's own shortcut still wins; once per document.
+ *   - an iframe in the editor (a drawer's screen, a panel's form), which
+ *     takes the focus when it opens — straight from the site page, past this
+ *     window. Heard from each load (a load event in capture on this document,
+ *     as it does not bubble), in the bubble phase so a field's own shortcut
+ *     still wins; once per document.
  */
 const OVERLAY_CLASS = 'sve-edit-overlay';
 const HEARD = '__sveShortcutsHeard';
@@ -250,8 +252,7 @@ function hearHost(win) {
   win.addEventListener('pagehide', () => host.removeEventListener('keydown', onKey, true));
 }
 
-function hearFocusedFrame(win) {
-  const el = win.document.activeElement;
+function hearFrame(win, el) {
   // Null for a frame of another origin.
   const iwin = el?.tagName === 'IFRAME' && el !== previewFrame(win.document) && el.contentDocument ? el.contentWindow : null;
 
@@ -290,7 +291,7 @@ export function startShortcuts(win) {
   if (!started.has(win)) {
     started.add(win);
     win.addEventListener('keydown', (event) => onKeydown(win, event));
-    win.addEventListener('blur', () => hearFocusedFrame(win));
+    win.document.addEventListener?.('load', (event) => hearFrame(win, event.target), true);
     hearHost(win);
     // A size added or removed in Live Preview changes which actions there are.
     win.addEventListener(BP_CHANGED_EVENT, () => syncPreviewShortcuts(win));

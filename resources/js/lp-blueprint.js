@@ -18,6 +18,8 @@ import { reloadEverything } from './lp-reload.js';
 const API = '/!/sve/entry-blueprint';
 
 let opening = false;
+/** The drawer on screen, if any: the icon's second press closes it. */
+let drawer = null;
 
 function cpRoot(win) {
   return String(win.Statamic?.$config?.get?.('cpRoot') || '/cp').replace(/\/+$/, '');
@@ -49,6 +51,12 @@ async function fetchEntryBlueprint(win) {
  * every Control Panel page — does not pull them into the main bundle.
  */
 export function openEntryBlueprint(win, { onClose } = {}) {
+  if (drawer?.host.isConnected) {
+    drawer.close();
+
+    return;
+  }
+
   if (opening) {
     return;
   }
@@ -71,7 +79,7 @@ export function openEntryBlueprint(win, { onClose } = {}) {
 
       let saved = false;
 
-      openCpOverlay(win.document, FieldsetOverlay, {
+      drawer = openCpOverlay(win.document, FieldsetOverlay, {
         heading: t(win, 'blueprint'),
         subtitle: found.title || found.handle,
         src: found.url.startsWith('http') ? found.url : `${cpRoot(win)}${found.url.replace(/^\/cp/, '')}`,
