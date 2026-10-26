@@ -2,10 +2,14 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
 use MarioHamann\StatamicVisualEditor\DockGhost\Reply;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
+use Statamic\Facades\User;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * The AI in the dock's HTML pane, two ways:
@@ -16,11 +20,18 @@ use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
  * - **⌘K** (`edit`, `insert`): an instruction in the author's words for the
  *   selection, or for the caret when nothing is selected — Cursor's way.
  *
- * Not the AI chat's Cursor agent: it takes seconds to start (13–17 s for two
- * words, measured on the demo), and grey text that arrives after the author
- * has typed on is noise. Direct calls instead: a small, fast model for the
- * grey text, a stronger one for ⌘K, the stable part of the prompt cached so
- * a request pays for the lines around the caret and little else.
+ * Two ways to ask, the site picks one on the settings screen (`provider()`):
+ *
+ * - **Cursor** (the default): the key the AI chat and AI text already run on,
+ *   nothing more to fill in. The question goes to the same Cursor agent,
+ *   which takes 10–20 s (13–17 s for two words, measured on the demo).
+ * - **Claude**: its own Anthropic key, the fast way — direct calls, a small
+ *   model for the grey text and a stronger one for ⌘K, the stable part of
+ *   the prompt cached so a request pays for the lines around the caret and
+ *   little else.
+ *
+ * The one picked is the one asked. Without its key the author is told which
+ * key is missing; the other way is never tried instead.
  *
  * Suggests only. Nothing here writes a file; the text goes back to the
  * browser, and the author decides whether it stays. Each answer is added to
@@ -52,8 +63,18 @@ class DockGhost
     public const TIMEOUT = ['line' => 8, 'comment' => 30, 'insert' => 45, 'edit' => 60];
 
     /**
-     * The settings screen's field first (`ghost_api_key`), then .env — the
-     * way the Cursor key and the PageSpeed key are found.
+     * The end of a prompt to the Cursor agent. The task already says how to
+     * answer; an agent otherwise explains itself, or goes looking in files.
+     */
+    public const CURSOR_REPLY = 'Answer now, as the task says: only the code itself — no explanation, no code fence, no words before or after it. Everything you need is above; do not open any files.';
+
+    /** The ways to ask, as the settings screen offers them. */
+    public const PROVIDERS = ['cursor', 'claude'];
+
+    /**
+     * The Claude (Anthropic) key: the settings screen's field first
+     * (`ghost_api_key`), then .env — the way the Cursor key and the PageSpeed
+     * key are found.
      */
     public static function apiKey(): string
     {
@@ -75,9 +96,33 @@ class DockGhost
         return $model !== '' ? $model : ($edit ? static::EDIT_MODEL : static::MODEL);
     }
 
+    /**
+     * The way the dock's AI asks: the settings screen's choice
+     * (`ghost_provider`), else config, else `cursor`.
+     */
+    public static function provider(): string
+    {
+        $chosen = trim((string) Features::setting('ghost_provider', ''));
+        $chosen = $chosen !== '' ? $chosen : trim((string) config('statamic-visual-editor.ghost.provider', ''));
+
+        return in_array($chosen, static::PROVIDERS, true) ? $chosen : 'cursor';
+    }
+
+    /** The key of the way picked; '' when the site has none for it. */
+    public static function key(): string
+    {
+        return static::provider() === 'claude' ? static::apiKey() : AiChat::apiKey();
+    }
+
+    /** What the author is told when the way picked has no key: which key, and where it goes. */
+    public static function needKey(): string
+    {
+        return __(static::provider() === 'claude' ? 'sve::messages.dock_ghost_need_claude_key' : 'sve::messages.dock_ghost_need_key');
+    }
+
     public static function ready(): bool
     {
-        return Features::enabled('dock_ghost') && static::apiKey() !== '';
+        return Features::enabled('dock_ghost') && static::key() !== '';
     }
 
     /**
@@ -165,13 +210,17 @@ class DockGhost
         return (bool) config('statamic-visual-editor.ghost.fallbacks', true);
     }
 
-    /** @return array{ok: bool, text: string, ms: int, usage: array<string, int>, status?: int, message?: string} */
+    /** @return array{ok: bool, text: string, ms: int, usage: array<string, int>, via?: string, status?: int, message?: string} */
     protected static function ask(array $request): array
     {
+        if (static::provider() === 'cursor') {
+            return static::askCursor($request);
+        }
+
         $key = static::apiKey();
 
         if ($key === '') {
-            return static::failed(422, __('sve::messages.dock_ghost_need_key'));
+            return static::failed(422, static::needKey());
         }
 
         $mode = Prompt::mode($request);
@@ -190,7 +239,7 @@ class DockGhost
             return static::failed(502, $e->getMessage());
         }
 
-        $ms = (int) round((hrtime(true) - $started) / 1e6);
+        $ms = static::since($started);
 
         if (! $response->successful()) {
             // Anthropic's own words: a key that is wrong, credit that is spent.
@@ -212,7 +261,77 @@ class DockGhost
             }
         }
 
-        return ['ok' => true, 'text' => $text, 'ms' => $ms, 'usage' => $usage];
+        return ['ok' => true, 'text' => $text, 'ms' => $ms, 'usage' => $usage, 'via' => 'claude'];
+    }
+
+    /**
+     * The same question to the Cursor agent, on the site's Cursor key: the
+     * system blocks' text and the user turn as one prompt, run with no write
+     * scope (no file tools, no shell) on the site's default model. Its own
+     * 180 s limit applies, not TIMEOUT — a line takes 10–20 s this way.
+     * Cursor bills the Cursor account and shows no tokens here, so the month
+     * counts the request at $0.
+     *
+     * @return array{ok: bool, text: string, ms: int, usage: array<string, int>, via?: string, status?: int, message?: string}
+     */
+    protected static function askCursor(array $request): array
+    {
+        if (AiChat::apiKey() === '') {
+            return static::failed(422, static::needKey());
+        }
+
+        set_time_limit(190);
+
+        $mode = Prompt::mode($request);
+        $model = CursorAgent::model();
+        $system = array_column(Prompt::system((string) ($request['section'] ?? '')), 'text');
+        $prompt = implode("\n\n", $system)."\n\n".Prompt::user($request)."\n\n".static::CURSOR_REPLY;
+        $started = hrtime(true);
+
+        try {
+            $out = app(CursorAgent::class)::run($prompt, model: $model, stopped: static::newest($mode));
+        } catch (HttpException $e) {
+            return static::failed($e->getStatusCode(), $e->getMessage(), static::since($started));
+        } catch (\Throwable $e) {
+            return static::failed(502, $e->getMessage(), static::since($started));
+        }
+
+        $ms = static::since($started);
+        $usage = ['input' => 0, 'output' => 0];
+
+        // A newer question from the same author took over: no suggestion.
+        if ($out['status'] !== 'finished') {
+            return ['ok' => true, 'text' => '', 'ms' => $ms, 'usage' => $usage, 'via' => 'cursor'];
+        }
+
+        Usage::record('cursor:'.$model, $mode, $usage);
+
+        return ['ok' => true, 'text' => $out['reply'], 'ms' => $ms, 'usage' => $usage, 'via' => 'cursor'];
+    }
+
+    /**
+     * Asked every moment while the agent works: has this author asked a newer
+     * question of the same kind? The browser drops the older one on the next
+     * keystroke, but PHP never notices a closed connection — without this,
+     * each pause in typing would keep a PHP worker and a Node process busy
+     * for the 10–20 s the agent takes. Grey text and ⌘K are counted apart.
+     *
+     * @return callable(): bool
+     */
+    protected static function newest(string $mode): callable
+    {
+        $kind = $mode === 'edit' || $mode === 'insert' ? 'edit' : 'grey';
+        $key = 'sve-dock-ghost:asking:'.(User::current()?->id() ?? 'console').':'.$kind;
+        $mine = (string) Str::uuid();
+
+        Cache::put($key, $mine, 300);
+
+        return fn (): bool => Cache::get($key) !== $mine;
+    }
+
+    protected static function since(int $started): int
+    {
+        return (int) round((hrtime(true) - $started) / 1e6);
     }
 
     /** @return array{ok: false, text: string, ms: int, usage: array<string, int>, status: int, message: string} */

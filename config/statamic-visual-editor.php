@@ -400,16 +400,20 @@ return [
     |--------------------------------------------------------------------------
     |
     | Copilot-style suggestions at the caret in the dock's HTML pane, behind the
-    | `dock_ghost` toggle. Anthropic, not Cursor: the Cursor agent takes seconds
-    | to start, and grey text has to come back while the author waits. Paste
-    | the key on the addon settings screen (`ghost_api_key`); ANTHROPIC_API_KEY
-    | in .env is only a fallback if the field is left empty.
+    | `dock_ghost` toggle. Cursor or Claude, picked on the addon settings screen
+    | (`ghost_provider`; `provider` here only when nothing is saved there).
+    | Cursor runs on the AI chat's Cursor key — nothing more to fill in, 10–20 s
+    | an answer. Claude needs its own key (`ghost_api_key` on the settings
+    | screen; ANTHROPIC_API_KEY in .env if the field is empty) and is the fast
+    | way.
     |
     | `php artisan sve:ghost-try` sends a few real cases from this site's
     | sections and prints what came back, how long it took and what it cost.
     |
     */
     'ghost' => [
+        // cursor or claude.
+        'provider' => env('STATAMIC_VISUAL_EDITOR_GHOST_PROVIDER', 'cursor'),
         'api_key' => env('ANTHROPIC_API_KEY'),
         // The grey text: small and fast, it has to come while the author pauses.
         'model' => env('STATAMIC_VISUAL_EDITOR_GHOST_MODEL', 'claude-haiku-5-5'),

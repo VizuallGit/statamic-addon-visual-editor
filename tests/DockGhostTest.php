@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
@@ -12,11 +13,13 @@ use MarioHamann\StatamicVisualEditor\DockGhost\Tokens;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
 use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Features;
+use Symfony\Component\Process\Process;
 
 /**
  * The AI in the HTML dock: the requests the grey text and ⌘K send, the
  * answers made of the replies, the site's words it is given, what it costs,
- * and the cases `sve:ghost-try` cuts from a section.
+ * the cases `sve:ghost-try` cuts from a section, and the two ways to ask —
+ * Cursor (the default) or Claude.
  */
 class DockGhostTest extends TestCase
 {
@@ -142,7 +145,7 @@ class DockGhostTest extends TestCase
 
     public function test_it_asks_anthropic_with_the_key_and_returns_the_tidied_text(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
 
         Http::fake([
             DockGhost::ENDPOINT => Http::response([
@@ -165,7 +168,7 @@ class DockGhostTest extends TestCase
 
     public function test_a_refusal_is_no_suggestion(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
 
         Http::fake([DockGhost::ENDPOINT => Http::response(['content' => [], 'stop_reason' => 'refusal', 'usage' => []])]);
 
@@ -177,7 +180,7 @@ class DockGhostTest extends TestCase
 
     public function test_anthropic_s_own_error_is_passed_on(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-wrong']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-wrong']);
 
         Http::fake([DockGhost::ENDPOINT => Http::response(['error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key']], 401)]);
 
@@ -257,6 +260,7 @@ class DockGhostTest extends TestCase
         config([
             'statamic-visual-editor.features.template_dock' => true,
             'statamic-visual-editor.features.dock_ghost' => true,
+            'statamic-visual-editor.ghost.provider' => 'claude',
             'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
         ]);
         Features::flush();
@@ -330,7 +334,7 @@ class DockGhostTest extends TestCase
 
     public function test_cmd_k_uses_the_stronger_model_with_the_refusal_fallback(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
 
         Http::fake([DockGhost::ENDPOINT => Http::response([
             'content' => [['type' => 'text', 'text' => "```html\n<h3 class=\"text-secondary\">{{ title }}</h3>\n```"]],
@@ -358,7 +362,7 @@ class DockGhostTest extends TestCase
 
     public function test_cmd_k_without_a_selection_writes_at_the_caret(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
 
         Http::fake([DockGhost::ENDPOINT => Http::response(['content' => [['type' => 'text', 'text' => '<p>{{ text }}</p>']], 'usage' => []])]);
 
@@ -377,7 +381,7 @@ class DockGhostTest extends TestCase
 
     public function test_cmd_k_needs_an_instruction_and_a_selection_of_reasonable_size(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
         Http::fake();
 
         $this->assertSame(422, DockGhost::edit(['instruction' => '  ', 'selection' => 'x'])['status']);
@@ -407,7 +411,7 @@ class DockGhostTest extends TestCase
 
     public function test_each_answer_is_added_to_the_month(): void
     {
-        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
 
         Http::fake([DockGhost::ENDPOINT => Http::response([
             'content' => [['type' => 'text', 'text' => 'x']],
@@ -433,6 +437,7 @@ class DockGhostTest extends TestCase
         config([
             'statamic-visual-editor.features.template_dock' => true,
             'statamic-visual-editor.features.dock_ghost' => true,
+            'statamic-visual-editor.ghost.provider' => 'claude',
             'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
         ]);
         Features::flush();
@@ -451,5 +456,215 @@ class DockGhostTest extends TestCase
             ->assertJson(['ok' => true, 'requests' => 1, 'modes' => ['edit' => 1]]);
 
         $user->delete();
+    }
+
+    /* ---- Cursor or Claude ---------------------------------------------------- */
+
+    public function test_the_cursor_key_alone_is_enough_and_cursor_is_the_default(): void
+    {
+        config([
+            'statamic-visual-editor.features.template_dock' => true,
+            'statamic-visual-editor.features.dock_ghost' => true,
+            'statamic-visual-editor.ai.api_key' => 'crsr-test',
+        ]);
+        Features::flush();
+
+        $this->assertSame('cursor', DockGhost::provider());
+        $this->assertTrue(DockGhost::ready());
+    }
+
+    public function test_an_unknown_provider_is_cursor(): void
+    {
+        config(['statamic-visual-editor.ghost.provider' => 'gpt']);
+
+        $this->assertSame('cursor', DockGhost::provider());
+    }
+
+    public function test_grey_text_on_the_cursor_key_asks_the_cursor_agent(): void
+    {
+        config(['statamic-visual-editor.ai.api_key' => 'crsr-test']);
+        Http::fake();
+        $agent = $this->fakeCursorAgent("```html\n<p>{{ text }}</p>\n```");
+
+        $out = DockGhost::complete(['before' => "<div>\n  ", 'after' => "\n</div>", 'section' => 'hero/style_2']);
+
+        $this->assertTrue($out['ok']);
+        $this->assertSame('cursor', $out['via']);
+        $this->assertSame('<p>{{ text }}</p>', $out['text']);
+        $this->assertCount(1, $agent::$payloads);
+
+        $sent = $agent::$payloads[0];
+
+        // No write scope: no file tools, no shell.
+        $this->assertArrayNotHasKey('write', $sent);
+        $this->assertStringStartsWith(Prompt::CONTEXT, $sent['prompt']);
+        $this->assertStringContainsString('Task: '.Prompt::TASKS['line'], $sent['prompt']);
+        $this->assertStringEndsWith(DockGhost::CURSOR_REPLY, $sent['prompt']);
+        Http::assertNothingSent();
+
+        $month = Usage::month();
+
+        $this->assertSame(1, $month['requests']);
+        $this->assertSame(0.0, $month['cost']);
+    }
+
+    public function test_cmd_k_on_the_cursor_key_rewrites_the_selection(): void
+    {
+        config(['statamic-visual-editor.ai.api_key' => 'crsr-test']);
+        $agent = $this->fakeCursorAgent('<h3 class="text-secondary">{{ title }}</h3>');
+
+        $out = DockGhost::edit([
+            'instruction' => 'Make it an h3',
+            'before' => "<div>\n  ",
+            'selection' => "<h2>{{ title }}</h2>\n",
+            'after' => '</div>',
+        ]);
+
+        $this->assertTrue($out['ok']);
+        $this->assertSame("<h3 class=\"text-secondary\">{{ title }}</h3>\n", $out['text']);
+        $this->assertStringContainsString("Instruction: Make it an h3\n", $agent::$payloads[0]['prompt']);
+        $this->assertStringContainsString("<selection><h2>{{ title }}</h2>\n</selection>", $agent::$payloads[0]['prompt']);
+    }
+
+    public function test_the_cursor_agent_s_failure_is_passed_on(): void
+    {
+        config(['statamic-visual-editor.ai.api_key' => 'crsr-wrong']);
+        $this->fakeCursorAgent(['status' => 'error', 'error' => 'Invalid API key']);
+
+        $out = DockGhost::complete(['before' => '<div>']);
+
+        $this->assertFalse($out['ok']);
+        $this->assertSame(502, $out['status']);
+        $this->assertSame('Invalid API key', $out['message']);
+    }
+
+    public function test_without_a_key_the_message_names_the_cursor_field(): void
+    {
+        Http::fake();
+        $agent = $this->fakeCursorAgent('never');
+
+        $out = DockGhost::complete(['before' => '<div>']);
+
+        $this->assertSame(422, $out['status']);
+        $this->assertStringContainsString('Cursor API key', $out['message']);
+        $this->assertStringNotContainsString('Anthropic', $out['message']);
+        $this->assertSame([], $agent::$payloads);
+        Http::assertNothingSent();
+    }
+
+    public function test_claude_picked_asks_claude_and_not_cursor(): void
+    {
+        config([
+            'statamic-visual-editor.ghost.provider' => 'claude',
+            'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
+            'statamic-visual-editor.ai.api_key' => 'crsr-test',
+        ]);
+        Http::fake([DockGhost::ENDPOINT => Http::response(['content' => [['type' => 'text', 'text' => '<p>x</p>']], 'usage' => []])]);
+        $agent = $this->fakeCursorAgent('never');
+
+        $out = DockGhost::complete(['before' => "<div>\n  "]);
+
+        $this->assertSame('claude', $out['via']);
+        $this->assertSame([], $agent::$payloads);
+        Http::assertSentCount(1);
+    }
+
+    public function test_cursor_picked_asks_cursor_even_with_a_claude_key(): void
+    {
+        config([
+            'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
+            'statamic-visual-editor.ai.api_key' => 'crsr-test',
+        ]);
+        Http::fake();
+        $agent = $this->fakeCursorAgent('<p>x</p>');
+
+        $out = DockGhost::complete(['before' => "<div>\n  "]);
+
+        $this->assertSame('cursor', $out['via']);
+        $this->assertCount(1, $agent::$payloads);
+        Http::assertNothingSent();
+    }
+
+    public function test_claude_picked_without_its_key_says_so_and_never_tries_cursor(): void
+    {
+        config([
+            'statamic-visual-editor.ghost.provider' => 'claude',
+            'statamic-visual-editor.ai.api_key' => 'crsr-test',
+        ]);
+        Http::fake();
+        $agent = $this->fakeCursorAgent('never');
+
+        $out = DockGhost::complete(['before' => '<div>']);
+
+        $this->assertSame(422, $out['status']);
+        $this->assertStringContainsString('Claude API key', $out['message']);
+        $this->assertSame('', DockGhost::key());
+        $this->assertSame([], $agent::$payloads);
+        Http::assertNothingSent();
+    }
+
+    public function test_a_newer_question_stops_the_older_one_on_its_way(): void
+    {
+        $newest = new \ReflectionMethod(DockGhost::class, 'newest');
+
+        $first = $newest->invoke(null, 'line');
+        $this->assertFalse($first());
+
+        $second = $newest->invoke(null, 'comment');
+        $this->assertTrue($first());
+        $this->assertFalse($second());
+
+        $edit = $newest->invoke(null, 'edit');
+        $this->assertFalse($second(), 'Grey text and ⌘K are counted apart.');
+        $this->assertFalse($edit());
+    }
+
+    public function test_the_endpoint_answers_on_the_cursor_key_alone(): void
+    {
+        $user = \Statamic\Facades\User::make()->email('ghost-cursor@example.com')->makeSuper();
+        $user->save();
+        $this->actingAs($user);
+
+        config([
+            'statamic-visual-editor.features.template_dock' => true,
+            'statamic-visual-editor.features.dock_ghost' => true,
+            'statamic-visual-editor.ai.api_key' => 'crsr-test',
+        ]);
+        Features::flush();
+
+        $this->fakeCursorAgent('<p>{{ text }}</p>');
+
+        $this->postJson('/!/sve/dock-ghost', ['before' => "<div>\n  ", 'after' => "\n</div>", 'section' => 'hero/style_2'])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'text' => '<p>{{ text }}</p>']);
+
+        $user->delete();
+    }
+
+    /**
+     * The Cursor agent without Node: its own run(), with a process that prints
+     * the runner's JSON line. What it was sent is kept in `$payloads`.
+     */
+    protected function fakeCursorAgent(string|array $answer): CursorAgent
+    {
+        $agent = new class extends CursorAgent
+        {
+            public static array $payloads = [];
+
+            public static array $answer = [];
+
+            protected static function process(array $payload, int $timeout): Process
+            {
+                static::$payloads[] = $payload;
+
+                return new Process([PHP_BINARY, '-r', 'echo '.var_export(json_encode(static::$answer), true).';']);
+            }
+        };
+
+        $agent::$payloads = [];
+        $agent::$answer = is_array($answer) ? $answer : ['status' => 'finished', 'reply' => $answer];
+        $this->app->instance(CursorAgent::class, $agent);
+
+        return $agent;
     }
 }

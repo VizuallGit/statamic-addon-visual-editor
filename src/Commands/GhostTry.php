@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Commands;
 
 use Illuminate\Console\Command;
 use MarioHamann\StatamicVisualEditor\AiChat\HouseStyle;
+use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
@@ -17,12 +18,16 @@ use Statamic\Facades\Fieldset;
  * sends, and for each what came back next to what was actually written there,
  * how long it took, and what it cost.
  *
- * Each case is one paid request on the site's Anthropic key — a fraction of a
- * cent. The fields sent are the fieldset's own top level, where the dock
- * sends the Data button's rows; close enough to judge the suggestions by.
+ * It asks the way the site picked (DockGhost::provider()) and says which
+ * answered: `claude`, a paid request on the site's Anthropic key — a fraction
+ * of a cent — or `cursor`, on the Cursor key the AI chat uses, billed to the
+ * Cursor account and shown here as $0 (10–20 s a case). The fields sent are the
+ * fieldset's own top level, where the dock sends the Data button's rows;
+ * close enough to judge the suggestions by.
  *
  * `--edit` tries ⌘K once instead: the first <h2> of a section, rewritten to
- * an <h3> in the site's secondary colour — the stronger model, a few cents.
+ * an <h3> in the site's secondary colour — on Claude the stronger model, a
+ * few cents.
  */
 class GhostTry extends Command
 {
@@ -35,8 +40,8 @@ class GhostTry extends Command
 
     public function handle(): int
     {
-        if (DockGhost::apiKey() === '') {
-            $this->error(__('sve::messages.dock_ghost_need_key'));
+        if (DockGhost::key() === '') {
+            $this->error(DockGhost::needKey());
 
             return self::FAILURE;
         }
@@ -53,7 +58,7 @@ class GhostTry extends Command
             return self::FAILURE;
         }
 
-        $this->line('Model: '.DockGhost::model());
+        $this->line($this->way('line'));
 
         $times = [];
         $costs = [];
@@ -77,14 +82,15 @@ class GhostTry extends Command
                 continue;
             }
 
-            $cost = (float) Usage::cost(DockGhost::model(), $out['usage']);
+            $cost = $this->cost($out, 'line');
             $times[] = $out['ms'];
             $costs[] = $cost;
             $hits += $this->same($out['text'], $case['expected']) ? 1 : 0;
 
             $this->line('   suggested: '.($out['text'] === '' ? '<comment>(nothing)</comment>' : $this->oneLine($out['text'])));
             $this->line(sprintf(
-                '   %d ms · in %d, cached %d, cache write %d, out %d · $%.5f',
+                '   %s · %d ms · in %d, cached %d, cache write %d, out %d · $%.5f',
+                $out['via'] ?? '',
                 $out['ms'],
                 $out['usage']['input'] ?? 0,
                 $out['usage']['cache_read'] ?? 0,
@@ -128,7 +134,7 @@ class GhostTry extends Command
         [$selection, $at] = $match[0];
         $instruction = 'Make this an h3 in the site\'s secondary colour.';
 
-        $this->line('Model: '.DockGhost::model('edit'));
+        $this->line($this->way('edit'));
         $this->line("<info>{$handle}</info> · ⌘K «{$instruction}»");
         $this->line('   selected:  '.$this->oneLine($selection));
 
@@ -148,9 +154,23 @@ class GhostTry extends Command
         }
 
         $this->line('   rewritten: '.$this->oneLine($out['text']));
-        $this->line(sprintf('   %d ms · $%.4f', $out['ms'], (float) Usage::cost(DockGhost::model('edit'), $out['usage'])));
+        $this->line(sprintf('   %s · %d ms · $%.4f', $out['via'] ?? '', $out['ms'], $this->cost($out, 'edit')));
 
         return self::SUCCESS;
+    }
+
+    /** Which way the dock's AI asks here, and with which model. */
+    protected function way(string $mode): string
+    {
+        $via = DockGhost::provider();
+
+        return "Via: {$via} · model ".($via === 'cursor' ? CursorAgent::model() : DockGhost::model($mode));
+    }
+
+    /** What an answer cost: Claude's at list price; Cursor's is on the Cursor account, $0 here. */
+    protected function cost(array $out, string $mode): float
+    {
+        return ($out['via'] ?? '') === 'claude' ? (float) Usage::cost(DockGhost::model($mode), $out['usage']) : 0.0;
     }
 
     /** @return list<array{section: string, kind: string, before: string, after: string, expected: string, fields: list<array>}> */

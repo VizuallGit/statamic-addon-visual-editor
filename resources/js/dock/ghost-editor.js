@@ -6,7 +6,8 @@
  * Grey text: asked for after a pause in typing, drawn at the caret, taken
  * with Tab. On a fresh line under a comment (`{{# card: image left #}}`) the
  * comment is the question and the answer may be a whole block; "Writing …"
- * stands at the caret while it comes. One question at a time: a newer
+ * stands at the caret while it comes — and for any answer slower than
+ * SLOW, which on the Cursor key is every one. One question at a time: a newer
  * keystroke drops the one waiting and aborts the one on its way, and an
  * answer for a caret that has moved is thrown away. Typing the characters
  * the grey text shows keeps the rest standing, as Copilot does.
@@ -41,6 +42,9 @@ import { ghostPost, payload } from './ghost-request.js';
 
 /** How long typing has to pause before grey text is asked for. */
 export const WAIT = 350;
+
+/** How long an answer may take before "Writing …" says one is coming. A described block says so at once. */
+export const SLOW = 1200;
 
 /** Each editor's slot in its configuration, added once and filled or emptied as the AI goes on and off. */
 const slots = new WeakMap();
@@ -321,10 +325,19 @@ async function ask(state, gen) {
   }
 
   const mode = ghostMode(full, pos);
+  const writing = () => view.dispatch({ effects: parts().setGhost.of({ text: '', at: head, pending: t(win, 'code_dock_ghost_writing') }) });
+  let slow = 0;
 
-  // A described block takes seconds: say so where it will stand.
+  // A described block takes seconds: say so where it will stand. Any other
+  // answer says so once it is slow — on the Cursor key, 10–20 s.
   if (mode === 'comment') {
-    view.dispatch({ effects: parts().setGhost.of({ text: '', at: head, pending: t(win, 'code_dock_ghost_writing') }) });
+    writing();
+  } else {
+    slow = win.setTimeout(() => {
+      if (gen === state.gen && view.state.doc === doc && view.state.selection.main.head === head && quiet(state)) {
+        writing();
+      }
+    }, SLOW);
   }
 
   const abort = new win.AbortController();
@@ -335,9 +348,16 @@ async function ask(state, gen) {
   try {
     answer = await ghostPost(win, '', { ...body, mode }, abort.signal);
   } catch {
-    // Aborted by the next keystroke, or the network: either way, no grey text.
+    // Aborted by the next keystroke, or the network: either way, no grey text
+    // — and no "Writing …" left for an answer that will not come.
+    if (gen === state.gen) {
+      clear(view);
+    }
+
     return;
   } finally {
+    win.clearTimeout(slow);
+
     if (state.abort === abort) {
       state.abort = null;
     }

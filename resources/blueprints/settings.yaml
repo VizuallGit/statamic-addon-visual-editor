@@ -650,21 +650,36 @@ tabs:
             field:
               type: toggle
               display: 'AI in the HTML dock (grey text and ⌘K)'
-              instructions: 'Copilot-style help while you write in the template dock''s HTML pane. Grey text at the caret, written against the section''s fields, the site''s colours and classes, the house rules and your newest sections: Tab takes it, Esc or typing on leaves it. Write a comment such as `{{# card: image left, text right #}}` and press Enter, and the grey text writes the block. Select markup and press ⌘K to change it in your own words (Enter keeps, Esc undoes). Each person switches it on with the sparkle in the pane. Uses Anthropic, not Cursor — its own key below, paid per use: grey text a fraction of a cent (Claude Haiku), ⌘K about three cents (Claude Opus). Off by default.'
+              instructions: 'Copilot-style help while you write in the template dock''s HTML pane. Grey text at the caret, written against the section''s fields, the site''s colours and classes, the house rules and your newest sections: Tab takes it, Esc or typing on leaves it. Write a comment such as `{{# card: image left, text right #}}` and press Enter, and the grey text writes the block. Select markup and press ⌘K to change it in your own words (Enter keeps, Esc undoes). Each person switches it on with the sparkle in the pane. Runs on Cursor or Claude — pick one below. Off by default.'
               default: false
               if:
                 enabled: 'equals true'
                 template_dock: 'equals true'
           -
+            handle: ghost_provider
+            field:
+              type: button_group
+              display: 'AI in the HTML dock runs on'
+              instructions: 'Cursor: the Cursor API key the AI chat and AI text use — nothing more to fill in; an answer takes 10–20 seconds, and "Writing …" shows while it comes. Claude: its own key (below), paid per use — grey text in under a second.'
+              default: cursor
+              options:
+                cursor: Cursor
+                claude: Claude
+              if:
+                enabled: 'equals true'
+                template_dock: 'equals true'
+                dock_ghost: 'equals true'
+          -
             handle: ghost_api_key
             field:
               type: text
-              display: 'Anthropic API key'
+              display: 'Claude API key'
               input_type: password
-              instructions: 'For the grey text in the HTML dock. Paste it here, from console.anthropic.com. If you leave it empty, ANTHROPIC_API_KEY in .env is used instead.'
+              instructions: 'From console.anthropic.com — a Claude Console account, paid per use; a claude.ai Pro or Max subscription does not give one. Grey text costs a fraction of a cent (Claude Haiku), ⌘K about three cents (Claude Opus). If you leave it empty, ANTHROPIC_API_KEY in .env is used instead.'
               if:
                 enabled: 'equals true'
                 dock_ghost: 'equals true'
+                ghost_provider: 'equals claude'
           -
             handle: ai_project_rules
             field:
@@ -681,10 +696,11 @@ tabs:
               type: text
               display: 'Cursor API key'
               input_type: password
-              instructions: 'Paste it here, from cursor.com/dashboard/api. This field is what the editor uses. If you leave it empty, CURSOR_API_KEY in .env is used instead. Shared by the AI chat and AI text.'
+              instructions: 'Paste it here, from cursor.com/dashboard/api. This field is what the editor uses. If you leave it empty, CURSOR_API_KEY in .env is used instead. Shared by the AI chat, AI text and the AI in the HTML dock.'
               if_any:
                 ai_panel: 'equals true'
                 ai_text: 'equals true'
+                dock_ghost: 'equals true'
           -
             handle: ai_model
             field:
