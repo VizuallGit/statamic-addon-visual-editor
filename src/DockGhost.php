@@ -56,8 +56,12 @@ class DockGhost
     /** Refusals on the stronger models are answered by Anthropic's own fallback model. */
     public const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
-    /** Output tokens per way of asking. */
-    public const MAX_TOKENS = ['line' => 256, 'comment' => 2048, 'insert' => 2048, 'edit' => 4096];
+    /**
+     * Output tokens per way of asking. A line is a few lines at most, and
+     * every token is time the author waits for it (measured: 29 tokens 0.9 s,
+     * 175 tokens 1.8 s on Haiku).
+     */
+    public const MAX_TOKENS = ['line' => 120, 'comment' => 2048, 'insert' => 2048, 'edit' => 4096];
 
     /** Seconds per way of asking. A line later than this is one the author has typed past. */
     public const TIMEOUT = ['line' => 8, 'comment' => 30, 'insert' => 45, 'edit' => 60];

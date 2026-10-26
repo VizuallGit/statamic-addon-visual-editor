@@ -40,8 +40,8 @@ import { advanceGhost, ghostMode, lineBefore, nextWord, shouldAsk } from './ghos
 import { countGhost, rememberTaken } from './ghost-memory.js';
 import { ghostPost, payload } from './ghost-request.js';
 
-/** How long typing has to pause before grey text is asked for. */
-export const WAIT = 350;
+/** How long typing has to pause before grey text is asked for — short, as in Copilot. */
+export const WAIT = 150;
 
 /** How long an answer may take before "Writing …" says one is coming. A described block says so at once. */
 export const SLOW = 1200;
