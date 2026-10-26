@@ -152,12 +152,8 @@ class DockGhost
      */
     public static function edit(array $request): array
     {
-        if (Prompt::instruction($request) === '') {
-            return static::failed(422, __('sve::messages.dock_ghost_edit_empty'));
-        }
-
-        if (strlen((string) ($request['selection'] ?? '')) > Prompt::SELECTION) {
-            return static::failed(422, __('sve::messages.dock_ghost_edit_too_long'));
+        if ($problem = static::editProblem($request)) {
+            return $problem;
         }
 
         $mode = trim((string) ($request['selection'] ?? '')) === '' ? 'insert' : 'edit';
@@ -170,6 +166,37 @@ class DockGhost
         }
 
         return $out;
+    }
+
+    /**
+     * What is wrong with a ⌘K request before anything is asked: no
+     * instruction, or a selection too long to send. Null when nothing is.
+     * The controller asks first too, so a job is never started for one.
+     *
+     * @return array{ok: false, text: string, ms: int, usage: array<string, int>, status: int, message: string}|null
+     */
+    public static function editProblem(array $request): ?array
+    {
+        if (Prompt::instruction($request) === '') {
+            return static::failed(422, __('sve::messages.dock_ghost_edit_empty'));
+        }
+
+        if (strlen((string) ($request['selection'] ?? '')) > Prompt::SELECTION) {
+            return static::failed(422, __('sve::messages.dock_ghost_edit_too_long'));
+        }
+
+        return null;
+    }
+
+    /**
+     * A background job (`DockGhost\Job`) is now this author's newest question
+     * of its kind (`complete` or `edit`); an older one on its way stops (see
+     * newest()). Said in the web request that started it, so two workers that
+     * boot in the wrong order cannot swap which one is newest.
+     */
+    public static function claim(string $user, string $kind, string $job): void
+    {
+        Cache::put(static::askingKey($user, $kind), $job, 300);
     }
 
     /**
@@ -289,7 +316,7 @@ class DockGhost
         $started = hrtime(true);
 
         try {
-            $out = app(CursorAgent::class)::run($prompt, model: $model, stopped: static::newest($mode));
+            $out = app(CursorAgent::class)::run($prompt, model: $model, stopped: static::newest($request));
         } catch (HttpException $e) {
             return static::failed($e->getStatusCode(), $e->getMessage(), static::since($started));
         } catch (\Throwable $e) {
@@ -312,21 +339,34 @@ class DockGhost
     /**
      * Asked every moment while the agent works: has this author asked a newer
      * question of the same kind? The browser drops the older one on the next
-     * keystroke, but PHP never notices a closed connection — without this,
-     * each pause in typing would keep a PHP worker and a Node process busy
-     * for the 10–20 s the agent takes. Grey text and ⌘K are counted apart.
+     * keystroke, but the agent would run on — for the 10–20 s it takes, with
+     * a Node process. Grey text and ⌘K are counted apart.
+     *
+     * In a background job the author is the request's (`user`, from the job
+     * file — the job runs as console) and the job was claimed when it was
+     * started (`job`); asked directly (`sve:ghost-try`), the question claims
+     * itself here.
      *
      * @return callable(): bool
      */
-    protected static function newest(string $mode): callable
+    protected static function newest(array $request): callable
     {
-        $kind = $mode === 'edit' || $mode === 'insert' ? 'edit' : 'grey';
-        $key = 'sve-dock-ghost:asking:'.(User::current()?->id() ?? 'console').':'.$kind;
-        $mine = (string) Str::uuid();
+        $mode = Prompt::mode($request);
+        $user = (string) ($request['user'] ?? User::current()?->id() ?? 'console');
+        $key = static::askingKey($user, $mode === 'edit' || $mode === 'insert' ? 'edit' : 'complete');
+        $mine = (string) ($request['job'] ?? '');
 
-        Cache::put($key, $mine, 300);
+        if ($mine === '') {
+            $mine = (string) Str::uuid();
+            Cache::put($key, $mine, 300);
+        }
 
         return fn (): bool => Cache::get($key) !== $mine;
+    }
+
+    protected static function askingKey(string $user, string $kind): string
+    {
+        return 'sve-dock-ghost:asking:'.$user.':'.$kind;
     }
 
     protected static function since(int $started): int

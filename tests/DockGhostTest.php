@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
@@ -13,7 +12,6 @@ use MarioHamann\StatamicVisualEditor\DockGhost\Tokens;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
 use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Features;
-use Symfony\Component\Process\Process;
 
 /**
  * The AI in the HTML dock: the requests the grey text and ⌘K send, the
@@ -23,6 +21,8 @@ use Symfony\Component\Process\Process;
  */
 class DockGhostTest extends TestCase
 {
+    use FakesCursorAgent;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -607,64 +607,34 @@ class DockGhostTest extends TestCase
     {
         $newest = new \ReflectionMethod(DockGhost::class, 'newest');
 
-        $first = $newest->invoke(null, 'line');
+        $first = $newest->invoke(null, ['mode' => 'line']);
         $this->assertFalse($first());
 
-        $second = $newest->invoke(null, 'comment');
+        $second = $newest->invoke(null, ['mode' => 'comment']);
         $this->assertTrue($first());
         $this->assertFalse($second());
 
-        $edit = $newest->invoke(null, 'edit');
+        $edit = $newest->invoke(null, ['mode' => 'edit']);
         $this->assertFalse($second(), 'Grey text and ⌘K are counted apart.');
         $this->assertFalse($edit());
     }
 
-    public function test_the_endpoint_answers_on_the_cursor_key_alone(): void
+    public function test_jobs_are_newest_in_the_order_they_were_started_not_the_order_their_workers_boot(): void
     {
-        $user = \Statamic\Facades\User::make()->email('ghost-cursor@example.com')->makeSuper();
-        $user->save();
-        $this->actingAs($user);
+        $newest = new \ReflectionMethod(DockGhost::class, 'newest');
 
-        config([
-            'statamic-visual-editor.features.template_dock' => true,
-            'statamic-visual-editor.features.dock_ghost' => true,
-            'statamic-visual-editor.ai.api_key' => 'crsr-test',
-        ]);
-        Features::flush();
+        DockGhost::claim('author', 'complete', 'job-a');
+        DockGhost::claim('author', 'complete', 'job-b');
 
-        $this->fakeCursorAgent('<p>{{ text }}</p>');
+        // job-a's worker boots after job-b's: it is already the older one.
+        $b = $newest->invoke(null, ['mode' => 'line', 'user' => 'author', 'job' => 'job-b']);
+        $a = $newest->invoke(null, ['mode' => 'line', 'user' => 'author', 'job' => 'job-a']);
 
-        $this->postJson('/!/sve/dock-ghost', ['before' => "<div>\n  ", 'after' => "\n</div>", 'section' => 'hero/style_2'])
-            ->assertOk()
-            ->assertJson(['ok' => true, 'text' => '<p>{{ text }}</p>']);
+        $this->assertTrue($a());
+        $this->assertFalse($b());
 
-        $user->delete();
-    }
-
-    /**
-     * The Cursor agent without Node: its own run(), with a process that prints
-     * the runner's JSON line. What it was sent is kept in `$payloads`.
-     */
-    protected function fakeCursorAgent(string|array $answer): CursorAgent
-    {
-        $agent = new class extends CursorAgent
-        {
-            public static array $payloads = [];
-
-            public static array $answer = [];
-
-            protected static function process(array $payload, int $timeout): Process
-            {
-                static::$payloads[] = $payload;
-
-                return new Process([PHP_BINARY, '-r', 'echo '.var_export(json_encode(static::$answer), true).';']);
-            }
-        };
-
-        $agent::$payloads = [];
-        $agent::$answer = is_array($answer) ? $answer : ['status' => 'finished', 'reply' => $answer];
-        $this->app->instance(CursorAgent::class, $agent);
-
-        return $agent;
+        $other = $newest->invoke(null, ['mode' => 'line', 'user' => 'someone-else']);
+        $this->assertFalse($b(), 'Another author is counted apart.');
+        $this->assertFalse($other());
     }
 }

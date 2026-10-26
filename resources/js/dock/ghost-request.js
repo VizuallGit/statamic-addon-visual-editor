@@ -16,6 +16,7 @@ import { sectionDataRows } from './data-vars.js';
 import { csrfToken } from '../lib/csrf.js';
 import { fieldRows, ghostRequest } from './ghost-suggest.js';
 import { takenRows } from './ghost-memory.js';
+import { answerOf } from './ghost-job.js';
 
 /** Where the pane's text starts in the file. */
 export function paneOffset() {
@@ -58,22 +59,24 @@ export async function payload(state, from, to = from) {
 }
 
 /**
- * POST to `/!/sve/dock-ghost{path}`. Resolves `{ ok, status, body }`; a
- * request aborted or lost on the network rejects.
+ * POST to `/!/sve/dock-ghost{path}`. Resolves `{ ok, status, body }` — on
+ * the Cursor key once the background job is done (ghost-job.js); a request
+ * aborted or lost on the network rejects.
  */
 export async function ghostPost(win, path, body, signal) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-CSRF-TOKEN': csrfToken(win),
+    Accept: 'application/json',
+  };
   const res = await win.fetch(`/!/sve/dock-ghost${path}`, {
     method: 'POST',
     credentials: 'same-origin',
     signal,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-TOKEN': csrfToken(win),
-      Accept: 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
-  return { ok: res.ok, status: res.status, body: await res.json().catch(() => null) };
+  return answerOf(win, res, headers, signal);
 }

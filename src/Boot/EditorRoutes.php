@@ -264,8 +264,8 @@ final class EditorRoutes
                 ->name('sve.ai-copy.keywords');
 
             // Grey text at the caret in the dock's HTML pane. Separate from
-            // ai-chat and ai-copy: a direct call to a small model, not the
-            // Cursor agent, because it has to come back while the author waits.
+            // ai-chat and ai-copy: its own prompt, on the Cursor key or a
+            // Claude key (DockGhost::provider()).
             // Not an editor write: it asks every few keystrokes, and a recorded
             // write would rescan the markup each time and stamp it as this
             // session's own, hiding a real change from live reload.
@@ -276,6 +276,11 @@ final class EditorRoutes
             Route::post('/!/sve/dock-ghost/edit', [DockGhostController::class, 'edit'])
                 ->withoutMiddleware(RecordEditorWrite::class)
                 ->name('sve.dock-ghost.edit');
+            // On the Cursor key the two start a background job and answer
+            // 202; the browser asks here until its answer is written.
+            Route::get('/!/sve/dock-ghost/job/{id}', [DockGhostController::class, 'job'])
+                ->withoutMiddleware(RecordEditorWrite::class)
+                ->name('sve.dock-ghost.job');
             // What the two have cost this month, for the Live Preview settings.
             Route::get('/!/sve/dock-ghost/usage', [DockGhostController::class, 'usage'])
                 ->name('sve.dock-ghost.usage');
