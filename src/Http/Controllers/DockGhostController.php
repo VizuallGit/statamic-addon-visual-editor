@@ -101,12 +101,20 @@ class DockGhostController
     {
         $list = fn (string $key) => is_array($request->input($key)) ? array_values(array_filter($request->input($key), 'is_array')) : [];
 
+        $loop = $request->input('loop');
+
         return [
             'before' => (string) $request->input('before', ''),
             'after' => (string) $request->input('after', ''),
             'section' => (string) $request->input('section', ''),
             'fields' => $list('fields'),
             'taken' => $list('taken'),
+            // The loop over other entries the caret stands in, with its rows' fields.
+            'loop' => is_array($loop) ? [
+                'kind' => (string) ($loop['kind'] ?? ''),
+                'handle' => (string) ($loop['handle'] ?? ''),
+                'fields' => is_array($loop['fields'] ?? null) ? array_values(array_filter($loop['fields'], 'is_array')) : [],
+            ] : null,
         ];
     }
 

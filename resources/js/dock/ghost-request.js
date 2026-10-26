@@ -12,11 +12,12 @@
 import { dockState } from './state.js';
 import { currentFullHtml } from './scope.js';
 import { currentTemplateType } from './dock-api.js';
-import { sectionDataRows } from './data-vars.js';
+import { scopeDataRows, sectionDataRows } from './data-vars.js';
 import { csrfToken } from '../lib/csrf.js';
 import { fieldRows, ghostRequest } from './ghost-suggest.js';
 import { takenRows } from './ghost-memory.js';
 import { answerOf } from './ghost-job.js';
+import { foreignLoop } from './ghost-instant.js';
 
 /** Where the pane's text starts in the file. */
 export function paneOffset() {
@@ -38,6 +39,21 @@ export function fieldsFor(state) {
 }
 
 /**
+ * The loop over other entries the caret stands in (`{{ collection … }}`,
+ * `{{ nav … }}` …) with the fields its rows have — the Data button's Scope
+ * rows — or null. Their fields are shown, never given visual_edit.
+ */
+async function loopAt(state, full, pos) {
+  const loop = foreignLoop(full.slice(0, pos));
+
+  if (!loop) {
+    return null;
+  }
+
+  return { ...loop, fields: fieldRows(await scopeDataRows(state.win, pos).catch(() => [])) };
+}
+
+/**
  * Everything a request carries, for the pane's `from`–`to` (a caret when
  * they are the same). `full` and `pos` come back too: the rules want them.
  */
@@ -45,6 +61,7 @@ export async function payload(state, from, to = from) {
   const full = currentFullHtml();
   const offset = paneOffset();
   const fields = await fieldsFor(state);
+  const loop = await loopAt(state, full, offset + from);
 
   return {
     full,
@@ -54,6 +71,7 @@ export async function payload(state, from, to = from) {
       section: currentTemplateType() || '',
       fields,
       taken: takenRows(state.win),
+      ...(loop ? { loop } : {}),
     },
   };
 }

@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { antlersWord, closingAfter, collectionLoop, collectionOptions, fieldOptions } from '../../resources/js/dock/antlers-options.js';
+import { antlersWord, closingAfter, collectionLoop, collectionOptions, fieldOptions, imagePathWord } from '../../resources/js/dock/antlers-options.js';
 
 const COLLECTIONS = [
   { handle: 'employees', title: 'Employees' },
@@ -56,4 +56,11 @@ test('a }} already after the caret is not written twice', () => {
   assert.equal(closingAfter(' }}</li>'), 3);
   assert.equal(closingAfter('}}'), 2);
   assert.equal(closingAfter('</li>'), 0);
+});
+
+test('the field typed in an image component\'s :imagePath="…"', () => {
+  assert.deepEqual(imagePathWord('{{ partial:components/image :imagePath="ima', 50), { word: 'ima', from: 47 });
+  assert.deepEqual(imagePathWord('{{ partial:components/picture class="x" :imagePath="', 9), { word: '', from: 9 });
+  assert.equal(imagePathWord('{{ partial:components/image :imagePath="a" class="', 9), null);
+  assert.equal(imagePathWord('<img src="', 9), null);
 });

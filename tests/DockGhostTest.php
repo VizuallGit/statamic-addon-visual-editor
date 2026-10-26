@@ -740,6 +740,47 @@ class DockGhostTest extends TestCase
         $this->assertStringContainsString('You are inside the loop {{ entries }}: each item has text, name.', Prompt::blockHint("<ul>\n  {{ entries }}\n    ", $fields));
     }
 
+    public function test_in_a_collection_loop_the_rows_fields_are_named_and_never_edited(): void
+    {
+        $loop = ['kind' => 'collection', 'handle' => 'employees', 'fields' => [
+            ['var' => 'name', 'type' => 'text', 'label' => 'Name'],
+            ['var' => 'profile_image', 'type' => 'assets', 'label' => 'Profile image'],
+        ]];
+        $request = ['mode' => 'block', 'before' => "<ul>\n  {{ collection from=\"employees\" }}\n    ", 'fields' => [['var' => 'entries'], ['var' => 'text', 'parent' => 'entries']], 'loop' => $loop];
+
+        $user = Prompt::user($request);
+
+        $this->assertStringContainsString('You are inside {{ collection from="employees" }}: each row is another entry', $user);
+        $this->assertStringContainsString('never {{ visual_edit }} here', $user);
+        $this->assertStringContainsString('- profile_image · assets · Profile image', $user);
+        $this->assertStringContainsString('Its image is profile_image: :imagePath="profile_image"', $user);
+        // The section's own lists are not what comes next in there.
+        $this->assertStringNotContainsString('List fields in this section', $user);
+        $this->assertNull(Prompt::loop(['loop' => ['kind' => 'partial', 'handle' => 'x']]));
+    }
+
+    public function test_in_a_collection_loop_an_answer_loses_its_visual_edit(): void
+    {
+        config(['statamic-visual-editor.ghost.provider' => 'claude', 'statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+
+        Http::fake([
+            DockGhost::ENDPOINT => Http::response([
+                'content' => [['type' => 'text', 'text' => "<li {{ visual_edit orderable=\"true\" }}>\n  <p {{ visual_edit field=\"name\" inline_edit=\"true\" }}>{{ name }}</p>\n</li>"]],
+                'stop_reason' => 'end_turn',
+                'usage' => ['input_tokens' => 1, 'output_tokens' => 1],
+            ]),
+        ]);
+
+        $loop = ['kind' => 'collection', 'handle' => 'employees', 'fields' => [['var' => 'name', 'type' => 'text']]];
+        $out = DockGhost::complete(['before' => "<ul>\n  {{ collection from=\"employees\" }}\n    ", 'after' => '', 'loop' => $loop]);
+
+        $this->assertSame("<li>\n      <p>{{ name }}</p>\n    </li>", $out['text']);
+
+        // `{{ visual_` in there is not even asked.
+        $this->assertSame('', DockGhost::complete(['before' => '{{ collection from="employees" }}<p {{ visual_', 'after' => '>', 'loop' => $loop])['text']);
+        Http::assertSentCount(1);
+    }
+
     public function test_a_block_at_an_indented_line_is_indented_under_the_caret(): void
     {
         $this->assertSame(

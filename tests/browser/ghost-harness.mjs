@@ -40,7 +40,7 @@ export const cm = { view, state, autocomplete };`,
   './scope.js': 'export function currentFullHtml() { return window.__view.state.doc.toString(); }',
   './dock-api.js': "export function currentTemplateType() { return window.__type || 'hero/style_2'; }",
   './html-tools.js': 'export function finishHtmlEdit() { window.__finished += 1; }',
-  './data-vars.js': 'export function sectionDataRows() { return Promise.resolve(window.__rows); }',
+  './data-vars.js': 'export function sectionDataRows() { return Promise.resolve(window.__rows); }\nexport function scopeDataRows() { return Promise.resolve(window.__scopeRows || []); }',
 };
 
 const MAIN = `import { EditorView, keymap } from '@codemirror/view';

@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caretAt, fieldLines, insideElement, instantSuggestion, listsOf, openLoop } from '../../resources/js/dock/ghost-instant.js';
+import { caretAt, fieldLines, foreignLoop, insideElement, instantSuggestion, listsOf, openLoop } from '../../resources/js/dock/ghost-instant.js';
 
 const ROWS = [
   { var: 'title', type: 'text', label: 'Title' },
@@ -115,3 +115,51 @@ test('class=" on an element the file already styles: the same classes, the neare
   assert.equal(at('<li class="{{ classes }}">a</li>\n<li class="|">'), '');
 });
 
+
+/* ---- A loop over other entries: shown, never edited ------------------------ */
+
+const EMPLOYEES = {
+  kind: 'collection',
+  handle: 'employees',
+  fields: [
+    { var: 'name', type: 'text', label: 'Name' },
+    { var: 'profile_image', type: 'assets', label: 'Profile image' },
+    { var: 'phone', type: 'text', label: 'Phone' },
+  ],
+};
+
+/** The suggestion with the caret at `|`, in a file that loops over `loop`. */
+function inLoop(source, loop = EMPLOYEES, rows = ROWS) {
+  const pos = source.indexOf('|');
+
+  return instantSuggestion(source.replace('|', ''), pos, rows, loop);
+}
+
+test('the loop over other entries the caret stands in: collection, nav, taxonomy — closed or not', () => {
+  assert.deepEqual(foreignLoop('<ul>\n  {{ collection from="employees" }}\n    '), { kind: 'collection', handle: 'employees' });
+  assert.deepEqual(foreignLoop('{{ collection:cases limit="3" }}<li>'), { kind: 'collection', handle: 'cases' });
+  assert.deepEqual(foreignLoop('{{ nav:main }}<a>'), { kind: 'nav', handle: 'main' });
+  assert.equal(foreignLoop('{{ collection from="employees" }}<li></li>{{ /collection }}\n'), null);
+  assert.equal(foreignLoop('{{ entries }}<li>'), null);
+});
+
+test('in a collection loop nothing gets visual_edit: not {{ visual_, not the item', () => {
+  assert.equal(inLoop('{{ collection from="employees" }}\n  <p {{ visual_|>{{ name }}</p>'), '');
+  assert.equal(
+    inLoop('<ul>\n  {{ collection from="employees" }}\n    |\n  {{ /collection }}\n</ul>'),
+    '<li>\n      <p>{{ name }}</p>\n      {{ if profile_image }}\n        <img src="{{ profile_image:url }}" alt="">\n      {{ /if }}\n      <p>{{ phone }}</p>\n    </li>',
+  );
+  assert.equal(inLoop('{{ collection from="employees" }}\n  <li>\n    <p>{{ name }}</p>\n    |'), '{{ if profile_image }}\n      <img src="{{ profile_image:url }}" alt="">\n    {{ /if }}');
+});
+
+test('the image component takes the image field in scope by name, never a guessed "image"', () => {
+  const loop = '{{ collection from="employees" }}\n  <li>\n    ';
+
+  assert.equal(inLoop(`${loop}{{ partial:components/image :imagePath="|`), 'profile_image"');
+  assert.equal(inLoop(`${loop}{{ partial:components/image :imagePath="pro|" }}`), 'file_image');
+  assert.equal(inLoop(`${loop}{{ partial:components/picture |`), ':imagePath="profile_image"');
+  assert.equal(inLoop(`${loop}{{ partial:components/image :imagePath="profile_image" |`), '');
+  // Outside one: the section's own — in its list, the list's.
+  assert.equal(at('<ul>\n  {{ entries }}\n    <li>{{ partial:components/image :imagePath="|'), 'profile_image"');
+  assert.equal(at('{{ partial:components/image :imagePath="|', [{ var: 'media', type: 'assets' }]), 'media"');
+});

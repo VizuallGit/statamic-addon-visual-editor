@@ -46,6 +46,12 @@ final class Reply
         return trim($text) === '' ? '' : $text;
     }
 
+    /** Inside a loop over other entries nothing is edited on this page: any {{ visual_edit … }} comes out. */
+    public static function withoutVisualEdit(string $text): string
+    {
+        return (string) preg_replace('/[ \t]*\{\{\s*visual_edit\b[^}]*\}\}/', '', $text);
+    }
+
     /**
      * ⌘K on a selection: the replacement, whole. It ends the way the
      * selection ended — on a line break or not — so the line after it stays

@@ -330,7 +330,7 @@ async function ask(state, gen) {
 
   // The common moves — a loop in a list, an item's fields, visual_edit, a
   // state in x-data — come from the section's own fields, at once and free.
-  const instant = mode === 'comment' ? '' : instantSuggestion(full, pos, body.fields);
+  const instant = mode === 'comment' ? '' : instantSuggestion(full, pos, body.fields, body.loop);
 
   if (instant) {
     ghostIds += 1;

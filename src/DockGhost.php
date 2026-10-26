@@ -120,10 +120,18 @@ class DockGhost
     public static function complete(array $request): array
     {
         $mode = Prompt::mode($request) === 'comment' ? 'comment' : static::lineOrBlock(Prompt::before($request));
+        $foreign = Prompt::loop($request) !== null;
+
+        // `{{ visual_` in a loop over other entries: there is nothing to point it at.
+        if ($foreign && preg_match('/\{\{\s*visual_\w*\s*$/', Prompt::before($request))) {
+            return ['ok' => true, 'text' => '', 'ms' => 0, 'usage' => []];
+        }
+
         $out = static::ask(['mode' => $mode] + $request);
 
         if ($out['ok']) {
             $out['text'] = Reply::clean($out['text'], Prompt::before($request), Prompt::after($request), $mode);
+            $out['text'] = $foreign ? Reply::withoutVisualEdit($out['text']) : $out['text'];
         }
 
         return $out;
@@ -156,6 +164,7 @@ class DockGhost
             $out['text'] = $mode === 'edit'
                 ? Reply::edit($out['text'], (string) $request['selection'])
                 : Reply::clean($out['text'], Prompt::before($request), Prompt::after($request), 'insert');
+            $out['text'] = $mode === 'insert' && Prompt::loop($request) !== null ? Reply::withoutVisualEdit($out['text']) : $out['text'];
         }
 
         return $out;

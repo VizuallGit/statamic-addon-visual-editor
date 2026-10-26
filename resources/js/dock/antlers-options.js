@@ -21,6 +21,16 @@ export function antlersWord(textBefore, pos) {
 }
 
 /**
+ * The field name being typed in an image or picture component's
+ * `:imagePath="…`, as antlersWord() gives a word — null elsewhere.
+ */
+export function imagePathWord(textBefore, pos) {
+  const match = String(textBefore).match(/\{\{\s*partial:components\/(?:image|picture)\b[^}]*:imagePath="([\w.]*)$/);
+
+  return match ? { word: match[1], from: pos - match[1].length } : null;
+}
+
+/**
  * The collections to offer for `word`: all of them while it is on its way to
  * `collection` (`c`, `coll`, `collection`), the ones whose handle or title
  * starts with what follows once it is `collection:em`.

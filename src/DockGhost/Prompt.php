@@ -47,6 +47,9 @@ final class Prompt
 
     public const MAX_FIELDS = 60;
 
+    /** The loops over other entries the caret can stand in. */
+    public const FOREIGN_LOOPS = ['collection', 'nav', 'taxonomy', 'search'];
+
     /** Suggestions this author took, sent as their way of writing. */
     public const MAX_TAKEN = 6;
 
@@ -58,8 +61,10 @@ You help an author write code in the HTML pane of a Statamic page builder. The f
 Your reply is pasted into the file exactly as you write it: code only. Never explain, never describe the task, never mention <before>, <after> or the caret.
 
 Whatever you write:
-- Use fields from the user turn's list only, by their exact handle. Never invent a field.
-- An element that shows a field gets {{ visual_edit … }} in its opening tag, pointing at that field: field="handle", and inline_edit="true" when the field is text the author types. Lists get insertable="true" on the list and orderable="true" on the row. See the reference below.
+- Use fields from the user turn's lists only, by their exact handle. Never invent a field.
+- An element that shows one of this section's fields gets {{ visual_edit … }} in its opening tag, pointing at that field: field="handle", and inline_edit="true" when the field is text the author types. Lists get insertable="true" on the list and orderable="true" on the row. See the reference below.
+- Inside a loop over other entries — {{ collection }}, {{ nav }}, {{ taxonomy }}, {{ search }} — the rows are not this page's: write their fields plain ({{ name }}), never with visual_edit.
+- An image component's :imagePath="…" (and {{ handle:url }}) takes an assets field by its exact handle — the one the list in scope has, never a guessed "image".
 - Style with the site's own tokens and classes (<theme_tokens>), never with Tailwind's default colours, sizes or fonts.
 - Follow the house rules and the site's example for how sections are written here.
 - Match the file's indentation and quotes.
@@ -168,7 +173,10 @@ TXT;
             $out .= "Caret: {$hint}\n";
         }
 
-        if ($mode === 'block') {
+        $loop = static::loop($request);
+
+        // In a loop over other entries the section's own lists are not what comes next.
+        if ($mode === 'block' && $loop === null) {
             $out .= static::blockHint(static::before($request), (array) ($request['fields'] ?? []));
         }
 
@@ -180,6 +188,7 @@ TXT;
         $out .= $fields !== ''
             ? "Fields (handle · type · label):\n{$fields}\n"
             : "Fields: none known — do not write field tags.\n";
+        $out .= $loop !== null ? static::loopHint($loop) : '';
 
         if ($taken !== '') {
             $out .= "What this author took from you lately — write the way they do:\n{$taken}\n";
@@ -219,6 +228,58 @@ TXT;
                 : 'Where items repeat — a list, a grid, cards — loop over the list field that fits';
 
             return $out."List fields in this section, with their fields: {$rows}.\n{$where}: {{ handle }} … {{ /handle }} around one item (in a <ul> or <ol>, an <li>), the item showing its fields, each element pointing at its field with {{ visual_edit … }}, and {{ if field }} … {{ /if }} around an image, a link or another field that may be empty.\n";
+        }
+
+        return $out;
+    }
+
+    /**
+     * The loop over other entries the caret stands in, as the dock sent it
+     * (ghost-instant.js foreignLoop() with the Data button's Scope rows), or
+     * null when it stands in none.
+     *
+     * @return array{kind: string, handle: string, fields: list<array<string, mixed>>}|null
+     */
+    public static function loop(array $request): ?array
+    {
+        $loop = $request['loop'] ?? null;
+        $kind = is_array($loop) ? static::oneLine($loop['kind'] ?? '') : '';
+
+        if (! in_array($kind, static::FOREIGN_LOOPS, true)) {
+            return null;
+        }
+
+        return [
+            'kind' => $kind,
+            'handle' => static::oneLine($loop['handle'] ?? ''),
+            'fields' => array_values(array_filter((array) ($loop['fields'] ?? []), 'is_array')),
+        ];
+    }
+
+    /**
+     * The caret stands in a loop over other entries: what its rows have, its
+     * image field by name, and that nothing there is edited on this page — so
+     * no visual_edit.
+     *
+     * @param  array{kind: string, handle: string, fields: list<array<string, mixed>>}  $loop
+     */
+    public static function loopHint(array $loop): string
+    {
+        $tag = match (true) {
+            $loop['handle'] === '' => "{{ {$loop['kind']} }}",
+            $loop['kind'] === 'collection' => "{{ collection from=\"{$loop['handle']}\" }}",
+            default => "{{ {$loop['kind']}:{$loop['handle']} }}",
+        };
+        $fields = static::fieldLines($loop['fields']);
+        $image = collect($loop['fields'])->first(fn ($field) => ($field['type'] ?? '') === 'assets' && static::oneLine($field['parent'] ?? '') === '');
+        $out = "You are inside {$tag}: each row is another entry, not this page. Write its fields plain — {{ handle }} — and never {{ visual_edit }} here.\n";
+
+        if ($fields !== '') {
+            $out .= "Each row has (handle · type · label):\n{$fields}\n";
+        }
+
+        if ($image !== null && ($handle = static::oneLine($image['var'] ?? '')) !== '') {
+            $out .= "Its image is {$handle}: :imagePath=\"{$handle}\" in an image component, {{ {$handle}:url }} in an <img>.\n";
         }
 
         return $out;

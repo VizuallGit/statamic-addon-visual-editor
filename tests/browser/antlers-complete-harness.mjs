@@ -166,6 +166,17 @@ await pause(300);
 s = await state();
 check('outside a loop the section\'s own fields are offered', s.options.some((text) => text.startsWith('title')) && !s.options.some((text) => text.startsWith('name')), JSON.stringify(s.options));
 
+// 5. The image component in the loop: "image" typed finds profile_image, the only image field; Enter closes the quote.
+await start('<ul>\n  {{ collection from="employees" }}\n    <li>|</li>\n  {{ /collection }}\n</ul>');
+await tab.keyboard.type('{{ partial:components/image :imagePath="image');
+await pause(300);
+s = await state();
+check(':imagePath="image in the loop offers profile_image, and no text field', s.options.length === 1 && s.options[0].startsWith('profile_image'), JSON.stringify(s.options));
+await tab.keyboard.press('Enter');
+await pause(100);
+s = await state();
+check('… Enter writes :imagePath="profile_image"', s.doc.includes('{{ partial:components/image :imagePath="profile_image"</li>'), JSON.stringify(s.doc));
+
 await browser.close();
 server.close();
 

@@ -13,7 +13,14 @@
  *   its own content shows (`<b {{ visual_|>{{ name }}</b>` is `name`);
  * - `class="` on an element of a kind the file already styles: the same
  *   classes (the second card like the first);
- * - `x-data="{ `: a state to start from.
+ * - `x-data="{ `: a state to start from;
+ * - `{{ partial:components/image :imagePath="`: the image field in scope —
+ *   the loop's own (`profile_image`), not a guessed `image`.
+ *
+ * Inside a loop over other entries — `{{ collection … }}`, `{{ nav … }}`,
+ * `{{ taxonomy … }}`, `{{ search … }}` — the rows are not this page's, so
+ * nothing there gets visual_edit: the item is written with that loop's own
+ * fields (`loop.fields`, the Data button's Scope rows) as plain `{{ field }}`.
  *
  * A field is written the way its type is shown: a title as a heading, text as
  * a paragraph, rich text as a div, an image as the site's image component when
@@ -45,12 +52,13 @@ const STEP = '  ';
  * The grey text for the caret at `pos` in `full`, or '' when these rules have
  * nothing — then the AI may be asked.
  */
-export function instantSuggestion(full, pos, rows) {
+export function instantSuggestion(full, pos, rows, loop = null) {
   const text = String(full || '');
   const before = text.slice(0, pos);
   const after = text.slice(pos);
   const fields = (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row.var === 'string' && row.var !== '');
   const caret = caretAt(before);
+  const foreign = foreignLoop(before);
 
   if (caret.kind === 'attribute') {
     if (caret.attribute === 'x-data') {
@@ -61,11 +69,19 @@ export function instantSuggestion(full, pos, rows) {
   }
 
   if (caret.kind === 'antlers') {
-    return visualEdit(caret, after, scopeFields(text, before, after, fields), fields);
+    const scope = foreign ? { rows: (loop?.fields || []).filter((row) => row && typeof row.var === 'string' && !row.parent) } : scopeFields(text, before, after, fields);
+    const image = imagePath(caret, after, scope.rows);
+
+    if (image !== null) {
+      return image;
+    }
+
+    // Another entry's field cannot be edited on this page: no visual_edit.
+    return foreign ? '' : visualEdit(caret, after, scope, fields);
   }
 
   if (caret.kind === 'markup' && caret.fresh) {
-    return block(text, before, after, fields, caret);
+    return foreign ? foreignBlock(text, before, after, caret, foreign, loop?.fields) : block(text, before, after, fields, caret);
   }
 
   return '';
@@ -155,6 +171,36 @@ export function insideElement(tail) {
   }
 
   return stack.length ? stack[stack.length - 1] : null;
+}
+
+/**
+ * The innermost loop over other entries the caret stands in —
+ * `{{ collection from="employees" }}`, `{{ collection:employees }}`,
+ * `{{ nav:main }}`, `{{ taxonomy:tags }}`, `{{ search:results }}` — closed
+ * yet or not; null outside one.
+ *
+ * @returns {{ kind: string, handle: string } | null}
+ */
+export function foreignLoop(before) {
+  const open = [];
+
+  for (const [, closing, kind, rest] of String(before).slice(-TAIL).matchAll(/\{\{\s*(\/?)(collection|nav|taxonomy|search)\b([^}]*)\}\}/g)) {
+    if (!closing) {
+      const handle = (rest.match(/^:([\w-]+)/) || rest.match(/\b(?:from|handle)="([^"]+)"/) || [])[1] || '';
+
+      open.push({ kind, handle });
+
+      continue;
+    }
+
+    const at = open.map((row) => row.kind).lastIndexOf(kind);
+
+    if (at !== -1) {
+      open.length = at;
+    }
+  }
+
+  return open.length ? open[open.length - 1] : null;
 }
 
 /* ---- The section's fields ------------------------------------------------- */
@@ -275,6 +321,37 @@ function visualEdit(caret, after, scope, fields) {
   return `${rest}field="${handleOf(row)}"${TEXT.has(row.type) ? ' inline_edit="true"' : ''}${close}`;
 }
 
+/**
+ * In the site's image or picture component: `:imagePath="` gets the assets
+ * field in scope by name, the rest of it when part is typed; a space after
+ * the component's name gets the whole parameter. Null when the caret is not
+ * there; '' when no assets field fits.
+ */
+function imagePath(caret, after, rows) {
+  const tag = caret.text.match(/^\{\{\s*partial:components\/(?:image|picture)\b([^}]*)$/);
+
+  if (!tag) {
+    return null;
+  }
+
+  const typed = tag[1].match(/:imagePath="([\w.]*)$/);
+
+  if (!typed && (!/\s$/.test(tag[1]) || /imagePath=/.test(tag[1]))) {
+    return null;
+  }
+
+  const prefix = typed ? typed[1] : '';
+  const row = (rows || []).find((candidate) => candidate.type === 'assets' && handleOf(candidate).startsWith(prefix));
+
+  if (!row) {
+    return '';
+  }
+
+  const rest = handleOf(row).slice(prefix.length);
+
+  return typed ? `${rest}${after.startsWith('"') ? '' : '"'}` : `:imagePath="${rest}"`;
+}
+
 /** The field the element the caret stands in shows: in its content (up to the next tag), else in its attributes. */
 function elementField(caret, after, rows) {
   if (!caret.opening) {
@@ -325,31 +402,57 @@ function shown(row) {
 }
 
 /** A field as markup, line by line (indent relative), or null for one that is not shown. */
-export function fieldLines(row, { heading = 'h2', image = false } = {}) {
+export function fieldLines(row, { heading = 'h2', image = false, editable = true } = {}) {
   const name = handleOf(row);
-  const edit = (extra = '') => `{{ visual_edit field="${name}"${extra} }}`;
+  // Another entry's field (a collection's) is shown, not edited here.
+  const edit = (extra = '') => (editable ? ` {{ visual_edit field="${name}"${extra} }}` : '');
 
   if (row.type === 'assets') {
     return image
       ? [`{{ if ${name} }}`, `${STEP}{{ partial:components/image :imagePath="${name}" }}`, '{{ /if }}']
-      : [`{{ if ${name} }}`, `${STEP}<img src="{{ ${name}:url }}" alt="" ${edit()}>`, '{{ /if }}'];
+      : [`{{ if ${name} }}`, `${STEP}<img src="{{ ${name}:url }}" alt=""${edit()}>`, '{{ /if }}'];
   }
 
   if (row.type === 'link') {
-    return [`{{ if ${name} }}`, `${STEP}<a href="{{ ${name} }}" ${edit()}>{{ ${name} }}</a>`, '{{ /if }}'];
+    return [`{{ if ${name} }}`, `${STEP}<a href="{{ ${name} }}"${edit()}>{{ ${name} }}</a>`, '{{ /if }}'];
   }
 
   if (row.type === 'bard' || row.type === 'markdown') {
-    return [`<div ${edit(' inline_edit="true"')}>{{ ${name} }}</div>`];
+    return [`<div${edit(' inline_edit="true"')}>{{ ${name} }}</div>`];
   }
 
   if (row.type === 'text' || row.type === 'textarea') {
     const tag = HEADING.test(name) || HEADING.test(String(row.label || '').trim()) ? heading : 'p';
 
-    return [`<${tag} ${edit(' inline_edit="true"')}>{{ ${name} }}</${tag}>`];
+    return [`<${tag}${edit(' inline_edit="true"')}>{{ ${name} }}</${tag}>`];
   }
 
   return null;
+}
+
+/**
+ * An empty line inside a loop over other entries: the item with that loop's
+ * fields, or — inside the item — its next one; never visual_edit.
+ */
+function foreignBlock(text, before, after, caret, foreign, rows) {
+  const start = before.lastIndexOf(`{{ ${foreign.kind}`);
+  const close = after.search(new RegExp(`\\{\\{\\s*/${foreign.kind}\\b`));
+  const here = before.slice(Math.max(0, start)) + (close === -1 ? after : after.slice(0, close));
+  const image = text.includes('partial:components/image');
+  const options = { heading: 'h3', image, editable: false };
+  const fresh = (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row.var === 'string' && !row.parent && fieldLines(row, options) && !shows(here, handleOf(row)));
+
+  if (!fresh.length) {
+    return '';
+  }
+
+  if (insideElement(before.slice(Math.max(0, start))) !== null && caret.inside !== 'ul' && caret.inside !== 'ol') {
+    return indent(fieldLines(fresh[0], options), caret.indent);
+  }
+
+  const tag = caret.inside === 'ul' || caret.inside === 'ol' ? 'li' : 'div';
+
+  return indent([`<${tag}>`, ...fresh.flatMap((row) => fieldLines(row, options)).map((line) => STEP + line), `</${tag}>`], caret.indent);
 }
 
 /** An empty line: a loop, an item, or the next field — or ''. */
