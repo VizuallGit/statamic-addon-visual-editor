@@ -74,14 +74,14 @@ class DockGhostController
         abort_unless(($job['user'] ?? '') === (string) User::current()?->id(), 403);
 
         if (Job::stale($job)) {
-            return $this->answer(['ok' => false, 'status' => 502, 'message' => __('sve::messages.dock_ghost_error')], ['state' => 'done']);
+            return $this->done(['ok' => false, 'status' => 502, 'message' => __('sve::messages.dock_ghost_error')]);
         }
 
         if (($job['state'] ?? '') !== 'done') {
             return response()->json(['ok' => true, 'state' => 'pending']);
         }
 
-        return $this->answer((array) ($job['result'] ?? []), ['state' => 'done']);
+        return $this->done((array) ($job['result'] ?? []) + ['ok' => false]);
     }
 
     public function usage()
@@ -115,19 +115,26 @@ class DockGhostController
         return response()->json(['ok' => true, 'job' => Job::start($kind, $fields)], 202);
     }
 
-    /** @param  array<string, mixed>  $extra  `state` for a job's answer */
-    protected function answer(array $out, array $extra = [])
+    protected function answer(array $out)
     {
-        if (! ($out['ok'] ?? false)) {
+        if (! $out['ok']) {
             return response()->json([
                 'message' => ($out['message'] ?? '') ?: __('sve::messages.dock_ghost_error'),
-            ] + $extra, $out['status'] ?? 502);
+            ], $out['status'] ?? 502);
         }
 
         return response()->json([
             'ok' => true,
             'text' => $out['text'],
             'ms' => $out['ms'],
-        ] + $extra);
+        ]);
+    }
+
+    /** A job's answer: as answer() gives it, marked done so the browser stops asking. */
+    protected function done(array $out)
+    {
+        $response = $this->answer($out);
+
+        return $response->setData((array) $response->getData(true) + ['state' => 'done']);
     }
 }

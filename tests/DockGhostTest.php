@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
@@ -12,6 +13,7 @@ use MarioHamann\StatamicVisualEditor\DockGhost\Tokens;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
 use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Features;
+use Symfony\Component\Process\Process;
 
 /**
  * The AI in the HTML dock: the requests the grey text and ⌘K send, the
@@ -636,5 +638,30 @@ class DockGhostTest extends TestCase
         $other = $newest->invoke(null, ['mode' => 'line', 'user' => 'someone-else']);
         $this->assertFalse($b(), 'Another author is counted apart.');
         $this->assertFalse($other());
+    }
+
+    public function test_a_newer_question_stops_the_agent_already_on_its_way(): void
+    {
+        config(['statamic-visual-editor.ai.api_key' => 'crsr-test']);
+        DockGhost::claim('author', 'complete', 'job-a');
+
+        // The agent for job-a takes its time; while it does, job-b is started.
+        $this->app->instance(CursorAgent::class, new class extends CursorAgent
+        {
+            protected static function process(array $payload, int $timeout): Process
+            {
+                DockGhost::claim('author', 'complete', 'job-b');
+
+                return new Process([PHP_BINARY, '-r', 'sleep(20);']);
+            }
+        });
+
+        $started = microtime(true);
+        $out = DockGhost::complete(['before' => "<div>\n  ", 'user' => 'author', 'job' => 'job-a']);
+
+        $this->assertLessThan(5, microtime(true) - $started, 'The agent is stopped, not waited for.');
+        $this->assertTrue($out['ok']);
+        $this->assertSame('', $out['text']);
+        $this->assertSame(0, Usage::month()['requests']);
     }
 }
