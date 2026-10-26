@@ -31,6 +31,7 @@ final class Reply
         $text = static::withoutRepeat($text, $before);
         $text = static::withinValue($text, Caret::of($before));
         $text = static::withoutIndent($text, $before);
+        $text = static::underCaret($text, $before);
         $text = static::withoutTail($text, $after);
 
         $lines = explode("\n", $text);
@@ -157,6 +158,31 @@ final class Reply
         }
 
         return $text;
+    }
+
+    /**
+     * A block written at an indented empty line, its later lines indented as
+     * if it stood at the margin: they are moved in under the caret.
+     */
+    protected static function underCaret(string $text, string $before): string
+    {
+        $lines = explode("\n", $text);
+
+        if (count($lines) < 2 || ! preg_match('/(?:\A|\n)([ \t]*)\z/', $before, $caret) || $caret[1] === '') {
+            return $text;
+        }
+
+        $rest = array_filter(array_slice($lines, 1), fn ($line) => trim($line) !== '');
+        $least = $rest === [] ? 0 : min(array_map(fn ($line) => strlen($line) - strlen(ltrim($line, " \t")), $rest));
+        $missing = strlen($caret[1]) - $least;
+
+        if ($missing <= 0) {
+            return $text;
+        }
+
+        $pad = str_repeat(' ', $missing);
+
+        return $lines[0]."\n".implode("\n", array_map(fn ($line) => trim($line) === '' ? $line : $pad.$line, array_slice($lines, 1)));
     }
 
     /**

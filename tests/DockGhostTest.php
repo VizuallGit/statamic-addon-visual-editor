@@ -739,4 +739,16 @@ class DockGhostTest extends TestCase
         $this->assertNull(Prompt::openLoop("{{ entries }}<li></li>{{ /entries }}\n", ['entries']));
         $this->assertStringContainsString('You are inside the loop {{ entries }}: each item has text, name.', Prompt::blockHint("<ul>\n  {{ entries }}\n    ", $fields));
     }
+
+    public function test_a_block_at_an_indented_line_is_indented_under_the_caret(): void
+    {
+        $this->assertSame(
+            "<li>\n        <p>{{ text }}</p>\n      </li>",
+            Reply::clean("<li>\n  <p>{{ text }}</p>\n</li>", "<ul>\n    {{ entries }}\n      ", '', 'block'),
+        );
+        $this->assertSame(
+            "{{ entries }}\n      <li></li>\n    {{ /entries }}",
+            Reply::clean("{{ entries }}\n      <li></li>\n    {{ /entries }}", "<ul>\n    ", '', 'block'),
+        );
+    }
 }
