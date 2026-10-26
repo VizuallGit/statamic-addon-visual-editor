@@ -133,8 +133,8 @@ test('register_section only records a well-formed request, once', () => {
 test('the tools offered: add_rule only when the rules file is open', () => {
   const s = site();
 
-  assert.deepEqual(Object.keys(gateTools(createGate(s.root, scope), { rules: true })).sort(), ['add_rule', 'edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
-  assert.deepEqual(Object.keys(gateTools(createGate(s.root, { ...scope, rules: null }))).sort(), ['edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
+  assert.deepEqual(Object.keys(gateTools(createGate(s.root, scope), { rules: true })).sort(), ['add_rule', 'delete_file', 'edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
+  assert.deepEqual(Object.keys(gateTools(createGate(s.root, { ...scope, rules: null }))).sort(), ['delete_file', 'edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
 });
 
 /* ---- Build mode on the open site: content and theme, no file to name ---- */
@@ -197,5 +197,21 @@ test('a web page is read as its title, images and text', () => {
   assert.match(page, /- https:\/\/example\.com\/team\/img\/jane\.jpg — Jane Doe/);
   assert.match(page, /Jane er designer\./);
   assert.doesNotMatch(page, /alert|\.x\{/);
+});
+
+test('build mode deletes a file of the open site or an image, never a closed one', () => {
+  const s = site();
+  const gate = createGate(s.root, BUILD);
+
+  gate.writeFile({ path: 'content/collections/employees/old.md', content: '---\ntitle: Old\n---\n' });
+  mkdirSync(join(s.root, 'public/assets/team'), { recursive: true });
+  writeFileSync(join(s.root, 'public/assets/team/jane-profil.webp'), 'x');
+
+  assert.equal(text(gate.deleteFile({ path: 'content/collections/employees/old.md' })), 'Deleted content/collections/employees/old.md.');
+  assert.equal(text(gate.deleteFile({ path: 'public/assets/team/jane-profil.webp' })), 'Deleted public/assets/team/jane-profil.webp.');
+  assert.equal(s.exists('public/assets/team/jane-profil.webp'), false);
+  assert.ok(gate.written.includes('public/assets/team/jane-profil.webp'), 'reported, so Statamic is told');
+  assert.ok(refused(gate.deleteFile({ path: 'resources/fieldsets/page_sections.yaml' })));
+  assert.ok(refused(gate.deleteFile({ path: '.env' })));
 });
 

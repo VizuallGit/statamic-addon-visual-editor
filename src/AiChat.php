@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Support\Facades\Artisan;
+use Statamic\Facades\AssetContainer;
 use MarioHamann\StatamicVisualEditor\AiChat\Conversation;
 use MarioHamann\StatamicVisualEditor\AiChat\Prompt;
 use MarioHamann\StatamicVisualEditor\AiChat\Registration;
@@ -85,6 +86,11 @@ class AiChat
             static::refreshStache();
         }
 
+        // Images saved or deleted behind Statamic's back: into its asset
+        // listing (or out of it) with their metadata, as an upload does — so
+        // the Control Panel shows them at once.
+        static::syncAssets($out['written']);
+
         if ($out['written'] !== [] || $registered !== []) {
             GitSync::after('AI build');
         }
@@ -98,6 +104,44 @@ class AiChat
             'mode' => $mode,
             'status' => $out['status'],
         ];
+    }
+
+    /** @param  list<string>  $written */
+    protected static function syncAssets(array $written): void
+    {
+        $paths = array_filter($written, fn (string $path) => str_starts_with($path, WriteScope::ASSETS) && ! str_contains($path, '/.meta/'));
+
+        if ($paths === []) {
+            return;
+        }
+
+        try {
+            $root = realpath(base_path(rtrim(WriteScope::ASSETS, '/')));
+            $container = AssetContainer::all()->first(fn ($container) => realpath((string) config('filesystems.disks.'.$container->diskHandle().'.root')) === $root);
+
+            if (! $container) {
+                return;
+            }
+
+            $contents = $container->contents();
+
+            foreach ($paths as $rel) {
+                $path = substr($rel, strlen(WriteScope::ASSETS));
+                $asset = $container->makeAsset($path);
+
+                if (is_file(base_path($rel))) {
+                    $contents->add($path);
+                    $asset->writeMeta($asset->generateMeta());
+                } else {
+                    $contents->forget($path);
+                    @unlink(base_path(WriteScope::ASSETS.$asset->metaPath()));
+                }
+            }
+
+            $contents->save();
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /** Statamic reads its content and blueprints again (`please stache:refresh`). */

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
@@ -231,6 +231,28 @@ export function createGate(cwd, scope) {
     return `${handle} will be added to the "${group}" group in page_sections.yaml when you are done. Do not edit page_sections.yaml yourself.`;
   }
 
+  /**
+   * A file of the open site removed — an entry, a template, an image the run
+   * no longer wants. Reported with what was written, so Statamic is told.
+   */
+  function deleteFile({ path } = {}) {
+    const rel = clean(path);
+    const image = assets && rel.startsWith(assets) && IMAGE.test(rel);
+
+    if (!(opened(rel) || made.has(rel) || image) || !inside(rel)) {
+      return locked(rel);
+    }
+
+    if (!existsSync(absolute(rel))) {
+      return refuse(`${rel} does not exist.`);
+    }
+
+    unlinkSync(absolute(rel));
+    noted(rel);
+
+    return `Deleted ${rel}.`;
+  }
+
   /** A web page as text the agent can use: its title, its images, its words. */
   async function fetchPage({ url } = {}) {
     const res = await publicFetch(url);
@@ -282,6 +304,7 @@ export function createGate(cwd, scope) {
     registerSection,
     fetchPage,
     saveImage,
+    deleteFile,
     get written() {
       return [...written];
     },
@@ -454,6 +477,16 @@ export function gateTools(gate, { rules = false } = {}) {
       },
       execute: (args) => gate.registerSection(args),
     },
+  };
+
+  tools.delete_file = {
+    description: 'Delete a file of the site\'s content or theme, or an image in the assets folder — one this or an earlier run made by mistake, or one the user wants gone.',
+    inputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string', description: 'Relative to the site root, e.g. public/assets/team/old-photo.webp' } },
+      required: ['path'],
+    },
+    execute: (args) => gate.deleteFile(args),
   };
 
   tools.fetch_page = {
