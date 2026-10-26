@@ -15,6 +15,7 @@ import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './r
 import { closeAiPanel } from './ai-panel-lazy.js';
 import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
 import { helpDefaultOn, helpOnClick, helpOpensPicker, setHelpDefault, setHelpOnClick, setHelpOpensPicker } from './dock/help-state.js';
+import { ghostAllowed, ghostDefaultOn, setGhostDefault } from './dock/ghost-state.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
@@ -297,6 +298,13 @@ function treeProps(win) {
       // How it behaves once on: the user's too, read by the help as it goes.
       click: { on: helpOnClick(win), label: t(win, 'lp_settings_code_dock_help_click') },
       picker: { on: helpOpensPicker(win), label: t(win, 'lp_settings_code_dock_help_picker') },
+    },
+    // Grey text (AI) in the HTML pane, on from the start or not — the same
+    // kind of default as help's, shown only where the site has grey text.
+    codeDockGhost: {
+      show: featureOn(win, 'template_dock') && ghostAllowed(win),
+      on: ghostDefaultOn(win),
+      label: t(win, 'lp_settings_code_dock_ghost'),
     },
     // The tree's face is a preference, not a feature: the panel reads it on
     // every paint, and the store flips it live while the panel is open.
@@ -651,6 +659,7 @@ function bindSettingHandlers(win) {
       codeDockHelp: (on) => setHelpDefault(win, on),
       codeDockHelpClick: (on) => setHelpOnClick(win, on),
       codeDockHelpPicker: (on) => setHelpOpensPicker(win, on),
+      codeDockGhost: (on) => setGhostDefault(win, on),
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
       familyReset: () => resetFamilyColors(win),

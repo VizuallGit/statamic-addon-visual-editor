@@ -36,6 +36,7 @@ class Features
         'component_props',
         'ai_panel',
         'ai_text',
+        'dock_ghost',
         'schema',
         'file_manager',
         'live_reload',
@@ -90,6 +91,11 @@ class Features
         'component_props',
         'ai_panel',
         'ai_text',
+        // Grey text at the caret in the dock's HTML pane, from Claude. Costs
+        // per request on the site's own Anthropic key, so off until the
+        // settings say on; it lives in the dock, so it follows the dock's
+        // audience.
+        'dock_ghost',
         'schema',
         // The Bard styles popup in the top bar; it needs the bard-style addon v1.1+.
         'bard_styles',

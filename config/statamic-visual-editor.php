@@ -178,6 +178,7 @@ return [
         'component_props' => false,
         'ai_panel' => false,
         'ai_text' => false,
+        'dock_ghost' => false,
         'schema' => false,
         'comments' => true,
         // Nested under each toolbar toggle. Null = defaults
@@ -391,6 +392,26 @@ return [
          * its own, so a server that can write is a second way into this site.
          */
         'mcp_servers' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Grey text in the HTML dock
+    |--------------------------------------------------------------------------
+    |
+    | Copilot-style suggestions at the caret in the dock's HTML pane, behind the
+    | `dock_ghost` toggle. Anthropic, not Cursor: the Cursor agent takes seconds
+    | to start, and grey text has to come back while the author waits. Paste
+    | the key on the addon settings screen (`ghost_api_key`); ANTHROPIC_API_KEY
+    | in .env is only a fallback if the field is left empty.
+    |
+    | `php artisan sve:ghost-try` sends a few real cases from this site's
+    | sections and prints what came back, how long it took and what it cost.
+    |
+    */
+    'ghost' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('STATAMIC_VISUAL_EDITOR_GHOST_MODEL', 'claude-haiku-5-5'),
     ],
 
     /*

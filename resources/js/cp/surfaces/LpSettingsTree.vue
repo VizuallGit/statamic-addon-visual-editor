@@ -7,6 +7,7 @@ import { ref } from 'vue';
 const props = defineProps({
   codeDock: { type: Object, required: true },
   codeDockHelp: { type: Object, default: () => ({ show: false }) },
+  codeDockGhost: { type: Object, default: () => ({ show: false }) },
   htmlTree: { type: Object, required: true },
   familyColors: { type: Object, required: true },
   on: { type: Object, required: true },
@@ -19,6 +20,7 @@ const htmlTreeOn = ref(props.htmlTree.on);
 const codeDockHelpOn = ref(!!props.codeDockHelp.on);
 const codeDockHelpClick = ref(props.codeDockHelp.click ? !!props.codeDockHelp.click.on : true);
 const codeDockHelpPicker = ref(props.codeDockHelp.picker ? !!props.codeDockHelp.picker.on : true);
+const codeDockGhostOn = ref(!!props.codeDockGhost.on);
 const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
 
 function setCodeDock(value) {
@@ -39,6 +41,11 @@ function setCodeDockHelpClick(value) {
 function setCodeDockHelpPicker(value) {
   codeDockHelpPicker.value = value;
   props.on.codeDockHelpPicker(value);
+}
+
+function setCodeDockGhost(value) {
+  codeDockGhostOn.value = value;
+  props.on.codeDockGhost(value);
 }
 
 function setHtmlTree(value) {
@@ -65,7 +72,7 @@ function resetFamilyColors() {
 </script>
 
 <template>
-  <div v-if="codeDock.show || codeDockHelp.show || htmlTree.show" class="sve-lp-settings__section">
+  <div v-if="codeDock.show || codeDockHelp.show || codeDockGhost.show || htmlTree.show" class="sve-lp-settings__section">
     <label v-if="codeDock.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="codeDockOn" @change="setCodeDock($event.target.checked)">
       <span :title="codeDock.label">{{ codeDock.label }}</span>
@@ -82,6 +89,10 @@ function resetFamilyColors() {
     <label v-if="codeDockHelp.show && codeDockHelp.picker" class="sve-lp-settings__row sve-lp-settings__row--sub">
       <input type="checkbox" :checked="codeDockHelpPicker" @change="setCodeDockHelpPicker($event.target.checked)">
       <span :title="codeDockHelp.picker.label">{{ codeDockHelp.picker.label }}</span>
+    </label>
+    <label v-if="codeDockGhost.show" class="sve-lp-settings__row">
+      <input type="checkbox" :checked="codeDockGhostOn" @change="setCodeDockGhost($event.target.checked)">
+      <span :title="codeDockGhost.label">{{ codeDockGhost.label }}</span>
     </label>
     <label v-if="htmlTree.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="htmlTreeOn" @change="setHtmlTree($event.target.checked)">

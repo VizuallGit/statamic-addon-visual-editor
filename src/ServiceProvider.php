@@ -7,6 +7,7 @@ use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
+use MarioHamann\StatamicVisualEditor\Commands\GhostTry;
 use MarioHamann\StatamicVisualEditor\Commands\Install;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
@@ -258,6 +259,7 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $commands = [
         GenerateSetPreviews::class,
+        GhostTry::class,
         Install::class,
     ];
 

@@ -15,6 +15,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ComponentController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\DataVarsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\DockGhostController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryBlueprintController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
@@ -261,6 +262,16 @@ final class EditorRoutes
                 ->name('sve.ai-copy');
             Route::get('/!/sve/ai-copy/keywords', [AiCopyController::class, 'keywords'])
                 ->name('sve.ai-copy.keywords');
+
+            // Grey text at the caret in the dock's HTML pane. Separate from
+            // ai-chat and ai-copy: a direct call to a small model, not the
+            // Cursor agent, because it has to come back while the author waits.
+            // Not an editor write: it asks every few keystrokes, and a recorded
+            // write would rescan the markup each time and stamp it as this
+            // session's own, hiding a real change from live reload.
+            Route::post('/!/sve/dock-ghost', [DockGhostController::class, 'store'])
+                ->withoutMiddleware(RecordEditorWrite::class)
+                ->name('sve.dock-ghost');
 
             // Structured data (schema.org JSON-LD) for this page and the site.
             Route::get('/!/sve/schema', [SchemaController::class, 'show'])
