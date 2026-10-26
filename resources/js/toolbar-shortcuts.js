@@ -210,6 +210,66 @@ export function syncPreviewShortcuts(win, { onlyIfChanged = false } = {}) {
 }
 
 /**
+ * Where else a keypress can land in a Live Preview session. This window is
+ * heard by onKeydown and the preview by bridge/shortcuts.js; two more
+ * documents can have the focus, both same origin:
+ *
+ *   - the site page the editor stands on, when Live Preview was opened from
+ *     the site (overlay-host.js): the focus stays there until the editor is
+ *     clicked. Heard in capture, before the site's own handlers, and only
+ *     while this editor is the open one — closed, ⌘P prints again;
+ *   - an iframe in the editor that took the focus (a panel's form), found as
+ *     this window loses the focus to it. Heard in the bubble phase, so a
+ *     field's own shortcut still wins; once per document.
+ */
+const OVERLAY_CLASS = 'sve-edit-overlay';
+const HEARD = '__sveShortcutsHeard';
+
+function hearHost(win) {
+  const frame = win.frameElement;
+
+  if (!frame?.classList?.contains(OVERLAY_CLASS)) {
+    return;
+  }
+
+  const host = win.parent;
+  const onKey = (event) => {
+    if (!frame.hasAttribute('data-open')) {
+      return;
+    }
+
+    const combo = comboFromEvent(event, isMac(host.navigator));
+
+    if (combo && runShortcut(win, combo)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  host.addEventListener('keydown', onKey, true);
+  win.addEventListener('pagehide', () => host.removeEventListener('keydown', onKey, true));
+}
+
+function hearFocusedFrame(win) {
+  const el = win.document.activeElement;
+  // Null for a frame of another origin.
+  const iwin = el?.tagName === 'IFRAME' && el !== previewFrame(win.document) && el.contentDocument ? el.contentWindow : null;
+
+  if (!iwin || iwin[HEARD]) {
+    return;
+  }
+
+  iwin[HEARD] = true;
+  iwin.addEventListener('keydown', (event) => {
+    const combo = comboFromEvent(event, isMac(iwin.navigator));
+
+    if (combo && runShortcut(win, combo)) {
+      event.preventDefault();
+    }
+  });
+}
+
+/**
  * Listen on this window, once; the bus answers from the first call on. Every
  * call — the top bar makes one per pass — brings the preview's list up to
  * date with the icons the bar has now.
@@ -230,6 +290,8 @@ export function startShortcuts(win) {
   if (!started.has(win)) {
     started.add(win);
     win.addEventListener('keydown', (event) => onKeydown(win, event));
+    win.addEventListener('blur', () => hearFocusedFrame(win));
+    hearHost(win);
     // A size added or removed in Live Preview changes which actions there are.
     win.addEventListener(BP_CHANGED_EVENT, () => syncPreviewShortcuts(win));
   }

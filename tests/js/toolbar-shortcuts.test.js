@@ -309,3 +309,38 @@ test('a preview that asks always gets the list; a size added and a shortcut of t
   assert.deepEqual(syncPreviewShortcuts(away), []);
   assert.deepEqual(ask('shortcuts:sync', { win: away }), []);
 });
+
+test('Live Preview opened from the site: a key on the site page runs too — only while the editor is open', () => {
+  const heard = [];
+  const host = { navigator: { platform: 'MacIntel' }, addEventListener: (type, fn, capture) => heard.push({ type, fn, capture }), removeEventListener: () => {} };
+  let open = true;
+  const win = fakeWin();
+
+  win.parent = host;
+  win.frameElement = { classList: { contains: (name) => name === 'sve-edit-overlay' }, hasAttribute: (name) => name === 'data-open' && open };
+  startShortcuts(win);
+
+  const onKey = heard.find((item) => item.type === 'keydown');
+  const press = () => {
+    const event = {
+      key: 'p', code: 'KeyP', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false, prevented: false, stopped: false,
+      preventDefault() { this.prevented = true; },
+      stopPropagation() { this.stopped = true; },
+    };
+
+    onKey.fn(event);
+
+    return event;
+  };
+
+  assert.equal(onKey.capture, true, 'before the site’s own handlers');
+
+  const pressed = press();
+
+  assert.equal(pressed.prevented && pressed.stopped, true, 'the browser does not print, the site hears nothing');
+  assert.equal(win.buttons.pages.clicks, 1);
+
+  open = false;
+  assert.equal(press().prevented, false, 'Live Preview closed: ⌘P prints again');
+  assert.equal(win.buttons.pages.clicks, 1);
+});
