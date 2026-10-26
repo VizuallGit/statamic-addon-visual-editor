@@ -6,10 +6,11 @@
  * a tag fetches nothing (no /!/sve/data-vars, no help-editor chunk). The
  * default ticked in ⋮ → HTML tree turns it on for this Live Preview (icon
  * pressed, the editor chunk loads); unticked turns it off again. The icon
- * switches it on by hand. `<ul>` typed on a new line opens the popup with the
- * loop over the section's replicator; Tab writes it, with the loop's own tag
- * and `{{ /… }}`; ⌘Z takes it back in one step. Tab with no popup open is the
- * editor's own (nothing of ours written).
+ * switches it on by hand. `<ul>` typed on a new line opens the popup: the
+ * class first, the loop over the section's replicator among the rows, the id
+ * last; the loop row taken writes it, with the loop's own tag and `{{ /… }}`;
+ * ⌘Z takes it back in one step. Tab with no popup open is the editor's own
+ * (nothing of ours written).
  *
  * The run never saves the editor layout to the server: every write to
  * /!/sve/chrome-prefs is answered here and goes nowhere. The dock autosaves to
@@ -453,11 +454,16 @@ try {
   const options = await cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-sve-help-option]`)].map((el) => el.textContent.trim().replace(/\s+/g, ' ')), POPUP);
 
   info(`popup: ${options.join(' | ')}`);
-  step('the popup offers the loop over the section’s list (≤ 3 rows, then the id row last)', options.length >= 1 && options.length <= 4 && options.some((text) => /replicator|grid|løkke|loop|gentag/i.test(text)), options.join(' | '));
-  // A row's text is its label and its meta run together: «Add an id» + `id=""`
-  // (or the raw key against a PHP older than the bundle).
+  // A row's text is its label and its meta run together: «Add a class» +
+  // `class=""`, «Add an id» + `id=""` (or the raw key against a PHP older
+  // than the bundle).
+  const isClassRow = (text) => /code_dock_help_class|\bclass(?=\b|class="")/i.test(text);
   const isIdRow = (text) => /code_dock_help_id|\bid(?=\b|id="")/i.test(text);
+  const isLoopRow = (text) => /replicator|grid|løkke|loop|gentag/i.test(text);
+  const loopIndex = options.findIndex(isLoopRow);
 
+  step('the popup offers the loop over the section’s list (class, ≤ 3 rows, then the id row)', options.length >= 2 && options.length <= 5 && loopIndex >= 0, options.join(' | '));
+  step('the class row is first — on a <ul> as on every tag without one', isClassRow(options[0] || ''), options[0] || '(no rows)');
   step('the id row is last and never pushes a field off the list', isIdRow(options.at(-1) || '') && options.slice(0, -1).every((text) => !isIdRow(text)), options.at(-1) || '(no rows)');
 
   const where = await cp.evaluate(`(() => {
@@ -476,6 +482,11 @@ try {
   step('the popup sits at the caret (under it, or above when there is no room)', nearCaret, JSON.stringify(where));
 
   const afterUl = await paneDoc(cp);
+
+  // Down to the loop row (the class stands first), then Tab takes it.
+  for (let i = 0; i < Math.max(0, loopIndex); i += 1) {
+    await page.keyboard.press('ArrowDown');
+  }
 
   await page.keyboard.press('Tab');
   await sleep(400);

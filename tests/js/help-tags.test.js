@@ -44,7 +44,6 @@ const BLOCKS = [
   { var: 'media', label: 'Media', type: 'assets', loop: true, parent: 'blocks › media' },
 ];
 
-const PARTIALS = { src: 'blocks/{type}', handles: ['headline', 'richtext', 'links', 'media'], image: 'components/image' };
 
 /** One field of each text kind: a line, a textarea, Bard. */
 const TEXTS = [
@@ -75,7 +74,7 @@ const help = (marked, options = {}) => {
 /** The rules run directly, so `counts` can be handed in. */
 const ranked = (marked, fields, counts) => {
   const { html, at } = caret(marked);
-  const ctx = buildContext(html, at, { rows: fields, blocks: findAntlersBlocks(html), sectionPartial: false, shellRoot: '', blockPartials: null });
+  const ctx = buildContext(html, at, { rows: fields, blocks: findAntlersBlocks(html), sectionPartial: false, shellRoot: '' });
 
   return ids(runRules(ctx, HELP_MAX, counts));
 };
@@ -127,7 +126,7 @@ test('section with its shell: x-data, and no wrapper, loop or partial inside it'
   const marked = SCAFFOLD.replace('>\n\n</section>', '>\n|\n</section>');
 
   for (const fields of [BLOCKS, GRID, INTRO]) {
-    const { html, list } = help(marked, { fields, blockPartials: PARTIALS, sectionPartial: true, shellRoot: SCAFFOLD });
+    const { html, list } = help(marked, { fields, sectionPartial: true, shellRoot: SCAFFOLD });
 
     assert.deepEqual(ids(list), ['x-data']);
 
@@ -157,7 +156,7 @@ test('section: x-data right after the name without a class; none when it has one
 
 test('div: class, visual_edit, the Bard field, id — no file, colour or line of text', () => {
   const lines = TEXTS.filter((row) => row.type !== 'bard');
-  const { list } = help('<div|>\n</div>', { fields: [...INTRO, ...lines], blockPartials: PARTIALS });
+  const { list } = help('<div|>\n</div>', { fields: [...INTRO, ...lines] });
 
   assert.deepEqual(ids(list), ['class', 'visual-edit', 'text:text', 'id']);
   assert.ok(list.every((item) => item.changes.every((change) => !change.insert.includes('partial') && !change.insert.includes('<img'))));
@@ -212,7 +211,7 @@ test('x-show on a div only inside an element that has x-data — the caret betwe
 test('a list is the loop with its fields — the same with or without the site’s partials, and no line of text', () => {
   for (const fields of [BLOCKS, GRID]) {
     const plain = help('<ol>|</ol>', { fields });
-    const housed = help('<ol>|</ol>', { fields, blockPartials: PARTIALS });
+    const housed = help('<ol>|</ol>', { fields });
     const loop = plain.list.find((item) => item.id.startsWith('loop:'));
 
     assert.equal(apply(plain.html, loop), apply(housed.html, housed.list.find((item) => item.id === loop.id)));
@@ -290,7 +289,7 @@ test('a: with an href, the text alone — and never the links block', () => {
   assert.deepEqual(ids(list), ['class', 'text:title', 'id']);
   assert.equal(apply(html, list[1]), '<a href="{{ url }}" {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</a>');
 
-  const links = help("{{ blocks }}\n    {{ if type == 'links' }}\n        <a class=\"btn\">|</a>\n    {{ /if }}\n{{ /blocks }}", { fields: BLOCKS, blockPartials: PARTIALS });
+  const links = help("{{ blocks }}\n    {{ if type == 'links' }}\n        <a class=\"btn\">|</a>\n    {{ /if }}\n{{ /blocks }}", { fields: BLOCKS });
 
   assert.ok(links.list.every((item) => item.changes.every((change) => !change.insert.includes('partial'))));
 });
@@ -298,7 +297,7 @@ test('a: with an href, the text alone — and never the links block', () => {
 /* ---- img, video ----------------------------------------------------------- */
 
 test('img stays an img: one source row per file field — src from its url, visual_edit on the field', () => {
-  const { html, list } = help('<img|>', { fields: INTRO, blockPartials: PARTIALS });
+  const { html, list } = help('<img|>', { fields: INTRO });
 
   assert.deepEqual(ids(list), ['class', 'img-src:media', 'img-src:popup_video', 'src', 'id']);
 
@@ -309,7 +308,7 @@ test('img stays an img: one source row per file field — src from its url, visu
   assert.equal(apply(html, media), '<img src="{{ media:url }}" {{ visual_edit field="media" }}>');
   assert.equal(media.selection, apply(html, media).length);
 
-  const klass = help('<img class="w-full h-full object-cover"|>', { fields: INTRO, blockPartials: PARTIALS });
+  const klass = help('<img class="w-full h-full object-cover"|>', { fields: INTRO });
 
   assert.equal(
     apply(klass.html, byId(klass.list, 'img-src:media')),

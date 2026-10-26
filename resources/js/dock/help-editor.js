@@ -41,11 +41,13 @@ import { ensureHelpStyles } from './help-styles.js';
 import { sectionDataRows } from './data-vars.js';
 import { currentFullHtml } from './scope.js';
 import { currentTemplateType } from './dock-api.js';
-import { addClassButton, finishHtmlEdit, openAddClass } from './html-tools.js';
+import { addClassButton, finishHtmlEdit, htmlElementAtCursor, openAddClass } from './html-tools.js';
 import { helpOnClick, helpOpensPicker } from './help-state.js';
+import { countHelpUse, helpCounts } from './help-counts.js';
+import { visualEditFieldRows, visualEditPartRows } from './help-rules/visual-edit-parts.js';
 import { dataVarsSet } from '../data-vars.js';
 import { lockedRanges } from '../lib/locked-tags.js';
-import { blockPartials, sectionScaffold } from '../lib/config.js';
+import { sectionScaffold } from '../lib/config.js';
 import { t } from '../lib/i18n.js';
 import { findAntlersBlocks } from '../antlers-blocks.js';
 import {
@@ -246,8 +248,8 @@ async function openAtCaret(state) {
     fields,
     sectionPartial: sectionPartial(),
     shellRoot: sectionScaffold(win),
-    blockPartials: blockPartials(win),
     locked: lockedRanges(full),
+    counts: helpCounts(win),
   })
     .map((item) => shiftSuggestion(item, offset))
     // The pane holds a slice; a change reaching outside it cannot be made here.
@@ -264,7 +266,7 @@ async function openAtCaret(state) {
 
 /* ---- The suggestion list -------------------------------------------------- */
 
-function openList(state, items) {
+function openList(state, items, title = 'code_dock_help_title') {
   const { win } = state;
 
   closePopup(state);
@@ -273,7 +275,7 @@ function openList(state, items) {
   const el = mountPopup(state, 'list', {
     render: () =>
       h(DockHelpPopup, {
-        title: t(win, 'code_dock_help_title'),
+        title: t(win, title),
         closeLabel: t(win, 'code_dock_help_close'),
         items: items.map((item) => ({ id: item.id, label: t(win, item.key, item.args), meta: item.meta })),
         active: model.active,
@@ -331,10 +333,22 @@ function accept(state, index) {
 
   closePopup(state);
 
+  // Taken once more on this kind of tag: next time it stands higher.
+  if (item.tag) {
+    countHelpUse(state.win, item.tag, item.id);
+  }
+
   // What follows a row is the rule's `after` (help-rules/context.js), never
   // its id — a new rule says what it wants without a line here.
   if (item.after === 'loop') {
     openLoop(state, item.loop.from);
+
+    return;
+  }
+
+  // «Point at a field»: the same popup, now with the section's fields.
+  if (item.after === 'visual-edit-field') {
+    void openVisualEditFields(state);
 
     return;
   }
@@ -376,6 +390,58 @@ function accept(state, index) {
   if (item.after === 'class') {
     cm.autocomplete.startCompletion(view);
   }
+
+  // The visual_edit just written (or a part just added): what else it can
+  // take, until Escape or nothing is left.
+  if (item.after === 'visual-edit') {
+    openVisualEditParts(state);
+  }
+}
+
+/* ---- The visual_edit parts ------------------------------------------------ */
+
+/**
+ * The element under the caret in the pane — the one the toolbar's own
+ * visual_edit button targets — as help-rules/visual-edit-parts.js wants it:
+ * its opening tag's range in the pane's text. The rows come back in pane
+ * coordinates, so nothing is shifted.
+ */
+function visualEditTarget() {
+  const el = htmlElementAtCursor();
+
+  return el?.open ? { name: el.name, from: el.open.from, to: el.open.to } : null;
+}
+
+function openVisualEditParts(state) {
+  const target = visualEditTarget();
+  const items = target ? visualEditPartRows(state.view.state.doc.toString(), target) : [];
+
+  if (!items.length) {
+    return;
+  }
+
+  openList(state, items, 'code_dock_help_ve_title');
+}
+
+async function openVisualEditFields(state) {
+  const { view, win } = state;
+  const gen = ++state.gen;
+  const doc = view.state.doc;
+  const fields = await sectionDataRows(win);
+
+  if (gen !== state.gen || view.state.doc !== doc) {
+    return;
+  }
+
+  const target = visualEditTarget();
+  const rows = Array.isArray(fields) ? fields.filter((row) => row && typeof row.var === 'string') : [];
+  const items = target ? visualEditFieldRows(doc.toString(), target, rows) : [];
+
+  if (!items.length) {
+    return;
+  }
+
+  openList(state, items, 'code_dock_help_ve_field_title');
 }
 
 /* ---- The loop panel ------------------------------------------------------- */

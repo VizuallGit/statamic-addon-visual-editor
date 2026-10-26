@@ -41,12 +41,13 @@ export const HELP_MAX = 3;
  * @param {Array}  [options.fields]          the section's Data rows
  * @param {boolean} [options.sectionPartial] the file is a page section's partial
  * @param {string} [options.shellRoot]       SectionTypeMaker's scaffold (or its root tag)
- * @param {{ src: string, handles: string[], image: string }} [options.blockPartials]
- *                                          the site's partials: `blocks/{type}`, the handles it holds, the image partial
  * @param {number[]} [options.locked]        more locked ranges, flat: from, to, …
- * @returns {Array<{ id: string, key: string, args: object, meta: string,
+ * @param {Object<string, Object<string, number>>} [options.counts]
+ *                                          how often each row was taken, by tag and row id — sorts the middle
+ * @returns {Array<{ id: string, key: string, args: object, meta: string, tag?: string,
  *   changes: Array<{ from: number, to: number, insert: string }>, selection: number|null,
- *   after?: 'class'|'loop', loop?: object }>}
+ *   after?: 'class'|'loop'|'visual-edit', loop?: object }>}
+ *   `tag` is the element the rows are for — what a taken row is counted under.
  */
 export function helpSuggestions(html, at, options = {}) {
   const source = String(html || '');
@@ -56,7 +57,7 @@ export function helpSuggestions(html, at, options = {}) {
     return [];
   }
 
-  const { fields = [], sectionPartial = false, shellRoot = '', blockPartials = null, locked = [] } = options;
+  const { fields = [], sectionPartial = false, shellRoot = '', locked = [], counts = {} } = options;
 
   if (inRanges([...lockedElementRanges(source), ...locked], pos)) {
     return [];
@@ -70,9 +71,9 @@ export function helpSuggestions(html, at, options = {}) {
   }
 
   const rows = Array.isArray(fields) ? fields.filter((row) => row && typeof row.var === 'string') : [];
-  const ctx = buildContext(source, pos, { rows, blocks, sectionPartial, shellRoot, blockPartials });
+  const ctx = buildContext(source, pos, { rows, blocks, sectionPartial, shellRoot });
 
-  return ctx ? runRules(ctx, HELP_MAX) : [];
+  return ctx ? runRules(ctx, HELP_MAX, counts).map((row) => ({ ...row, tag: ctx.node.tag })) : [];
 }
 
 /**

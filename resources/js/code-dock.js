@@ -180,9 +180,21 @@ export const CSS_ADD_ICON =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 export const CSS_MENU_ID = '__sve-css-menu';
 export const HTML_HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+/**
+ * What the div button offers, the way the heading button offers h1–h6: the
+ * same tag, with the class the layout starts from already on it. `''` is the
+ * bare div the button has always written.
+ */
+export const HTML_DIVS = [
+  { id: 'div', classes: '', lang: 'code_dock_div_plain' },
+  { id: 'flex', classes: 'flex', lang: 'code_dock_div_flex' },
+  { id: 'flex-col', classes: 'flex flex-col', lang: 'code_dock_div_flex_col' },
+  { id: 'flex-row', classes: 'flex flex-row', lang: 'code_dock_div_flex_row' },
+  { id: 'container', classes: 'wrapper', lang: 'code_dock_div_container' },
+];
 export const HTML_TOOLS = [
   { id: 'section', title: 'section', tag: 'section' },
-  { id: 'div', title: 'div', tag: 'div' },
+  { id: 'div', title: 'div', menu: 'div' },
   { id: 'heading', title: 'heading', menu: 'heading' },
   { id: 'text', title: 'text', menu: 'text' },
   { id: 'a', title: 'link', tag: 'a' },
