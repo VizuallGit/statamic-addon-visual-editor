@@ -11,15 +11,15 @@ use MarioHamann\StatamicVisualEditor\AiRules;
  *
  * Two system blocks, each cached: how code is written here — the visual_edit
  * reference, the site's house rules, its design tokens and class names (the
- * same for every request) — then one of the site's newest sections as the
- * example (the same while the author stays in one section). The user turn is
+ * same for every request) — then the site's newest sections as examples
+ * (the same while the author stays in one section). The user turn is
  * what changes: the task, the file around the caret, the section's fields
  * and what this author has taken lately.
  *
  * The task is in the user turn, not the system, so the four of them share
  * one cached system prompt per model.
  *
- * The example leaves out the section being edited — it is already in the
+ * The examples leave out the section being edited — it is already in the
  * request, and with autosave it is also the newest file, which would change
  * the cached block on every save.
  */
@@ -37,7 +37,7 @@ final class Prompt
     /** What the author typed in the ⌘K box. */
     public const INSTRUCTION = 600;
 
-    /** The newest section's file, as the example. */
+    /** Characters of each example section's file. */
     public const EXAMPLE = 4000;
 
     public const MAX_FIELDS = 60;
@@ -333,22 +333,24 @@ TXT;
         return trim((string) preg_replace('/\A---\R.*?\R---\R/s', '', $text));
     }
 
-    /** One of the site's newest sections, the one being edited left out. */
+    /**
+     * The site's newest sections (HouseStyle::COUNT), the one being edited
+     * left out: how this author writes now — their classes, components, loops
+     * and visual_edit — so the suggestions read like their own code.
+     */
     public static function example(string $section = ''): string
     {
-        $newest = HouseStyle::newest($section)[0] ?? null;
+        $examples = [];
 
-        if ($newest === null) {
-            return '';
+        foreach (HouseStyle::newest($section) as $newest) {
+            $file = Conversation::clip((string) @file_get_contents(base_path($newest['partial'])), static::EXAMPLE);
+
+            if (trim($file) !== '') {
+                $examples[] = "<example section=\"{$newest['handle']}\">\n{$file}\n</example>";
+            }
         }
 
-        $file = Conversation::clip((string) @file_get_contents(base_path($newest['partial'])), static::EXAMPLE);
-
-        if (trim($file) === '') {
-            return '';
-        }
-
-        return "<example section=\"{$newest['handle']}\">\nHow this site writes a section now:\n{$file}\n</example>";
+        return $examples === [] ? '' : "How this site writes sections now — write the way these do:\n".implode("\n", $examples);
     }
 
     /** @return array{type: string, text: string, cache_control: array{type: string}} */

@@ -100,3 +100,18 @@ test('fields that are settings, not content, are not written', () => {
   assert.equal(fieldLines({ var: 'logo', type: 'toggle' }), null);
   assert.deepEqual(fieldLines({ var: 'body', type: 'bard' }), ['<div {{ visual_edit field="body" inline_edit="true" }}>{{ body }}</div>']);
 });
+
+test('{{ visual_ points at the field the element shows: its content, else its attributes', () => {
+  assert.equal(at('<li>\n  <b class="text-200" {{ visual_|>{{ name }}</b>'), 'edit field="name" inline_edit="true" }}');
+  assert.equal(at('<img src="{{ profile_image:url }}" alt="" {{ visual_|>'), 'edit field="profile_image" }}');
+  assert.equal(at('{{ partial:components/image :imagePath="profile_image" }}<h2 {{ visual_|>{{ title }}</h2>'), 'edit field="title" inline_edit="true" }}');
+});
+
+test('class=" on an element the file already styles: the same classes, the nearest first', () => {
+  assert.equal(at('<li class="[ card ] p-600">a</li>\n<li class="|">b</li>'), '[ card ] p-600');
+  assert.equal(at('<li class="first">a</li>\n<li class="second">b</li>\n<li class="|">c</li>'), 'second');
+  assert.equal(at('<li class="|">a</li>\n<li class="after">b</li>'), 'after');
+  assert.equal(at('<p class="|">'), '');
+  assert.equal(at('<li class="{{ classes }}">a</li>\n<li class="|">'), '');
+});
+

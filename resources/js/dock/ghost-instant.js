@@ -9,7 +9,10 @@
  *   <li> inside it with the list's fields;
  * - an empty line inside such a loop: the item, or the next of its fields;
  * - an empty line elsewhere: the next field the file does not show yet;
- * - `{{ visual_` / `{{ visual_edit `: the field the element is for;
+ * - `{{ visual_` / `{{ visual_edit `: the field the element is for — the one
+ *   its own content shows (`<b {{ visual_|>{{ name }}</b>` is `name`);
+ * - `class="` on an element of a kind the file already styles: the same
+ *   classes (the second card like the first);
  * - `x-data="{ `: a state to start from.
  *
  * A field is written the way its type is shown: a title as a heading, text as
@@ -50,11 +53,15 @@ export function instantSuggestion(full, pos, rows) {
   const caret = caretAt(before);
 
   if (caret.kind === 'attribute') {
-    return caret.attribute === 'x-data' ? alpineState(caret.value, after) : '';
+    if (caret.attribute === 'x-data') {
+      return alpineState(caret.value, after);
+    }
+
+    return caret.attribute === 'class' && caret.value === '' ? sameClasses(text, pos, caret.tag) : '';
   }
 
   if (caret.kind === 'antlers') {
-    return visualEdit(caret.text, after, scopeFields(text, before, after, fields));
+    return visualEdit(caret, after, scopeFields(text, before, after, fields), fields);
   }
 
   if (caret.kind === 'markup' && caret.fresh) {
@@ -77,7 +84,7 @@ export function caretAt(before) {
     const [tag, inside] = open;
 
     if (inAntlers(inside)) {
-      return { kind: 'antlers', tag, text: inside.slice(inside.lastIndexOf('{{')) };
+      return { kind: 'antlers', tag, text: inside.slice(inside.lastIndexOf('{{')), opening: inside };
     }
 
     const match = inside.match(/([^\s=<>"'{}/]+)\s*=\s*(["'])((?:(?!\2)[\s\S])*)$/);
@@ -242,15 +249,20 @@ function alpineState(value, after) {
   return '';
 }
 
-/** `{{ visual_` or `{{ visual_edit `: the rest of the tag, pointing at the first field the scope does not show yet. */
-function visualEdit(tag, after, scope) {
-  const typed = tag.match(/^\{\{\s*(visual_(?:e(?:d(?:i(?:t)?)?)?)?)(\s*)$/);
+/**
+ * `{{ visual_` or `{{ visual_edit `: the rest of the tag, pointing at the
+ * field the element shows — its content first, then its own attributes — or
+ * else at the first field the scope has no visual_edit for yet.
+ */
+function visualEdit(caret, after, scope, fields) {
+  const typed = caret.text.match(/^\{\{\s*(visual_(?:e(?:d(?:i(?:t)?)?)?)?)(\s*)$/);
 
   if (!typed) {
     return '';
   }
 
-  const row = scope.rows.find((candidate) => shown(candidate) && !new RegExp(`field="${handleOf(candidate)}"`).test(scope.shown));
+  const row = elementField(caret, after, [...scope.rows, ...fields])
+    || scope.rows.find((candidate) => shown(candidate) && !new RegExp(`field="${handleOf(candidate)}"`).test(scope.shown));
 
   if (!row) {
     return '';
@@ -261,6 +273,50 @@ function visualEdit(tag, after, scope) {
   const close = /^\s*\}\}/.test(after) ? '' : ' }}';
 
   return `${rest}field="${handleOf(row)}"${TEXT.has(row.type) ? ' inline_edit="true"' : ''}${close}`;
+}
+
+/** The field the element the caret stands in shows: in its content (up to the next tag), else in its attributes. */
+function elementField(caret, after, rows) {
+  if (!caret.opening) {
+    return null;
+  }
+
+  const end = after.indexOf('>');
+  const content = end === -1 ? '' : after.slice(end + 1).split('<')[0];
+  const attributes = caret.opening.slice(0, caret.opening.lastIndexOf('{{')) + (end === -1 ? '' : after.slice(0, end));
+
+  for (const part of [content, attributes]) {
+    for (const [, tag, image] of part.matchAll(/\{\{\s*([A-Za-z_]\w*)|imagePath="([A-Za-z_]\w*)"/g)) {
+      const row = rows.find((candidate) => shown(candidate) && handleOf(candidate) === (tag || image));
+
+      if (row) {
+        return row;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * `class="` just opened: the classes the nearest element of the same kind
+ * already has — before the caret if one does, else after. None with Antlers
+ * in them; those are the author's own logic.
+ */
+function sameClasses(text, pos, tag) {
+  const esc = String(tag).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let before = '';
+  let after = '';
+
+  for (const match of text.matchAll(new RegExp(`<${esc}\\b[^>]*?\\sclass="([^"{}]+)"`, 'gi'))) {
+    if (match.index < pos) {
+      before = match[1];
+    } else if (!after) {
+      after = match[1];
+    }
+  }
+
+  return (before || after).trim();
 }
 
 /** Whether a field is shown on the page at all, as opposed to a setting. */
