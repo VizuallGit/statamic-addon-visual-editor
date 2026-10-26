@@ -134,6 +134,7 @@ export function fieldRows(rows) {
       type: String(row.type || ''),
       label: String(row.label || ''),
       ...(row.parent ? { parent: String(row.parent) } : {}),
+      ...(row.loop ? { loop: true } : {}),
     }));
 }
 

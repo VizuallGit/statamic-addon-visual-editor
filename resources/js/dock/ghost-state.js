@@ -23,6 +23,15 @@ export const GHOST_DEFAULT_KEY = 'sve-code-dock-ghost';
 const session = new WeakMap();
 const listeners = new Set();
 
+/**
+ * Whether the AI behind the grey text answers in time to be grey text: Claude
+ * does (a second or two); Cursor takes many seconds, so there only what the
+ * author asks for — a comment, ⌘K — goes to it.
+ */
+export function ghostFastAi(win) {
+  return win?.Statamic?.$config?.get?.('sveGhostProvider') !== 'cursor';
+}
+
 /** Whether this site has grey text at all. */
 export function ghostAllowed(win) {
   return !!win && featureSaidOn(win, 'dock_ghost');

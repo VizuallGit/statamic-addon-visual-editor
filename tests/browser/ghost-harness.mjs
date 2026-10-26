@@ -38,9 +38,9 @@ import * as autocomplete from '@codemirror/autocomplete';
 export const cm = { view, state, autocomplete };`,
   './state.js': 'export const dockState = { applying: false, htmlScopeActive: false, htmlFocus: null };',
   './scope.js': 'export function currentFullHtml() { return window.__view.state.doc.toString(); }',
-  './dock-api.js': "export function currentTemplateType() { return 'hero/style_2'; }",
+  './dock-api.js': "export function currentTemplateType() { return window.__type || 'hero/style_2'; }",
   './html-tools.js': 'export function finishHtmlEdit() { window.__finished += 1; }',
-  './data-vars.js': "export function sectionDataRows() { return Promise.resolve([{ var: 'title', type: 'text', label: 'Title', value: 'Hej' }]); }",
+  './data-vars.js': 'export function sectionDataRows() { return Promise.resolve(window.__rows); }',
 };
 
 const MAIN = `import { EditorView, keymap } from '@codemirror/view';
@@ -49,6 +49,9 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { enableGhost } from '${ADDON}/resources/js/dock/ghost-editor.js';
 
 window.__finished = 0;
+// The section's Data rows. None by default, so the AI is asked; a test that
+// gives rows names another section type, since the rows are fetched once a type.
+window.__rows = [];
 window.__requests = [];
 window.__toasts = [];
 window.__palette = [];
@@ -189,7 +192,7 @@ let s = await state();
 check('one request after the pause', s.requests === 1, `requests ${s.requests}`);
 check('the request holds the file before the caret', s.last?.before === '<h2 class="x" {{ visual_', JSON.stringify(s.last?.before));
 check('… and after it', s.last?.after === '>{{ title }}</h2>', JSON.stringify(s.last?.after));
-check('… the section and its rows, without their values', s.last?.section === 'hero/style_2' && JSON.stringify(s.last?.fields) === '[{"var":"title","type":"text","label":"Title"}]', JSON.stringify(s.last?.fields));
+check('… and the section', s.last?.section === 'hero/style_2', JSON.stringify(s.last?.section));
 check('grey text stands at the caret', s.ghost === ANSWER, JSON.stringify(s.ghost));
 check('grey text is not in the file', s.doc === '<h2 class="x" {{ visual_>{{ title }}</h2>', s.doc);
 
@@ -243,7 +246,12 @@ await pause(50);
 s = await state();
 check('Tab with no grey text does what it did before (indent)', !s.doc.includes('field=') && s.doc !== '<h2 class="x" {{ visual_edit>{{ title }}</h2>', s.doc);
 
-// 6. An answer for a caret that has moved is dropped.
+// 6. An answer for a caret that has moved is dropped. The section has a
+// title row here: what the rules cannot finish still goes to the AI, with the rows.
+await page.evaluate(() => {
+  window.__type = 'content/with_title';
+  window.__rows = [{ var: 'title', type: 'text', label: 'Title', value: 'Hej' }];
+});
 await start('<div>\n  |\n</div>', { body: { ok: true, text: '<p>{{ title }}</p>' }, delay: 600 });
 await page.keyboard.type('<p');
 await pause(500);
@@ -364,6 +372,33 @@ await page.focus('#out');
 await pause(50);
 s = await state();
 check('away from the editor the palette opens as always', s.palette[0] === false, JSON.stringify(s.palette));
+
+// 16. With the section's fields, the common moves need no AI (ghost-instant.js):
+// {{ visual_ is finished at once; Enter in a <ul> offers the loop over the list.
+await page.evaluate(() => {
+  window.__type = 'content/featured_testimonials';
+  window.__rows = [
+    { var: 'title', type: 'text', label: 'Title' },
+    { var: 'entries', type: 'replicator', label: 'Testimonials', loop: true },
+    { var: 'text', type: 'textarea', label: 'Text', parent: 'entries' },
+    { var: 'name', type: 'text', label: 'Name', parent: 'entries' },
+  ];
+});
+await start('<h2 class="x" |>{{ title }}</h2>', { body: { ok: true, text: 'from the AI' } });
+await page.keyboard.type('{{ visual_');
+await pause(400);
+s = await state();
+check('with the section\'s fields, {{ visual_ is finished at once, without the AI', s.ghost === 'edit field="title" inline_edit="true" }}' && s.requests === 0, `${JSON.stringify(s.ghost)} requests ${s.requests}`);
+
+await start('<ul class="list">|\n</ul>', { body: { ok: true, text: 'from the AI' } });
+await page.keyboard.press('Enter');
+await pause(400);
+s = await state();
+check('Enter in a <ul>: the loop over the list, at once', s.requests === 0 && !!s.ghost?.startsWith('{{ entries }}') && s.ghost.includes('{{ /entries }}'), `${JSON.stringify(s.ghost)} requests ${s.requests}`);
+await page.keyboard.press('Tab');
+await pause(50);
+s = await state();
+check('… and Tab writes it', s.doc.includes('{{ entries }}') && s.doc.includes('{{ name }}') && s.doc.includes('{{ /entries }}'), s.doc);
 
 // Last, because it stops this editor asking: no key: said once, then no more asking.
 await start('<div>\n  |\n</div>', { status: 422, body: { message: 'Grey text needs an Anthropic API key' } });

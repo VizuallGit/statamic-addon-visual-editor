@@ -39,6 +39,8 @@ import { t } from '../lib/i18n.js';
 import { advanceGhost, ghostMode, lineBefore, nextWord, shouldAsk } from './ghost-suggest.js';
 import { countGhost, rememberTaken } from './ghost-memory.js';
 import { ghostPost, payload } from './ghost-request.js';
+import { instantSuggestion } from './ghost-instant.js';
+import { ghostFastAi } from './ghost-state.js';
 
 /** How long typing has to pause before grey text is asked for — short, as in Copilot. */
 export const WAIT = 150;
@@ -325,6 +327,25 @@ async function ask(state, gen) {
   }
 
   const mode = ghostMode(full, pos);
+
+  // The common moves — a loop in a list, an item's fields, visual_edit, a
+  // state in x-data — come from the section's own fields, at once and free.
+  const instant = mode === 'comment' ? '' : instantSuggestion(full, pos, body.fields);
+
+  if (instant) {
+    ghostIds += 1;
+    view.dispatch({ effects: parts().setGhost.of({ text: instant, at: head, id: ghostIds, line: lineBefore(full, pos) }) });
+    countGhost(win, 'shown');
+
+    return;
+  }
+
+  // The rest is the AI's while it answers in time to be grey text. On Cursor
+  // (many seconds) only a described block asks; "Writing …" says it comes.
+  if (mode !== 'comment' && !ghostFastAi(win)) {
+    return;
+  }
+
   const writing = () => view.dispatch({ effects: parts().setGhost.of({ text: '', at: head, pending: t(win, 'code_dock_ghost_writing') }) });
   let slow = 0;
 

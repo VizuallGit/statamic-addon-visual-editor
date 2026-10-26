@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
 use MarioHamann\StatamicVisualEditor\AiChat;
+use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\AiCopy;
 use MarioHamann\StatamicVisualEditor\CollectionPresets;
 use MarioHamann\StatamicVisualEditor\RowLimits;
@@ -93,6 +94,9 @@ final class ControlPanelScript
                 // The keyboard shortcuts' built-in and site layers, the locked
                 // ones and the tools' names; each user's own are a chrome pref.
                 'sveShortcuts' => Shortcuts::forScript(),
+                // Cursor or Claude behind the grey text: on Cursor only a comment
+                // and ⌘K ask it (dock/ghost-state.js).
+                'sveGhostProvider' => DockGhost::provider(),
                 'sveAiReady' => AiChat::ready(),
                 'sveAiTextReady' => AiCopy::ready(),
                 'sveComments' => static::commentsPayload(),
