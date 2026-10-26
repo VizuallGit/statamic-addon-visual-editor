@@ -12,12 +12,16 @@ import {
   unusedFirst,
   withVisualEdit,
 } from './context.js';
+import { isUrlField } from './link.js';
 
 /** Elements that hold a line of text. */
 export const TEXT_TAGS = new Set([
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'li', 'strong', 'em', 'small',
   'blockquote', 'figcaption', 'label', 'button', 'td', 'th', 'dt', 'dd',
 ]);
+
+/** Elements whose text is one line from a text field: never a textarea, never Bard. */
+const LINE_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'strong', 'em', 'a', 'button']);
 
 const HEADING = /^h[1-6]$/;
 
@@ -26,14 +30,28 @@ const TEXT_ROWS = 2;
 
 /**
  * Whether a field's text belongs in the element: a `<div>` holds blocks —
- * Bard or Markdown, never a line; a `<button>` holds a line, never blocks.
+ * Bard or Markdown, never a line; a heading, a link or a button one line; a
+ * `<p>` a line or Bard, which turns it into a `<div>` (below). An `<a>`'s
+ * URL field is its href, not its text.
  */
 function fits(tag, row) {
   if (tag === 'div') {
     return BLOCK_TEXT_TYPES.has(row.type);
   }
 
-  return TEXT_TYPES.has(row.type) && !(tag === 'button' && BLOCK_TEXT_TYPES.has(row.type));
+  if (tag === 'a' && isUrlField(row)) {
+    return false;
+  }
+
+  if (LINE_TAGS.has(tag)) {
+    return row.type === 'text';
+  }
+
+  if (tag === 'p') {
+    return row.type === 'text' || BLOCK_TEXT_TYPES.has(row.type);
+  }
+
+  return TEXT_TYPES.has(row.type);
 }
 
 export function textRule(ctx) {
@@ -65,13 +83,15 @@ export function textRule(ctx) {
     const tag = node.tag === 'p' && BLOCK_TEXT_TYPES.has(row.type) ? 'div' : node.tag;
     const open = openTagOf(ctx);
     const renamed = tag === node.tag ? open.text : `<${tag}${open.text.slice(1 + node.tag.length)}`;
-    const head = withVisualEdit(renamed, `{{ visual_edit field="${row.var}" inline_edit="true" }}`);
+    // On a <div> the field is added and pointed at; its editing comes with visual_edit's parts.
+    const added = node.tag === 'div';
+    const head = withVisualEdit(renamed, `{{ visual_edit field="${row.var}"${added ? '' : ' inline_edit="true"'} }}`);
     const body = `{{ ${row.var} }}`;
     const insert = `${head}${body}</${tag}>`;
 
     return {
       id: `text:${row.var}`,
-      key: 'code_dock_help_text',
+      key: added ? 'code_dock_help_add_field' : 'code_dock_help_text',
       args: { name: row.label || row.var },
       meta: row.value || body,
       changes: [{ from: node.from, to, insert }],

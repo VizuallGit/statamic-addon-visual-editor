@@ -139,24 +139,6 @@ export function sectionScaffold(win) {
   return typeof text === 'string' ? text : '';
 }
 
-/**
- * The site's shared block partials (`sveBlockPartials`, BlockPartials.php):
- * the `src` a section writes for a set — `blocks/{type}` — the handles the
- * folder holds, and the image partial (`components/image`, '' when the site
- * has none). Empty from a PHP older than the bundle, or a site with the
- * folder turned off.
- *
- * @returns {{ src: string, handles: string[], image: string }}
- */
-export function blockPartials(win) {
-  const given = win.Statamic?.$config?.get?.('sveBlockPartials');
-  const src = typeof given?.src === 'string' ? given.src : '';
-  const handles = Array.isArray(given?.handles) ? given.handles.filter((name) => typeof name === 'string') : [];
-  const image = typeof given?.image === 'string' ? given.image : '';
-
-  return { src, handles, image };
-}
-
 /** The scaffold presets the site offers (`sveCollectionPresets`), always a list. */
 export function collectionPresets(win) {
   const list = win.Statamic?.$config?.get?.('sveCollectionPresets');

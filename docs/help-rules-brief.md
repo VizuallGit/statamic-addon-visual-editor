@@ -1,10 +1,12 @@
 # Help rules in the HTML dock — brief for Opus (step 2 of 3)
 
-> **Status:** done and merged (v1.1.620). The matrix below is implemented in
-> `help-rules/{blocks,link,media,text,list,attrs}.js`. The image partial now
-> comes from PHP as `blockPartials.image` (`templates.image_partial`), so no
-> image help is offered on a site without the file. Open product questions
-> from step 2 are listed at the end.
+> **Status: superseded.** This brief was wrong on one point that mattered:
+> it asked for partials (`blocks/{type}`, `components/image`). Help never
+> writes a partial or a component — the tag the author typed stays that
+> tag. The approved specification is the site's
+> `docs/hjaelp-i-docken-tags.html` (vizuall-skabelon), tag by tag; the rules
+> in `help-rules/` follow it, `templates.blocks` / `templates.image_partial`
+> and `BlockPartials` are gone. Kept for the history of the rule contract.
 
 You are extending **help mode** in the Visual Editor's template dock. When an
 author types a tag (or clicks into one) in the HTML pane, a small popup offers

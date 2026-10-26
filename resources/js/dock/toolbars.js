@@ -17,7 +17,7 @@ import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMod
 import { paintAll } from './all.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
 import { paintCssHead } from './css-sizes.js';
-import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane, toggleHtmlPagination } from './html-tools.js';
+import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlDivMenu, openHtmlTagMenu, tidyHtmlPane, toggleHtmlPagination } from './html-tools.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
 import { bindHelpToggle } from './help-toggle.js';
@@ -316,6 +316,12 @@ export function bindHtmlTools(win, dock) {
 
       if (tool.menu === 'text') {
         openHtmlTagMenu(win, btn, TEXT_TAGS);
+
+        return;
+      }
+
+      if (tool.menu === 'div') {
+        openHtmlDivMenu(win, btn);
 
         return;
       }

@@ -34,6 +34,7 @@ class ChromePrefsController
         'sve-code-dock-help',
         'sve-code-dock-help-click',
         'sve-code-dock-help-picker',
+        'sve-code-dock-help-counts',
         'sve-ai-panel-mode',
         'sve-listview-tab',
         'sve-toolbar-hidden',

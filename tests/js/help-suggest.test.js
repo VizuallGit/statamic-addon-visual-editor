@@ -5,9 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HELP_MAX, helpSuggestions, shiftSuggestion } from '../../resources/js/dock/help-suggest.js';
-import { RULES, TAIL_RULES, runRules } from '../../resources/js/dock/help-rules/index.js';
-import { blockPartialSrc, buildContext, hasBlockPartial } from '../../resources/js/dock/help-rules/context.js';
-import { blockPartials } from '../../resources/js/lib/config.js';
+import { HEAD_RULES, ONLY_RULES, RULES, TAIL_RULES, runRules } from '../../resources/js/dock/help-rules/index.js';
+import { buildContext } from '../../resources/js/dock/help-rules/context.js';
 
 /** SectionTypeMaker::scaffold(), as the dock is handed it. */
 const SCAFFOLD = [
@@ -44,7 +43,6 @@ const BLOCKS = [
   { var: 'media', label: 'Media', type: 'assets', loop: true, parent: 'blocks › media' },
 ];
 
-const PARTIALS = { src: 'blocks/{type}', handles: ['headline', 'richtext', 'links', 'media', 'icon', 'title', 'text', 'content'], image: 'components/image' };
 
 /** A replicator with one set the site has a block partial for, and one it has not. */
 const MIXED_SETS = [
@@ -64,6 +62,8 @@ const apply = (html, suggestion) =>
 const caret = (html, marker = '|') => ({ html: html.replace(marker, ''), at: html.indexOf(marker) });
 
 const ids = (list) => list.map((item) => item.id);
+
+const byId = (list, id) => list.find((item) => item.id === id);
 
 test('the section root: written the way a new section starts', () => {
   const { html, at } = caret('<sec|tion>\n</section>');
@@ -137,15 +137,15 @@ test('fields the file does not print yet come first', () => {
   const { html, at } = caret('<h1>{{ title }}</h1>\n<p>|</p>');
   const fields = [
     { var: 'title', label: 'Title', type: 'text' },
-    { var: 'intro', label: 'Intro', type: 'textarea' },
+    { var: 'intro', label: 'Intro', type: 'text' },
   ];
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields })).slice(0, 2), ['text:intro', 'text:title']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields })).slice(1, 3), ['text:intro', 'text:title']);
 });
 
 test('<ul> over a grid: the list, its rows and their fields', () => {
   const { html, at } = caret('<ul>|</ul>');
-  const [loop] = helpSuggestions(html, at, { fields: GRID });
+  const loop = byId(helpSuggestions(html, at, { fields: GRID }), 'loop:items');
 
   assert.equal(loop.id, 'loop:items');
   assert.equal(loop.meta, 'grid · 3 rows');
@@ -191,18 +191,17 @@ test('a replicator gets a branch per set, the way feature_list_icons is built', 
 
 test('a <ul> just typed, not closed yet, above other markup', () => {
   const { html, at } = caret('<div>\n    <ul>|\n    <p>Below</p>\n</div>');
-  const [loop] = helpSuggestions(html, at, { fields: GRID });
+  const loop = byId(helpSuggestions(html, at, { fields: GRID }), 'loop:items');
   const out = apply(html, loop);
 
-  assert.equal(loop.id, 'loop:items');
   assert.ok(out.includes('    </ul>\n    <p>Below</p>\n</div>'), out);
 });
 
-test('inside a loop, the loop’s own fields', () => {
+test('inside a loop, the loop’s own fields — in a heading, its text field alone', () => {
   const { html, at } = caret('{{ items }}\n    <h3>|</h3>\n{{ /items }}');
   const suggestions = helpSuggestions(html, at, { fields: [{ var: 'heading', label: 'Heading', type: 'text' }, ...GRID] });
 
-  assert.deepEqual(ids(suggestions).slice(0, 2), ['text:title', 'text:text']);
+  assert.deepEqual(ids(suggestions), ['class', 'text:title']);
 });
 
 test('inside a collection loop the section’s fields are not what prints', () => {
@@ -238,10 +237,9 @@ test('a scoped pane: the file is asked, the pane is written', () => {
   const pane = '<p></p>';
   const offset = file.indexOf(pane);
   const fields = [{ var: 'title', label: 'Title', type: 'text' }];
-  const [inFile] = helpSuggestions(file, offset + 2, { fields });
+  const inFile = byId(helpSuggestions(file, offset + 2, { fields }), 'text:title');
   const inPane = shiftSuggestion(inFile, offset);
 
-  assert.equal(inPane.id, 'text:title');
   assert.equal(apply(pane, inPane), '<p {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</p>');
   assert.equal(inPane.selection, inFile.selection - offset);
   assert.equal(shiftSuggestion(inFile, 0), inFile, 'the whole file in the pane: nothing to move');
@@ -253,12 +251,13 @@ test('a scoped pane: the file is asked, the pane is written', () => {
   assert.equal(shiftSuggestion(loop, 10).selection, null);
 });
 
-test('never more than the popup shows — plus the id row, always last — and nothing for a caret outside markup', () => {
-  const { html, at } = caret('<p|></p>');
-  const fields = ['a', 'b', 'c', 'd'].map((name) => ({ var: name, label: name, type: 'text' }));
+test('never more than the popup shows between the class, always first, and the id, always last — and nothing for a caret outside markup', () => {
+  const { html, at } = caret('<img|>');
+  const fields = ['a', 'b', 'c', 'd'].map((name) => ({ var: name, label: name, type: 'assets' }));
   const suggestions = helpSuggestions(html, at, { fields });
 
-  assert.equal(suggestions.length, HELP_MAX + 1);
+  assert.equal(suggestions.length, 1 + HELP_MAX + 1);
+  assert.equal(suggestions[0].id, 'class');
   assert.equal(suggestions.at(-1).id, 'id');
   assert.deepEqual(helpSuggestions('<p></p>\n', 8), []);
   assert.deepEqual(helpSuggestions('<p></p>', -1), []);
@@ -289,7 +288,7 @@ test('no id on an element that has one, inside a loop, or where the shell writes
   assert.ok(!ids(helpSuggestions(inCollection.html, inCollection.at)).includes('id'));
 
   const root = caret('<section>|</section>');
-  assert.deepEqual(ids(helpSuggestions(root.html, root.at, { sectionPartial: true, shellRoot: SCAFFOLD })), ['shell']);
+  assert.deepEqual(ids(helpSuggestions(root.html, root.at, { sectionPartial: true, shellRoot: SCAFFOLD })), ['shell', 'x-data']);
 });
 
 test('what the editor does after a row: the class opens the picker, a loop tag the loop panel', () => {
@@ -305,7 +304,7 @@ test('what the editor does after a row: the class opens the picker, a loop tag t
   assert.equal(helpSuggestions(same.html, same.at).find((item) => item.id === 'class-same').after, undefined);
 });
 
-test('the registry: primary rules fill the cap in order and see what came before; tail rules come after the cap', () => {
+test('the registry: the middle fills the cap in order — or by counts — and sees what came before; the head stands first and the tail last, outside the cap', () => {
   const ctx = { node: { tag: 'x' } };
   const row = (id) => ({ id, key: 'k', args: {}, meta: '', changes: [], selection: null });
   const rules = [
@@ -313,170 +312,120 @@ test('the registry: primary rules fill the cap in order and see what came before
     (_, offered) => (offered.some((item) => item.id === 'a') ? [row('c')] : []),
     () => [row('d'), null],
   ];
+  const head = [(_, offered) => [row(`head:${offered.length}`)]];
   const tail = [(_, offered) => [row(`tail:${offered.length}`)]];
+  const lists = { only: [], head, rules, tail };
 
-  assert.deepEqual(ids(runRules(ctx, 3, rules, tail)), ['a', 'b', 'c', 'tail:3']);
-  assert.deepEqual(ids(runRules(ctx, 10, rules, tail)), ['a', 'b', 'c', 'd', 'tail:4']);
+  assert.deepEqual(ids(runRules(ctx, 3, {}, lists)), ['head:3', 'a', 'b', 'c', 'tail:4']);
+  assert.deepEqual(ids(runRules(ctx, 10, {}, lists)), ['head:4', 'a', 'b', 'c', 'd', 'tail:5']);
+  assert.deepEqual(ids(runRules(ctx, 3, { x: { d: 2, b: 1 } }, lists)), ['head:3', 'd', 'b', 'a', 'tail:4']);
+
+  // A rule of its own tag answers alone.
+  assert.deepEqual(ids(runRules(ctx, 3, {}, { ...lists, only: [() => [row('alone')]] })), ['alone']);
 });
 
-test('the block partials reach the rules as { src, handles }, and a set’s src is written from them', () => {
-  const { html, at } = caret('<div>|</div>');
-  const ctx = buildContext(html, at, {
-    rows: [],
-    blocks: [],
-    sectionPartial: false,
-    shellRoot: '',
-    blockPartials: { src: 'blocks/{type}', handles: ['headline', 'richtext', 7], image: 'components/image' },
-  });
-
-  assert.deepEqual(ctx.blockPartials, { src: 'blocks/{type}', handles: ['headline', 'richtext'], image: 'components/image' });
-  assert.equal(hasBlockPartial(ctx, 'richtext'), true);
-  assert.equal(hasBlockPartial(ctx, 'hero'), false);
-  assert.equal(blockPartialSrc(ctx, 'richtext'), 'blocks/richtext');
-
-  const none = buildContext(html, at, { rows: [], blocks: [], blockPartials: null });
-  assert.deepEqual(none.blockPartials, { src: '', handles: [], image: '' });
-  assert.equal(hasBlockPartial(none, 'richtext'), false);
-});
-
-test('blockPartials(win): what PHP hands over, or nothing from an older PHP', () => {
-  const win = (value) => ({ Statamic: { $config: { get: (key) => (key === 'sveBlockPartials' ? value : undefined) } } });
-
-  assert.deepEqual(blockPartials(win({ src: 'blocks/{type}', handles: ['links'], image: 'components/image' })), { src: 'blocks/{type}', handles: ['links'], image: 'components/image' });
-  assert.deepEqual(blockPartials(win(undefined)), { src: '', handles: [], image: '' });
-  assert.deepEqual(blockPartials({}), { src: '', handles: [], image: '' });
-});
-
-test('help-rules/index.js: the rules in the order their rows show, the id last', () => {
+test('help-rules/index.js: the rules in the order their rows show — the class first, the id last', () => {
+  assert.deepEqual(ONLY_RULES.map((rule) => rule.name), ['ifTagRule']);
+  assert.deepEqual(HEAD_RULES.map((rule) => rule.name), ['classRule']);
   assert.deepEqual(RULES.map((rule) => rule.name), [
     'sectionRule',
+    'visualEditRule',
     'blocksRule',
     'linkRule',
     'listRule',
     'textRule',
-    'mediaRule',
+    'alpineRule',
+    'sourceRule',
     'imgRule',
-    'classRule',
   ]);
   assert.deepEqual(TAIL_RULES.map((rule) => rule.name), ['idRule']);
 });
 
-/* ---- section: the blocks wrapper ------------------------------------------ */
+/* ---- section -------------------------------------------------------------- */
 
-test('the section root with its shell: the blocks wrapper — a <div>, a branch per set, each set its block partial', () => {
-  const { html, at } = caret(SCAFFOLD.replace('>\n\n</section>', '>\n|\n</section>'));
-  const suggestions = helpSuggestions(html, at, { fields: BLOCKS, blockPartials: PARTIALS, sectionPartial: true, shellRoot: SCAFFOLD });
-
-  assert.deepEqual(ids(suggestions), ['blocks:blocks']);
-
-  const [blocks] = suggestions;
-  const out = apply(html, blocks);
-
-  assert.equal(blocks.key, 'code_dock_help_blocks');
-  assert.deepEqual(blocks.args, { name: 'Blocks' });
-  assert.equal(blocks.meta, 'replicator · 2 ×');
-  assert.equal(
-    out,
-    [
-      '{{# sve-unlocked #}}',
-      '<section id="id-{{ id }}" class="" {{ visual_edit outline_inside="true" section_orderable="true" }}>',
-      '    <div class="" {{ visual_edit field="blocks" outline_inside="true" insertable="true" }}>',
-      '        {{ blocks }}',
-      "            {{ if type == 'headline' }}",
-      '                {{ partial src="blocks/headline" }}',
-      "            {{ elseif type == 'richtext' }}",
-      '                {{ partial src="blocks/richtext" }}',
-      "            {{ elseif type == 'links' }}",
-      '                {{ partial src="blocks/links" }}',
-      "            {{ elseif type == 'media' }}",
-      '                {{ partial src="blocks/media" }}',
-      '            {{ /if }}',
-      '        {{ /blocks }}',
-      '    </div>',
-      '</section>',
-      '',
-    ].join('\n')
-  );
-  assert.equal(out.slice(blocks.selection), '\n</section>\n', 'the caret after the wrapper, inside the section');
-});
-
-test('no blocks wrapper on the section before its shell, with markup inside, without block partials, or for a grid', () => {
-  const options = { fields: BLOCKS, blockPartials: PARTIALS, sectionPartial: true, shellRoot: SCAFFOLD };
+test('no blocks wrapper and no loop on the section — before its shell, with markup inside, partials on the site or not', () => {
+  const options = { fields: BLOCKS, sectionPartial: true, shellRoot: SCAFFOLD };
   const bare = caret('<section>|</section>');
 
-  assert.deepEqual(ids(helpSuggestions(bare.html, bare.at, options)), ['shell']);
+  assert.deepEqual(ids(helpSuggestions(bare.html, bare.at, options)), ['shell', 'x-data']);
 
   const full = caret('<section id="id-{{ id }}" class="">\n    <h2>Hej</h2>|\n</section>');
 
-  assert.deepEqual(ids(helpSuggestions(full.html, full.at, options)), []);
+  assert.deepEqual(ids(helpSuggestions(full.html, full.at, options)), ['x-data']);
 
   const shelled = caret('<section id="id-{{ id }}" class="">|</section>');
 
-  assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, options)), ['blocks:blocks']);
-  assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, { ...options, blockPartials: { src: '', handles: PARTIALS.handles } })), []);
-  assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, { ...options, fields: GRID })), [], 'no loop directly under a section');
+  assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, options)), ['x-data']);
+  assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, { ...options, fields: GRID })), ['x-data'], 'no loop directly under a section');
 });
 
 /* ---- div ------------------------------------------------------------------ */
 
-test('an empty <div> over a replicator of block partials: the div itself becomes the blocks wrapper', () => {
+test('an empty <div> over a replicator: the div is the wrapper, its rows <div>s, each set its fields — no partial where the site has them', () => {
   const { html, at } = caret('    <div class="content">|</div>');
-  const suggestions = helpSuggestions(html, at, { fields: BLOCKS, blockPartials: PARTIALS });
+  const suggestions = helpSuggestions(html, at, { fields: BLOCKS });
 
-  assert.deepEqual(ids(suggestions), ['blocks:blocks', 'id']);
+  assert.deepEqual(ids(suggestions), ['visual-edit', 'loop:blocks', 'id']);
 
-  const out = apply(html, suggestions[0]);
+  const loop = byId(suggestions, 'loop:blocks');
+  const out = apply(html, loop);
 
+  assert.equal(loop.key, 'code_dock_help_loop');
   assert.equal(
     out,
     [
       '    <div class="content" {{ visual_edit field="blocks" outline_inside="true" insertable="true" }}>',
       '        {{ blocks }}',
-      "            {{ if type == 'headline' }}",
-      '                {{ partial src="blocks/headline" }}',
-      "            {{ elseif type == 'richtext' }}",
-      '                {{ partial src="blocks/richtext" }}',
-      "            {{ elseif type == 'links' }}",
-      '                {{ partial src="blocks/links" }}',
-      "            {{ elseif type == 'media' }}",
-      '                {{ partial src="blocks/media" }}',
-      '            {{ /if }}',
+      '            <div class="" {{ visual_edit orderable="true" }}>',
+      "                {{ if type == 'headline' }}",
+      '                    <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>',
+      "                {{ elseif type == 'richtext' }}",
+      '                    <div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>',
+      "                {{ elseif type == 'links' }}",
+      '                    {{ links }}',
+      '                        <p {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</p>',
+      '                    {{ /links }}',
+      '                {{ /if }}',
+      '            </div>',
       '        {{ /blocks }}',
       '    </div>',
     ].join('\n')
   );
-  assert.equal(suggestions[0].selection, out.length);
+  assert.ok(out.slice(0, loop.selection).endsWith('{{ blocks }}\n            <div class="" {{ visual_edit orderable="true" }}>'));
 });
 
-test('a set the site has no block partial for keeps its fields in its branch', () => {
+test('a replicator on a <div>: every set field by field, the same with the site’s partials or without', () => {
   const { html, at } = caret('<div>|</div>');
-  const [blocks] = helpSuggestions(html, at, { fields: MIXED_SETS, blockPartials: PARTIALS });
+  const loop = byId(helpSuggestions(html, at, { fields: MIXED_SETS }), 'loop:content');
+  const out = apply(html, loop);
 
-  assert.equal(blocks.id, 'blocks:content');
   assert.equal(
-    apply(html, blocks),
+    out,
     [
       '<div class="" {{ visual_edit field="content" outline_inside="true" insertable="true" }}>',
       '    {{ content }}',
-      "        {{ if type == 'headline' }}",
-      '            {{ partial src="blocks/headline" }}',
-      "        {{ elseif type == 'quote' }}",
-      '            <p {{ visual_edit field="quote" inline_edit="true" }}>{{ quote }}</p>',
-      '            <p {{ visual_edit field="author" inline_edit="true" }}>{{ author }}</p>',
-      '        {{ /if }}',
+      '        <div class="" {{ visual_edit orderable="true" }}>',
+      "            {{ if type == 'headline' }}",
+      '                <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>',
+      "            {{ elseif type == 'quote' }}",
+      '                <p {{ visual_edit field="quote" inline_edit="true" }}>{{ quote }}</p>',
+      '                <p {{ visual_edit field="author" inline_edit="true" }}>{{ author }}</p>',
+      '            {{ /if }}',
+      '        </div>',
       '    {{ /content }}',
       '</div>',
     ].join('\n')
   );
+  assert.equal(apply(html, byId(helpSuggestions(html, at, { fields: MIXED_SETS }), 'loop:content')), out);
 });
 
 test('an empty <div> over a grid: rows of <div>s, the way the list writes <li>s', () => {
   const { html, at } = caret('<div>|</div>');
-  const suggestions = helpSuggestions(html, at, { fields: GRID, blockPartials: PARTIALS });
+  const suggestions = helpSuggestions(html, at, { fields: GRID });
 
-  assert.deepEqual(ids(suggestions), ['loop:items', 'class', 'id']);
+  assert.deepEqual(ids(suggestions), ['class', 'visual-edit', 'loop:items', 'id']);
 
-  const [loop] = suggestions;
+  const loop = byId(suggestions, 'loop:items');
   const out = apply(html, loop);
 
   assert.equal(loop.key, 'code_dock_help_loop');
@@ -497,11 +446,10 @@ test('an empty <div> over a grid: rows of <div>s, the way the list writes <li>s'
   assert.ok(out.slice(0, loop.selection).endsWith('{{ items }}\n        <div class="" {{ visual_edit orderable="true" }}>'));
 });
 
-test('a replicator with no block-partial set: rows of <div>s — and the loops inside them still use the partials', () => {
+test('a replicator inside a <div>’s rows: the loops inside are written field by field too', () => {
   const { html, at } = caret('<div>|</div>');
-  const [loop] = helpSuggestions(html, at, { fields: FEATURE_LIST, blockPartials: PARTIALS });
+  const loop = byId(helpSuggestions(html, at, { fields: FEATURE_LIST }), 'loop:list');
 
-  assert.equal(loop.id, 'loop:list');
   assert.equal(loop.key, 'code_dock_help_loop');
   assert.equal(
     apply(html, loop),
@@ -510,12 +458,10 @@ test('a replicator with no block-partial set: rows of <div>s — and the loops i
       '    {{ list }}',
       '        <div class="" {{ visual_edit orderable="true" }}>',
       '            {{ blocks }}',
-      "                {{ if type == 'icon' }}",
-      '                    {{ partial src="blocks/icon" }}',
-      "                {{ elseif type == 'title' }}",
-      '                    {{ partial src="blocks/title" }}',
+      "                {{ if type == 'title' }}",
+      '                    <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>',
       "                {{ elseif type == 'text' }}",
-      '                    {{ partial src="blocks/text" }}',
+      '                    <div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>',
       '                {{ /if }}',
       '            {{ /blocks }}',
       '        </div>',
@@ -534,85 +480,62 @@ test('a <div> takes text only from Bard or Markdown — never a text or textarea
   ];
   const suggestions = helpSuggestions(html, at, { fields });
 
-  assert.deepEqual(ids(suggestions), ['text:text', 'class', 'id']);
-  assert.equal(suggestions[0].key, 'code_dock_help_text');
-  assert.equal(apply(html, suggestions[0]), '<div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>');
+  assert.deepEqual(ids(suggestions), ['class', 'visual-edit', 'text:text', 'id']);
+
+  const text = byId(suggestions, 'text:text');
+
+  assert.equal(text.key, 'code_dock_help_add_field');
+  assert.equal(apply(html, text), '<div {{ visual_edit field="text" }}>{{ text }}</div>');
 
   const fixed = caret('<div>Lorem| ipsum</div>');
 
-  assert.deepEqual(ids(helpSuggestions(fixed.html, fixed.at, { fields: fields.slice(0, 2) })), ['class', 'id']);
+  assert.deepEqual(ids(helpSuggestions(fixed.html, fixed.at, { fields: fields.slice(0, 2) })), ['class', 'visual-edit', 'id']);
 });
 
-test('an empty <div> over a file field: the media wrapper, one image partial line and no <img>', () => {
+test('no file row on a <div> — files belong to img and video', () => {
   const { html, at } = caret('<div>|</div>');
-  const suggestions = helpSuggestions(html, at, { fields: MEDIA, blockPartials: PARTIALS });
 
-  assert.deepEqual(ids(suggestions), ['media:media', 'class', 'id']);
-
-  const [media] = suggestions;
-  const out = apply(html, media);
-
-  assert.equal(media.key, 'code_dock_help_media');
-  assert.deepEqual(media.args, { name: 'Media' });
-  assert.equal(
-    out,
-    [
-      '<div class="" {{ visual_edit field="media" outline_inside="true" inline_edit="true" }}>',
-      '    {{ partial:components/image :imagePath="media" class="" }}',
-      '</div>',
-    ].join('\n')
-  );
-  assert.equal(media.selection, out.length);
-  assert.ok(!out.includes('<img'));
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields: MEDIA })), ['class', 'visual-edit', 'id']);
 });
 
-test('no image help on a site without the image partial — the <img> still gets its attributes', () => {
-  const div = caret('<div>|</div>');
+test('an <img> stays an <img>: its sources, never a partial', () => {
   const img = caret('<img|>');
-  const none = { src: 'blocks/{type}', handles: ['media'], image: '' };
+  const suggestions = helpSuggestions(img.html, img.at, { fields: MEDIA });
 
-  assert.deepEqual(ids(helpSuggestions(div.html, div.at, { fields: MEDIA, blockPartials: none })), ['class', 'id']);
-  assert.deepEqual(ids(helpSuggestions(div.html, div.at, { fields: MEDIA })), ['class', 'id']);
-  assert.deepEqual(ids(helpSuggestions(img.html, img.at, { fields: MEDIA, blockPartials: none })), ['img-attrs', 'class', 'id']);
-
-  // The partial's name is the site's, not a constant here.
-  const other = helpSuggestions(img.html, img.at, { fields: MEDIA, blockPartials: { ...none, image: 'components/picture' } })[0];
-
-  assert.equal(apply(img.html, other), '{{ partial:components/picture :imagePath="media" class="" }}');
-  assert.equal(other.meta, 'components/picture');
+  assert.deepEqual(ids(suggestions), ['class', 'img-src:media', 'src', 'alt', 'id']);
+  assert.ok(suggestions.every((item) => item.changes.every((change) => !change.insert.includes('partial'))));
 });
 
-test('a <div>: loops first, then Bard, then the image — the class gives way, the id stays last', () => {
+test('a <div>: visual_edit, its loops, then Bard — no image; the class first, the id last', () => {
   const { html, at } = caret('<div>|</div>');
   const fields = [{ var: 'body', label: 'Body', type: 'bard' }, ...MEDIA, ...GRID];
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields, blockPartials: PARTIALS })), ['loop:items', 'text:body', 'media:media', 'id']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields })), ['class', 'visual-edit', 'loop:items', 'text:body', 'id']);
 });
 
 test('a <div> inside the blocks loop: what the sets hold that fits a div', () => {
   const { html, at } = caret('{{ blocks }}\n    <div>|</div>\n{{ /blocks }}');
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields: BLOCKS, blockPartials: PARTIALS })), ['loop:links', 'text:text', 'media:media']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields: BLOCKS })), ['class', 'visual-edit', 'loop:links', 'text:text']);
 });
 
-test('no loop, text or image on a <div> that holds markup, or inside a collection loop', () => {
+test('no loop or text on a <div> that holds markup, or inside a collection loop', () => {
   const fields = [{ var: 'body', label: 'Body', type: 'bard' }, ...MEDIA, ...GRID];
   const full = caret('<div>\n    <p>Hej</p>|\n</div>');
 
-  assert.deepEqual(ids(helpSuggestions(full.html, full.at, { fields })), ['class', 'id']);
+  assert.deepEqual(ids(helpSuggestions(full.html, full.at, { fields })), ['class', 'visual-edit', 'id']);
 
   const loop = caret('{{ collection:services }}\n    <div>|</div>\n{{ /collection:services }}');
 
-  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: [...fields, ...BLOCKS], blockPartials: PARTIALS })), ['class']);
+  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: [...fields, ...BLOCKS] })), ['class', 'visual-edit']);
 });
 
 /* ---- ul / ol / li --------------------------------------------------------- */
 
-test('<ol> over a replicator of block partials: each <li> holds its set’s partial', () => {
+test('<ol> over a replicator: each <li> holds its set’s fields, a branch per set — no partial where the site has them', () => {
   const { html, at } = caret('<ol>|</ol>');
-  const [loop] = helpSuggestions(html, at, { fields: BLOCKS, blockPartials: PARTIALS });
+  const loop = byId(helpSuggestions(html, at, { fields: BLOCKS }), 'loop:blocks');
 
-  assert.equal(loop.id, 'loop:blocks');
   assert.equal(loop.key, 'code_dock_help_loop');
   assert.equal(
     apply(html, loop),
@@ -621,13 +544,13 @@ test('<ol> over a replicator of block partials: each <li> holds its set’s part
       '    {{ blocks }}',
       '        <li class="" {{ visual_edit orderable="true" }}>',
       "            {{ if type == 'headline' }}",
-      '                {{ partial src="blocks/headline" }}',
+      '                <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>',
       "            {{ elseif type == 'richtext' }}",
-      '                {{ partial src="blocks/richtext" }}',
+      '                <div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>',
       "            {{ elseif type == 'links' }}",
-      '                {{ partial src="blocks/links" }}',
-      "            {{ elseif type == 'media' }}",
-      '                {{ partial src="blocks/media" }}',
+      '                {{ links }}',
+      '                    <p {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</p>',
+      '                {{ /links }}',
       '            {{ /if }}',
       '        </li>',
       '    {{ /blocks }}',
@@ -636,52 +559,36 @@ test('<ol> over a replicator of block partials: each <li> holds its set’s part
   );
 });
 
-test('feature_list_icons with the site’s block partials: the blocks inside each <li> are written as partials', () => {
+test('feature_list_icons with the site’s block partials: the same list as without them', () => {
   const { html, at } = caret('    <ul class="[ list ] wrapper">|</ul>');
-  const [loop] = helpSuggestions(html, at, { fields: FEATURE_LIST, blockPartials: PARTIALS });
+  const [housed] = helpSuggestions(html, at, { fields: FEATURE_LIST });
+  const [plain] = helpSuggestions(html, at, { fields: FEATURE_LIST });
 
-  assert.equal(
-    apply(html, loop),
-    [
-      '    <ul class="[ list ] wrapper" {{ visual_edit field="list" outline_inside="true" insertable="true" }}>',
-      '        {{ list }}',
-      '            <li class="" {{ visual_edit orderable="true" }}>',
-      '                {{ blocks }}',
-      "                    {{ if type == 'icon' }}",
-      '                        {{ partial src="blocks/icon" }}',
-      "                    {{ elseif type == 'title' }}",
-      '                        {{ partial src="blocks/title" }}',
-      "                    {{ elseif type == 'text' }}",
-      '                        {{ partial src="blocks/text" }}',
-      '                    {{ /if }}',
-      '                {{ /blocks }}',
-      '            </li>',
-      '        {{ /list }}',
-      '    </ul>',
-    ].join('\n')
-  );
+  assert.equal(housed.id, 'loop:list');
+  assert.equal(apply(html, housed), apply(html, plain));
 });
 
-test('an empty <li> in a loop whose row holds a replicator: a blocks wrapper <div> inside it', () => {
+test('an empty <li> in a loop whose row holds a replicator: a wrapper <div> inside it, its sets field by field', () => {
   const { html, at } = caret('<ul>\n    {{ list }}\n        <li>|</li>\n    {{ /list }}\n</ul>');
-  const suggestions = helpSuggestions(html, at, { fields: FEATURE_LIST, blockPartials: PARTIALS });
+  const suggestions = helpSuggestions(html, at, { fields: FEATURE_LIST });
 
-  assert.deepEqual(ids(suggestions), ['blocks:blocks', 'class']);
+  assert.deepEqual(ids(suggestions), ['class', 'loop:blocks']);
+  assert.equal(suggestions[1].key, 'code_dock_help_loop');
   assert.equal(
-    apply(html, suggestions[0]),
+    apply(html, suggestions[1]),
     [
       '<ul>',
       '    {{ list }}',
       '        <li>',
       '            <div class="" {{ visual_edit field="blocks" outline_inside="true" insertable="true" }}>',
       '                {{ blocks }}',
-      "                    {{ if type == 'icon' }}",
-      '                        {{ partial src="blocks/icon" }}',
-      "                    {{ elseif type == 'title' }}",
-      '                        {{ partial src="blocks/title" }}',
-      "                    {{ elseif type == 'text' }}",
-      '                        {{ partial src="blocks/text" }}',
-      '                    {{ /if }}',
+      '                    <div class="" {{ visual_edit orderable="true" }}>',
+      "                        {{ if type == 'title' }}",
+      '                            <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>',
+      "                        {{ elseif type == 'text' }}",
+      '                            <div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>',
+      '                        {{ /if }}',
+      '                    </div>',
       '                {{ /blocks }}',
       '            </div>',
       '        </li>',
@@ -689,12 +596,7 @@ test('an empty <li> in a loop whose row holds a replicator: a blocks wrapper <di
       '</ul>',
     ].join('\n')
   );
-
-  // Without block partials the replicator's sets are rows of <div>s, as in an empty <div>.
-  const plain = helpSuggestions(html, at, { fields: FEATURE_LIST });
-
-  assert.deepEqual(ids(plain), ['loop:blocks', 'class']);
-  assert.equal(plain[0].key, 'code_dock_help_loop');
+  assert.deepEqual(helpSuggestions(html, at, { fields: FEATURE_LIST }), suggestions, 'the same without block partials');
 });
 
 test('an <li> outside a loop is static: no text from a field — inside one it takes the loop’s', () => {
@@ -707,39 +609,39 @@ test('an <li> outside a loop is static: no text from a field — inside one it t
 
   const inside = caret('<ul>\n    {{ items }}\n        <li>|</li>\n    {{ /items }}\n</ul>');
 
-  assert.deepEqual(ids(helpSuggestions(inside.html, inside.at, { fields: GRID })), ['text:title', 'text:text', 'class']);
+  assert.deepEqual(ids(helpSuggestions(inside.html, inside.at, { fields: GRID })), ['class', 'text:title', 'text:text']);
 });
 
 /* ---- a -------------------------------------------------------------------- */
 
-test('an empty <a> where a link field prints: href and visual_edit from it, the text from the first text field', () => {
+test('an empty <a> where a link field prints: its URL row, «Add a URL» beside it, the text from a text field', () => {
   const { html, at } = caret('{{ blocks }}\n    {{ links }}\n        <a>|</a>\n    {{ /links }}\n{{ /blocks }}');
-  const suggestions = helpSuggestions(html, at, { fields: BLOCKS, blockPartials: PARTIALS });
+  const suggestions = helpSuggestions(html, at, { fields: BLOCKS });
 
-  assert.deepEqual(ids(suggestions), ['link:url', 'text:text', 'class']);
+  assert.deepEqual(ids(suggestions), ['class', 'url:url', 'href', 'text:text']);
 
-  const [link] = suggestions;
+  const link = byId(suggestions, 'url:url');
   const out = apply(html, link);
 
-  assert.equal(link.key, 'code_dock_help_link');
+  assert.equal(link.key, 'code_dock_help_url');
   assert.deepEqual(link.args, { name: 'URL' });
-  assert.equal(out, '{{ blocks }}\n    {{ links }}\n        <a href="{{ url }}" {{ visual_edit field="url" }}>{{ text }}</a>\n    {{ /links }}\n{{ /blocks }}');
-  assert.ok(out.slice(0, link.selection).endsWith('{{ text }}'));
+  assert.equal(out, '{{ blocks }}\n    {{ links }}\n        <a href="{{ url }}"></a>\n    {{ /links }}\n{{ /blocks }}');
+  assert.equal(out.slice(link.selection, link.selection + 4), '</a>');
 });
 
 test('a link field and no text field: the <a> keeps its class and stays empty, the caret inside it', () => {
   const { html, at } = caret('<a class="btn">|</a>');
   const suggestions = helpSuggestions(html, at, { fields: [{ var: 'url', label: 'URL', type: 'link' }] });
 
-  assert.deepEqual(ids(suggestions), ['link:url', 'id']);
+  assert.deepEqual(ids(suggestions), ['url:url', 'href', 'id']);
 
   const out = apply(html, suggestions[0]);
 
-  assert.equal(out, '<a href="{{ url }}" class="btn" {{ visual_edit field="url" }}></a>');
+  assert.equal(out, '<a href="{{ url }}" class="btn"></a>');
   assert.equal(out.slice(suggestions[0].selection), '</a>');
 });
 
-test('no link row on an <a> that has an href or holds text; no href row while a link field prints here', () => {
+test('no URL row on an <a> that has an href; one that holds text still gets it', () => {
   const fields = [{ var: 'url', label: 'URL', type: 'link' }];
   const has = caret('<a href="/kontakt">|</a>');
 
@@ -747,90 +649,79 @@ test('no link row on an <a> that has an href or holds text; no href row while a 
 
   const text = caret('<a>Læs mere|</a>');
 
-  assert.deepEqual(ids(helpSuggestions(text.html, text.at, { fields })), ['class', 'id']);
+  assert.deepEqual(ids(helpSuggestions(text.html, text.at, { fields })), ['class', 'url:url', 'href', 'id']);
 });
 
-test('an empty <a> where a links replicator prints: the links block partial in its place', () => {
+test('an empty <a> in a links set: no links block — an href and a text field', () => {
   const { html, at } = caret("{{ blocks }}\n    {{ if type == 'links' }}\n        <a class=\"btn\">|</a>\n    {{ /if }}\n{{ /blocks }}");
-  const suggestions = helpSuggestions(html, at, { fields: BLOCKS, blockPartials: PARTIALS });
+  const suggestions = helpSuggestions(html, at, { fields: BLOCKS });
 
-  assert.deepEqual(ids(suggestions), ['links-partial', 'href', 'text:title']);
-
-  const [partial] = suggestions;
-  const out = apply(html, partial);
-
-  assert.equal(partial.key, 'code_dock_help_links_partial');
-  assert.equal(partial.meta, 'blocks/links');
-  assert.equal(out, "{{ blocks }}\n    {{ if type == 'links' }}\n        {{ partial src=\"blocks/links\" }}\n    {{ /if }}\n{{ /blocks }}");
-  assert.ok(out.slice(0, partial.selection).endsWith('{{ partial src="blocks/links" }}'));
-
-  assert.ok(!ids(helpSuggestions(html, at, { fields: BLOCKS })).includes('links-partial'), 'no block partials');
-  assert.ok(
-    !ids(helpSuggestions(html, at, { fields: BLOCKS, blockPartials: { src: 'blocks/{type}', handles: ['headline'] } })).includes('links-partial'),
-    'no links partial on the site'
-  );
+  assert.deepEqual(ids(suggestions), ['href', 'text:title']);
+  assert.ok(suggestions.every((item) => item.changes.every((change) => !change.insert.includes('partial'))));
 });
 
-test('an <a> without href and no link field: href="" before the class, the caret between the quotes', () => {
+test('an <a> without href and no link field: href="" after the class row, the caret between the quotes', () => {
   const { html, at } = caret('<a|>Kontakt</a>');
   const suggestions = helpSuggestions(html, at);
 
-  assert.deepEqual(ids(suggestions), ['href', 'class', 'id']);
+  assert.deepEqual(ids(suggestions), ['class', 'href', 'id']);
 
-  const [href] = suggestions;
+  const href = byId(suggestions, 'href');
   const out = apply(html, href);
 
-  assert.equal(href.key, 'code_dock_help_href');
+  assert.equal(href.key, 'code_dock_help_add_url');
   assert.equal(out, '<a href="">Kontakt</a>');
   assert.equal(out.slice(href.selection - 6, href.selection + 1), 'href=""');
 });
 
 /* ---- img ------------------------------------------------------------------ */
 
-test('an <img> where a file field prints: the image partial in its place, the static class kept', () => {
+test('an <img> where a file field prints: it stays an <img>, its static class kept; no file rows in a collection loop', () => {
   const { html, at } = caret('<img class="w-full h-full object-cover"|>');
-  const suggestions = helpSuggestions(html, at, { fields: MEDIA, blockPartials: PARTIALS });
+  const suggestions = helpSuggestions(html, at, { fields: MEDIA });
 
-  assert.deepEqual(ids(suggestions), ['media:media', 'img-attrs', 'id']);
+  assert.deepEqual(ids(suggestions), ['img-src:media', 'src', 'alt', 'id']);
 
   const out = apply(html, suggestions[0]);
 
-  assert.equal(suggestions[0].key, 'code_dock_help_media');
-  assert.equal(out, '{{ partial:components/image :imagePath="media" class="w-full h-full object-cover" }}');
+  assert.equal(suggestions[0].key, 'code_dock_help_source');
+  assert.equal(out, '<img src="{{ media:url }}" class="w-full h-full object-cover" {{ visual_edit field="media" }}>');
   assert.equal(suggestions[0].selection, out.length);
 
-  const bare = caret('<img src="{{ url }}" class="{{ klass }}"|>');
+  const sourced = caret('<img src="{{ url }}" class="{{ klass }}"|>');
 
-  assert.equal(apply(bare.html, helpSuggestions(bare.html, bare.at, { fields: MEDIA, blockPartials: PARTIALS })[0]), '{{ partial:components/image :imagePath="media" class="" }}');
+  assert.deepEqual(ids(helpSuggestions(sourced.html, sourced.at, { fields: MEDIA })), ['alt', 'lazy', 'id']);
 
   const loop = caret('{{ collection:news }}\n    <img|>\n{{ /collection:news }}');
 
-  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: MEDIA, blockPartials: PARTIALS })), ['img-attrs', 'class']);
+  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: MEDIA })), ['class', 'src', 'alt', 'lazy']);
 });
 
-test('an <img> without src: src, lazy loading and alt — only the ones missing, the caret in src', () => {
+test('an <img> without src: src, alt and lazy loading as rows of their own — only the ones missing, the caret in src', () => {
   const { html, at } = caret('<img|>');
   const suggestions = helpSuggestions(html, at);
 
-  assert.deepEqual(ids(suggestions), ['img-attrs', 'class', 'id']);
+  assert.deepEqual(ids(suggestions), ['class', 'src', 'alt', 'lazy', 'id']);
 
-  const [attrs] = suggestions;
-  const out = apply(html, attrs);
+  const src = byId(suggestions, 'src');
+  const out = apply(html, src);
 
-  assert.equal(attrs.key, 'code_dock_help_img_attrs');
-  assert.equal(out, '<img src="" loading="lazy" alt="">');
-  assert.equal(out.slice(attrs.selection - 5, attrs.selection + 1), 'src=""');
+  assert.equal(src.key, 'code_dock_help_src');
+  assert.equal(out, '<img src="">');
+  assert.equal(out.slice(src.selection - 5, src.selection + 1), 'src=""');
 
   const some = caret('<img class="logo" alt="Vizuall" loading="eager"|>');
+  const left = helpSuggestions(some.html, some.at);
 
-  assert.equal(apply(some.html, helpSuggestions(some.html, some.at)[0]), '<img src="" class="logo" alt="Vizuall" loading="eager">');
+  assert.deepEqual(ids(left), ['src', 'id']);
+  assert.equal(apply(some.html, left[0]), '<img src="" class="logo" alt="Vizuall" loading="eager">');
 });
 
-test('an <img> with src and no alt: alt="", the caret inside; nothing when both are there', () => {
+test('an <img> with src and no alt: alt="", the caret inside, and lazy loading; only lazy when alt is there', () => {
   const { html, at } = caret('<img src="/logo.svg" class="logo"|>');
   const suggestions = helpSuggestions(html, at);
 
-  assert.deepEqual(ids(suggestions), ['alt', 'id']);
+  assert.deepEqual(ids(suggestions), ['alt', 'lazy', 'id']);
 
   const out = apply(html, suggestions[0]);
 
@@ -838,14 +729,19 @@ test('an <img> with src and no alt: alt="", the caret inside; nothing when both 
   assert.equal(out, '<img alt="" src="/logo.svg" class="logo">');
   assert.equal(out.slice(suggestions[0].selection - 5, suggestions[0].selection + 1), 'alt=""');
 
+  const lazy = apply(html, suggestions[1]);
+
+  assert.equal(lazy, '<img loading="lazy" src="/logo.svg" class="logo">');
+  assert.equal(lazy.slice(0, suggestions[1].selection), '<img loading="lazy"');
+
   const done = caret('<img src="/logo.svg" alt="Logo" class="logo"|>');
 
-  assert.deepEqual(ids(helpSuggestions(done.html, done.at)), ['id']);
+  assert.deepEqual(ids(helpSuggestions(done.html, done.at)), ['lazy', 'id']);
 });
 
 /* ---- headings, button ----------------------------------------------------- */
 
-test('a heading offers the title-like fields first — still unused first inside each group', () => {
+test('a heading offers the title-like fields first, a <p> the unused first — neither a textarea', () => {
   const fields = [
     { var: 'intro', label: 'Intro', type: 'textarea' },
     { var: 'title', label: 'Title', type: 'text' },
@@ -853,11 +749,11 @@ test('a heading offers the title-like fields first — still unused first inside
   ];
   const heading = caret('<h1>{{ title }}</h1>\n<h2>|</h2>');
 
-  assert.deepEqual(ids(helpSuggestions(heading.html, heading.at, { fields })).slice(0, 2), ['text:heading', 'text:title']);
+  assert.deepEqual(ids(helpSuggestions(heading.html, heading.at, { fields })), ['class', 'text:heading', 'text:title', 'id']);
 
   const paragraph = caret('<h1>{{ title }}</h1>\n<p>|</p>');
 
-  assert.deepEqual(ids(helpSuggestions(paragraph.html, paragraph.at, { fields })).slice(0, 2), ['text:intro', 'text:heading']);
+  assert.deepEqual(ids(helpSuggestions(paragraph.html, paragraph.at, { fields })), ['class', 'text:heading', 'text:title', 'id']);
 });
 
 test('a <button> takes no Bard or Markdown', () => {
@@ -867,5 +763,5 @@ test('a <button> takes no Bard or Markdown', () => {
     { var: 'text', label: 'Text', type: 'bard' },
   ];
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields })), ['text:label', 'class', 'id']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields })), ['class', 'text:label', 'id']);
 });

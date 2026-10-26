@@ -14,7 +14,7 @@ import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { elementInsertPoint } from './insert-point.js';
 import { findHtmlClose, readHtmlTag, skipHtmlNoise, tagAtCursor } from './tag-scan.js';
-import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
+import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
 import { onEditorInput } from './save.js';
 import { closeCssMenu, indentFromPrevious, lineIndentOf, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssScope, flushCssScope, rememberBracketNames, rememberCssSelectors } from './scope.js';
@@ -239,9 +239,10 @@ function isNonSelfNesting(tag) {
  *
  * A section carries the attributes the site configures for it, so a new one is
  * addressable and clickable in the preview from the moment it exists. Every
- * other tag opens bare.
+ * other tag opens bare — or with `classes` on it, when the div menu picked a
+ * layout (HTML_DIVS).
  */
-function openTagFor(tag) {
+function openTagFor(tag, classes = '') {
   // A link without an href is not a link yet; it opens with the attribute in
   // place, and the caret goes into it.
   if (tag === 'a') {
@@ -249,7 +250,7 @@ function openTagFor(tag) {
   }
 
   if (tag !== 'section') {
-    return `<${tag}>`;
+    return classes ? `<${tag} class="${classes}">` : `<${tag}>`;
   }
 
   const attrs = dockState.lastWin?.Statamic?.$config?.get?.('sveSectionTag');
@@ -287,7 +288,12 @@ export function tidyHtmlPane() {
   finishHtmlEdit();
 }
 
-export function applyHtmlTag(tag) {
+/**
+ * @param {string} tag
+ * @param {string} [classes]  a class the new element starts with (the div
+ *   menu's flex / wrapper); a wrap and a fresh element both get it
+ */
+export function applyHtmlTag(tag, classes = '') {
   const view = editors.html;
 
   if (!view || view.state.readOnly) {
@@ -315,7 +321,7 @@ export function applyHtmlTag(tag) {
       return;
     }
 
-    const open = openTagFor(tag);
+    const open = openTagFor(tag, classes);
     let insert = `${open}${selected}</${tag}>`;
     let innerFrom = sel.from + open.length;
 
@@ -388,7 +394,7 @@ export function applyHtmlTag(tag) {
 
     insertHtmlSnippet(snippet, `<ul>\n${indent}  <li>`.length);
   } else {
-    const open = openTagFor(tag);
+    const open = openTagFor(tag, classes);
     const snippet = `${open}</${tag}>`;
     const caret = tag === 'a'
       ? open.indexOf('""') + 1
@@ -502,7 +508,9 @@ function paintHtmlToolStateInner(win) {
     }
 
     const paging = tool.action === 'pagination';
-    const on = paging ? !!loop?.paginate : tool.id === 'heading' ? isHeadingTag(tag) : tag === tool.tag;
+    const on = paging
+      ? !!loop?.paginate
+      : tool.id === 'heading' ? isHeadingTag(tag) : tool.id === 'div' ? tag === 'div' : tag === tool.tag;
 
     if (paging) {
       btn.toggleAttribute('data-in-loop', !!loop);
@@ -544,6 +552,41 @@ export function openHtmlTagMenu(win, anchor, tags) {
     })),
     onPick: (tag) => {
       applyHtmlTag(tag);
+      closeCssMenu(doc);
+    },
+  });
+}
+
+/**
+ * Pick which div to write: bare, or with the class its layout starts from
+ * (HTML_DIVS) — one button, as with the headings. The order is the list's;
+ * it does not move with use.
+ */
+export function openHtmlDivMenu(win, anchor) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: HTML_DIVS.map((item) => ({
+      value: item.id,
+      label: t(win, item.lang),
+      active: false,
+    })),
+    onPick: (id) => {
+      const item = HTML_DIVS.find((other) => other.id === id);
+
+      if (item) {
+        applyHtmlTag('div', item.classes);
+      }
+
       closeCssMenu(doc);
     },
   });
