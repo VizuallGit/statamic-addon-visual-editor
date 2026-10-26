@@ -14,7 +14,7 @@ namespace MarioHamann\StatamicVisualEditor\DockGhost;
 final class Reply
 {
     /** Lines kept per way of asking: grey text is a line or a few; a described block may be long. */
-    public const MAX_LINES = ['line' => 8, 'comment' => 80, 'insert' => 120, 'edit' => 400];
+    public const MAX_LINES = ['line' => 8, 'block' => 30, 'comment' => 80, 'insert' => 120, 'edit' => 400];
 
     /** A repeat of the typed text counts from this many visible characters on. */
     public const MIN_REPEAT = 3;
@@ -23,7 +23,13 @@ final class Reply
     {
         $text = str_replace("\r\n", "\n", $text);
         $text = static::unfence($text);
+
+        if (static::prose($text)) {
+            return '';
+        }
+
         $text = static::withoutRepeat($text, $before);
+        $text = static::withinValue($text, Caret::of($before));
         $text = static::withoutIndent($text, $before);
         $text = static::withoutTail($text, $after);
 
@@ -78,6 +84,33 @@ final class Reply
             'cache_read' => (int) ($usage['cache_read_input_tokens'] ?? 0),
             'cache_write' => (int) ($usage['cache_creation_input_tokens'] ?? 0),
         ];
+    }
+
+    /**
+     * The model talking about the task instead of doing it — "The `<after>`
+     * text already contains …". A small model running without thinking now
+     * and then writes its reasoning as the answer; none of it is code to take.
+     */
+    public static function prose(string $text): bool
+    {
+        return (bool) preg_match('/<\/?(before|after|selection)>|`(before|after)`|\bthe caret\b|\bthe author\'s\b/i', $text);
+    }
+
+    /**
+     * A caret inside an attribute's value: the answer ends where the value
+     * does, so no markup runs on into the attribute.
+     *
+     * @param  array{kind: string, quote?: string}  $caret
+     */
+    protected static function withinValue(string $text, array $caret): string
+    {
+        if ($caret['kind'] !== 'attribute') {
+            return $text;
+        }
+
+        $end = strpos($text, $caret['quote']);
+
+        return $end === false ? $text : substr($text, 0, $end);
     }
 
     /** A whole answer in one fence: the inside. */

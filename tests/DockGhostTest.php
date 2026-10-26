@@ -6,6 +6,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\DockGhost;
+use MarioHamann\StatamicVisualEditor\DockGhost\Caret;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
 use MarioHamann\StatamicVisualEditor\DockGhost\Reply;
@@ -500,7 +501,8 @@ class DockGhostTest extends TestCase
         // No write scope: no file tools, no shell.
         $this->assertArrayNotHasKey('write', $sent);
         $this->assertStringStartsWith(Prompt::CONTEXT, $sent['prompt']);
-        $this->assertStringContainsString('Task: '.Prompt::TASKS['line'], $sent['prompt']);
+        // An empty line between elements: room for a block.
+        $this->assertStringContainsString('Task: '.Prompt::TASKS['block'], $sent['prompt']);
         $this->assertStringEndsWith(DockGhost::CURSOR_REPLY, $sent['prompt']);
         Http::assertNothingSent();
 
@@ -663,5 +665,78 @@ class DockGhostTest extends TestCase
         $this->assertTrue($out['ok']);
         $this->assertSame('', $out['text']);
         $this->assertSame(0, Usage::month()['requests']);
+    }
+
+    /* ---- Where the caret stands ---------------------------------------------- */
+
+    public function test_the_caret_is_read_from_the_markup_before_it(): void
+    {
+        $this->assertSame(
+            ['kind' => 'attribute', 'tag' => 'section', 'attribute' => 'x-data', 'quote' => '"'],
+            Caret::of('<section id="id-{{ id }}" class="wrapper" x-data="{ '),
+        );
+        $this->assertSame('attribute', Caret::of('<div x-show="count > 0 && name === \'Jo')['kind']);
+        $this->assertSame(['kind' => 'antlers', 'tag' => 'h2'], Caret::of('<h2 {{ visual_'));
+        $this->assertSame(['kind' => 'tag', 'tag' => 'ul'], Caret::of('<ul class="list" '));
+        $this->assertSame(['kind' => 'markup', 'fresh' => true, 'inside' => 'ul'], Caret::of("<section>\n  <ul class=\"list\">\n    "));
+        $this->assertSame(['kind' => 'markup', 'fresh' => false, 'inside' => 'p'], Caret::of('<div><img src="a.png"><p>Hello'));
+        $this->assertSame('section', Caret::of("<section>\n  <ul>\n    <li>x</li>\n  </ul>\n  ")['inside']);
+    }
+
+    public function test_the_model_is_told_where_the_caret_is(): void
+    {
+        $text = Prompt::user(['before' => '<section class="wrapper" x-data="{ ', 'after' => ' }">']);
+
+        $this->assertStringContainsString('Caret: The caret is inside the value of x-data="…" on <section>', $text);
+        $this->assertStringContainsString('Alpine state', $text);
+    }
+
+    public function test_an_answer_about_the_task_is_no_suggestion(): void
+    {
+        $this->assertSame('', Reply::clean('The `<after>` text already contains the ul line, and the caret sits inside the tag.', '<section x-data="{ '));
+        $this->assertSame('', Reply::clean("Completing the tag: `field=\"entries\"` closes the <after> block"));
+    }
+
+    public function test_an_answer_in_an_attribute_ends_where_the_value_does(): void
+    {
+        $this->assertSame('open: false }', Reply::clean("open: false }\">\n  <div>more</div>", '<section x-data="{ ', '"'));
+        $this->assertSame('open: false }', Reply::clean('x-data="{ open: false }"', '<section x-data="{ '));
+    }
+
+    /* ---- An empty line: a block, a loop ---------------------------------------- */
+
+    public function test_an_empty_line_between_elements_asks_for_a_block(): void
+    {
+        $this->assertSame('block', DockGhost::lineOrBlock("<ul>\n  "));
+        $this->assertSame('line', DockGhost::lineOrBlock('<ul><li>Hel'));
+        $this->assertSame('line', DockGhost::lineOrBlock("<div\n  "));
+        $this->assertSame(600, DockGhost::body(['mode' => 'block', 'before' => "<ul>\n  "])['max_tokens']);
+    }
+
+    public function test_a_list_offers_the_loop_over_the_section_s_list_field(): void
+    {
+        $fields = [
+            ['var' => 'title', 'type' => 'text'],
+            ['var' => 'entries', 'type' => 'replicator'],
+            ['var' => 'text', 'type' => 'textarea', 'parent' => 'entries'],
+            ['var' => 'entries.name', 'type' => 'text', 'parent' => 'entries'],
+        ];
+
+        $this->assertSame(['entries' => ['text', 'name']], Prompt::lists($fields));
+
+        $hint = Prompt::blockHint("<section>\n  <ul class=\"list\">\n    ", $fields);
+
+        $this->assertStringContainsString('Caret: on an empty line inside <ul>.', $hint);
+        $this->assertStringContainsString('entries (text, name)', $hint);
+        $this->assertStringContainsString('This is a list: loop over the list field', $hint);
+    }
+
+    public function test_inside_an_open_loop_the_item_s_fields_are_named(): void
+    {
+        $fields = [['var' => 'entries'], ['var' => 'text', 'parent' => 'entries'], ['var' => 'name', 'parent' => 'entries']];
+
+        $this->assertSame('entries', Prompt::openLoop("<ul>\n  {{ entries limit=\"3\" }}\n    ", ['entries']));
+        $this->assertNull(Prompt::openLoop("{{ entries }}<li></li>{{ /entries }}\n", ['entries']));
+        $this->assertStringContainsString('You are inside the loop {{ entries }}: each item has text, name.', Prompt::blockHint("<ul>\n  {{ entries }}\n    ", $fields));
     }
 }

@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use MarioHamann\StatamicVisualEditor\DockGhost\Caret;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
 use MarioHamann\StatamicVisualEditor\DockGhost\Reply;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
@@ -61,10 +62,10 @@ class DockGhost
      * every token is time the author waits for it (measured: 29 tokens 0.9 s,
      * 175 tokens 1.8 s on Haiku).
      */
-    public const MAX_TOKENS = ['line' => 120, 'comment' => 2048, 'insert' => 2048, 'edit' => 4096];
+    public const MAX_TOKENS = ['line' => 120, 'block' => 600, 'comment' => 2048, 'insert' => 2048, 'edit' => 4096];
 
     /** Seconds per way of asking. A line later than this is one the author has typed past. */
-    public const TIMEOUT = ['line' => 8, 'comment' => 30, 'insert' => 45, 'edit' => 60];
+    public const TIMEOUT = ['line' => 8, 'block' => 20, 'comment' => 30, 'insert' => 45, 'edit' => 60];
 
     /**
      * The end of a prompt to the Cursor agent. The task already says how to
@@ -137,8 +138,7 @@ class DockGhost
      */
     public static function complete(array $request): array
     {
-        $mode = Prompt::mode($request);
-        $mode = $mode === 'comment' ? 'comment' : 'line';
+        $mode = Prompt::mode($request) === 'comment' ? 'comment' : static::lineOrBlock(Prompt::before($request));
         $out = static::ask(['mode' => $mode] + $request);
 
         if ($out['ok']) {
@@ -146,6 +146,14 @@ class DockGhost
         }
 
         return $out;
+    }
+
+    /** An empty line between elements is a `block` — room for a loop or a card; anywhere else a `line`. */
+    public static function lineOrBlock(string $before): string
+    {
+        $caret = Caret::of($before);
+
+        return $caret['kind'] === 'markup' && ! empty($caret['fresh']) ? 'block' : 'line';
     }
 
     /**

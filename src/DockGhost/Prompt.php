@@ -50,6 +50,8 @@ final class Prompt
     public const CONTEXT = <<<'TXT'
 You help an author write code in the HTML pane of a Statamic page builder. The file is one section's Antlers partial: HTML with Antlers tags in {{ }}, styled with Tailwind v4 utilities and the site's own classes, Alpine.js for behaviour. The user turn says what to do and how to answer.
 
+Your reply is pasted into the file exactly as you write it: code only. Never explain, never describe the task, never mention <before>, <after> or the caret.
+
 Whatever you write:
 - Use fields from the user turn's list only, by their exact handle. Never invent a field.
 - An element that shows a field gets {{ visual_edit … }} in its opening tag, pointing at that field: field="handle", and inline_edit="true" when the field is text the author types. Lists get insertable="true" on the list and orderable="true" on the row. See the reference below.
@@ -58,9 +60,14 @@ Whatever you write:
 - Match the file's indentation and quotes.
 TXT;
 
-    /** One per way of asking. `line` and `comment` are the grey text; `edit` and `insert` are ⌘K. */
+    /**
+     * One per way of asking. `line`, `block` and `comment` are the grey text
+     * (`block`: the caret on an empty line, where a whole element or loop may
+     * come next); `edit` and `insert` are ⌘K.
+     */
     public const TASKS = [
         'line' => 'Complete the code at the caret: the Antlers tag, the attribute, the element or the line being written — a few lines at most. Reply with ONLY the text that goes between <before> and <after>: no explanation, no code fence, nothing already in <before> or <after>. If nothing useful fits, reply with nothing at all.',
+        'block' => 'The caret is on an empty line. Write what most likely comes next there: the next element, or a whole block of several lines — a loop over a list field with its items, a card, a row of buttons — as this site writes sections. Reply with ONLY that markup: no explanation, no code fence, nothing already in <before> or <after>. If nothing useful fits, reply with nothing at all.',
         'comment' => 'The line above the caret is a comment in which the author describes what they want. Write that markup in full at the caret, as this site writes sections. Reply with ONLY the markup that goes between <before> and <after>: no explanation, no code fence, not the comment again, nothing already in <after>.',
         'edit' => 'Rewrite the code in <selection> as the instruction says, and keep what it does not ask to change. Reply with ONLY the code that replaces the selection, whole: no explanation, no code fence, nothing from <before> or <after>.',
         'insert' => 'Write the code the instruction asks for, to go in at the caret. Reply with ONLY that code: no explanation, no code fence, nothing already in <before> or <after>.',
@@ -112,6 +119,15 @@ TXT;
 
         $out = 'Task: '.static::TASKS[$mode]."\n";
 
+        // Where the caret stands: in x-data="{ | the answer is Alpine state, not markup.
+        if ($mode === 'line' && ($hint = Caret::hint(Caret::of(static::before($request)))) !== '') {
+            $out .= "Caret: {$hint}\n";
+        }
+
+        if ($mode === 'block') {
+            $out .= static::blockHint(static::before($request), (array) ($request['fields'] ?? []));
+        }
+
         if ($mode === 'edit' || $mode === 'insert') {
             $out .= 'Instruction: '.static::instruction($request)."\n";
         }
@@ -132,6 +148,89 @@ TXT;
         }
 
         return $out."\n<after>".static::after($request)."\n</after>";
+    }
+
+    /**
+     * A fresh line: the element it stands in, the loop it stands in, and the
+     * section's lists — so a new line in a <ul> is offered the loop over
+     * `entries` with its <li>, its fields and their visual_edit.
+     */
+    public static function blockHint(string $before, array $fields): string
+    {
+        $caret = Caret::of($before);
+        $lists = static::lists($fields);
+        $loop = static::openLoop($before, array_keys($lists));
+        $out = ! empty($caret['inside']) ? "Caret: on an empty line inside <{$caret['inside']}>.\n" : '';
+
+        if ($loop !== null) {
+            $names = implode(', ', $lists[$loop]);
+
+            return $out."You are inside the loop {{ {$loop} }}: each item has {$names}. Write the item's markup with those fields, each element pointing at its field with {{ visual_edit … }}, and {{ if field }} … {{ /if }} around an image, a link or another field that may be empty.\n";
+        }
+
+        if ($lists !== []) {
+            $rows = implode('; ', array_map(fn ($handle, $subs) => $handle.' ('.implode(', ', $subs).')', array_keys($lists), $lists));
+            $where = in_array($caret['inside'] ?? null, ['ul', 'ol'], true)
+                ? 'This is a list: loop over the list field that fits'
+                : 'Where items repeat — a list, a grid, cards — loop over the list field that fits';
+
+            return $out."List fields in this section, with their fields: {$rows}.\n{$where}: {{ handle }} … {{ /handle }} around one item (in a <ul> or <ol>, an <li>), the item showing its fields, each element pointing at its field with {{ visual_edit … }}, and {{ if field }} … {{ /if }} around an image, a link or another field that may be empty.\n";
+        }
+
+        return $out;
+    }
+
+    /**
+     * The section's lists — fields that others name as their parent — each with
+     * its own fields' handles.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function lists(array $fields): array
+    {
+        $lists = [];
+
+        foreach (array_slice($fields, 0, static::MAX_FIELDS) as $field) {
+            $parent = is_array($field) ? static::oneLine($field['parent'] ?? '') : '';
+            $handle = is_array($field) ? static::oneLine($field['var'] ?? '') : '';
+
+            if ($parent !== '' && $handle !== '') {
+                $lists[$parent][] = str_starts_with($handle, $parent.'.') ? substr($handle, strlen($parent) + 1) : $handle;
+            }
+        }
+
+        return $lists;
+    }
+
+    /**
+     * The innermost of `$handles` opened as an Antlers loop before the caret
+     * ({{ entries }} or {{ entries limit="3" }}) and not yet closed.
+     *
+     * @param  list<string>  $handles
+     */
+    public static function openLoop(string $before, array $handles): ?string
+    {
+        if ($handles === []) {
+            return null;
+        }
+
+        $open = [];
+
+        preg_match_all('/\{\{\s*(\/?)([A-Za-z_][\w.:]*)/', substr($before, -Caret::TAIL), $tags, PREG_SET_ORDER);
+
+        foreach ($tags as [, $closing, $handle]) {
+            if (! in_array($handle, $handles, true)) {
+                continue;
+            }
+
+            if ($closing === '') {
+                $open[] = $handle;
+            } elseif (($at = array_search($handle, array_reverse($open, true), true)) !== false) {
+                $open = array_slice($open, 0, $at);
+            }
+        }
+
+        return $open === [] ? null : end($open);
     }
 
     /** The file before the caret: its last part, from the start of a line. */
