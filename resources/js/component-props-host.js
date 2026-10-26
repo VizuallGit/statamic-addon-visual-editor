@@ -34,12 +34,20 @@ let app = null;
  * Put the section back in the column we just handed over: the dock still
  * knows which section the component was opened for, and the panel draws it
  * from the form's values — no column to mark, nothing to wait for.
+ *
+ * As the tree, not as the panel. 'panel' is the back arrow — the one source
+ * that has not told the others — and the selection panel answers it by
+ * activating the row in the preview (selection-panel.js `paint`). This is
+ * not a new choice: the preview already marks this section and the dock
+ * already holds its file. Said as 'panel', every click from a component row
+ * onto a plain tag scrolled the preview to the section and opened an inline
+ * edit on its first field — the panel jumped to "Link" and the page moved.
  */
 function restoreSolo(win) {
   const uid = ask('dock:current-uid');
 
   if (uid && !win.document.getElementById(HOST_ID)) {
-    selectRow(win, uid, 'panel');
+    selectRow(win, uid, 'tree');
   }
 }
 
