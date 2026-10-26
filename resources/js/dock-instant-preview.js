@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 17) {
+    if (window.__sveDockInstantPreview === 18) {
         return;
     }
-    window.__sveDockInstantPreview = 17;
+    window.__sveDockInstantPreview = 18;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -1989,6 +1989,7 @@
         function walk(tplParent, liveParents) {
             var children = [];
             var counts = {};
+            var blocked = blockedKids(tplParent);
             var i;
 
             for (i = 0; i < tplParent.children.length; i++) {
@@ -2015,7 +2016,11 @@
 
                 var targets;
 
-                if (counts[tag] === 1) {
+                // One template kid of a tag speaks for every live kid of that
+                // tag only inside a loop block — a partial beside it renders
+                // its own elements, and those are not this kid's (same rule
+                // as morphKids / pairLive).
+                if (counts[tag] === 1 && blocked.get(tplEl)) {
                     targets = liveKids;
                 } else {
                     var idx = seen[tag] - 1;
@@ -4352,52 +4357,113 @@
     }
 
     /**
-     * The live elements paired with `wanted`, walking template and live the way
-     * the structure paint does: same tag in order; in a parent that holds a
-     * loop's marker, one template child for every live child of its tag.
+     * The live elements paired with `wanted`, chosen as the structure paint
+     * chooses them (morphKids), and writing nothing. In a static parent the
+     * kids are aligned in order by likeness (alignKids). In a parent the
+     * server draws into — a loop's or a partial's marker in its text — a
+     * template kid inside a loop block speaks for every live kid of its tag
+     * that shows its classes (ownsInBlock); a dynamic kid for the one most
+     * like it; a static kid only for what is its own (ownsLive, the paint's
+     * own nodes), aligned with its static siblings.
+     *
+     * Used to be "every live child of the tag, when the template has one such
+     * child in a dynamic parent" — the loop rule applied to the whole parent.
+     * Beside `{{ partial:components/section_heading }}`, which renders a
+     * <div>, a class hovered in the strip for `<div class="p-900">` was held
+     * on the heading's <div> too, and the pick left it there until the morph:
+     * the paint keeps a class it did not put on (vizuall-demo's
+     * featured_testimonials, 26 Oct 2026). A loop always leaves its marker
+     * among the kid's own siblings (blockedKids); a partial's marker says
+     * nothing about which kid repeats.
      */
     function pairLive(live, tpl, wanted) {
-        var tplKids = elementKids(tpl);
+        var tplKids;
+        var liveKids;
+        var dynamicParent;
+        var blocked;
         var counts = {};
-        var consumed = [];
-        var dynamicParent = hasMarker(directText(tpl));
+        var pairs;
+        var taken;
+        var ownPairs = null;
         var out = [];
         var i;
-        var tplEl;
-        var tag;
-        var same;
-        var targets;
 
         if (tpl === wanted) {
             return [live];
         }
 
+        tplKids = elementKids(tpl);
+        liveKids = elementKids(live);
+        dynamicParent = hasMarker(directText(tpl));
+        blocked = blockedKids(tpl);
+        pairs = dynamicParent ? null : alignKids(liveKids, tplKids);
+        taken = new Set(pairs ? pairs.values() : []);
+
         tplKids.forEach(function (kid) {
             counts[kid.tagName] = (counts[kid.tagName] || 0) + 1;
         });
 
-        for (i = 0; i < tplKids.length; i++) {
-            tplEl = tplKids[i];
-            tag = tplEl.tagName;
-            same = elementKids(live).filter(function (kid) {
-                return kid.tagName === tag && consumed.indexOf(kid) === -1;
+        function free(tag) {
+            return liveKids.filter(function (kid) {
+                return kid.tagName === tag && !taken.has(kid);
             });
+        }
 
-            if (!same.length) {
-                continue;
+        // morphKids' ownPair: the static kids and the live kids that are theirs, aligned in order.
+        function ownPair(tplEl) {
+            var statics;
+            var candidates;
+
+            if (!ownPairs) {
+                statics = tplKids.filter(function (kid) {
+                    return !blocked.get(kid) && !isDynamic(kid);
+                });
+                candidates = liveKids.filter(function (kid) {
+                    return !taken.has(kid) && (painted.has(kid) || statics.some(function (s) {
+                        return ownsLive(kid, s);
+                    }));
+                });
+                ownPairs = alignKids(candidates, statics, ownScore);
             }
 
-            // The next live child of this tag nobody has claimed — `same` is
-            // already the unclaimed ones, in order — and none when they are
-            // used up: a div still being typed, which the paint has not built
-            // yet, is nowhere on the page. It used to index `same` by the
-            // template's ordinal while `same` shrank with every claim, so the
-            // first div's caret found the second div and the second's the
-            // first, and a class picked for a new div was held on the div
-            // above it (25 Sep 2026: "the styling lands on the other div").
-            targets = counts[tag] === 1 && dynamicParent ? same : same.length ? [same[0]] : [];
+            return ownPairs.get(tplEl) || null;
+        }
+
+        for (i = 0; i < tplKids.length; i++) {
+            var tplEl = tplKids[i];
+            var tag = tplEl.tagName;
+            var inLoop = !!blocked.get(tplEl);
+            var byTag = inLoop || isDynamic(tplEl);
+            var prior = byTag ? priorClass(tplEl) : null;
+            var same;
+            var candidate;
+            var targets;
+
+            if (pairs) {
+                // Aligned; else the next free live kid of the tag that can be
+                // it at all (pairScore > 0 — never one this kid wraps).
+                candidate = pairs.get(tplEl) || free(tag).filter(function (kid) {
+                    return pairScore(kid, tplEl) > 0;
+                })[0] || null;
+                same = candidate ? [candidate] : [];
+            } else if (inLoop) {
+                same = free(tag).filter(function (kid) {
+                    return ownsInBlock(kid, tplEl, prior);
+                });
+            } else if (byTag) {
+                same = bestOwn(free(tag).filter(function (kid) {
+                    return ownsInBlock(kid, tplEl, prior);
+                }), tplEl);
+            } else {
+                candidate = ownPair(tplEl);
+                same = candidate && !taken.has(candidate) ? [candidate] : [];
+            }
+
+            // One template kid of a tag in a loop block speaks for every live kid
+            // of that tag; otherwise one for one — as in morphKids.
+            targets = !pairs && inLoop && counts[tag] === 1 ? same : same.slice(0, 1);
             targets.forEach(function (target) {
-                consumed.push(target);
+                taken.add(target);
             });
 
             if (tplEl === wanted) {
