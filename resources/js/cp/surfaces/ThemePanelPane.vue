@@ -69,6 +69,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           {{ ui.labels.props_add }}
         </button>
+        <button v-else-if="ui.classChip === 'snippet'" type="button" class="sve-theme__add" data-sve-snippet-add @click="onAddSnippet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          {{ ui.labels.classes_add_snippet || 'Nyt snippet' }}
+        </button>
       </template>
       <span class="sve-theme__status">{{ ui.status }}</span>
       <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
@@ -101,7 +105,7 @@ import ThemeStylesTab from './ThemeStylesTab.vue';
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, a cube, a button, a text field. */
+/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, braces, a button, a text field. */
 const TABS = [
   {
     key: 'colors',
@@ -121,7 +125,7 @@ const TABS = [
   },
   {
     key: 'styles',
-    icon: svg('<path d="M12 2 4 7v10l8 5 8-5V7Z"/><path d="M12 12 4 7"/><path d="m12 12 8-5"/><path d="M12 12v10"/>'),
+    icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/><path d="M10 10h4"/><path d="M10 14h2"/>'),
   },
   {
     key: 'button',
@@ -217,6 +221,7 @@ const props = defineProps({
   onPropValue: { type: Function, required: true },
   onRemoveProp: { type: Function, required: true },
   // CSS snippets under Styles — their own files, saved row by row.
+  onAddSnippet: { type: Function, required: true },
   onSnippetName: { type: Function, required: true },
   onSnippetBody: { type: Function, required: true },
   onSaveSnippet: { type: Function, required: true },

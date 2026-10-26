@@ -20,7 +20,7 @@ import { t } from '../../lib/i18n.js';
 import { csrfToken } from '../../lib/csrf.js';
 import { themePanelUi as ui } from './store.js';
 import { dedent } from './utilities.js';
-import { mergeSnippetRows, normalizeSnippetName, snippetProblem } from './snippet-rows.js';
+import { freshSnippetRow, mergeSnippetRows, normalizeSnippetName, snippetProblem } from './snippet-rows.js';
 
 const LIST_API = '/!/sve/snippets';
 const ONE_API = '/!/sve/snippet';
@@ -88,14 +88,19 @@ async function save(win, row) {
   ui.status = t(win, 'theme_panel_saving');
 
   try {
-    const made = await request(win, `${ONE_API}/update`, {
-      method: 'POST',
-      body: JSON.stringify({ name: row.savedName, css: row.body, ...(name !== row.savedName ? { rename: name } : {}) }),
-    });
+    // A new row makes its file (store, the dock's own route, 409 if the name
+    // is taken); a saved one changes its file in place, renamed if asked.
+    const made = row.fresh
+      ? await request(win, ONE_API, { method: 'POST', body: JSON.stringify({ name, kind: 'css', css: row.body }) })
+      : await request(win, `${ONE_API}/update`, {
+          method: 'POST',
+          body: JSON.stringify({ name: row.savedName, css: row.body, ...(name !== row.savedName ? { rename: name } : {}) }),
+        });
 
     row.name = made.name;
     row.savedName = made.name;
     row.savedBody = dedent(row.body);
+    row.fresh = false;
     ui.status = t(win, 'theme_classes_snippet_saved', { name: made.name });
   } catch (err) {
     ui.status = t(win, err?.status === 409 ? 'theme_classes_snippet_taken' : 'theme_classes_snippet_failed', { name });
@@ -147,9 +152,18 @@ function confirmRemove(win, row) {
   });
 }
 
-/** The four handlers the Styles tab calls for a snippet row; spread into the panel's handlers. */
+/** The handlers the Styles tab calls for snippet rows; spread into the panel's handlers. */
 export function snippetHandlers(win) {
   return {
+    // New: an empty row at the top, open, with the Snippets chip in hand so it is seen.
+    onAddSnippet: () => {
+      const row = freshSnippetRow();
+
+      ui.snippets = [row, ...ui.snippets];
+      ui.classChip = 'snippet';
+      ui.openClass = '';
+      ui.openClassKey = row.key;
+    },
     onSnippetName: (key, name) => {
       const row = find(key);
 
@@ -176,9 +190,22 @@ export function snippetHandlers(win) {
     onRemoveSnippet: (key) => {
       const row = find(key);
 
-      if (row) {
-        confirmRemove(win, row);
+      if (!row) {
+        return;
       }
+
+      // Nothing on disk yet: nothing to ask about.
+      if (row.fresh) {
+        ui.snippets = ui.snippets.filter((o) => o !== row);
+
+        if (ui.openClassKey === row.key) {
+          ui.openClassKey = '';
+        }
+
+        return;
+      }
+
+      confirmRemove(win, row);
     },
   };
 }

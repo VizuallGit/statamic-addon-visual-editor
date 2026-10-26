@@ -1282,6 +1282,7 @@ return [
     'theme_classes_chip_class' => 'Klasser',
     'theme_classes_chip_ambient' => 'Afledte',
     'theme_classes_chip_snippet' => 'Snippets',
+    'theme_classes_add_snippet' => 'Nyt snippet',
     'theme_classes_snippet_hint' => 'Et snippet er indholdet af én regel uden klassenavn. Docken kopierer det ind i den klasse, du vælger. Retter du det her, ændres kun biblioteket — ikke de elementer, der allerede har fået det.',
     'theme_classes_snippet_name' => 'Navn',
     'theme_classes_snippet_save' => 'Gem snippet',

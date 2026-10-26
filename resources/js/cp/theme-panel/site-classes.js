@@ -189,11 +189,11 @@ export function snippetRows(snippets, folder = 'snippets') {
     name: s.name || '',
     kind: 'snippet',
     key: s.key,
-    files: [`${folder}/${s.savedName || s.name || ''}.css`],
+    files: [`${folder}/${s.savedName || s.name || '…'}.css`],
     selectors: [],
     props: bodyProperties(s.body),
     ambient: false,
-    fresh: false,
+    fresh: !!s.fresh,
   }));
 }
 
@@ -206,7 +206,7 @@ export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'snippet', 'a
  * never be made. The rest — ambient, unused — only ever filter, and a chip
  * that says `0` is noise.
  */
-export const CLASS_CHIPS_ALWAYS = ['all', 'utility', 'class', 'variable'];
+export const CLASS_CHIPS_ALWAYS = ['all', 'utility', 'class', 'variable', 'snippet'];
 
 /** Whether a chip keeps a row. */
 export function chipKeeps(chip, row) {

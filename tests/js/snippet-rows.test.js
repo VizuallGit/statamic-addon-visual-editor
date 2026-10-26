@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeSnippetRows, normalizeSnippetName, snippetDirty, snippetProblem, snippetRow } from '../../resources/js/cp/theme-panel/snippet-rows.js';
-import { CLASS_CHIPS, chipKeeps, snippetRows } from '../../resources/js/cp/theme-panel/site-classes.js';
+import { freshSnippetRow, mergeSnippetRows, normalizeSnippetName, snippetDirty, snippetProblem, snippetRow } from '../../resources/js/cp/theme-panel/snippet-rows.js';
+import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, snippetRows } from '../../resources/js/cp/theme-panel/site-classes.js';
 
 test('a snippet name files the way Snippet::normalizeName does', () => {
   assert.equal(normalizeSnippetName('Card Hover'), 'card_hover');
@@ -50,6 +50,30 @@ test('a reload keeps the row that has an unsaved edit and drops the one whose fi
   assert.equal(rows.length, 2);
   assert.equal(rows[0], kept, 'the edited row is the same object');
   assert.equal(rows[1].body, 'color: blue;', 'a clean row takes the fresh file');
+});
+
+test('a new row has no file, cannot save until named and filled, and survives a reload at the top', () => {
+  const row = freshSnippetRow();
+
+  assert.equal(row.fresh, true);
+  assert.equal(row.savedName, null);
+  assert.equal(snippetDirty(row), false, 'nothing typed is nothing to save');
+  assert.equal(snippetProblem(row), 'empty');
+
+  const typed = { ...row, name: 'card', body: 'padding: 1rem;' };
+
+  assert.equal(snippetProblem(typed), null);
+  assert.equal(snippetDirty(typed), true);
+
+  const rows = mergeSnippetRows([typed], [{ name: 'lead', css: 'color: red;' }]);
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0], typed, 'the new row stays first');
+  assert.equal(rows[1].savedName, 'lead');
+});
+
+test('the Snippets chip always shows — it is the way to New snippet', () => {
+  assert.ok(CLASS_CHIPS_ALWAYS.includes('snippet'));
 });
 
 test('snippet rows sit under their own chip and All, not under classes or unused', () => {

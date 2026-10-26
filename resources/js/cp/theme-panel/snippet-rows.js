@@ -4,15 +4,21 @@
  * whether it has an edit the file does not. Pure, so the tab's rules are
  * tested here and `snippets.js` only does the fetching.
  *
- * A row: `{ key, name, savedName, body, savedBody, problem, saving }` —
- * `savedName` / `savedBody` as on disk (`body` dedented the way the editor
+ * A row: `{ key, name, savedName, body, savedBody, problem, saving, fresh }`
+ * — `savedName` / `savedBody` as on disk (`body` dedented the way the editor
  * shows it), `problem` one of `empty`, `format`, `taken`, `braces` or null.
+ * A `fresh` row has no file yet: `savedName` is null until its first save.
  *
  * May import: utilities.js.
  */
 import { bodyProblem, dedent } from './utilities.js';
 
 let keySeq = 0;
+
+/** A row for a snippet that is not on disk yet — the New button's. */
+export function freshSnippetRow() {
+  return { key: `snippet-${++keySeq}`, name: '', savedName: null, body: '', savedBody: '', problem: 'empty', saving: false, fresh: true };
+}
 
 /**
  * The name as the server will file it (Snippet::normalizeName): lowercase,
@@ -63,16 +69,16 @@ export function snippetDirty(row) {
 export function snippetRow(parts) {
   const body = dedent(parts.css);
 
-  return { key: `snippet-${++keySeq}`, name: parts.name, savedName: parts.name, body, savedBody: body, problem: null, saving: false };
+  return { key: `snippet-${++keySeq}`, name: parts.name, savedName: parts.name, body, savedBody: body, problem: null, saving: false, fresh: false };
 }
 
 /**
  * The rows for a fresh read of the files, with the row that has an unsaved
- * edit on the same file kept over the fresh copy: a reload is not a reason
- * to lose what was typed.
+ * edit on the same file kept over the fresh copy, and a new row not saved
+ * yet kept at the top: a reload is not a reason to lose what was typed.
  */
 export function mergeSnippetRows(current, fresh) {
-  const kept = new Map(current.filter((row) => snippetDirty(row)).map((row) => [row.savedName, row]));
+  const kept = new Map(current.filter((row) => !row.fresh && snippetDirty(row)).map((row) => [row.savedName, row]));
 
-  return fresh.map((parts) => kept.get(parts.name) || snippetRow(parts));
+  return [...current.filter((row) => row.fresh), ...fresh.map((parts) => kept.get(parts.name) || snippetRow(parts))];
 }

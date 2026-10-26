@@ -1661,11 +1661,19 @@
 
 /* Classes tab — one list of every class the site's CSS defines. The chips
    filter it; a row says where the class lives, not what it looks like. */
+/* One line that scrolls sideways, like the tab bar. */
 .sve-theme__filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.25rem;
   margin-block: 0.5rem 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.sve-theme__filters::-webkit-scrollbar {
+  display: none;
 }
 .sve-theme__filter {
   /* `.sve-theme__chip` next door is the colour swatch: a fixed 1.875rem box
@@ -1683,6 +1691,7 @@
   background: rgba(255, 255, 255, 0.07);
   font-size: 0.6875rem !important;
   font-weight: 600 !important;
+  white-space: nowrap;
   opacity: 0.7;
   cursor: pointer;
 }

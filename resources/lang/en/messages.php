@@ -1293,6 +1293,7 @@ return [
     'theme_classes_chip_class' => 'Classes',
     'theme_classes_chip_ambient' => 'Ambient',
     'theme_classes_chip_snippet' => 'Snippets',
+    'theme_classes_add_snippet' => 'New snippet',
     'theme_classes_snippet_hint' => 'A snippet is the body of one rule with no class name. The dock copies it into the class you pick. Changing it here changes the library only — not the elements that already got it.',
     'theme_classes_snippet_name' => 'Name',
     'theme_classes_snippet_save' => 'Save snippet',
