@@ -8,7 +8,7 @@ use MarioHamann\StatamicVisualEditor\AiCopy\Reply;
 /**
  * Copy suggestions for one field, written against the page's keywords.
  *
- * Same Cursor account as the AI chat, and a different job: the chat changes
+ * The same AI as the chat (AiProvider), and a different job: the chat changes
  * files, this one changes nothing at all. Like the chat's Write mode it runs
  * with no write scope, so the agent has no tool that could edit a template on
  * the way past.
@@ -28,7 +28,7 @@ class AiCopy
 
     public static function ready(): bool
     {
-        return Features::enabled('ai_text') && AiChat::apiKey() !== '';
+        return Features::enabled('ai_text') && AiProvider::key() !== '';
     }
 
     /**
@@ -48,13 +48,13 @@ class AiCopy
      */
     public static function suggest(array $request): array
     {
-        abort_unless(AiChat::apiKey() !== '', 422, __('sve::messages.ai_text_need_key'));
+        abort_unless(AiProvider::key() !== '', 422, AiProvider::needKey());
 
         set_time_limit(180);
 
         // Nothing here touches the disk: the run opens no write scope, so the
         // agent has no tool that writes and no shell.
-        $out = CursorAgent::run(Prompt::prompt($request));
+        $out = app(AiProvider::agent())::run(Prompt::prompt($request));
 
         return Reply::parse($out['reply'] ?? '', Prompt::count($request));
     }

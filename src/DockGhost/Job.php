@@ -2,11 +2,10 @@
 
 namespace MarioHamann\StatamicVisualEditor\DockGhost;
 
-use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
+use MarioHamann\StatamicVisualEditor\Background;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use Statamic\Facades\User;
-use Symfony\Component\Process\PhpExecutableFinder;
 
 /**
  * One question to the dock's AI, answered in the background.
@@ -19,8 +18,7 @@ use Symfony\Component\Process\PhpExecutableFinder;
  * id. The worker writes the answer into the same file; the browser asks
  * for it (`/!/sve/dock-ghost/job/{id}`) until it is there.
  *
- * No queue: the site has none and is not to get one. `nohup … &` is the
- * whole mechanism, as `PreviewRefresher` starts `sve:previews`.
+ * The worker is started by `Background`.
  *
  * A file is `{kind, request, user, state, started}`, and once done also
  * `{result, finished}`. Files older than KEEP are swept when the next job
@@ -59,17 +57,7 @@ final class Job
 
         DockGhost::claim($user, $kind, $id);
 
-        // The shell puts the worker in the background and returns at once;
-        // nohup and the redirects let it outlive this request. The PHP that
-        // runs it is the CLI one — under PHP-FPM, PHP_BINARY is php-fpm.
-        Process::path(base_path())
-            ->env(['PATH' => '/opt/homebrew/bin:/usr/local/bin:'.(getenv('PATH') ?: '/usr/bin:/bin')])
-            ->run(sprintf(
-                'nohup %s %s sve:ghost-job %s > /dev/null 2>&1 &',
-                escapeshellarg((new PhpExecutableFinder)->find(false) ?: 'php'),
-                escapeshellarg(base_path('artisan')),
-                escapeshellarg($id),
-            ));
+        Background::artisan('sve:ghost-job', $id);
 
         return $id;
     }

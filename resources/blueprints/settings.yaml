@@ -610,11 +610,45 @@ tabs:
                 template_dock: 'equals true'
                 component_props: 'equals true'
           -
+            handle: ghost_provider
+            field:
+              type: button_group
+              display: 'AI runs on'
+              instructions: 'One choice for every AI in the editor — the AI chat, AI text and the AI in the HTML dock. Cursor: your Cursor account''s key; the dock gives its instant suggestions, and asks the AI only for a comment and ⌘K (Cursor takes many seconds). Claude: a Claude API key, paid per use — the dock''s grey text in a second or two, the AI chat and AI text on Claude too.'
+              default: cursor
+              options:
+                cursor: Cursor
+                claude: Claude
+              if:
+                enabled: 'equals true'
+          -
+            handle: ai_api_key
+            field:
+              type: text
+              display: 'Cursor API key'
+              input_type: password
+              always_save: true
+              instructions: 'Paste it here, from cursor.com/dashboard/api. If you leave it empty, CURSOR_API_KEY in .env is used instead.'
+              if:
+                enabled: 'equals true'
+                ghost_provider: 'equals cursor'
+          -
+            handle: ghost_api_key
+            field:
+              type: text
+              display: 'Claude API key'
+              input_type: password
+              always_save: true
+              instructions: 'From console.anthropic.com — a Claude Console account, paid per use; a claude.ai Pro or Max subscription does not give one. If you leave it empty, ANTHROPIC_API_KEY in .env is used instead.'
+              if:
+                enabled: 'equals true'
+                ghost_provider: 'equals claude'
+          -
             handle: ai_panel
             field:
               type: toggle
               display: 'AI chat'
-              instructions: 'A chat in Live Preview that runs Cursor on this site. Same Cursor account you already pay for — not a second Claude/Anthropic bill. Off by default.'
+              instructions: 'A chat in Live Preview that builds and changes sections, on the AI picked above. Off by default.'
               default: false
               if:
                 enabled: 'equals true'
@@ -632,7 +666,7 @@ tabs:
             field:
               type: toggle
               display: 'AI text'
-              instructions: 'An icon in the Live Preview toolbar. Turn it on and every editable text on the page gets a small mark — click it and the AI suggests copy written against the page''s keywords (the Keywords field in SEO/meta) with the site''s keywords as background. It only ever suggests; nothing is written until you pick one. Uses the same Cursor key as the AI chat. Off by default.'
+              instructions: 'An icon in the Live Preview toolbar. Turn it on and every editable text on the page gets a small mark — click it and the AI suggests copy written against the page''s keywords (the Keywords field in SEO/meta) with the site''s keywords as background. It only ever suggests; nothing is written until you pick one. On the AI picked above. Off by default.'
               default: false
               if:
                 enabled: 'equals true'
@@ -650,67 +684,32 @@ tabs:
             field:
               type: toggle
               display: 'AI in the HTML dock (grey text and ⌘K)'
-              instructions: 'Copilot-style help while you write in the template dock''s HTML pane. Grey text at the caret, written against the section''s fields, the site''s colours and classes, the house rules and your newest sections: Tab takes it, Esc or typing on leaves it. Write a comment such as `{{# card: image left, text right #}}` and press Enter, and the grey text writes the block. Select markup and press ⌘K to change it in your own words (Enter keeps, Esc undoes). Each person switches it on with the sparkle in the pane. Runs on Cursor or Claude — pick one below. Off by default.'
+              instructions: 'Copilot-style help while you write in the template dock''s HTML pane. Grey text at the caret, written against the section''s fields, the site''s colours and classes, the house rules and your newest sections: Tab takes it, Esc or typing on leaves it. The common moves — a loop over a list, an item''s fields, visual_edit, the classes of the same element — come at once and free; the rest from the AI picked above. Write a comment such as `{{# card: image left, text right #}}` and press Enter, and it writes the block. Select markup and press ⌘K to change it in your own words (Enter keeps, Esc undoes). Each person switches it on with the sparkle in the pane. Off by default.'
               default: false
               if:
                 enabled: 'equals true'
                 template_dock: 'equals true'
-          -
-            handle: ghost_provider
-            field:
-              type: button_group
-              display: 'AI in the HTML dock runs on'
-              instructions: 'Cursor: the Cursor API key the AI chat and AI text use — nothing more to fill in; an answer takes 10–20 seconds, and "Writing …" shows while it comes. Claude: its own key (below), paid per use — grey text in under a second.'
-              default: cursor
-              options:
-                cursor: Cursor
-                claude: Claude
-              if:
-                enabled: 'equals true'
-                template_dock: 'equals true'
-                dock_ghost: 'equals true'
-          -
-            handle: ghost_api_key
-            field:
-              type: text
-              display: 'Claude API key'
-              input_type: password
-              instructions: 'From console.anthropic.com — a Claude Console account, paid per use; a claude.ai Pro or Max subscription does not give one. Grey text costs a fraction of a cent (Claude Haiku), ⌘K about three cents (Claude Opus). If you leave it empty, ANTHROPIC_API_KEY in .env is used instead.'
-              if:
-                enabled: 'equals true'
-                dock_ghost: 'equals true'
-                ghost_provider: 'equals claude'
-          -
-            handle: ai_project_rules
-            field:
-              type: toggle
-              display: 'Let the AI read this project''s rules'
-              instructions: 'Hands the AI the repository''s own `.cursor/rules`, `AGENTS.md` and MCP servers — the same context the developer''s editor uses. Off, it only knows the rules in `resources/visual-editor/ai-rules.md`, which is how it has always worked. Turn it on if this project keeps notes for AI that the editor should follow too. Rules meant for something else (addon development, deployment) will be sent along as well, so keep an eye on what is in there.'
-              default: false
-              if:
-                enabled: 'equals true'
-                ai_panel: 'equals true'
-          -
-            handle: ai_api_key
-            field:
-              type: text
-              display: 'Cursor API key'
-              input_type: password
-              instructions: 'Paste it here, from cursor.com/dashboard/api. This field is what the editor uses. If you leave it empty, CURSOR_API_KEY in .env is used instead. Shared by the AI chat, AI text and the AI in the HTML dock.'
-              if_any:
-                ai_panel: 'equals true'
-                ai_text: 'equals true'
-                dock_ghost: 'equals true'
           -
             handle: ai_model
             field:
               type: text
               display: 'Default AI model'
-              instructions: 'The model a new chat starts with, and the one AI text uses. Empty is Auto: Cursor picks the model for each request. Or write a model id — `composer-2.5`, `grok-4.7`, `claude-opus-5-5`. Each chat can pick another model in the panel; a new chat starts with the last one picked.'
+              instructions: 'The model a new chat starts with, and the one AI text uses. On Cursor: empty is Auto (Cursor picks), or a model id such as `grok-4.7` or `composer-2.5`. On Claude: `claude-opus-5-5` (the default when empty), `claude-sonnet-5-5` (half the price) or `claude-haiku-5-5` (the cheapest). Each chat can pick another model in the panel.'
               placeholder: default
               if_any:
                 ai_panel: 'equals true'
                 ai_text: 'equals true'
+          -
+            handle: ai_project_rules
+            field:
+              type: toggle
+              display: 'Let the AI read this project''s rules'
+              instructions: 'Hands Cursor the repository''s own `.cursor/rules`, `AGENTS.md` and MCP servers — the same context the developer''s editor uses. Off, it only knows the rules in `resources/visual-editor/ai-rules.md`, which is how it has always worked. Rules meant for something else (addon development, deployment) will be sent along as well, so keep an eye on what is in there. Cursor only.'
+              default: false
+              if:
+                enabled: 'equals true'
+                ai_panel: 'equals true'
+                ghost_provider: 'equals cursor'
       -
         display: 'Opening an entry'
         instructions: 'Ways into Live Preview from the Control Panel. The entry title always opens the publish form, as Statamic ships; these add a second door beside it.'

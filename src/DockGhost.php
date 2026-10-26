@@ -73,23 +73,10 @@ class DockGhost
      */
     public const CURSOR_REPLY = 'Answer now, as the task says: only the code itself — no explanation, no code fence, no words before or after it. Everything you need is above; do not open any files.';
 
-    /** The ways to ask, as the settings screen offers them. */
-    public const PROVIDERS = ['cursor', 'claude'];
-
-    /**
-     * The Claude (Anthropic) key: the settings screen's field first
-     * (`ghost_api_key`), then .env — the way the Cursor key and the PageSpeed
-     * key are found.
-     */
+    /** The Claude key (AiProvider). */
     public static function apiKey(): string
     {
-        $saved = trim((string) Features::setting('ghost_api_key', ''));
-
-        if ($saved !== '') {
-            return $saved;
-        }
-
-        return trim((string) config('statamic-visual-editor.ghost.api_key', ''));
+        return AiProvider::claudeKey();
     }
 
     /** The model for a way of asking: the grey text's, or ⌘K's. */
@@ -101,28 +88,22 @@ class DockGhost
         return $model !== '' ? $model : ($edit ? static::EDIT_MODEL : static::MODEL);
     }
 
-    /**
-     * The way the dock's AI asks: the settings screen's choice
-     * (`ghost_provider`), else config, else `cursor`.
-     */
+    /** The way the editor's AI runs — one choice for all of it (AiProvider). */
     public static function provider(): string
     {
-        $chosen = trim((string) Features::setting('ghost_provider', ''));
-        $chosen = $chosen !== '' ? $chosen : trim((string) config('statamic-visual-editor.ghost.provider', ''));
-
-        return in_array($chosen, static::PROVIDERS, true) ? $chosen : 'cursor';
+        return AiProvider::current();
     }
 
     /** The key of the way picked; '' when the site has none for it. */
     public static function key(): string
     {
-        return static::provider() === 'claude' ? static::apiKey() : AiChat::apiKey();
+        return AiProvider::key();
     }
 
-    /** What the author is told when the way picked has no key: which key, and where it goes. */
+    /** What the author is told when the way picked has no key. */
     public static function needKey(): string
     {
-        return __(static::provider() === 'claude' ? 'sve::messages.dock_ghost_need_claude_key' : 'sve::messages.dock_ghost_need_key');
+        return AiProvider::needKey();
     }
 
     public static function ready(): bool

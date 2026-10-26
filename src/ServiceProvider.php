@@ -6,6 +6,7 @@ use MarioHamann\StatamicVisualEditor\AfterSave;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
+use MarioHamann\StatamicVisualEditor\Commands\AiChatRun;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\Commands\GhostJob;
 use MarioHamann\StatamicVisualEditor\Commands\GhostTry;
@@ -259,6 +260,7 @@ class ServiceProvider extends AddonServiceProvider
     ];
 
     protected $commands = [
+        AiChatRun::class,
         GenerateSetPreviews::class,
         GhostJob::class,
         GhostTry::class,

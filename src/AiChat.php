@@ -8,9 +8,9 @@ use MarioHamann\StatamicVisualEditor\AiChat\Registration;
 use MarioHamann\StatamicVisualEditor\AiChat\WriteScope;
 
 /**
- * Super-admin Cursor chat from Live Preview.
- *
- * Uses the same Cursor account — not a second Claude/Anthropic bill.
+ * Super-admin AI chat from Live Preview, on the AI the site picked
+ * (AiProvider): Cursor's agent on the Cursor key, or the Claude runner on the
+ * Claude key — the same prompt, write gate and stop either way.
  * Build mode may change the selected section's partial and fieldset, files the
  * user names in the message, and new section files; Write mode asks for markup
  * in the reply and can change nothing. That is enforced before a file is
@@ -37,7 +37,7 @@ class AiChat
 
     public static function ready(): bool
     {
-        return Features::enabled('ai_panel') && static::apiKey() !== '';
+        return Features::enabled('ai_panel') && AiProvider::key() !== '';
     }
 
     /**
@@ -48,7 +48,7 @@ class AiChat
      */
     public static function talk(string $handle, array $messages, string $mode = 'write', array $images = [], ?string $model = null, ?callable $stopped = null): array
     {
-        abort_unless(static::apiKey() !== '', 422, 'Missing Cursor API key. Get one at cursor.com/dashboard/api — same Cursor account, not Claude.');
+        abort_unless(AiProvider::key() !== '', 422, AiProvider::needKey());
 
         set_time_limit(180);
 
@@ -56,7 +56,7 @@ class AiChat
         $messages = Conversation::sanitize($messages);
         $write = WriteScope::for($mode, $handle, (string) (end($messages)['content'] ?? ''));
 
-        $out = CursorAgent::run(Prompt::prompt($handle, $messages, $mode, $write), $images, $write, $model, $stopped);
+        $out = app(AiProvider::agent())::run(Prompt::prompt($handle, $messages, $mode, $write), $images, $write, $model, $stopped);
 
         $registered = $out['status'] === 'finished' ? Registration::apply($out['register']) : [];
         $reply = $out['reply'] !== '' ? $out['reply'] : 'Done.';

@@ -11,6 +11,14 @@ use Symfony\Component\Process\Process;
  */
 class CursorAgent
 {
+    /** The SDK the runner imports, looked for in node_modules before a run. */
+    public const SDK = '@cursor/sdk';
+
+    /** The environment variable the runner gets the key in. */
+    public const KEY_ENV = 'CURSOR_API_KEY';
+
+    public const MISSING_SDK = 'The AI needs the Cursor SDK. Run `npm install @cursor/sdk` in this site.';
+
     public static function script(): string
     {
         return dirname(__DIR__).'/scripts/cursor-agent.mjs';
@@ -140,7 +148,7 @@ class CursorAgent
         $root = realpath(base_path()) ?: base_path();
 
         for ($i = 0; $i < 12; $i++) {
-            $candidate = $dir.'/node_modules/@cursor/sdk';
+            $candidate = $dir.'/node_modules/'.static::SDK;
 
             if (is_dir($candidate)) {
                 return $candidate;
@@ -157,8 +165,8 @@ class CursorAgent
 
         // The site root need not be an ancestor of the script (a path repo puts
         // the addon outside the project), so it is asked separately.
-        return is_dir($root.'/node_modules/@cursor/sdk')
-            ? $root.'/node_modules/@cursor/sdk'
+        return is_dir($root.'/node_modules/'.static::SDK)
+            ? $root.'/node_modules/'.static::SDK
             : null;
     }
 
@@ -205,7 +213,7 @@ class CursorAgent
     public static function run(string $prompt, array $images = [], ?array $write = null, ?string $model = null, ?callable $stopped = null): array
     {
         $payload = [
-            'apiKey' => AiChat::apiKey(),
+            'apiKey' => static::apiKey(),
             'cwd' => base_path(),
             'model' => static::model($model),
             'prompt' => $prompt,
@@ -312,11 +320,7 @@ class CursorAgent
         $script = static::script();
 
         abort_unless(is_file($script), 500, 'Cursor agent script is missing.');
-        abort_unless(
-            static::sdkPath(),
-            500,
-            'The AI needs the Cursor SDK. Run `npm install @cursor/sdk` in this site.',
-        );
+        abort_unless(static::sdkPath(), 500, static::MISSING_SDK);
 
         $payload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -327,11 +331,17 @@ class CursorAgent
             dirname($script, 2),
             [
                 'PATH' => '/opt/homebrew/bin:/usr/local/bin:'.(getenv('PATH') ?: '/usr/bin:/bin'),
-                'CURSOR_API_KEY' => AiChat::apiKey(),
+                static::KEY_ENV => static::apiKey(),
             ],
             $payload,
             $timeout,
         );
+    }
+
+    /** The key the run is made with. */
+    protected static function apiKey(): string
+    {
+        return AiChat::apiKey();
     }
 
     /** @return list<string> */

@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\AiChat\Models;
 use MarioHamann\StatamicVisualEditor\AiChat\Tabs;
+use MarioHamann\StatamicVisualEditor\AiProvider;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\Features;
 use Statamic\Facades\User;
@@ -129,7 +130,7 @@ class AiTabsController
     {
         static::tabs();
 
-        return response()->json(['models' => Models::all(), 'default' => CursorAgent::model()]);
+        return response()->json(['models' => Models::all(), 'default' => AiProvider::model()]);
     }
 
     /** The current user's tabs; the AI panel has to be on for them. */

@@ -4,8 +4,10 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\AiChat;
+use MarioHamann\StatamicVisualEditor\AiChat\Run;
 use MarioHamann\StatamicVisualEditor\AiChat\Tabs;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
+use Statamic\Facades\User;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
@@ -13,16 +15,18 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * type, or (Write mode) return markup without writing files. Gated by the AI
  * toggle and toolbar access.
  *
- * Runs a local Cursor agent against the site. Same Cursor account — not Anthropic.
+ * Runs the AI the site picked (AiProvider): Cursor's agent, or the Claude
+ * runner. Answered in the background (AiChat\Run, `sve:ai-chat-run`): an
+ * answer can take longer than the web server lets a request live.
  *
  * The conversation lives in the user's tab on the server (AiChat\Tabs), not in
  * the browser: the question is written into the tab before the agent starts and
  * the answer when it ends — even when the page that asked was reloaded or
  * closed in between, which is why the run does not stop when the browser goes.
  *
- * Asked while the AI is still answering, a question is queued; the request
- * running the answer asks the next queued question when it is done, and so on
- * until the queue is empty — the panel only polls. Stop ends the agent of the
+ * Asked while the AI is still answering, a question is queued; the run
+ * answering asks the next queued question when it is done, and so on until
+ * the queue is empty — the panel only polls. Stop ends the agent of the
  * run it stops, and the queue waits. "Send now" (`queued`) stops what is
  * running and asks that queued question in its place.
  */
@@ -60,19 +64,11 @@ class AiChatController
             }
         }
 
-        ignore_user_abort(true);
+        // Answered in the background: an answer can take longer than the web
+        // server lets this request live. The panel polls the waiting tab.
+        Run::start((string) User::current()?->id(), $tab, $started);
 
-        [$status, $out, $chat, $message] = static::drain($tabs, $tab, $started);
-
-        return response()->json([
-            'ok' => $status === 200,
-            'message' => $message,
-            'reply' => $out['reply'] ?? '',
-            'applied' => $out['applied'] ?? false,
-            'path' => $out['path'] ?? null,
-            'mode' => $out['mode'] ?? null,
-            'chat' => $chat,
-        ], $status);
+        return response()->json(['ok' => true, 'chat' => $started['chat']]);
     }
 
     /**
@@ -83,7 +79,7 @@ class AiChatController
      * @param  array{run: string, chat: array, item: array}  $started
      * @return array{0: int, 1: ?array, 2: ?array, 3: ?string}
      */
-    protected static function drain(Tabs $tabs, string $tab, array $started): array
+    public static function drain(Tabs $tabs, string $tab, array $started): array
     {
         while (true) {
             [$status, $out, $row] = static::answer($tabs, $tab, $started);

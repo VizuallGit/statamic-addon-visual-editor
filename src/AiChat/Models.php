@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\AiChat;
 
 use Illuminate\Support\Facades\Cache;
 use MarioHamann\StatamicVisualEditor\AiChat;
+use MarioHamann\StatamicVisualEditor\AiProvider;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
 
 /**
@@ -43,6 +44,11 @@ final class Models
      */
     public static function all(): array
     {
+        // On Claude the picker is Claude's own models; Cursor's list is not asked for.
+        if (AiProvider::claude()) {
+            return AiProvider::claudeModels();
+        }
+
         $key = 'sve-ai-models-listed:'.sha1(AiChat::apiKey());
 
         return static::modern(Cache::remember($key, static::CACHE_SECONDS, fn () => CursorAgent::models()));
