@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 18) {
+    if (window.__sveDockInstantPreview === 19) {
         return;
     }
-    window.__sveDockInstantPreview = 18;
+    window.__sveDockInstantPreview = 19;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -67,6 +67,15 @@
     var ANT_OPEN = '\uE001';
     var ANT_CLOSE = '\uE002';
     var ANT_ANY = /[\uE000-\uE002]/;
+    // A class attribute's condition on literals \u2014 `{{ on ?= 'btn px-1' }}`,
+    // `{{ a ? 'x' : 'y' }}`, an undecided `{{ if }}` around plain tokens \u2014
+    // is kept as ONE marker token (branchToken): ANT, then the branches
+    // split by ANT_BRANCH, a branch's tokens by ANT_SPACE. classValue drops
+    // it like any marker; applyClass reads it to swap the branch a live
+    // element shows for what is being typed.
+    var ANT_BRANCH = '\uE003';
+    var ANT_SPACE = '\uE004';
+    var SAFE_CLASS = /^[^\s"'<>{}\uE000-\uE00F]+$/;
     var INSTANT_TITLE = 'Instant Preview — HTML, tekst, klasser og CSS males i previewet med det samme';
     var MORPH_TITLE = 'Intet males med det samme — alt venter på den gemte morph, cirka ét sekund';
 
@@ -1191,7 +1200,7 @@
         while ((start = text.indexOf('{{', i)) !== -1) {
             out += text.slice(i, start);
             tag = tagEnd(text, start);
-            out += fn(text.slice(start, tag.end), tag.closed);
+            out += fn(text.slice(start, tag.end), tag.closed, start);
             i = tag.end;
         }
 
@@ -1576,7 +1585,8 @@
     }
 
     function stripAntlers(html, ctx) {
-        var source = resolveConditions(String(html).replace(/\{\{#[\s\S]*?#\}\}/g, ''), ctx);
+        var source = foldClassChains(resolveConditions(String(html).replace(/\{\{#[\s\S]*?#\}\}/g, ''), ctx));
+        var classAt = classValueRanges(source);
         var closers = {};
         var scope = 0;
         // The object pairs the paint is inside, outermost first: each one's
@@ -1590,11 +1600,12 @@
             closers[m[1]] = true;
         }
 
-        return eachAntlers(source, function (tag, closed) {
+        return eachAntlers(source, function (tag, closed, at) {
             var body = (closed ? tag.slice(2, -2) : tag.slice(2)).trim();
             var name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
             var value;
             var inner;
+            var pick;
 
             if (body.charAt(0) === '/') {
                 if (scope === 0 && scopes.length && scopes[scopes.length - 1].name === name) {
@@ -1643,6 +1654,26 @@
                 return ANT_OPEN;
             }
 
+            // `{{ on ?= 'btn px-1' }}`, `{{ a ? 'x' : 'y' }}`: decided from
+            // the values when the row's fields decide it. Undecided — the
+            // field is a loop row's, as the header's `{{ highlighted ?= '…' }}`
+            // in its nav loop, or one no form holds — a class attribute keeps
+            // the branches as one token (branchToken), and applyClass swaps
+            // the branch the live element shows for what is typed. It used to
+            // be a bare marker: a class typed inside the literal waited for
+            // the morph (the demo's header, 26 Oct 2026).
+            pick = ternary(body);
+
+            if (pick) {
+                value = scope === 0 ? decideTernary(pick, cur) : null;
+
+                if (value !== null) {
+                    return escapeHtml(value);
+                }
+
+                return (inRanges(classAt, at) && branchToken(pick.branches)) || ANT;
+            }
+
             // Inside `{{ blocks }} … {{ /blocks }}` a field is the block's,
             // not the section's: `class="[ {{ type }} ]"` on a block's
             // wrapper was painted with the section's type (skabelon's form
@@ -1655,6 +1686,245 @@
 
             return value === null ? ANT : escapeHtml(value);
         });
+    }
+
+    /** Whether `at` lies in one of `ranges` ([from, to) pairs). */
+    function inRanges(ranges, at) {
+        var i;
+
+        for (i = 0; i < ranges.length; i++) {
+            if (at >= ranges[i][0] && at < ranges[i][1]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * [from, to) of every HTML class attribute's value. Antlers is masked
+     * first, so a quote inside a tag (`{{ on ?= 'btn' }}`) does not end the
+     * value, and a `class=` parameter inside a tag is not an attribute.
+     */
+    function classValueRanges(source) {
+        var masked = maskAntlersText(source);
+        var re = /(?:^|\s)class\s*=\s*(["'])/g;
+        var out = [];
+        var m;
+        var end;
+
+        while ((m = re.exec(masked))) {
+            end = masked.indexOf(m[1], re.lastIndex);
+
+            if (end === -1) {
+                break;
+            }
+
+            out.push([re.lastIndex, end]);
+            re.lastIndex = end + 1;
+        }
+
+        return out;
+    }
+
+    /**
+     * `{{ if … }}a{{ elseif … }}b{{ else }}c{{ /if }}` inside a class
+     * attribute, left undecided by resolveConditions: folded to one branch
+     * token when every branch is plain class tokens, so applyClass can swap
+     * the branch an element shows. A chain with a tag or a nested chain in
+     * a branch stays as it is — a block, for the server.
+     */
+    function foldClassChains(source) {
+        var ranges = classValueRanges(source);
+        var i;
+        var value;
+        var folded;
+
+        for (i = ranges.length - 1; i >= 0; i--) {
+            value = source.slice(ranges[i][0], ranges[i][1]);
+            folded = foldChains(value);
+
+            if (folded !== value) {
+                source = source.slice(0, ranges[i][0]) + folded + source.slice(ranges[i][1]);
+            }
+        }
+
+        return source;
+    }
+
+    function foldChains(value) {
+        var out = '';
+        var i = 0;
+        var start;
+        var tag;
+        var chain;
+
+        while ((start = value.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(value, start);
+
+            if (!tag.closed) {
+                break;
+            }
+
+            chain = /^\{\{\s*(?:if|unless)\b/.test(value.slice(start, tag.end)) ? chainAt(value, tag.end) : null;
+
+            if (chain && chain.token) {
+                out += value.slice(i, start) + chain.token;
+                i = chain.end;
+            } else {
+                out += value.slice(i, tag.end);
+                i = tag.end;
+            }
+        }
+
+        return out + value.slice(i);
+    }
+
+    /**
+     * The chain whose opener ends at `bodyFrom`: where it ends and its
+     * branch token (null when a branch holds a tag or no class token); null
+     * when it is not closed or nests another chain.
+     */
+    function chainAt(value, bodyFrom) {
+        var branches = [];
+        var plain = true;
+        var pos = bodyFrom;
+        var next;
+        var tag;
+        var body;
+        var name;
+
+        for (;;) {
+            next = value.indexOf('{{', pos);
+
+            if (next === -1) {
+                return null;
+            }
+
+            tag = tagEnd(value, next);
+
+            if (!tag.closed) {
+                return null;
+            }
+
+            body = value.slice(next + 2, tag.end - 2).trim();
+            name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
+
+            if (body.charAt(0) === '/' || name === 'endif' || name === 'endunless') {
+                if (name === 'if' || name === 'unless' || name === 'endif' || name === 'endunless') {
+                    branches.push(value.slice(bodyFrom, next));
+
+                    return { end: tag.end, token: plain ? branchToken(branches) : null };
+                }
+
+                plain = false;
+            } else if (name === 'if' || name === 'unless') {
+                return null;
+            } else if (name === 'elseif' || name === 'else') {
+                branches.push(value.slice(bodyFrom, next));
+                bodyFrom = tag.end;
+            } else {
+                plain = false;
+            }
+
+            pos = tag.end;
+        }
+    }
+
+    var TERNARY_LIT = "'((?:[^'\\\\]|\\\\.)*)'|\"((?:[^\"\\\\]|\\\\.)*)\"";
+    var TERNARY_SET = new RegExp('^([^?]+?)\\s*\\?=\\s*(?:' + TERNARY_LIT + ')$');
+    var TERNARY_TWO = new RegExp('^([^?]+?)\\s*\\?\\s*(?:' + TERNARY_LIT + ')\\s*:\\s*(?:' + TERNARY_LIT + ')$');
+    var TERNARY_OR = new RegExp('^([^?]+?)\\s*(?:\\?:|\\?\\?)\\s*(?:' + TERNARY_LIT + ')$');
+
+    /**
+     * A ternary on string literals — `on ?= 'a'`, `on ? 'a' : 'b'`,
+     * `on ?: 'a'` / `on ?? 'a'` — as its condition and its two branches
+     * (null for the branch that is the field's own value); null for any
+     * other expression.
+     */
+    function ternary(body) {
+        var m = TERNARY_SET.exec(body);
+        var lit = function (i) {
+            return m[i] !== undefined ? m[i] : m[i + 1];
+        };
+
+        if (m) {
+            return { cond: m[1], branches: [lit(2), ''] };
+        }
+
+        m = TERNARY_TWO.exec(body);
+
+        if (m) {
+            return { cond: m[1], branches: [lit(2), lit(4)] };
+        }
+
+        m = TERNARY_OR.exec(body);
+
+        if (m) {
+            return { cond: m[1], own: true, branches: [null, lit(2)] };
+        }
+
+        return null;
+    }
+
+    /** The ternary's output when the values decide its condition; null when they cannot. */
+    function decideTernary(pick, ctx) {
+        var verdict = evalCondition(pick.cond, ctx);
+
+        if (verdict === null) {
+            return null;
+        }
+
+        if (!verdict) {
+            return pick.branches[1];
+        }
+
+        return pick.own ? resolveField(pick.cond, ctx) : pick.branches[0];
+    }
+
+    /**
+     * The branches of a class attribute's condition as one marker token:
+     * ANT, the branches joined by ANT_BRANCH, a branch's tokens by
+     * ANT_SPACE. A marker token to classValue, the branches to
+     * classBranches. Null when a branch holds something that is no class
+     * token — then the plain marker, as before.
+     */
+    function branchToken(branches) {
+        var out = [];
+        var i;
+        var j;
+        var tokens;
+
+        for (i = 0; i < branches.length; i++) {
+            tokens = branches[i] === null ? [] : String(branches[i]).split(/\s+/).filter(Boolean);
+
+            for (j = 0; j < tokens.length; j++) {
+                if (!SAFE_CLASS.test(tokens[j])) {
+                    return null;
+                }
+            }
+
+            out.push(tokens.join(ANT_SPACE));
+        }
+
+        return ANT + out.join(ANT_BRANCH);
+    }
+
+    /** The branch lists of every branch token in a class value, in order — [[tokens…] per branch] each; [] when it holds none. */
+    function classBranches(value) {
+        var out = [];
+
+        String(value || '').split(/\s+/).forEach(function (token) {
+            if (token.length < 2 || token.charAt(0) !== ANT || ANT_ANY.test(token.slice(1))) {
+                return;
+            }
+
+            out.push(token.slice(1).split(ANT_BRANCH).map(function (branch) {
+                return branch ? branch.split(ANT_SPACE) : [];
+            }));
+        });
+
+        return out;
     }
 
     /** `name` (a field path) in `ctx` when it is a plain object — a scope a tag pair opens; null otherwise. */
@@ -1758,11 +2028,12 @@
      * (11 Oct 2026). No earlier template (the file's first paint, a spot
      * that moved this keystroke) takes nothing away either: the morph does.
      */
-    function applyClass(el, value, prior) {
+    function applyClass(el, value, prior, priors) {
         var next;
         var prev;
         var tplTokens;
         var priorTokens;
+        var have;
         var kept;
 
         // A value with Antlers in it — `[ blocks ] {{ _alignment }}`,
@@ -1770,7 +2041,10 @@
         // its static tokens go on and off as in any class, the tag's output
         // is a token this script does not know and so never touches (it is
         // neither in the template now nor in `prior`). It used to wait whole
-        // for the morph (Cuben's media textbox, 20 Oct 2026).
+        // for the morph (Cuben's media textbox, 20 Oct 2026). A condition's
+        // branches (branchToken) are the one exception: the branch the
+        // element shows is swapped for the one typed (swapBranches, from
+        // `priors` — the raw class earlier templates had at this spot).
         if (!el) {
             return;
         }
@@ -1779,7 +2053,13 @@
         prev = classValue(el.getAttribute('class') || '');
         tplTokens = next.split(' ');
         priorTokens = typeof prior === 'string' ? prior.split(' ') : null;
-        kept = prev.split(' ').filter(function (name) {
+        have = prev ? prev.split(' ') : [];
+
+        if (priors && priors.length) {
+            have = swapBranches(el, have, classBranches(value), priors, tplTokens);
+        }
+
+        kept = have.filter(function (name) {
             return name && tplTokens.indexOf(name) === -1 && (!priorTokens || priorTokens.indexOf(name) === -1);
         });
 
@@ -1800,6 +2080,109 @@
     }
 
     /**
+     * The branch a live element shows, swapped for the template's branch at
+     * the same spot. `{{ highlighted ?= 'btn bg-gray-800' }}` the server
+     * rendered on the one highlighted link is found by the tokens an earlier
+     * template had there — this paint's prior first, then older ones, since
+     * a morph may put back a save from a few keystrokes ago — taken off, and
+     * the branch as it is typed put on. An element showing none of them is
+     * on the other side of the condition and is left alone. A branch the
+     * static classes already cover tells nothing and is skipped.
+     */
+    function swapBranches(el, have, branches, priors, tplTokens) {
+        var out = have;
+        var t;
+        var p;
+        var b;
+        var prior;
+        var old;
+        var neu;
+        var done;
+
+        for (t = 0; t < branches.length; t++) {
+            done = false;
+
+            for (p = 0; p < priors.length && !done; p++) {
+                prior = classBranches(priors[p])[t];
+
+                for (b = 0; prior && b < prior.length && !done; b++) {
+                    old = prior[b];
+                    neu = branches[t][b] || [];
+
+                    if (!old.length || !hasAll(out, old) || !tellsApart(old, tplTokens)) {
+                        continue;
+                    }
+
+                    done = true;
+
+                    if (!sameList(old, neu)) {
+                        out = replaceTokens(out, old, neu, tplTokens);
+                        trace('class: ' + old.join(' ') + ' → ' + (neu.join(' ') || '(none)') + ' on <' + el.tagName.toLowerCase() + '>');
+                    }
+                }
+            }
+        }
+
+        return out;
+    }
+
+    function hasAll(list, wanted) {
+        var i;
+
+        for (i = 0; i < wanted.length; i++) {
+            if (list.indexOf(wanted[i]) === -1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** A branch with a token the static classes do not have: the one token that says the element is on this side. */
+    function tellsApart(branch, tplTokens) {
+        var i;
+
+        for (i = 0; i < branch.length; i++) {
+            if (tplTokens.indexOf(branch[i]) === -1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function sameList(a, b) {
+        var i;
+
+        if (a.length !== b.length) {
+            return false;
+        }
+
+        for (i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** `old` off (what `keep` has stays), `neu` on. */
+    function replaceTokens(list, old, neu, keep) {
+        var out = list.filter(function (name) {
+            return old.indexOf(name) === -1 || keep.indexOf(name) !== -1;
+        });
+
+        neu.forEach(function (name) {
+            if (out.indexOf(name) === -1) {
+                out.push(name);
+            }
+        });
+
+        return out;
+    }
+
+    /**
      * The template as it was the last time a root was painted, by root: the
      * section's sid and the template's tag (a snippet painted on its own
      * apart from the file). What it said at a spot is read by index path,
@@ -1810,6 +2193,15 @@
     var nextTplRoots = {};
     var curTplRoot = null;
     var curTplKey = '';
+    /**
+     * What the templates of the last paints said at the spots that hold a
+     * condition's branches (branchToken), by root and index path, newest
+     * first: the branches a live element may still show — this paint's
+     * prior, or an older one the morph put back. Only those spots are kept,
+     * so a run of keystrokes costs next to nothing.
+     */
+    var HISTORY_MAX = 24;
+    var tplHistory = {};
 
     function rememberTpl(live, tpl, scoped) {
         curTplKey = ((outermostSid(live) || live).getAttribute('data-sid') || '') + '|' + tpl.tagName + (scoped ? '|s' : '|f');
@@ -1830,9 +2222,80 @@
 
     function commitTpl() {
         Object.keys(nextTplRoots).forEach(function (key) {
+            var spots = branchSpots(nextTplRoots[key]);
+            var hist = tplHistory[key] || (tplHistory[key] = []);
+
             prevTplRoots[key] = nextTplRoots[key];
+
+            if (!hist.length || hist[0].key !== spots.key) {
+                hist.unshift(spots);
+
+                if (hist.length > HISTORY_MAX) {
+                    hist.pop();
+                }
+            }
         });
         nextTplRoots = {};
+    }
+
+    /** The elements of a template whose class holds a branch token, by index path: `{ tag, cls }` — and one key for them all. */
+    function branchSpots(root) {
+        var spots = {};
+        var parts = [];
+        var all = [root].concat(Array.prototype.slice.call(root.querySelectorAll('[class*="' + ANT + '"]')));
+        var i;
+        var path;
+        var cls;
+
+        for (i = 0; i < all.length; i++) {
+            cls = all[i].getAttribute('class') || '';
+
+            if (!classBranches(cls).length) {
+                continue;
+            }
+
+            path = indexPath(root, all[i]);
+
+            if (path) {
+                spots[path.join('/')] = { tag: all[i].tagName, cls: cls };
+                parts.push(path.join('/') + '=' + cls);
+            }
+        }
+
+        return { spots: spots, key: parts.join('\n') };
+    }
+
+    /** The raw class the last paints' templates had at this template element's spot, newest first; [] without a history. */
+    function priorRaws(tpl) {
+        var hist = curTplKey ? tplHistory[curTplKey] : null;
+        var path = hist && hist.length && curTplRoot ? tplPath(tpl) : null;
+        var out = [];
+        var key;
+        var spot;
+        var i;
+
+        if (!path) {
+            return out;
+        }
+
+        key = path.join('/');
+
+        for (i = 0; i < hist.length; i++) {
+            spot = hist[i].spots[key];
+
+            if (spot && spot.tag === tpl.tagName && out.indexOf(spot.cls) === -1) {
+                out.push(spot.cls);
+            }
+        }
+
+        return out;
+    }
+
+    /** The template element's class onto the live one: static tokens, and a condition's branches swapped. */
+    function paintClass(live, tpl) {
+        var cls = tpl.getAttribute('class') || '';
+
+        applyClass(live, cls, priorClass(tpl), cls.indexOf(ANT) !== -1 ? priorRaws(tpl) : null);
     }
 
     /**
@@ -1984,7 +2447,7 @@
             tplIndexCache = new Map();
         }
 
-        applyClass(section, tplRoot.getAttribute('class') || '', priorClass(tplRoot));
+        paintClass(section, tplRoot);
 
         function walk(tplParent, liveParents) {
             var children = [];
@@ -2034,8 +2497,9 @@
                 if (tplEl.hasAttribute('class')) {
                     var cls = tplEl.getAttribute('class') || '';
                     var prior = priorClass(tplEl);
+                    var raws = cls.indexOf(ANT) !== -1 ? priorRaws(tplEl) : null;
                     targets.forEach(function (liveEl) {
-                        applyClass(liveEl, cls, prior);
+                        applyClass(liveEl, cls, prior, raws);
                     });
                 }
 
@@ -2141,11 +2605,9 @@
      * the morph; new nodes are built from the template in full.
      */
     function syncAttrs(live, tpl) {
-        var cls = tpl.getAttribute('class');
-
-        // A class with Antlers in it is painted too: its static tokens (applyClass).
-        if (cls !== null) {
-            applyClass(live, cls, priorClass(tpl));
+        // A class with Antlers in it is painted too: its static tokens, and a condition's branches (paintClass).
+        if (tpl.hasAttribute('class')) {
+            paintClass(live, tpl);
         }
     }
 
@@ -3167,15 +3629,34 @@
         return true;
     }
 
+    /**
+     * The class names in the pane, as Tailwind candidates — the live sheet's
+     * key. An Antlers expression inside a value keeps its string literals
+     * (`{{ on ?= 'btn px-1' }}`), the way tw-candidates.js and Oxide read
+     * it. Blanked whole, a class typed inside the literal left the key as it
+     * was, the old sheet was put back, and the class had no CSS until the
+     * bake (26 Oct 2026). `bg-{{ color }}` is no class anyone can compile.
+     */
     function classNames(html) {
+        var source = String(html || '');
+        var re = /\b(?:props_|_)?class\s*=\s*(["'])/gi;
         var out = [];
-        var re = /\b(?:props_|_)?class\s*=\s*("([^"]*)"|'([^']*)')/gi;
         var match;
+        var start;
+        var end;
+        var value;
 
-        while ((match = re.exec(String(html || '')))) {
-            var value = eachAntlers(match[2] ?? match[3] ?? '', function () {
-                return ' ';
-            });
+        while ((match = re.exec(source))) {
+            start = re.lastIndex;
+            end = attrValueEnd(source, start, match[1]);
+            value = source
+                .slice(start, end)
+                .replace(/\{\{([\s\S]*?)\}\}/g, function (all, expr) {
+                    return ' ' + antlersLiterals(expr).join(' ') + ' ';
+                })
+                .replace(/\{\{[\s\S]*$/, ' ');
+            re.lastIndex = end;
+
             value.split(/\s+/).forEach(function (token) {
                 var name = token.trim();
 
@@ -3193,6 +3674,51 @@
                     out.push(name);
                 }
             });
+        }
+
+        return out;
+    }
+
+    /** Where an attribute value ends: its own quote, outside `{{ … }}` — a quote inside a tag is Antlers'. */
+    function attrValueEnd(source, from, quote) {
+        var i = from;
+        var close;
+        var plain;
+
+        while (i < source.length) {
+            if (source.charAt(i) === '{' && source.charAt(i + 1) === '{') {
+                close = source.indexOf('}}', i + 2);
+
+                // A tag still being typed: no `}}`, or the one found belongs
+                // to a later Antlers or HTML tag. The value ends at the next quote.
+                if (close === -1 || /\{\{|<[a-z/!]/i.test(source.slice(i + 2, close))) {
+                    break;
+                }
+
+                i = close + 2;
+                continue;
+            }
+
+            if (source.charAt(i) === quote) {
+                return i;
+            }
+
+            i++;
+        }
+
+        plain = source.indexOf(quote, i);
+
+        return plain === -1 ? source.length : plain;
+    }
+
+    /** The text of every `'…'` / `"…"` literal in one Antlers expression. */
+    function antlersLiterals(expr) {
+        var out = [];
+        var re = /'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"/g;
+        var m;
+
+        while ((m = re.exec(expr))) {
+            out.push(m[1] !== undefined ? m[1] : m[2]);
         }
 
         return out;
@@ -3996,6 +4522,7 @@
         componentFiles = {};
         prevTplRoots = {};
         nextTplRoots = {};
+        tplHistory = {};
     }
 
     /**

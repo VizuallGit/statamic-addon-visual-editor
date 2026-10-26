@@ -167,6 +167,37 @@ try {
     console.log(`info ${name} trace: ${JSON.stringify(trace)}`);
   };
 
+  /**
+   * A class typed INSIDE a condition's literal — the demo header's
+   * `{{ highlighted ?= 'btn …' }}` in its nav loop — must paint on the link
+   * that shows the branch (Kontakt) at once, and on no other link. It used
+   * to wait for the morph: the literal was a bare marker to the paint (26 Oct 2026).
+   */
+  const ternaryProbe = async (name, rel, hostSel) => {
+    const pane = await cp.evaluate(() => { const c = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content'); const v = c?.cmTile?.view || c?.cmView?.view; return v ? v.state.doc.toString() : ''; });
+    const m = /\{\{\s*([\w.:]+)\s*\?=\s*'([^']*)'\s*\}\}/.exec(pane);
+    if (!m) { step(`${name}: the file holds a {{ field ?= '…' }} class literal`, false, 'none found — probe skipped'); return; }
+    const tokens = m[2].split(/\s+/).filter(Boolean);
+    const lp = await livePreview();
+    const shown = await lp.evaluate((host, toks) => [...document.querySelectorAll(`${host} *`)].filter((el) => toks.every((t) => el.classList.contains(t))).length, hostSel, tokens);
+    step(`${name}: one element shows the literal's branch (${m[1]})`, shown === 1, `${shown} element(s) show "${m[2]}"`);
+    if (shown !== 1) return;
+    const at = m.index + m[0].lastIndexOf("'");
+    await cp.evaluate((pos) => { const c = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content'); const v = c?.cmTile?.view || c?.cmView?.view; v.dispatch({ selection: { anchor: pos }, scrollIntoView: true }); v.focus(); }, at);
+    const cls = 'sve-probe-t';
+    await page.keyboard.type(' ' + cls, { delay: 5 });
+    const count = (sel) => livePreview().then((p) => p ? p.evaluate((s) => document.querySelectorAll(s).length, sel).catch(() => -1) : -1);
+    const t0 = Date.now(); let ms = -1;
+    while (Date.now() - t0 < 4000) { if ((await count(`${hostSel} .${tokens[0]}.${cls}`)) >= 1) { ms = Date.now() - t0; break; } await sleep(20); }
+    step(`${name}: the class inside the literal paints at once on the branch's element`, ms >= 0 && ms <= INSTANT_MS, `${ms} ms`);
+    step(`${name}: on that element only`, (await count(`${hostSel} .${cls}`)) === 1, `${await count(`${hostSel} .${cls}`)} element(s)`);
+    await sleep(3000);
+    step(`${name}: still there after the morph`, (await count(`${hostSel} .${tokens[0]}.${cls}`)) === 1);
+    step(`${name}: the file on disk holds it`, fileHas(rel, `${m[2]} ${cls}'`), rel);
+    const trace = await cp.evaluate(() => (window.__sveInstantTrace || []).slice(-5).map((l) => l.replace(/^\d+ /, '')));
+    console.log(`info ${name} ternary trace: ${JSON.stringify(trace)}`);
+  };
+
   if (ONLY_GLOBAL) { console.log('info header/footer/static stages skipped'); } else {
   // ---- Header: step into it in the preview, the dock opens its file ----
   step('header editor open', await enterChrome('header'));
@@ -174,7 +205,7 @@ try {
   step('code dock open', await openDock());
   let path = await waitPath(/site_head|partials\/header\//);
   step('dock opened the header\'s file', /partials\/site_head\.antlers\.html$/.test(path), path);
-  if (path) { remember(path); await probe('header', path, 'data-sve-chrome="header"', 'sve-probe-h', 'hdr', '[data-sve-chrome="header"]'); }
+  if (path) { remember(path); await probe('header', path, 'data-sve-chrome="header"', 'sve-probe-h', 'hdr', '[data-sve-chrome="header"]'); await ternaryProbe('header', path, '[data-sve-chrome="header"]'); }
 
   // ---- Footer: leave the header first — inside a half the rest of the page is locked ----
   await leaveChrome();

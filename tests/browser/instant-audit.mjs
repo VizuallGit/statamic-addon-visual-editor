@@ -154,6 +154,11 @@ function planEdits(html, css, sid) {
   else edits.push({ kind: 'class-in-loop', skip: 'no element inside a loop' });
   if (antlersParam) edits.push({ kind: 'class-antlers', pane: 'html', from: antlersParam.at, insert: ' sve-a4', check: `!!document.querySelector('${sel} .sve-a4')`, note: `{{ ${antlersParam.name} }}` });
   else edits.push({ kind: 'class-antlers', skip: 'no Antlers tag with a literal class parameter' });
+  // A class inside a condition's literal in a class attribute: `{{ x ?= 'a b' }}` or `{{ x ? 'a' : 'b' }}`.
+  // It paints on the element that shows the branch — so only when the page renders that branch somewhere.
+  const ternary = (() => { const re = /\{\{\s*([^{}]*?)\s*\?=?\s*'([^']*)'/g; let m; while ((m = re.exec(html))) { const at = m.index + m[0].length - 1; if (within(at, skips)) continue; const tag = tags.find((t) => t.classAt != null && at > t.from && at < t.to); if (tag) return { at, cond: m[1], tokens: m[2].split(/\s+/).filter(Boolean) }; } return null; })();
+  if (ternary && ternary.tokens.length) edits.push({ kind: 'class-ternary', pane: 'html', from: ternary.at, insert: ' sve-a6', check: `!!document.querySelector('${sel} .sve-a6')`, pre: `[...document.querySelectorAll('${sel}, ${sel} *')].some((el) => ${JSON.stringify(ternary.tokens)}.every((t) => el.classList.contains(t)))`, note: `{{ ${ternary.cond} ?= '${ternary.tokens.join(' ')}' }}` });
+  else edits.push({ kind: 'class-ternary', skip: 'no condition with a class literal in a class attribute' });
   if (rootClose != null) edits.push({ kind: 'new-p-static', pane: 'html', from: rootClose, insert: '<p class="sve-p1">probe</p>\n', check: `document.querySelector('${sel} .sve-p1')?.textContent === 'probe'` });
   else edits.push({ kind: 'new-p-static', skip: 'no root closing tag' });
   if (firstIf) edits.push({ kind: 'new-p-in-if', pane: 'html', from: firstIf.openerEnd, insert: '<p class="sve-p2">probe</p>', check: `!!document.querySelector('${sel} .sve-p2')`, note: `{{ ${firstIf.name} }}` });
@@ -261,6 +266,8 @@ try {
       console.log(`\n== ${path}`);
       for (const e of edits) {
         if (e.skip) { row.results.push({ kind: e.kind, skip: e.skip }); console.log(`  ${e.kind.padEnd(16)} —  (${e.skip})`); continue; }
+        // An edit that can only show where the page renders the branch: skipped, not judged, when it does not.
+        if (e.pre && !(await (await livePreview()).evaluate((c) => { try { return !!eval(c); } catch { return false; } }, e.pre))) { row.results.push({ kind: e.kind, skip: 'the page renders no element with that branch' }); console.log(`  ${e.kind.padEnd(16)} —  (the page renders no element with that branch)${e.note ? '  ' + e.note : ''}`); continue; }
         // The pane the edit goes in is shown first, as a person has it: CodeMirror
         // draws no lines in a hidden pane, and then nothing watches the keystroke.
         await showPane(e.pane);
@@ -306,7 +313,7 @@ try {
 }
 
 // ---- Summary ------------------------------------------------------------------
-const kinds = ['class-root', 'class-static', 'class-in-if', 'class-in-loop', 'class-antlers', 'new-p-static', 'new-p-in-if', 'new-p-in-loop', 'new-p-in-loop-item', 'text-static', 'tailwind-class', 'css-rule'];
+const kinds = ['class-root', 'class-static', 'class-in-if', 'class-in-loop', 'class-antlers', 'class-ternary', 'new-p-static', 'new-p-in-if', 'new-p-in-loop', 'new-p-in-loop-item', 'text-static', 'tailwind-class', 'css-rule'];
 console.log('\nOPSUMMERING pr. slags (instant / langsom / aldrig / sprunget over):');
 for (const k of kinds) {
   const rs = report.files.flatMap((f) => f.results.filter((r) => r.kind === k));

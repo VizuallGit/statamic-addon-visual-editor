@@ -16,6 +16,7 @@
     "test:chrome": "node tests/browser/instant-chrome.mjs",
     "test:target": "node tests/browser/instant-target.mjs",
     "test:calls": "node tests/browser/instant-calls.mjs",
+    "test:branches": "node tests/browser/instant-branches.mjs",
     "test:audit": "node tests/browser/instant-audit.mjs",
     "test:switch": "node tests/browser/section-switch.mjs",
     "test:hide-show": "node tests/browser/section-hide-show.mjs",
