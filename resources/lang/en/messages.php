@@ -628,7 +628,8 @@ return [
     // Live Preview chrome
     'all_sections' => 'All sections',
     'selection_back' => 'Back',
-    'selection_page' => 'Page',
+    // The selection panel's way out of a row at the top (the page's own section): the same word as a component's Exit.
+    'selection_page' => 'Exit',
     'globals' => 'Globals…',
     'save_globals' => 'Save global settings',
     'back_to_site' => 'Back to the site',

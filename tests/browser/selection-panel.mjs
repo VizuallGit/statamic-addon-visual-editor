@@ -30,6 +30,8 @@
  *   SVE_NO_SEED=1   do not touch the user's preference file (a remote site)
  *   SVE_PREFLIGHT=1 stop after login, Live Preview and the ids — nothing is clicked or saved
  *   SVE_SKIP_SAVE=1 leave out the typing and Save Changes steps
+ *   SVE_WORKTREE=1  serve this checkout's build into the CP instead of the installed one
+ *                   (SVE_ADDON_DIR names the checkout; default ~/Sites/statamic-addon-visual-editor-vue)
  *
  * The save step types into the leaf's text field and saves; afterwards it
  * types the original text back and saves again, so a site keeps its content.
@@ -38,9 +40,12 @@
  */
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { serveWorktreeBuild } from './serve-worktree.mjs';
 
 const env = (key, fallback) => process.env[key] || fallback;
 const SITE_DIR = env('SVE_SITE_DIR', `${process.env.HOME}/Sites/vizuall-skabelon`);
+const ADDON_DIR = env('SVE_ADDON_DIR', `${process.env.HOME}/Sites/statamic-addon-visual-editor-vue`);
+const WORKTREE = env('SVE_WORKTREE', '') === '1';
 const SITE_URL = env('SVE_SITE_URL', 'http://vizuall-skabelon.test');
 const USER = env('SVE_USER', 'claude-test@vizuall.dk');
 const PASS = env('SVE_PASS', '');
@@ -96,6 +101,15 @@ page.on('pageerror', (e) => note(`pageerror ${e.message.slice(0, 160)} @ ${(e.st
 // Console "Failed to load resource" lines carry no URL; the response does.
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) note(`console ${m.text().slice(0, 160)}`); });
 page.on('response', (r) => { if (r.status() >= 400) note(`${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 120)}`); });
+
+if (WORKTREE) {
+  await serveWorktreeBuild(page, {
+    buildDir: `${ADDON_DIR}/resources/dist/build`,
+    installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`,
+    scriptsDir: `${ADDON_DIR}/resources/js`,
+  });
+  console.log('info build served from the working tree');
+}
 
 /** The panel as the eye sees it: header, back label, field count, nested sets. */
 const PANEL = '#__sve-selection-panel [data-sve-selection-panel]';

@@ -122,6 +122,12 @@ function paintTile() {
   }
 }
 
+/**
+ * The button's word: the parent's name when there is a row or tab above —
+ * with the arrow, it reads as "back to" — or, at the top of the form, the one
+ * word for leaving (the same as a component's Exit), with no arrow: there is
+ * nothing to step back to, only out.
+ */
 function backLabel() {
   const parent = resolvedParent.value;
 
@@ -151,7 +157,7 @@ onBeforeUnmount(() => log('SelectionPanel unmount'));
         <span class="sve-sel__tile" :ref="setTile"></span>
         <h2 class="sve-sel__title">{{ resolvedSelection.display }}</h2>
         <button type="button" class="sve-sel__back" @click="goBack">
-          <span aria-hidden="true" class="sve-sel__arrow">&#8249;</span><span>{{ backLabel() }}</span>
+          <span v-if="resolvedParent" aria-hidden="true" class="sve-sel__arrow">&#8249;</span><span>{{ backLabel() }}</span>
         </button>
       </div>
       <p v-if="resolvedSelection.instructions" class="sve-sel__desc">{{ resolvedSelection.instructions }}</p>

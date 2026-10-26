@@ -11,6 +11,12 @@
  * closes. It is deliberately not the one the global-section route uses: both
  * can be up at once, and one letting go must not speak for the other.
  *
+ * The selection panel (selection-panel.js) draws the selected row in the same
+ * column. It reads the same store this host draws from, and while `open` or
+ * `callOpen` is set it gives up the column's mark — so its rule never covers
+ * this host, and this host's attribute is the one thing hiding the panel.
+ * Nothing is said to it from here; the store is the word.
+ *
  * With no Live Preview column to borrow — the dock opened from a collection
  * template screen, say — nothing here happens and the fields stay in the right
  * pane, which is where they were before any of this.

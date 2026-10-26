@@ -27,11 +27,22 @@
  * their save, dirty state and the preview stash — nothing of their DOM is
  * isolated, marked or waited for any more.
  *
+ * One other thing borrows the same column: a component's values, while a
+ * component is open in the dock or its call is picked in the HTML tree
+ * (component-props-host.js, on cp/component-props/store.js). That store is
+ * the one place that says so, and this panel reads it: while the component
+ * has the column the panel keeps its selection but gives up the column's
+ * mark, and takes it again the moment the component lets go. Before this,
+ * the mark stayed on and its rule hid the component's host, while the
+ * component's own rule hid this panel — an empty column whenever the two
+ * were up together, and a filled one only when Statamic's hidden form
+ * happened to unmount the page's context underneath and the mark fell off.
+ *
  * May import: lib/, cp/, cp-state.js, cp-selectors.js, cp-section-groups.js,
  * code-dock-lazy.js, lazy/listview.js, pages.js, section-library.js. Not
  * cp.js, not the kernel.
  */
-import { h, nextTick } from 'vue';
+import { h, nextTick, watch } from 'vue';
 import { clearSelection, currentSelection, onSelection, select } from './lib/selection.js';
 import { containerContextName, onContainerContext, whenContainerContext } from './lib/publish-containers.js';
 import { SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
@@ -45,6 +56,7 @@ import { ACTIVE_ATTR } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
+import { componentPropsUi } from './cp/component-props/store.js';
 import { handleRequestCloseChrome, handleRequestCloseGlobal } from './pages.js';
 import { activateSectionsTab } from './lp-width.js';
 import SelectionPanel from './cp/surfaces/SelectionPanel.vue';
@@ -212,6 +224,15 @@ export function initSelectionPanel(win) {
     paint(win, applied, null);
   });
 
+  // The column changing hands. The selection stays what it is — the row is
+  // still the one picked, the dock still on its file — so only the mark
+  // moves: off while the component has the column, back on when it lets go.
+  // Nothing is asked of the host and nothing waited for: the store flips, and
+  // the mark follows before the frame is painted.
+  watch(componentHasColumn, () => {
+    place(win, applied);
+  });
+
   const apply = () => {
     const selection = currentSelection();
     const previous = applied;
@@ -341,22 +362,61 @@ function teardown() {
   host = null;
 }
 
-/** Show the panel for the selection, or give the column back to Statamic's form. */
-function paint(win, selection, previous) {
-  const doc = win.document;
-  const col = column(doc);
+/**
+ * Whether the component's values have the column (component-props-host.js):
+ * a component open in the dock, or its call picked in the HTML tree. The
+ * component's store is the one place that says so; the host draws from it
+ * and so does this panel.
+ */
+function componentHasColumn() {
+  return !!componentPropsUi.open || !!componentPropsUi.callOpen;
+}
+
+/**
+ * The column's mark and the host in it, from one fact: a row is resolved and
+ * the component does not have the column. Without the mark the panel's rule
+ * hides nothing, so the component's host is left to its own rule; with it,
+ * Statamic's form steps out of sight for the panel. Called when the selection
+ * changes and when the column changes hands — the selection itself does not
+ * move for the second, so only the mark is touched here.
+ */
+function place(win, selection) {
+  const col = column(win.document);
 
   if (!col) {
-    return;
+    return false;
   }
 
-  const showing = !!selection && !!resolvedSelection.value;
+  const resolved = !!selection && !!resolvedSelection.value;
+  const showing = resolved && !componentHasColumn();
 
-  log(`paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}`);
+  log(`paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}${resolved && !showing ? ' component has the column' : ''}`);
 
   if (!showing) {
     col.removeAttribute(SELECTION_ATTR);
 
+    return false;
+  }
+
+  ensureHost(win);
+  col.setAttribute(SELECTION_ATTR, '');
+
+  return true;
+}
+
+/** Show the panel for the selection, or give the column back to Statamic's form. */
+function paint(win, selection, previous) {
+  const doc = win.document;
+
+  if (!column(doc)) {
+    return;
+  }
+
+  place(win, selection);
+
+  const row = selection ? resolvedSelection.value : null;
+
+  if (!row) {
     if (previous && !selection) {
       // Back to the page: the dock follows the page, the preview drops its mark.
       syncCodeDock(win, doc, null);
@@ -364,11 +424,6 @@ function paint(win, selection, previous) {
 
     return;
   }
-
-  ensureHost(win);
-  col.setAttribute(SELECTION_ATTR, '');
-
-  const row = resolvedSelection.value;
 
   // The dock follows the selection, whoever made it: the tree, the outline,
   // the block tree, the panel's own back arrow. A click on the page tells the
