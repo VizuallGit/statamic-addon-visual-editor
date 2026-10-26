@@ -16,6 +16,7 @@ import { clearSelection } from './lib/selection.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { relayoutCodeDock } from './code-dock-lazy.js';
 import { forgetHelpSwitch } from './dock/help-state.js';
+import { forgetGhostSwitch } from './dock/ghost-state.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, enhanceGrids, ensureHeaderToolbar, ensureLpBackButton, ensureLpPreviewChrome, ensureSettingsTabs, fireTabClick, nativeTabButtons, openSettingsTab, positionLpBackButton, removeLpBackButton, restoreDockedHeaderPanels, watchStatamicLpClose } from './cp.js';
 import { ensureGlobalsPicker, ensureSectionLibraryButton, parkGlobalsPanel } from './globals-panel.js';
@@ -366,6 +367,7 @@ export function ensureLpPanelToggleInner(win) {
       sveState.lpCloseHideObserver = null;
       // The HTML pane's help switch was this Live Preview's; the next starts from the default.
       forgetHelpSwitch(win);
+      forgetGhostSwitch(win);
     }
 
     return;

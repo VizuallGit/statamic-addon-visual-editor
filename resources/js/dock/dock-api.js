@@ -51,6 +51,7 @@ import { bindCssTools, bindHtmlTidy, bindHtmlTools, bindStyleMode } from './tool
 import { bindCssAddClass } from './html-tools.js';
 import { bindHistory, bindStrip, paintStrip } from './history-strip.js';
 import { attachHelp } from './help-attach.js';
+import { attachGhost } from './ghost-attach.js';
 import { bindHtmlScope, clearHtmlScopeRange, currentFullHtml, currentSectionValues, flushCssScope, goBackTemplate, htmlEditorText, htmlScopeEnabled, openNestedTemplate, openRenameClassMenu, paintHtmlScope, paintLock, showHtmlFull, showHtmlScope, syncScopedHtml, writeHandleEditor, writeHtmlEditor } from './scope.js';
 import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
 import { mountEditor, paintHostWait } from './editor.js';
@@ -198,6 +199,8 @@ async function ensureDockAsync(win) {
 
     // Help mode: nothing until it is on (dock/help-attach.js).
     attachHelp(win, editors.html);
+    // Grey text: nothing until it is on (dock/ghost-attach.js).
+    attachGhost(win, editors.html);
   }
 
   return dock;

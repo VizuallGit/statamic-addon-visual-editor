@@ -21,6 +21,7 @@ import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu,
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
 import { bindHelpToggle } from './help-toggle.js';
+import { bindGhostToggle } from './ghost-toggle.js';
 import { bindSnippets } from './snippets.js';
 
 /** Windows whose size-tab row already follows the breakpoint list — bound once each. */
@@ -362,6 +363,8 @@ export function bindHtmlTools(win, dock) {
   bindAntlersSnippets(win, dock);
   bindVisualEditSnippets(win, dock);
   bindHelpToggle(win, dock);
+  // After the bulb: bindHelpToggle fills the host with replaceChildren.
+  bindGhostToggle(win, dock);
   bindDataVars(win, dock);
   bindSnippets(win, dock);
 }

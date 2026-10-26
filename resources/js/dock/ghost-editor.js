@@ -293,18 +293,16 @@ function cancel(state) {
   state.abort = null;
 }
 
+/** The pane's own lists hold the caret: the Tailwind/Antlers list or help mode's popup is open, and Tab is theirs. */
+function listOpen(state) {
+  return cm.autocomplete.completionStatus(state.view.state) === 'active' || !!state.win.document.querySelector('[data-sve-help-popup], [data-sve-help-loop]');
+}
+
 /** Nothing else has the caret: the editor focused, no selection, no list or box open over it. */
 function quiet(state) {
-  const { view, win } = state;
+  const { view } = state;
 
-  return (
-    view.hasFocus &&
-    !state.editing &&
-    !view.state.readOnly &&
-    view.state.selection.main.empty &&
-    cm.autocomplete.completionStatus(view.state) !== 'active' &&
-    !win.document.querySelector('[data-sve-help-popup], [data-sve-help-loop]')
-  );
+  return view.hasFocus && !state.editing && !view.state.readOnly && view.state.selection.main.empty && !listOpen(state);
 }
 
 async function ask(state, gen) {
@@ -396,7 +394,8 @@ function accept(state, word) {
   const { view, win } = state;
   const ghost = view.state.field(parts().field, false);
 
-  if (!ghost || view.state.readOnly) {
+  // A list opened over standing grey text (typed through): Tab is the list's.
+  if (!ghost || view.state.readOnly || listOpen(state)) {
     return false;
   }
 
