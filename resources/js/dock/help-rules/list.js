@@ -1,7 +1,7 @@
 /**
  * `<ul>` / `<ol>` with nothing in it: the list, its rows and their fields,
- * over each of the loop fields that print here. A set the site has a block
- * partial for is that partial inside its `<li>`.
+ * over each of the loop fields that print here — every set field by field,
+ * never a partial.
  */
 import {
   INDENT,
@@ -10,7 +10,6 @@ import {
   emptyInside,
   indentOf,
   openTagOf,
-  partialFor,
   rowsInScope,
   unusedFirst,
   withClass,
@@ -41,7 +40,7 @@ export function listRule(ctx) {
       head,
       `${base}${INDENT}{{ ${loop.var} }}`,
       `${row}<li class="" {{ visual_edit orderable="true" }}>`,
-      ...bodyLines(ctx.rows, loop, `${row}${INDENT}`, 1, partialFor(ctx)),
+      ...bodyLines(ctx.rows, loop, `${row}${INDENT}`, 1),
       `${row}</li>`,
       `${base}${INDENT}{{ /${loop.var} }}`,
       `${base}</${node.tag}>`,

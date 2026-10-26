@@ -17,12 +17,15 @@
  *              'class'  — the class picker, or the Tailwind list between the
  *                         quotes, as the user's setting says
  *              'loop'   — the loop panel for `loop` (a loop's own tag)
+ *              'visual-edit' — the parts of the visual_edit just written
+ *                         (the editor's to build; until then, the caret)
  *              nothing  — the caret at `selection`, that is all
  *   loop       for after:'loop' — the loop block (antlers-blocks.js) it opens
  *
  * The context:
  *
  *   source         the whole file
+ *   pos            the caret's offset in it
  *   masked         the file with `{{ … }}` blanked (same length), for regexes
  *                  that must not trip on a `>` inside an Antlers tag
  *   rows           the section's Data rows: { var, label, type, loop?, value?, parent? }
@@ -40,13 +43,11 @@
  *   blockPartials  the site's shared partials: `{ src, handles, image }` —
  *                  `src` is what a section writes for a set, with its token
  *                  (`blocks/{type}`); `handles` what the folder holds
- *                  ('headline', 'richtext', 'links', …). A replicator set
- *                  with one of these names is rendered as
- *                  `{{ partial src="blocks/{type}" }}`, the house way.
- *                  `src` is '' when the site has no such folder. `image` is
- *                  the partial a file field is drawn with
- *                  (`components/image`), '' when the site has none — then
- *                  no image help is offered.
+ *                  ('headline', 'richtext', 'links', …); `image` the partial
+ *                  a file field is drawn with (`components/image`). Each is
+ *                  '' when the site has none. No rule writes them: help
+ *                  writes the tag that is there, never a partial or a
+ *                  component in its place.
  *
  * May import: html-tree-parse.js, antlers-blocks.js. Nothing from the dock.
  */
@@ -101,6 +102,7 @@ export function buildContext(source, pos, given) {
 
   return {
     source,
+    pos,
     masked,
     rows: given.rows,
     scope: scopeAt(given.blocks, pos),
@@ -226,6 +228,32 @@ export function openTagOf(ctx) {
 
 export function hasAttr(maskedOpen, name) {
   return new RegExp(`\\s${name}\\s*=`, 'i').test(maskedOpen);
+}
+
+/** Whether an attribute is there at all, with a value or without — `<div x-data>` is Alpine too. */
+export function hasAttrName(maskedOpen, name) {
+  return new RegExp(`\\s${escapeRegExp(name)}(?=[\\s=/>]|$)`, 'i').test(maskedOpen);
+}
+
+/** The elements around the caret's element, outermost first. */
+export function ancestorsOf(ctx) {
+  const out = [];
+  let nodes = parseHtmlTree(ctx.source);
+
+  for (;;) {
+    const around = nodes.find((other) => other.from < ctx.node.from && ctx.node.from < other.to);
+
+    if (!around) {
+      return out;
+    }
+
+    out.push(around);
+    nodes = around.children;
+  }
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** An opening tag with `insert` written in front of its `>` (or `/>`). */
