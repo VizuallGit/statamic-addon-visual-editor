@@ -1,20 +1,33 @@
 /**
- * Snippets — the dock's library of reusable HTML / CSS / JS.
+ * Snippets — the dock's library of reusable HTML and CSS.
  *
- * A snippet is one file under the site's `resources/snippets`, in the shape
- * the dock reads (markup, then style_push, then script_push; Snippet.php).
- * Picking one writes its text into the open template: the markup at the
- * caret, the CSS and JS onto their panes. From then on it is the template's
- * own text. A snippet is copied, never referenced — which is what tells it
- * apart from a component (a partial tag every page shares) and from a utility
- * class (one rule in site.css).
+ * Two kinds, two files (Snippet.php):
  *
- * Saving goes the other way. The selection in the pane — or the whole pane
- * when nothing is selected — becomes a new file, named in the same prompt a
- * component is named in. From the HTML pane the CSS rules that describe the
- * selected markup travel with it (component-css decides which, the same way
- * it does for a component); the whole pane takes the whole CSS and the JS
- * pane with it. From the CSS pane, the CSS alone.
+ * - An HTML snippet is markup with the CSS and JS that travel with it, an
+ *   `.antlers.html` in the shape the dock reads. Picking one writes the
+ *   markup at the caret and the CSS and JS onto their panes.
+ * - A CSS snippet is the body of one rule — declarations and nested `&…` /
+ *   `@media` blocks, no selector — a `.css` file. Picking one writes that
+ *   body into the class of the element the CSS pane is scoped to. The
+ *   snippet wins over what the rule already says (snippet-css.js); with a
+ *   size or state tab active it lands in that block inside the rule, made if
+ *   the rule has none. A tag with no class is given one first, in the same
+ *   prompt the pane's + uses.
+ *
+ * Either way the text becomes the template's own. A snippet is copied, never
+ * referenced — which is what tells it apart from a component (a partial tag
+ * every page shares) and from a utility class (one rule in site.css). A CSS
+ * snippet is told apart from a class (Theme → Styles) the same way: a class
+ * is one named rule the whole site shares; a snippet is nameless content
+ * that belongs to whatever class it was copied into. Changing the snippet
+ * later — Theme → Styles → Snippets — changes the library copy only.
+ *
+ * Saving goes the other way. From the HTML pane: the selection, or the whole
+ * pane, with the CSS rules that describe it (component-css decides which, the
+ * same way it does for a component). From the CSS pane: the selection, or the
+ * picked element's own rule, stripped to its body — one whole rule gives its
+ * inside, loose declarations go as they are, anything else is refused
+ * (`snippetBodyFrom`).
  *
  * The CSS pane's button has a second face. In Tailwind mode the pane shows
  * the picked tag's classes, not CSS, and there is nothing to copy — so the
@@ -23,10 +36,14 @@
  * dock's `data-sve-style`, painted by style-modes.js; the click reads the
  * same state.
  *
- * Its own surface: this module, CodeDockSnippets.vue, and PHP that only reads
- * and writes the folder. Nothing here reaches preview, overlay or bridge.
+ * Its own surface: this module, CodeDockSnippets.vue, snippet-css.js and PHP
+ * that only reads and writes the folder. The pane is written like a typed
+ * edit — one CodeMirror change, so ⌘Z takes it back and the dock's own
+ * listener saves and paints it. Nothing here reaches preview, overlay or
+ * bridge.
  */
 import CodeDockSnippets from '../cp/surfaces/CodeDockSnippets.vue';
+import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import NamePrompt from '../cp/surfaces/NamePrompt.vue';
 import { openCpOverlay } from '../cp/open-overlay.js';
 import { mountSurface } from '../cp/mount.js';
@@ -36,11 +53,17 @@ import { t } from '../lib/i18n.js';
 import { dedent } from '../component-extract.js';
 import { splitCssForBlock } from '../component-css.js';
 import { indentAntlersSnippet } from '../antlers-snippets.js';
-import { editors } from '../code-dock.js';
+import { findClassRule, firstClassName } from '../css-scope.js';
+import { blocksForSize } from '../css-sizes.js';
+import { mergeSnippetIntoBody, snippetBodyFrom, wrapSnippetBody } from '../snippet-css.js';
+import { CSS_MENU_ID, DOCK_ID, editors } from '../code-dock.js';
 import { DATA_MENU_ID, closeDataMenu, hookDataMenu, pickerButton, placeDataMenu } from './data-vars.js';
-import { closeCssMenu, indentFromPrevious, lineIndentOf } from './css-tools.js';
+import { closeCssMenu, indentFromPrevious, leadingCssIndent, lineIndentOf, placeCssMenu } from './css-tools.js';
+import { cssSizeRow, cssSizeRows, cssStateSuffix, newSizeQuery } from './css-sizes.js';
 import { finishHtmlEdit, insertHtmlElement } from './html-tools.js';
 import { insertAiSnippet } from './dock-api.js';
+import { onEditorInput } from './save.js';
+import { addClassToPickedTag, cssPaneRoot, flushCssScope } from './scope.js';
 import { dockState } from './state.js';
 import { saveTwUtility } from './tw-utility.js';
 
@@ -71,14 +94,14 @@ async function fetchJson(win, url, init = {}) {
   return res.json();
 }
 
-/** @returns {Promise<Array<{ name: string, hint: string, html: boolean, css: boolean, js: boolean }>>} */
+/** @returns {Promise<Array<{ name: string, kind: 'css'|'html', hint: string, html: boolean, css: boolean, js: boolean }>>} */
 async function fetchList(win) {
   const data = await fetchJson(win, LIST_API);
 
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-/** @returns {Promise<{ name: string, html: string, css: string, js: string }>} */
+/** @returns {Promise<{ name: string, kind: 'css'|'html', html: string, css: string, js: string }>} */
 function fetchOne(win, name) {
   return fetchJson(win, `${ONE_API}?name=${encodeURIComponent(name)}`);
 }
@@ -92,11 +115,12 @@ function postSnippet(win, body) {
 }
 
 /**
- * The HTML pane offers every snippet — a CSS-only one still has somewhere to
- * go, the CSS pane. The CSS pane offers only what it can write.
+ * The HTML pane offers every snippet — a CSS one is written into the picked
+ * element's class from either pane. The CSS pane offers only CSS snippets:
+ * an HTML snippet's rules carry selectors, and the pane writes bodies.
  */
 function rowsFor(items, pane) {
-  return pane === 'css' ? items.filter((item) => item.css) : items;
+  return pane === 'css' ? items.filter((item) => item.kind === 'css') : items;
 }
 
 // --- Insert ----------------------------------------------------------------
@@ -124,7 +148,133 @@ function insertHtmlBlock(html) {
   return true;
 }
 
-async function insertSnippet(win, name, pane) {
+/**
+ * A CSS snippet's body into the rule the CSS pane is scoped to.
+ *
+ * The rule is the pane's own root (`cssPaneRoot`): the picked element's first
+ * `[ ]` name, the same one the pane's write-back lands under. With a size tab
+ * active the body goes into that size's `@media` block inside the rule — the
+ * block found by its size, whatever spelling its query uses, or a new one in
+ * the spelling the file uses; with a state, into `&:state`; with both, the
+ * state inside the size. The merge is `mergeSnippetIntoBody`: the snippet
+ * wins, property by property.
+ *
+ * Written as one change to the pane, where the rule is on screen: the dock's
+ * own listener then saves it and paints it like a keystroke, and ⌘Z in the
+ * pane takes it back.
+ */
+function writeSnippetIntoRule(win, root, body) {
+  const view = editors.css;
+
+  if (!view || view.state.readOnly) {
+    return false;
+  }
+
+  const text = view.state.doc.toString();
+  const rule = findClassRule(text, root);
+
+  if (!rule) {
+    return false;
+  }
+
+  const row = dockState.cssSize ? cssSizeRow(win, dockState.cssSize) : null;
+  let media = '';
+
+  if (row && !row.base) {
+    const own = blocksForSize(text, cssSizeRows(win), row.handle).find((block) => block.from > rule.brace && block.to <= rule.close);
+
+    media = own ? own.query : newSizeQuery(row, text);
+  }
+
+  const inner = text.slice(rule.brace + 1, rule.close);
+  const next = mergeSnippetIntoBody(inner, wrapSnippetBody(body, { state: cssStateSuffix(), media }), {
+    parentIndent: leadingCssIndent(text, rule.from),
+  });
+
+  if (next !== inner) {
+    view.dispatch({ changes: { from: rule.brace + 1, to: rule.close, insert: next } });
+  }
+
+  view.focus();
+
+  return true;
+}
+
+/**
+ * The picked element has no class to write into: ask for one, put it in the
+ * tag's `[ ]` with its empty rule (the same write a rename does), then write
+ * the snippet into that rule. The prompt is the pane's own class prompt, by
+ * the CSS pane's Snippet button.
+ */
+function openSnippetClassPrompt(win, body) {
+  const doc = win.document;
+  const dock = doc.getElementById(DOCK_ID);
+  const anchor = dock?.querySelector('[data-sve-snippet-btn][data-sve-snippet-pane="css"]') || dock?.querySelector('[data-sve-snippet-btn]');
+
+  if (!anchor) {
+    return;
+  }
+
+  closeCssMenu(doc);
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockAddClass, menu, {
+    label: t(win, 'snippet_css_class_name'),
+    placeholder: t(win, 'code_dock_css_class_placeholder'),
+    onClose: () => closeCssMenu(doc),
+    onAdd: (value) => {
+      closeCssMenu(doc);
+
+      if (!addClassToPickedTag(value)) {
+        win.Statamic?.$toast?.error(t(win, 'snippet_css_pick'));
+
+        return;
+      }
+
+      // The name and its empty rule save like a typed edit; the body follows
+      // as the pane's next change.
+      onEditorInput(win);
+      writeSnippetIntoRule(win, cssPaneRoot(), body);
+    },
+  });
+}
+
+function insertCssSnippet(win, body) {
+  if (!editors.css || editors.css.state.readOnly || dockState.lastLocked) {
+    return;
+  }
+
+  // The pane's own edits into the file first: the rule written into below
+  // is then the one the file has.
+  flushCssScope();
+
+  // Only a pane scoped to one element has a class to write into. The whole
+  // file (tree off, All, Values) names no element — nothing is guessed from
+  // the caret.
+  if (dockState.cssPane !== 'tree' && dockState.cssPane !== 'empty') {
+    win.Statamic?.$toast?.error(t(win, 'snippet_css_pick'));
+
+    return;
+  }
+
+  const root = cssPaneRoot();
+
+  if (!root) {
+    openSnippetClassPrompt(win, body);
+
+    return;
+  }
+
+  if (!writeSnippetIntoRule(win, root, body)) {
+    win.Statamic?.$toast?.error(t(win, 'snippet_css_pick'));
+  }
+}
+
+async function insertSnippet(win, name) {
   let parts;
 
   try {
@@ -139,8 +289,8 @@ async function insertSnippet(win, name, pane) {
   const css = typeof parts?.css === 'string' ? parts.css : '';
   const js = typeof parts?.js === 'string' ? parts.js : '';
 
-  if (pane === 'css') {
-    insertAiSnippet(win, { css });
+  if (parts?.kind === 'css') {
+    insertCssSnippet(win, css);
 
     return;
   }
@@ -175,16 +325,46 @@ function selectedText(view) {
 }
 
 /**
+ * What the CSS pane is offering to save, as a body.
+ *
+ * The selection when there is one; without one, the picked element's own
+ * rule — the pane's root — or the whole pane when the pane is not scoped.
+ * `snippetBodyFrom` then strips the one selector or refuses: a CSS snippet is
+ * the inside of one rule. The class the rule had is offered as the name.
+ *
+ * @returns {{ kind: 'css', html: string, css: string, js: string, name: string } | { problem: string }}
+ */
+function cssSnippetParts() {
+  const selected = selectedText(editors.css);
+  let source = selected;
+  let name = firstClassName(selected);
+
+  if (!selected.trim()) {
+    const text = editors.css?.state.doc.toString() ?? '';
+    const root = dockState.cssPane === 'tree' ? cssPaneRoot() : '';
+    const rule = root ? findClassRule(text, root) : null;
+
+    source = rule ? text.slice(rule.from, rule.to) : text;
+    name = rule ? root : firstClassName(text);
+  }
+
+  const got = snippetBodyFrom(source);
+
+  if (got.problem) {
+    return { problem: got.problem };
+  }
+
+  return { kind: 'css', html: '', css: got.body, js: '', name };
+}
+
+/**
  * What the pane is offering to save.
  *
- * @returns {{ html: string, css: string, js: string, name: string }}
+ * @returns {{ kind: 'css'|'html', html: string, css: string, js: string, name: string } | { problem: string }}
  */
 function snippetPartsFor(pane) {
   if (pane === 'css') {
-    const selected = selectedText(editors.css);
-    const css = selected.trim() ? selected : String(ask('dock:css') || '');
-
-    return { html: '', css: dedent(css), js: '', name: '' };
+    return cssSnippetParts();
   }
 
   const selected = selectedText(editors.html);
@@ -197,6 +377,7 @@ function snippetPartsFor(pane) {
     const rest = full.includes(selected) ? full.replace(selected, '') : full;
 
     return {
+      kind: 'html',
       html: dedent(selected),
       css: splitCssForBlock(css, selected, rest).move.trim(),
       js: '',
@@ -205,7 +386,7 @@ function snippetPartsFor(pane) {
   }
 
   // The whole file: its markup, all of its CSS, and its JS pane.
-  return { html: dedent(full), css: css.trim(), js: String(ask('dock:js') || '').trim(), name: suggestedName(full) };
+  return { kind: 'html', html: dedent(full), css: css.trim(), js: String(ask('dock:js') || '').trim(), name: suggestedName(full) };
 }
 
 /**
@@ -228,7 +409,7 @@ function suggestedName(html) {
 
 async function store(win, name, parts, replace = false) {
   try {
-    const made = await postSnippet(win, { name, html: parts.html, css: parts.css, js: parts.js, replace });
+    const made = await postSnippet(win, { name, kind: parts.kind, html: parts.html, css: parts.css, js: parts.js, replace });
 
     win.Statamic?.$toast?.success(t(win, 'snippet_saved', { name: made?.name || name }));
   } catch (err) {
@@ -244,8 +425,21 @@ async function store(win, name, parts, replace = false) {
   }
 }
 
+/** Why the CSS pane's text cannot be a snippet, in the reader's words. */
+const CSS_PROBLEM_KEY = {
+  empty: 'snippet_empty',
+  unbalanced: 'snippet_css_unbalanced',
+  rules: 'snippet_css_one_rule',
+};
+
 function saveSnippet(win, pane) {
   const parts = snippetPartsFor(pane);
+
+  if (parts.problem) {
+    win.Statamic?.$toast?.error(t(win, CSS_PROBLEM_KEY[parts.problem] || 'snippet_empty'));
+
+    return;
+  }
 
   if (!parts.html.trim() && !parts.css.trim() && !parts.js.trim()) {
     win.Statamic?.$toast?.error(t(win, 'snippet_empty'));
@@ -304,7 +498,7 @@ function openSnippetsMenu(win, anchor, pane) {
       saveLabel: t(win, hasSelection ? 'snippet_save_selection' : 'snippet_save'),
       onPick: (row) => {
         closeDataMenu(doc);
-        void insertSnippet(win, row.name, pane);
+        void insertSnippet(win, row.name);
       },
       onSave: () => {
         closeDataMenu(doc);

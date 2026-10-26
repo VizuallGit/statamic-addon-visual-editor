@@ -74,6 +74,12 @@ final class DockRoutes
                 // A snippet is template text as well: the same whitespace rule.
                 Route::post('/!/sve/snippet', [SnippetController::class, 'store'])
                     ->name('sve.snippet.store');
+                // A CSS snippet edited in Theme → Styles: its body, and its
+                // name when it is renamed in the same save.
+                Route::post('/!/sve/snippet/update', [SnippetController::class, 'update'])
+                    ->name('sve.snippet.update');
+                Route::delete('/!/sve/snippet', [SnippetController::class, 'destroy'])
+                    ->name('sve.snippet.destroy');
                 Route::post('/!/sve/site-css', [SiteCssController::class, 'update'])
                     ->name('sve.site-css.update');
                 Route::post('/!/sve/site-css/create', [SiteCssController::class, 'store'])

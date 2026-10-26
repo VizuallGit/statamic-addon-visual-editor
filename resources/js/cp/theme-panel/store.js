@@ -47,6 +47,11 @@ import { reactive } from 'vue';
  * other half of what the tab writes. `savedClasses` are the bodies as saved,
  * by name, and `classFile` the file as last read or written.
  *
+ * `snippets` (Styles, the Snippets chip): the dock's CSS snippets,
+ * `resources/snippets/*.css`, `{ key, name, savedName, body, savedBody,
+ * problem, saving }` — each the body of one rule, saved row by row through
+ * its own endpoint, never through the panel's Save (theme-panel/snippets.js).
+ *
  * `saved` is site.css as last read or written.
  */
 export const themePanelUi = reactive({
@@ -86,6 +91,7 @@ export const themePanelUi = reactive({
   props: [],
   savedProps: {},
   openProp: '',
+  snippets: [],
   vars: '',
   buildNote: '',
   saved: '',

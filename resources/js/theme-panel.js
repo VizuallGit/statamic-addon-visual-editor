@@ -31,6 +31,7 @@ import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, wr
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
 import { classNameProblem, readClasses, writeClasses } from './cp/theme-panel/custom-classes.js';
 import { CLASS_CHIPS, applyUsage, classRows, ownedRules } from './cp/theme-panel/site-classes.js';
+import { loadSnippets, snippetHandlers } from './cp/theme-panel/snippets.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
@@ -693,9 +694,14 @@ const handlers = (win) => ({
 
       if (tab === 'styles') {
         loadClassRows(win);
+        // Read again each time: a snippet saved in the dock a moment ago is here.
+        void loadSnippets(win);
       }
     }
   },
+
+  // CSS snippets under Styles — their own files, saved row by row (theme-panel/snippets.js).
+  ...snippetHandlers(win),
 
   // Colors
   onAddColor: () => {
@@ -1435,6 +1441,12 @@ function openThemePanel(win) {
     }
   };
   doc.addEventListener('load', onFrameLoad, true);
+
+  // Opened on Styles: the snippet files as they are now, the way the tab
+  // button would read them.
+  if (ui.tab === 'styles') {
+    void loadSnippets(win);
+  }
 
   // Unsaved changes from before another tool took the sidebar: back as they were.
   if (ui.dirty && ui.saved) {

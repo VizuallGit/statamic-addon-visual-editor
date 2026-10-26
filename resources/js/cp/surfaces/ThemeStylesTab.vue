@@ -40,7 +40,8 @@
     :data-sve-class="row.name"
   >
     <button type="button" class="sve-theme__row" :aria-expanded="isOpen(row)" @click="open(row)">
-      <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'utility' ? '{}' : '.' }}</span>
+      <!-- A utility wears braces, a class its dot; a snippet the `&` its nested rules hang off — a body with no selector of its own. -->
+      <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'utility' ? '{}' : row.kind === 'snippet' ? '&' : '.' }}</span>
       <span class="sve-theme__row-text">
         <span class="sve-theme__token">{{ row.name || '…' }}</span>
         <span class="sve-theme__meta">{{ row.kind === 'variable' ? (row.value || '…') : rowSummary(row, labels) }}</span>
@@ -84,6 +85,49 @@
       </template>
 
       <p v-if="row.ambient" class="sve-theme__hint">{{ ui.labels.classes_ambient_why || fallback.ambientWhy }}</p>
+
+      <!-- A CSS snippet is a file of its own (resources/snippets/name.css):
+           the body of one rule, no class name. The same editor, but its own
+           Save — written at once through the snippet endpoint, not with
+           site.css — and a Delete that asks first. -->
+      <template v-else-if="row.kind === 'snippet'">
+        <p class="sve-theme__hint">{{ ui.labels.classes_snippet_hint || fallback.snippetHint }}</p>
+
+        <label class="sve-theme__field">
+          <span class="sve-theme__label">{{ ui.labels.classes_snippet_name || fallback.name }}</span>
+          <span class="sve-theme__input" :class="{ 'is-bad': snippet(row).problem && snippet(row).problem !== 'braces' }">
+            <input
+              type="text"
+              :value="snippet(row).name"
+              spellcheck="false"
+              autocomplete="off"
+              data-sve-snippet-name
+              @input="h.onSnippetName(row.key, $event.target.value)"
+            >
+          </span>
+        </label>
+
+        <ThemeUtilityEditor
+          :value="snippet(row).body"
+          :label="`${ui.labels.utilities_css || 'CSS'} ${row.name || ''}`"
+          :on-change="(body) => h.onSnippetBody(row.key, body)"
+          :on-save="() => h.onSaveSnippet(row.key)"
+          :tokens="tokens"
+        />
+
+        <div class="sve-theme__snippet-actions">
+          <button
+            type="button"
+            class="sve-theme__save"
+            data-sve-snippet-save
+            :disabled="!snippetDirty(snippet(row)) || !!snippet(row).problem || snippet(row).saving"
+            @click="h.onSaveSnippet(row.key)"
+          >{{ ui.labels.classes_snippet_save || fallback.snippetSave }}</button>
+          <button type="button" class="sve-theme__remove" data-sve-snippet-remove @click="h.onRemoveSnippet(row.key)">
+            {{ ui.labels.classes_snippet_remove || fallback.snippetRemove }}
+          </button>
+        </div>
+      </template>
 
       <!-- Both files the tab owns are written here: a utility through the
            Utilities tab's own handlers, a class through the classes file's.
@@ -137,7 +181,8 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, filterRows, rowSummary, usageLabel, variableRows } from '../theme-panel/site-classes.js';
+import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, filterRows, rowSummary, snippetRows, usageLabel, variableRows } from '../theme-panel/site-classes.js';
+import { snippetDirty } from '../theme-panel/snippet-rows.js';
 import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
 
 const { h } = defineProps({ h: { type: Object, required: true } });
@@ -152,9 +197,12 @@ const fallback = {
   readOnly: 'Denne regel bor i en anden fil end site.css og rettes i Stylesheets-panelet.',
   name: 'Navn',
   remove: 'Slet klasse',
+  snippetHint: 'Et snippet er indholdet af én regel uden klassenavn. Docken kopierer det ind i den klasse, du vælger. Retter du det her, ændres kun biblioteket.',
+  snippetSave: 'Gem snippet',
+  snippetRemove: 'Slet snippet',
   historyWarn: 'Intet bruger den i dag, men dockens historik gør. Sletter du den, mister en fortrydelse sin styling.',
   chipsUnused: 'Ubrugte',
-  chips: { all: 'Alle', utility: 'Utilities', class: 'Klasser', variable: 'Variabler', ambient: 'Afledte', unused: 'Ubrugte' },
+  chips: { all: 'Alle', utility: 'Utilities', class: 'Klasser', variable: 'Variabler', snippet: 'Snippets', ambient: 'Afledte', unused: 'Ubrugte' },
 };
 
 const labels = computed(() => ({
@@ -172,7 +220,7 @@ function usage(row) {
 }
 
 /** Everything the theme defines, in one list: the two class files and var.css. */
-const allRows = computed(() => [...ui.classRows, ...variableRows(ui.props, ui.varsFile || 'var.css')]);
+const allRows = computed(() => [...ui.classRows, ...variableRows(ui.props, ui.varsFile || 'var.css'), ...snippetRows(ui.snippets)]);
 
 const shown = computed(() => filterRows(allRows.value, { chip: ui.classChip, query: ui.classQuery }));
 
@@ -205,8 +253,13 @@ function propFor(row) {
   return (ui.props || []).find((p) => p.key === row.key) || { name: '', value: '', fresh: true };
 }
 
+/** The live snippet behind a row — the row itself is a projection, the edits live in `ui.snippets`. */
+function snippet(row) {
+  return (ui.snippets || []).find((s) => s.key === row.key) || { name: '', savedName: '', body: '', savedBody: '', problem: null, saving: false };
+}
+
 function edit(row) {
-  if (row.kind === 'variable') {
+  if (row.kind === 'variable' || row.kind === 'snippet') {
     return null;
   }
 

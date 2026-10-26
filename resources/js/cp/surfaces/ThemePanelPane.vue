@@ -216,5 +216,10 @@ const props = defineProps({
   onPropName: { type: Function, required: true },
   onPropValue: { type: Function, required: true },
   onRemoveProp: { type: Function, required: true },
+  // CSS snippets under Styles — their own files, saved row by row.
+  onSnippetName: { type: Function, required: true },
+  onSnippetBody: { type: Function, required: true },
+  onSaveSnippet: { type: Function, required: true },
+  onRemoveSnippet: { type: Function, required: true },
 });
 </script>

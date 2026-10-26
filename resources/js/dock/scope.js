@@ -7,7 +7,7 @@ import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel } from '../lazy-panels.js';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import { mountSurface } from '../cp/mount.js';
-import { addBracketClassToTag, bracketClassTokens, buildScopedCss, cssBalanced, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, hasTopLevelClassRule, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
+import { addBracketClassToTag, bracketClassTokens, bracketTokens, buildScopedCss, cssBalanced, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, hasTopLevelClassRule, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
 import { closePartialMenu } from '../dock-partials.js';
 import { closeClassTokenUi } from '../dock-class-tokens.js';
 import { t } from '../lib/i18n.js';
@@ -346,32 +346,15 @@ function addPickedBracketNames(html, added, owned, cssText) {
     return html;
   }
 
-  // Bring `htmlFull` up to the pane as it stood before this flush, so the
-  // text around the pane's slice is the file's. A range that no longer fits
-  // lets the scope go in here, and the checks below read the state as it is.
-  syncScopedHtml();
+  const tag = pickedTagIn(html);
 
-  const path = dockState.cssFocus?.path;
-  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
-
-  if (!path && !scoped) {
+  if (!tag) {
     return html;
   }
 
-  const base = scoped ? dockState.htmlFocus.from : 0;
-  const full = scoped
-    ? dockState.htmlFull.slice(0, base) + html + dockState.htmlFull.slice(dockState.htmlFocus.to)
-    : html;
-  const rows = flattenHtmlTree(parseHtmlTree(full), new Set());
-  const row = path ? rows.find((item) => item.path === path) : rows.find((item) => item.from === base);
-
-  if (!row || row.from < base || row.openTo - base > html.length) {
-    return html;
-  }
-
-  const taken = new Set(bracketClassTokens(full).map((token) => token.name));
-  const from = row.from - base;
-  let to = row.openTo - base;
+  const taken = new Set(bracketClassTokens(tag.full).map((token) => token.name));
+  const { from } = tag;
+  let { to } = tag;
   let next = html;
 
   for (const raw of added) {
@@ -386,6 +369,100 @@ function addPickedBracketNames(html, added, owned, cssText) {
   }
 
   return next;
+}
+
+/**
+ * The opening tag of the element the CSS pane is scoped to — its own pick,
+ * or the HTML pane's range — as a range in `html`, the HTML pane's text.
+ *
+ * `html` may be a slice of the file (the pane scoped to one element, at
+ * `htmlFocus.from`), so the tag is found in the file built around it and the
+ * range handed back in the pane's own offsets. `full` is that file.
+ *
+ * @returns {{ full: string, from: number, to: number }|null} null when nothing is picked, or the tag is outside the pane
+ */
+function pickedTagIn(html) {
+  // Bring `htmlFull` up to the pane as it stands, so the text around the
+  // pane's slice is the file's. A range that no longer fits lets the scope go
+  // in here, and the checks below read the state as it is.
+  syncScopedHtml();
+
+  const path = dockState.cssFocus?.path;
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+
+  if (!path && !scoped) {
+    return null;
+  }
+
+  const base = scoped ? dockState.htmlFocus.from : 0;
+  const full = scoped
+    ? dockState.htmlFull.slice(0, base) + html + dockState.htmlFull.slice(dockState.htmlFocus.to)
+    : html;
+  const rows = flattenHtmlTree(parseHtmlTree(full), new Set());
+  const row = path ? rows.find((item) => item.path === path) : rows.find((item) => item.from === base);
+
+  if (!row || row.from < base || row.openTo - base > html.length) {
+    return null;
+  }
+
+  return { full, from: row.from - base, to: row.openTo - base };
+}
+
+/**
+ * `[ name ]` on the picked element, and that name's rule in the file — for a
+ * tool that is about to write into the element's rule and finds the element
+ * has none (the snippet picker on a tag with no class).
+ *
+ * The same write a rename does (`renameBracketClassAt`): the tag in the HTML
+ * pane, the bracket sync that makes the empty rule, the CSS pane rebuilt so
+ * it shows that rule. Saving is the caller's, with the write it does next.
+ *
+ * @returns {boolean} whether the name is on the picked tag now
+ */
+export function addClassToPickedTag(raw) {
+  const name = sanitizeCssClassName(raw);
+  const view = editors.html;
+
+  if (!name || !view || view.state.readOnly || dockState.lastLocked) {
+    return false;
+  }
+
+  const html = view.state.doc.toString();
+  const tag = pickedTagIn(html);
+
+  if (!tag) {
+    return false;
+  }
+
+  const { html: next } = addBracketClassToTag(html, tag.from, tag.to, name);
+
+  if (next === html && !bracketTokens(html.slice(tag.from, tag.to)).includes(name)) {
+    return false;
+  }
+
+  if (next !== html) {
+    writeHtmlEditor(next);
+  }
+
+  const prev = dockState.lastBracketNames == null ? [] : dockState.lastBracketNames.slice();
+
+  rememberBracketNames();
+  applyBracketCssSync(prev, dockState.lastBracketNames);
+  applyCssScope();
+  rememberCssSelectors();
+
+  return true;
+}
+
+/**
+ * The class the CSS pane's text is written back under: the picked element's
+ * first `[ ]` name, else the pane's first rule. The root `mergedCssFull` and
+ * `applyCssScope` use; '' when the pane is not scoped to anything.
+ */
+export function cssPaneRoot() {
+  const current = editors.css?.state.doc.toString() ?? '';
+
+  return tokenTreeFromHtml(cssSnippet())[0]?.className || firstClassName(current);
 }
 
 function renameBracketClassAt(token, raw) {
@@ -675,10 +752,7 @@ export function mergedCssFull() {
       return dockState.cssFull;
     }
 
-    const root =
-      tokenTreeFromHtml(cssSnippet())[0]?.className || firstClassName(current);
-
-    return mergeScopedCss(dockState.cssFull, current, root, {
+    return mergeScopedCss(dockState.cssFull, current, cssPaneRoot(), {
       previous: dockState.cssScopeSnapshot,
       keep: bracketClassTokens(fullHtmlNow()).map((token) => token.name),
     });

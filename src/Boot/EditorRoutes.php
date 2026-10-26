@@ -139,7 +139,9 @@ final class EditorRoutes
             Route::get('/!/sve/components', [ComponentController::class, 'index'])
                 ->name('sve.components.index');
             // The dock's snippet library (Snippet.php): the list, and one by
-            // name — a query parameter, like the other handles here.
+            // name — a query parameter, like the other handles here. The
+            // writes (store, update, destroy) are in DockRoutes: a snippet is
+            // template text and must not be trimmed on the way in.
             Route::get('/!/sve/snippets', [SnippetController::class, 'index'])
                 ->name('sve.snippets.index');
             Route::get('/!/sve/snippet', [SnippetController::class, 'show'])

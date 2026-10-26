@@ -176,8 +176,29 @@ export function variableRows(props, file = 'var.css') {
   }));
 }
 
+/**
+ * The dock's CSS snippets as rows in the same list. A snippet is not a class
+ * either — it is the body of a rule with no name of its own, copied into
+ * whatever class you pick in the dock — but it is the other thing you come
+ * here to read, change or remove. The chip keeps them apart; `props` are the
+ * body's own, so the row reads like a class's. `dirty` says the row has an
+ * edit the file does not.
+ */
+export function snippetRows(snippets, folder = 'snippets') {
+  return (snippets || []).map((s) => ({
+    name: s.name || '',
+    kind: 'snippet',
+    key: s.key,
+    files: [`${folder}/${s.savedName || s.name || ''}.css`],
+    selectors: [],
+    props: bodyProperties(s.body),
+    ambient: false,
+    fresh: false,
+  }));
+}
+
 /** The chips over the list. */
-export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'ambient', 'unused'];
+export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'snippet', 'ambient', 'unused'];
 
 /**
  * The chips that always show, empty or not: each one is also how you reach
@@ -193,8 +214,13 @@ export function chipKeeps(chip, row) {
     return row.kind === 'variable';
   }
 
+  if (chip === 'snippet') {
+    return row.kind === 'snippet';
+  }
+
   // A variable has no usage and no selector, so it sits out of the rest.
-  if (row.kind === 'variable') {
+  // A snippet is nothing on the site until it is copied in: the same.
+  if (row.kind === 'variable' || row.kind === 'snippet') {
     return chip === 'all';
   }
 

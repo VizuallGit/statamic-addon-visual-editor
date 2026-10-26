@@ -312,6 +312,17 @@
   background: rgba(242, 162, 162, 0.1);
 }
 
+/* A snippet row saves itself: its Save and Delete side by side under the editor */
+.sve-theme__snippet-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.sve-theme__snippet-actions .sve-theme__remove {
+  align-self: center;
+}
+
 /* Highlights: compact pills side by side under the palette */
 .sve-theme__highlights-head {
   display: flex;
