@@ -751,4 +751,21 @@ class DockGhostTest extends TestCase
             Reply::clean("{{ entries }}\n      <li></li>\n    {{ /entries }}", "<ul>\n    ", '', 'block'),
         );
     }
+
+    public function test_the_ai_knows_the_site_s_collections_by_handle(): void
+    {
+        \Statamic\Facades\Collection::make('employees')->title('Employees')->save();
+
+        try {
+            $data = Prompt::siteData();
+
+            $this->assertStringContainsString('{{ collection from="handle" }}', $data);
+            $this->assertStringContainsString('employees (Employees)', $data);
+            $this->assertStringContainsString('never invent one', $data);
+            $this->assertStringContainsString('<site_data>', Prompt::system()[0]['text']);
+        } finally {
+            \Statamic\Facades\Collection::find('employees')?->delete();
+        }
+    }
 }
+

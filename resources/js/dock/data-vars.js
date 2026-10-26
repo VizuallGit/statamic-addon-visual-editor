@@ -120,6 +120,22 @@ export function sectionDataRows(win) {
   return fetchDataVars(win, query).then((raw) => withValues(raw?.section || [], currentSectionValues(win)));
 }
 
+/**
+ * The rows the loop at `at` prints — a collection's entries, a list's rows —
+ * for the pane's Antlers list (dock/antlers-complete.js): the Data button's
+ * Scope tab, flat. `at` is an offset into the whole template. Empty outside a
+ * loop.
+ */
+export function scopeDataRows(win, at) {
+  const query = dataVarsQuery(win, at);
+
+  if (!query.scope) {
+    return Promise.resolve([]);
+  }
+
+  return fetchDataVars(win, query).then((raw) => (raw?.scope?.groups || []).flatMap((group) => (Array.isArray(group.items) ? group.items : [])));
+}
+
 /** The page's own values — the whole entry, not the section inside it. */
 function currentPageValues(win) {
   const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];

@@ -5,6 +5,11 @@ namespace MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\AiChat\Conversation;
 use MarioHamann\StatamicVisualEditor\AiChat\HouseStyle;
 use MarioHamann\StatamicVisualEditor\AiRules;
+use MarioHamann\StatamicVisualEditor\Stores;
+use Statamic\Facades\Collection;
+use Statamic\Facades\GlobalSet;
+use Statamic\Facades\Nav;
+use Statamic\Facades\Taxonomy;
 
 /**
  * What the dock's AI writes against — the grey text and ⌘K alike.
@@ -86,6 +91,10 @@ TXT;
             $parts[] = "<house_rules>\n{$rules}\n</house_rules>";
         }
 
+        if (($data = static::siteData()) !== '') {
+            $parts[] = "<site_data>\n{$data}\n</site_data>";
+        }
+
         if (($tokens = Tokens::forSite()) !== '') {
             $parts[] = "<theme_tokens>\n{$tokens}\n</theme_tokens>";
         }
@@ -97,6 +106,41 @@ TXT;
         }
 
         return $blocks;
+    }
+
+    /**
+     * The site's collections, navigations, taxonomies and globals by handle,
+     * with how each is looped or read — so a loop names one that exists
+     * instead of a guess (`collection="contacts"` on a site with none).
+     */
+    public static function siteData(): string
+    {
+        $named = fn ($items) => $items->map(fn ($item) => $item->handle().($item->title() && $item->title() !== $item->handle() ? ' ('.$item->title().')' : ''))->values()->implode(', ');
+        $lines = [];
+
+        try {
+            $collections = Collection::all()->reject(fn ($collection) => in_array($collection->handle(), Stores::all(), true));
+
+            if ($collections->isNotEmpty()) {
+                $lines[] = 'Collections — loop with {{ collection from="handle" }} … {{ /collection }}: '.$named($collections);
+            }
+
+            if (($navs = Nav::all())->isNotEmpty()) {
+                $lines[] = 'Navigations — {{ nav:handle }} … {{ /nav:handle }}: '.$named($navs);
+            }
+
+            if (($taxonomies = Taxonomy::all())->isNotEmpty()) {
+                $lines[] = 'Taxonomies — {{ taxonomy:handle }} … {{ /taxonomy:handle }}: '.$named($taxonomies);
+            }
+
+            if (($globals = GlobalSet::all())->isNotEmpty()) {
+                $lines[] = 'Globals — {{ handle:field }}: '.$named($globals);
+            }
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return $lines === [] ? '' : implode("\n", $lines)."\nUse only these handles; never invent one.";
     }
 
     /** The way of asking, one of TASKS. Anything else is `line`. */

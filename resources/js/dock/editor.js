@@ -12,6 +12,7 @@ import { partialDecorations } from '../dock-partials.js';
 import { classTokenDecorations } from '../dock-class-tokens.js';
 import { tailwindClassCompletions, tailwindHoverExtension } from '../tailwind-complete.js';
 import { bracketClassCompletions, loadClassDefs, takenClassMarks } from './class-defs.js';
+import { antlersCompletions } from './antlers-complete.js';
 import { vscTheme } from '../lib/codemirror.js';
 import { dockState } from '../dock/state.js';
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
@@ -218,6 +219,11 @@ export function mountEditor(win, handle, parent) {
               // a name the site already defines somewhere else.
               htmlLanguage.data.of({
                 autocomplete: bracketClassCompletions(win),
+              }),
+              // Inside `{{ … }}`: the site's collections and the fields that
+              // fit where the caret is.
+              htmlLanguage.data.of({
+                autocomplete: antlersCompletions(win),
               }),
               takenClassMarks(win),
               tailwindHoverExtension(hoverTooltip, win),
