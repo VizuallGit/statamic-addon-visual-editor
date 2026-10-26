@@ -328,7 +328,7 @@ test('the frame: a transparent row, Page settings as a full square of its own, e
   assert.match(FRAME, /button\[data-tab="settings"\]\{flex-shrink:0;width:32px!important;height:32px!important;margin:0!important;border-radius:\.5rem!important;opacity:1!important\}/);
   assert.match(FRAME, /\[data-tab="settings"\]:not\(\[aria-pressed="true"\]\)\{background:rgba\(128,128,128,\.16\)!important\}/);
   assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-group\]\{position:relative;display:inline-flex;[^}]*height:32px;padding:5px;gap:4px;border-radius:\.5rem;background:rgba\(128,128,128,\.16\)\}/);
-  assert.match(FRAME, /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{position:absolute;[^}]*right:-\.5rem;[^}]*opacity:0;pointer-events:none/);
+  assert.match(FRAME, /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{position:absolute;[^}]*right:-\.4375rem;[^}]*width:\.875rem;height:\.875rem;[^}]*opacity:0;pointer-events:none/);
   assert.match(FRAME, /\[data-sve-toolbar-group\]:hover>\[data-sve-toolbar-add\],[^{]*\{opacity:1;pointer-events:auto\}/);
   assert.doesNotMatch(FRAME, /[{;]order:|::before/);
 });

@@ -21,7 +21,7 @@ export const BP_ADD_ATTR = 'data-sve-bp-add';
 const STYLE_ID = '__sve-bp-add-style';
 
 const ADD_ICON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
   'stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 /**
@@ -38,11 +38,12 @@ function css() {
 
   return [
     `${group}{position:relative}`,
-    `${group}>${add}{position:absolute;top:50%;left:-.5rem;transform:translateY(-50%);width:1rem;height:1rem;box-sizing:border-box;` +
+    `${group}>${add}{position:absolute;top:50%;left:-.4375rem;transform:translateY(-50%);width:.875rem;height:.875rem;box-sizing:border-box;` +
       'display:inline-flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:50%;cursor:pointer;' +
       `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});` +
       'box-shadow:0 0 0 1px rgba(128,128,128,.35),0 0 0 3px var(--sve-toolbar-bg,transparent);' +
       'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
+    `${group}>${add}>svg{width:.5625rem;height:.5625rem}`,
     `${group}:hover>${add},${group}:focus-within>${add},${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{opacity:1;pointer-events:auto}`,
     `${group}>${add}:hover,${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{background:var(--theme-color-primary,#4f46e5);color:#fff;` +
       'box-shadow:0 0 0 2px var(--sve-toolbar-bg,transparent)}',
