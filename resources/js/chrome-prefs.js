@@ -38,6 +38,8 @@ export const CHROME_KEYS = [
   'sve-code-dock-help-picker',
   'sve-code-dock-help-counts',
   'sve-code-dock-ghost',
+  'sve-code-dock-ghost-taken',
+  'sve-code-dock-ghost-counts',
   'sve-previews-auto',
   'sve-ai-panel-mode',
   'sve-ai-launcher-open',

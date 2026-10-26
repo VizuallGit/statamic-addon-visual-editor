@@ -1,60 +1,75 @@
 /**
- * Grey text in the HTML pane's editor: asked for after a pause in typing,
- * drawn at the caret, taken with Tab — loaded by ghost-attach.js only once
- * grey text is on, so an editor with it off carries none of it: no listener,
- * no request, no key binding.
+ * The AI in the HTML pane's editor — loaded by ghost-attach.js only once it
+ * is on, so an editor with it off carries none of it: no listener, no
+ * request, no key binding.
  *
- * One question at a time. A newer keystroke drops the one waiting and aborts
- * the one on its way; an answer that comes back after the caret has moved is
- * thrown away. Typing the characters the grey text shows keeps the rest of it
- * standing, as Copilot does.
+ * Grey text: asked for after a pause in typing, drawn at the caret, taken
+ * with Tab. On a fresh line under a comment (`{{# card: image left #}}`) the
+ * comment is the question and the answer may be a whole block; "Writing …"
+ * stands at the caret while it comes. One question at a time: a newer
+ * keystroke drops the one waiting and aborts the one on its way, and an
+ * answer for a caret that has moved is thrown away. Typing the characters
+ * the grey text shows keeps the rest standing, as Copilot does.
+ *
+ * ⌘K: the instruction box for the selection or the caret (ghost-edit.js,
+ * loaded the first time it is pressed). Statamic's own ⌘K — the command
+ * palette — is held back while this editor has the focus, through
+ * `Statamic.$commandPalette.preventIf`; everywhere else it opens as always.
  *
  * It keeps out of the way of the pane's own lists: nothing is asked or shown
  * while the Tailwind/Antlers list or help mode's popup is open, so Tab means
- * one thing. Tab, ⌘→ and Escape are bound at the highest precedence but answer
- * false while no grey text stands, so the pane behaves as it does without it.
+ * one thing. Tab, ⌘→, ⌘K and Escape are bound at the highest precedence but
+ * answer false when they have nothing to do, so the pane behaves as it does
+ * without them.
  *
- * Taking it is one transaction tagged `input.toolbar`, like help mode's rows:
- * ⌘Z takes it back in one step, and the lock keeps it out of a locked element.
- * What is sent is the whole file around the caret, also when the pane shows a
- * slice (dockState.htmlScopeActive / htmlFocus) — as help-editor.js does.
+ * Taking grey text is one transaction tagged `input.toolbar`, like help
+ * mode's rows: ⌘Z takes it back in one step, and the lock keeps it out of a
+ * locked element. What is taken is remembered (ghost-memory.js) and sent
+ * along as the author's way of writing; what is shown and taken is counted.
  *
  * May import: code-dock.js re-exports, dock/*, lib/.
  * Never preview.js, overlay-host.js, bridge.js.
  */
 import { cm } from '../code-dock.js';
 import { dockState } from './state.js';
-import { currentFullHtml } from './scope.js';
-import { currentTemplateType } from './dock-api.js';
 import { finishHtmlEdit } from './html-tools.js';
-import { sectionDataRows } from './data-vars.js';
 import { lockedRanges } from '../lib/locked-tags.js';
-import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
-import { advanceGhost, fieldRows, ghostRequest, nextWord, shouldAsk } from './ghost-suggest.js';
+import { advanceGhost, ghostMode, lineBefore, nextWord, shouldAsk } from './ghost-suggest.js';
+import { countGhost, rememberTaken } from './ghost-memory.js';
+import { ghostPost, payload } from './ghost-request.js';
 
 /** How long typing has to pause before grey text is asked for. */
 export const WAIT = 350;
 
-const ENDPOINT = '/!/sve/dock-ghost';
-
-/** Each editor's slot in its configuration, added once and filled or emptied as grey text goes on and off. */
+/** Each editor's slot in its configuration, added once and filled or emptied as the AI goes on and off. */
 const slots = new WeakMap();
 
-/** The editors grey text is on in, with what each is waiting for. */
+/** The editors the AI is on in, with what each is waiting for. */
 const states = new WeakMap();
+
+/** The same, iterable: what the command palette hold asks about. */
+const live = new Set();
+
+/** The windows whose command palette is already told to hold back for us. */
+const held = new WeakSet();
 
 /** The field, effect and look — made once CodeMirror is loaded, shared by every editor. */
 let bits = null;
+
+/** Grey text set so far, to count a ghost as taken once however it is taken. */
+let ghostIds = 0;
 
 export function enableGhost(win, view) {
   if (!win || !view || states.has(view)) {
     return;
   }
 
-  const state = { win, view, gen: 0, timer: 0, abort: null, fieldsFor: null, fields: null, stopped: false, told: false };
+  const state = { win, view, gen: 0, timer: 0, abort: null, fieldsFor: null, fields: null, stopped: false, told: false, editing: false, counted: 0 };
 
   states.set(view, state);
+  live.add(state);
+  holdPalette(win);
   view.dispatch({ effects: slotOf(view).reconfigure(ghostExtension(state)) });
 }
 
@@ -67,6 +82,7 @@ export function disableGhost(view) {
 
   cancel(state);
   states.delete(view);
+  live.delete(state);
   view.dispatch({ effects: slotOf(view).reconfigure([]) });
 }
 
@@ -82,9 +98,23 @@ function slotOf(view) {
   return slot;
 }
 
+/**
+ * Statamic opens its command palette on ⌘K anywhere; in this editor ⌘K is
+ * ours. Its palette asks every `preventIf` before it opens — told once per
+ * window, answering for whichever of our editors has the focus or its box.
+ */
+function holdPalette(win) {
+  if (held.has(win) || typeof win.Statamic?.$commandPalette?.preventIf !== 'function') {
+    return;
+  }
+
+  held.add(win);
+  win.Statamic.$commandPalette.preventIf(() => [...live].some((state) => state.win === win && (state.view.hasFocus || state.editing)));
+}
+
 /* ---- The grey text itself ------------------------------------------------- */
 
-function parts() {
+export function parts() {
   if (bits) {
     return bits;
   }
@@ -95,21 +125,22 @@ function parts() {
   const setGhost = StateEffect.define();
 
   class GhostWidget extends WidgetType {
-    constructor(text) {
+    constructor(value) {
       super();
-      this.text = text;
+      this.text = value.text;
+      this.pending = value.pending || '';
     }
 
     eq(other) {
-      return other.text === this.text;
+      return other.text === this.text && other.pending === this.pending;
     }
 
     toDOM(view) {
       const span = view.dom.ownerDocument.createElement('span');
 
-      span.className = 'cm-sve-ghost';
+      span.className = this.pending ? 'cm-sve-ghost cm-sve-ghost--pending' : 'cm-sve-ghost';
       span.setAttribute('aria-hidden', 'true');
-      span.textContent = this.text;
+      span.textContent = this.pending || this.text;
 
       return span;
     }
@@ -133,20 +164,22 @@ function parts() {
       }
 
       if (tr.docChanged) {
-        return typedThrough(value, tr);
+        return value.pending ? null : typedThrough(value, tr);
       }
 
       return tr.selection && tr.state.selection.main.head !== value.at ? null : value;
     },
     provide: (self) =>
       EditorView.decorations.from(self, (value) =>
-        value ? Decoration.set([Decoration.widget({ widget: new GhostWidget(value.text), side: 1 }).range(value.at)]) : Decoration.none
+        value ? Decoration.set([Decoration.widget({ widget: new GhostWidget(value), side: 1 }).range(value.at)]) : Decoration.none
       ),
   });
 
-  // Grey, in the pane's own font; the newlines of a suggestion of a few lines kept.
+  // Grey, in the pane's own font; the newlines of a suggestion of a few lines
+  // kept. "Writing …" a shade fainter and slanted: it is not text to take.
   const theme = EditorView.baseTheme({
     '.cm-sve-ghost': { opacity: '0.45', whiteSpace: 'pre-wrap', pointerEvents: 'none' },
+    '.cm-sve-ghost--pending': { opacity: '0.35', fontStyle: 'italic' },
   });
 
   bits = { setGhost, field, theme };
@@ -169,7 +202,7 @@ function typedThrough(value, tr) {
       const rest = advanceGhost(value.text, inserted.toString());
 
       if (rest) {
-        next = { text: rest, at: toB };
+        next = { ...value, text: rest, at: toB };
       }
     }
   });
@@ -195,8 +228,9 @@ function ghostExtension(state) {
         return;
       }
 
-      // Out of the editor: nothing waits, nothing stands. The clear is its
-      // own transaction, after this update.
+      // Out of the editor: nothing waits, nothing stands — unless the focus
+      // went to ⌘K's box, which has its own way out. The clear is its own
+      // transaction, after this update.
       if (update.focusChanged && !update.view.hasFocus) {
         cancel(state);
         state.win.setTimeout(() => clear(update.view), 0);
@@ -219,6 +253,7 @@ function ghostExtension(state) {
       keymap.of([
         { key: 'Tab', run: () => accept(state, false) },
         { key: 'Mod-ArrowRight', run: () => accept(state, true) },
+        { key: 'Mod-k', run: () => openEdit(state) },
         { key: 'Escape', run: () => dismiss(state) },
       ])
     ),
@@ -226,12 +261,18 @@ function ghostExtension(state) {
 }
 
 /**
- * Only the author's own writing asks: a typed character, or a word taken
- * from the pane's list (`{{ visual_` → `visual_edit`). Not the dock's writes,
- * not a toolbar button, not the grey text's own Tab.
+ * Only the author's own writing asks: a typed character, a new line, or a
+ * word taken from the pane's list (`{{ visual_` → `visual_edit`). Not the
+ * dock's writes, not a toolbar button, not the grey text's own Tab.
  */
 function typed(update) {
-  return update.transactions.some((tr) => tr.isUserEvent('input.type') || tr.isUserEvent('input.complete'));
+  const { Transaction } = cm.state;
+
+  // Enter is plain `input` (insertNewlineAndIndent); `input.toolbar` — the
+  // dock's buttons and our own Tab — is not counted.
+  return update.transactions.some(
+    (tr) => tr.isUserEvent('input.type') || tr.isUserEvent('input.complete') || tr.annotation(Transaction.userEvent) === 'input'
+  );
 }
 
 function schedule(state) {
@@ -252,35 +293,18 @@ function cancel(state) {
   state.abort = null;
 }
 
-function paneOffset() {
-  return dockState.htmlScopeActive && dockState.htmlFocus ? dockState.htmlFocus.from : 0;
-}
-
-/** Nothing else has the caret: the editor focused, no selection, no list open over it. */
+/** Nothing else has the caret: the editor focused, no selection, no list or box open over it. */
 function quiet(state) {
   const { view, win } = state;
 
   return (
     view.hasFocus &&
+    !state.editing &&
     !view.state.readOnly &&
     view.state.selection.main.empty &&
     cm.autocomplete.completionStatus(view.state) !== 'active' &&
     !win.document.querySelector('[data-sve-help-popup], [data-sve-help-loop]')
   );
-}
-
-/** The section's fields, asked for once per file — the Data button's rows. */
-function fieldsFor(state) {
-  const type = currentTemplateType() || '';
-
-  if (state.fieldsFor !== type) {
-    state.fieldsFor = type;
-    state.fields = Promise.resolve()
-      .then(() => sectionDataRows(state.win))
-      .then(fieldRows, () => []);
-  }
-
-  return state.fields;
 }
 
 async function ask(state, gen) {
@@ -292,39 +316,26 @@ async function ask(state, gen) {
 
   const doc = view.state.doc;
   const head = view.state.selection.main.head;
-  const full = currentFullHtml();
-  const pos = paneOffset() + head;
+  const { full, pos, body } = await payload(state, head);
 
-  if (!shouldAsk(full, pos, lockedRanges(full))) {
+  if (gen !== state.gen || view.state.doc !== doc || !shouldAsk(full, pos, lockedRanges(full))) {
     return;
   }
 
-  const fields = await fieldsFor(state);
+  const mode = ghostMode(full, pos);
 
-  if (gen !== state.gen || view.state.doc !== doc) {
-    return;
+  // A described block takes seconds: say so where it will stand.
+  if (mode === 'comment') {
+    view.dispatch({ effects: parts().setGhost.of({ text: '', at: head, pending: t(win, 'code_dock_ghost_writing') }) });
   }
 
   const abort = new win.AbortController();
-  let res;
-  let body;
+  let answer;
 
   state.abort = abort;
 
   try {
-    res = await win.fetch(ENDPOINT, {
-      method: 'POST',
-      credentials: 'same-origin',
-      signal: abort.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': csrfToken(win),
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({ ...ghostRequest(full, pos), section: currentTemplateType() || '', fields }),
-    });
-    body = await res.json().catch(() => null);
+    answer = await ghostPost(win, '', { ...body, mode }, abort.signal);
   } catch {
     // Aborted by the next keystroke, or the network: either way, no grey text.
     return;
@@ -334,26 +345,40 @@ async function ask(state, gen) {
     }
   }
 
-  if (!res.ok) {
-    report(state, res.status, body?.message);
+  const fresh = gen === state.gen && view.state.doc === doc && view.state.selection.main.head === head;
+
+  if (!answer.ok) {
+    if (fresh) {
+      clear(view);
+    }
+
+    report(state, answer.status, answer.body?.message);
 
     return;
   }
 
-  const text = typeof body?.text === 'string' ? body.text : '';
+  const text = typeof answer.body?.text === 'string' ? answer.body.text : '';
 
-  if (text === '' || gen !== state.gen || view.state.doc !== doc || view.state.selection.main.head !== head || !quiet(state)) {
+  if (!fresh) {
     return;
   }
 
-  view.dispatch({ effects: parts().setGhost.of({ text, at: head }) });
+  if (text === '' || !quiet(state)) {
+    clear(view);
+
+    return;
+  }
+
+  ghostIds += 1;
+  view.dispatch({ effects: parts().setGhost.of({ text, at: head, id: ghostIds, line: lineBefore(full, pos) }) });
+  countGhost(win, 'shown');
 }
 
 /**
- * Said once per Live Preview. No key, or grey text not this user's: asking
+ * Said once per Live Preview. No key, or the AI not this user's: asking
  * again would only fail again, so this editor stops asking.
  */
-function report(state, status, message) {
+export function report(state, status, message) {
   if (status === 403 || status === 422) {
     state.stopped = true;
   }
@@ -368,11 +393,17 @@ function report(state, status, message) {
 
 /** Tab: all of it. ⌘→: the next word, the rest left standing. */
 function accept(state, word) {
-  const { view } = state;
+  const { view, win } = state;
   const ghost = view.state.field(parts().field, false);
 
   if (!ghost || view.state.readOnly) {
     return false;
+  }
+
+  // "Writing …": the block is on its way. Tab waits for it rather than
+  // indenting the line and throwing it away; Esc is the way to stop it.
+  if (ghost.pending) {
+    return true;
   }
 
   const text = word ? nextWord(ghost.text) : ghost.text;
@@ -385,10 +416,38 @@ function accept(state, word) {
 
   finishHtmlEdit();
 
-  // Taken whole: what comes next is the next question, as in Copilot.
+  if (state.counted !== ghost.id) {
+    state.counted = ghost.id;
+    countGhost(win, 'taken');
+  }
+
+  // Taken whole: remembered as this author's way of writing, and what comes
+  // next is the next question, as in Copilot.
   if (!word) {
+    rememberTaken(win, ghost.line, ghost.text);
     schedule(state);
   }
+
+  return true;
+}
+
+/** ⌘K: the box, loaded the first time. Only while nothing else holds the caret. */
+function openEdit(state) {
+  if (state.editing || state.view.state.readOnly || cm.autocomplete.completionStatus(state.view.state) === 'active') {
+    return state.editing;
+  }
+
+  cancel(state);
+  clear(state.view);
+  state.editing = true;
+
+  import('./ghost-edit.js')
+    .then((edit) => edit.openEditBox(state, () => {
+      state.editing = false;
+    }))
+    .catch(() => {
+      state.editing = false;
+    });
 
   return true;
 }

@@ -8,16 +8,28 @@ use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
 use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
 use MarioHamann\StatamicVisualEditor\DockGhost\Reply;
+use MarioHamann\StatamicVisualEditor\DockGhost\Tokens;
+use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
+use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Features;
 
 /**
- * Grey text in the HTML dock: the request it sends, the answer it makes of
- * the reply, and the cases `sve:ghost-try` cuts from a section.
+ * The AI in the HTML dock: the requests the grey text and ⌘K send, the
+ * answers made of the replies, the site's words it is given, what it costs,
+ * and the cases `sve:ghost-try` cuts from a section.
  */
 class DockGhostTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        File::deleteDirectory(Usage::directory());
+    }
+
     protected function tearDown(): void
     {
+        File::deleteDirectory(Usage::directory());
         Features::flush();
 
         parent::tearDown();
@@ -113,16 +125,18 @@ class DockGhostTest extends TestCase
         );
     }
 
-    public function test_a_short_overlap_of_spaces_is_not_taken_for_a_repeat(): void
+    public function test_the_caret_s_own_indentation_is_not_written_twice(): void
     {
-        $this->assertSame('  <p>{{ text }}</p>', Reply::clean('  <p>{{ text }}</p>', "<div>\n  "));
+        $this->assertSame("<p>{{ text }}</p>\n  <p>more</p>", Reply::clean("  <p>{{ text }}</p>\n  <p>more</p>", "<div>\n  "));
+        $this->assertSame('  x', Reply::clean('  x', '<div class="a"'));
     }
 
     public function test_an_answer_is_cut_to_a_few_lines_and_empty_stays_empty(): void
     {
         $long = implode("\n", array_fill(0, 20, '<p>x</p>'));
 
-        $this->assertCount(Reply::MAX_LINES, explode("\n", Reply::clean($long)));
+        $this->assertCount(Reply::MAX_LINES['line'], explode("\n", Reply::clean($long)));
+        $this->assertCount(20, explode("\n", Reply::clean($long, '', '', 'comment')));
         $this->assertSame('', Reply::clean("  \n "));
     }
 
@@ -256,6 +270,185 @@ class DockGhostTest extends TestCase
         $this->postJson('/!/sve/dock-ghost', ['before' => "<div>\n  ", 'after' => "\n</div>", 'section' => 'hero/style_2'])
             ->assertOk()
             ->assertJson(['ok' => true, 'text' => '<p>{{ text }}</p>']);
+
+        $user->delete();
+    }
+
+    /* ---- The site's words ---------------------------------------------------- */
+
+    public function test_the_tokens_fold_scales_and_name_how_a_class_reads_them(): void
+    {
+        $css = "@theme {\n --color-*: initial;\n --color-primary: #111;\n --color-primary-100: #eee;\n --color-primary-900: #000;\n --text-300: 1rem;\n --text-300--line-height: 1.2;\n --size-100: 1rem;\n}\n@utility flow-y { & > * + * { margin-top: 1em; } }";
+
+        $words = Tokens::vocabulary($css, ['wrapper', 'flow-y']);
+
+        $this->assertStringContainsString('Colours (bg-, text-, border-, fill-, …): primary, primary-{100,900}', $words);
+        $this->assertStringContainsString('Text sizes (text-…): 300', $words);
+        $this->assertStringNotContainsString('line-height', $words);
+        $this->assertStringContainsString("The site's own classes (its CSS files and sections): flow-y, wrapper", $words);
+        $this->assertStringContainsString('Custom properties, for var(--…): --size-100', $words);
+    }
+
+    public function test_no_theme_means_no_token_block(): void
+    {
+        $this->assertSame('', Tokens::vocabulary(''));
+    }
+
+    /* ---- Comment → code ------------------------------------------------------ */
+
+    public function test_a_comment_asks_for_a_whole_block_with_room_for_it(): void
+    {
+        $body = DockGhost::body(['mode' => 'comment', 'before' => "{{# card: image left #}}\n", 'after' => '']);
+
+        $this->assertSame(DockGhost::MAX_TOKENS['comment'], $body['max_tokens']);
+        $this->assertStringStartsWith('Task: '.Prompt::TASKS['comment'], $body['messages'][0]['content']);
+    }
+
+    public function test_an_unknown_mode_is_a_line(): void
+    {
+        $this->assertSame('line', Prompt::mode(['mode' => 'nonsense']));
+    }
+
+    /* ---- The author's way of writing ------------------------------------------ */
+
+    public function test_what_the_author_took_goes_along_newest_last_and_short(): void
+    {
+        $taken = [];
+
+        for ($i = 1; $i <= 8; $i++) {
+            $taken[] = ['line' => "<h2 {$i}", 'text' => "edit field=\"t{$i}\" }}"];
+        }
+
+        $text = Prompt::user(['before' => '<div>', 'taken' => $taken]);
+
+        $this->assertStringContainsString('What this author took from you lately', $text);
+        $this->assertStringNotContainsString('t2"', $text);
+        $this->assertStringContainsString('- after `<h2 8`: `edit field="t8" }}`', $text);
+    }
+
+    /* ---- ⌘K ------------------------------------------------------------------ */
+
+    public function test_cmd_k_uses_the_stronger_model_with_the_refusal_fallback(): void
+    {
+        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+
+        Http::fake([DockGhost::ENDPOINT => Http::response([
+            'content' => [['type' => 'text', 'text' => "```html\n<h3 class=\"text-secondary\">{{ title }}</h3>\n```"]],
+            'stop_reason' => 'end_turn',
+            'usage' => ['input_tokens' => 900, 'output_tokens' => 30],
+        ])]);
+
+        $out = DockGhost::edit([
+            'instruction' => 'Make it an h3',
+            'before' => "<div>\n  ",
+            'selection' => "<h2>{{ title }}</h2>\n",
+            'after' => '</div>',
+        ]);
+
+        $this->assertTrue($out['ok']);
+        $this->assertSame("<h3 class=\"text-secondary\">{{ title }}</h3>\n", $out['text']);
+
+        Http::assertSent(fn (Request $request) => $request['model'] === 'claude-opus-5-5'
+            && ! isset($request['thinking'])
+            && $request['fallbacks'] === 'default'
+            && $request->hasHeader('anthropic-beta', DockGhost::FALLBACK_BETA)
+            && str_contains($request['messages'][0]['content'], "Instruction: Make it an h3\n")
+            && str_contains($request['messages'][0]['content'], "<selection><h2>{{ title }}</h2>\n</selection>"));
+    }
+
+    public function test_cmd_k_without_a_selection_writes_at_the_caret(): void
+    {
+        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+
+        Http::fake([DockGhost::ENDPOINT => Http::response(['content' => [['type' => 'text', 'text' => '<p>{{ text }}</p>']], 'usage' => []])]);
+
+        DockGhost::edit(['instruction' => 'a paragraph with the text', 'before' => '<div>', 'after' => '</div>']);
+
+        Http::assertSent(fn (Request $request) => str_starts_with($request['messages'][0]['content'], 'Task: '.Prompt::TASKS['insert'])
+            && ! str_contains($request['messages'][0]['content'], '<selection>'));
+    }
+
+    public function test_the_fallback_can_be_switched_off(): void
+    {
+        config(['statamic-visual-editor.ghost.fallbacks' => false]);
+
+        $this->assertArrayNotHasKey('fallbacks', DockGhost::body(['mode' => 'edit', 'instruction' => 'x', 'selection' => 'y']));
+    }
+
+    public function test_cmd_k_needs_an_instruction_and_a_selection_of_reasonable_size(): void
+    {
+        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+        Http::fake();
+
+        $this->assertSame(422, DockGhost::edit(['instruction' => '  ', 'selection' => 'x'])['status']);
+        $this->assertSame(422, DockGhost::edit(['instruction' => 'x', 'selection' => str_repeat('a', Prompt::SELECTION + 1)])['status']);
+        Http::assertNothingSent();
+    }
+
+    public function test_a_replacement_ends_as_the_selection_did_and_starts_where_it_did(): void
+    {
+        $this->assertSame("<h3>x</h3>\n", Reply::edit('<h3>x</h3>', "<h2>x</h2>\n"));
+        $this->assertSame('<h3>x</h3>', Reply::edit("<h3>x</h3>\n\n", '<h2>x</h2>'));
+        $this->assertSame('<h3>x</h3>', Reply::edit('    <h3>x</h3>', '<h2>x</h2>'));
+        $this->assertSame("  <h3>x</h3>\n", Reply::edit("  <h3>x</h3>\n", "  <h2>x</h2>\n"));
+    }
+
+    /* ---- What it costs ------------------------------------------------------- */
+
+    public function test_the_cost_is_reckoned_at_list_price(): void
+    {
+        $this->assertEqualsWithDelta(
+            (1000 * 0.10 + 100 * 0.50 + 4000 * 0.01 + 2000 * 0.125) / 1_000_000,
+            Usage::cost('claude-haiku-5-5', ['input' => 1000, 'output' => 100, 'cache_read' => 4000, 'cache_write' => 2000]),
+            1e-12,
+        );
+        $this->assertNull(Usage::cost('some-other-model', ['input' => 1]));
+    }
+
+    public function test_each_answer_is_added_to_the_month(): void
+    {
+        config(['statamic-visual-editor.ghost.api_key' => 'sk-ant-test']);
+
+        Http::fake([DockGhost::ENDPOINT => Http::response([
+            'content' => [['type' => 'text', 'text' => 'x']],
+            'usage' => ['input_tokens' => 1000, 'output_tokens' => 10],
+        ])]);
+
+        DockGhost::complete(['before' => '<div>']);
+        DockGhost::complete(['before' => '<div>']);
+
+        $month = Usage::month();
+
+        $this->assertSame(2, $month['requests']);
+        $this->assertSame(['line' => 2], $month['modes']);
+        $this->assertEqualsWithDelta(2 * (1000 * 0.10 + 10 * 0.50) / 1_000_000, $month['cost'], 1e-9);
+    }
+
+    public function test_the_endpoints_for_cmd_k_and_the_month(): void
+    {
+        $user = \Statamic\Facades\User::make()->email('ghost-edit@example.com')->makeSuper();
+        $user->save();
+        $this->actingAs($user);
+
+        config([
+            'statamic-visual-editor.features.template_dock' => true,
+            'statamic-visual-editor.features.dock_ghost' => true,
+            'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
+        ]);
+        Features::flush();
+
+        Http::fake([DockGhost::ENDPOINT => Http::response([
+            'content' => [['type' => 'text', 'text' => '<h3>x</h3>']],
+            'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+        ])]);
+
+        $this->postJson('/!/sve/dock-ghost/edit', ['instruction' => 'h3', 'before' => '', 'selection' => '<h2>x</h2>', 'after' => ''])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'text' => '<h3>x</h3>']);
+
+        $this->getJson('/!/sve/dock-ghost/usage')
+            ->assertOk()
+            ->assertJson(['ok' => true, 'requests' => 1, 'modes' => ['edit' => 1]]);
 
         $user->delete();
     }

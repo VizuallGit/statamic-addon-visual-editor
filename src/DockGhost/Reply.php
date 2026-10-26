@@ -3,32 +3,35 @@
 namespace MarioHamann\StatamicVisualEditor\DockGhost;
 
 /**
- * The model's answer, made into text that can go in at the caret as it is.
+ * The model's answer, made into text that can go in as it is.
  *
  * Asked for the insertion only, a small model still now and then wraps it in
- * a code fence, starts by repeating what was typed, or ends with the `}}` or
- * `>` that already stands after the caret. Each of those is taken off here,
- * so a Tab never writes a tag twice.
+ * a code fence, starts by repeating what was typed or the indentation the
+ * caret already stands at, or ends with the `}}` or `>` that already follows
+ * the caret. Each of those is taken off here, so a Tab never writes a tag
+ * twice.
  */
 final class Reply
 {
-    /** Grey text is a line or a few; anything longer is cut there. */
-    public const MAX_LINES = 8;
+    /** Lines kept per way of asking: grey text is a line or a few; a described block may be long. */
+    public const MAX_LINES = ['line' => 8, 'comment' => 80, 'insert' => 120, 'edit' => 400];
 
     /** A repeat of the typed text counts from this many visible characters on. */
     public const MIN_REPEAT = 3;
 
-    public static function clean(string $text, string $before = '', string $after = ''): string
+    public static function clean(string $text, string $before = '', string $after = '', string $mode = 'line'): string
     {
         $text = str_replace("\r\n", "\n", $text);
         $text = static::unfence($text);
         $text = static::withoutRepeat($text, $before);
+        $text = static::withoutIndent($text, $before);
         $text = static::withoutTail($text, $after);
 
         $lines = explode("\n", $text);
+        $max = static::MAX_LINES[$mode] ?? static::MAX_LINES['line'];
 
-        if (count($lines) > static::MAX_LINES) {
-            $text = implode("\n", array_slice($lines, 0, static::MAX_LINES));
+        if (count($lines) > $max) {
+            $text = implode("\n", array_slice($lines, 0, $max));
         }
 
         $text = rtrim($text);
@@ -37,7 +40,33 @@ final class Reply
     }
 
     /**
-     * The token counts, under the names the measuring command prints.
+     * ⌘K on a selection: the replacement, whole. It ends the way the
+     * selection ended — on a line break or not — so the line after it stays
+     * where it was.
+     */
+    public static function edit(string $text, string $selection): string
+    {
+        $text = rtrim(static::unfence(str_replace("\r\n", "\n", $text)), " \t\n");
+
+        if (trim($text) === '') {
+            return '';
+        }
+
+        // A selection that starts at its first character, not at the line's
+        // indentation: the replacement starts there too.
+        if (! preg_match('/\A[ \t]/', $selection)) {
+            $text = ltrim($text, " \t");
+        }
+
+        if (preg_match('/\n[ \t]*\z/', $selection, $tail)) {
+            $text .= $tail[0];
+        }
+
+        return $text;
+    }
+
+    /**
+     * The token counts, under the names the usage and the measuring command use.
      *
      * @return array<string, int>
      */
@@ -79,6 +108,19 @@ final class Reply
             if (str_ends_with($before, $piece)) {
                 return substr($text, $length);
             }
+        }
+
+        return $text;
+    }
+
+    /**
+     * The caret stands at a line's indentation and the answer brings its
+     * own: the first line's is taken off, the rest keep theirs.
+     */
+    protected static function withoutIndent(string $text, string $before): string
+    {
+        if (preg_match('/(?:\A|\n)[ \t]*\z/', $before) && preg_match('/\A[ \t]+/', $text)) {
+            return ltrim($text, " \t");
         }
 
         return $text;

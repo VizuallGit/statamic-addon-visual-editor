@@ -16,6 +16,7 @@ import { closeAiPanel } from './ai-panel-lazy.js';
 import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
 import { helpDefaultOn, helpOnClick, helpOpensPicker, setHelpDefault, setHelpOnClick, setHelpOpensPicker } from './dock/help-state.js';
 import { ghostAllowed, ghostDefaultOn, setGhostDefault } from './dock/ghost-state.js';
+import { ghostCounts, takenRate } from './dock/ghost-memory.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
@@ -282,6 +283,43 @@ function sidebarsProps(win) {
   };
 }
 
+/** This author's month with the dock's AI, or '' before it has shown anything. */
+function ghostStatsLine(win) {
+  const counts = ghostCounts(win);
+
+  if (!counts.shown && !counts.edits) {
+    return '';
+  }
+
+  return t(win, 'lp_settings_code_dock_ghost_stats', {
+    taken: counts.taken,
+    shown: counts.shown,
+    rate: takenRate(counts),
+    kept: counts.kept,
+    edits: counts.edits,
+  });
+}
+
+/** What the dock's AI has cost the site this month, or '' when nothing yet or not asked. */
+function ghostCostLine(win) {
+  return win
+    .fetch('/!/sve/dock-ghost/usage', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((month) => {
+      if (!month?.requests) {
+        return '';
+      }
+
+      const cost = Number(month.cost) || 0;
+
+      return t(win, 'lp_settings_code_dock_ghost_cost', {
+        cost: cost < 1 ? cost.toFixed(3) : cost.toFixed(2),
+        requests: month.requests,
+      });
+    })
+    .catch(() => '');
+}
+
 function treeProps(win) {
   return {
     codeDock: {
@@ -305,6 +343,9 @@ function treeProps(win) {
       show: featureOn(win, 'template_dock') && ghostAllowed(win),
       on: ghostDefaultOn(win),
       label: t(win, 'lp_settings_code_dock_ghost'),
+      // Whether it helps, in numbers: this author's month, from their own
+      // preferences. What it cost the site is asked when the tab is shown.
+      stats: ghostStatsLine(win),
     },
     // The tree's face is a preference, not a feature: the panel reads it on
     // every paint, and the store flips it live while the panel is open.
@@ -660,6 +701,7 @@ function bindSettingHandlers(win) {
       codeDockHelpClick: (on) => setHelpOnClick(win, on),
       codeDockHelpPicker: (on) => setHelpOpensPicker(win, on),
       codeDockGhost: (on) => setGhostDefault(win, on),
+      ghostCost: () => ghostCostLine(win),
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
       familyReset: () => resetFamilyColors(win),

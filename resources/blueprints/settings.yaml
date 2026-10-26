@@ -649,8 +649,8 @@ tabs:
             handle: dock_ghost
             field:
               type: toggle
-              display: 'Grey text in the HTML dock'
-              instructions: 'Copilot-style suggestions while you write in the template dock''s HTML pane: grey text at the caret, written against the section''s fields, the house rules and your newest sections. Tab takes it; Esc or typing on leaves it. Each person switches it on with the sparkle in the pane. Uses Anthropic (Claude Haiku), not Cursor — its own key below, paid per suggestion (a fraction of a cent each). Off by default.'
+              display: 'AI in the HTML dock (grey text and ⌘K)'
+              instructions: 'Copilot-style help while you write in the template dock''s HTML pane. Grey text at the caret, written against the section''s fields, the site''s colours and classes, the house rules and your newest sections: Tab takes it, Esc or typing on leaves it. Write a comment such as `{{# card: image left, text right #}}` and press Enter, and the grey text writes the block. Select markup and press ⌘K to change it in your own words (Enter keeps, Esc undoes). Each person switches it on with the sparkle in the pane. Uses Anthropic, not Cursor — its own key below, paid per use: grey text a fraction of a cent (Claude Haiku), ⌘K about three cents (Claude Opus). Off by default.'
               default: false
               if:
                 enabled: 'equals true'

@@ -69,13 +69,54 @@ export function shouldAsk(full, pos, locked = []) {
   return true;
 }
 
-/** What goes to the server: the file around the caret, cut to size. */
-export function ghostRequest(full, pos) {
+/**
+ * How to ask: `comment` when the caret stands on a fresh line right under a
+ * comment the author wrote (`{{# card: image left, text right #}}` or
+ * `<!-- … -->`) — they described a block, and the answer may be many lines.
+ * Otherwise `line`: finish what is being written.
+ */
+export function ghostMode(full, pos) {
+  const text = String(full || '');
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+
+  if (lineStart === 0 || text.slice(lineStart, pos).trim() !== '') {
+    return 'line';
+  }
+
+  const prevEnd = lineStart - 1;
+  const prevStart = text.lastIndexOf('\n', prevEnd - 1) + 1;
+  const prev = text.slice(prevStart, prevEnd).trim();
+
+  return /^(\{\{#[\s\S]*#\}\}|<!--[\s\S]*-->)$/.test(prev) ? 'comment' : 'line';
+}
+
+/**
+ * What a taken suggestion followed: the caret's line up to the caret, or the
+ * line above when the caret stands on a fresh one.
+ */
+export function lineBefore(full, pos) {
+  const text = String(full || '');
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+  const own = text.slice(lineStart, pos);
+
+  if (own.trim() !== '' || lineStart === 0) {
+    return own.trim();
+  }
+
+  return text.slice(text.lastIndexOf('\n', lineStart - 2) + 1, lineStart - 1).trim();
+}
+
+/**
+ * What goes to the server: the file around the caret, cut to size — or
+ * around a selection (`from`–`to`), which then goes along whole.
+ */
+export function ghostRequest(full, from, to = from) {
   const text = String(full || '');
 
   return {
-    before: text.slice(Math.max(0, pos - BEFORE_CHARS), pos),
-    after: text.slice(pos, pos + AFTER_CHARS),
+    before: text.slice(Math.max(0, from - BEFORE_CHARS), from),
+    after: text.slice(to, to + AFTER_CHARS),
+    ...(to > from ? { selection: text.slice(from, to) } : {}),
   };
 }
 

@@ -10,7 +10,9 @@ import {
   MAX_FIELDS,
   advanceGhost,
   fieldRows,
+  ghostMode,
   ghostRequest,
+  lineBefore,
   nextWord,
   shouldAsk,
 } from '../../resources/js/dock/ghost-suggest.js';
@@ -116,4 +118,36 @@ test('⌘→ takes the next word with what stands before it', () => {
   assert.equal(nextWord(' field="title" }}'), ' field');
   assert.equal(nextWord('="title" }}'), '="');
   assert.equal(nextWord(''), '');
+});
+
+test('a fresh line under a comment is a described block', () => {
+  const antlers = at('<div>\n  {{# card: image left, text right #}}\n  |\n</div>');
+  const html = at('<div>\n  <!-- three columns -->\n  |\n</div>');
+  const plain = at('<div>\n  <h2>x</h2>\n  |\n</div>');
+  const sameLine = at('<div>\n  {{# card #}} |\n</div>');
+
+  assert.equal(ghostMode(antlers.full, antlers.pos), 'comment');
+  assert.equal(ghostMode(html.full, html.pos), 'comment');
+  assert.equal(ghostMode(plain.full, plain.pos), 'line');
+  assert.equal(ghostMode(sameLine.full, sameLine.pos), 'line');
+});
+
+test('what a taken suggestion followed: the caret\'s line, or the line above a fresh one', () => {
+  const own = at('<div>\n  <h2 {{ visual_|\n</div>');
+  const fresh = at('<ul>\n  <li>\n    |\n</ul>');
+
+  assert.equal(lineBefore(own.full, own.pos), '<h2 {{ visual_');
+  assert.equal(lineBefore(fresh.full, fresh.pos), '<li>');
+});
+
+test('a selection goes along whole, with the file around it', () => {
+  const full = '<div>\n  <h2>{{ title }}</h2>\n</div>';
+  const from = full.indexOf('<h2>');
+  const to = full.indexOf('</h2>') + 5;
+
+  assert.deepEqual(ghostRequest(full, from, to), {
+    before: '<div>\n  ',
+    after: '\n</div>',
+    selection: '<h2>{{ title }}</h2>',
+  });
 });

@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use MarioHamann\StatamicVisualEditor\AiChat\HouseStyle;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\DockGhost\Cases;
+use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
 use MarioHamann\StatamicVisualEditor\SectionTemplate\Paths;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use Statamic\Facades\Fieldset;
@@ -19,21 +20,18 @@ use Statamic\Facades\Fieldset;
  * Each case is one paid request on the site's Anthropic key — a fraction of a
  * cent. The fields sent are the fieldset's own top level, where the dock
  * sends the Data button's rows; close enough to judge the suggestions by.
+ *
+ * `--edit` tries ⌘K once instead: the first <h2> of a section, rewritten to
+ * an <h3> in the site's secondary colour — the stronger model, a few cents.
  */
 class GhostTry extends Command
 {
     protected $signature = 'sve:ghost-try
         {--count=6 : How many cases to send}
-        {--section= : One section handle (hero/style_2) instead of the newest ones}';
+        {--section= : One section handle (hero/style_2) instead of the newest ones}
+        {--edit : Try ⌘K once instead of the grey text}';
 
-    protected $description = 'Send real cases from this site\'s sections to the HTML dock\'s grey text and print the suggestions, the time and the cost.';
-
-    /**
-     * Claude Haiku 5.5's list price in dollars per million tokens (October
-     * 2026; console.anthropic.com shows today's). Cache reads are a tenth of
-     * input, a five-minute cache write a quarter more.
-     */
-    protected const PRICE = ['input' => 0.10, 'output' => 0.50, 'cache_read' => 0.01, 'cache_write' => 0.125];
+    protected $description = 'Send real cases from this site\'s sections to the HTML dock\'s AI and print the suggestions, the time and the cost.';
 
     public function handle(): int
     {
@@ -41,6 +39,10 @@ class GhostTry extends Command
             $this->error(__('sve::messages.dock_ghost_need_key'));
 
             return self::FAILURE;
+        }
+
+        if ($this->option('edit')) {
+            return $this->tryEdit();
         }
 
         $cases = $this->cases();
@@ -75,7 +77,7 @@ class GhostTry extends Command
                 continue;
             }
 
-            $cost = $this->cost($out['usage']);
+            $cost = (float) Usage::cost(DockGhost::model(), $out['usage']);
             $times[] = $out['ms'];
             $costs[] = $cost;
             $hits += $this->same($out['text'], $case['expected']) ? 1 : 0;
@@ -106,6 +108,47 @@ class GhostTry extends Command
                 array_sum($costs),
             ));
         }
+
+        return self::SUCCESS;
+    }
+
+    /** ⌘K once: a section's first <h2> made an <h3> in the site's secondary colour. */
+    protected function tryEdit(): int
+    {
+        $handle = trim((string) $this->option('section')) ?: (HouseStyle::newest()[0]['handle'] ?? '');
+        $path = $handle !== '' ? Paths::path($handle) : null;
+        $source = $path && is_file($path) ? (string) file_get_contents($path) : '';
+
+        if (! preg_match('/<h2\b.*?<\/h2>/s', $source, $match, PREG_OFFSET_CAPTURE)) {
+            $this->error('No <h2> to try ⌘K on'.($handle !== '' ? " in {$handle}." : '.'));
+
+            return self::FAILURE;
+        }
+
+        [$selection, $at] = $match[0];
+        $instruction = 'Make this an h3 in the site\'s secondary colour.';
+
+        $this->line('Model: '.DockGhost::model('edit'));
+        $this->line("<info>{$handle}</info> · ⌘K «{$instruction}»");
+        $this->line('   selected:  '.$this->oneLine($selection));
+
+        $out = DockGhost::edit([
+            'instruction' => $instruction,
+            'before' => substr($source, 0, $at),
+            'selection' => $selection,
+            'after' => substr($source, $at + strlen($selection)),
+            'section' => $handle,
+            'fields' => $this->fields($handle),
+        ]);
+
+        if (! $out['ok']) {
+            $this->line('   <error>failed:</error>   '.($out['message'] ?? ''));
+
+            return self::FAILURE;
+        }
+
+        $this->line('   rewritten: '.$this->oneLine($out['text']));
+        $this->line(sprintf('   %d ms · $%.4f', $out['ms'], (float) Usage::cost(DockGhost::model('edit'), $out['usage'])));
 
         return self::SUCCESS;
     }
@@ -152,17 +195,6 @@ class GhostTry extends Command
             'type' => $field->type(),
             'label' => (string) $field->display(),
         ])->values()->all();
-    }
-
-    protected function cost(array $usage): float
-    {
-        $sum = 0.0;
-
-        foreach (static::PRICE as $kind => $price) {
-            $sum += ($usage[$kind] ?? 0) * $price / 1_000_000;
-        }
-
-        return $sum;
     }
 
     protected function same(string $got, string $expected): bool

@@ -411,7 +411,15 @@ return [
     */
     'ghost' => [
         'api_key' => env('ANTHROPIC_API_KEY'),
+        // The grey text: small and fast, it has to come while the author pauses.
         'model' => env('STATAMIC_VISUAL_EDITOR_GHOST_MODEL', 'claude-haiku-5-5'),
+        // ⌘K: an instruction for a selection. The stronger model; about three
+        // cents an edit. claude-sonnet-5-5 halves that.
+        'edit_model' => env('STATAMIC_VISUAL_EDITOR_GHOST_EDIT_MODEL', 'claude-opus-5-5'),
+        // ⌘K's model asks Anthropic to answer a refusal with its fallback model
+        // (beta server-side-fallback-2026-07-01). False if a request is turned
+        // down for the parameter.
+        'fallbacks' => true,
     ],
 
     /*

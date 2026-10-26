@@ -272,6 +272,13 @@ final class EditorRoutes
             Route::post('/!/sve/dock-ghost', [DockGhostController::class, 'store'])
                 ->withoutMiddleware(RecordEditorWrite::class)
                 ->name('sve.dock-ghost');
+            // ⌘K in the same pane: an instruction for the selection or the caret.
+            Route::post('/!/sve/dock-ghost/edit', [DockGhostController::class, 'edit'])
+                ->withoutMiddleware(RecordEditorWrite::class)
+                ->name('sve.dock-ghost.edit');
+            // What the two have cost this month, for the Live Preview settings.
+            Route::get('/!/sve/dock-ghost/usage', [DockGhostController::class, 'usage'])
+                ->name('sve.dock-ghost.usage');
 
             // Structured data (schema.org JSON-LD) for this page and the site.
             Route::get('/!/sve/schema', [SchemaController::class, 'show'])

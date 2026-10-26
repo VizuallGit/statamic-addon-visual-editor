@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 // HTML tree tab: whether the template dock opens with Live Preview, the tree's
 // face (coloured tags or the classic cards), and one colour per tag family —
@@ -21,6 +21,16 @@ const codeDockHelpOn = ref(!!props.codeDockHelp.on);
 const codeDockHelpClick = ref(props.codeDockHelp.click ? !!props.codeDockHelp.click.on : true);
 const codeDockHelpPicker = ref(props.codeDockHelp.picker ? !!props.codeDockHelp.picker.on : true);
 const codeDockGhostOn = ref(!!props.codeDockGhost.on);
+// What the dock's AI cost the site this month: asked when the tab opens.
+const codeDockGhostCost = ref('');
+
+onMounted(() => {
+  if (props.codeDockGhost.show && props.on.ghostCost) {
+    props.on.ghostCost().then((line) => {
+      codeDockGhostCost.value = line;
+    });
+  }
+});
 const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
 
 function setCodeDock(value) {
@@ -94,6 +104,8 @@ function resetFamilyColors() {
       <input type="checkbox" :checked="codeDockGhostOn" @change="setCodeDockGhost($event.target.checked)">
       <span :title="codeDockGhost.label">{{ codeDockGhost.label }}</span>
     </label>
+    <p v-if="codeDockGhost.show && codeDockGhost.stats" class="sve-lp-settings__hint">{{ codeDockGhost.stats }}</p>
+    <p v-if="codeDockGhost.show && codeDockGhostCost" class="sve-lp-settings__hint">{{ codeDockGhostCost }}</p>
     <label v-if="htmlTree.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="htmlTreeOn" @change="setHtmlTree($event.target.checked)">
       <span :title="htmlTree.label">{{ htmlTree.label }}</span>
