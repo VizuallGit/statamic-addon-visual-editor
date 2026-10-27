@@ -4291,6 +4291,15 @@ function pointHtmlTreeAtSection(win, uid) {
     htmlTreeAhead = '';
   }
 
+  // The file is still on its way: its landing paints the tree
+  // (watchHtmlTreeDock). A paint before that would publish the file being
+  // left as this section's tags, and the preview would answer the click with
+  // a path from the wrong file — the section's row marked, never the image
+  // component that was clicked.
+  if (ask('dock:load-settled')) {
+    return;
+  }
+
   // Painted here, not left to the dock's next paint. Two sections of one kind
   // share a file: the dock has nothing to load and nothing to announce, so no
   // paint followed the click — the list stayed open on the other section while
