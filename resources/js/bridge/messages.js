@@ -5,6 +5,12 @@
 import { EDITING_ATTR, STYLES_ID } from '../bridge.js';
 
 // ===== messages =====
+/** How far outside a marked replaced element (img, video, iframe, svg, canvas)
+ *  its dashed `outline` sits — the ::before ring's inset is -6px, so with the
+ *  1px width this lands on the same edge. drag.js reads it to find the surface
+ *  behind the ring. */
+export const REPLACED_OUTLINE_OFFSET_PX = 5;
+
 /**
  * Whitespace-normalizes text for comparison across the preview DOM and the CP
  * form values: nbsp → space, collapse runs, trim. Duplicated in cp.js because
@@ -262,18 +268,19 @@ export function injectStyles(doc) {
            looked unmarked. The same dashes as a real outline, outside its
            edge like the ::before ring (inset -6px) — so an image reads as any
            other marked block, in the tone of the surface behind the ring
-           (applyOutlineTone reads the parent's background for these). An
-           ancestor with overflow hidden/clip cuts the ring, exactly as it cuts
-           the ::before ring on a block inside it; accepted. The colour
-           override above says transparent with !important for every marked
-           element; this names the element and so wins. */
+           (applyOutlineTone reads the background of the first ancestor whose
+           box holds the ring). An ancestor with overflow hidden/clip cuts the
+           ring, exactly as it cuts the ::before ring on a block inside it;
+           accepted. The colour override above says transparent with
+           !important for every marked element; this names the element and so
+           wins. */
         img[data-sid-active], img[data-sid-hover], img[data-sid-inner],
         video[data-sid-active], video[data-sid-hover], video[data-sid-inner],
         iframe[data-sid-active], iframe[data-sid-hover], iframe[data-sid-inner],
         svg[data-sid-active], svg[data-sid-hover], svg[data-sid-inner],
         canvas[data-sid-active], canvas[data-sid-hover], canvas[data-sid-inner] {
             outline: var(--sve-outline-width, 1px) dashed var(--sve-outline-color, rgba(0, 0, 0, 0.3)) !important;
-            outline-offset: 5px;
+            outline-offset: ${REPLACED_OUTLINE_OFFSET_PX}px;
         }
         /* Hovering a different field than the clicked/focused one: hide every
            other ring (active + CP hover) so only the hovered field is outlined. */

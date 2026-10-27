@@ -10,6 +10,7 @@ import { SECTION_ORDERABLE_ATTR, SID_ATTR, t } from '../bridge.js';
 import { BLOCK_CTRL_LAYOUT, hideMoveControl, positionMoveControl } from './row-caps-move.js';
 import { ICONS, detectCpDark, toolbarThemeFor } from './inline-edit.js';
 import { sidTemplatePayload } from './inserters.js';
+import { REPLACED_OUTLINE_OFFSET_PX } from './messages.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== drag =====
@@ -157,13 +158,38 @@ function parseCssColorViaCanvas(colour, win) {
 }
 
 /** A replaced element draws its ring as an `outline` outside its own edge
- *  (messages.js), so the surface behind that ring is the parent's, not its own:
- *  the image box `div.bg-gray-900` is exactly the image, and the ring lies on
- *  the section around it. */
+ *  (messages.js: offset REPLACED_OUTLINE_OFFSET_PX, width the 1px
+ *  --sve-outline-width injectCpVariables sets), so the surface behind the ring
+ *  is not the element's own and not simply its parent's either: the image box
+ *  `div.bg-gray-900` is exactly the image, and a ring 6px outside the image is
+ *  outside that box too, on the section. The surface behind the ring is the
+ *  first ancestor whose box still holds the ring's outer edge. */
 const REPLACED_TAGS = new Set(['IMG', 'VIDEO', 'IFRAME', 'SVG', 'CANVAS']);
 
-function behindOutline(el) {
-  return REPLACED_TAGS.has(el.tagName?.toUpperCase?.() || '') && el.parentElement ? el.parentElement : el;
+function behindOutline(win, el) {
+  if (!REPLACED_TAGS.has(el.tagName?.toUpperCase?.() || '')) {
+    return el;
+  }
+
+  // Read at call time, not at evaluation: a region file must not reach a
+  // sibling while the barrel is still being evaluated.
+  const reach = REPLACED_OUTLINE_OFFSET_PX + 1;
+  const r = el.getBoundingClientRect();
+  const holds = (b) =>
+    b.left <= r.left - reach + 0.5 &&
+    b.top <= r.top - reach + 0.5 &&
+    b.right >= r.right + reach - 0.5 &&
+    b.bottom >= r.bottom + reach - 0.5;
+
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (holds(node.getBoundingClientRect())) {
+      return node;
+    }
+  }
+
+  // Nothing holds the ring: it reaches past the page's own boxes onto the
+  // canvas, which is painted with the body's background.
+  return win.document.body || el;
 }
 
 /**
@@ -175,7 +201,7 @@ export function applyOutlineTone(win, el) {
     return;
   }
 
-  const parsed = parseCssColor(solidBackgroundFor(win, behindOutline(el)), win);
+  const parsed = parseCssColor(solidBackgroundFor(win, behindOutline(win, el)), win);
   const luminance = parsed
     ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
     : 1;
