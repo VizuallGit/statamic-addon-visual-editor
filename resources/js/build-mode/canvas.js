@@ -1,0 +1,924 @@
+/**
+ * Build's canvas: the page as the real preview shows it, with the section the
+ * dock holds painted from the dock's file in the frame it is typed.
+ *
+ * Owner: Build mode (resources/js/build-mode/).
+ * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
+ *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
+ *   tw-compile.js (lazily), build-mode/canvas-paint.js, Alpine's morph (its
+ *   ES build under a query of Build's own — see below).
+ * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
+ *   `dock:chrome-kind`, `html-tree:open-section`; listens to
+ *   `dock:html-changed`, `tw:changed`.
+ *
+ * A frame of Build's own stands exactly over the real Live Preview. The real
+ * one stays mounted and keeps rendering underneath, only invisible
+ * (`visibility: hidden` — never `display: none`, never removed), and is read
+ * the way the class strip reads it: same origin, straight out of its
+ * document. Nothing in the kernel is touched and no message is sent to it.
+ *
+ *   The page     the real preview's stylesheets and styles, and its body,
+ *                without scripts — the canvas is sandboxed, so neither Alpine
+ *                nor the site's JS runs there. Copied again each time the real
+ *                preview has rendered (`statamic:preview-updated`).
+ *   The section  painted from `dock:html` on every `dock:html-changed` and
+ *                `tw:changed` (canvas-paint.js), morphed into place, its
+ *                classes compiled by Instant's kept Tailwind compiler.
+ *   The islands  what only the server renders — loops, conditions, components,
+ *                tags — read out of a copy of the real preview's section by the
+ *                paths html-pick-align.js stamps, each time it has rendered.
+ *
+ * The morph is Alpine's. preview.js and live-reload-morph.js import the
+ * package already, each by a build of its own; a module two entries import
+ * becomes a chunk preview.js would load too (scripts/vite-mirror-graph.js),
+ * and the CommonJS build pulls Rollup's CommonJS helpers out into a chunk
+ * of their own that Content then loads. So the ES build comes in under a
+ * query of Build's own: to Rollup a module no one else imports, bundled into
+ * this chunk only. It runs in the Control Panel's window and does two things
+ * there: its first call lets `Element.prototype.setAttribute` take names with
+ * `@` (every other name goes the way it went), and it hands each element it
+ * patches to the CP's own `window.Alpine.cloneNode`. The canvas carries no
+ * Alpine attribute (`inertAttr`), so that Alpine finds nothing to do.
+ *
+ * The section in the real preview is found by its `data-sid` (`sidElement`,
+ * the lookup `findPickRoot` makes for a uid), with every identity the row has
+ * in the order `topLevelSectionIds` tries them.
+ *
+ * Not in the prototype:
+ *   - Instant-JS is unchanged and still paints the real preview underneath.
+ *   - `previewFrame` still names the real preview, so the class strip and
+ *     X-ray do not show in Build.
+ *   - Header and footer are a copy; Alpine and the site's JS do not run.
+ *   - An island whose own Antlers change (a loop's parameters) waits, empty,
+ *     until the real preview has rendered it.
+ *   - A tag in an attribute that the server answers otherwise than the form
+ *     (a partial's parameter) shows the last render's value (`served`); in
+ *     text, `{{ name }}` is always the form's — the row's, then the page's.
+ */
+import { watch } from 'vue';
+import morphPlugin from '@alpinejs/morph/dist/module.esm.js?build-canvas';
+import { ask, on } from '../cp/bus.js';
+import { panelValues } from '../cp/panel/store.js';
+import { dataGet, findPathByUid } from '../lib/values.js';
+import { previewFrame } from '../lib/preview-frame.js';
+import { injectStyle } from '../lib/style.js';
+import { note } from '../lib/debug.js';
+import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
+import { CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+
+const morph = (() => {
+  const holder = {};
+
+  morphPlugin(holder);
+
+  return holder.morph;
+})();
+
+const FRAME_ID = '__sve-build-canvas';
+/** On the real preview's iframe while the canvas stands over it. */
+const HIDDEN_ATTR = 'data-sve-build-hidden';
+/** On the canvas until its stylesheets have loaded: until then the real preview is what shows. */
+const UNSTYLED_ATTR = 'data-sve-build-unstyled';
+const HOST_CSS_ID = '__sve-build-canvas-host';
+const OWN_CSS_ID = '__sve-build-canvas-css';
+const TW_ID = '__sve-build-canvas-tw';
+const SELECTED = 'data-sve-build-sel';
+const HOVERED = 'data-sve-build-hover';
+const TARGET = 'data-sve-build-plus';
+/** The page's own looks among the editor's styles: the theme's scale and the CSS pane's live sheet. */
+const PAGE_STYLES = new Set(['__sve-theme-scale', '__sve-dock-css-live']);
+/** Left off the canvas: what runs there (scripts and their preloads — the canvas runs none) and what the editor puts on the page. */
+const LEFT_OFF = 'script, noscript, link[rel~="modulepreload"], link[as="script"], [id^="__sve"], [data-sve-menu]';
+/** On the canvas's window after each paint, for what draws over the canvas. */
+export const CANVAS_PAINTED = 'sve:build-canvas-painted';
+
+const OWN_CSS = `[${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}
+[${SELECTED}]{outline:.125rem solid #3858e9;outline-offset:-.125rem}
+[${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
+${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}`;
+
+/** The row in the form the dock's uid names: its values fill the section's fields. */
+function rowIn(values, uid, cache) {
+  if (cache.uid === uid) {
+    const row = dataGet(values, cache.path);
+
+    if (row && (row._visual_id === uid || row.id === uid || row._id === uid)) {
+      return row;
+    }
+  }
+
+  const path = findPathByUid(values, uid);
+
+  cache.uid = uid;
+  cache.path = path || '';
+
+  return path === null ? null : dataGet(values, path);
+}
+
+function escapeText(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** An element as the canvas carries it: no scripts or editor nodes, no Alpine, the tree's paths under the canvas's name. */
+function cleanTree(root) {
+  root.querySelectorAll(LEFT_OFF).forEach((el) => el.remove());
+
+  for (const el of [root, ...root.querySelectorAll('*')]) {
+    for (const { name } of [...el.attributes]) {
+      if (name === HT_PATH_ATTR) {
+        el.setAttribute(CANVAS_PATH, el.getAttribute(name));
+        el.removeAttribute(name);
+      } else if (inertAttr(name)) {
+        el.removeAttribute(name);
+      }
+    }
+  }
+}
+
+/** Child nodes of the real preview's section, as HTML for an island. */
+function islandHtml(nodes) {
+  let out = '';
+
+  for (const node of nodes) {
+    if (node.nodeType === 3) {
+      out += escapeText(node.data);
+    } else if (node.nodeType === 1 && !node.matches(LEFT_OFF)) {
+      cleanTree(node);
+      out += node.outerHTML;
+    }
+  }
+
+  return out;
+}
+
+/** The element in `toRoot` that stands where `el` stands under `fromRoot` (a deep copy of it). */
+function counterpart(el, fromRoot, toRoot) {
+  const steps = [];
+
+  for (let node = el; node && node !== fromRoot; node = node.parentElement) {
+    steps.unshift([...node.parentElement.children].indexOf(node));
+  }
+
+  return steps.reduce((node, i) => node?.children[i] || null, toRoot);
+}
+
+function copyAttributes(from, to) {
+  for (const { name } of [...to.attributes]) {
+    if (!from.hasAttribute(name)) {
+      to.removeAttribute(name);
+    }
+  }
+
+  for (const { name, value } of [...from.attributes]) {
+    if (!inertAttr(name) && to.getAttribute(name) !== value) {
+      to.setAttribute(name, value);
+    }
+  }
+}
+
+function pageHead(node) {
+  switch (node.tagName) {
+    case 'LINK':
+      return /(^|\s)stylesheet(\s|$)/i.test(node.rel);
+    case 'STYLE':
+      return !node.id.startsWith('__sve') || PAGE_STYLES.has(node.id);
+    case 'META':
+      return node.hasAttribute('charset') || node.name === 'viewport';
+    default:
+      return false;
+  }
+}
+
+const bySid = (el) => el.getAttribute('data-sid') || null;
+const headKey = (el) => el.id || el.getAttribute('href') || null;
+
+/** Resolves once every stylesheet in the head has loaded (or failed). */
+function whenStyled(page) {
+  const pending = [...page.head.querySelectorAll('link[rel~="stylesheet"]')].filter((link) => !link.sheet);
+
+  return Promise.all(
+    pending.map(
+      (link) =>
+        new Promise((resolve) => {
+          link.addEventListener('load', resolve, { once: true });
+          link.addEventListener('error', resolve, { once: true });
+        })
+    )
+  );
+}
+
+/**
+ * Stand the canvas over the real preview. Returns its handle:
+ *
+ *   frame()        the canvas `<iframe>`, or null while there is none
+ *   attach(port)   the Build panel's port: picks and + targets are marked,
+ *                  a click picks → detach
+ *   stop()         the canvas goes and the real preview is what shows
+ *
+ * @param {Window} win  the Control Panel window
+ */
+export function startCanvas(win) {
+  const doc = win.document;
+  const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map() };
+  const forget = () => Object.values(known).forEach((store) => store.clear());
+  const painted = { uid: null, html: null, sheet: null };
+  const rowCache = { uid: '', path: '' };
+  const stats = { paints: 0, lastMs: 0, maxMs: 0, truths: 0, truthMs: 0, waiting: 0 };
+  const queued = new Set();
+  let real = null;
+  let realDoc = null;
+  let realWin = null;
+  let headObserver = null;
+  let frame = null;
+  let twSheet = null;
+  let shadow = null;
+  let port = null;
+  let stopMarks = null;
+  let hovered = null;
+  let tw = null;
+  let buildTailwind = null;
+  let observers = [];
+  let alive = true;
+
+  const cdoc = () => frame?.contentDocument || null;
+
+  /** One run per frame for each kind of work, whatever asked for it. */
+  const schedule = (job) => {
+    if (queued.has(job)) {
+      return;
+    }
+
+    queued.add(job);
+    win.requestAnimationFrame(() => {
+      queued.delete(job);
+
+      if (frame) {
+        job();
+      }
+    });
+  };
+
+  /* The frame */
+
+  /** Where the real preview stands, read once a frame: read in the middle of the Control Panel's own changes, each read forces its layout. */
+  const placeSoon = () => schedule(place);
+
+  function place() {
+    if (!frame || !real) {
+      return;
+    }
+
+    // Every read before the first write: a write in between makes the next read lay the Control Panel out again.
+    const style = win.getComputedStyle(real);
+    const box = {
+      left: `${real.offsetLeft}px`,
+      top: `${real.offsetTop}px`,
+      width: `${real.offsetWidth}px`,
+      height: `${real.offsetHeight}px`,
+      transform: style.transform === 'none' ? '' : style.transform,
+      transformOrigin: style.transformOrigin,
+      backgroundColor: style.backgroundColor,
+    };
+
+    Object.assign(frame.style, box);
+  }
+
+  function create(next) {
+    real = next;
+    injectStyle(
+      doc,
+      HOST_CSS_ID,
+      `[${HIDDEN_ATTR}]{visibility:hidden!important}
+#${FRAME_ID}{position:absolute;margin:0;padding:0;border:0;box-sizing:border-box;display:block}
+#${FRAME_ID}[${UNSTYLED_ATTR}]{visibility:hidden}`
+    );
+
+    frame = doc.createElement('iframe');
+    frame.id = FRAME_ID;
+    frame.title = 'Build';
+    frame.setAttribute(UNSTYLED_ATTR, '');
+    // Same origin, so the editor reads and writes it; no scripts, so nothing
+    // the page carries runs there — not even an inline handler.
+    frame.setAttribute('sandbox', 'allow-same-origin');
+    real.after(frame);
+
+    const page = cdoc();
+
+    page.open();
+    page.write('<!doctype html><html><head></head><body></body></html>');
+    page.close();
+
+    // After the body, so a morph of the body never meets them and they come
+    // last in the cascade — after the page's sheets, as Instant's do.
+    const own = page.createElement('style');
+
+    own.id = OWN_CSS_ID;
+    own.textContent = OWN_CSS;
+    twSheet = page.createElement('style');
+    twSheet.id = TW_ID;
+    page.documentElement.append(twSheet, own);
+
+    page.addEventListener('click', onClick, true);
+    page.addEventListener('auxclick', (event) => event.preventDefault(), true);
+    page.addEventListener('submit', (event) => event.preventDefault(), true);
+    page.addEventListener('mouseover', onHover);
+    page.documentElement.addEventListener('mouseleave', () => setHover(null));
+
+    const resize = new win.ResizeObserver(placeSoon);
+    const attrs = new win.MutationObserver(placeSoon);
+
+    resize.observe(real);
+    resize.observe(real.parentElement);
+    attrs.observe(real, { attributes: true, attributeFilter: ['style', 'class'] });
+    observers = [resize, attrs];
+    win.addEventListener('resize', placeSoon);
+    real.addEventListener('load', onRealLoad);
+    placeSoon();
+    loadCompiler();
+  }
+
+  /** The canvas in, the real preview out — once the canvas looks like the page, at the page's scroll. */
+  function reveal() {
+    const mine = frame;
+
+    whenStyled(cdoc()).then(() => {
+      if (frame !== mine || !real) {
+        return;
+      }
+
+      frame.contentWindow.scrollTo(0, realWin?.scrollY || 0);
+      frame.removeAttribute(UNSTYLED_ATTR);
+      real.setAttribute(HIDDEN_ATTR, '');
+    });
+  }
+
+  function teardown() {
+    observers.forEach((observer) => observer.disconnect());
+    observers = [];
+    unbindReal();
+    win.removeEventListener('resize', placeSoon);
+
+    if (real) {
+      real.removeEventListener('load', onRealLoad);
+      real.removeAttribute(HIDDEN_ATTR);
+    }
+
+    frame?.remove();
+    frame = null;
+    twSheet = null;
+    real = null;
+    hovered = null;
+    painted.uid = null;
+    painted.html = null;
+    painted.sheet = null;
+  }
+
+  /** The canvas stands over the preview there is now — a new frame when Statamic has mounted a new one. */
+  function ensure() {
+    const now = alive ? previewFrame(win) : null;
+
+    if (!now) {
+      return false;
+    }
+
+    if (now !== real || !frame?.isConnected) {
+      teardown();
+      create(now);
+    }
+
+    return bindReal();
+  }
+
+  /* The real preview */
+
+  function bindReal() {
+    let next = null;
+
+    try {
+      next = real.contentDocument;
+    } catch {
+      next = null;
+    }
+
+    if (next === realDoc) {
+      return !!next?.body;
+    }
+
+    unbindReal();
+
+    if (!next?.head || !next.body) {
+      return false;
+    }
+
+    realDoc = next;
+    realWin = next.defaultView;
+    realWin.addEventListener('statamic:preview-updated', onRealUpdated);
+    headObserver = new win.MutationObserver(() => schedule(syncHead));
+    headObserver.observe(realDoc.head, { childList: true, subtree: true, characterData: true, attributes: true });
+    forget();
+    painted.uid = null;
+
+    return true;
+  }
+
+  function unbindReal() {
+    headObserver?.disconnect();
+    headObserver = null;
+
+    try {
+      realWin?.removeEventListener('statamic:preview-updated', onRealUpdated);
+    } catch {
+      /* gone with its document */
+    }
+
+    realDoc = null;
+    realWin = null;
+  }
+
+  function onRealUpdated() {
+    schedule(truth);
+  }
+
+  function onRealLoad() {
+    schedule(truth);
+  }
+
+  /* What the dock holds */
+
+  /**
+   * The dock names a section before it holds its file (`dock:load-settled`):
+   * read in between, the uid is the new one and the HTML the old. Until the
+   * file has landed nothing is read; then what was asked for in between runs
+   * once — the page read again if that was among it, else a paint.
+   */
+  let landing = null;
+  const owed = new Set();
+
+  function settled(job) {
+    const load = ask('dock:load-settled');
+
+    if (!load) {
+      return true;
+    }
+
+    owed.add(job);
+
+    if (landing !== load) {
+      landing = load;
+      load.then(() => {
+        if (landing !== load) {
+          return;
+        }
+
+        const read = owed.has(truth);
+
+        landing = null;
+        owed.clear();
+        (read ? truth : paint)();
+      });
+    }
+
+    return false;
+  }
+
+  function currentSection() {
+    if (ask('dock:component-src') || ask('dock:chrome-kind')) {
+      return null;
+    }
+
+    const uid = ask('dock:current-uid') || '';
+    const html = ask('dock:html');
+
+    if (!uid || typeof html !== 'string' || !html) {
+      return null;
+    }
+
+    const values = panelValues() || {};
+    const row = rowIn(values, uid, rowCache);
+    // Every identity the row has, in the order `topLevelSectionIds` tries them: `data-sid` is `id` or `_id` first.
+    const ids = [...new Set([row?.id, row?._id, row?._visual_id, uid].filter((id) => typeof id === 'string' && id))];
+    let plan;
+
+    return {
+      uid,
+      ids,
+      html,
+      get plan() {
+        plan ??= planTemplate(html, fieldLookup(row || {}, values));
+
+        return plan;
+      },
+    };
+  }
+
+  /* Truth: the page and the islands, from what the real preview rendered */
+
+  function learn(plan, realRoot) {
+    shadow ||= doc.implementation.createHTMLDocument('');
+
+    const copy = shadow.importNode(realRoot, true);
+
+    shadow.body.replaceChildren(copy);
+    stampHtmlPickAll([copy], serializePickTree([plan.node]), shadow);
+
+    const byPath = new Map();
+
+    for (const el of [copy, ...copy.querySelectorAll(`[${HT_PATH_ATTR}]`)]) {
+      const path = el.getAttribute(HT_PATH_ATTR);
+
+      if (path && !byPath.has(path)) {
+        byPath.set(path, el);
+      }
+    }
+
+    for (const el of plan.elements) {
+      const dom = byPath.get(el.path);
+
+      if (!dom) {
+        continue;
+      }
+
+      for (const attr of el.attrs) {
+        const tokens = attr.name.toLowerCase() === 'class';
+        const rendered = dom.getAttribute(attr.name);
+        const read = learnTags(attr.parts, tokens && rendered !== null ? pageClasses(rendered) : rendered, { tokens });
+
+        if (!read) {
+          continue;
+        }
+
+        read.values.forEach((value, tag) => known.learned.set(tag, value));
+
+        for (const part of attr.parts) {
+          if (part.value !== undefined) {
+            known.served[read.served ? 'add' : 'delete'](part.tag);
+          }
+        }
+      }
+
+      if (el.loose) {
+        const named = new Set(el.attrs.map((attr) => attr.name.toLowerCase()));
+
+        known.extras.set(
+          el.path,
+          [...dom.attributes]
+            .filter(({ name }) => !named.has(name) && name !== HT_PATH_ATTR && !name.startsWith('data-sve-build') && !inertAttr(name))
+            .map(({ name, value }) => [name, value])
+        );
+      }
+    }
+
+    const stampOf = (node) => (node.nodeType === 1 ? node.getAttribute(HT_PATH_ATTR) : null);
+
+    // Read every island before any is cleaned: cleaning renames the stamps the next one is found by.
+    const found = [];
+
+    for (const run of plan.islands) {
+      const host = byPath.get(run.host);
+
+      if (!host) {
+        continue;
+      }
+
+      const kids = [...host.childNodes];
+      let from = 0;
+      let to = kids.length;
+
+      if (run.prev) {
+        from = kids.findLastIndex((kid) => stampOf(kid) === run.prev) + 1;
+
+        if (!from) {
+          continue;
+        }
+      }
+
+      if (run.next) {
+        const at = kids.findIndex((kid, i) => i >= from && stampOf(kid) === run.next);
+
+        if (at === -1) {
+          continue;
+        }
+
+        to = at;
+      }
+
+      found.push([run.key, kids.slice(from, to)]);
+    }
+
+    found.forEach(([key, nodes]) => known.islands.set(key, islandHtml(nodes)));
+  }
+
+  function syncHead() {
+    const page = cdoc();
+
+    if (!page || !realDoc?.head) {
+      return;
+    }
+
+    const next = page.createElement('head');
+    const base = page.createElement('base');
+
+    base.setAttribute('href', realDoc.baseURI);
+    next.appendChild(base);
+
+    for (const node of realDoc.head.children) {
+      if (pageHead(node)) {
+        const copy = next.appendChild(page.importNode(node, true));
+
+        for (const { name } of [...copy.attributes]) {
+          if (inertAttr(name)) {
+            copy.removeAttribute(name);
+          }
+        }
+      }
+    }
+
+    morph(page.head, next, { key: headKey });
+  }
+
+  function syncBody(section, realRoot) {
+    const page = cdoc();
+    const next = page.importNode(realDoc.body, true);
+    const slot = realRoot && section?.plan ? counterpart(realRoot, realDoc.body, next) : null;
+
+    if (slot) {
+      const { html, waiting } = paintPlan(section.plan, known);
+      const painting = parse(html);
+
+      if (painting) {
+        slot.replaceWith(painting);
+      }
+
+      stats.waiting = waiting.length;
+    }
+
+    cleanTree(next);
+    copyAttributes(realDoc.documentElement, page.documentElement);
+    morph(page.body, next, { key: bySid });
+  }
+
+  function truth() {
+    if (!ensure() || !settled(truth)) {
+      return;
+    }
+
+    const t0 = win.performance.now();
+    const first = painted.uid === null;
+    const section = currentSection();
+    const uid = section?.uid || '';
+
+    if (uid !== painted.uid) {
+      forget();
+    }
+
+    const realRoot = section?.plan ? sidElement(realDoc, section.uid, section.ids) : null;
+
+    if (realRoot) {
+      learn(section.plan, realRoot);
+    }
+
+    syncHead();
+    syncBody(section, realRoot);
+
+    const moved = uid !== painted.uid;
+
+    painted.uid = uid;
+    painted.html = section?.html ?? null;
+    sheet(painted.html);
+    marks();
+    rehover();
+
+    if (first) {
+      reveal();
+    } else if (moved) {
+      showRoot();
+    }
+
+    stats.truths += 1;
+    stats.truthMs = Math.round((win.performance.now() - t0) * 10) / 10;
+    stats.uid = uid;
+    stats.found = !!realRoot;
+    report();
+  }
+
+  /* Paint: the section from the dock's file, the frame it is typed */
+
+  function parse(html) {
+    const box = cdoc().createElement('template');
+
+    box.innerHTML = html;
+
+    return box.content.firstElementChild;
+  }
+
+  function sheet(html) {
+    if (!buildTailwind || !twSheet) {
+      return;
+    }
+
+    const css = html ? buildTailwind(tw, html) : '';
+
+    if (css !== painted.sheet) {
+      painted.sheet = css;
+      twSheet.textContent = css;
+    }
+  }
+
+  function loadCompiler() {
+    if (buildTailwind) {
+      return;
+    }
+
+    import('../tw-compile.js')
+      .then((mod) =>
+        mod.loadTailwindCompiler(win).then((state) => {
+          tw = state;
+          buildTailwind = mod.buildTailwind;
+          sheet(painted.html);
+        })
+      )
+      .catch((error) => console.warn('[sve] Build canvas: no Tailwind compiler', error));
+  }
+
+  function paint() {
+    if (!ensure() || !settled(paint)) {
+      return;
+    }
+
+    const section = currentSection();
+
+    // Another section in the dock: the page is read again first, then painted.
+    if ((section?.uid || '') !== painted.uid) {
+      truth();
+
+      return;
+    }
+
+    if (!section || section.html === painted.html || !section.plan) {
+      marks();
+
+      return;
+    }
+
+    const t0 = win.performance.now();
+    const root = cdoc().querySelector(`[${CANVAS_ROOT}]`);
+
+    painted.html = section.html;
+
+    // A section the real preview has not rendered yet has no place on the page.
+    if (root) {
+      const { html, waiting } = paintPlan(section.plan, known);
+      const next = parse(html);
+
+      if (next) {
+        morph(root, next, { key: bySid });
+      }
+
+      stats.waiting = waiting.length;
+    }
+
+    sheet(section.html);
+    marks();
+    rehover();
+
+    const ms = Math.round((win.performance.now() - t0) * 10) / 10;
+
+    stats.paints += 1;
+    stats.lastMs = ms;
+    stats.maxMs = Math.max(stats.maxMs, ms);
+    report();
+  }
+
+  function report() {
+    note('build-canvas', { ...stats, at: win.performance.now() });
+    frame?.contentWindow?.dispatchEvent(new Event(CANVAS_PAINTED));
+  }
+
+  /* Picks and the + target */
+
+  function marks() {
+    const page = cdoc();
+
+    if (!page) {
+      return;
+    }
+
+    const want = [
+      [SELECTED, port?.selectedPath() || ''],
+      [TARGET, port?.plusPath() || ''],
+    ];
+
+    for (const [attr, path] of want) {
+      page.querySelectorAll(`[${attr}]`).forEach((el) => {
+        if (el.getAttribute(CANVAS_PATH) !== path) {
+          el.removeAttribute(attr);
+        }
+      });
+
+      if (path) {
+        page.querySelectorAll(`[${CANVAS_PATH}="${CSS.escape(path)}"]`).forEach((el) => el.setAttribute(attr, ''));
+      }
+    }
+  }
+
+  /** The section the dock opened, brought into view when it is off screen. */
+  function showRoot() {
+    const root = cdoc()?.querySelector(`[${CANVAS_ROOT}]`);
+
+    if (!root) {
+      return;
+    }
+
+    const box = root.getBoundingClientRect();
+    const height = frame.contentWindow.innerHeight;
+
+    if (box.bottom < 0 || box.top > height) {
+      root.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  function setHover(el) {
+    if (el === hovered) {
+      return;
+    }
+
+    hovered?.removeAttribute(HOVERED);
+    hovered = el;
+    hovered?.setAttribute(HOVERED, '');
+  }
+
+  /** A morph takes off every attribute the new HTML does not carry — the hover mark among them. */
+  function rehover() {
+    if (hovered?.isConnected) {
+      hovered.setAttribute(HOVERED, '');
+    } else {
+      hovered = null;
+    }
+  }
+
+  function onHover(event) {
+    const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+
+    setHover(target?.closest(`[${CANVAS_PATH}]`) || null);
+  }
+
+  function onClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+    const el = target?.closest(`[${CANVAS_PATH}]`);
+
+    if (el && port) {
+      port.select(el.getAttribute(CANVAS_PATH));
+
+      return;
+    }
+
+    // Another section: open it, as a click on its row in the list does.
+    let section = null;
+
+    for (let node = target?.closest('[data-sid]'); node; node = node.parentElement?.closest('[data-sid]')) {
+      section = node;
+    }
+
+    if (section) {
+      ask('html-tree:open-section', section.getAttribute('data-sid'));
+    }
+  }
+
+  const unhooks = [on('dock:html-changed', paint), on('tw:changed', paint)];
+
+  schedule(truth);
+  ensure();
+
+  return {
+    frame: () => frame,
+    attach(next) {
+      stopMarks?.();
+      port = next;
+      // Every pick bumps the port, and a pick is also how another section of
+      // the same kind comes into the dock — one file, so no load announces it.
+      stopMarks = watch(() => [next.rev.value, next.selectedPath(), next.plusPath()], () => paint());
+      marks();
+
+      return () => {
+        if (port === next) {
+          stopMarks();
+          stopMarks = null;
+          port = null;
+          marks();
+        }
+      };
+    },
+    stop() {
+      alive = false;
+      stopMarks?.();
+      stopMarks = null;
+      port = null;
+      unhooks.forEach((unhook) => unhook());
+      queued.clear();
+      teardown();
+    },
+  };
+}

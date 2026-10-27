@@ -4,19 +4,23 @@
  * every empty one that makes it the place Add puts the next element.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: vue, lib/preview-frame.js, lib/style.js, build-mode/place.js. Drawn from the Control Panel over the frame, the way
+ * May import: vue, lib/preview-frame.js, lib/style.js, html-pick-align.js, build-mode/place.js. Drawn from the Control Panel over the frame, the way
  *   tw-overlay.js draws the class strip: the frame is same origin, so the
- *   boxes are read straight out of it by the paths html-pick-align.js stamps
- *   (`data-sve-ht-path`). Nothing in the kernel is touched, no message sent.
+ *   boxes are read straight out of it by the paths stamped on its elements —
+ *   the preview's (`data-sve-ht-path`, html-pick-align.js) or the canvas's
+ *   (`data-sve-build-path`, canvas.js), whichever frame it is given. Nothing
+ *   in the kernel is touched, no message sent.
  * Bus: none.
  *
  * Only for the picked element, and never a loop: a ResizeObserver on the
  * Columns and the frame's own scroll move the boxes; a new file (the port's
- * `rev`) or a preview that swapped its document finds the element again.
+ * `rev`) or a frame that has drawn again (`updated` on its window) finds the
+ * element again.
  */
 import { watch } from 'vue';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
+import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { columnsFor } from './place.js';
 
 const LAYER_ID = '__sve-build-columns';
@@ -41,8 +45,12 @@ function ensureStyles(doc) {
  *
  * @param {Window} win   the Control Panel window
  * @param {object} port  html(), selectedPath(), plusPath(), setPlus(path), rev
+ * @param {object} [on]
+ * @param {() => HTMLIFrameElement|null} [on.frame]  the frame drawn over; the Live Preview's by default
+ * @param {string} [on.attr]                         the path attribute on its elements
+ * @param {string} [on.updated]                      the event its window fires once it has drawn again
  */
-export function startColumnsOverlay(win, port) {
+export function startColumnsOverlay(win, port, { frame: frameOf = () => previewFrame(win), attr = HT_PATH_ATTR, updated = 'statamic:preview-updated' } = {}) {
   const doc = win.document;
   let target = null;
   let els = [];
@@ -60,7 +68,7 @@ export function startColumnsOverlay(win, port) {
   };
 
   const place = () => {
-    const frame = previewFrame(win);
+    const frame = frameOf();
     const box = layer();
 
     if (!frame || !box || !els.length) {
@@ -98,7 +106,7 @@ export function startColumnsOverlay(win, port) {
   };
 
   const bindFrame = () => {
-    const next = previewFrame(win)?.contentWindow || null;
+    const next = frameOf()?.contentWindow || null;
 
     if (next === frameWin) {
       return;
@@ -106,7 +114,7 @@ export function startColumnsOverlay(win, port) {
 
     try {
       frameWin?.removeEventListener('scroll', schedule, true);
-      frameWin?.removeEventListener('statamic:preview-updated', find);
+      frameWin?.removeEventListener(updated, find);
     } catch {
       /* the old document is gone */
     }
@@ -115,7 +123,7 @@ export function startColumnsOverlay(win, port) {
 
     try {
       frameWin?.addEventListener('scroll', schedule, true);
-      frameWin?.addEventListener('statamic:preview-updated', find);
+      frameWin?.addEventListener(updated, find);
     } catch {
       frameWin = null;
     }
@@ -131,8 +139,8 @@ export function startColumnsOverlay(win, port) {
 
     bindFrame();
 
-    const inner = previewFrame(win)?.contentDocument;
-    const grid = inner?.querySelector(`[data-sve-ht-path="${target.path}"]`);
+    const inner = frameOf()?.contentDocument;
+    const grid = inner?.querySelector(`[${attr}="${target.path}"]`);
 
     if (!grid) {
       return;
@@ -149,7 +157,7 @@ export function startColumnsOverlay(win, port) {
 
     els = target.columns
       .map((column) => {
-        const el = inner.querySelector(`[data-sve-ht-path="${column.path}"]`);
+        const el = inner.querySelector(`[${attr}="${column.path}"]`);
 
         if (!el) {
           return null;
@@ -197,7 +205,7 @@ export function startColumnsOverlay(win, port) {
 
     try {
       frameWin?.removeEventListener('scroll', schedule, true);
-      frameWin?.removeEventListener('statamic:preview-updated', find);
+      frameWin?.removeEventListener(updated, find);
     } catch {
       /* gone with its document */
     }

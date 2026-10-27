@@ -5,13 +5,18 @@
  * Owner: Build mode (resources/js/build-mode/).
  * Loaded by lazy-panels.js (key `build_mode`) the first time Build is
  * switched on; Content never loads this chunk, nor anything only it imports.
- * May import: cp/bus.js, cp/mount.js, lib/i18n.js, breakpoints.js,
- *   html-tree-icons.js, html-tree-parse.js, html-tree-edit.js, code-dock.js
- *   (constants only — Build writes the dock's file, so the dock is loaded in
- *   Build anyway), tw-classes.js, tw-tool.js, tw-families.js, build-mode/*,
- *   cp/surfaces/BuildPanel.vue.
+ * May import: cp/bus.js, cp/mount.js, cp/build-mode/store.js, lib/i18n.js,
+ *   breakpoints.js, html-tree-icons.js, html-tree-parse.js, html-tree-edit.js,
+ *   code-dock.js (constants only — Build writes the dock's file, so the dock
+ *   is loaded in Build anyway), tw-classes.js, tw-tool.js, tw-families.js,
+ *   build-mode/*, cp/surfaces/BuildPanel.vue.
  * Bus: asks `dock:html`, `dock:set-html`, `lp:set-device`; listens to
- *   `dock:html-changed`, `tw:changed`, `lp:device`.
+ *   `dock:html-changed`, `tw:changed`, `lp:device`. The canvas (canvas.js)
+ *   asks and listens for itself.
+ *
+ * The canvas stands over the preview while Build is on (`buildModeUi.on`),
+ * not while the panel is mounted: a column Statamic re-renders mounts the
+ * panel again, and the page under it stays as it was.
  *
  * The port is everything the panel may touch (BuildPanel.vue says what it
  * reads). Nothing in it is Build's own logic: the lists and icons are the
@@ -47,9 +52,10 @@
  * once more in Build's host.
  */
 
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { ask, on } from '../cp/bus.js';
 import { mountSurface } from '../cp/mount.js';
+import { buildModeUi } from '../cp/build-mode/store.js';
 import { t as sveT } from '../lib/i18n.js';
 import { breakpoints } from '../breakpoints.js';
 import { HTML_ICONS } from '../html-tree-icons.js';
@@ -75,6 +81,8 @@ import { addAt, findByPath } from './place.js';
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { startColumnsOverlay } from './columns-overlay.js';
+import { CANVAS_PAINTED, startCanvas } from './canvas.js';
+import { CANVAS_PATH } from './canvas-paint.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
 import ComponentSidebar from '../cp/surfaces/ComponentSidebar.vue';
 import HtmlTreeInspector from '../cp/surfaces/HtmlTreeInspector.vue';
@@ -88,14 +96,44 @@ import { mountStatamicSurface } from '../cp/mount-statamic.js';
 export function mountBuildPanel(win, host, hooks = {}) {
   const port = createEditorPort(win, hooks);
   const app = mountSurface(BuildPanel, host, { port });
-  // Columns drawn over the preview for the pick (columns-overlay.js).
-  const stopColumns = startColumnsOverlay(win, port);
+  const page = buildModeUi.on ? buildCanvas(win) : null;
+  const detach = page?.attach(port);
+  // Columns drawn over the canvas for the pick (columns-overlay.js).
+  const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED } : {});
 
   return () => {
     stopColumns();
+    detach?.();
     port.dispose();
     app.unmount();
   };
+}
+
+let canvas = null;
+
+/** The canvas, started once for a Build and stopped when Build goes back to Content. */
+function buildCanvas(win) {
+  if (!canvas) {
+    const mine = startCanvas(win);
+    const stop = watch(
+      () => buildModeUi.on,
+      (on) => {
+        if (!on) {
+          stop();
+          mine.stop();
+
+          if (canvas === mine) {
+            canvas = null;
+          }
+        }
+      },
+      { flush: 'sync' }
+    );
+
+    canvas = mine;
+  }
+
+  return canvas;
 }
 
 /** The port, on the editor. Exported for the bench test. */
