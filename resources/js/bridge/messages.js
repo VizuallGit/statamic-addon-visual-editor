@@ -256,12 +256,36 @@ export function injectStyles(doc) {
                     transparent var(--sve-dash, 8px) calc(var(--sve-dash, 8px) + var(--sve-gap, 6px))
                 ) top right / var(--sve-outline-width, 1px) 100% no-repeat;
         }
+        /* A replaced element — an image, a video, an iframe, an svg — draws no
+           ::before, so the ring above never shows on one: an image picked in
+           the HTML tree, or the image component's own <img>, was marked and
+           looked unmarked. The same dashes as a real outline, just inside its
+           own edge: an image that fills its box edge to edge sits in a box
+           that clips, and a ring outside it would never be seen. The colour
+           override above says transparent with !important for every marked
+           element; this names the element and so wins. */
+        img[data-sid-active], img[data-sid-hover], img[data-sid-inner],
+        video[data-sid-active], video[data-sid-hover], video[data-sid-inner],
+        iframe[data-sid-active], iframe[data-sid-hover], iframe[data-sid-inner],
+        svg[data-sid-active], svg[data-sid-hover], svg[data-sid-inner],
+        canvas[data-sid-active], canvas[data-sid-hover], canvas[data-sid-inner] {
+            outline: var(--sve-outline-width, 1px) dashed var(--sve-outline-color, rgba(0, 0, 0, 0.3)) !important;
+            outline-offset: -4px;
+        }
         /* Hovering a different field than the clicked/focused one: hide every
            other ring (active + CP hover) so only the hovered field is outlined. */
         html.sve-outline-hover-override [data-sid-active]:not([data-sid-inner])::before,
         html.sve-outline-hover-override [data-sid-hover]:not([data-sid-inner])::before {
             opacity: 0 !important;
             background: none !important;
+        }
+        /* The same step back for the replaced elements' own outline. */
+        html.sve-outline-hover-override img[data-sid-active]:not([data-sid-inner]),
+        html.sve-outline-hover-override video[data-sid-active]:not([data-sid-inner]),
+        html.sve-outline-hover-override iframe[data-sid-active]:not([data-sid-inner]),
+        html.sve-outline-hover-override svg[data-sid-active]:not([data-sid-inner]),
+        html.sve-outline-hover-override canvas[data-sid-active]:not([data-sid-inner]) {
+            outline-color: transparent !important;
         }
         [${EDITING_ATTR}] {
             cursor: text !important;
