@@ -4269,7 +4269,10 @@ function pointHtmlTreeAtSection(win, uid) {
   }
 
   const sections = htmlTreeSections(win, win.document);
-  const section = sections.find((item) => item.uid === uid || item.ids.includes(uid));
+  // The click may name a row inside the section — a link in its button group —
+  // and the section is the one that holds it, as `currentSectionUid` reads it.
+  const ids = topLevelSectionIds(uid, win.document);
+  const section = sections.find((item) => item.ids.some((id) => ids.includes(id)));
 
   if (!section) {
     return;
