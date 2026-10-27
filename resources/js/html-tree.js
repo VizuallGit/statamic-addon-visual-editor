@@ -761,13 +761,14 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-del]:hover { background: rgba(128,128,128,.25); }
 
-    /* ===== The layers look ==================================================
+    /* ===== The Figma look: the tags view ==================================================
        Figma's layers list, in the Build panel's own colours and type
        (BuildPanel.vue, the --bm-* values: the dock's greys, Inter at
-       0.75rem, the editor's blue). The switch in the tree's top bar
-       (HTML_TREE_LAYERS_KEY) puts data-sve-ht-layers on the list, and every
-       rule here hangs off it: switched off, not one of them applies, and
-       HtmlTreeRow draws the row's text the other way round.
+       0.75rem, the editor's blue). This is the tags view — the one that
+       had the box around the open section. The switch in the tree's top
+       bar (HTML_TREE_LAYERS_KEY) puts data-sve-ht-layers on the list and
+       takes every rule here off again: the layers look below is untouched,
+       and HtmlTreeRow draws the row's text the other way round there.
        - One grey under the list, the panel's text on it. No box around the
          open section, no guide lines; the indent alone says what belongs
          to what, 0.75rem a level, as Figma steps.
@@ -781,7 +782,7 @@ export function ensureHtmlTreeStyles(doc) {
        The frame body stepped the sections in with its own margin; here it
        hands that level on as --sve-ht-base instead, and a row adds it to its
        depth, so a section's rows still start one level in under main. */
-    [data-sve-ht-look="tags"][data-sve-ht-layers] {
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
       --sve-ht-step: 0.75rem;
       --sve-ht-inset: 0.5rem;
       --sve-ht-ink: #d4d4d4;
@@ -793,7 +794,7 @@ export function ensureHtmlTreeStyles(doc) {
       color: var(--sve-ht-ink);
       font: 450 0.75rem/1.35 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-branch] {
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-branch] {
       border: 0;
       border-radius: 0;
       padding: 0;
@@ -801,6 +802,148 @@ export function ensureHtmlTreeStyles(doc) {
       background: none;
       /* No box, so nothing to take back out of the inset: the list's own. */
       --sve-ht-inset: inherit;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-body] {
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    /* The level under main — only with a main row above to be under. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-body][data-sve-ht-under-main] {
+      --sve-ht-base: 1;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] { display: none; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] {
+      margin: 0;
+      padding: 0 0.5rem 0 calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      min-height: 1.75rem;
+      gap: 0.375rem;
+      border-radius: 0;
+      font: inherit;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] + [data-sve-ht-row] { margin-top: 0; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 0; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover { background: var(--sve-ht-hover); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current]:hover {
+      background: var(--sve-ht-pick);
+      color: var(--sve-ht-ink);
+      box-shadow: none;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:focus-visible {
+      outline: 1px solid rgba(56,88,233,.55);
+      outline-offset: -1px;
+    }
+    /* A drop line starts where the row's content starts, so a drag still
+       shows the level it lands on now that the row itself spans them all. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="after"]::after {
+      left: calc(var(--sve-ht-inset) + 0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
+      left: calc(var(--sve-ht-inset) + 0.25rem + var(--sve-ht-base, 0) * var(--sve-ht-step));
+    }
+    /* The empty slots keep their place: a block's one level under it, and
+       main's where the frame body's margin used to put it. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot][data-sve-ht-id] {
+      margin-left: calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-slot] {
+      margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
+    }
+    /* The arrow and the mark, 0.875rem each; the arrow in the muted grey. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist-gap],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-icon],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-letter] { width: 0.875rem; height: 0.875rem; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist] { color: var(--sve-ht-muted); opacity: 1; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist]:hover { color: var(--sve-ht-ink); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist] svg,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-icon] svg { width: 0.875rem; height: 0.875rem; }
+    /* The text: the name in the panel's sans, then the tag and the classes
+       faint and in monospace, with a dot between them. The name gives way
+       last; the detail takes what is left and is cut short first. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-text] {
+      gap: 0.375rem;
+      font: inherit;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-name] {
+      flex: 0 1 auto;
+      color: var(--sve-ht-ink);
+      opacity: 1;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name] {
+      font-weight: 600;
+      opacity: 1;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-detail] {
+      flex: 1 1 0;
+      min-width: 0;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.3em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--sve-ht-faint);
+      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-detail] > * + *::before { content: '· '; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-classes] {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* The tag, without its chip: faint text in the detail's monospace, the
+       family colour kept for the mark alone. Still the button it was. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-kind] {
+      padding: 0;
+      border-radius: 0;
+      background: none;
+      color: var(--sve-ht-faint);
+      opacity: 1;
+      font: inherit;
+      letter-spacing: 0;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag]:hover {
+      background: none;
+      color: var(--sve-ht-ink);
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-rename] { font: inherit; }
+    /* The row's icons, Figma's size. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-eye] svg,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-fields] svg,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-dup] svg,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-lock] svg,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-alpine] svg,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-del] svg { width: 0.75rem; height: 0.75rem; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-video] svg { width: 0.875rem; height: 0.875rem; }
+
+    /* ===== The layers look, on trial =======================================
+       The tags look above with six things changed, so the two can be put
+       side by side before one of them goes. The switch in the tree's top
+       bar (HTML_TREE_LAYERS_KEY) puts data-sve-ht-layers on the list, and
+       every rule here hangs off it: switched off, not one of them applies.
+       1. No box around the open section; the picked row says where you are.
+       2. No guide lines; the indent alone says what belongs to what.
+       3. No bar at the picked row's edge.
+       4. The picked row wears the neutral grey of a hovered one.
+       5. Every row runs the full width of the list, and only what is in it
+          steps in with its depth, so a hover or a pick is one band.
+       6. The icons a size smaller.
+       The frame body stepped the sections in with its own margin; here it
+       hands that level on as --sve-ht-base instead, and a row adds it to its
+       depth, so a section's rows still start one level in under main. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-branch] {
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      margin: 0;
+      background: none;
+      /* No box, so nothing to take back out of the inset. */
+      --sve-ht-inset: 0.375rem;
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-body] {
       margin: 0;
@@ -813,25 +956,13 @@ export function ensureHtmlTreeStyles(doc) {
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {
-      margin: 0;
-      padding: 0 0.5rem 0 calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
-      min-height: 1.75rem;
-      gap: 0.375rem;
-      border-radius: 0;
-      font: inherit;
+      margin-left: 0;
+      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
     }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] + [data-sve-ht-row] { margin-top: 0; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 0; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row]:hover { background: var(--sve-ht-hover); }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current],
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current]:hover {
-      background: var(--sve-ht-pick);
-      color: var(--sve-ht-ink);
+      background: rgba(128,128,128,.14);
       box-shadow: none;
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row]:focus-visible {
-      outline: 1px solid rgba(56,88,233,.55);
-      outline-offset: -1px;
     }
     /* A drop line starts where the row's content starts, so a drag still
        shows the level it lands on now that the row itself spans them all. */
@@ -851,74 +982,15 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-slot] {
       margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
     }
-    /* The arrow and the mark, 0.875rem each; the arrow in the muted grey. */
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist],
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist-gap],
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon],
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-letter] { width: 0.875rem; height: 0.875rem; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] { color: var(--sve-ht-muted); opacity: 1; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist]:hover { color: var(--sve-ht-ink); }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg,
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.875rem; height: 0.875rem; }
-    /* The text: the name in the panel's sans, then the tag and the classes
-       faint and in monospace, with a dot between them. The name gives way
-       last; the detail takes what is left and is cut short first. */
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-text] {
-      gap: 0.375rem;
-      font: inherit;
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-name] {
-      flex: 0 1 auto;
-      color: var(--sve-ht-ink);
-      opacity: 1;
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name] {
-      font-weight: 600;
-      opacity: 1;
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-detail] {
-      flex: 1 1 0;
-      min-width: 0;
-      display: inline-flex;
-      align-items: baseline;
-      gap: 0.3em;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      color: var(--sve-ht-faint);
-      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-detail] > * + *::before { content: '· '; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-classes] {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    /* The tag, without its chip: faint text in the detail's monospace, the
-       family colour kept for the mark alone. Still the button it was. */
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] [data-sve-ht-tag],
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] [data-sve-ht-kind] {
-      padding: 0;
-      border-radius: 0;
-      background: none;
-      color: var(--sve-ht-faint);
-      opacity: 1;
-      font: inherit;
-      letter-spacing: 0;
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] [data-sve-ht-tag]:hover {
-      background: none;
-      color: var(--sve-ht-ink);
-    }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-rename] { font: inherit; }
-    /* The row's icons, Figma's size. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.75rem; height: 0.75rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.625rem; height: 0.625rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-eye] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-fields] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-lock] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-alpine] svg,
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.75rem; height: 0.75rem; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.875rem; height: 0.875rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.625rem; height: 0.625rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
   `);
 }
 

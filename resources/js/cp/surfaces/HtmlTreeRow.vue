@@ -282,15 +282,16 @@ function canAct(row) {
     <span v-else data-sve-ht-icon v-html="row.svg"></span>
     <span data-sve-ht-text :title="ui.renameTitle">
       <!--
-        The layers look (ui.layers) reads as Figma's layers: the name first —
-        Build's word for the element, or the one the user gave it
-        (`row.display`, html-tree.js) — then, faint, the tag and the classes
-        (`row.detail`). The same tag button and the same rename input as
-        below, in the other order; a loop or a condition shows its expression
-        where a tag shows its classes, and no tag word in front of it.
-        Switched off, the branch below is drawn exactly as it always was.
+        The tags view (the layers switch off) reads as Figma's layers: the
+        name first — Build's word for the element, or the one the user gave
+        it (`row.display`, html-tree.js) — then, faint, the tag and the
+        classes (`row.detail`). The same tag button and the same rename input
+        as below, in the other order; a loop or a condition shows its
+        expression where a tag shows its classes, and no tag word in front of
+        it. The layers look (the switch on) and the classic look are drawn by
+        the branch below, exactly as they always were.
       -->
-      <template v-if="ui.layers">
+      <template v-if="!ui.layers && ui.look === 'tags'">
         <input
           v-if="ui.editingId === row.id && !isShutSection(row)"
           data-sve-ht-rename
