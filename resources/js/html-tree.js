@@ -4259,25 +4259,43 @@ register('html-tree:from-preview', ({ path, src, uid } = {}) => {
  * never comes, and the list went on holding every section shut — with the
  * dock already on the section's file. The click said which section all the
  * same. So the shell passes the uid on as the click lands; the list stops
- * holding the sections shut, and the dock's next paint unfolds the one it
- * then holds. A file with tags still gets its path a moment later and the
- * row under the click is marked, as before.
+ * holding the sections shut and paints the one the dock now holds. A file
+ * with tags still gets its path a moment later and the row under the click
+ * is marked, as before.
  */
 function pointHtmlTreeAtSection(win, uid) {
-  if (!uid || !htmlTreeShutStart || !htmlTreePanel(win.document)) {
+  if (!uid || !htmlTreePanel(win.document)) {
     return;
   }
 
   const sections = htmlTreeSections(win, win.document);
+  const section = sections.find((item) => item.uid === uid || item.ids.includes(uid));
 
-  if (!sections.some((section) => section.uid === uid || section.ids.includes(uid))) {
+  if (!section) {
     return;
   }
 
   // Folds and the marked row belong to the list that was shut.
-  htmlTreeShutStart = false;
-  htmlTreeFolds.clear();
-  htmlTreeActiveId = null;
+  if (htmlTreeShutStart) {
+    htmlTreeShutStart = false;
+    htmlTreeFolds.clear();
+    htmlTreeActiveId = null;
+  }
+
+  // A section clicked in the tree and not landed yet stands open on its
+  // pending uid. The click on the page is the newer answer to "which one":
+  // the tree stops waiting for the other, and draws what the dock holds.
+  if (htmlTreePendingUid && htmlTreePendingUid !== section.uid) {
+    win.clearTimeout(htmlTreePendingTimer);
+    htmlTreePendingUid = '';
+    htmlTreeAhead = '';
+  }
+
+  // Painted here, not left to the dock's next paint. Two sections of one kind
+  // share a file: the dock has nothing to load and nothing to announce, so no
+  // paint followed the click — the list stayed open on the other section while
+  // the dock and the panel had moved to this one. The shell syncs the dock
+  // before it says the uid, so the paint reads the section from the dock.
   renderHtmlTree(win);
 }
 
