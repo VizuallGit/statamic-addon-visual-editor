@@ -4009,6 +4009,15 @@ function selectHtmlTreeByPath(win, path) {
   // Pointing at something in the preview says which section as plainly as
   // clicking its row does.
   htmlTreeShutStart = false;
+
+  // The path is answered once the dock holds the clicked section's file
+  // (reportAwaitedPick) — which can be before this tree has painted that file.
+  // Its first paint of a file seats it: every fold is cleared and the first
+  // tag is marked. Opened before that paint, the way down to the row was
+  // cleared with the rest, and the row — folded away — was never found: the
+  // dock stood on the tag, the tree on the section's first row. So the file
+  // is painted first, and the way down is opened against what it drew.
+  renderHtmlTree(win);
   expandHtmlTreePath(path);
   renderHtmlTree(win);
 

@@ -32,6 +32,7 @@ import { selectRow } from './selection-panel.js';
 
 const HOST_ID = 'sve-cprops-host';
 const AWAY_ATTR = 'data-sve-cprops-away';
+const COL_ATTR = 'data-sve-cprops-col';
 const STYLE_ID = 'sve-cprops-host-css';
 
 let app = null;
@@ -73,10 +74,30 @@ function column(doc) {
 }
 
 function ensureStyles(doc) {
-  // Flows in the column rather than filling it: the column's own height is not
-  // ours to assume, and a panel stretched against a height that is not there
-  // collapses to nothing.
-  injectStyle(doc, STYLE_ID, `[${AWAY_ATTR}]{display:none!important}#${HOST_ID}{display:block;min-width:0;flex:1 1 auto}`);
+  // The page's form steps aside the way the selection panel's does
+  // (selection-panel.js `ensureStyle`): out of the flow at the column's own
+  // width, invisible and untouchable — not `display: none`. Gone from layout,
+  // the publish tabs measured a width of zero, their overflow check re-rendered
+  // the tab bar, and the active tab's content unmounted — the lite sections
+  // field, and with it the page's publish context (`ctx unregister base`).
+  // With no context there is no row to resolve, so every pick made while a
+  // component had the column — a section in the tree, a tag, the preview —
+  // was refused (selectRow → selectionPanelTakes false), and four seconds
+  // later the tree fell back to the dock's section with the old mark: the
+  // image component in Featured testimonials, from a click in Media textbox.
+  // Whether the context survived depended on what else held it (nested sets
+  // with their own auto_uuid fields) — hence «sometimes».
+  //
+  // The host flows in the column rather than filling it: the column's own
+  // height is not ours to assume, and a panel stretched against a height that
+  // is not there collapses to nothing.
+  injectStyle(
+    doc,
+    STYLE_ID,
+    `[${COL_ATTR}]{position:relative}
+[${AWAY_ATTR}]{position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+#${HOST_ID}{display:block;min-width:0;flex:1 1 auto}`
+  );
 }
 
 /**
@@ -105,6 +126,7 @@ export function syncComponentPropsHost(win) {
     if (host) {
       drop(host);
       doc.querySelectorAll(`[${AWAY_ATTR}]`).forEach((el) => el.removeAttribute(AWAY_ATTR));
+      doc.querySelectorAll(`[${COL_ATTR}]`).forEach((el) => el.removeAttribute(COL_ATTR));
 
       restoreSolo(win);
     }
@@ -218,6 +240,9 @@ function stopWatching() {
  * other route in the column keeps it for the same reason.
  */
 function hideTheRest(col, host) {
+  // The column holds the lifted form at its own width (see `ensureStyles`).
+  col.setAttribute(COL_ATTR, '');
+
   [...col.children].forEach((child) => {
     if (child === host || child.id === STYLE_ID) {
       return;
