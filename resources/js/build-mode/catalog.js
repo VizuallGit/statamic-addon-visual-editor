@@ -153,7 +153,17 @@ export function addGroups(dock = {}) {
 export const BUILD_TOOLS = [
   { id: 'grid-cols', title: 'Grid columns', css: 'grid-template-columns', tw: 'grid-template-columns', menu: 'values' },
   { id: 'tw-weight', title: 'Font weight', css: 'font-weight', tw: 'font-weight', menu: 'choices' },
+  { id: 'tw-minw', title: 'Min width', css: 'min-width', tw: 'min-width', menu: 'sizes' },
+  // Two declarations each, so a named group as the dock's border widths are (twSetGroup).
+  { id: 'tw-shadow', title: 'Shadow', css: 'box-shadow', twGroup: ['shadow-2xs', 'shadow-xs', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-2xl', 'shadow-none'] },
+  { id: 'tw-opacity', title: 'Opacity', css: 'opacity', tw: 'opacity', menu: 'values' },
 ];
+
+/** Children the display tool has no button for yet, in its shape; `glyph` is the sketch's icon. */
+export const BUILD_KIDS = {
+  main: [{ id: 'justify-evenly', twClass: 'justify-evenly', title: 'Justify: evenly', css: 'justify-content', value: 'space-evenly', glyph: 'jEvenly' }],
+  cross: [{ id: 'align-baseline', twClass: 'items-baseline', title: 'Align: baseline', css: 'align-items', value: 'baseline', glyph: 'aBaseline' }],
+};
 
 /**
  * The families, in the order the Tailwind pane's icons run, with the CSS_TOOLS
@@ -164,12 +174,12 @@ export const BUILD_TOOLS = [
 export const STYLE_GROUPS = [
   { id: 'layout', tools: ['display', 'grid-cols', 'tw-gap'] },
   { id: 'position', tools: ['absolute'] },
-  { id: 'size', tools: ['tw-w', 'tw-h', 'tw-maxw'] },
+  { id: 'size', tools: ['tw-w', 'tw-minw', 'tw-maxw', 'tw-h'] },
   { id: 'spacing', tools: ['padding', 'margin'] },
-  { id: 'typography', tools: ['tw-text', 'tw-weight', 'tw-leading', 'tw-font', 'tw-align', 'color'] },
+  { id: 'typography', tools: ['tw-text', 'tw-weight', 'tw-align', 'color', 'tw-leading', 'tw-font'] },
   { id: 'background', tools: ['bg'] },
-  { id: 'border', tools: ['tw-border', 'tw-border-color', 'tw-radius'] },
-  { id: 'effects', tools: ['tw-overflow'] },
+  { id: 'border', tools: ['tw-border', 'tw-radius', 'tw-border-color'] },
+  { id: 'effects', tools: ['tw-shadow', 'tw-opacity', 'tw-overflow'] },
   { id: 'transform', tools: [] },
 ];
 

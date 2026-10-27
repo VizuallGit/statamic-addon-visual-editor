@@ -115,6 +115,11 @@ test('a size reads through the wider ones, nearest first; All is the base alone'
   assert.deepEqual(variantChain(mobileFirst, 'laptop'), ['lg', 'md', '']);
 });
 
+test('a state reads its own classes at every size first, then the sizes without it', () => {
+  assert.deepEqual(variantChain(ROWS, 'mobile', 'hover'), ['max-md:hover', 'max-lg:hover', 'hover', 'max-md', 'max-lg', '']);
+  assert.deepEqual(variantChain(ROWS, null, 'prose-p'), ['prose-p', '']);
+});
+
 test('what a size shows: its own class, else the nearest wider size, else the broader property', () => {
   const props = { pbs: 'padding-block-start', py: 'padding-block', p: 'padding', 'text-700': 'font-size' };
   const propertyOf = (name) => props[name.split('-')[0]] || props[name] || '';

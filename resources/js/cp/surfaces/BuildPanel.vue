@@ -3,23 +3,23 @@
  * The left column in Build mode: Add, and Style for the picked element —
  * Fields when it is a component, Settings when it is a loop or a condition.
  *
- * Everything the panel knows and does goes through one object, the port
- * (`provide('sveBuild')`), which build-mode/boot.js builds from the editor:
- * the dock's file and lists, the HTML tree's pick, and the Tailwind pane's
- * class functions. The panel itself holds only what it shows: which tab.
- * A write bumps `port.rev`, and everything drawn from the file reads it.
+ * Drawn as the approved sketch draws it (~/Sites/build-mode/sketch.html, the
+ * left panel), in the editor's blue. Everything the panel knows and does goes
+ * through one object, the port (`provide('sveBuild')`), which
+ * build-mode/boot.js builds from the editor: the dock's file and lists, the
+ * HTML tree's pick, the Tailwind pane's class functions and its state menu.
+ * The panel holds only what it shows: which tab. A write bumps `port.rev`,
+ * and everything drawn from the file reads it.
  *
- * Fields and Settings are not drawn here. A component's fields are the
- * component props panel's, a loop's or condition's settings the HTML tree
- * inspector's; the port mounts those into the host this panel gives them
- * (`port.mountFields` / `port.mountSettings`), so they behave exactly as they
- * do today. Without one, the panel says where they are.
+ * Fields and Settings are not drawn here: a component's fields are the props
+ * panel's, a loop's or condition's settings the HTML tree inspector's. The
+ * port mounts those into the host this panel gives them.
  */
 import { computed, onBeforeUnmount, provide, ref, watch } from 'vue';
 import BuildAdd from './BuildAdd.vue';
 import BuildStyle from './BuildStyle.vue';
 import { describeAt } from '../../build-mode/place.js';
-import { BUILD_ICONS } from '../../build-mode/icons.js';
+import { ic } from '../../build-mode/icons.js';
 
 const props = defineProps({
   port: { type: Object, required: true },
@@ -100,41 +100,39 @@ function remount() {
 
 watch([host, tab, () => picked.value?.path], remount);
 onBeforeUnmount(() => unmountHost?.());
+
+const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 </script>
 
 <template>
   <div class="sve-build" data-sve-build-root>
-    <div class="sve-build__tabs" role="tablist">
-      <button type="button" role="tab" :aria-selected="tab === 'add'" @click="tab = 'add'">
-        <i v-html="BUILD_ICONS.plus"></i>{{ port.t('tab_add') }}
+    <div class="bm-tabs" role="tablist">
+      <button type="button" role="tab" :aria-selected="tab === 'add'" data-sve-build-tab="add" @click="tab = 'add'">
+        <span v-html="ic('plus')"></span>{{ port.t('tab_add') }}
       </button>
-      <button type="button" role="tab" :aria-selected="tab !== 'add'" @click="tab = second">
-        <i v-html="BUILD_ICONS.cursor"></i>{{ port.t(`tab_${second}`) }}
+      <button type="button" role="tab" :aria-selected="tab !== 'add'" data-sve-build-tab="style" @click="tab = second">
+        <span v-html="ic(SECOND_ICON[second])"></span>{{ port.t(`tab_${second}`) }}
       </button>
     </div>
 
-    <div class="sve-build__scroll">
+    <div class="bm-scroll">
       <BuildAdd v-if="tab === 'add'" :here="here" :name-of="nameOf" />
 
-      <template v-else-if="!picked">
-        <div class="sve-build__empty">
-          <i v-html="BUILD_ICONS.cursor"></i>
-          <p>{{ port.t('style_empty') }}</p>
-        </div>
-      </template>
+      <div v-else-if="!picked" class="bm-empty">
+        <span v-html="ic('cursor')"></span>
+        <p>{{ port.t('style_empty') }}</p>
+      </div>
 
       <BuildStyle v-else-if="second === 'style'" :key="picked.path" :node="picked" :name="nameOf(picked)" />
 
       <template v-else>
-        <div class="sve-build-head">
-          <span class="sve-build-chip" :data-kind="picked.kind">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
+        <div class="bm-st-head">
+          <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
           <b>{{ nameOf(picked) }}</b>
         </div>
-        <div ref="host" class="sve-build__host"></div>
-        <p v-if="second === 'fields' && !port.mountFields" class="sve-build-note">
-          {{ port.t('fields_note', { path: `partials/components/${picked.label}.antlers.html` }) }}
-        </p>
-        <p v-if="second === 'settings' && !port.mountSettings" class="sve-build-note">{{ port.t('settings_note') }}</p>
+        <p v-if="second === 'fields'" class="bm-note is-top" v-html="port.t('fields_note', { path: `<code>partials/components/${picked.label}.antlers.html</code>` })"></p>
+        <p v-else class="bm-note is-top">{{ port.t('settings_note') }}</p>
+        <div ref="host" class="bm-host"></div>
       </template>
     </div>
   </div>
@@ -142,222 +140,200 @@ onBeforeUnmount(() => unmountHost?.());
 
 <style>
 /*
- * The panel's shared parts — segmented rows, label/field rows, hints, chips —
- * in the look of the HTML tree's inspector (cp/surfaces/HtmlTreeInspector.vue):
- * text inherits the column's colour, surfaces are the editor's translucent
- * greys, the accent is the editor's blue. Scoped to the panel's own root.
+ * The approved sketch's left panel (~/Sites/build-mode/sketch.html), rule
+ * for rule, in the editor's blue (#3858e9 where the sketch had its violet).
+ * Always dark, as Live Preview's chrome and the dock are. Every selector is
+ * under the panel's own root and every class is `bm-`, so nothing here can
+ * reach Statamic's markup or another panel.
  */
 .sve-build {
-  --sve-build-accent: #3858e9;
-  --sve-build-accent-text: #8ea2ff;
-  --sve-build-accent-soft: rgba(56, 88, 233, 0.16);
-  --sve-build-accent-hover: rgba(56, 88, 233, 0.28);
+  --bm-bg: #121317;
+  --bm-panel: #17181e;
+  --bm-raise: #1f2028;
+  --bm-hover: #272934;
+  --bm-line: #2b2d38;
+  --bm-ink: #e7e8ef;
+  --bm-muted: #8d90a2;
+  --bm-faint: #636678;
+  --bm-accent: #3858e9;
+  --bm-accent-soft: rgba(56, 88, 233, 0.2);
+  --bm-accent-text: #c2cdff;
+  --bm-inh: #a9b8ff;
+  --bm-inh-line: rgba(56, 88, 233, 0.5);
+  --bm-tag-bg: #1c2846;
+  --bm-tag: #94b5ff;
+  --bm-comp-bg: #103a30;
+  --bm-comp: #52d9b1;
+  --bm-lock: #e4b24f;
+  --bm-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: inherit;
+  background: var(--bm-panel);
+  color: var(--bm-ink);
+  font: 500 0.8125rem/1.4 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-.sve-build__tabs {
-  display: flex;
-  flex: none;
-  padding: 0 0.5em;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
-}
-.sve-build__tabs button {
-  all: unset;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4em;
-  padding: 0.75em 0 0.65em;
-  border-bottom: 2px solid transparent;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  opacity: 0.6;
-  cursor: pointer;
-}
-.sve-build__tabs button i {
-  display: inline-flex;
-}
-.sve-build__tabs button[aria-selected='true'] {
-  opacity: 1;
-  border-bottom-color: var(--sve-build-accent);
-}
-.sve-build__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 0.75em;
-}
-.sve-build__empty {
-  display: grid;
-  justify-items: center;
-  gap: 0.5em;
-  padding: 3em 1em;
-  text-align: center;
-  opacity: 0.6;
-}
-.sve-build__empty svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-.sve-build .sve-build-seg {
-  display: flex;
-  gap: 0.2em;
-  min-width: 0;
-}
-.sve-build .sve-build-seg button {
-  all: unset;
-  flex: 1 1 0;
-  min-width: 0;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3em;
-  padding: 0.35em 0.4em;
-  border-radius: 0.3rem;
-  background: rgba(128, 128, 128, 0.16);
-  font-size: 0.6875rem;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-.sve-build .sve-build-seg button:hover {
-  background: rgba(128, 128, 128, 0.26);
-}
-.sve-build .sve-build-seg button[data-active] {
-  background: var(--sve-build-accent);
-  color: #fff;
-}
-.sve-build .sve-build-seg button.is-inherited[data-active] {
-  background: transparent;
-  color: var(--sve-build-accent-text);
-  box-shadow: inset 0 0 0 1px var(--sve-build-accent);
-  font-style: italic;
-}
-.sve-build .sve-build-row {
-  display: grid;
-  grid-template-columns: 6.25rem minmax(0, 1fr);
-  align-items: center;
-  gap: 0.5em;
-  margin: 0.45em 0;
-}
-.sve-build .sve-build-row.is-wide {
-  grid-template-columns: 1fr;
-  gap: 0.35em;
-}
-.sve-build .sve-build-label {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35em;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.6875rem;
-  opacity: 0.75;
-}
-.sve-build .sve-build-label code {
-  opacity: 0.7;
-}
-.sve-build .sve-build-dot {
-  display: inline-block;
-  width: 0.35em;
-  height: 0.35em;
-  border-radius: 50%;
-  background: var(--sve-build-accent-text);
-}
-.sve-build .sve-build-hint {
-  margin: 0.4em 0 0.2em;
-  font-size: 0.6875rem;
-  opacity: 0.55;
-}
-.sve-build .sve-build-note {
-  margin: 1em 0 0;
-  padding-top: 0.75em;
-  border-top: 1px solid rgba(128, 128, 128, 0.25);
-  font-size: 0.6875rem;
-  line-height: 1.55;
-  opacity: 0.55;
-}
-.sve-build .sve-build-soon {
-  display: inline-block;
-  padding: 0 0.35em;
-  border: 1px solid rgba(232, 196, 104, 0.5);
-  border-radius: 999px;
-  color: #e8c468;
-  font-size: 0.5625rem;
-  font-style: normal;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  line-height: 1.5;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
-.sve-build .sve-build-icon {
-  all: unset;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 0.3rem;
-  cursor: pointer;
-  opacity: 0.6;
-}
-.sve-build .sve-build-icon:hover,
-.sve-build .sve-build-icon[data-active] {
-  opacity: 1;
-  background: rgba(128, 128, 128, 0.22);
-}
-.sve-build .sve-build-icon[data-active] {
-  color: var(--sve-build-accent-text);
-}
-.sve-build .sve-build-chip {
-  flex: none;
-  padding: 0.1em 0.45em;
-  border-radius: 0.25rem;
-  background: rgba(96, 165, 250, 0.16);
-  color: var(--sve-fam-layout, #60a5fa);
-  font: 600 0.6875rem ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-.sve-build .sve-build-chip[data-kind='component'] {
-  background: rgba(94, 234, 212, 0.14);
-  color: var(--sve-fam-component, #5eead4);
-}
-.sve-build .sve-build-chip[data-kind='loop'] {
-  color: var(--sve-fam-loop, #a5b4fc);
-}
-.sve-build .sve-build-chip[data-kind='if'] {
-  color: var(--sve-fam-if, #e8c468);
-}
-.sve-build .sve-build-select {
-  box-sizing: border-box;
-  width: 100%;
-  height: 1.875rem;
-  padding: 0 0.5em;
-  border-radius: 0.35rem;
-  border: 1px solid rgba(128, 128, 128, 0.35);
-  background: rgba(128, 128, 128, 0.1);
-  color: inherit;
-  font: inherit;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.6875rem;
-}
-.sve-build-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  margin-bottom: 0.6em;
-}
+.sve-build *, .sve-build *::before, .sve-build *::after { box-sizing: border-box; }
+.sve-build :where(button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.sve-build :where(input, select, textarea) { font: inherit; color: inherit; }
+.sve-build :where(p, h3, h4) { margin: 0; }
+.sve-build :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
+.sve-build code { font-family: var(--bm-mono); font-size: 0.88em; }
+.sve-build .bm-ic { width: 1rem; height: 1rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.sve-build span:has(> .bm-ic), .sve-build span:has(> svg) { display: inline-flex; }
+.sve-build .bm-ib { width: 1.875rem; height: 1.875rem; display: grid; place-items: center; border-radius: 0.375rem; color: var(--bm-muted); }
+.sve-build .bm-ib:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .bm-ib.is-on, .sve-build .bm-ib[aria-pressed='true'] { background: var(--bm-accent); color: #fff; }
+.sve-build .bm-ib.sm { width: 1.375rem; height: 1.375rem; }
+
+/* Tabs and scroll */
+.sve-build .bm-tabs { display: flex; flex: none; border-bottom: 1px solid var(--bm-line); padding: 0 0.5rem; }
+.sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.75rem 0 0.65rem; color: var(--bm-muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 2px solid transparent; }
+.sve-build .bm-tabs button[aria-selected='true'] { color: var(--bm-ink); border-bottom-color: var(--bm-accent); }
+.sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
+
+/* Add */
+.sve-build .bm-target { display: flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.55rem; border-radius: 0.45rem; background: var(--bm-accent-soft); color: var(--bm-accent-text); font-size: 0.75rem; }
+.sve-build .bm-target b { color: #fff; font-weight: 600; }
+.sve-build .bm-target > span:nth-child(2) { flex: 1; min-width: 0; display: block; }
+.sve-build .bm-target.is-none { background: var(--bm-raise); color: var(--bm-muted); }
+.sve-build .bm-seg { display: flex; gap: 0.125rem; padding: 0.125rem; background: var(--bm-raise); border: 1px solid var(--bm-line); border-radius: 0.4rem; min-width: 0; }
+.sve-build .bm-seg button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.32rem 0.2rem; border-radius: 0.28rem; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 600; position: relative; white-space: nowrap; }
+.sve-build .bm-seg button:hover { color: var(--bm-ink); }
+.sve-build .bm-seg button[aria-pressed='true'] { background: var(--bm-hover); color: var(--bm-ink); box-shadow: inset 0 0 0 1px #3a3d4c; }
+.sve-build .bm-seg button.inh { background: transparent; color: var(--bm-inh); box-shadow: inset 0 0 0 1px var(--bm-inh-line); font-style: italic; }
+.sve-build .bm-seg .bm-ic, .sve-build .bm-seg svg { width: 0.875rem; height: 0.875rem; }
+.sve-build .bm-sub { margin: 0.65rem 0; }
+.sve-build .bm-sub button { font-size: 0.75rem; padding: 0.4rem; }
+.sve-build .bm-search { display: flex; align-items: center; gap: 0.45rem; padding: 0 0.55rem; height: 2.1rem; border-radius: 0.45rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-muted); }
+.sve-build .bm-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--bm-ink); }
+.sve-build .bm-g h4 { margin: 1rem 0 0.5rem; font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bm-muted); font-weight: 600; }
+.sve-build .bm-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.375rem; }
+.sve-build .bm-tile { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.75rem 0.2rem 0.55rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); font-size: 0.6875rem; text-align: center; user-select: none; }
+.sve-build .bm-tile > span:first-child { color: #b9bbcc; }
+.sve-build .bm-tile svg { width: 1.25rem; height: 1.25rem; }
+.sve-build .bm-tile:hover:not(:disabled) { border-color: var(--bm-accent); background: var(--bm-hover); }
+.sve-build .bm-tile:hover:not(:disabled) > span:first-child { color: #fff; }
+.sve-build .bm-tile:disabled { cursor: default; opacity: 0.45; }
+.sve-build .bm-tile.is-mono > span:last-child { font-family: var(--bm-mono); }
+.sve-build .bm-tile.is-loop > span:first-child { color: var(--sve-fam-loop, #a5b4fc); }
+.sve-build .bm-tile.is-if > span:first-child { color: var(--sve-fam-if, #e8c468); }
+.sve-build .bm-comps { display: grid; gap: 0.375rem; margin-top: 0.75rem; }
+.sve-build .bm-comp { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.6rem; padding: 0.55rem 0.65rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); text-align: left; user-select: none; }
+.sve-build .bm-comp > span:first-child { color: var(--bm-comp); }
+.sve-build .bm-comp svg { width: 1.125rem; height: 1.125rem; }
+.sve-build .bm-comp code { color: var(--bm-faint); font-size: 0.625rem; }
+.sve-build .bm-comp:hover:not(:disabled) { border-color: var(--bm-comp); }
+.sve-build .bm-note { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--bm-line); font-size: 0.6875rem; line-height: 1.55; color: var(--bm-faint); }
+.sve-build .bm-note.is-top { margin: 0 0 0.5rem; padding: 0; border: 0; }
+.sve-build .bm-note code { color: var(--bm-muted); }
+.sve-build .bm-muted { color: var(--bm-muted); font-size: 0.75rem; }
+.sve-build .bm-empty { display: grid; justify-items: center; gap: 0.5rem; padding: 3rem 1rem; text-align: center; color: var(--bm-muted); }
+.sve-build .bm-empty .bm-ic { width: 1.5rem; height: 1.5rem; }
+.sve-build .bm-soon { display: inline-block; font-style: normal; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bm-lock); border: 1px solid rgba(228, 178, 79, 0.45); border-radius: 999px; padding: 0 0.35rem; line-height: 1.5; vertical-align: middle; }
+.sve-build .bm-legend { margin: 0.75rem 0 0; font-size: 0.6875rem; color: var(--bm-faint); display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.sve-build .bm-picker h3 { display: flex; align-items: center; justify-content: space-between; font-size: 0.875rem; }
+.sve-build .bm-picker p { margin: 0.25rem 0 0.75rem; font-size: 0.75rem; color: var(--bm-muted); }
+.sve-build .bm-pk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.sve-build .bm-pk, .sve-build .bm-sp-o { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.6rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); text-align: left; }
+.sve-build .bm-pk:hover:not(:disabled), .sve-build .bm-sp-o:hover { border-color: var(--bm-accent); }
+.sve-build .bm-pk:disabled { cursor: default; }
+.sve-build .bm-bars { display: flex; gap: 0.2rem; height: 2.25rem; }
+.sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: #474a5e; }
+.sve-build .bm-pk:hover:not(:disabled) .bm-bars i, .sve-build .bm-sp-o[aria-pressed='true'] .bm-bars i { background: var(--bm-accent); }
+.sve-build .bm-pk-l { font-weight: 600; display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
+.sve-build .bm-sp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
+.sve-build .bm-sp-o { padding: 0.4rem; gap: 0.3rem; }
+.sve-build .bm-sp-o .bm-bars { height: 1.1rem; gap: 0.12rem; }
+.sve-build .bm-sp-o[aria-pressed='true'] { border-color: var(--bm-accent); }
+.sve-build .bm-sp-l { font-size: 0.625rem; color: var(--bm-muted); text-align: center; }
+
+/* Style */
+.sve-build .bm-st-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.sve-build .bm-st-head b { font-size: 0.875rem; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve-build .bm-st-acts { display: flex; gap: 0.125rem; }
+.sve-build .bm-st-acts .bm-ic { width: 0.875rem; height: 0.875rem; }
+.sve-build .bm-chip-tag { flex: none; font: 500 0.6875rem/1.3 var(--bm-mono); padding: 0.1rem 0.35rem; border-radius: 0.25rem; background: var(--bm-tag-bg); color: var(--bm-tag); }
+.sve-build .bm-chip-tag.bm-chip-comp { background: var(--bm-comp-bg); color: var(--bm-comp); }
+.sve-build .bm-st-sel { display: flex; gap: 0.35rem; flex-wrap: wrap; padding: 0.35rem; margin-bottom: 0.6rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); }
+.sve-build .bm-selchip { display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem; border-radius: 0.3rem; font-size: 0.6875rem; font-weight: 600; }
+.sve-build .bm-selchip .bm-ic { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-selchip.is-on { background: var(--bm-accent); color: #fff; }
+.sve-build .bm-selchip.is-ghost { color: var(--bm-muted); border: 1px dashed var(--bm-line); }
+.sve-build .bm-st-bp { display: grid; grid-template-columns: 1fr auto; gap: 0.35rem; }
+.sve-build .bm-st-bp .bm-state { gap: 0.25rem; padding: 0.32rem 0.55rem; }
+.sve-build .bm-st-bp .bm-state .bm-ic { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-st-bp .bm-state.is-set { color: var(--bm-accent-text); font-family: var(--bm-mono); }
+.sve-build .bm-st-hint { margin: 0.4rem 0 0.2rem; font-size: 0.6875rem; color: var(--bm-faint); }
+.sve-build .bm-st-hint b { color: var(--bm-accent-text); font-weight: 600; }
+.sve-build .bm-st-hint code { color: var(--bm-muted); }
+.sve-build .bm-st-g { border-top: 1px solid var(--bm-line); margin-top: 0.6rem; }
+.sve-build .bm-st-g summary { list-style: none; display: flex; align-items: center; gap: 0.4rem; padding: 0.65rem 0 0.2rem; cursor: pointer; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--bm-muted); }
+.sve-build .bm-st-g summary::-webkit-details-marker { display: none; }
+.sve-build .bm-st-g:not([open]) .bm-st-chev { transform: rotate(-90deg); }
+.sve-build .bm-st-chev { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-st-g summary svg:not(.bm-st-chev) { width: 0.85rem; height: 0.85rem; color: var(--bm-muted); }
+.sve-build .bm-st-row { display: grid; grid-template-columns: 5.25rem minmax(0, 1fr); align-items: center; gap: 0.5rem; margin: 0.45rem 0; }
+.sve-build .bm-st-row.is-wide { grid-template-columns: 1fr; gap: 0.35rem; }
+.sve-build .bm-st-l { font: 500 0.6875rem var(--bm-mono); color: var(--bm-muted); display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; min-width: 0; overflow-wrap: anywhere; }
+.sve-build .bm-al-l { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; width: 100%; font: 500 0.75rem ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--bm-ink); }
+.sve-build .bm-al-l code { font-size: 0.625rem; color: var(--bm-faint); }
+.sve-build .bm-sel, .sve-build .bm-inp { width: 100%; height: 1.875rem; padding: 0 0.45rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-ink); font-size: 0.75rem; }
+.sve-build .bm-sel.inh { color: var(--bm-inh); font-style: italic; border-color: var(--bm-inh-line); }
+.sve-build .bm-sws { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.sve-build .bm-sw { width: 1.375rem; height: 1.375rem; border-radius: 0.35rem; border: 1px solid rgba(255, 255, 255, 0.18); }
+.sve-build .bm-sw[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bm-panel), 0 0 0 4px var(--bm-accent); }
+.sve-build .bm-sw.inh { box-shadow: 0 0 0 2px var(--bm-panel), 0 0 0 4px var(--bm-inh-line); }
+.sve-build .bm-seg-cols button { flex-direction: column; gap: 0.2rem; padding: 0.35rem 0.1rem; }
+.sve-build .bm-mini { display: flex; gap: 0.08rem; width: 1.4rem; height: 0.55rem; }
+.sve-build .bm-mini i { flex: 1; border-radius: 0.1rem; background: currentColor; opacity: 0.55; }
+.sve-build .bm-st-cls { margin-top: 0.75rem; padding-top: 0.7rem; border-top: 1px solid var(--bm-line); }
+.sve-build .bm-cls-list { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+.sve-build .bm-cls { padding: 0.12rem 0.4rem; border-radius: 0.25rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-ink); font-size: 0.6875rem; }
+.sve-build .bm-cls em { font-style: normal; color: var(--bm-inh); }
+.sve-build .bm-vin { width: 100%; height: 1.875rem; padding: 0 0.45rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-ink); font: 500 0.6875rem var(--bm-mono); }
+.sve-build .bm-vin::placeholder { color: var(--bm-faint); }
+.sve-build .bm-vin.inh::placeholder { color: var(--bm-inh); font-style: italic; }
+.sve-build .bm-vin:hover { border-color: #3a3d4c; }
+.sve-build .bm-vin-after { margin-top: 0.4rem; }
+.sve-build .bm-seg-al button { padding: 0.4rem 0; }
+.sve-build .bm-seg-al .bm-ic, .sve-build .bm-seg-al svg { width: 1.15rem; height: 1.15rem; }
+.sve-build .bm-seg-al.is-col .bm-ic, .sve-build .bm-seg-al.is-col svg { transform: rotate(90deg); }
+.sve-build .bm-st-jump { margin: 0.6rem 0 0.2rem; }
+.sve-build .bm-st-jump button { padding: 0.35rem 0; }
+.sve-build .bm-st-jump svg { width: 0.95rem; height: 0.95rem; }
+.sve-build .bm-st-el { margin-top: 0.4rem; }
+
+/* Margin and padding, one box */
+.sve-build .bm-sp-top { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0.5rem; }
+.sve-build .bm-sp-mode { flex: 1; }
+.sve-build .bm-sp-mode button { font-family: var(--bm-mono); font-size: 0.6875rem; }
+.sve-build .bm-spx { position: relative; display: block; height: 9.5rem; padding: 0; margin-top: 0.2rem; border-radius: 0.45rem; overflow: hidden; border: 1px solid var(--bm-line); background: var(--bm-bg); }
+.sve-build .bm-tz { position: absolute; inset: 0; background: var(--bm-raise); transition: background 0.12s; }
+.sve-build .bm-tz-t, .sve-build .bm-tz-b { background: #22232b; }
+.sve-build .bm-tz-l, .sve-build .bm-tz-r { background: #1b1c23; }
+.sve-build .bm-tz-t { clip-path: polygon(0 0, 100% 0, 72% 34%, 28% 34%); }
+.sve-build .bm-tz-b { clip-path: polygon(28% 66%, 72% 66%, 100% 100%, 0 100%); }
+.sve-build .bm-tz-l { clip-path: polygon(0 0, 28% 34%, 28% 66%, 0 100%); }
+.sve-build .bm-tz-r { clip-path: polygon(100% 0, 100% 100%, 72% 66%, 72% 34%); }
+.sve-build .bm-spx-c { position: absolute; left: 28%; right: 28%; top: 34%; bottom: 34%; display: grid; place-items: center; border-radius: 0.2rem; background: var(--bm-panel); border: 1px solid var(--bm-line); font: 500 0.5625rem var(--bm-mono); color: var(--bm-faint); }
+.sve-build .bm-spx .bm-vin { position: absolute; z-index: 2; width: 4.75rem; height: 1.5rem; padding: 0 0.3rem; text-align: center; background: transparent; border-color: transparent; font-size: 0.6875rem; }
+.sve-build .bm-spx .bm-vin:hover, .sve-build .bm-spx .bm-vin:focus { background: var(--bm-bg); border-color: var(--bm-accent); outline: 0; }
+.sve-build .bm-spx .bm-vin:not(:placeholder-shown) { color: var(--bm-accent-text); }
+.sve-build .bm-spx .bm-sp-t { top: 7%; left: 50%; transform: translateX(-50%); }
+.sve-build .bm-spx .bm-sp-b { bottom: 7%; left: 50%; transform: translateX(-50%); }
+.sve-build .bm-spx .bm-sp-l { left: 1.5%; top: 50%; transform: translateY(-50%); width: 25%; }
+.sve-build .bm-spx .bm-sp-r { right: 1.5%; top: 50%; transform: translateY(-50%); width: 25%; }
+.sve-build .bm-spx:has(.bm-sp-t:not(:placeholder-shown)) .bm-tz-t,
+.sve-build .bm-spx:has(.bm-sp-b:not(:placeholder-shown)) .bm-tz-b,
+.sve-build .bm-spx:has(.bm-sp-l:not(:placeholder-shown)) .bm-tz-l,
+.sve-build .bm-spx:has(.bm-sp-r:not(:placeholder-shown)) .bm-tz-r { background: rgba(56, 88, 233, 0.16); }
+.sve-build .bm-spx:has(.bm-sp-t:hover, .bm-sp-t:focus) .bm-tz-t,
+.sve-build .bm-spx:has(.bm-sp-b:hover, .bm-sp-b:focus) .bm-tz-b,
+.sve-build .bm-spx:has(.bm-sp-l:hover, .bm-sp-l:focus) .bm-tz-l,
+.sve-build .bm-spx:has(.bm-sp-r:hover, .bm-sp-r:focus) .bm-tz-r { background: var(--bm-accent-soft); }
+.sve-build .bm-sp-link { margin-top: 0.45rem; }
+.sve-build .bm-sp-link button { font-family: var(--bm-mono); font-size: 0.625rem; }
 </style>

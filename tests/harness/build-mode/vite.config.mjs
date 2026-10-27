@@ -10,7 +10,10 @@
  * resources/dist. `virtual:build-harness` hands the page:
  *
  *   lists       the dock's HTML_TOOLS, HTML_DIVS, HTML_HEADINGS, CSS_TOOLS and
- *               its icons, read out of code-dock.js (tests/js/build-mode/dock-lists.js)
+ *               its icons, read out of code-dock.js, and the top bar's
+ *               LP_DEVICE_ICONS (tests/js/build-mode/dock-lists.js)
+ *   states      the Tailwind pane's STATES and PROSE_VARIANTS (tw-classes.js)
+ *   colors      the site's colour tokens, from its <head>
  *   strings     resources/lang/{en,da}/build.php over messages.php, through PHP
  *   components  the site's resources/views/partials/components, as Component::all() lists them
  *   siteHead    the <head> CSS of a page of the site (SVE_SITE_PAGE), inlined
@@ -27,7 +30,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import statamic from '@statamic/cms/vite-plugin';
-import { CSS_TOOLS, CSS_TOOL_ICONS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, TW_TOOL_ICONS } from '../../js/build-mode/dock-lists.js';
+import { CSS_TOOLS, CSS_TOOL_ICONS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, LP_DEVICE_ICONS, PROSE_VARIANTS, STATES, TW_TOOL_ICONS } from '../../js/build-mode/dock-lists.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ADDON = resolve(HERE, '../../..');
@@ -124,6 +127,12 @@ function harnessData() {
         return null;
       }
 
+      const head = await siteHead();
+      const colors = Object.fromEntries(
+        ['primary', 'secondary', 'tertiary', 'white', 'black', 'gray-100', 'gray-600']
+          .map((name) => [name, (new RegExp(`--color-${name}:\\s*([^;]+);`).exec(head) || [])[1] || ''])
+          .filter(([, value]) => value)
+      );
       const data = {
         lists: {
           htmlTools: HTML_TOOLS,
@@ -131,10 +140,14 @@ function harnessData() {
           headings: HTML_HEADINGS,
           cssTools: CSS_TOOLS,
           toolIcons: { ...CSS_TOOL_ICONS, ...TW_TOOL_ICONS },
+          deviceIcons: LP_DEVICE_ICONS,
         },
         strings: { en: lang('en'), da: lang('da') },
         components: components(),
-        siteHead: await siteHead(),
+        states: STATES,
+        prose: PROSE_VARIANTS,
+        colors,
+        siteHead: head,
         sectionTag: sectionTag(),
         tailwind: tailwindTheme(),
       };

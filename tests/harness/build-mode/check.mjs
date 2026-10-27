@@ -6,7 +6,7 @@
  *   SVE_HARNESS_URL  where the built harness is served
  *                    (default http://127.0.0.1:8771/build-mode-harness/index.html)
  *   SVE_SITE_DIR     a site checkout with puppeteer in node_modules
- *   SVE_SHOTS        a folder for a screenshot after each step (optional)
+ *   SVE_SHOTS        a folder for a screenshot after some steps (optional)
  *
  *   node tests/harness/build-mode/check.mjs
  */
@@ -27,21 +27,17 @@ const step = (name, ok, note = '') => {
 };
 
 const H2 = '0:section/0:div/0:div/0:div/1:h2';
+const LINK = '0:section/0:div/0:div/0:div/3:a';
 const COLUMN = '0:section/0:div/0:div/0:div';
 const WRAPPER = '0:section/0:div';
 
 const browser = await puppeteer.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', defaultViewport: { width: 1500, height: 950 } });
 const page = await browser.newPage();
 const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
-page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+page.on('pageerror', (e) => errors.push(process.env.SVE_STACK ? e.stack : e.message));
+page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && !/font|favicon|404/i.test(m.text()) && errors.push(m.text()));
 
 const html = () => page.evaluate(() => window.__sveBuildHarness.html());
-const tagOf = (path) => page.evaluate((p) => {
-  const h = window.__sveBuildHarness;
-  const node = h.selectedPath() === p ? h.pickedClasses() : null;
-  return node;
-}, path);
 const select = (path) => page.evaluate((p) => window.__sveBuildHarness.select(p), path);
 const shot = async (name) => SHOTS && page.screenshot({ path: `${SHOTS}/${name}.png` });
 const classesOf = async (path) => {
@@ -49,6 +45,7 @@ const classesOf = async (path) => {
   await sleep(150);
   return page.evaluate(() => window.__sveBuildHarness.pickedClasses().join(' '));
 };
+const click = (selector) => page.evaluate((sel) => document.querySelector(sel).click(), selector);
 async function typeInto(selector, text) {
   await page.click(selector, { clickCount: 3 });
   await page.evaluate((sel) => { const el = document.querySelector(sel); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); }, selector);
@@ -60,110 +57,132 @@ async function typeInto(selector, text) {
 try {
   await page.goto(URL, { waitUntil: 'networkidle0' });
   await sleep(500);
+  step('the page is the panel and the preview, nothing else', await page.evaluate(() => !document.querySelector('.hx-right, .hx-top') && !!document.querySelector('.sve-build') && !!document.querySelector('.hx-frame')));
   step('the panel draws Add with the dock\'s own tiles', await page.evaluate(() => ['section', 'container', 'columns', 'heading', 'loop', 'li'].every((id) => document.querySelector(`[data-sve-build-tile="${id}"]`))));
 
   // Pick the heading: the panel turns to Style.
   await select(H2);
   await sleep(250);
-  step('picking an element opens Style with its name', await page.evaluate(() => /Heading/.test(document.querySelector('.sve-build-head__name')?.textContent || '')));
+  step('picking an element opens Style with its name', await page.evaluate(() => /Heading/.test(document.querySelector('.bm-st-head b')?.textContent || '')));
+  step('sizes wear the top bar\'s device icons: All, Tablet, Mobile', await page.evaluate(() => ['all', 'tablet', 'mobile'].every((h) => document.querySelector(`[data-sve-build-size="${h}"] svg`))));
+  await shot('1-style');
 
   // Spacing box: padding block-start, typed.
-  await typeInto('.sve-build-box__in.is-t input', '10px');
+  await typeInto('.bm-spx .bm-sp-t', '10px');
   step('a typed value in padding block-start writes pbs-[10px]', / pbs-\[10px\]/.test(await classesOf(H2)), await classesOf(H2));
-  const painted = await page.evaluate(() => {
-    const doc = document.querySelector('.hx-frame').contentDocument;
-    return getComputedStyle(doc.querySelector('h2')).paddingBlockStart;
-  });
+  const painted = await page.evaluate(() => getComputedStyle(document.querySelector('.hx-frame').contentDocument.querySelector('h2')).paddingBlockStart);
   step('…and the compiler paints it in the preview', painted === '10px', `padding-block-start ${painted}`);
-  await shot('1-padding');
 
   // Link "all", custom property.
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build-box__link button')].find((b) => /all|alle/.test(b.textContent)).click());
+  await click('[data-sve-build-link="all"]');
   await sleep(150);
-  await typeInto('.sve-build-box__in.is-t input', '--gutter');
+  await typeInto('.bm-spx .bm-sp-t', '--gutter');
   step('linked to all four sides, --gutter writes p-(--gutter)', /(^| )p-\(--gutter\)/.test(await classesOf(H2)), await classesOf(H2));
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build-box__link button')][0].click());
+  await click('[data-sve-build-link="sides"]');
 
   // Mobile + font-size from a token.
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build-sizes button')].find((b) => /Mobile/.test(b.textContent)).click());
+  await click('[data-sve-build-size="mobile"]');
   await sleep(150);
-  const fontInput = await page.evaluateHandle(() => [...document.querySelectorAll('.sve-build-row')].find((r) => r.textContent.includes('font-size'))?.querySelector('input'));
-  await fontInput.asElement().click({ clickCount: 3 });
-  await page.keyboard.type('500');
-  await page.keyboard.press('Enter');
-  await sleep(200);
+  await typeInto('[data-sve-build-value="font-size"]', '500');
   step('on Mobile, font-size 500 writes max-md:text-500 and keeps the base text-800', /max-md:text-500/.test(await classesOf(H2)) && /(^| )text-800/.test(await classesOf(H2)), await classesOf(H2));
-  await shot('2-mobile');
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build-sizes button')][0].click());
-
-  // Position: relative — the site's own position classes as a row.
-  await page.evaluate(() => { const g = document.querySelector('[data-group="position"]'); g.open = true; });
+  await click('[data-sve-build-size="all"]');
   await sleep(150);
-  await page.evaluate(() => [...document.querySelectorAll('[data-group="position"] .sve-build-seg button')].find((b) => b.textContent.trim() === 'relative').click());
+
+  // Position: relative.
+  await page.evaluate(() => { document.querySelector('[data-sve-build-group="position"]').open = true; });
+  await sleep(150);
+  const relative = () => page.evaluate(() => [...document.querySelectorAll('[data-sve-build-position] button')].find((b) => b.textContent.trim() === 'relative').click());
+  await relative();
   step('position: relative writes relative', /(^| )relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
-  await page.evaluate(() => [...document.querySelectorAll('[data-group="position"] .sve-build-seg button')].find((b) => b.textContent.trim() === 'relative').click());
+  await relative();
   step('…clicked again, it is taken off — the same toggle as the Tailwind pane', !/(^| )relative( |$)/.test(await classesOf(H2)));
+
+  // State: the Tailwind pane's menu, State | Prose.
+  await click('[data-sve-build-state]');
+  await sleep(200);
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-harness-menu] .hx-menu__tabs button')].map((b) => b.textContent.trim()));
+  step('the state button opens the State | Prose menu', tabs.join('|') === 'State|Prose', tabs.join('|'));
+  await click('[data-harness-pick="hover"]');
+  await sleep(200);
+  step('…hover picked: the button says hover, the hint says on hover', await page.evaluate(() => /hover/.test(document.querySelector('[data-sve-build-state]').textContent) && /hover/.test(document.querySelector('.bm-st-hint').textContent)));
+  await relative();
+  step('…and a class is written for hover', /(^| )hover:relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
+  await shot('2-hover');
+  await click('[data-sve-build-state]');
+  await sleep(150);
+  await page.evaluate(() => document.querySelector('[data-harness-menu] .hx-menu__list button').click());
+  await sleep(150);
+
+  // The heading's own tag.
+  await page.evaluate(() => [...document.querySelectorAll('.bm-st-el button')].find((b) => b.textContent.trim() === 'h3').click());
+  await sleep(200);
+  step('tag h3 renames the heading in the file', /<h3 class="text-800[^"]*">Vi bygger brands, der kan mærkes<\/h3>/.test(await html()));
+
+  // A link's href.
+  await select(LINK);
+  await sleep(200);
+  await typeInto('[data-sve-build-href]', '/cases');
+  step('href writes the link\'s href', (await html()).includes('<a href="/cases" class="btn">'));
 
   // A field that still has focus when the pick moves writes nothing anywhere.
   const columnBefore = await classesOf(COLUMN);
-  await select(H2);
+  await select(H2.replace('h2', 'h3'));
   await sleep(150);
-  const focused = await page.evaluateHandle(() => [...document.querySelectorAll('.sve-build-row')].find((r) => r.textContent.includes('font-size'))?.querySelector('input'));
-  await focused.asElement().click();
+  await page.click('[data-sve-build-value="font-size"]');
   await select(COLUMN);
   await sleep(200);
-  await page.mouse.click(700, 900);
+  await page.mouse.click(900, 900);
   await sleep(150);
-  // The column was never styled: it must still be exactly what the file started with.
   step('a focused field writes nothing onto the next pick', columnBefore === 'flow-y' && (await classesOf(COLUMN)) === 'flow-y', `${columnBefore} → ${await classesOf(COLUMN)}`);
 
   // Add: a heading into the picked column, at its end.
   await select(COLUMN);
   await sleep(150);
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build__tabs button')][0].click());
+  await click('[data-sve-build-tab="add"]');
   await sleep(150);
-  const target = await page.evaluate(() => document.querySelector('.sve-build-target span')?.textContent);
-  step('Add says where the element lands', /into|i /.test(target || ''), target);
-  await page.click('[data-sve-build-tile="heading"]');
+  const target = await page.evaluate(() => document.querySelector('[data-sve-build-target] > span:nth-child(2)')?.textContent);
+  step('Add says where the element lands', /into/.test(target || ''), target);
+  await click('[data-sve-build-tile="heading"]');
   await sleep(200);
-  const afterHeading = await html();
-  step('Heading lands as the column\'s last child, indented', afterHeading.includes('<a href="" class="btn">Se vores cases</a>\n                <h2>New heading</h2>\n            </div>'));
+  step('Heading lands as the column\'s last child, indented', (await html()).includes('<a href="/cases" class="btn">Se vores cases</a>\n                <h2>New heading</h2>\n            </div>'));
   step('…and is picked', await page.evaluate(() => /h2$/.test(window.__sveBuildHarness.selectedPath())));
-  await shot('3-heading');
 
-  // The tree's + on the wrapper → Columns ⅓ × 3.
+  // + on the wrapper → Columns ⅓ × 3.
   await page.evaluate((p) => window.__sveBuildHarness.setPlus(p), WRAPPER);
   await sleep(150);
-  await page.click('[data-sve-build-tile="columns"]');
+  await click('[data-sve-build-tile="columns"]');
   await sleep(150);
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build-picker__pick')].find((b) => b.textContent.includes('⅓ × 3')).click());
+  await click('[data-sve-build-structure="3"]');
   await sleep(250);
-  const afterColumns = await html();
-  step('the tree\'s + on the wrapper, Columns ⅓ × 3: a grid with three empty columns at the end of the wrapper',
-    afterColumns.includes('        <div class="grid grid-cols-3 max-md:grid-cols-1">\n            <div></div>\n            <div></div>\n            <div></div>\n        </div>\n    </div>'));
+  step('+ on the wrapper, Columns ⅓ × 3: a grid with three empty columns at the end of the wrapper',
+    (await html()).includes('        <div class="grid grid-cols-3 max-md:grid-cols-1">\n            <div></div>\n            <div></div>\n            <div></div>\n        </div>\n    </div>'));
   const cols = await page.evaluate(() => {
-    const doc = document.querySelector('.hx-frame').contentDocument;
-    const grid = [...doc.querySelectorAll('.grid-cols-3')][0];
+    const grid = document.querySelector('.hx-frame').contentDocument.querySelector('.grid-cols-3');
     return grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0;
   });
   step('…drawn as three columns in the preview', cols === 3, `${cols} tracks`);
+  await shot('3-columns');
+
+  // A click on an empty column in the preview is "+ Add element" there.
+  await page.evaluate(() => document.querySelector('.hx-frame').contentDocument.querySelector('[data-sve-build-empty]').click());
+  await sleep(200);
+  step('an empty column in the preview sets where Add inserts', /Column 1/.test(await page.evaluate(() => document.querySelector('[data-sve-build-target]').textContent)));
 
   // A component from the site's folder.
-  await page.evaluate(() => [...document.querySelectorAll('.sve-build-add__sub button')][1].click());
+  await click('[data-sve-build-sub="comp"]');
   await sleep(300);
   const comp = await page.evaluate(() => document.querySelectorAll('[data-sve-build-component]').length);
   step('Components lists the site\'s partials/components', comp > 5, `${comp} components`);
-  await page.click('[data-sve-build-component="card"]');
+  await click('[data-sve-build-component="card"]');
   await sleep(200);
   step('a component tile writes the call the dock\'s component menu writes', (await html()).includes('{{ partial:components/card }}'));
-  await shot('4-columns-card');
+
+  step('no JavaScript errors or Vue warnings', !errors.length, errors.slice(0, 3).join(' | '));
 
   // Danish.
-  await page.evaluate(() => [...document.querySelectorAll('.hx-sw button')].find((b) => b.textContent === 'DA').click());
-  await sleep(200);
-  step('the panel speaks Danish when the CP does', await page.evaluate(() => /Tilføj/i.test(document.querySelector('.sve-build__tabs').textContent)));
-
-  step('no JavaScript errors', !errors.length, errors.slice(0, 3).join(' | '));
+  await page.goto(`${URL}?lang=da`, { waitUntil: 'networkidle0' });
+  await sleep(400);
+  step('the panel speaks Danish when the CP does', await page.evaluate(() => /Tilføj/i.test(document.querySelector('.bm-tabs').textContent)));
 } catch (e) {
   step('no exception', false, e.stack);
 } finally {

@@ -29,6 +29,10 @@
  *   onSelect(fn) → unhook     a pick made anywhere else
  *   setPlus? / plusPath?      a + target set from the tree or the preview
  *   setSize?(handle)          the pane's own size door; default `lp:set-device`
+ *   openStateMenu?(anchor)    the Tailwind pane's state menu (State | Prose) —
+ *                             tw-classes.js `openStateMenu`, exported for this
+ *   deviceIcons?              the top bar's LP_DEVICE_ICONS (the panel may not
+ *                             import the CP shell)
  *   logic?(kind, def)         the dock's ∞ / if path, which opens the inspector
  *   mountFields?(el, node)    a component's fields (the props panel) → unmount
  *   mountSettings?(el, node)  a loop's or condition's settings (the tree's inspector) → unmount
@@ -50,12 +54,15 @@ import {
   twPickedClasses,
   twReplaceClasses,
   twSetClass,
+  twSetGroup,
+  twSetTag,
   twVariant,
 } from '../tw-classes.js';
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { addAt, findByPath } from './place.js';
 import { rootFor, rootOf } from './classes.js';
+import { readAttribute, withAttribute } from './attrs.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
 
 /**
@@ -128,6 +135,7 @@ export function createEditorPort(win, hooks = {}) {
       cssTools: CSS_TOOLS,
       toolIcons: { ...CSS_TOOL_ICONS, ...TW_TOOL_ICONS },
       htmlIcons: HTML_ICONS,
+      deviceIcons: hooks.deviceIcons || {},
     },
 
     /** Build's own strings (`sve::build`), then the editor's — the dock's lang keys among them. */
@@ -224,6 +232,19 @@ export function createEditorPort(win, hooks = {}) {
         port.write(deleteHtml(html(), node));
       }
     },
+    setTag: (name) => twSetTag(win, name),
+    attr: (name) => {
+      const node = picked();
+
+      return node ? readAttribute(html(), node, name) : null;
+    },
+    setAttr(name, value) {
+      const node = picked();
+
+      if (node) {
+        port.write(withAttribute(html(), node, name, value), { select: node.path });
+      }
+    },
     mountFields: hooks.mountFields,
     mountSettings: hooks.mountSettings,
 
@@ -235,6 +256,18 @@ export function createEditorPort(win, hooks = {}) {
       const variant = twVariant().split(':').find((part) => rows().some((row) => row.tw && row.tw === part)) || '';
 
       return variant ? rows().find((row) => row.tw === variant)?.handle || null : null;
+    },
+    /** The pane's state (`hover`, `prose-p`): the variant tw-classes.js writes, less its size. */
+    state() {
+      rev.value;
+
+      return twVariant()
+        .split(':')
+        .filter((part) => part && !rows().some((row) => row.tw && row.tw === part))
+        .join(':');
+    },
+    openStateMenu(anchor) {
+      hooks.openStateMenu?.(anchor);
     },
     setSize(handle) {
       if (hooks.setSize) {
@@ -274,9 +307,23 @@ export function createEditorPort(win, hooks = {}) {
 
       return familyFor(name, model)?.label || byRoot.get(rootFor(name)) || '';
     },
+    /** The site's colours for a property, base names first, from the same catalog. */
+    swatches(property) {
+      if (!model) {
+        wantModel();
+
+        return [];
+      }
+
+      const rows = optionsForProperty(property, model).filter((option) => option.color);
+      const base = rows.filter((option) => !/-\d+$/.test(option.label));
+
+      return (base.length ? base : rows).slice(0, 8).map((option) => ({ name: option.label, color: option.color }));
+    },
     pickedClasses: () => (rev.value, twPickedClasses()?.raws || []),
     activeClass: (property) => (rev.value, twActiveClass(property)),
     setClass: (name) => twSetClass(win, name),
+    setGroup: (names, name) => twSetGroup(win, names, name),
     addClass: (name) => twAddClass(win, name),
     replaceClasses: (raws, name) => twReplaceClasses(win, raws, twVariant() ? `${twVariant()}:${name}` : name),
     openMenu: (property, anchor) => twOpenToolMenu(win, anchor, property),

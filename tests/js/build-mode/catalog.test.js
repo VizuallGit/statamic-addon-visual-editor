@@ -60,8 +60,8 @@ test('Style draws every CSS_TOOLS tool once, in the brief\'s families', () => {
   BUILD_TOOLS.forEach((tool) => assert.ok(drawn.includes(tool.id), tool.id));
   assert.ok(!groups.some((g) => g.id === 'other'), 'today every tool has a family');
 
-  const later = styleGroups([...CSS_TOOLS, { id: 'tw-shadow', title: 'Shadow', css: 'box-shadow', tw: 'box-shadow', menu: 'values' }]);
-  assert.equal(later.find((g) => g.id === 'other').tools[0].id, 'tw-shadow');
+  const later = styleGroups([...CSS_TOOLS, { id: 'tw-blur', title: 'Blur', css: 'filter', tw: 'filter', menu: 'values' }]);
+  assert.equal(later.find((g) => g.id === 'other').tools[0].id, 'tw-blur');
 });
 
 test('an element is named from the file: tag and classes', () => {

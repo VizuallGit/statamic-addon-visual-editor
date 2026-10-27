@@ -13,7 +13,8 @@
 import { ref } from 'vue';
 import { flattenHtmlTree, parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.js';
-import { appendToken, readClassAttr, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
+import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
+import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
 import { HTML_ICONS } from '../../../resources/js/html-tree-icons.js';
 import { addAt, findByPath } from '../../../resources/js/build-mode/place.js';
@@ -99,11 +100,12 @@ export function propertyOf(name) {
  * The port
  * ------------------------------------------------------------------ */
 
-export function createHarnessPort({ html, lists, strings, components, sectionTag, onMenu }) {
+export function createHarnessPort({ html, lists, strings, components, sectionTag, states, prose, colors, onMenu }) {
   const file = ref(html);
   const selected = ref('');
   const plus = ref('');
   const size = ref(null);
+  const state = ref('');
   const rev = ref(0);
   let wrote = '';
 
@@ -111,7 +113,8 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
     rev.value += 1;
   };
   const rows = () => breakpoints(window);
-  const variant = () => (size.value ? rows().find((row) => row.handle === size.value)?.tw || '' : '');
+  // The size, then the state — the order tw-classes.js writes them in (`max-md:hover`).
+  const variant = () => [size.value ? rows().find((row) => row.handle === size.value)?.tw || '' : '', state.value].filter(Boolean).join(':');
   const node = () => (selected.value ? findByPath(parseTemplateTree(file.value), selected.value) : null);
   const value = () => {
     const picked = node();
@@ -201,8 +204,44 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
       }
     },
 
-    /* Sizes — the Tailwind pane's list */
+    setTag(name) {
+      const picked = node();
+
+      if (picked) {
+        port.write(renameTag(file.value, picked, name), { select: selected.value.replace(/[^/]+$/, (last) => last.replace(/:[^:]+$/, `:${name}`)) });
+      }
+    },
+    attr(name) {
+      const picked = node();
+
+      return picked ? readAttribute(file.value, picked, name) : null;
+    },
+    setAttr(name, val) {
+      const picked = node();
+
+      if (picked) {
+        port.write(withAttribute(file.value, picked, name, val), { select: selected.value });
+      }
+    },
+
+    /* Sizes and state — the Tailwind pane's list and its state menu */
     sizes: rows,
+    state: () => state.value,
+    openStateMenu(anchor) {
+      onMenu?.({
+        anchor,
+        tabs: [
+          { id: 'state', label: 'State', names: states },
+          { id: 'prose', label: 'Prose', names: prose },
+        ],
+        none: strings.tw_state_none || 'No state',
+        active: state.value,
+        pick: (name) => {
+          state.value = name || '';
+          bump();
+        },
+      });
+    },
     size: () => size.value,
     setSize(handle) {
       size.value = handle || null;
@@ -212,6 +251,27 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
     /* Classes — tw-classes.js's rules, on the catalog above */
     propertyOf,
     scale: (property) => SCALES[property] || [],
+    swatches: (property) => {
+      const prefix = { color: 'text', 'background-color': 'bg', 'border-color': 'border' }[property];
+
+      return prefix ? COLORS.map((c) => ({ name: `${prefix}-${c}`, color: colors[c] || `var(--color-${c})` })) : [];
+    },
+    setGroup(names, name) {
+      const text = value();
+
+      if (text === null) {
+        return;
+      }
+
+      const hits = chips(text).filter((chip) => chip.key === variant() && names.includes(chip.name)).sort((a, b) => b.from - a.from);
+      const same = hits.some((chip) => chip.name === name);
+      let next = text;
+
+      hits.forEach((chip) => {
+        next = replaceToken(next, chip, '');
+      });
+      commit(same ? next : appendToken(next, variant() ? `${variant()}:${name}` : name));
+    },
     pickedClasses: () => {
       const text = value();
 
@@ -284,6 +344,12 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
 
       if (item.twClass) {
         return port.activeClass(item.css || item.tw) === item.twClass;
+      }
+
+      if (item.twGroup) {
+        const have = chips(value() || '').filter((chip) => chip.key === variant()).map((chip) => chip.name);
+
+        return item.twGroup.some((name) => have.includes(name));
       }
 
       return !!item.tw && !!port.activeClass(item.tw);

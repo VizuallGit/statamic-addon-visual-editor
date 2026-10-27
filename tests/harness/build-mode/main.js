@@ -32,16 +32,7 @@ const FILE = `<section id="id-{{ id }}" class="[ {{ _class }} ] py-800" {{ visua
 
 const lang = new URLSearchParams(location.search).get('lang') === 'da' ? 'da' : 'en';
 const strings = reactive({ ...data.strings[lang] });
-const menu = reactive({ names: null, title: '', active: '', pick: null, rect: null });
-const ui = reactive({
-  lang,
-  theme: 'dark',
-  setLang(next) {
-    ui.lang = next;
-    Object.keys(strings).forEach((key) => delete strings[key]);
-    Object.assign(strings, data.strings[next]);
-  },
-});
+const menu = reactive({ open: false, anchor: null, names: null, tabs: null, none: '', active: '', pick: null });
 
 const port = createHarnessPort({
   html: FILE,
@@ -49,11 +40,14 @@ const port = createHarnessPort({
   strings,
   components: data.components,
   sectionTag: data.sectionTag,
-  onMenu: ({ anchor, title, names, active, pick }) => {
-    Object.assign(menu, { names, title, active, pick, rect: anchor?.getBoundingClientRect() || null });
+  states: data.states,
+  prose: data.prose,
+  colors: data.colors,
+  onMenu: ({ anchor, names = null, tabs = null, none = '', active = '', pick }) => {
+    Object.assign(menu, { open: true, anchor, names, tabs, none, active, pick });
   },
 });
 
 window.__sveBuildHarness = port;
 
-createApp(Harness, { port, siteHead: data.siteHead, tailwind: data.tailwind, menu, ui }).mount('#app');
+createApp(Harness, { port, siteHead: data.siteHead, tailwind: data.tailwind, menu }).mount('#app');

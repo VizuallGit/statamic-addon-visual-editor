@@ -225,20 +225,23 @@ export function sideFallbackTools(box, toolId) {
  * own breakpoint list (`breakpoints()` in breakpoints.js: widest first, each
  * row with its `tw` variant, `base` and `direction`). `null` is All: the base
  * alone. Desktop-first, Mobile reads `max-md`, then `max-lg`, then the base.
+ *
+ * A state (`hover`, `prose-p` — the Tailwind pane's state menu) reads its own
+ * classes at every size first, then the same sizes without it, the order
+ * tw-classes.js writes the two in (`max-md:hover`).
  */
-export function variantChain(rows, handle) {
+export function variantChain(rows, handle, state = '') {
   const list = Array.isArray(rows) ? rows : [];
   const cascade = list[0]?.direction === 'mobile' ? [...list].reverse() : list;
   const at = handle ? cascade.findIndex((row) => row.handle === handle) : -1;
+  const sizes = at === -1
+    ? ['']
+    : cascade
+      .slice(0, at + 1)
+      .reverse()
+      .map((row) => (row.base ? '' : row.tw || ''));
 
-  if (at === -1) {
-    return [''];
-  }
-
-  return cascade
-    .slice(0, at + 1)
-    .reverse()
-    .map((row) => (row.base ? '' : row.tw || ''));
+  return state ? [...sizes.map((size) => [size, state].filter(Boolean).join(':')), ...sizes] : sizes;
 }
 
 /**

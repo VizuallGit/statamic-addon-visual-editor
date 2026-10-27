@@ -40,3 +40,26 @@ export const HTML_TOOLS = html.HTML_TOOLS;
 export const CSS_TOOLS = tools.CSS_TOOLS;
 export const TW_TOOL_ICONS = twIcons.TW_TOOL_ICONS;
 export const CSS_TOOL_ICONS = cssIcons.CSS_TOOL_ICONS;
+
+/* The Tailwind pane's state menu and the top bar's device icons, read the same way. */
+const TW = readFileSync(fileURLToPath(new URL('../../../resources/js/tw-classes.js', import.meta.url)), 'utf8');
+const CHROME = readFileSync(fileURLToPath(new URL('../../../resources/js/cp-shell/preview-chrome.js', import.meta.url)), 'utf8');
+
+function block(source, from, to) {
+  const start = source.indexOf(from);
+  const end = source.indexOf(to, start + 1);
+
+  if (start === -1 || end === -1) {
+    throw new Error(`no longer has ${from} … ${to}`);
+  }
+
+  return source.slice(start, end).replace(/^export /gm, '');
+}
+
+const states = evaluate(block(TW, 'const STATES = [', '\n/**\n * The typography'), ['STATES']);
+const prose = evaluate(block(TW, 'const PROSE_VARIANTS = [', '];') + '];', ['PROSE_VARIANTS']);
+const devices = evaluate(block(CHROME, 'export const LP_DEVICE_ICONS = {', 'export function lpConfiguredDevices'), ['LP_DEVICE_ICONS']);
+
+export const STATES = states.STATES;
+export const PROSE_VARIANTS = prose.PROSE_VARIANTS;
+export const LP_DEVICE_ICONS = devices.LP_DEVICE_ICONS;

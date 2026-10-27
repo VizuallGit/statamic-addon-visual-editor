@@ -1,0 +1,36 @@
+/**
+ * build-mode/attrs.js — one attribute of one tag in the dock's file.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
+import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
+
+const first = (html) => parseTemplateTree(html)[0];
+
+test('reads and replaces a value, leaving the rest of the tag alone', () => {
+  const html = '<a href="/cases" class="btn">Go</a>';
+
+  assert.equal(readAttribute(html, first(html), 'href'), '/cases');
+  assert.equal(withAttribute(html, first(html), 'href', '/kontakt'), '<a href="/kontakt" class="btn">Go</a>');
+});
+
+test('adds the attribute after the tag name when the tag has none', () => {
+  const html = '<a class="btn">Go</a>';
+
+  assert.equal(readAttribute(html, first(html), 'href'), null);
+  assert.equal(withAttribute(html, first(html), 'href', '/x'), '<a href="/x" class="btn">Go</a>');
+});
+
+test('an Antlers tag inside the element never counts as the attribute', () => {
+  const html = '<a {{ visual_edit href="nope" }} href="{{ link }}">Go</a>';
+
+  assert.equal(readAttribute(html, first(html), 'href'), '{{ link }}');
+  assert.equal(withAttribute(html, first(html), 'href', '/y'), '<a {{ visual_edit href="nope" }} href="/y">Go</a>');
+});
+
+test('a quote in the value is escaped', () => {
+  const html = '<a href="">Go</a>';
+
+  assert.equal(withAttribute(html, first(html), 'href', '/a"b'), '<a href="/a&quot;b">Go</a>');
+});
