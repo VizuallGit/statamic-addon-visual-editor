@@ -63,22 +63,23 @@ try {
   // Pick the heading: the panel turns to Style.
   await select(H2);
   await sleep(250);
-  step('picking an element opens Style with its name', await page.evaluate(() => /Heading/.test(document.querySelector('.bm-st-head b')?.textContent || '')));
+  step('picking an element opens Style with its name', await page.evaluate(() => /Heading/.test(document.querySelector('.fg-head b')?.textContent || '')));
   step('sizes wear the top bar\'s device icons: All, Tablet, Mobile', await page.evaluate(() => ['all', 'tablet', 'mobile'].every((h) => document.querySelector(`[data-sve-build-size="${h}"] svg`))));
   await shot('1-style');
 
-  // Spacing box: padding block-start, typed.
-  await typeInto('.bm-spx .bm-sp-t', '10px');
+  // Padding as Figma draws it: open the four sides, type block-start.
+  await click('[data-sve-build-sides="padding"]');
+  await sleep(150);
+  await typeInto('[data-sve-build-value="padding-block-start"]', '10px');
   step('a typed value in padding block-start writes pbs-[10px]', / pbs-\[10px\]/.test(await classesOf(H2)), await classesOf(H2));
   const painted = await page.evaluate(() => getComputedStyle(document.querySelector('.hx-frame').contentDocument.querySelector('h2')).paddingBlockStart);
   step('…and the compiler paints it in the preview', painted === '10px', `padding-block-start ${painted}`);
 
-  // Link "all", custom property.
-  await click('[data-sve-build-link="all"]');
+  // Back to two fields: down, a custom property.
+  await click('[data-sve-build-sides="padding"]');
   await sleep(150);
-  await typeInto('.bm-spx .bm-sp-t', '--gutter');
-  step('linked to all four sides, --gutter writes p-(--gutter)', /(^| )p-\(--gutter\)/.test(await classesOf(H2)), await classesOf(H2));
-  await click('[data-sve-build-link="sides"]');
+  await typeInto('[data-sve-build-value="padding-block"]', '--gutter');
+  step('the vertical padding field with --gutter writes py-(--gutter)', /(^| )py-\(--gutter\)/.test(await classesOf(H2)), await classesOf(H2));
 
   // Mobile + font-size from a token.
   await click('[data-sve-build-size="mobile"]');
@@ -88,14 +89,15 @@ try {
   await click('[data-sve-build-size="all"]');
   await sleep(150);
 
-  // Position: relative.
-  await page.evaluate(() => { document.querySelector('[data-sve-build-group="position"]').open = true; });
+  // Position: relative, from the section's + .
+  await click('[data-sve-build-group="position"] .fg-sec__h');
   await sleep(150);
-  const relative = () => page.evaluate(() => [...document.querySelectorAll('[data-sve-build-position] button')].find((b) => b.textContent.trim() === 'relative').click());
-  await relative();
+  await page.select('[data-sve-build-position]', 'relative');
+  await sleep(150);
   step('position: relative writes relative', /(^| )relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
-  await relative();
-  step('…clicked again, it is taken off — the same toggle as the Tailwind pane', !/(^| )relative( |$)/.test(await classesOf(H2)));
+  await page.select('[data-sve-build-position]', '');
+  await sleep(150);
+  step('…set back to —, it is taken off', !/(^| )relative( |$)/.test(await classesOf(H2)));
 
   // State: the Tailwind pane's menu, State | Prose.
   await click('[data-sve-build-state]');
@@ -104,8 +106,9 @@ try {
   step('the state button opens the State | Prose menu', tabs.join('|') === 'State|Prose', tabs.join('|'));
   await click('[data-harness-pick="hover"]');
   await sleep(200);
-  step('…hover picked: the button says hover, the hint says on hover', await page.evaluate(() => /hover/.test(document.querySelector('[data-sve-build-state]').textContent) && /hover/.test(document.querySelector('.bm-st-hint').textContent)));
-  await relative();
+  step('…hover picked: the button says hover, the hint says on hover', await page.evaluate(() => /hover/.test(document.querySelector('[data-sve-build-state]').textContent) && /hover/.test(document.querySelector('.fg-hint').textContent)));
+  await page.select('[data-sve-build-position]', 'relative');
+  await sleep(150);
   step('…and a class is written for hover', /(^| )hover:relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
   await shot('2-hover');
   await click('[data-sve-build-state]');
@@ -114,7 +117,7 @@ try {
   await sleep(150);
 
   // The heading's own tag.
-  await page.evaluate(() => [...document.querySelectorAll('.bm-st-el button')].find((b) => b.textContent.trim() === 'h3').click());
+  await page.evaluate(() => [...document.querySelectorAll('.fg-sec .fg-seg button')].find((b) => b.textContent.trim() === 'h3').click());
   await sleep(200);
   step('tag h3 renames the heading in the file', /<h3 class="text-800[^"]*">Vi bygger brands, der kan mærkes<\/h3>/.test(await html()));
 
@@ -128,12 +131,38 @@ try {
   const columnBefore = await classesOf(COLUMN);
   await select(H2.replace('h2', 'h3'));
   await sleep(150);
-  await page.click('[data-sve-build-value="font-size"]');
+  await page.focus('[data-sve-build-value="font-size"]');
   await select(COLUMN);
   await sleep(200);
   await page.mouse.click(900, 900);
   await sleep(150);
   step('a focused field writes nothing onto the next pick', columnBefore === 'flow-y' && (await classesOf(COLUMN)) === 'flow-y', `${columnBefore} → ${await classesOf(COLUMN)}`);
+
+
+  // Flow and Figma's alignment box on the column.
+  await select(COLUMN);
+  await sleep(150);
+  await click('[data-sve-build-flow="row"]');
+  await sleep(150);
+  step('Flow → row makes the column flex', /(^| )flex( |$)/.test(await classesOf(COLUMN)), await classesOf(COLUMN));
+  await click('[data-sve-build-cell="1-1"]');
+  await sleep(150);
+  step('the middle of the alignment box writes justify-center and items-center', /justify-center/.test(await classesOf(COLUMN)) && /items-center/.test(await classesOf(COLUMN)), await classesOf(COLUMN));
+  await click('[data-sve-build-cell="1-1"]');
+  await sleep(150);
+  step('…clicked again, it stays — the box never takes an axis off', /justify-center/.test(await classesOf(COLUMN)) && /items-center/.test(await classesOf(COLUMN)));
+  await click('[data-sve-build-flow="block"]');
+  await sleep(150);
+  step('Flow → block takes flex off again', !/(^| )flex( |$)/.test(await classesOf(COLUMN)), await classesOf(COLUMN));
+  await click('[data-sve-build-group="size"] .fg-sec__h');
+  await sleep(150);
+  await page.select('select[aria-label="width mode"]', 'fill');
+  await sleep(150);
+  step('W · Fill writes w-full', /(^| )w-full( |$)/.test(await classesOf(COLUMN)), await classesOf(COLUMN));
+  await page.select('select[aria-label="width mode"]', 'fixed');
+  await sleep(150);
+  await click('[data-sve-build-flow="block"]');
+  await sleep(100);
 
   // Add: a heading into the picked column, at its end.
   await select(COLUMN);

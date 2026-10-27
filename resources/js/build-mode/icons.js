@@ -46,6 +46,28 @@ const P = {
   fEffects: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>',
   jEvenly: '<path d="M3.5 4v16M20.5 4v16" opacity=".5"/><rect x="7.5" y="7" width="3.5" height="10" rx="1"/><rect x="13" y="7" width="3.5" height="10" rx="1"/>',
   aBaseline: '<path d="M3 13h18" stroke-dasharray="2 2"/><rect x="6" y="7" width="5" height="6" rx="1"/><rect x="13" y="5" width="5" height="8" rx="1"/>',
+  /* The Figma look's own: flow, the fields' prefixes, the sections' actions */
+  flowBlock: '<rect x="5" y="4" width="14" height="6" rx="1.5"/><rect x="5" y="14" width="14" height="6" rx="1.5"/>',
+  flowRow: '<rect x="3" y="7" width="6" height="10" rx="1.5"/><rect x="11" y="7" width="6" height="10" rx="1.5"/><path d="M19 12h3M20.5 10.5 22 12l-1.5 1.5"/>',
+  flowCol: '<rect x="7" y="2.5" width="10" height="6" rx="1.5"/><rect x="7" y="10.5" width="10" height="6" rx="1.5"/><path d="M12 18.5v3M10.5 20 12 21.5 13.5 20"/>',
+  flowGrid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  wrap: '<path d="M4 7h12a4 4 0 0 1 0 8H8"/><path d="M11 12l-3 3 3 3"/>',
+  padX: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8.5 9v6M15.5 9v6"/>',
+  padY: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M9 9.5h6M9 14.5h6"/>',
+  padT: '<rect x="4" y="5" width="16" height="14" rx="2" opacity=".45"/><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2"/>',
+  padB: '<rect x="4" y="5" width="16" height="14" rx="2" opacity=".45"/><path d="M4 17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2"/>',
+  padL: '<rect x="4" y="5" width="16" height="14" rx="2" opacity=".45"/><path d="M6 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2"/>',
+  padR: '<rect x="4" y="5" width="16" height="14" rx="2" opacity=".45"/><path d="M18 5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2"/>',
+  sides: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
+  gapY: '<path d="M4 5h16M4 19h16"/><path d="M9 12h6"/>',
+  gapX: '<path d="M5 4v16M19 4v16"/><path d="M12 9v6"/>',
+  radius: '<path d="M4 20V10a6 6 0 0 1 6-6h10"/>',
+  opacity: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h5v5H4zM9 4h5v5H9zM14 9h6v5h-6zM9 14h5v6H9z" fill="currentColor" stroke="none" opacity=".55"/>',
+  minus: '<path d="M5 12h14"/>',
+  lineHeight: '<path d="M4 5h16M4 19h16"/><path d="M9 15l3-7 3 7M10 13h4"/>',
+  weight: '<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"/>',
+  border: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2.5"/>',
+  shadow: '<rect x="4" y="4" width="13" height="13" rx="2"/><path d="M20 8v10a2 2 0 0 1-2 2H8" opacity=".55"/>',
 };
 
 /** One of the sketch's glyphs, as the panel draws it. */

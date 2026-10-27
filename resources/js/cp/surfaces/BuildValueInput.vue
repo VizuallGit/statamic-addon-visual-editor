@@ -23,8 +23,12 @@ const props = defineProps({
   /** Broader properties that show through when this one is not set, nearest first. */
   fallbacks: { type: Array, default: () => [] },
   label: { type: String, default: '' },
-  /** In the margin/padding box: no frame, the custom property without `var()`. */
+  /** In a narrow field: the custom property without `var()`. */
   compact: { type: Boolean, default: false },
+  /** A token from the site's scale reads as a chip (`primary`, `500`) until the field is focused. */
+  chip: { type: Boolean, default: false },
+  /** What an empty field says. */
+  empty: { type: String, default: '—' },
 });
 
 defineOptions({ inheritAttrs: false });
@@ -54,6 +58,11 @@ const current = computed(() => {
 });
 const own = computed(() => (current.value && !current.value.inherited ? current.value : null));
 const shown = computed(() => (current.value ? fromClass(current.value.name, rootFor(current.value.name, scale.value)) : ''));
+
+const focused = ref(false);
+const input = ref(null);
+/** A name from the site's scale, not a typed value or a custom property. */
+const isToken = computed(() => !!current.value && !/[[(]/.test(current.value.name));
 
 const display = (value) => (props.compact ? value.replace(/^var\((--[\w-]+)\)$/, '$1') : value);
 
@@ -116,22 +125,30 @@ function commit() {
 </script>
 
 <template>
+  <span
+    v-if="chip && isToken && !focused"
+    class="fg-chip"
+    :class="{ inh: current.inherited }"
+    @mousedown.prevent="input?.focus()"
+  >{{ display(shown) }}</span>
   <input
     v-bind="$attrs"
+    ref="input"
     v-model="text"
     class="bm-vin"
-    :class="{ inh: current && current.inherited }"
+    :class="{ inh: current && current.inherited, 'has-chip': chip && isToken && !focused }"
     type="text"
     autocomplete="off"
     spellcheck="false"
     :list="listId"
-    :placeholder="current && current.inherited ? display(shown) : '—'"
+    :placeholder="current && current.inherited ? display(shown) : empty"
     :title="label || property"
     :aria-label="label || property"
     :data-sve-build-value="label || property"
     @input="onInput"
+    @focus="focused = true"
     @keydown.enter.prevent="commit"
-    @blur="commit"
+    @blur="focused = false; commit()"
   />
   <datalist :id="listId">
     <option v-for="item in suggestions" :key="item" :value="item"></option>
