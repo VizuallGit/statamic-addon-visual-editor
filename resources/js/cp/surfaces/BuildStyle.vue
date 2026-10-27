@@ -363,11 +363,11 @@ const chips = computed(() =>
       :data-sve-build-group="group.id"
     >
       <header class="fg-sec__h" @click="toggle(group)">
+        <span class="fg-sec__icon" v-html="groupIcon(group, port.lists.toolIcons)"></span>
         <span>{{ port.t(`group_${group.id}`) }}</span>
         <i v-if="group.id === 'transform'" class="bm-soon">{{ port.t('later') }}</i>
         <span class="fg-sec__acts">
           <span v-if="!isOpen(group)" class="fg-ib" v-html="ic('plus')"></span>
-          <span v-else class="fg-ib is-quiet" v-html="groupIcon(group, port.lists.toolIcons)"></span>
         </span>
       </header>
 
