@@ -342,12 +342,15 @@ export function createMessageReceiver(win) {
       // `serializePickTree`). What it rendered carries the file's src
       // (component-pick `applyComponentMap`), inside the open file's root —
       // and that is the thing to outline. Every rendering: a call inside a
-      // loop is all of its cards, and the row stands for all of them.
+      // loop is all of its cards, and the row stands for all of them. The
+      // root itself counts — a section written as one call renders as it.
+      const selector = data.src ? `[${COMPONENT_SRC}="${CSS.escape(data.src)}"]` : '';
       const marked = stamped
         ? [stamped]
-        : data.src && bridgeState.htmlPick
+        : selector && bridgeState.htmlPick
           ? findPickRoots(win.document, bridgeState.htmlPick).flatMap((root) => [
-              ...root.querySelectorAll(`[${COMPONENT_SRC}="${CSS.escape(data.src)}"]`),
+              ...(root.matches(selector) ? [root] : []),
+              ...root.querySelectorAll(selector),
             ])
           : [];
 
