@@ -259,9 +259,12 @@ export function injectStyles(doc) {
         /* A replaced element — an image, a video, an iframe, an svg — draws no
            ::before, so the ring above never shows on one: an image picked in
            the HTML tree, or the image component's own <img>, was marked and
-           looked unmarked. The same dashes as a real outline, just inside its
-           own edge: an image that fills its box edge to edge sits in a box
-           that clips, and a ring outside it would never be seen. The colour
+           looked unmarked. The same dashes as a real outline, outside its
+           edge like the ::before ring (inset -6px) — so an image reads as any
+           other marked block, in the tone of the surface behind the ring
+           (applyOutlineTone reads the parent's background for these). An
+           ancestor with overflow hidden/clip cuts the ring, exactly as it cuts
+           the ::before ring on a block inside it; accepted. The colour
            override above says transparent with !important for every marked
            element; this names the element and so wins. */
         img[data-sid-active], img[data-sid-hover], img[data-sid-inner],
@@ -270,7 +273,7 @@ export function injectStyles(doc) {
         svg[data-sid-active], svg[data-sid-hover], svg[data-sid-inner],
         canvas[data-sid-active], canvas[data-sid-hover], canvas[data-sid-inner] {
             outline: var(--sve-outline-width, 1px) dashed var(--sve-outline-color, rgba(0, 0, 0, 0.3)) !important;
-            outline-offset: -4px;
+            outline-offset: 5px;
         }
         /* Hovering a different field than the clicked/focused one: hide every
            other ring (active + CP hover) so only the hovered field is outlined. */

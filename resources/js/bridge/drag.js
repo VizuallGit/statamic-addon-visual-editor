@@ -156,16 +156,26 @@ function parseCssColorViaCanvas(colour, win) {
   }
 }
 
+/** A replaced element draws its ring as an `outline` outside its own edge
+ *  (messages.js), so the surface behind that ring is the parent's, not its own:
+ *  the image box `div.bg-gray-900` is exactly the image, and the ring lies on
+ *  the section around it. */
+const REPLACED_TAGS = new Set(['IMG', 'VIDEO', 'IFRAME', 'SVG', 'CANVAS']);
+
+function behindOutline(el) {
+  return REPLACED_TAGS.has(el.tagName?.toUpperCase?.() || '') && el.parentElement ? el.parentElement : el;
+}
+
 /**
- * Outline that contrasts with the element's background: black @ 30% on light,
- * white @ 30% on dark. Applied as a local --sve-outline-color on the element.
+ * Outline that contrasts with the background behind the ring: black @ 30% on
+ * light, white @ 30% on dark. Applied as a local --sve-outline-color on the element.
  */
 export function applyOutlineTone(win, el) {
   if (!el) {
     return;
   }
 
-  const parsed = parseCssColor(solidBackgroundFor(win, el), win);
+  const parsed = parseCssColor(solidBackgroundFor(win, behindOutline(el)), win);
   const luminance = parsed
     ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
     : 1;
