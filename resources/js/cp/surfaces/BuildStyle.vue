@@ -332,25 +332,23 @@ const chips = computed(() =>
 
     <section v-if="node.kind === 'heading' || isLink || holdsTag" class="fg-sec is-open">
       <div class="fg-sec__b">
-        <div v-if="node.kind === 'heading'">
-          <div class="fg-lab">tag</div>
+        <div v-if="node.kind === 'heading'" class="fg-row">
+          <span class="fg-rlab">tag</span>
           <div class="fg-seg">
             <button v-for="tag in HEADINGS" :key="tag" type="button" :aria-pressed="node.tag === tag" @click="port.setTag(tag)">{{ tag }}</button>
           </div>
         </div>
-        <div v-if="holdsTag">
-          <div class="fg-lab">tag</div>
+        <div v-if="holdsTag" class="fg-row">
+          <span class="fg-rlab">tag</span>
           <label class="fg-field">
-            <span class="fg-pre" v-html="ic('code')"></span>
             <select class="fg-select" aria-label="tag" :value="node.tag" @change="port.setTag($event.target.value)">
               <option v-for="tag in TAGS" :key="tag" :value="tag">{{ tag }}</option>
             </select>
           </label>
         </div>
-        <div v-if="isLink">
-          <div class="fg-lab">href</div>
+        <div v-if="isLink" class="fg-row">
+          <span class="fg-rlab">href</span>
           <label class="fg-field">
-            <span class="fg-pre" v-html="ic('linkic')"></span>
             <input v-model="href" class="bm-vin" type="text" aria-label="href" data-sve-build-href @input="hrefTyped = true" @keydown.enter.prevent="commitHref" @blur="commitHref" />
           </label>
         </div>
