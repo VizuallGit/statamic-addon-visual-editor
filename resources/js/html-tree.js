@@ -3959,11 +3959,15 @@ function selectHtmlTreeRow(win, id, rows) {
   // once the reveal is done.
   ask('dock:tw-follow');
 
+  // A tag is outlined by its stamped path. A component call has no stamp — it
+  // is whatever its file rendered — so its src goes along, and the preview
+  // outlines what that file drew inside this section (bridge/outline-nav.js).
   sendToPreview(
     {
       source: SOURCE,
       type: MSG.SVE_HTML_PICK_FOCUS,
       path: row.path,
+      src: row.kind === 'component' ? row.src || '' : '',
     },
     win
   );

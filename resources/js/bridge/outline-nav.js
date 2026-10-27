@@ -2,7 +2,7 @@
  * bridge.js — region "outline-nav", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel bridge.js for what the shell exports.
  */
-import { HT_PATH_ATTR, unstampHtmlPick } from '../html-pick-align.js';
+import { findPickRoots, HT_PATH_ATTR, unstampHtmlPick } from '../html-pick-align.js';
 import { handleAiTextMessage, initAiText } from '../ai-text-bridge.js';
 import { bridgeState } from '../bridge/state.js';
 import { ACTIVE_ATTR, HOVER_ATTR, PULSE_DURATION, SECTION_ORDERABLE_ATTR, SID_ATTR, SID_FIELD_ATTR, t } from '../bridge.js';
@@ -331,13 +331,27 @@ export function createMessageReceiver(win) {
         el.removeAttribute(ACTIVE_ATTR);
       });
 
-      const el = data.path
+      const stamped = data.path
         ? [...win.document.querySelectorAll(`[${HT_PATH_ATTR}]`)].find(
             (node) => node.getAttribute(HT_PATH_ATTR) === data.path
           )
         : null;
 
-      if (el) {
+      // A component row has no stamped tag: a partial call is whatever that
+      // file rendered, so the walk leaves it out (html-pick-align
+      // `serializePickTree`). What it rendered carries the file's src
+      // (component-pick `applyComponentMap`), inside the open file's root —
+      // and that is the thing to outline. Every rendering: a call inside a
+      // loop is all of its cards, and the row stands for all of them.
+      const marked = stamped
+        ? [stamped]
+        : data.src && bridgeState.htmlPick
+          ? findPickRoots(win.document, bridgeState.htmlPick).flatMap((root) => [
+              ...root.querySelectorAll(`[${COMPONENT_SRC}="${CSS.escape(data.src)}"]`),
+            ])
+          : [];
+
+      for (const el of marked) {
         applyOutlineTone(win, el);
         el.setAttribute(ACTIVE_ATTR, '');
       }
