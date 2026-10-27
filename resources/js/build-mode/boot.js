@@ -36,6 +36,13 @@
  *   logic?(kind, def)         the dock's ∞ / if path, which opens the inspector
  *   mountFields?(el, node)    a component's fields (the props panel) → unmount
  *   mountSettings?(el, node)  a loop's or condition's settings (the tree's inspector) → unmount
+ *
+ * Without a hook the port answers from the editor itself: the state menu is
+ * the Tailwind pane's (`openStateMenu`), Fields is the component's own
+ * sidebar (ComponentSidebar.vue, on cp/component-props/store.js, filled when
+ * the tree picks a component's call) and Settings the tree's inspector
+ * (HtmlTreeInspector.vue, on htmlTreeUi.inspect) — the same panels, mounted
+ * once more in Build's host.
  */
 
 import { ref } from 'vue';
@@ -44,10 +51,12 @@ import { mountSurface } from '../cp/mount.js';
 import { t as sveT } from '../lib/i18n.js';
 import { breakpoints } from '../breakpoints.js';
 import { HTML_ICONS } from '../html-tree-icons.js';
-import { parseTemplateTree } from '../html-tree-parse.js';
+import { flattenHtmlTree, parseHtmlTree, parseTemplateTree } from '../html-tree-parse.js';
 import { deleteHtml, duplicateHtml } from '../html-tree-edit.js';
 import { CSS_TOOLS, CSS_TOOL_ICONS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, TW_TOOL_ICONS } from '../code-dock.js';
 import {
+  openStateMenu as twOpenStateMenu,
+  renderTwClasses,
   twActiveClass,
   twAddClass,
   twOpenToolMenu,
@@ -63,7 +72,11 @@ import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { addAt, findByPath } from './place.js';
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
+import { startColumnsOverlay } from './columns-overlay.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
+import ComponentSidebar from '../cp/surfaces/ComponentSidebar.vue';
+import HtmlTreeInspector from '../cp/surfaces/HtmlTreeInspector.vue';
+import { mountStatamicSurface } from '../cp/mount-statamic.js';
 
 /**
  * Mount the panel into `host` (the left column's Build host).
@@ -73,8 +86,11 @@ import BuildPanel from '../cp/surfaces/BuildPanel.vue';
 export function mountBuildPanel(win, host, hooks = {}) {
   const port = createEditorPort(win, hooks);
   const app = mountSurface(BuildPanel, host, { port });
+  // Columns drawn over the preview for the pick (columns-overlay.js).
+  const stopColumns = startColumnsOverlay(win, port);
 
   return () => {
+    stopColumns();
     port.dispose();
     app.unmount();
   };
@@ -94,6 +110,15 @@ export function createEditorPort(win, hooks = {}) {
     rev.value += 1;
   };
 
+  // The + target is the host's when it keeps one (the tree's + sets it there).
+  const clearPlus = () => {
+    if (hooks.setPlus) {
+      hooks.setPlus('');
+    } else {
+      plus.value = '';
+    }
+  };
+
   // The catalog (and with it the compiler) is asked for the first time Style
   // draws a value — never by Add, never by the switch.
   const wantModel = () => {
@@ -106,11 +131,26 @@ export function createEditorPort(win, hooks = {}) {
     }
   };
 
+  /*
+   * The Tailwind pane's functions write on the tag tw-classes.js has picked.
+   * The dock tells it from its cursor only while its own style pane is in
+   * Tailwind mode (dock/style-modes.js `syncTwTarget`); Build tells it from
+   * the tree's pick, every time the pick moves — the same function, the same
+   * row shape (parseHtmlTree), so the pane and Build write on one tag.
+   */
+  const follow = () => {
+    const path = hooks.selectedPath?.() || '';
+    const row = path ? flattenHtmlTree(parseHtmlTree(html()), new Set()).find((item) => item.path === path) : null;
+
+    renderTwClasses(win, row || null);
+    bump();
+  };
+
   const unhooks = [
     on('dock:html-changed', bump),
     on('tw:changed', bump),
     on('lp:device', bump),
-    hooks.onSelect?.(bump),
+    hooks.onSelect?.(follow),
   ].filter(Boolean);
 
   const html = () => {
@@ -160,7 +200,7 @@ export function createEditorPort(win, hooks = {}) {
     selectedPath: () => (rev.value, hooks.selectedPath?.() || ''),
     plusPath: () => (hooks.plusPath ? hooks.plusPath() : plus.value),
     select(path) {
-      plus.value = '';
+      clearPlus();
       hooks.select?.(path || '');
       bump();
     },
@@ -178,12 +218,13 @@ export function createEditorPort(win, hooks = {}) {
       bump();
     },
     write(next, { select = '' } = {}) {
-      if (ask('dock:set-html', next) === false) {
+      // The dock's lock is the file's: nothing is written past it.
+      if (ask('dock:is-locked') === true || ask('dock:set-html', next) === false) {
         return false;
       }
 
       wrote = select;
-      plus.value = '';
+      clearPlus();
 
       if (select) {
         hooks.select?.(select);
@@ -245,8 +286,8 @@ export function createEditorPort(win, hooks = {}) {
         port.write(withAttribute(html(), node, name, value), { select: node.path });
       }
     },
-    mountFields: hooks.mountFields,
-    mountSettings: hooks.mountSettings,
+    mountFields: hooks.mountFields || ((el) => unmounter(mountStatamicSurface(ComponentSidebar, el))),
+    mountSettings: hooks.mountSettings || ((el) => unmounter(mountStatamicSurface(HtmlTreeInspector, el))),
 
     /* Sizes — the Tailwind pane's list, and its door */
     sizes: rows,
@@ -267,7 +308,11 @@ export function createEditorPort(win, hooks = {}) {
         .join(':');
     },
     openStateMenu(anchor) {
-      hooks.openStateMenu?.(anchor);
+      if (hooks.openStateMenu) {
+        hooks.openStateMenu(anchor);
+      } else {
+        twOpenStateMenu(win, anchor);
+      }
     },
     setSize(handle) {
       if (hooks.setSize) {
@@ -335,5 +380,20 @@ export function createEditorPort(win, hooks = {}) {
     },
   };
 
+  if (hooks.selectedPath) {
+    follow();
+  }
+
   return port;
+}
+
+/** A mounted app as the port's unmount function. */
+function unmounter(app) {
+  return () => {
+    try {
+      app?.unmount();
+    } catch {
+      /* already gone with its host */
+    }
+  };
 }

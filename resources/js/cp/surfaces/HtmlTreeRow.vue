@@ -37,6 +37,7 @@ function onFields() {
  * differing — not the row.
  */
 import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { buildModeUi } from '../build-mode/store.js';
 
 defineProps({
   row: { type: Object, required: true },
@@ -75,6 +76,17 @@ const LOCK_ON =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const LOCK_OFF =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-.9"/></svg>';
+
+// Build mode's + (the same recipe as the icons around it): Add opens on this row.
+const PLUS =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const plusTitle = window.Statamic?.$config?.get?.('sveBuildStrings')?.tree_plus || '+';
+
+/** In Build: Add puts the next element here, and the row is picked. */
+function onBuildPlus(row) {
+  buildModeUi.plusPath = row.path;
+  ui.onSelect?.(row.id);
+}
 
 const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
@@ -239,6 +251,15 @@ function pageLevel(row) {
 function canAct(row) {
   return (ui.canEdit && !isHeld(row)) || pageLevel(row);
 }
+
+/**
+ * The Figma look (the tags look with the layers switch off): a row is named by
+ * what it is and wears its classes after the tag (html-tree.js). The layers
+ * look and the classic look show the row exactly as before.
+ */
+function figmaLook() {
+  return ui.look === 'tags' && !ui.layers;
+}
 </script>
 
 <template>
@@ -294,6 +315,7 @@ function canAct(row) {
         v-if="!row.kind && !isShutSection(row) && !isFrame(row)"
         type="button"
         data-sve-ht-tag
+        :data-sve-ht-classes="figmaLook() && row.classes ? row.classes : null"
         :title="ui.tagTitle"
         @click.stop.prevent
         @pointerdown.stop
@@ -318,7 +340,7 @@ function canAct(row) {
         @keydown.escape.prevent="ui.onRenameCancel?.()"
         @blur="ui.onRenameCommit?.()"
       >
-      <span v-else data-sve-ht-name>{{ row.name }}</span>
+      <span v-else data-sve-ht-name>{{ figmaLook() && row.display ? row.display : row.name }}</span>
     </span>
     <!--
       The row's icons do not come and go with the lock. A locked file is a
@@ -358,6 +380,18 @@ function canAct(row) {
       ></button>
     </span>
     <span v-else-if="!isShutSection(row) && !isSlot(row)" data-sve-ht-actions>
+      <!-- Build mode only (cp/build-mode/store.js): Add opens with this row as its place. -->
+      <button
+        v-if="buildModeUi.on && !isFixed(row) && !isSections(row)"
+        type="button"
+        data-sve-ht-plus
+        :disabled="!ui.canEdit || isHeld(row)"
+        :title="plusTitle"
+        v-html="PLUS"
+        @click.stop.prevent="onBuildPlus(row)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
       <!--
         A <video> row: hold the video paused in the preview, or let it play.
         Not behind the lock — the file is not touched, only what the editor

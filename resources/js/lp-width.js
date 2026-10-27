@@ -8,6 +8,7 @@
  *
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
+import { buildModeUi } from './cp/build-mode/store.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
 import { LP_COLLAPSED_KEY, LP_MODE_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM, LP_TOGGLE_ID, LP_WIDTH_ID, LP_WIDTH_KEY } from './lib/ids.js';
@@ -165,9 +166,9 @@ export function bindLpEditorResize(win) {
   );
 }
 
-/** The globals overlay owns the column — Page Settings/SEO stay off. */
+/** The globals overlay, or Build mode (build-mode-host.js), owns the column — Page Settings/SEO stay off. */
 export function settingsBarTakeover(win) {
-  return !!isGlobalsOverlayOpen(win);
+  return !!isGlobalsOverlayOpen(win) || buildModeUi.on;
 }
 
 /** Hide Page Settings/SEO and drop their reserved space in one go. */

@@ -2,7 +2,7 @@
  * How Build's two tabs arrange the dock's own tools.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: lib/tag-families.js. Pure — no editor, no bus, no DOM.
+ * May import: lib/tag-families.js, lib/element-kind.js. Pure — no editor, no bus, no DOM.
  * Bus messages: none.
  *
  * Nothing is defined here that the dock already defines. Add's tiles are the
@@ -214,79 +214,8 @@ export function kidsById(tool) {
  * What an element is, for its name in the panel
  * ------------------------------------------------------------------ */
 
-const has = (classes, name) => String(classes || '').split(/\s+/).includes(name);
-
-/**
- * A tree row (parseTemplateTree) and its class attribute → what Build calls
- * it: `section`, `container`, `columns`, `column`, `grid`, `flex`, `div`,
- * `heading`, `text`, `button`, `link`, `image`, `video`, `list`, `divider`,
- * `component`, `loop`, `if`, or `tag` (named by its tag).
- *
- * Columns are a grid whose children are all plain divs; a column is one of
- * them. Read from the file, so a grid written by hand is named the same way
- * as one Build wrote.
- */
-export function elementKind(node, classes = '', parent = null, parentClasses = '') {
-  if (!node) {
-    return '';
-  }
-
-  if (node.kind === 'component') {
-    return 'component';
-  }
-
-  if (node.kind === 'antlers') {
-    return node.antlers === 'loop' ? 'loop' : 'if';
-  }
-
-  const tag = String(node.tag || '').toLowerCase();
-
-  if (parent && isColumns(parent, parentClasses)) {
-    return 'column';
-  }
-
-  if (tag === 'section') {
-    return 'section';
-  }
-
-  if (tag === 'div') {
-    if (has(classes, 'wrapper')) {
-      return 'container';
-    }
-
-    if (isColumns(node, classes)) {
-      return 'columns';
-    }
-
-    if (has(classes, 'grid')) {
-      return 'grid';
-    }
-
-    return has(classes, 'flex') ? 'flex' : 'div';
-  }
-
-  if (/^h[1-6]$/.test(tag)) {
-    return 'heading';
-  }
-
-  if (tag === 'a') {
-    return has(classes, 'btn') ? 'button' : 'link';
-  }
-
-  return { p: 'text', img: 'image', video: 'video', ul: 'list', ol: 'list', hr: 'divider' }[tag] || 'tag';
-}
-
-function isColumns(node, classes) {
-  const kids = node?.children || [];
-
-  return (
-    String(node?.tag || '').toLowerCase() === 'div' &&
-    has(classes, 'grid') &&
-    /(^|\s)grid-cols-/.test(String(classes || '')) &&
-    kids.length > 0 &&
-    kids.every((kid) => String(kid.tag || '').toLowerCase() === 'div' && !kid.kind)
-  );
-}
+/* The HTML tree names its rows with the same function (lib/element-kind.js). */
+export { elementKind } from '../lib/element-kind.js';
 
 /** Whether an element holds others: Add can put something into it. */
 export function holdsElements(node) {

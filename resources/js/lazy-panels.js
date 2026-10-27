@@ -43,6 +43,8 @@ const loaders = {
   xray: () => import('./xray.js'),
   design_overlay: () => import('./design-overlay.js'),
   site_canvas: () => import('./site-canvas.js'),
+  // Build mode: loaded the first time Build is switched on (lazy/build-mode.js).
+  build_mode: () => import('./build-mode/boot.js'),
 };
 
 /**

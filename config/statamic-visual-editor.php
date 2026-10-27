@@ -51,6 +51,10 @@ return [
     |                      templates and pages out as frames on one canvas; a
     |                      click on a frame opens that page for editing. Off by
     |                      default.
+    | - build_mode:        (preview) a Content | Build switch in the Live Preview
+    |                      top bar; Build shows Add and Style for the picked
+    |                      element in the left column and writes the dock's
+    |                      file. Needs template_dock. Off by default.
     | - pages:             the collection/entry picker, for moving between pages
     | - globals:           the globals picker (Theme Settings and friends)
     | - globals_picker:    which global sets that menu lists, by handle. Null
@@ -155,6 +159,7 @@ return [
         'page_activity' => true,
         'breakpoint_overview' => true,
         'site_canvas' => false,
+        'build_mode' => false,
         'pages' => true,
         'globals' => true,
         // Not a toggle: handles shown in the globe menu. Null = all except

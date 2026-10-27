@@ -14,6 +14,8 @@ return [
     // The switch in the Live Preview top bar
     'mode_content' => 'Content',
     'mode_build' => 'Build',
+    // The + on a row of the HTML tree in Build
+    'tree_plus' => 'Add here',
 
     // Tabs
     'tab_add' => 'Add',
@@ -44,26 +46,6 @@ return [
     'components_note' => 'Read from :path. A new component shows up here by itself.',
     'components_none' => 'No components yet.',
     'components_loading' => 'Loading components…',
-
-    // What an element is called in the panel
-    'el_section' => 'Section',
-    'el_container' => 'Container',
-    'el_columns' => 'Columns',
-    'el_column' => 'Column :n',
-    'el_grid' => 'Grid',
-    'el_flex' => 'Flex',
-    'el_div' => 'Div',
-    'el_heading' => 'Heading',
-    'el_text' => 'Text',
-    'el_button' => 'Button',
-    'el_link' => 'Link',
-    'el_image' => 'Image',
-    'el_video' => 'Video',
-    'el_list' => 'List',
-    'el_divider' => 'Divider',
-    'el_loop' => 'Loop',
-    'el_if' => 'If',
-    'el_component' => 'Component',
 
     // The words a new element starts with
     'new_heading' => 'New heading',

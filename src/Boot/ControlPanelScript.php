@@ -134,6 +134,12 @@ final class ControlPanelScript
                 // so a new class can paint before the section morph comes back.
                 'sveTwCompile' => static::twCompileUrl(),
             ]);
+
+            // Build mode's own words (resources/lang/*/build.php), only for a
+            // user who has Build: without it the key is not there at all.
+            if (Features::visible()['build_mode'] ?? false) {
+                Statamic::provideToScript(['sveBuildStrings' => static::buildStrings()]);
+            }
         });
     }
 
@@ -160,6 +166,17 @@ final class ControlPanelScript
         return array_merge(
             (array) trans('sve::messages', [], 'en'),
             (array) trans('sve::messages', [], $locale),
+        );
+    }
+
+    /** Build mode's strings, on the same terms as the editor's (strings()). */
+    public static function buildStrings(): array
+    {
+        $locale = User::current()?->preferredLocale() ?? config('app.locale');
+
+        return array_merge(
+            (array) trans('sve::build', [], 'en'),
+            (array) trans('sve::build', [], $locale),
         );
     }
 

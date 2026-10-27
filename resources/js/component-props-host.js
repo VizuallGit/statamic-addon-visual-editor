@@ -29,6 +29,8 @@ import { paintComponentProps } from './component-props-panel.js';
 import ComponentSidebar from './cp/surfaces/ComponentSidebar.vue';
 import { injectStyle } from './lib/style.js';
 import { selectRow } from './selection-panel.js';
+import { watch } from 'vue';
+import { buildModeUi } from './cp/build-mode/store.js';
 
 const HOST_ID = 'sve-cprops-host';
 const AWAY_ATTR = 'data-sve-cprops-away';
@@ -118,7 +120,26 @@ export function syncComponentPropsHost(win) {
     return;
   }
 
+  followBuild(win);
+
   const host = doc.getElementById(HOST_ID);
+
+  // Build has the column (build-mode-host.js): a component's values are drawn
+  // in Build's own Fields tab, so neither here nor in the tree's pane — and
+  // the column is not borrowed twice. Content gives it back (followBuild).
+  if (buildModeUi.on) {
+    stopWatching();
+
+    if (host) {
+      drop(host);
+      doc.querySelectorAll(`[${AWAY_ATTR}]`).forEach((el) => el.removeAttribute(AWAY_ATTR));
+      doc.querySelectorAll(`[${COL_ATTR}]`).forEach((el) => el.removeAttribute(COL_ATTR));
+    }
+
+    ui.inSidebar = !!(ui.open || ui.callOpen);
+
+    return;
+  }
 
   if (!ui.open && !ui.callOpen) {
     stopWatching();
@@ -170,6 +191,16 @@ export function syncComponentPropsHost(win) {
   ui.inSidebar = true;
   hideTheRest(col, doc.getElementById(HOST_ID));
   watchColumn(win);
+}
+
+/** Build switched on or off: the column changes hands, so the host follows. */
+let buildWatched = false;
+
+function followBuild(win) {
+  if (!buildWatched) {
+    buildWatched = true;
+    watch(() => buildModeUi.on, () => syncComponentPropsHost(win));
+  }
 }
 
 /**

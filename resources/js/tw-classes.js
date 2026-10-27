@@ -1303,8 +1303,9 @@ function setBreakpoint(win, index) {
  * States and prose variants in one popup — the Insert data one, with a tab
  * for each and a search field. The first row of the states tab clears the
  * state; a prose variant is picked the same way and written the same way.
+ * Exported for Build mode's state button (build-mode/boot.js).
  */
-function openStateMenu(win, anchor) {
+export function openStateMenu(win, anchor) {
   const none = t(win, 'tw_state_none');
   const known = new Set([...STATES.filter(Boolean), ...PROSE_VARIANTS]);
 

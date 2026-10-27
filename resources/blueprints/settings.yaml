@@ -65,6 +65,16 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: build_mode
+            field:
+              type: toggle
+              display: 'Build mode (preview)'
+              instructions: 'A Content | Build switch in the middle of the Live Preview top bar. Build shows Add and Style for the picked element in the left column, in place of the fields, and writes the HTML dock''s file. Only for people who have the HTML dock. Nothing is loaded until Build is chosen. Off by default while it is a preview.'
+              default: false
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
             handle: pages
             field:
               type: toggle

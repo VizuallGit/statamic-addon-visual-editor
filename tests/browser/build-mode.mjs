@@ -269,7 +269,9 @@ async function timeSwitch(page, cp, mode) {
     return {
       selectionPanel: !!document.getElementById(selId)?.childElementCount,
       formNodes: others.length,
-      formHiddenByDisplay: others.filter((el) => getComputedStyle(el).display === 'none').length,
+      // The form, not Statamic's own empty placeholder beside it: the column
+      // holds a bare `<div style="display: none">` in Content as well.
+      formHiddenByDisplay: others.filter((el) => el.childElementCount > 0 && getComputedStyle(el).display === 'none').length,
     };
   }, PANEL_ID, SELECTION_PANEL_ID);
 

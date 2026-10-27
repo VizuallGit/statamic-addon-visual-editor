@@ -69,13 +69,18 @@ function nameOf(row) {
   return word === key ? row.tag : word;
 }
 
-/* A + in the tree or the preview opens Add at its target; a pick opens Style. */
+/*
+ * A + in the tree or the preview opens Add at its target; a pick opens Style.
+ * In the editor the + sets its target first and the tree picks that row a
+ * moment later — a pick of the + target itself is the same click, and stays
+ * in Add.
+ */
 watch(
   () => [port.plusPath(), port.selectedPath()],
   ([plus, sel], [plusBefore, selBefore] = []) => {
     if (plus && plus !== plusBefore) {
       tab.value = 'add';
-    } else if (sel && sel !== selBefore && !port.justWrote?.(sel)) {
+    } else if (sel && sel !== selBefore && sel !== plus && !port.justWrote?.(sel)) {
       tab.value = 'style';
     }
   }

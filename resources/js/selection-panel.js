@@ -38,6 +38,11 @@
  * were up together, and a filled one only when Statamic's hidden form
  * happened to unmount the page's context underneath and the mark fell off.
  *
+ * Build mode borrows it the same way (build-mode-host.js, on
+ * cp/build-mode/store.js), with one difference: while Build has the column
+ * the panel's fields are not drawn at all — unmounted, not only unmarked —
+ * and drawn again on the selection the moment Content is back.
+ *
  * May import: lib/, cp/, cp-state.js, cp-selectors.js, cp-section-groups.js,
  * code-dock-lazy.js, lazy/listview.js, pages.js, section-library.js. Not
  * cp.js, not the kernel.
@@ -57,6 +62,7 @@ import { panelIcon } from './cp-section-groups.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
 import { componentPropsUi } from './cp/component-props/store.js';
+import { buildModeUi } from './cp/build-mode/store.js';
 import { handleRequestCloseChrome, handleRequestCloseGlobal } from './pages.js';
 import { activateSectionsTab } from './lp-width.js';
 import SelectionPanel from './cp/surfaces/SelectionPanel.vue';
@@ -229,7 +235,7 @@ export function initSelectionPanel(win) {
   // moves: off while the component has the column, back on when it lets go.
   // Nothing is asked of the host and nothing waited for: the store flips, and
   // the mark follows before the frame is painted.
-  watch(componentHasColumn, () => {
+  watch([componentHasColumn, () => buildModeUi.on], () => {
     place(win, applied);
   });
 
@@ -330,8 +336,10 @@ function ensureHost(win) {
           const row = resolvedSelection.value;
 
           // Keyed on the owning form: a row of another form is a fresh tree on
-          // that form's context, never the old fields re-bound.
-          return row
+          // that form's context, never the old fields re-bound. Nothing at all
+          // while Build has the column: its fields unmount, and come back on
+          // the selection when Content does.
+          return row && !buildModeUi.on
             ? h(SelectionPanel, {
                 key: ctxKey(row.ctx),
                 ctx: row.ctx,
@@ -388,9 +396,9 @@ function place(win, selection) {
   }
 
   const resolved = !!selection && !!resolvedSelection.value;
-  const showing = resolved && !componentHasColumn();
+  const showing = resolved && !componentHasColumn() && !buildModeUi.on;
 
-  log(`paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}${resolved && !showing ? ' component has the column' : ''}`);
+  log(`paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}${resolved && !showing ? (buildModeUi.on ? ' build has the column' : ' component has the column') : ''}`);
 
   if (!showing) {
     col.removeAttribute(SELECTION_ATTR);

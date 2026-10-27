@@ -3,7 +3,7 @@
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: html-tree-parse.js, html-tree-edit.js, template-elements.js,
- *             build-mode/catalog.js, build-mode/markup.js.
+ *             lib/element-kind.js, build-mode/catalog.js, build-mode/markup.js.
  * Pure: reads the file, returns the next one; writing it is the caller's
  * (`dock:set-html`, as tw-classes.js commits a class).
  * Bus messages: none.
@@ -25,9 +25,9 @@
 
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { closingTagIndex } from '../html-tree-edit.js';
-import { readClassAttr } from '../tw-parse.js';
 import { withTemplateMarkup } from '../template-elements.js';
-import { elementKind, holdsElements } from './catalog.js';
+import { classesOf, elementKind, siblingIndex } from '../lib/element-kind.js';
+import { holdsElements } from './catalog.js';
 import { INDENT } from './markup.js';
 
 /** The row at a tree path (`0:section/1:div`), or null. */
@@ -63,8 +63,6 @@ export function parentOf(roots, node, parent = null) {
 
   return undefined;
 }
-
-const classesOf = (source, node) => (node && node.openTo != null && !node.kind ? readClassAttr(source, node.from, node.openTo)?.value || '' : '');
 
 /** What Build calls a row: elementKind with its own and its parent's classes read from the file. */
 export function kindAt(source, roots, node) {
@@ -205,7 +203,6 @@ export function describeAt(source, path, options = {}) {
     }
 
     const parent = parentOf(roots, node) || null;
-    const siblings = (parent ? parent.children : roots).filter((row) => !row.kind || row.kind === node.kind);
 
     return {
       path: node.path,
@@ -213,7 +210,7 @@ export function describeAt(source, path, options = {}) {
       label: node.label || '',
       src: node.src || '',
       kind: kindAt(html, roots, node),
-      index: siblings.indexOf(node) + 1,
+      index: siblingIndex(roots, parent, node),
       classes: classesOf(html, node),
       locked: !!(node.locked || node.lockedIn),
     };
@@ -245,4 +242,34 @@ export function addAt(source, path, markup, options = {}) {
   const next = insertAt(html, place, markup);
 
   return { ...next, path: pathAt(next.html, next.at, options), place };
+}
+
+/**
+ * The Columns to draw for the pick: the picked row itself, or its parent when
+ * the pick is one of its columns. Each column with its path and whether it
+ * holds anything yet.
+ */
+export function columnsFor(html, path) {
+  if (!path) {
+    return null;
+  }
+
+  const picked = describeAt(html, path).node;
+
+  if (!picked || (picked.kind !== 'columns' && picked.kind !== 'column')) {
+    return null;
+  }
+
+  const roots = parseTemplateTree(html);
+  const node = findByPath(roots, path);
+  const grid = picked.kind === 'columns' ? node : parentOf(roots, node);
+
+  if (!grid) {
+    return null;
+  }
+
+  return {
+    path: grid.path,
+    columns: grid.children.filter((kid) => !kid.kind).map((kid) => ({ path: kid.path, empty: !kid.children.length })),
+  };
 }

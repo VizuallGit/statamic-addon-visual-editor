@@ -8,6 +8,8 @@
 return [
     'mode_content' => 'Indhold',
     'mode_build' => 'Byg',
+    // The + on a row of the HTML tree in Build
+    'tree_plus' => 'Tilføj her',
 
     'tab_add' => 'Tilføj',
     'tab_style' => 'Stil',
@@ -36,25 +38,6 @@ return [
     'components_note' => 'Læses fra :path. En ny komponent dukker op her af sig selv.',
     'components_none' => 'Ingen komponenter endnu.',
     'components_loading' => 'Henter komponenter…',
-
-    'el_section' => 'Sektion',
-    'el_container' => 'Container',
-    'el_columns' => 'Kolonner',
-    'el_column' => 'Kolonne :n',
-    'el_grid' => 'Grid',
-    'el_flex' => 'Flex',
-    'el_div' => 'Div',
-    'el_heading' => 'Overskrift',
-    'el_text' => 'Tekst',
-    'el_button' => 'Knap',
-    'el_link' => 'Link',
-    'el_image' => 'Billede',
-    'el_video' => 'Video',
-    'el_list' => 'Liste',
-    'el_divider' => 'Skillelinje',
-    'el_loop' => 'Løkke',
-    'el_if' => 'Hvis',
-    'el_component' => 'Komponent',
 
     'new_heading' => 'Ny overskrift',
     'new_text' => 'Skriv din tekst her.',

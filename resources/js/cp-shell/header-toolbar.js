@@ -20,6 +20,7 @@ import { startShortcuts } from '../toolbar-shortcuts.js';
 import { bindMenuDismiss } from '../lp-menu-dismiss.js';
 import { remToPx } from '../lib/dom.js';
 import { barEdge } from '../lib/under-bar.js';
+import { ensureBuildSwitch } from './build-switch.js';
 import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
@@ -679,6 +680,7 @@ export function ensureHeaderToolbar(win) {
     ensureDesignToolbarButton(win);
     ensureSiteCanvasToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
+    ensureBuildSwitch(win);
 
     return;
   }
@@ -833,6 +835,8 @@ export function ensureHeaderToolbar(win) {
   syncToolbarIconSeps(bar);
   // In the row in drawn order so far; into their groups now that the row is in the document.
   syncToolbarLayout(win);
+  // Content | Build, beside the row — only with build_mode on (build-switch.js).
+  ensureBuildSwitch(win);
 }
 
 export function toggleCodeDockButton(win) {

@@ -52,6 +52,7 @@ import {
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
 import { familyCssVars, tagFamily } from './lib/tag-families.js';
+import { elementNames } from './lib/element-kind.js';
 import { applyFamilyColors } from './family-colors.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
@@ -826,6 +827,131 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-alpine] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.625rem; height: 0.625rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
+
+    /* ===== The Figma look ==================================================
+       The tags look as the owner uses it from 27 Oct 2026: Figma's layer
+       list. Every rule hangs off :not([data-sve-ht-layers]), so the layers
+       look above — the tags rules plus its own — is exactly what it was.
+       1. No box around the open section and no guide lines.
+       2. Every row runs the full width; only what is in it steps in with its
+          depth (the layers look's way of indenting), so a hover or a pick is
+          one band.
+       3. The row's name first, in the panel's sans — Heading, Container,
+          Column 2 (html-tree.js, lib/element-kind.js) — and after it the tag
+          and the classes, faint and in mono, without a chip. The tag is still
+          the button a double-click changes.
+       4. The picked row in the editor's blue, without a bar at the edge. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
+      --sve-ht-figma-pick: rgba(56,88,233,.18);
+      --sve-ht-figma-pick-ink: #3858e9;
+      font: 450 0.75rem/1.35 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    html.dark [data-sve-ht-look="tags"]:not([data-sve-ht-layers]),
+    .dark [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
+      --sve-ht-figma-pick: rgba(56,88,233,.28);
+      --sve-ht-figma-pick-ink: #b4c1ff;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-branch] {
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      margin: 0;
+      background: none;
+      --sve-ht-inset: 0.375rem;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-body] {
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-body][data-sve-ht-under-main] {
+      --sve-ht-base: 1;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] { display: none; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] {
+      margin: 0;
+      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      border-radius: 0.3125rem;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] + [data-sve-ht-row],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] { margin-top: 0; margin-bottom: 0; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover { background: rgba(128,128,128,.16); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current]:hover {
+      background: var(--sve-ht-figma-pick);
+      box-shadow: none;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="after"]::after {
+      left: calc(var(--sve-ht-inset) + 0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
+      left: calc(var(--sve-ht-inset) + 0.25rem + var(--sve-ht-base, 0) * var(--sve-ht-step));
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot][data-sve-ht-id] {
+      margin-left: calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-slot] {
+      margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-text] {
+      font-family: inherit;
+      font-size: 0.75rem;
+      gap: 0.4rem;
+    }
+    /* The name keeps its room; the tag and the classes after it give way first. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-name],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-rename] {
+      order: -1;
+      flex: 0 1 auto;
+      min-width: 1.5em;
+      opacity: 1;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name] { font-weight: 600; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-kind] {
+      flex: 0 100 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0;
+      background: none;
+      opacity: 1;
+      color: color-mix(in srgb, currentColor 45%, transparent);
+      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag]:hover {
+      background: none;
+      color: color-mix(in srgb, currentColor 70%, transparent);
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag][data-sve-ht-classes]::after {
+      content: " · " attr(data-sve-ht-classes);
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-kind] {
+      color: var(--sve-ht-figma-pick-ink);
+      background: none;
+    }
+
+    /* Build mode's + on a row (HtmlTreeRow.vue), drawn as the icons beside it. */
+    [data-sve-ht-plus] {
+      all: unset;
+      box-sizing: border-box;
+      width: 18px;
+      height: 18px;
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: .7;
+      border-radius: 4px;
+    }
+    [data-sve-ht-plus]:not([disabled]):hover { opacity: 1; background: rgba(128,128,128,.25); }
+    [data-sve-ht-plus][disabled] { opacity: .3; cursor: default; }
   `);
 }
 
@@ -1982,6 +2108,27 @@ export function renderHtmlTree(win) {
       alpineSet: alpineKeys.some((item) => item.value !== item.file),
     };
   });
+
+  // The name a plain tag row wears in the Figma look — Heading, Container,
+  // Column 2, the words Build's panel uses (lib/element-kind.js) — and its
+  // classes, shown faint after the tag. A renamed row, the open section, the
+  // frame, and every loop, condition and component keep their own name. The
+  // layers look and the classic look show neither (HtmlTreeRow).
+  const kinds = elementNames(html, roots);
+
+  for (const row of htmlTreeUi.rows) {
+    const it = row.kind ? null : kinds.get(row.path);
+
+    if (!it) {
+      continue;
+    }
+
+    row.classes = it.classes;
+
+    if (it.kind !== 'tag' && !row.frame && !row.fixed && !row.sectionRoot && row.name === row.klass) {
+      row.display = it.kind === 'column' ? t(win, 'el_column', { n: it.index }) : t(win, `el_${it.kind}`);
+    }
+  }
 
   syncStoredVideoHolds(win);
   syncStoredAlpineStates(win);

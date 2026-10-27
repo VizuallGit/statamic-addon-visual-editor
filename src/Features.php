@@ -44,6 +44,7 @@ class Features
         'collection_templates',
         'previews_autowatch',
         'site_canvas',
+        'build_mode',
     ];
 
     /** Every toggle, in the order the settings screen shows them. */
@@ -57,6 +58,11 @@ class Features
         // in Live Preview, a click making one the page being edited. Off until
         // the owner has seen it; closed, it is one button and nothing else.
         'site_canvas',
+        // Build mode (preview): a Content | Build switch in the Live Preview top
+        // bar; Build puts the Build panel (Add | Style) in the left column. It
+        // writes the dock's file, so it goes only to whoever has the dock. Off
+        // until the owner says on; off, nothing of it is drawn or loaded.
+        'build_mode',
         'pages',
         'globals',
         'sections',
@@ -189,6 +195,9 @@ class Features
         foreach (ToolbarAccess::KEYS as $key) {
             $map[$key] = static::allows($key, $user);
         }
+
+        // Build writes the dock's file: no dock for this user, no Build.
+        $map['build_mode'] = ($map['build_mode'] ?? false) && ($map['template_dock'] ?? false);
 
         return $map;
     }
