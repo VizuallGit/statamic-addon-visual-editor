@@ -379,6 +379,8 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .fg-line { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
 .sve-build .fg-line > :first-child { flex: 1; min-width: 0; }
 .sve-build .fg-sizes button span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.sve-build .fg-sizes button span:first-child { display: inline-flex; flex: none; }
+.sve-build .fg-sizes svg { width: 0.75rem; height: 0.75rem; }
 .sve-build .fg-state { height: 1.75rem; display: flex; align-items: center; gap: 0.25rem; padding: 0 0.5rem; border-radius: 0.3rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.6875rem; font-weight: 500; }
 .sve-build .fg-state:hover { color: var(--bm-ink); }
 .sve-build .fg-state .bm-ic { width: 0.75rem; height: 0.75rem; }

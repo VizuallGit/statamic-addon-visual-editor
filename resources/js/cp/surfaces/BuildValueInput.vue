@@ -83,8 +83,46 @@ watch(
   { immediate: true }
 );
 
-function onInput() {
+function onInput(event) {
   typedFor = port.selectedPath();
+
+  // A row picked from the list (not typed): written at once, as a pick is.
+  if (event?.inputType === 'insertReplacementText') {
+    commit();
+  }
+}
+
+/** Backspace or Delete in the emptied field: the value is to go — Enter or leaving writes that. */
+function onDelete() {
+  if (!text.value && held.value) {
+    typedFor = port.selectedPath();
+    held.value = '';
+  }
+}
+
+/*
+ * The browser filters the list by what the field holds, so a field showing
+ * `heading` offered only `heading`. Focused, the field is empty and its value
+ * stands as the placeholder: the whole list shows. Left without a change, the
+ * value comes back.
+ */
+const held = ref('');
+
+function onFocus() {
+  focused.value = true;
+  held.value = text.value;
+  text.value = '';
+}
+
+function onBlur() {
+  focused.value = false;
+  commit();
+
+  if (typedFor === null && !text.value) {
+    text.value = own.value ? display(shown.value) : '';
+  }
+
+  held.value = '';
 }
 
 const listId = computed(() => `bm-dl-${property.value}`);
@@ -141,14 +179,15 @@ function commit() {
     autocomplete="off"
     spellcheck="false"
     :list="listId"
-    :placeholder="current && current.inherited ? display(shown) : empty"
+    :placeholder="held || (current && current.inherited ? display(shown) : empty)"
     :title="label || property"
     :aria-label="label || property"
     :data-sve-build-value="label || property"
     @input="onInput"
-    @focus="focused = true"
+    @focus="onFocus"
     @keydown.enter.prevent="commit"
-    @blur="focused = false; commit()"
+    @keydown.delete="onDelete"
+    @blur="onBlur"
   />
   <datalist :id="listId">
     <option v-for="item in suggestions" :key="item" :value="item"></option>

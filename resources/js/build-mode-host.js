@@ -94,6 +94,11 @@ function editorHooks(win, shell) {
       }
     },
     onSelect: (fn) => watch(() => pickedRow()?.path || '', () => fn()),
+    // The tree's own way to stand on an element a write just moved or renamed
+    // (HtmlTreePane's plus does the same): by where it starts in the file.
+    keepPickAt(at) {
+      htmlTreeUi.selectFrom = { at, left: 4 };
+    },
     plusPath: () => buildModeUi.plusPath,
     setPlus(path) {
       buildModeUi.plusPath = path || '';

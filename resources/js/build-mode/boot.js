@@ -23,6 +23,8 @@
  * What lives in existing code comes in as `hooks`, wired by the host:
  *
  *   selectedPath()            the HTML tree's picked row (`path`)
+ *   keepPickAt?(from)         after a write that renames the picked row (its
+ *                             tag), stand on the element that starts at `from`
  *   select(path)              pick a row the way a click in the tree does —
  *                             the tree, the preview, the dock's cursor and
  *                             tw-classes.js's picked tag all follow it
@@ -273,7 +275,18 @@ export function createEditorPort(win, hooks = {}) {
         port.write(deleteHtml(html(), node));
       }
     },
-    setTag: (name) => twSetTag(win, name),
+    setTag(name) {
+      // The tree names a row by its tag, so h1 → h2 is a new row to it: the
+      // pick would be lost. The element starts where it started, and the tree
+      // stands on what starts there once the file lands (`keepPickAt`).
+      const node = picked();
+
+      if (node) {
+        hooks.keepPickAt?.(node.from);
+      }
+
+      twSetTag(win, name);
+    },
     attr: (name) => {
       const node = picked();
 
