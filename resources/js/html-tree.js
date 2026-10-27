@@ -52,6 +52,11 @@ import {
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
 import { familyCssVars, tagFamily } from './lib/tag-families.js';
+// Build's word for an element (`heading`, `container`, `column` …), read
+// from the file's classes: the layers look names a row by it, so the tree
+// and the Build panel call one element one thing.
+import { elementKind } from './build-mode/catalog.js';
+import { readClassAttr } from './tw-parse.js';
 import { applyFamilyColors } from './family-colors.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
@@ -756,29 +761,46 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-del]:hover { background: rgba(128,128,128,.25); }
 
-    /* ===== The layers look, on trial =======================================
-       The tags look above with six things changed, so the two can be put
-       side by side before one of them goes. The switch in the tree's top
-       bar (HTML_TREE_LAYERS_KEY) puts data-sve-ht-layers on the list, and
-       every rule here hangs off it: switched off, not one of them applies.
-       1. No box around the open section; the picked row says where you are.
-       2. No guide lines; the indent alone says what belongs to what.
-       3. No bar at the picked row's edge.
-       4. The picked row wears the neutral grey of a hovered one.
-       5. Every row runs the full width of the list, and only what is in it
-          steps in with its depth, so a hover or a pick is one band.
-       6. The icons a size smaller.
+    /* ===== The layers look ==================================================
+       Figma's layers list, in the Build panel's own colours and type
+       (BuildPanel.vue, the --bm-* values: the dock's greys, Inter at
+       0.75rem, the editor's blue). The switch in the tree's top bar
+       (HTML_TREE_LAYERS_KEY) puts data-sve-ht-layers on the list, and every
+       rule here hangs off it: switched off, not one of them applies, and
+       HtmlTreeRow draws the row's text the other way round.
+       - One grey under the list, the panel's text on it. No box around the
+         open section, no guide lines; the indent alone says what belongs
+         to what, 0.75rem a level, as Figma steps.
+       - Every row runs the full width of the list, 1.75rem high; a hover is
+         a quiet band, the picked row the editor's blue — no bar at its edge.
+       - The row reads as Figma's: the mark in its family colour, then a
+         name in the panel's sans — Build's word for the element or the one
+         the user gave it (row.display, renderHtmlTree) — and after it, faint
+         and in monospace, the tag and the classes (row.detail). The tag is
+         still the button that switches the tag; it has only lost its chip.
        The frame body stepped the sections in with its own margin; here it
        hands that level on as --sve-ht-base instead, and a row adds it to its
        depth, so a section's rows still start one level in under main. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] {
+      --sve-ht-step: 0.75rem;
+      --sve-ht-inset: 0.5rem;
+      --sve-ht-ink: #d4d4d4;
+      --sve-ht-muted: #9d9d9e;
+      --sve-ht-faint: #79797a;
+      --sve-ht-hover: rgba(128,128,128,.16);
+      --sve-ht-pick: rgba(56,88,233,.28);
+      background: #1e1e21;
+      color: var(--sve-ht-ink);
+      font: 450 0.75rem/1.35 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-branch] {
       border: 0;
       border-radius: 0;
       padding: 0;
       margin: 0;
       background: none;
-      /* No box, so nothing to take back out of the inset. */
-      --sve-ht-inset: 0.375rem;
+      /* No box, so nothing to take back out of the inset: the list's own. */
+      --sve-ht-inset: inherit;
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-body] {
       margin: 0;
@@ -791,13 +813,25 @@ export function ensureHtmlTreeStyles(doc) {
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {
-      margin-left: 0;
-      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      margin: 0;
+      padding: 0 0.5rem 0 calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      min-height: 1.75rem;
+      gap: 0.375rem;
+      border-radius: 0;
+      font: inherit;
     }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] + [data-sve-ht-row] { margin-top: 0; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 0; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row]:hover { background: var(--sve-ht-hover); }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current],
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current]:hover {
-      background: rgba(128,128,128,.14);
+      background: var(--sve-ht-pick);
+      color: var(--sve-ht-ink);
       box-shadow: none;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row]:focus-visible {
+      outline: 1px solid rgba(56,88,233,.55);
+      outline-offset: -1px;
     }
     /* A drop line starts where the row's content starts, so a drag still
        shows the level it lands on now that the row itself spans them all. */
@@ -817,15 +851,74 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-slot] {
       margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
     }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.75rem; height: 0.75rem; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.625rem; height: 0.625rem; }
+    /* The arrow and the mark, 0.875rem each; the arrow in the muted grey. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist],
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist-gap],
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon],
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-letter] { width: 0.875rem; height: 0.875rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] { color: var(--sve-ht-muted); opacity: 1; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist]:hover { color: var(--sve-ht-ink); }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.875rem; height: 0.875rem; }
+    /* The text: the name in the panel's sans, then the tag and the classes
+       faint and in monospace, with a dot between them. The name gives way
+       last; the detail takes what is left and is cut short first. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-text] {
+      gap: 0.375rem;
+      font: inherit;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-name] {
+      flex: 0 1 auto;
+      color: var(--sve-ht-ink);
+      opacity: 1;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name] {
+      font-weight: 600;
+      opacity: 1;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-detail] {
+      flex: 1 1 0;
+      min-width: 0;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.3em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--sve-ht-faint);
+      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-detail] > * + *::before { content: '· '; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-classes] {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* The tag, without its chip: faint text in the detail's monospace, the
+       family colour kept for the mark alone. Still the button it was. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] [data-sve-ht-kind] {
+      padding: 0;
+      border-radius: 0;
+      background: none;
+      color: var(--sve-ht-faint);
+      opacity: 1;
+      font: inherit;
+      letter-spacing: 0;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] [data-sve-ht-tag]:hover {
+      background: none;
+      color: var(--sve-ht-ink);
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-rename] { font: inherit; }
+    /* The row's icons, Figma's size. */
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-eye] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-fields] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-lock] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-alpine] svg,
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.625rem; height: 0.625rem; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.75rem; height: 0.75rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.875rem; height: 0.875rem; }
   `);
 }
 
@@ -1891,6 +1984,9 @@ export function renderHtmlTree(win) {
 
   // On the layout: which partial call draws the header and which the footer.
   const frameCalls = htmlTreeUi.layoutFile ? frameCallKinds(win) : null;
+  // What Build calls each element, for the layers look's name on the row
+  // (`display`, below). One walk of the tree per paint, not one per row.
+  const kinds = elementKinds(html, roots);
 
   htmlTreeUi.rows = rows.map((row) => {
     /*
@@ -1920,6 +2016,34 @@ export function renderHtmlTree(win) {
     // alias again, so the default must be what the alias is measured against.
     const base = row.id === rootId && rootName ? rootName : row.klass;
     const isRoot = row.id === rootId;
+    // The open page section's root already carries the section's own name
+    // (its label); the file's alias must not override it here.
+    /*
+     * A frame call is named for the half it draws, not for the file behind
+     * it: the same `Header` the frame's own rows wear on a page. Meeting
+     * `site_head` here and `Header` after stepping in read as two places.
+     */
+    const name = frameCall
+      ? t(win, `html_tree_frame_${frameCall}`)
+      : chromeKind && row.id === chromeRootId
+        ? t(win, `html_tree_frame_${chromeKind}`)
+        : row === mainRaw
+          ? t(win, 'html_tree_frame_main')
+          : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases);
+    /*
+     * Whether that name is the row's own — the frame's, the file's, the
+     * section's, a component's, a slot's, the sections loop's, or one the
+     * user gave it (an alias is the one case where the name is not the
+     * base it was measured against) — or only its first class, standing in.
+     */
+    const named =
+      !!frameCall ||
+      (chromeKind && row.id === chromeRootId) ||
+      row === mainRaw ||
+      (isRoot && (!!openSection || !!rootName)) ||
+      (!!row.kind && row.kind !== 'antlers') ||
+      name !== base;
+    const kind = kinds.get(row.id);
 
     return {
       ...row,
@@ -1935,20 +2059,18 @@ export function renderHtmlTree(win) {
        */
       fixed: !!frameCall || body,
       base,
-      // The open page section's root already carries the section's own name
-      // (its label); the file's alias must not override it here.
+      name,
       /*
-       * A frame call is named for the half it draws, not for the file behind
-       * it: the same `Header` the frame's own rows wear on a page. Meeting
-       * `site_head` here and `Header` after stepping in read as two places.
+       * The layers look (HtmlTreeRow, `ui.layers`) draws a name first and the
+       * tag and classes after it, as Figma's layers do. The name is the
+       * row's own where it has one (`named`), else Build's word for what the
+       * element is — "Heading", "Container", "Column 2" — so the tree and
+       * the Build panel call one element one thing. `detail` stands after
+       * it, faint: a tag's classes, a loop's or a condition's expression.
+       * Neither replaces `name`: the search and the rename read that.
        */
-      name: frameCall
-        ? t(win, `html_tree_frame_${frameCall}`)
-        : chromeKind && row.id === chromeRootId
-          ? t(win, `html_tree_frame_${chromeKind}`)
-          : row === mainRaw
-            ? t(win, 'html_tree_frame_main')
-            : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
+      display: named ? name : elementName(win, kind, row.tag),
+      detail: row.kind === 'antlers' ? row.klass : kind.classes,
       current: row.id === htmlTreeActiveId,
       letter: icon.letter || '',
       svg: chromeKind && row.id === chromeRootId
@@ -2038,6 +2160,9 @@ export function renderHtmlTree(win) {
             section: section.uid,
             tag: section.tag,
             name: section.label,
+            // A section has a name of its own; the layers look shows that.
+            display: section.label,
+            detail: '',
             kind: '',
             svg: section.svg,
             cat: section.cat,
@@ -2073,6 +2198,49 @@ export function renderHtmlTree(win) {
   );
   mountPane(list, HtmlTreeList);
   publishHtmlPick(win, roots);
+}
+
+/**
+ * What Build calls every element of the file — `heading`, `container`,
+ * `columns`, `column` … (elementKind, build-mode/catalog.js) — with the
+ * classes read from the file for it and for its parent, and a column's
+ * number among the plain tags beside it (counted as describeAt counts). One
+ * walk per paint, keyed by the node's id; the rows are flattened from the
+ * same tree, so every row finds its entry.
+ *
+ * @returns {Map<string, { kind: string, index: number, classes: string }>}
+ */
+function elementKinds(source, roots) {
+  const out = new Map();
+  const classesOf = (node) =>
+    node.openTo != null && !node.kind ? readClassAttr(source, node.from, node.openTo)?.value || '' : '';
+  const walk = (nodes, parent, parentClasses) => {
+    for (const node of nodes) {
+      const classes = classesOf(node);
+      const kind = elementKind(node, classes, parent, parentClasses);
+      const index = kind === 'column' ? nodes.filter((item) => !item.kind).indexOf(node) + 1 : 0;
+
+      out.set(node.id, { kind, index, classes });
+      walk(node.children, node, classes);
+    }
+  };
+
+  walk(roots, null, '');
+
+  return out;
+}
+
+/**
+ * Build's word for an element, for the layers look: the `el_*` strings
+ * (messages.php) the Build panel names the same element by — a column with
+ * its number, a plain tag by its tag.
+ */
+function elementName(win, kind, tag) {
+  if (kind.kind === 'column') {
+    return t(win, 'el_column', { n: kind.index });
+  }
+
+  return kind.kind === 'tag' ? tag : t(win, `el_${kind.kind}`);
 }
 
 /** The frame's titles and clicks, the same on a full page and an empty one. */
@@ -2140,23 +2308,30 @@ function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage
     return null;
   }
 
-  const row = (part) => ({
-    id: `frame:${part}`,
-    frame: part,
-    synthetic: true,
-    tag: part,
-    name: t(win, `html_tree_frame_${part}`),
-    kind: '',
-    svg: HTML_ICONS[part] || '',
-    cat: part,
-    letter: '',
-    depth: 0,
-    // Only main folds, and only when there is something in it to fold away.
-    hasChildren: part === 'main' && (sections.length > 0 || kind === 'template'),
-    shut: part !== 'main',
-    current: false,
-    hidden: false,
-  });
+  const row = (part) => {
+    const name = t(win, `html_tree_frame_${part}`);
+
+    return {
+      id: `frame:${part}`,
+      frame: part,
+      synthetic: true,
+      tag: part,
+      name,
+      // The frame's rows are named already; the layers look shows that name.
+      display: name,
+      detail: '',
+      kind: '',
+      svg: HTML_ICONS[part] || '',
+      cat: part,
+      letter: '',
+      depth: 0,
+      // Only main folds, and only when there is something in it to fold away.
+      hasChildren: part === 'main' && (sections.length > 0 || kind === 'template'),
+      shut: part !== 'main',
+      current: false,
+      hidden: false,
+    };
+  };
   const frame = { kind, header: row('header'), main: row('main'), footer: row('footer'), template: null };
 
   // On a collection template's entry, standing in the header, the footer or
@@ -2164,12 +2339,16 @@ function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage
   const view = kind && kind !== 'template' ? String(ask('dock:collection-view') || '') : '';
 
   if (view) {
+    const name = setMeta(win, view)?.display || humanizeHandle(view.replace(/^view:/, ''));
+
     frame.template = {
       id: 'frame:template',
       frame: 'template',
       synthetic: true,
       tag: 'section',
-      name: setMeta(win, view)?.display || humanizeHandle(view.replace(/^view:/, '')),
+      name,
+      display: name,
+      detail: '',
       kind: '',
       svg: HTML_ICONS.section || '',
       cat: 'main',

@@ -209,6 +209,29 @@ return [
     'html_tree_layers_on' => 'Try the new look: full-width rows, no boxes or lines',
     'html_tree_layers_off' => 'Back to the current look',
 
+    // What an element is called — the HTML tree's layers look and the Build
+    // panel name the same element by the same word (elementKind,
+    // build-mode/catalog.js). Here rather than in build.php, so the tree
+    // has them in every mode.
+    'el_section' => 'Section',
+    'el_container' => 'Container',
+    'el_columns' => 'Columns',
+    'el_column' => 'Column :n',
+    'el_grid' => 'Grid',
+    'el_flex' => 'Flex',
+    'el_div' => 'Div',
+    'el_heading' => 'Heading',
+    'el_text' => 'Text',
+    'el_button' => 'Button',
+    'el_link' => 'Link',
+    'el_image' => 'Image',
+    'el_video' => 'Video',
+    'el_list' => 'List',
+    'el_divider' => 'Divider',
+    'el_loop' => 'Loop',
+    'el_if' => 'If',
+    'el_component' => 'Component',
+
     'section_fields' => 'Section fields',
     'section_fields_none' => 'This section has no fieldset of its own.',
     'section_fields_failed' => 'The fields could not be opened.',

@@ -282,43 +282,83 @@ function canAct(row) {
     <span v-else data-sve-ht-icon v-html="row.svg"></span>
     <span data-sve-ht-text :title="ui.renameTitle">
       <!--
-        Only a real tag can be changed into another one. A loop, a condition and
-        a component are not tags at all: offering `<div>` for `{{ collection }}`
-        is offering to write something that cannot be written.
+        The layers look (ui.layers) reads as Figma's layers: the name first —
+        Build's word for the element, or the one the user gave it
+        (`row.display`, html-tree.js) — then, faint, the tag and the classes
+        (`row.detail`). The same tag button and the same rename input as
+        below, in the other order; a loop or a condition shows its expression
+        where a tag shows its classes, and no tag word in front of it.
+        Switched off, the branch below is drawn exactly as it always was.
       -->
-      <!--
-        Double-click, not single. The tag sits in the middle of a row you click
-        to select — a single click there kept opening a menu nobody asked for.
-      -->
-      <button
-        v-if="!row.kind && !isShutSection(row) && !isFrame(row)"
-        type="button"
-        data-sve-ht-tag
-        :title="ui.tagTitle"
-        @click.stop.prevent
-        @pointerdown.stop
-        @dblclick.stop.prevent="ui.onTagChange?.($event, row.id)"
-      >{{ row.tag }}</button>
-      <!--
-        Shut, the tag is not a button: there is no file open to rename it in.
-        Same chip, same place, same words — only the door is closed.
-      -->
-      <span v-else data-sve-ht-kind>{{ row.tag }}</span>
+      <template v-if="ui.layers">
+        <input
+          v-if="ui.editingId === row.id && !isShutSection(row)"
+          data-sve-ht-rename
+          v-model="ui.draft"
+          @mousedown.stop
+          @pointerdown.stop
+          @click.stop
+          @dblclick.stop
+          @keydown.stop
+          @keydown.enter.prevent="ui.onRenameCommit?.()"
+          @keydown.escape.prevent="ui.onRenameCancel?.()"
+          @blur="ui.onRenameCommit?.()"
+        >
+        <span v-else data-sve-ht-name>{{ row.display }}</span>
+        <span data-sve-ht-detail>
+          <button
+            v-if="!row.kind && !isShutSection(row) && !isFrame(row)"
+            type="button"
+            data-sve-ht-tag
+            :title="ui.tagTitle"
+            @click.stop.prevent
+            @pointerdown.stop
+            @dblclick.stop.prevent="ui.onTagChange?.($event, row.id)"
+          >{{ row.tag }}</button>
+          <span v-else-if="row.kind !== 'antlers'" data-sve-ht-kind>{{ row.tag }}</span>
+          <span v-if="row.detail" data-sve-ht-classes>{{ row.detail }}</span>
+        </span>
+      </template>
+      <template v-else>
+        <!--
+          Only a real tag can be changed into another one. A loop, a condition and
+          a component are not tags at all: offering `<div>` for `{{ collection }}`
+          is offering to write something that cannot be written.
+        -->
+        <!--
+          Double-click, not single. The tag sits in the middle of a row you click
+          to select — a single click there kept opening a menu nobody asked for.
+        -->
+        <button
+          v-if="!row.kind && !isShutSection(row) && !isFrame(row)"
+          type="button"
+          data-sve-ht-tag
+          :title="ui.tagTitle"
+          @click.stop.prevent
+          @pointerdown.stop
+          @dblclick.stop.prevent="ui.onTagChange?.($event, row.id)"
+        >{{ row.tag }}</button>
+        <!--
+          Shut, the tag is not a button: there is no file open to rename it in.
+          Same chip, same place, same words — only the door is closed.
+        -->
+        <span v-else data-sve-ht-kind>{{ row.tag }}</span>
 
-      <input
-        v-if="ui.editingId === row.id && !isShutSection(row)"
-        data-sve-ht-rename
-        v-model="ui.draft"
-        @mousedown.stop
-        @pointerdown.stop
-        @click.stop
-        @dblclick.stop
-        @keydown.stop
-        @keydown.enter.prevent="ui.onRenameCommit?.()"
-        @keydown.escape.prevent="ui.onRenameCancel?.()"
-        @blur="ui.onRenameCommit?.()"
-      >
-      <span v-else data-sve-ht-name>{{ row.name }}</span>
+        <input
+          v-if="ui.editingId === row.id && !isShutSection(row)"
+          data-sve-ht-rename
+          v-model="ui.draft"
+          @mousedown.stop
+          @pointerdown.stop
+          @click.stop
+          @dblclick.stop
+          @keydown.stop
+          @keydown.enter.prevent="ui.onRenameCommit?.()"
+          @keydown.escape.prevent="ui.onRenameCancel?.()"
+          @blur="ui.onRenameCommit?.()"
+        >
+        <span v-else data-sve-ht-name>{{ row.name }}</span>
+      </template>
     </span>
     <!--
       The row's icons do not come and go with the lock. A locked file is a
