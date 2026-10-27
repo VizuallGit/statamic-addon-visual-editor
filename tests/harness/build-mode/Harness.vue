@@ -233,18 +233,18 @@ function pick(name) {
 </template>
 
 <style>
-body { margin: 0; background: #121317; }
+body { margin: 0; background: #1e1e21; }
 .hx { height: 100vh; display: grid; grid-template-columns: 20rem minmax(0, 1fr); }
-.hx-left { min-height: 0; border-right: 1px solid #2b2d38; }
-.hx-center { min-height: 0; display: flex; justify-content: center; overflow: auto; background: #25262d; }
+.hx-left { min-height: 0; border-right: 1px solid rgba(255,255,255,.08); }
+.hx-center { min-height: 0; display: flex; justify-content: center; overflow: auto; background: #252526; }
 .hx-frame { height: 100%; border: 0; background: #fff; transition: width .2s; }
 .hx-veil { position: fixed; inset: 0; }
-.hx-menu { position: fixed; z-index: 10; width: 15rem; max-height: 20rem; display: flex; flex-direction: column; gap: .4rem; padding: .5rem; border-radius: .6rem; background: #1f2028; border: 1px solid #2b2d38; box-shadow: 0 12px 32px rgba(0,0,0,.45); color: #e7e8ef; font: .75rem ui-monospace, monospace; }
+.hx-menu { position: fixed; z-index: 10; width: 15rem; max-height: 20rem; display: flex; flex-direction: column; gap: .4rem; padding: .5rem; border-radius: .6rem; background: #252526; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 16px 40px rgba(0,0,0,.45); color: #d4d4d4; font: .75rem ui-monospace, monospace; }
 .hx-menu__q { all: unset; padding: .4rem .5rem; border-radius: .4rem; border: 1px solid #3858e9; }
-.hx-menu__tabs { display: flex; gap: .125rem; padding: .125rem; border-radius: .4rem; background: #17181e; }
-.hx-menu__tabs button { all: unset; flex: 1; text-align: center; padding: .3rem; border-radius: .3rem; color: #8d90a2; cursor: pointer; font-family: ui-sans-serif, system-ui, sans-serif; }
-.hx-menu__tabs button[data-on] { background: #272934; color: #e7e8ef; }
+.hx-menu__tabs { display: flex; gap: .125rem; padding: .125rem; border-radius: .4rem; background: #1e1e21; }
+.hx-menu__tabs button { all: unset; flex: 1; text-align: center; padding: .3rem; border-radius: .3rem; color: rgba(212,212,212,.7); cursor: pointer; font-family: ui-sans-serif, system-ui, sans-serif; }
+.hx-menu__tabs button[data-on] { background: #39393c; color: #d4d4d4; }
 .hx-menu__list { overflow: auto; display: grid; }
 .hx-menu__list button { all: unset; padding: .35rem .45rem; border-radius: .3rem; cursor: pointer; }
-.hx-menu__list button:hover, .hx-menu__list button[data-on] { background: #272934; }
+.hx-menu__list button:hover, .hx-menu__list button[data-on] { background: rgba(128,128,128,.28); }
 </style>

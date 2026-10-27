@@ -147,19 +147,27 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
  * reach Statamic's markup or another panel.
  */
 .sve-build {
-  --bm-bg: #121317;
-  --bm-panel: #17181e;
-  --bm-raise: #1f2028;
-  --bm-hover: #272934;
-  --bm-line: #2b2d38;
-  --bm-ink: #e7e8ef;
-  --bm-muted: #8d90a2;
-  --bm-faint: #636678;
+  /* The dock's own greys — the Tailwind pane's (dock/layout.js, TwClassList.vue):
+     #1E1E21 under everything, #d4d4d4 text, chips rgba(128,128,128,.16) / .28
+     on hover (solid here, so a clipped shape can wear them), white hairlines.
+     The editor's blue for what is picked; the yellow for "later". */
+  --bm-bg: #18181a;
+  --bm-panel: #1e1e21;
+  --bm-raise: #2e2e30;
+  --bm-hover: #39393c;
+  --bm-line: rgba(255, 255, 255, 0.08);
+  --bm-edge: rgba(255, 255, 255, 0.16);
+  --bm-ink: #d4d4d4;
+  --bm-muted: #9d9d9e;
+  --bm-faint: #79797a;
   --bm-accent: #3858e9;
-  --bm-accent-soft: rgba(56, 88, 233, 0.2);
-  --bm-accent-text: #c2cdff;
+  --bm-accent-soft: rgba(56, 88, 233, 0.28);
+  --bm-accent-text: #b4c1ff;
   --bm-inh: #a9b8ff;
-  --bm-inh-line: rgba(56, 88, 233, 0.5);
+  --bm-inh-line: rgba(56, 88, 233, 0.55);
+  --bm-zone-side: #252528;
+  --bm-zone-end: #2b2b2e;
+  --bm-bar: #4a4a4e;
   --bm-tag-bg: #1c2846;
   --bm-tag: #94b5ff;
   --bm-comp-bg: #103a30;
@@ -202,7 +210,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-seg { display: flex; gap: 0.125rem; padding: 0.125rem; background: var(--bm-raise); border: 1px solid var(--bm-line); border-radius: 0.4rem; min-width: 0; }
 .sve-build .bm-seg button { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.32rem 0.2rem; border-radius: 0.28rem; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 600; position: relative; white-space: nowrap; }
 .sve-build .bm-seg button:hover { color: var(--bm-ink); }
-.sve-build .bm-seg button[aria-pressed='true'] { background: var(--bm-hover); color: var(--bm-ink); box-shadow: inset 0 0 0 1px #3a3d4c; }
+.sve-build .bm-seg button[aria-pressed='true'] { background: var(--bm-hover); color: var(--bm-ink); box-shadow: inset 0 0 0 1px var(--bm-edge); }
 .sve-build .bm-seg button.inh { background: transparent; color: var(--bm-inh); box-shadow: inset 0 0 0 1px var(--bm-inh-line); font-style: italic; }
 .sve-build .bm-seg .bm-ic, .sve-build .bm-seg svg { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-sub { margin: 0.65rem 0; }
@@ -212,7 +220,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-g h4 { margin: 1rem 0 0.5rem; font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bm-muted); font-weight: 600; }
 .sve-build .bm-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.375rem; }
 .sve-build .bm-tile { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.75rem 0.2rem 0.55rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); font-size: 0.6875rem; text-align: center; user-select: none; }
-.sve-build .bm-tile > span:first-child { color: #b9bbcc; }
+.sve-build .bm-tile > span:first-child { color: var(--bm-muted); }
 .sve-build .bm-tile svg { width: 1.25rem; height: 1.25rem; }
 .sve-build .bm-tile:hover:not(:disabled) { border-color: var(--bm-accent); background: var(--bm-hover); }
 .sve-build .bm-tile:hover:not(:disabled) > span:first-child { color: #fff; }
@@ -241,7 +249,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-pk:hover:not(:disabled), .sve-build .bm-sp-o:hover { border-color: var(--bm-accent); }
 .sve-build .bm-pk:disabled { cursor: default; }
 .sve-build .bm-bars { display: flex; gap: 0.2rem; height: 2.25rem; }
-.sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: #474a5e; }
+.sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: var(--bm-bar); }
 .sve-build .bm-pk:hover:not(:disabled) .bm-bars i, .sve-build .bm-sp-o[aria-pressed='true'] .bm-bars i { background: var(--bm-accent); }
 .sve-build .bm-pk-l { font-weight: 600; display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
 .sve-build .bm-sp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
@@ -283,7 +291,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-sel, .sve-build .bm-inp { width: 100%; height: 1.875rem; padding: 0 0.45rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-ink); font-size: 0.75rem; }
 .sve-build .bm-sel.inh { color: var(--bm-inh); font-style: italic; border-color: var(--bm-inh-line); }
 .sve-build .bm-sws { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.sve-build .bm-sw { width: 1.375rem; height: 1.375rem; border-radius: 0.35rem; border: 1px solid rgba(255, 255, 255, 0.18); }
+.sve-build .bm-sw { width: 1.375rem; height: 1.375rem; border-radius: 0.35rem; border: 1px solid var(--bm-edge); }
 .sve-build .bm-sw[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bm-panel), 0 0 0 4px var(--bm-accent); }
 .sve-build .bm-sw.inh { box-shadow: 0 0 0 2px var(--bm-panel), 0 0 0 4px var(--bm-inh-line); }
 .sve-build .bm-seg-cols button { flex-direction: column; gap: 0.2rem; padding: 0.35rem 0.1rem; }
@@ -296,7 +304,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-vin { width: 100%; height: 1.875rem; padding: 0 0.45rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-ink); font: 500 0.6875rem var(--bm-mono); }
 .sve-build .bm-vin::placeholder { color: var(--bm-faint); }
 .sve-build .bm-vin.inh::placeholder { color: var(--bm-inh); font-style: italic; }
-.sve-build .bm-vin:hover { border-color: #3a3d4c; }
+.sve-build .bm-vin:hover { border-color: var(--bm-edge); }
 .sve-build .bm-vin-after { margin-top: 0.4rem; }
 .sve-build .bm-seg-al button { padding: 0.4rem 0; }
 .sve-build .bm-seg-al .bm-ic, .sve-build .bm-seg-al svg { width: 1.15rem; height: 1.15rem; }
@@ -312,8 +320,8 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-sp-mode button { font-family: var(--bm-mono); font-size: 0.6875rem; }
 .sve-build .bm-spx { position: relative; display: block; height: 9.5rem; padding: 0; margin-top: 0.2rem; border-radius: 0.45rem; overflow: hidden; border: 1px solid var(--bm-line); background: var(--bm-bg); }
 .sve-build .bm-tz { position: absolute; inset: 0; background: var(--bm-raise); transition: background 0.12s; }
-.sve-build .bm-tz-t, .sve-build .bm-tz-b { background: #22232b; }
-.sve-build .bm-tz-l, .sve-build .bm-tz-r { background: #1b1c23; }
+.sve-build .bm-tz-t, .sve-build .bm-tz-b { background: var(--bm-zone-end); }
+.sve-build .bm-tz-l, .sve-build .bm-tz-r { background: var(--bm-zone-side); }
 .sve-build .bm-tz-t { clip-path: polygon(0 0, 100% 0, 72% 34%, 28% 34%); }
 .sve-build .bm-tz-b { clip-path: polygon(28% 66%, 72% 66%, 100% 100%, 0 100%); }
 .sve-build .bm-tz-l { clip-path: polygon(0 0, 28% 34%, 28% 66%, 0 100%); }
