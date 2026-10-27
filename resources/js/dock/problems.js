@@ -192,6 +192,29 @@ function refreshLists(win, view, relint) {
 }
 
 /**
+ * The file around the pane, when the pane shows one element of it.
+ *
+ * The rules read the file, not the slice: picked in the tree, the
+ * `{{ if media }}` row ends where its `{{ else }}` row begins, and the
+ * `{{ /if }}` that closes it stands outside the pane — linted alone, the slice
+ * says the `{{ if }}` never closes, and nothing is wrong with the file.
+ *
+ * `htmlFull` holds the file with the pane's last synced text at `htmlFocus`
+ * (dock/scope.js, syncScopedHtml); the two move together, so the text before
+ * and after that range is the file around the pane as it is typed in — the
+ * same splice every other reader of the scoped pane makes.
+ */
+function around() {
+  if (!dockState.htmlScopeActive || !dockState.htmlFocus) {
+    return {};
+  }
+
+  const { from, to } = dockState.htmlFocus;
+
+  return { before: dockState.htmlFull.slice(0, from), after: dockState.htmlFull.slice(to) };
+}
+
+/**
  * The extensions the HTML pane mounts: the lint field with its underlines,
  * and a listener that repaints the strip whenever the document changes —
  * a keystroke, or the dock opening another file — or the rules were asked
@@ -202,7 +225,7 @@ export function problemsUi(win) {
     const { field, relint } = templateLintDecorations(
       { Decoration, StateField, StateEffect, RangeSetBuilder, EditorView },
       htmlLanguage.parser,
-      () => ({ lists })
+      () => ({ lists, ...around() })
     );
     const listener = EditorView.updateListener.of((update) => {
       const relinted = update.transactions.some((tr) => tr.effects.some((effect) => effect.is(relint)));

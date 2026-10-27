@@ -376,17 +376,28 @@ function lintHtml(text, parser, branches, problems) {
 }
 
 /**
- * @param {string} source   the template as typed
+ * @param {string} source   the template as typed — or the slice of it the pane
+ *   shows, with the rest of the file in `options.before` / `options.after`
  * @param {{ parse: (text: string) => any }} parser   @codemirror/lang-html's `htmlLanguage.parser`
- * @param {{ lists?: Iterable<string> }} [options]   `lists`: field handles the
- *   fieldset says are lists (replicator, grid, …), so `{{ blocks }}` without
- *   its `{{ /blocks }}` can be told from a value
+ * @param {{ lists?: Iterable<string>, before?: string, after?: string }} [options]
+ *   `lists`: field handles the fieldset says are lists (replicator, grid, …),
+ *   so `{{ blocks }}` without its `{{ /blocks }}` can be told from a value.
+ *   `before` / `after`: the file around `source` when `source` is one element
+ *   of it. What is wrong is decided by the file, not by the slice — the
+ *   `{{ if media }}` row of the tree ends where its `{{ else }}` row begins,
+ *   and the `{{ /if }}` that closes it stands after that row; a `<div>` opened
+ *   in the slice may close after it. So the file is what is read, and the
+ *   findings inside the slice are what comes back, in the slice's offsets.
+ *   A finding outside it is about markup the slice does not show.
  * @returns {Array<{ from: number, to: number, key: string, args: Record<string, string> }>}
  *   in document order. Empty for a template with nothing to say about, and
  *   empty rather than thrown for one the readers cannot get through.
  */
 export function lintTemplate(source, parser, options = {}) {
-  const src = String(source || '');
+  const slice = String(source || '');
+  const before = String(options.before || '');
+  const after = String(options.after || '');
+  const src = before + slice + after;
 
   if (!src.trim() || src.length > LIMIT) {
     return [];
@@ -405,9 +416,14 @@ export function lintTemplate(source, parser, options = {}) {
     return [];
   }
 
+  const base = before.length;
+  const end = base + slice.length;
   const seen = new Set();
 
   return problems
+    .filter((problem) => problem.from >= base && problem.from < end)
+    // A finding that reaches past the slice is underlined up to its edge.
+    .map((problem) => ({ ...problem, from: problem.from - base, to: Math.min(problem.to, end) - base }))
     .sort((a, b) => a.from - b.from || a.to - b.to)
     .filter((problem) => {
       const id = `${problem.from}:${problem.key}`;

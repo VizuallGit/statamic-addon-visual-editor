@@ -90,6 +90,38 @@ test('a field the fieldset calls a list must close; a value of it may stand', ()
   assert.deepEqual(keys('<p>{{ headline }}</p>'), []);
 });
 
+test('a slice of the file is judged by the file: a branch picked in the tree is closed outside it', () => {
+  // The tree's `{{ if media }}` row ends where its `{{ else }}` row begins.
+  const before = '<div class="bg-gray-900 aspect-4/3">\n  ';
+  const slice = '{{ if media }}\n    {{ partial:components/image :imagePath="media" }}\n  ';
+  const after = '{{ else }}\n    <span>Upload a picture</span>\n  {{ /if }}\n</div>';
+  const inFile = (src) => lintTemplate(src, parser, { before, after });
+
+  assert.deepEqual(findings(slice), ['pair_unclosed:if']);
+  assert.deepEqual(inFile(slice), []);
+
+  // Picked alone, the `{{ else }}` row has no `{{ if }}` in front of it, and its `{{ /if }}` closes nothing.
+  assert.deepEqual(findings(after.slice(0, after.indexOf('\n</div>'))), ['branch_stray:else', 'pair_stray:if']);
+  assert.deepEqual(lintTemplate(after.slice(0, after.indexOf('\n</div>')), parser, { before: before + slice, after: '\n</div>' }), []);
+
+  // A `<div>` opened in the slice and closed after it is nobody's mistake either.
+  assert.deepEqual(lintTemplate('<div class="a">\n  <p>x</p>', parser, { before: '<section>\n', after: '\n</div>\n</section>' }), []);
+});
+
+test('a slice reports what is inside it, in its own offsets, and leaves the rest of the file alone', () => {
+  const before = '<section>\n  <div class="never-closed">\n  ';
+  const slice = '<p>{{ title }}\n  <img src="{{ image }}">';
+  const after = '\n</section>';
+  const [problem, ...rest] = lintTemplate(slice, parser, { before, after });
+
+  // The `<div>` outside the pane is not the pane's to tell; the `<p>` in it is.
+  assert.deepEqual(rest, []);
+  assert.equal(problem.key, 'code_dock_problem_tag_unclosed');
+  assert.equal(problem.args.tag, 'p');
+  assert.equal(problem.from, 0);
+  assert.equal(slice.slice(problem.from, problem.to), '<p>');
+});
+
 test('a {{ that never gets its }} names what was being written', () => {
   const src = '<section {{ visual_edit outline_inside="true">\n<div>x</div>\n</section>';
   const [problem] = lintTemplate(src, parser);
