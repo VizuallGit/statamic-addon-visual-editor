@@ -34,7 +34,7 @@
  *                             the tree, the preview, the dock's cursor and
  *                             tw-classes.js's picked tag all follow it
  *   onSelect(fn) → unhook     a pick made anywhere else
- *   setPlus? / plusPath?      a + target set from the tree or the preview
+ *   setPlus? / plusPath?      a + target set from the preview
  *
  * `drag(event, item)` hands a tile pressed in Add to the canvas
  * (canvas-ui.js); false when Build has no canvas to drop on. `openPlus(path)`

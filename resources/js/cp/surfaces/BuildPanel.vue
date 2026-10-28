@@ -71,7 +71,7 @@ function nameOf(row) {
 }
 
 /*
- * A + in the tree or the preview opens Add at its target; a pick opens Style.
+ * A + in the preview opens Add at its target; a pick opens Style.
  * In the editor the + sets its target first and the tree picks that row a
  * moment later — a pick of the + target itself is the same click, and stays
  * in Add. A row renamed where it stands (a loop made a collection in its

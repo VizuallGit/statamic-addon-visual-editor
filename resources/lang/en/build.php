@@ -14,8 +14,6 @@ return [
     // The switch in the Live Preview top bar
     'mode_content' => 'Content',
     'mode_build' => 'Build',
-    // The + on a row of the HTML tree in Build
-    'tree_plus' => 'Add here',
 
     // Tabs
     'tab_add' => 'Add',

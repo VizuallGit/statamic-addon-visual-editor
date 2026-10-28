@@ -8,8 +8,6 @@
 return [
     'mode_content' => 'Indhold',
     'mode_build' => 'Byg',
-    // The + on a row of the HTML tree in Build
-    'tree_plus' => 'Tilføj her',
 
     'tab_add' => 'Tilføj',
     'tab_style' => 'Stil',

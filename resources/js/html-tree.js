@@ -937,23 +937,6 @@ export function ensureHtmlTreeStyles(doc) {
       color: var(--sve-ht-figma-pick-ink);
       background: none;
     }
-
-    /* Build mode's + on a row (HtmlTreeRow.vue), drawn as the icons beside it. */
-    [data-sve-ht-plus] {
-      all: unset;
-      box-sizing: border-box;
-      width: 18px;
-      height: 18px;
-      flex: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      opacity: .7;
-      border-radius: 4px;
-    }
-    [data-sve-ht-plus]:not([disabled]):hover { opacity: 1; background: rgba(128,128,128,.25); }
-    [data-sve-ht-plus][disabled] { opacity: .3; cursor: default; }
   `);
 }
 

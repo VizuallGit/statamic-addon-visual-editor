@@ -11,7 +11,7 @@ import { reactive } from 'vue';
  */
 export const buildModeUi = reactive({
   on: false,
-  // Where Add puts the next element: a row's path, set by the + on that row
-  // in the HTML tree (HtmlTreeRow.vue) or by the panel; '' = the picked row.
+  // Where Add puts the next element: a row's path, set by a + on Build's
+  // canvas or by the panel; '' = the picked row.
   plusPath: '',
 });
