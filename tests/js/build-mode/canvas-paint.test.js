@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CANVAS_EMPTY,
   CANVAS_PATH,
   CANVAS_ROOT,
   ISLAND_WAIT,
@@ -205,4 +206,53 @@ test('a class list is read token by token, without the editor’s own classes', 
 test('no element at the top: nothing to paint', () => {
   assert.equal(planTemplate('{{ partial:hero }}', field), null);
   assert.equal(planTemplate('', field), null);
+});
+
+test('an element the file leaves empty is stamped for the placeholder — by the plan, a line break inside or not', () => {
+  const html = [
+    '<section class="py-800">',
+    '  <div class="grid grid-cols-2">',
+    '    <div>',
+    '    </div>',
+    '    <div></div>',
+    '  </div>',
+    '  <h2>  </h2>',
+    '  <p>{{ title }}</p>',
+    '  <p>{{ empty }}</p>',
+    '  <p>{{# a note #}}</p>',
+    '  <div><!-- <p>hidden</p> --></div>',
+    '  <span></span>',
+    '  <img src="a.png">',
+    '  <div>{{ collection:pages }}<p>{{ title }}</p>{{ /collection:pages }}</div>',
+    '  <div>&nbsp;</div>',
+    '</section>',
+  ].join('\n');
+  const plan = planTemplate(html, field);
+  const empty = Object.fromEntries(plan.elements.map((el) => [el.path, el.empty]));
+
+  assert.equal(empty['0:section'], '');
+  assert.equal(empty['0:section/0:div'], '');
+  assert.equal(empty['0:section/0:div/0:div'], 'box');
+  assert.equal(empty['0:section/0:div/1:div'], 'box');
+  assert.equal(empty['0:section/1:h2'], 'text');
+  // A field is not nothing, even when the form has it empty.
+  assert.equal(empty['0:section/2:p'], '');
+  assert.equal(empty['0:section/3:p'], '');
+  assert.equal(empty['0:section/4:p'], 'text');
+  assert.equal(empty['0:section/5:div'], 'box');
+  assert.equal(empty['0:section/6:span'], '');
+  assert.equal(empty['0:section/7:img'], '');
+  assert.equal(empty['0:section/8:div'], '');
+  assert.equal(empty['0:section/9:div'], '');
+
+  const { html: painted } = paintPlan(plan);
+
+  assert.ok(painted.includes(`<div ${CANVAS_PATH}="0:section/0:div/1:div" ${CANVAS_EMPTY}="box"></div>`), painted);
+  assert.ok(painted.includes(`<h2 ${CANVAS_PATH}="0:section/1:h2" ${CANVAS_EMPTY}="text">  </h2>`), painted);
+  assert.ok(!painted.includes(`${CANVAS_PATH}="0:section" ${CANVAS_EMPTY}`));
+});
+
+test('a new, blank section is one placeholder; a locked empty element is none', () => {
+  assert.equal(planTemplate('<section id="id-{{ id }}" class="[ {{ _class }} ]">\n</section>', field).root.empty, 'box');
+  assert.equal(planTemplate('{{# sve-lock #}}\n<div>\n</div>', field).root.empty, '');
 });

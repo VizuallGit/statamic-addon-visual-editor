@@ -35,6 +35,9 @@
  *                             tw-classes.js's picked tag all follow it
  *   onSelect(fn) → unhook     a pick made anywhere else
  *   setPlus? / plusPath?      a + target set from the tree or the preview
+ *
+ * `drag(event, item)` hands a tile pressed in Add to the canvas
+ * (canvas-ui.js); false when Build has no canvas to drop on.
  *   setSize?(handle)          the pane's own size door; default `lp:set-device`
  *   openStateMenu?(anchor)    the Tailwind pane's state menu (State | Prose) —
  *                             tw-classes.js `openStateMenu`, exported for this
@@ -99,7 +102,7 @@ export function mountBuildPanel(win, host, hooks = {}) {
   const page = buildModeUi.on ? buildCanvas(win) : null;
   const detach = page?.attach(port);
   // Columns drawn over the canvas for the pick (columns-overlay.js).
-  const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED } : {});
+  const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false } : {});
 
   return () => {
     stopColumns();
@@ -275,6 +278,7 @@ export function createEditorPort(win, hooks = {}) {
       return true;
     },
     justWrote: (path) => path === wrote,
+    drag: (event, item) => !!canvas?.dragNew(event, item),
     sectionTag: () => String(win.Statamic?.$config?.get?.('sveSectionTag') || ''),
     mobileVariant: () => rows()[rows().length - 1]?.tw || 'max-md',
     components() {

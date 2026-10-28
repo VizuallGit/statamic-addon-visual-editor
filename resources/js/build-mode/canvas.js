@@ -5,8 +5,8 @@
  * Owner: Build mode (resources/js/build-mode/).
  * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
- *   tw-compile.js (lazily), build-mode/canvas-paint.js, Alpine's morph (its
- *   ES build under a query of Build's own — see below).
+ *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
+ *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
  *   `dock:chrome-kind`, `html-tree:open-section`; listens to
  *   `dock:html-changed`, `tw:changed`.
@@ -27,6 +27,9 @@
  *   The islands  what only the server renders — loops, conditions, components,
  *                tags — read out of a copy of the real preview's section by the
  *                paths html-pick-align.js stamps, each time it has rendered.
+ *   Its own      an element the file leaves empty stands open, dashed, until
+ *                something is put in it (`CANVAS_EMPTY`, stamped by the paint);
+ *                the + and the drags are canvas-ui.js's.
  *
  * The morph is Alpine's. preview.js and live-reload-morph.js import the
  * package already, each by a build of its own; a module two entries import
@@ -64,7 +67,8 @@ import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { UI_CSS, canvasUi } from './canvas-ui.js';
 
 const morph = (() => {
   const holder = {};
@@ -92,10 +96,15 @@ const LEFT_OFF = 'script, noscript, link[rel~="modulepreload"], link[as="script"
 /** On the canvas's window after each paint, for what draws over the canvas. */
 export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 
-const OWN_CSS = `[${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}
+// The placeholder first: a hover, a pick or a + target draws over its dashes.
+const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
+[${CANVAS_EMPTY}="text"]{min-height:1.5em!important}
+[${CANVAS_ROOT}][${CANVAS_EMPTY}]{min-height:8rem!important}
+[${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}
 [${SELECTED}]{outline:.125rem solid #3858e9;outline-offset:-.125rem}
 [${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
-${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}`;
+${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}
+${UI_CSS}`;
 
 /** The row in the form the dock's uid names: its values fill the section's fields. */
 function rowIn(values, uid, cache) {
@@ -213,6 +222,7 @@ function whenStyled(page) {
  *   frame()        the canvas `<iframe>`, or null while there is none
  *   attach(port)   the Build panel's port: picks and + targets are marked,
  *                  a click picks → detach
+ *   dragNew(event, item)  a tile from Add pressed: dragged onto the canvas
  *   stop()         the canvas goes and the real preview is what shows
  *
  * @param {Window} win  the Control Panel window
@@ -257,6 +267,8 @@ export function startCanvas(win) {
       }
     });
   };
+
+  const ui = canvasUi(win, { page: cdoc, frame: () => frame, port: () => port, hovered: () => hovered, schedule });
 
   /* The frame */
 
@@ -322,6 +334,9 @@ export function startCanvas(win) {
     page.addEventListener('auxclick', (event) => event.preventDefault(), true);
     page.addEventListener('submit', (event) => event.preventDefault(), true);
     page.addEventListener('mouseover', onHover);
+    page.addEventListener('pointerdown', ui.grab, true);
+    page.addEventListener('scroll', ui.draw, true);
+    frame.contentWindow.addEventListener('resize', ui.draw);
     page.documentElement.addEventListener('mouseleave', () => setHover(null));
 
     const resize = new win.ResizeObserver(placeSoon);
@@ -819,6 +834,8 @@ export function startCanvas(win) {
         page.querySelectorAll(`[${CANVAS_PATH}="${CSS.escape(path)}"]`).forEach((el) => el.setAttribute(attr, ''));
       }
     }
+
+    ui.draw();
   }
 
   /** The section the dock opened, brought into view when it is off screen. */
@@ -845,6 +862,7 @@ export function startCanvas(win) {
     hovered?.removeAttribute(HOVERED);
     hovered = el;
     hovered?.setAttribute(HOVERED, '');
+    ui.draw();
   }
 
   /** A morph takes off every attribute the new HTML does not carry — the hover mark among them. */
@@ -857,6 +875,11 @@ export function startCanvas(win) {
   }
 
   function onHover(event) {
+    // On a +, the element it belongs to stays hovered.
+    if (ui.owns(event.target)) {
+      return;
+    }
+
     const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
 
     setHover(target?.closest(`[${CANVAS_PATH}]`) || null);
@@ -865,6 +888,10 @@ export function startCanvas(win) {
   function onClick(event) {
     event.preventDefault();
     event.stopPropagation();
+
+    if (ui.click(event)) {
+      return;
+    }
 
     const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
     const el = target?.closest(`[${CANVAS_PATH}]`);
@@ -911,8 +938,11 @@ export function startCanvas(win) {
         }
       };
     },
+    /** A tile from Add pressed: dragged onto the canvas (canvas-ui.js). */
+    dragNew: (event, item) => ui.dragNew(event, item),
     stop() {
       alive = false;
+      ui.stop();
       stopMarks?.();
       stopMarks = null;
       port = null;

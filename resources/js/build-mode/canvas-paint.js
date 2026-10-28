@@ -5,7 +5,8 @@
  * what the real preview rendered there.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: html-tree-parse.js, html-tree-edit.js, lib/antlers-tags.js.
+ * May import: html-tree-parse.js, html-tree-edit.js, lib/antlers-tags.js,
+ *   build-mode/catalog.js.
  * Pure: strings and plain objects in, a string out. The frame, the real
  *   preview and the morph are canvas.js's.
  * Bus messages: none.
@@ -22,11 +23,16 @@
  * from the form, any other tag (`{{ _class }}`) takes what the real preview
  * rendered for it (`learnTags`). Antlers standing where an attribute would
  * (`{{ visual_edit … }}`) brings the rendered element's other attributes.
+ *
+ * An element the file leaves empty — nothing inside but whitespace, no child,
+ * no field, no island — is stamped for the canvas's placeholder, read off the
+ * plan: `:empty` does not match an element holding a line break.
  */
 
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { closingTagIndex } from '../html-tree-edit.js';
 import { antlersTags } from '../lib/antlers-tags.js';
+import { holdsElements } from './catalog.js';
 
 /** On every element the canvas paints from the file: its tree path, as parseTemplateTree names it. */
 export const CANVAS_PATH = 'data-sve-build-path';
@@ -34,6 +40,11 @@ export const CANVAS_PATH = 'data-sve-build-path';
 export const CANVAS_ROOT = 'data-sve-build-root';
 /** Where an island stands until the real preview has rendered it once. */
 export const ISLAND_WAIT = 'sve-island';
+/** On an element the file leaves empty: `box` when it holds others, `text` for a block of text. */
+export const CANVAS_EMPTY = 'data-sve-build-empty';
+
+/** Blocks of text: emptied, they stand on the page with no height of their own. */
+const TEXT_BLOCKS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote', 'figcaption']);
 
 /**
  * Alpine's attributes (`x-data`, `:class`, `@click`) and inline handlers
@@ -245,7 +256,20 @@ function runOf(source, from, to, members, field) {
     at = cut.to;
   }
 
-  return { dynamic: false, text: out + text.slice(at) };
+  return { dynamic: false, text: out + text.slice(at), filled: tags.some((tag) => !tag.comment) };
+}
+
+/** What an element's placeholder is: '' when it has something inside, is a void or locked, or is neither a box nor a block of text. */
+function emptyKind(node, el) {
+  if (el.leaf || node.locked || node.lockedIn || el.items.some((item) => item.items || item.dynamic || item.filled || item.text.trim())) {
+    return '';
+  }
+
+  if (holdsElements(node)) {
+    return 'box';
+  }
+
+  return TEXT_BLOCKS.has(String(node.tag).toLowerCase()) ? 'text' : '';
 }
 
 /**
@@ -281,6 +305,7 @@ export function planTemplate(html, field = () => undefined) {
       loose,
       leaf: node.to <= node.openTo,
       items: [],
+      empty: '',
     };
 
     elements.push(el);
@@ -331,6 +356,7 @@ export function planTemplate(html, field = () => undefined) {
     }
 
     flush(Math.max(cursor, end), null);
+    el.empty = emptyKind(node, el);
 
     return el;
   };
@@ -391,6 +417,10 @@ export function paintPlan(plan, { learned = new Map(), served = new Set(), extra
     }
 
     attrs.push(`${CANVAS_PATH}="${el.path}"`);
+
+    if (el.empty) {
+      attrs.push(`${CANVAS_EMPTY}="${el.empty}"`);
+    }
 
     if (root) {
       attrs.push(CANVAS_ROOT);

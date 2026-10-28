@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addAt, findByPath, placeFor } from '../../../resources/js/build-mode/place.js';
+import { addAt, findByPath, insertAt, pathAt, placeFor } from '../../../resources/js/build-mode/place.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const FILE = [
@@ -88,4 +88,20 @@ test('a one-line empty element opens up', () => {
   const out = addAt('<div class="flex"></div>\n', '0:div', P);
 
   assert.equal(out.html, '<div class="flex">\n    <p>New</p>\n</div>\n');
+});
+
+test('before: its own line in front of the row, at the row’s indent; a lock stays with its element', () => {
+  const roots = parseTemplateTree(FILE);
+  const h2 = findByPath(roots, pathOf(FILE, (n) => n.tag === 'h2'));
+  const out = insertAt(FILE, { mode: 'before', before: h2 }, '<div>\n    <p>New</p>\n</div>');
+
+  assert.ok(out.html.includes('    <div class="wrapper">\n        <div>\n            <p>New</p>\n        </div>\n        <h2>Title</h2>'), out.html);
+  assert.equal(findByPath(parseTemplateTree(out.html), pathAt(out.html, out.at)).tag, 'div');
+
+  const locked = '<div>\n    {{# sve-lock #}}\n    <p>Fixed</p>\n</div>\n';
+  const p = parseTemplateTree(locked)[0].children[0];
+  const next = insertAt(locked, { mode: 'before', before: p }, P);
+
+  assert.equal(next.html, '<div>\n    <p>New</p>\n    {{# sve-lock #}}\n    <p>Fixed</p>\n</div>\n');
+  assert.equal(next.html.slice(next.at, next.at + P.length), P);
 });

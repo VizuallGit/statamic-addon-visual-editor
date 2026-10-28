@@ -12,6 +12,9 @@
  *   in the kernel is touched, no message sent.
  * Bus: none.
  *
+ * Over Build's canvas the + is the canvas's own (canvas-ui.js, `plus: false`):
+ * the columns are outlined here, the + drawn in the page beside the rest.
+ *
  * Only for the picked element, and never a loop: a ResizeObserver on the
  * Columns and the frame's own scroll move the boxes; a new file (the port's
  * `rev`) or a frame that has drawn again (`updated` on its window) finds the
@@ -25,7 +28,7 @@ import { columnsFor } from './place.js';
 
 const LAYER_ID = '__sve-build-columns';
 const STYLE_ID = '__sve-build-columns-css';
-const PLUS =
+export const PLUS =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 
 function ensureStyles(doc) {
@@ -49,8 +52,13 @@ function ensureStyles(doc) {
  * @param {() => HTMLIFrameElement|null} [on.frame]  the frame drawn over; the Live Preview's by default
  * @param {string} [on.attr]                         the path attribute on its elements
  * @param {string} [on.updated]                      the event its window fires once it has drawn again
+ * @param {boolean} [on.plus]                        a + in each empty column; the canvas draws its own
  */
-export function startColumnsOverlay(win, port, { frame: frameOf = () => previewFrame(win), attr = HT_PATH_ATTR, updated = 'statamic:preview-updated' } = {}) {
+export function startColumnsOverlay(
+  win,
+  port,
+  { frame: frameOf = () => previewFrame(win), attr = HT_PATH_ATTR, updated = 'statamic:preview-updated', plus: withPlus = true } = {}
+) {
   const doc = win.document;
   let target = null;
   let els = [];
@@ -171,7 +179,7 @@ export function startColumnsOverlay(win, port, { frame: frameOf = () => previewF
           cell.dataset.target = '';
         }
 
-        if (column.empty) {
+        if (column.empty && withPlus) {
           const btn = doc.createElement('button');
 
           btn.type = 'button';

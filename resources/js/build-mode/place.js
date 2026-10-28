@@ -19,8 +19,9 @@
  *
  * "After" is `withTemplateMarkup` — the HTML tree's plus, one way of putting
  * a block into a file. "Into" is new here and indents the same way: the
- * parent's indent plus one step. A locked element, anything inside one, and a
- * hidden (commented-out) one take nothing.
+ * parent's indent plus one step. "Before" is a drop's (build-mode/drop.js):
+ * its own line in front of the row, at the row's indent. A locked element,
+ * anything inside one, and a hidden (commented-out) one take nothing.
  */
 
 import { parseTemplateTree } from '../html-tree-parse.js';
@@ -134,6 +135,18 @@ export function insertAt(source, place, markup) {
 
   if (place.mode === 'after') {
     return withTemplateMarkup(html, markup, place.after);
+  }
+
+  if (place.mode === 'before') {
+    // A locked row keeps its lock in front of it: the new one goes before both.
+    const from = place.before.lockFrom ?? place.before.wrapFrom ?? place.before.from;
+    const indent = indentOf(html, from);
+    const start = from - indent.length;
+
+    return {
+      html: `${html.slice(0, start)}${indented(markup, indent)}\n${html.slice(start)}`,
+      at: start + indent.length,
+    };
   }
 
   const node = place.parent;

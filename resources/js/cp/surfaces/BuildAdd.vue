@@ -11,8 +11,12 @@
  * written through the port — `dock:set-html` in the editor, the door the
  * Tailwind pane writes a class through — and the new element is picked.
  *
+ * A tile pressed and moved is dragged onto Build's canvas instead and lands
+ * where it is let go (`port.drag`, canvas-ui.js); a press that does not move
+ * stays a click.
+ *
  * Loop and If are handed to the port, which runs the dock's own ∞ and if
- * path and opens the inspector those buttons open. Components are the files
+ * path and opens the inspector those buttons open — clicked, not dragged. Components are the files
  * in partials/components as the dock's component menu lists them
  * (`/!/sve/components`); a tile writes the call that menu writes.
  */
@@ -100,6 +104,22 @@ function write(markup) {
   }
 }
 
+/** What a tile writes: the toolbar's markup for its element (markup.js). */
+function markupOf(entry, structure) {
+  return markupFor(entry, {
+    sectionTag: port.sectionTag(),
+    mobile: port.mobileVariant(),
+    structure,
+    text: {
+      heading: port.t('new_heading'),
+      text: port.t('new_text'),
+      button: port.t('new_button'),
+      link: port.t('new_link'),
+      item: port.t('new_item'),
+    },
+  });
+}
+
 function add(entry, structure) {
   if (entry.source === 'columns' && !structure) {
     picker.value = true;
@@ -115,20 +135,22 @@ function add(entry, structure) {
     return;
   }
 
-  write(
-    markupFor(entry, {
-      sectionTag: port.sectionTag(),
-      mobile: port.mobileVariant(),
-      structure,
-      text: {
-        heading: port.t('new_heading'),
-        text: port.t('new_text'),
-        button: port.t('new_button'),
-        link: port.t('new_link'),
-        item: port.t('new_item'),
-      },
-    })
-  );
+  write(markupOf(entry, structure));
+}
+
+/** Loop, If and Columns open something first, so they are clicked, not dragged. */
+const draggable = (entry) => !entry.logic && entry.source !== 'columns';
+
+/** A tile pressed: the canvas takes it over once the pointer moves. `markup` is asked for when it lands. */
+function grab(event, label, markup) {
+  port.drag?.(event, { label, markup });
+}
+
+/** A Columns structure dropped on the canvas: the picker has done its job. */
+function structureMarkup(key) {
+  picker.value = false;
+
+  return markupOf(columnsEntry.value, key);
 }
 
 const columnsEntry = computed(() => groups.value.flatMap((group) => group.items).find((item) => item.source === 'columns'));
@@ -148,6 +170,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
         type="button"
         class="bm-pk"
         :data-sve-build-structure="structure.key"
+        @pointerdown="grab($event, structure.label, () => structureMarkup(structure.key))"
         @click="add(columnsEntry, structure.key)"
       >
         <span class="bm-bars"><i v-for="(part, n) in structure.parts" :key="n" :style="{ flex: part }"></i></span>
@@ -200,6 +223,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
             :disabled="target.locked"
             :title="port.t('add_title')"
             :data-sve-build-tile="entry.id"
+            @pointerdown="draggable(entry) && grab($event, label(entry), () => markupOf(entry))"
             @click="add(entry)"
           >
             <span v-html="tileIcon(entry, port.lists.htmlIcons, port.lists.toolIcons)"></span>
@@ -221,6 +245,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
           class="bm-comp"
           :disabled="target.locked"
           :data-sve-build-component="item.name"
+          @pointerdown="grab($event, humanize(item.name), () => item.tag)"
           @click="write(item.tag)"
         >
           <span v-html="port.lists.htmlIcons.component || ic('cube')"></span>
