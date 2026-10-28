@@ -39,7 +39,9 @@
  *   setPlus? / plusPath?      a + target set from the preview
  *
  * `drag(event, item)` hands a tile pressed in Add to the canvas
- * (canvas-ui.js); false when Build has no canvas to drop on. `openPlus(path)`
+ * (canvas-ui.js); false when Build has no canvas to drop on. On a page built
+ * from sections a tile with no parent is a section of its own instead
+ * (`addSection`, `dropSection` — new-section.js). `openPlus(path)`
  * is a + pressed on the canvas: Add's target, shown in the panel — Add opens
  * and flashes (`pointed` counts the presses; BuildPanel.vue).
  *   setSize?(handle)          the pane's own size door; default `lp:set-device`
@@ -88,6 +90,7 @@ import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { addAt, findByPath } from './place.js';
+import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { startColumnsOverlay } from './columns-overlay.js';
@@ -336,6 +339,28 @@ export function createEditorPort(win, hooks = {}) {
     },
     sectionTag: () => String(win.Statamic?.$config?.get?.('sveSectionTag') || ''),
     mobileVariant: () => rows()[rows().length - 1]?.tw || 'max-md',
+
+    /* A section of its own (new-section.js): what a tile makes on a page built from sections, and where */
+    sectionKind: (entry) => sectionKind(win, entry),
+    sectionRows: () => sectionRows(win),
+    /** No file in the dock on a page built from sections: Add's place is a new section at the end of the page. */
+    onlySections: () => (rev.value, onlySections(win)),
+    /** A tile clicked: true when it became a section of its own (the popup is up), false when Add writes it. */
+    addSection(entry, markup) {
+      const kind = sectionKind(win, entry);
+
+      if (!kind || (kind === 'outside' && hasParent())) {
+        return false;
+      }
+
+      void makeSection(win, { markup: kind === 'always' ? '' : markup, afterUid: clickedAfter(win) });
+
+      return true;
+    },
+    /** A tile dropped beside a section on the canvas (canvas-ui.js): its section lands after `afterUid`. */
+    dropSection(kind, markup, afterUid) {
+      void makeSection(win, { markup: kind === 'always' ? '' : markup, afterUid });
+    },
     components() {
       return win
         .fetch('/!/sve/components', {

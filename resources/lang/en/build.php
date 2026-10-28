@@ -40,6 +40,7 @@ return [
     'insert_into' => 'Inserting into :name',
     'insert_after' => 'Inserting after :name',
     'insert_end' => 'Inserting at the end of the file',
+    'insert_new_section' => 'New section at the end of the page',
     'insert_locked' => 'This element is locked. Pick another place.',
     'insert_reset' => 'Insert at the selected element instead',
     'columns_title' => 'Choose a grid',

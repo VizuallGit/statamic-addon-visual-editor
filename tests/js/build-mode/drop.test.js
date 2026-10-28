@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable } from '../../../resources/js/build-mode/drop.js';
+import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding } from '../../../resources/js/build-mode/drop.js';
 import { findByPath } from '../../../resources/js/build-mode/place.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
@@ -164,4 +164,16 @@ test('what does not move: the section’s own element, a locked one, into itself
   assert.equal(dropMove(FILE, H2, H2, 'after'), null);
   assert.ok(order(before.html, '<p>Free</p>', '{{# sve-lock #}}', '<p>Fixed</p>'), before.html);
   assert.equal(findByPath(parseTemplateTree(before.html), '0:section/1:p').locked, true);
+});
+
+test('a section of its own beside one of the page’s: after it, or after the one before it', () => {
+  const rows = [['a', 'a-id'], ['b'], ['c', 'c-id', 'c-_id']];
+
+  assert.equal(sectionLanding(rows, rows[1], 'after'), 'b');
+  assert.equal(sectionLanding(rows, rows[1], 'before'), 'a');
+  assert.equal(sectionLanding(rows, rows[2], 'after'), 'c');
+  // Before the first: the top of the page.
+  assert.equal(sectionLanding(rows, rows[0], 'before'), null);
+  // Not one of the page's sections.
+  assert.equal(sectionLanding(rows, ['x'], 'after'), undefined);
 });

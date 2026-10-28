@@ -32,6 +32,7 @@ return [
     'insert_into' => 'Indsætter i :name',
     'insert_after' => 'Indsætter efter :name',
     'insert_end' => 'Indsætter sidst i filen',
+    'insert_new_section' => 'Ny sektion sidst på siden',
     'insert_locked' => 'Elementet er låst. Vælg et andet sted.',
     'insert_reset' => 'Indsæt ved det valgte element i stedet',
     'columns_title' => 'Vælg grid',

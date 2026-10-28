@@ -15,6 +15,11 @@
  * where it is let go (`port.drag`, canvas-ui.js); a press that does not move
  * stays a click.
  *
+ * On a page built from sections, Section is always a section of its own, and
+ * a layout or an HTML tag is one where it has no parent: the HTML tree's
+ * "Static HTML / With fields" popup, then a row on the page
+ * (build-mode/new-section.js, through the port).
+ *
  * Loop and If are handed to the port, which writes them and opens their
  * settings in a popup — clicked, not dragged. Components are the files in
  * partials/components as the dock's component menu lists them
@@ -85,6 +90,11 @@ const humanize = (name) => String(name || '').replace(/[_-]+/g, ' ').replace(/^\
 const target = computed(() => {
   const place = props.here.place;
 
+  // Nothing open on a page built from sections: only a section of its own lands anywhere.
+  if (port.onlySections?.()) {
+    return { nowhere: true, html: esc(port.t('insert_new_section')) };
+  }
+
   if (!place) {
     return { locked: true, html: esc(port.t('insert_locked')) };
   }
@@ -111,7 +121,13 @@ function add(entry, structure, rows) {
   }
 
   picker.value = false;
-  write(markupOf(entry, { structure, rows }));
+
+  const markup = markupOf(entry, { structure, rows });
+
+  // On a page built from sections, Section — and a layout with no parent — is a section of its own.
+  if (!port.addSection?.(entry, markup)) {
+    write(markup);
+  }
 }
 
 /** A tile clicked. Loop and If are written, then their settings open beside the panel, level with the tile. */
@@ -125,21 +141,36 @@ function press(entry, event) {
   add(entry);
 }
 
+/** A tile with nowhere to land: beside a lock only Section, with nothing open only a section's tiles still go. */
+function offFor(entry) {
+  const kind = port.sectionKind?.(entry) || '';
+
+  return target.value.nowhere ? !kind : !!target.value.locked && kind !== 'always';
+}
+
 /** Loop, If and Grid open something first, so they are clicked, not dragged. */
 const draggable = (entry) => !entry.logic && entry.source !== 'columns';
 
-/** A tile pressed: the canvas takes it over once the pointer moves. `markup` is asked for when it lands. */
-function grab(event, label, markup) {
-  port.drag?.(event, { label, markup });
+/**
+ * A tile pressed: the canvas takes it over once the pointer moves. `markup` is
+ * asked for when it lands; `entry` says whether it may be a section of its own.
+ */
+function grab(event, label, markup, entry = null) {
+  port.drag?.(event, { label, markup, section: entry ? port.sectionKind?.(entry) || '' : '' });
 }
 
 /** A Grid structure pressed: dropped on the canvas, the picker has done its job. */
 function grabStructure(event, structure, rows) {
-  grab(event, structure.label, () => {
-    picker.value = false;
+  grab(
+    event,
+    structure.label,
+    () => {
+      picker.value = false;
 
-    return markupOf(columnsEntry.value, { structure: structure.key, rows });
-  });
+      return markupOf(columnsEntry.value, { structure: structure.key, rows });
+    },
+    columnsEntry.value
+  );
 }
 
 const columnsEntry = computed(() => groups.value.flatMap((group) => group.items).find((item) => item.source === 'columns'));
@@ -206,10 +237,10 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
             type="button"
             class="bm-tile"
             :class="{ 'is-mono': group.mono, [`is-${entry.logic}`]: !!entry.logic }"
-            :disabled="target.locked"
+            :disabled="offFor(entry)"
             :title="port.t('add_title')"
             :data-sve-build-tile="entry.id"
-            @pointerdown="draggable(entry) && grab($event, label(entry), () => markupOf(entry))"
+            @pointerdown="draggable(entry) && grab($event, label(entry), () => markupOf(entry), entry)"
             @click="press(entry, $event)"
           >
             <span v-html="tileIcon(entry, port.lists.htmlIcons, port.lists.toolIcons)"></span>
@@ -229,7 +260,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
           :key="item.name"
           type="button"
           class="bm-tile is-comp"
-          :disabled="target.locked"
+          :disabled="target.locked || target.nowhere"
           :title="item.name"
           :data-sve-build-component="item.name"
           @pointerdown="grab($event, humanize(item.name), () => item.tag)"

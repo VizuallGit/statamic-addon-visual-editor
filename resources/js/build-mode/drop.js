@@ -19,6 +19,10 @@
  * inside only — beside it is outside the section.
  *
  * A move is the tree's own (`moveHtml`).
+ *
+ * A tile that makes a section of its own (new-section.js) dropped beside one
+ * of the page's sections lands in no file: it is a row on the page, before or
+ * after that section (`sectionLanding`).
  */
 
 import { parseTemplateTree } from '../html-tree-parse.js';
@@ -119,6 +123,30 @@ export function dropNew(source, path, where, markup, options = {}) {
   const next = insertAt(html, place, markup);
 
   return { ...next, path: pathAt(next.html, next.at, options) };
+}
+
+/**
+ * Where a section of its own lands when its tile is dropped beside one of the
+ * page's: after that section, or after the one before it — null is the top
+ * of the page. Undefined when `ids` is not one of `rows`.
+ *
+ * @param {Array<string[]>} rows  the page's sections in order, each the ids it answers to, the uid first
+ * @param {string[]} ids          the section under the pointer: one of `rows`
+ * @param {'before'|'after'} where
+ * @returns {string|null|undefined}
+ */
+export function sectionLanding(rows, ids, where) {
+  const at = rows.indexOf(ids);
+
+  if (at === -1) {
+    return undefined;
+  }
+
+  if (where === 'after') {
+    return ids[0];
+  }
+
+  return at > 0 ? rows[at - 1][0] : null;
 }
 
 /** Whether the row at `path` can be picked up: an element of the section, not its own, not locked. */

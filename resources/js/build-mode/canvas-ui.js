@@ -19,6 +19,10 @@
  *                after the element under the pointer, or a box round the one
  *                it would go into, says where it lands (drop.js); letting go
  *                writes it there and picks it. Escape lets go of nothing.
+ *                A tile that makes a section of its own (new-section.js) —
+ *                Section anywhere, the others outside the open section — is
+ *                a line before or after the page's section under the pointer,
+ *                and letting go asks for the section (`port.dropSection`).
  *
  * Both are for a port that writes — Visual Build's. HTML Build's port only
  * shows and picks (boot.js `mountBuildView`): no +, and nothing is dragged.
@@ -32,7 +36,7 @@
 import { injectStyle } from '../lib/style.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_EMPTY, CANVAS_PATH } from './canvas-paint.js';
-import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable } from './drop.js';
+import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding } from './drop.js';
 import { columnsFor, findByPath } from './place.js';
 import { PLUS } from './columns-overlay.js';
 
@@ -255,9 +259,12 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
 
     let over = null;
     const at = drag.point ? drag.toCanvas(drag.point) : null;
-    const el = at ? elementOf(doc.elementFromPoint(at.x, at.y))?.closest(`[${CANVAS_PATH}]`) : null;
+    const hit = at ? elementOf(doc.elementFromPoint(at.x, at.y)) : null;
+    const el = hit?.closest(`[${CANVAS_PATH}]`) || null;
 
-    if (el) {
+    if (drag.section && (drag.section === 'always' || !el)) {
+      over = besideSection(hit, at);
+    } else if (el) {
       const path = el.getAttribute(CANVAS_PATH);
       const r = el.getBoundingClientRect();
       const where = dropWhere(dropZones(roots(), path, drag.moving), at.y - r.top, r.height);
@@ -298,10 +305,39 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
   }
 
   /**
+   * Beside the page's section under the pointer — the outermost element whose
+   * `data-sid` is one of the page's rows: a line before it (its top half) or
+   * after it, and the row the new section lands after. Null off every section.
+   */
+  function besideSection(hit, at) {
+    let section = null;
+    let ids = null;
+
+    for (let node = hit?.closest('[data-sid]'); node; node = node.parentElement?.closest('[data-sid]')) {
+      const sid = node.getAttribute('data-sid');
+      const row = drag.rows.find((item) => item.includes(sid));
+
+      if (row) {
+        section = node;
+        ids = row;
+      }
+    }
+
+    if (!section) {
+      return null;
+    }
+
+    const rect = section.getBoundingClientRect();
+    const where = at.y - rect.top < rect.height / 2 ? 'before' : 'after';
+
+    return { where, rect, section: true, afterUid: sectionLanding(drag.rows, ids, where) };
+  }
+
+  /**
    * A press that becomes a drag once it has moved. `events` is the document
    * the pointer is followed in, `capture` the element that keeps it.
    */
-  function press(event, { events, capture, toCanvas, moving = '', label = '', source = null, land }) {
+  function press(event, { events, capture, toCanvas, moving = '', label = '', source = null, section = '', land }) {
     const origin = { x: event.clientX, y: event.clientY };
     const pointerId = event.pointerId;
     let started = false;
@@ -315,7 +351,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
         /* the document listeners follow the pointer anyway */
       }
 
-      drag = { moving, toCanvas: toCanvas(), point: null, over: null, into: new Map(), ghost: null, source };
+      // `section`: the tile's kind (new-section.js); `rows`: the page's sections, read once for the drag.
+      drag = { moving, toCanvas: toCanvas(), point: null, over: null, into: new Map(), ghost: null, source, section, rows: section ? port()?.sectionRows?.() || [] : [] };
       roots();
       ensureLayer(page()).setAttribute(BUSY, '');
       source?.setAttribute(DRAGGING, '');
@@ -473,7 +510,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
    * pointer lets go. False when there is nothing to drop on.
    *
    * @param {PointerEvent} event  the tile's pointerdown
-   * @param {{ label: string, markup: () => string }} item
+   * @param {{ label: string, markup: () => string, section?: string }} item
+   *   `section` the tile's kind on a page built from sections (new-section.js)
    */
   function dragNew(event, item) {
     if (event.button !== 0 || drag || !page() || !writer() || !frame()) {
@@ -486,6 +524,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       events: win.document,
       capture: tile,
       label: item.label,
+      section: item.section || '',
       // The frame's box, read once as the drag starts: from the panel's
       // pointer to the canvas's own coordinates (Live Preview may scale it).
       toCanvas() {
@@ -496,7 +535,10 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
         return ({ x, y }) =>
           x < box.left || x > box.right || y < box.top || y > box.bottom ? null : { x: (x - box.left) / scale, y: (y - box.top) / scale };
       },
-      land: (over) => write(dropNew(port()?.html() || '', over.path, over.where, item.markup())),
+      land: (over) =>
+        over.section
+          ? port()?.dropSection(item.section, item.markup(), over.afterUid)
+          : write(dropNew(port()?.html() || '', over.path, over.where, item.markup())),
     });
 
     return true;

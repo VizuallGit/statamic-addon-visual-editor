@@ -500,8 +500,12 @@ export function libraryStale(win) {
 /**
  * A static section: the name, and whether editors may insert it. No group —
  * the server keeps them together in one.
+ *
+ * `template` ({ html, css, js }, as `importedTemplate` makes it) is the file
+ * the section starts as instead of the empty scaffold — Build's tile that
+ * lands outside every section (build-mode/new-section.js). Both dialogs take it.
  */
-export function openStaticSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {
+export function openStaticSectionDialog(win, { afterUid = null, template = null, onDone, onError, onClose } = {}) {
   const overlay = openCpOverlay(win.document, NewSectionPrompt, {
     heading: t(win, 'static_section_new'),
     groupLabel: '',
@@ -514,12 +518,12 @@ export function openStaticSectionDialog(win, { afterUid = null, onDone, onError,
     saveLabel: t(win, 'section_new_create'),
     onClose,
     onOk: (display, group, insertable) => {
-      void makeSection(win, overlay, { display, static: true, hidden: !insertable }, { afterUid, onDone, onError });
+      void makeSection(win, overlay, { display, static: true, hidden: !insertable }, { afterUid, onDone, onError, template });
     },
   });
 }
 
-export function openNewSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {
+export function openNewSectionDialog(win, { afterUid = null, template = null, onDone, onError, onClose } = {}) {
   void (async () => {
     let groups = [];
 
@@ -570,7 +574,7 @@ export function openNewSectionDialog(win, { afterUid = null, onDone, onError, on
       // onClose fires, so this has to be the third.
       onClose,
       onOk: (display, group) => {
-        void makeSection(win, overlay, { display, group }, { afterUid, onDone, onError });
+        void makeSection(win, overlay, { display, group }, { afterUid, onDone, onError, template });
       },
     });
   })();
