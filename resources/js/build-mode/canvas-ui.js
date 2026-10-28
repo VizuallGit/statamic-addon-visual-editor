@@ -20,6 +20,9 @@
  *                it would go into, says where it lands (drop.js); letting go
  *                writes it there and picks it. Escape lets go of nothing.
  *
+ * Both are for a port that writes — Visual Build's. HTML Build's port only
+ * shows and picks (boot.js `mountBuildView`): no +, and nothing is dragged.
+ *
  * The layer is a child of the canvas's <html> after the body, so a morph of
  * the body never meets it. It is drawn at most once a frame, every box read
  * before anything is written (the canvas's `schedule`). A tile's drag starts
@@ -75,6 +78,12 @@ const byPath = (root, path) => root.querySelector(`[${CANVAS_PATH}="${CSS.escape
  */
 export function canvasUi(win, { page, frame, port, hovered, schedule }) {
   const tree = { html: null, roots: [] };
+  /** The port when it writes; null for one that only shows and picks. */
+  const writer = () => {
+    const p = port();
+
+    return typeof p?.write === 'function' ? p : null;
+  };
   let drag = null;
   let swallow = false;
   let cancel = null;
@@ -117,7 +126,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
 
   /** The elements that wear a +: the hovered, the picked, the picked Columns' empty columns. */
   function plusTargets(doc) {
-    const p = port();
+    const p = writer();
 
     if (!p || drag) {
       return [];
@@ -467,7 +476,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
    * @param {{ label: string, markup: () => string }} item
    */
   function dragNew(event, item) {
-    if (event.button !== 0 || drag || !page() || !port() || !frame()) {
+    if (event.button !== 0 || drag || !page() || !writer() || !frame()) {
       return false;
     }
 
@@ -497,7 +506,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
   function grab(event) {
     const doc = page();
 
-    if (event.button !== 0 || drag || !doc || !port() || owns(event.target)) {
+    if (event.button !== 0 || drag || !doc || !writer() || owns(event.target)) {
       return;
     }
 
@@ -535,7 +544,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       return false;
     }
 
-    port()?.openPlus(btn.getAttribute(ADD));
+    writer()?.openPlus(btn.getAttribute(ADD));
 
     return true;
   }

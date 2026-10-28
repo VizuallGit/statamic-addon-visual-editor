@@ -793,16 +793,24 @@ try {
 
     const switchTo = (mode) => `[data-sve-build-switch] [data-sve-build-mode="${mode}"]`;
 
-    if (!(await cp.$(switchTo('build')))) {
+    if (!(await cp.$(switchTo('visual')))) {
       console.log('info no Build for this user — Content is all there is, no switch to try');
     } else {
-      await click(page, cp, switchTo('build'));
+      await click(page, cp, switchTo('visual'));
       await sleep(1500);
 
-      const inBuild = await visibleIcons(cp);
+      const inVisual = await visibleIcons(cp);
 
-      step('Build shows only what the site gave Build', inBuild.every((key) => key === 'settings' || modes.build.includes(key)), inBuild.join(' '));
-      step('and the HTML dock, open', inBuild.includes('code') && (await dockArmed()));
+      step('Visual Build shows only what the site gave Build', inVisual.every((key) => key === 'settings' || modes.build.includes(key)), inVisual.join(' '));
+      step('and the HTML dock is open, with no icon of its own', !inVisual.includes('code') && (await dockArmed()));
+
+      await click(page, cp, switchTo('html'));
+      await sleep(1500);
+
+      const inHtml = await visibleIcons(cp);
+
+      step('HTML Build shows every icon the site has, and none it does not', inHtml.every((key) => key === 'settings' || modes.html.includes(key)), inHtml.join(' '));
+      step('and the HTML dock, open, with no icon of its own', !inHtml.includes('code') && (await dockArmed()));
 
       await click(page, cp, switchTo('content'));
       await sleep(1500);

@@ -2,14 +2,15 @@
  * Build mode's API for code that runs before the chunk has loaded.
  *
  * build-mode/boot.js is a lazy chunk: lazy-panels.js loads it (key
- * `build_mode`) the first time Build is switched on. The top bar's switch
- * and the left column call these instead of the module, so a Live Preview
- * that stays in Content carries none of it — only these few lines.
+ * `build_mode`) the first time a Build is switched on. The switch and the
+ * left column call these instead of the module, so a Live Preview that stays
+ * in Content carries none of it — only these few lines.
  *
- * The switch may be clicked back to Content before the chunk has arrived.
- * Every enter takes a ticket and a leave voids it, so a panel that loads
- * after its Build was already left is never mounted (the gap after an await
- * that let a lazy panel draw into a column it no longer owned).
+ * The switch may be clicked on before the chunk has arrived. Every enter —
+ * the panel's or the canvas's alone — takes a ticket and a leave voids it,
+ * so what loads after its Build was already left is never mounted (the gap
+ * after an await that let a lazy panel draw into a column it no longer
+ * owned). Only one of the two is mounted at a time.
  *
  * May import: lazy-panels.js.
  */
@@ -42,6 +43,28 @@ export function enterBuild(win, host, hooks = {}) {
 
     unmount?.();
     unmount = mod.mountBuildPanel(win, host, hooks);
+
+    return true;
+  });
+}
+
+/**
+ * HTML Build: the canvas over the preview without the panel. Resolves true
+ * once it stands, false when that Build was left before the chunk arrived.
+ *
+ * @param {Window} win
+ * @param {object} hooks  the host's (see build-mode/boot.js) — only the tree's pick is read
+ */
+export function enterBuildView(win, hooks = {}) {
+  const mine = ++ticket;
+
+  return ensurePanel(KEY).then((mod) => {
+    if (mine !== ticket || !mod?.mountBuildView) {
+      return false;
+    }
+
+    unmount?.();
+    unmount = mod.mountBuildView(win, hooks);
 
     return true;
   });

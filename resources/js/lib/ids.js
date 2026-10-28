@@ -113,7 +113,7 @@ export const HEADER_FRAME_PREFIX = '__sve-frame-';
  * Per-user icons left out of the topbar, one list per mode of Live Preview,
  * JSON [tab key, …]; unset = every icon the mode may have shown.
  */
-export const TOOLBAR_HIDDEN_KEYS = { content: 'sve-toolbar-hidden-content', build: 'sve-toolbar-hidden-build' };
+export const TOOLBAR_HIDDEN_KEYS = { content: 'sve-toolbar-hidden-content', build: 'sve-toolbar-hidden-build', html: 'sve-toolbar-hidden-html' };
 /** The old per-user order of the topbar icons, JSON [tab key, …] — read once and carried into TOOLBAR_GROUPS_KEY. */
 export const TOOLBAR_ORDER_KEY = 'sve-toolbar-order';
 /** Per-user groups of the topbar icons, JSON [{ id: 'g-…', name, tools: [tab key, …] }]; unset = one group, drawn order. */

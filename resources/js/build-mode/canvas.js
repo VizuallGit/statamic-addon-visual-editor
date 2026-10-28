@@ -311,11 +311,17 @@ export function startCanvas(win) {
 
     // Every read before the first write: a write in between makes the next read lay the Control Panel out again.
     const style = win.getComputedStyle(real);
+    // In the sizes' overview the real preview is fixed to the screen at its
+    // frame's place (block-order.js `applyLpPreviewSlot`), to the fraction of
+    // a pixel: the canvas stands there only when fixed too, on the same
+    // numbers — offsets would be rounded.
+    const fixed = style.position === 'fixed';
     const box = {
-      left: `${real.offsetLeft}px`,
-      top: `${real.offsetTop}px`,
-      width: `${real.offsetWidth}px`,
-      height: `${real.offsetHeight}px`,
+      position: fixed ? 'fixed' : '',
+      left: fixed ? style.left : `${real.offsetLeft}px`,
+      top: fixed ? style.top : `${real.offsetTop}px`,
+      width: fixed ? style.width : `${real.offsetWidth}px`,
+      height: fixed ? style.height : `${real.offsetHeight}px`,
       transform: style.transform === 'none' ? '' : style.transform,
       transformOrigin: style.transformOrigin,
       backgroundColor: style.backgroundColor,
@@ -369,7 +375,10 @@ export function startCanvas(win) {
     page.documentElement.addEventListener('mouseleave', () => setHover(null));
 
     const resize = new win.ResizeObserver(placeSoon);
-    const attrs = new win.MutationObserver(placeSoon);
+    // The overview moves the fixed preview from inside its own frame callback
+    // as the row glides: a frame later the canvas would trail its hole. Its
+    // writes are the only ones then, so the read here costs that one layout.
+    const attrs = new win.MutationObserver(() => (real?.style.position === 'fixed' ? place() : placeSoon()));
 
     resize.observe(real);
     resize.observe(real.parentElement);

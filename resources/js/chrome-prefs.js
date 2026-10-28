@@ -51,6 +51,7 @@ export const CHROME_KEYS = [
   'sve-fam-colors',
   'sve-toolbar-hidden-content',
   'sve-toolbar-hidden-build',
+  'sve-toolbar-hidden-html',
   'sve-toolbar-order',
   'sve-toolbar-groups',
   'sve-shortcuts',

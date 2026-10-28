@@ -30,6 +30,7 @@ import {
   moveModeTool,
   moveModeToolToNewGroup,
   toolbarMode,
+  toolbarModeHasDock,
   toolbarToolAllowed,
 } from '../../resources/js/toolbar-visibility.js';
 import {
@@ -682,14 +683,15 @@ test('no icon for the tool, or nothing for it on this page: nothing happens', ()
 
 // ── Content and Build ───────────────────────────────────────────────────
 //
-// The site's lists: Content may have pages and sections; Build has those,
-// performance and the dock (PHP puts the dock on Build's list, never Content's).
+// The site's lists: Content may have pages and sections; Visual Build (stored
+// as `build`) and HTML Build have those and performance. The dock (`code`) is
+// on none of them: it comes with the mode, never as an icon.
 
-const MODES = { content: ['pages', 'sections'], build: ['pages', 'sections', 'performance', 'code'] };
+const MODES = { content: ['pages', 'sections'], build: ['pages', 'sections', 'performance'], html: ['pages', 'sections', 'performance'] };
 
-/** Run `fn` with Live Preview in Build, and back to Content after. */
-function inBuild(fn) {
-  followToolbarMode(() => 'build');
+/** Run `fn` with Live Preview in `mode` (Visual Build unless said), and back to Content after. */
+function inBuild(fn, mode = 'visual') {
+  followToolbarMode(() => mode);
 
   try {
     return fn();
@@ -698,9 +700,15 @@ function inBuild(fn) {
   }
 }
 
-test('the mode is Content until Build says otherwise', () => {
+test('the mode is Content until Build says otherwise; Visual Build keeps the name its lists are stored by', () => {
   assert.equal(toolbarMode(), 'content');
+  assert.equal(toolbarModeHasDock(), false);
   inBuild(() => assert.equal(toolbarMode(), 'build'));
+  inBuild(() => assert.equal(toolbarMode(), 'html'), 'html');
+  inBuild(() => assert.equal(toolbarModeHasDock(), true));
+  inBuild(() => assert.equal(toolbarModeHasDock(), true), 'html');
+  followToolbarMode(() => 'build');
+  assert.equal(toolbarMode(), 'content', 'the stored name is no mode of Live Preview');
   followToolbarMode(() => 'nonsense');
   assert.equal(toolbarMode(), 'content');
   followToolbarMode(() => 'content');
@@ -716,30 +724,40 @@ test('what a mode may not have is hidden, whatever the user has stored; Page set
   assert.ok(!readHiddenTools(win).includes('pages') && !readHiddenTools(win).includes('sections'));
   assert.match(win.sheet(), /button\[data-tab="code"\]:not\(\[data-sve-peek\]\)/);
   assert.equal(toolbarToolAllowed(win, 'settings'), true);
-  assert.equal(toolbarToolAllowed(win, 'code'), false);
+  assert.equal(toolbarToolAllowed(win, 'performance'), false);
 
-  inBuild(() => {
-    syncToolbarLayout(win);
-    assert.ok(!['pages', 'sections', 'performance', 'code'].some((key) => readHiddenTools(win).includes(key)));
-    assert.doesNotMatch(win.sheet(), /button\[data-tab="code"\]:not/);
-    assert.equal(toolbarToolAllowed(win, 'code'), true);
-  });
+  for (const mode of ['visual', 'html']) {
+    inBuild(() => {
+      syncToolbarLayout(win);
+      assert.ok(!['pages', 'sections', 'performance'].some((key) => readHiddenTools(win).includes(key)));
+      assert.equal(toolbarToolAllowed(win, 'performance'), true);
+      assert.equal(toolbarToolAllowed(win, 'code'), false, 'the dock is no icon in a Build either');
+      assert.match(win.sheet(), /button\[data-tab="code"\]:not\(\[data-sve-peek\]\)/);
+    }, mode);
+  }
 });
 
 test('each mode keeps its own hidden icons, and an icon a mode may not have is never stored as hidden', () => {
   const win = fakeWin({ modes: MODES, row: row() });
 
   setToolbarToolShown(win, 'pages', false);
-  setToolbarToolShown(win, 'code', false);
+  setToolbarToolShown(win, 'performance', false);
   assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.content), '["pages"]');
 
   inBuild(() => {
-    assert.ok(!readHiddenTools(win).includes('pages'), 'Build has its own list');
+    assert.ok(!readHiddenTools(win).includes('pages'), 'Visual Build has its own list');
+    setToolbarToolShown(win, 'performance', false);
     setToolbarToolShown(win, 'code', false);
-    assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.build), '["code"]');
+    assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.build), '["performance"]');
     showAllToolbarTools(win);
     assert.equal(win.store.has(TOOLBAR_HIDDEN_KEYS.build), false);
   });
+
+  inBuild(() => {
+    assert.ok(!readHiddenTools(win).includes('pages'), 'HTML Build has its own list');
+    setToolbarToolShown(win, 'sections', false);
+    assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.html), '["sections"]');
+  }, 'html');
 
   assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.content), '["pages"]', 'Content’s untouched');
 });
@@ -754,25 +772,29 @@ test('the menus list only what the mode may have, and only the groups with some 
 
   inBuild(() => {
     assert.deepEqual(toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]), [
-      ['g-a', ['code', 'performance']],
+      ['g-a', ['performance']],
       ['g-b', ['pages', 'sections']],
     ]);
   });
 });
 
-test('neither Open nor a shortcut presses what the mode may not have', () => {
+test('neither Open nor a shortcut presses what the mode may not have — the dock in no mode', () => {
   const win = fakeWin({ modes: MODES, row: row() });
   const code = win.bar.querySelector('button[data-tab="code"]');
+  const performance = win.bar.querySelector('button[data-tab="performance"]');
 
-  assert.equal(openToolbarTool(win, 'code'), false);
-  assert.equal(pressToolbarTool(win, 'code'), false);
-  assert.equal(code.clicks, 0);
+  assert.equal(openToolbarTool(win, 'performance'), false);
+  assert.equal(pressToolbarTool(win, 'performance'), false);
+  assert.equal(performance.clicks, 0);
   assert.equal(pressToolbarTool(win, 'settings'), true);
 
   inBuild(() => {
-    assert.equal(pressToolbarTool(win, 'code'), true);
-    assert.equal(code.clicks, 1);
+    assert.equal(pressToolbarTool(win, 'performance'), true);
+    assert.equal(performance.clicks, 1);
+    assert.equal(pressToolbarTool(win, 'code'), false);
   });
+
+  assert.equal(code.clicks, 0);
 });
 
 test('a move in the menu lands where it was seen, between tools the mode does not show', () => {
@@ -806,20 +828,24 @@ test('a group moved or made in the menu counts only the groups the mode draws', 
   ]);
 });
 
-test('a switch of mode closes what is open and the new mode may not have — nothing else', () => {
+test('a switch of mode closes what is open and the new mode may not have — never the dock, which is the switch’s', () => {
   const win = fakeWin({ modes: MODES, row: row() });
   const code = win.bar.querySelector('button[data-tab="code"]');
   const pages = win.bar.querySelector('button[data-tab="pages"]');
+  const performance = win.bar.querySelector('button[data-tab="performance"]');
 
   code.setAttribute('aria-pressed', 'true');
   pages.setAttribute('aria-pressed', 'true');
+  performance.setAttribute('aria-pressed', 'true');
   leaveToolbarToolsOutsideMode(win);
-  assert.equal(code.clicks, 1, 'the dock shuts on the way into Content');
+  assert.equal(performance.clicks, 1, 'what Content may not have shuts on the way into it');
   assert.equal(pages.clicks, 0);
+  assert.equal(code.clicks, 0);
 
   inBuild(() => {
-    code.clicks = 0;
+    performance.clicks = 0;
     leaveToolbarToolsOutsideMode(win);
+    assert.equal(performance.clicks, 0);
     assert.equal(code.clicks, 0);
   });
 });

@@ -7,7 +7,8 @@
 
 return [
     'mode_content' => 'Indhold',
-    'mode_build' => 'Byg',
+    'mode_build' => 'Visuel build',
+    'mode_html' => 'HTML-build',
 
     'tab_add' => 'Tilføj',
     'tab_style' => 'Stil',

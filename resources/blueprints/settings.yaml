@@ -325,8 +325,8 @@ tabs:
                 enabled: 'equals true'
                 comments: 'equals true'
       -
-        display: 'Top bar: Content and Build'
-        instructions: 'The icons each mode of Live Preview may have. An icon that is not ticked for a mode is not there in that mode — not in the top bar, not under ⋮ → Top bar, not on a keyboard shortcut. Someone without Build mode is always in Content. Within its mode, each editor shows, hides and groups the icons for themselves; Page settings always stands first on its own, and an icon a user has no access to stays away whatever is ticked here. The HTML dock is not on either list: it is always in Build and never in Content.'
+        display: 'Top bar: Content and Visual Build'
+        instructions: 'The icons each mode of Live Preview may have. An icon that is not ticked for a mode is not there in that mode — not in the top bar, not under ⋮ → Top bar, not on a keyboard shortcut. HTML Build has every icon. Someone without Build mode is always in Content. Within its mode, each editor shows, hides and groups the icons for themselves; Page settings always stands first on its own, and an icon a user has no access to stays away whatever is ticked here. The HTML dock is no icon: it comes with the two Builds (shown in HTML Build) and is never in Content.'
         fields:
           -
             handle: toolbar_preset_editor_tools
@@ -374,7 +374,7 @@ tabs:
             handle: toolbar_preset_developer_tools
             field:
               type: checkboxes
-              display: 'Build: icons'
+              display: 'Visual Build: icons'
               options:
                 pages: 'Pages'
                 globals: 'Globals'

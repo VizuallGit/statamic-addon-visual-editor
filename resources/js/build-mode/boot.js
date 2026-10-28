@@ -1,9 +1,10 @@
 /**
  * Build mode's lazy entry: the Build panel in the left column, on a port
- * built from the editor itself.
+ * built from the editor itself (Visual Build), or the canvas alone on a port
+ * that only shows and picks (HTML Build, `mountBuildView`).
  *
  * Owner: Build mode (resources/js/build-mode/).
- * Loaded by lazy-panels.js (key `build_mode`) the first time Build is
+ * Loaded by lazy-panels.js (key `build_mode`) the first time a Build is
  * switched on; Content never loads this chunk, nor anything only it imports.
  * May import: cp/bus.js, cp/mount.js, cp/build-mode/store.js, lib/i18n.js,
  *   breakpoints.js, html-tree-icons.js, html-tree-parse.js, html-tree-edit.js,
@@ -14,9 +15,10 @@
  *   `dock:html-changed`, `tw:changed`, `lp:device`. The canvas (canvas.js)
  *   asks and listens for itself.
  *
- * The canvas stands over the preview while Build is on (`buildModeUi.on`),
- * not while the panel is mounted: a column Statamic re-renders mounts the
- * panel again, and the page under it stays as it was.
+ * The canvas stands over the preview while either Build is on
+ * (`buildModeUi.mode`), not while the panel is mounted: a column Statamic
+ * re-renders mounts the panel again, a switch between the two Builds hands
+ * the canvas from one port to the other, and the page under it stays as it was.
  *
  * The port is everything the panel may touch (BuildPanel.vue says what it
  * reads). Nothing in it is Build's own logic: the lists and icons are the
@@ -117,16 +119,57 @@ export function mountBuildPanel(win, host, hooks = {}) {
   };
 }
 
+/**
+ * HTML Build: the canvas without the panel, on a port that shows the tree's
+ * pick and picks by a click — no +, no drags (canvas-ui.js: a port that
+ * cannot write).
+ *
+ * @returns {() => void} unmount
+ */
+export function mountBuildView(win, hooks = {}) {
+  const port = createViewPort(hooks);
+  const detach = buildCanvas(win).attach(port);
+
+  return () => {
+    detach();
+    port.dispose();
+  };
+}
+
+/** What the canvas reads off a port, and nothing more: the file, the pick, and a pick by a click. */
+function createViewPort(hooks) {
+  const rev = ref(0);
+  const bump = () => {
+    rev.value += 1;
+  };
+  const unhooks = [on('dock:html-changed', bump), on('tw:changed', bump), hooks.onSelect?.(bump)].filter(Boolean);
+
+  return {
+    rev,
+    html() {
+      const text = ask('dock:html');
+
+      return typeof text === 'string' ? text : '';
+    },
+    selectedPath: () => hooks.selectedPath?.() || '',
+    select: (path) => hooks.select?.(path),
+    plusPath: () => '',
+    dispose() {
+      unhooks.forEach((unhook) => unhook());
+    },
+  };
+}
+
 let canvas = null;
 
-/** The canvas, started once for a Build and stopped when Build goes back to Content. */
+/** The canvas, started once for a Build and stopped when Live Preview goes back to Content. */
 function buildCanvas(win) {
   if (!canvas) {
     const mine = startCanvas(win);
     const stop = watch(
-      () => buildModeUi.on,
-      (on) => {
-        if (!on) {
+      () => buildModeUi.mode,
+      (mode) => {
+        if (mode === 'content') {
           stop();
           mine.stop();
 

@@ -15,7 +15,7 @@ import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShort
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
-import { placeToolbarButton, readHiddenTools, syncToolbarLayout, toolbarToolAllowed } from '../toolbar-visibility.js';
+import { placeToolbarButton, readHiddenTools, syncToolbarLayout, toolbarModeHasDock, toolbarToolAllowed } from '../toolbar-visibility.js';
 import { startShortcuts } from '../toolbar-shortcuts.js';
 import { bindMenuDismiss } from '../lp-menu-dismiss.js';
 import { remToPx } from '../lib/dom.js';
@@ -268,7 +268,7 @@ export function loadHeaderTab(win) {
 
 export function restoreRememberedCodeDock(win) {
   try {
-    if (isCodeDockArmed(win) && templateDockAllowed(win) && toolbarToolAllowed(win, 'code')) {
+    if (isCodeDockArmed(win) && templateDockAllowed(win) && toolbarModeHasDock()) {
       syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
     }
   } catch (err) {
@@ -889,9 +889,10 @@ export function ensureCodeDockToolbarButton(win) {
     return;
   }
 
-  // The dock is only in Build. In Content it is shut and stays shut — also
-  // when it was left switched on, and a picked section would open it.
-  if (!toolbarToolAllowed(win, 'code') && isCodeDockArmed(win)) {
+  // The dock comes with the two Builds, and its icon is never shown (the
+  // switch under the bar is the way in). In Content it is shut and stays
+  // shut — also when it was left switched on, and a picked section would open it.
+  if (!toolbarModeHasDock() && isCodeDockArmed(win)) {
     setCodeDockArmed(win, false);
     closeCodeDock(doc);
     applyHeaderTab(win);

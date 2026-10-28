@@ -14,7 +14,7 @@ import { t } from './lib/i18n.js';
 import { LP_COLLAPSED_KEY, LP_MODE_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM, LP_TOGGLE_ID, LP_WIDTH_ID, LP_WIDTH_KEY } from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { clearSelection } from './lib/selection.js';
-import { setBuildMode } from './build-mode-host.js';
+import { setEditorMode } from './build-mode-host.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { relayoutCodeDock } from './code-dock-lazy.js';
 import { forgetHelpSwitch } from './dock/help-state.js';
@@ -370,8 +370,8 @@ export function ensureLpPanelToggleInner(win) {
       // The HTML pane's help switch was this Live Preview's; the next starts from the default.
       forgetHelpSwitch(win);
       forgetGhostSwitch(win);
-      // So was Build: off as it closes, so the next opens in Content and nothing of Build waits for it.
-      setBuildMode(win, false);
+      // So was a Build: back to Content as it closes, so the next opens in Content and nothing of Build waits for it.
+      setEditorMode(win, 'content');
     }
 
     return;

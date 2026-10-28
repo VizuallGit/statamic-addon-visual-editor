@@ -6,16 +6,19 @@ use Statamic\Facades\Addon;
 use Statamic\Facades\User;
 
 /**
- * Which top bar icons each mode of Live Preview may have: Content, and Build.
+ * Which top bar icons each mode of Live Preview may have: Content, Visual
+ * Build and HTML Build.
  *
- * The site ticks them on the settings screen (Top bar: Content and Build). An
- * icon that is not on a mode's list is not there in that mode — not shown,
- * not in ⋮ → Top bar, not on a keyboard shortcut — whatever the user does. A
- * user without Build is always in Content. Within its mode's list, each user
- * shows and hides icons, and groups them, for themselves.
+ * The site ticks them on the settings screen (Top bar: Content and Build —
+ * the list Visual Build has). HTML Build has every icon. An icon that is not
+ * on a mode's list is not there in that mode — not shown, not in ⋮ → Top bar,
+ * not on a keyboard shortcut — whatever the user does. A user without Build
+ * is always in Content. Within its mode's list, each user shows and hides
+ * icons, and groups them, for themselves.
  *
- * The HTML dock is on neither list: it is always in Build, which writes the
- * dock's file and cannot do without it, and never in Content.
+ * The HTML dock is on no list: it is no icon but part of the mode — open in
+ * both Builds (Visual Build writes the dock's file and cannot do without it;
+ * HTML Build shows it), never in Content.
  *
  * Stored under the names the lists had when they were presets (Developer,
  * Content editor), so a site's ticks carry over.
@@ -52,7 +55,7 @@ class ToolbarModes
         'comments',
     ];
 
-    /** The HTML dock: Build's always, Content's never — not a tick on either list. */
+    /** The HTML dock: the Builds' always, Content's never — not a tick on any list, and no icon. */
     public const DOCK = 'code';
 
     /** Where each mode's list is stored on the settings screen. */
@@ -68,10 +71,10 @@ class ToolbarModes
     ];
 
     /**
-     * Both lists as the site has them, for the CP script — the dock put where
-     * it belongs.
+     * The lists as the site has them, for the CP script — `build` is Visual
+     * Build's, `html` every icon. The dock is on none of them.
      *
-     * @return array{content: list<string>, build: list<string>}
+     * @return array{content: list<string>, build: list<string>, html: list<string>}
      */
     public static function all(): array
     {
@@ -79,10 +82,10 @@ class ToolbarModes
 
         foreach (static::SETTINGS as $mode => $handle) {
             $saved = Features::setting($handle);
-            $tools = array_values(array_diff(is_array($saved) ? static::tools($saved) : static::DEFAULTS[$mode], [static::DOCK]));
-
-            $out[$mode] = $mode === 'build' ? static::tools([...$tools, static::DOCK]) : $tools;
+            $out[$mode] = array_values(array_diff(is_array($saved) ? static::tools($saved) : static::DEFAULTS[$mode], [static::DOCK]));
         }
+
+        $out['html'] = array_values(array_diff(static::TOOLS, [static::DOCK]));
 
         return $out;
     }

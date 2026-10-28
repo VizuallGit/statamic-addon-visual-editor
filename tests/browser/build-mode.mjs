@@ -236,7 +236,7 @@ async function timeSwitch(page, cp, mode) {
       const col = document.querySelector('.live-preview-fields');
       const panel = document.getElementById(panelId);
 
-      return m === 'build'
+      return m === 'visual'
         ? !!(panel && panel.childElementCount && col?.hasAttribute(away))
         : !panel && !col?.hasAttribute(away);
     };
@@ -329,7 +329,7 @@ try {
     else info('switch', `no ${SWITCH} in the top bar (flag off or not wired yet) — switch not measured`);
   } else {
     for (let i = 0; i < 3; i++) {
-      const toBuild = await timeSwitch(last.page, last.cp, 'build');
+      const toBuild = await timeSwitch(last.page, last.cp, 'visual');
       const toContent = await timeSwitch(last.page, last.cp, 'content');
       perf.switches.push({ toBuild, toContent });
       const label = i === 0 ? 'first (chunk loads)' : `again (${i + 1})`;

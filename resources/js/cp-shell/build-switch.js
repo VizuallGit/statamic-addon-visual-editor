@@ -1,81 +1,94 @@
 /**
- * The Content | Build switch in the middle of the Live Preview top bar.
+ * The Content | Visual Build | HTML Build switch, hanging under the middle of
+ * the Live Preview top bar.
  *
  * Owner: Build mode. Drawn by ensureHeaderToolbar on every pass, and only when
  * `build_mode` is on for this user (Features::visible — it also needs the
  * dock); off, the first line returns and the bar is what it always was.
  *
- * In the top bar's own look: one group box like the sizes' (HEADER_GROUP_STYLE),
- * two framed controls in it, the picked one painted as every picked control in
- * the bar is (paintLpActiveControl). No colour of its own.
+ *   Content       the editor as it is: the form, the real preview, no dock.
+ *   Visual Build  the Build panel, the canvas, the HTML tree (build-mode-host.js).
+ *   HTML Build    the form, the canvas, the dock and the HTML tree.
  *
- * Where it stands: in a holder that takes the free room between the icon row
- * and the right-hand cluster, centred in it — and only that room. The bar is
- * nearly full already (25 icons and the right-hand cluster leave ~120 px at
- * 1600 px), so each mode is its icon, with the words "Content | Build" beside
- * it when the holder has room for them and as tooltips when it has not: a
- * container query, so no script measures anything. The switch never pushes
- * the right-hand cluster off the screen. It never joins the right-hand
- * cluster — syncLpRightBarGaps owns that order and re-states it on every
- * pass, and a second "just before Close" placement there is what pushed two
- * buttons round each other in a ring. The cluster's `margin-left: auto` meets
- * a holder that has already taken the room, so the two never pull.
+ * Where it stands: a tab of the top bar's own colour hanging from its lower
+ * edge, in the middle of the whole window — over the left column, the
+ * preview and the right-hand panels alike, not the preview's middle. It is a
+ * child of Statamic's header, placed from it (`top: 100%`, `left: 50%`), so
+ * nothing measures anything and the bar keeps all its room for its icons.
+ * Our own sheet keeps the header the box it hangs from (it already is: the
+ * rule only says so for a header that holds the switch).
+ *
+ * In the top bar's look: one group box like the sizes' (HEADER_GROUP_STYLE),
+ * three framed controls in it, the picked one painted as every picked control
+ * in the bar is (paintLpActiveControl). HTML Build wears the icon the dock had
+ * in the bar — the dock is no icon any more; it comes with the mode.
  *
  * The state lives in memory for this Live Preview (build-mode-host.js); every
- * Live Preview opens in Content, because closing one turns Build off (lp-width.js).
+ * Live Preview opens in Content, because closing one sets it back (lp-width.js).
  *
  * The top bar's icons follow the mode (toolbar-visibility.js): each mode has
  * the ones the site gave it, so a switch closes what the new mode may not
- * have — the HTML dock on the way back to Content — and draws the bar anew.
+ * have and draws the bar anew. The dock is the switch's: opened with the tree
+ * beside it on the way into a Build, shut on the way back to Content.
  *
- * The Build panel is the left column, so Build opens the column when it was
- * folded away, and Content folds it back the way it was. "Started with it
- * closed" is the shell's rule that shuts it again on the next pass
- * (lp-width.js); Build sets that aside too, and hands it back.
+ * The Build panel is the left column, so Visual Build opens the column when
+ * it was folded away, and leaving it folds it back the way it was. "Started
+ * with it closed" is the shell's rule that shuts it again on the next pass
+ * (lp-width.js); Visual Build sets that aside too, and hands it back.
  */
 import { sveState } from '../cp-state.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
-import { HEADER_TOOLBAR_ID } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
-import { buildModeOn, setBuildMode } from '../build-mode-host.js';
+import { editorMode, setEditorMode } from '../build-mode-host.js';
 import { isCodeDockArmed } from '../code-dock-state.js';
 import { openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
-import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, toggleCodeDockButton } from './header-toolbar.js';
+import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
 import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
 
 const SWITCH_ID = '__sve-build-switch';
 const STYLE_ID = '__sve-build-switch-css';
-const MODES = ['content', 'build'];
-// Drawn like the toolbar's own icons (stroke 2, round): a pen writing the content, and a page laid out in blocks.
+const MODES = ['content', 'visual', 'html'];
+/** Each mode's word in `sveBuildStrings` — Visual Build's is still `mode_build`. */
+const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', html: 'mode_html' };
+const FALLBACK = { content: 'Content', visual: 'Visual Build', html: 'HTML Build' };
+// Drawn like the toolbar's own icons (stroke 2, round): a pen writing the
+// content, and a page laid out in blocks. HTML Build wears the dock's own,
+// read when the switch is drawn — header-toolbar.js imports this file, so
+// its icons are not there yet while this one loads.
 const ICONS = {
   content:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
-  build:
+  visual:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="10" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
 };
+const iconOf = (mode) => (mode === 'html' ? TOOLBAR_ICONS.code : ICONS[mode]);
+/** The tab's rounding, and the hollow it meets the bar with on each side. */
+const ROUND = '.75rem';
 
 function ensureStyles(doc) {
+  // The two hollows are the bar's colour (inherited, never named) cut round
+  // by a mask, so the tab flows out of the bar the way a drawer tab does.
   injectStyle(
     doc,
     STYLE_ID,
-    `#${SWITCH_ID}{display:flex;flex:1 1 0;min-width:3.875rem;justify-content:center;align-items:center;container-type:inline-size}
-#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;padding:0 .5rem}
-#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none}
-@container (max-width: 11rem){
-  #${SWITCH_ID} [data-sve-build-mode]{padding:0 .3rem}
-  #${SWITCH_ID} [data-sve-build-mode] span{display:none}
-}`
+    `.live-preview-header:has(> #${SWITCH_ID}){position:relative}
+#${SWITCH_ID}{position:absolute;top:100%;left:50%;transform:translateX(-50%);display:flex;padding:0 .375rem .375rem;border-radius:0 0 ${ROUND} ${ROUND};background-color:inherit}
+#${SWITCH_ID}::before,#${SWITCH_ID}::after{content:'';position:absolute;top:0;width:${ROUND};height:${ROUND};background-color:inherit;pointer-events:none}
+#${SWITCH_ID}::before{right:100%;-webkit-mask:radial-gradient(circle at 0 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px));mask:radial-gradient(circle at 0 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px))}
+#${SWITCH_ID}::after{left:100%;-webkit-mask:radial-gradient(circle at 100% 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px));mask:radial-gradient(circle at 100% 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px))}
+#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
+#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}`
   );
 }
 
 function label(win, mode) {
   const strings = win.Statamic?.$config?.get?.('sveBuildStrings') || {};
 
-  return strings[`mode_${mode}`] || (mode === 'build' ? 'Build' : 'Content');
+  return strings[LABEL_KEYS[mode]] || FALLBACK[mode];
 }
 
 /** The dock, then the tree: the tree only opens beside an open dock. */
@@ -86,7 +99,7 @@ function openDockAndTree(win) {
     const off = on('dock:html-changed', () => {
       off();
 
-      if (buildModeOn()) {
+      if (editorMode() !== 'content') {
         void openHtmlTreePanel(win);
       }
     });
@@ -97,7 +110,7 @@ function openDockAndTree(win) {
   void openHtmlTreePanel(win);
 }
 
-/** The column as Content left it, while Build holds it open. */
+/** The column as Content left it, while Visual Build holds it open. */
 let leftAs = null;
 
 function openColumn(win) {
@@ -125,47 +138,55 @@ function restoreColumn(win) {
   }
 }
 
-const modeNow = () => (buildModeOn() ? 'build' : 'content');
-
 function paint(holder) {
+  const mode = editorMode();
+
   holder.querySelectorAll('[data-sve-build-mode]').forEach((btn) => {
-    paintLpActiveControl(btn, (btn.dataset.sveBuildMode === 'build') === buildModeOn());
+    paintLpActiveControl(btn, btn.dataset.sveBuildMode === mode);
   });
 }
 
 function choose(win, holder, mode) {
-  const build = mode === 'build';
+  const was = editorMode();
 
-  if (build === buildModeOn()) {
+  if (mode === was) {
     return;
   }
 
-  if (build) {
+  if (mode === 'visual') {
     openColumn(win);
   }
 
-  setBuildMode(win, build, {
+  setEditorMode(win, mode, {
     deviceIcons: LP_DEVICE_ICONS,
-    // After the panel has painted: Content shut the dock, and an editor
+    // After the switch has painted: Content shut the dock, and an editor
     // already loaded mounts in the same task (~200 ms) — the switch first.
     openDock: () =>
       win.requestAnimationFrame(() =>
         win.setTimeout(() => {
-          if (buildModeOn()) {
+          if (editorMode() !== 'content') {
             openDockAndTree(win);
           }
         }, 0)
       ),
   });
 
-  if (!build) {
+  if (was === 'visual') {
     restoreColumn(win);
   }
 
   paint(holder);
   // What the new mode may not have shuts once the switch has painted — on the
-  // way to Content that is the dock, ~50 ms of its own.
-  win.requestAnimationFrame(() => win.setTimeout(() => leaveToolbarToolsOutsideMode(win), 0));
+  // way to Content that is the dock too, ~50 ms of its own; the tree goes with it.
+  win.requestAnimationFrame(() =>
+    win.setTimeout(() => {
+      if (editorMode() === 'content' && isCodeDockArmed(win)) {
+        toggleCodeDockButton(win);
+      }
+
+      leaveToolbarToolsOutsideMode(win);
+    }, 0)
+  );
 }
 
 export function ensureBuildSwitch(win) {
@@ -173,13 +194,12 @@ export function ensureBuildSwitch(win) {
     return;
   }
 
-  followToolbarMode(modeNow);
+  followToolbarMode(editorMode);
 
   const doc = win.document;
   const header = lpHeader(doc);
-  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
-  if (!header || !bar) {
+  if (!header) {
     return;
   }
 
@@ -203,7 +223,7 @@ export function ensureBuildSwitch(win) {
       btn.dataset.sveBuildMode = mode;
       btn.title = label(win, mode);
       btn.setAttribute('aria-label', label(win, mode));
-      btn.innerHTML = `${ICONS[mode]}<span></span>`;
+      btn.innerHTML = `${iconOf(mode)}<span></span>`;
       btn.querySelector('span').textContent = label(win, mode);
       btn.style.cssText = FRAMED_CONTROL_STYLE;
       btn.addEventListener('click', () => choose(win, holder, mode));
@@ -213,8 +233,8 @@ export function ensureBuildSwitch(win) {
     holder.appendChild(group);
   }
 
-  if (holder.parentElement !== header || holder.previousElementSibling !== bar) {
-    bar.after(holder);
+  if (holder.parentElement !== header) {
+    header.appendChild(holder);
   }
 
   paint(holder);

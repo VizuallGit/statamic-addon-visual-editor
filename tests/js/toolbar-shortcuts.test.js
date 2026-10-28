@@ -191,7 +191,8 @@ test('a tool the mode may not have has no shortcut, and its keys press nothing; 
   win.press({ key: 'X', code: 'KeyX', metaKey: true, shiftKey: true });
   assert.equal(win.buttons.xray.clicks, 0);
 
-  followToolbarMode(() => 'build');
+  // Visual Build — its list is stored as `build`.
+  followToolbarMode(() => 'visual');
 
   try {
     assert.ok(shortcutActions(win).includes('tool:xray'));

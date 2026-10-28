@@ -49,17 +49,20 @@ class ToolbarModesTest extends TestCase
         $this->assertArrayNotHasKey('template_dock_access', $fields);
     }
 
-    public function test_unsaved_lists_are_the_defaults_with_the_dock_in_build_only(): void
+    public function test_unsaved_lists_are_the_defaults_and_html_build_has_every_icon_but_the_dock(): void
     {
         $modes = ToolbarModes::all();
 
         $this->assertSame(ToolbarModes::DEFAULTS['content'], $modes['content']);
-        $this->assertNotContains('code', $modes['content']);
-        $this->assertContains('code', $modes['build']);
-        $this->assertSame(ToolbarModes::tools([...ToolbarModes::DEFAULTS['build'], 'code']), $modes['build']);
+        $this->assertSame(ToolbarModes::DEFAULTS['build'], $modes['build']);
+        $this->assertSame(array_values(array_diff(ToolbarModes::TOOLS, ['code'])), $modes['html']);
+
+        foreach ($modes as $tools) {
+            $this->assertNotContains('code', $tools, 'the dock comes with the mode, never as an icon');
+        }
     }
 
-    public function test_saved_lists_win_cleaned_and_the_dock_put_where_it_belongs(): void
+    public function test_saved_lists_win_cleaned_and_the_dock_on_none(): void
     {
         config([
             'statamic-visual-editor.features.toolbar_preset_editor_tools' => ['ai', 'code', 'bogus', 'ai', 'pages'],
@@ -67,13 +70,13 @@ class ToolbarModesTest extends TestCase
         ]);
         Features::flush();
 
-        $this->assertSame([
-            'content' => ['pages', 'ai'],
-            'build' => ['sections', 'code', 'theme'],
-        ], ToolbarModes::all());
+        $modes = ToolbarModes::all();
+
+        $this->assertSame(['pages', 'ai'], $modes['content']);
+        $this->assertSame(['sections', 'theme'], $modes['build']);
     }
 
-    public function test_nothing_ticked_is_nothing_but_the_dock_in_build(): void
+    public function test_nothing_ticked_is_nothing_and_html_build_keeps_every_icon(): void
     {
         config([
             'statamic-visual-editor.features.toolbar_preset_editor_tools' => [],
@@ -81,7 +84,11 @@ class ToolbarModesTest extends TestCase
         ]);
         Features::flush();
 
-        $this->assertSame(['content' => [], 'build' => ['code']], ToolbarModes::all());
+        $modes = ToolbarModes::all();
+
+        $this->assertSame([], $modes['content']);
+        $this->assertSame([], $modes['build']);
+        $this->assertSame(array_values(array_diff(ToolbarModes::TOOLS, ['code'])), $modes['html']);
     }
 
     public function test_nobody_gets_the_edit_link_without_a_user(): void

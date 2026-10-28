@@ -1,9 +1,11 @@
 /**
  * The Live Preview topbar as this user wants it: which icons show in each mode
- * (Content, Build), and how they are grouped and ordered.
+ * (Content, Visual Build, HTML Build), and how they are grouped and ordered.
  *
- * What a mode may have is the site's (Settings → Top bar: Content and Build,
- * lib/toolbar-modes.js): an icon its list leaves out is hidden, left out of
+ * What a mode may have is the site's (Settings → Top bar: Content and Build —
+ * Visual Build's; HTML Build has every icon, lib/toolbar-modes.js). The HTML
+ * dock is no icon in any mode: it comes with the mode, and a switch of mode
+ * leaves it to the switch. An icon a mode's list leaves out is hidden, left out of
  * every list the menus show, and neither a shortcut nor Open presses it — as
  * if the user had no access to it. Within that, each user hides icons for
  * themselves, one list per mode. The groups are one for both modes: a tool
@@ -63,7 +65,7 @@ import {
   TOOLBAR_ORDER_KEY,
 } from './lib/ids.js';
 import { t } from './lib/i18n.js';
-import { cleanModes, modeAllows } from './lib/toolbar-modes.js';
+import { DOCK_TAB, cleanModes, modeAllows } from './lib/toolbar-modes.js';
 import {
   DEFAULT_ORDER,
   cleanGroups,
@@ -185,9 +187,14 @@ export function followToolbarMode(read) {
   readMode = read;
 }
 
-/** 'content' or 'build'. */
+/** Live Preview's mode under the names its lists and hidden icons are stored by: 'content', 'build' (Visual Build) or 'html'. */
 export function toolbarMode() {
-  return readMode() === 'build' ? 'build' : 'content';
+  return { visual: 'build', html: 'html' }[readMode()] || 'content';
+}
+
+/** The dock comes with the mode: there in both Builds, never in Content. */
+export function toolbarModeHasDock() {
+  return toolbarMode() !== 'content';
 }
 
 /** The site's lists of what each mode may have; null on a page without them. */
@@ -707,12 +714,12 @@ export function pressToolbarTool(win, key) {
 
 /**
  * A switch of mode: what the new mode may not have closes, as a click on its
- * icon closes it — the dock, a panel, an overlay. Then the bar is drawn for
- * the new mode.
+ * icon closes it — a panel, an overlay. Not the dock: the switch opens and
+ * shuts it with the mode. Then the bar is drawn for the new mode.
  */
 export function leaveToolbarToolsOutsideMode(win) {
   [...(barEl(win)?.querySelectorAll('button[data-tab]') || [])]
-    .filter((btn) => btn.getAttribute('aria-pressed') === 'true' && !toolbarToolAllowed(win, btn.dataset.tab))
+    .filter((btn) => btn.getAttribute('aria-pressed') === 'true' && btn.dataset.tab !== DOCK_TAB && !toolbarToolAllowed(win, btn.dataset.tab))
     .forEach((btn) => btn.click());
   syncToolbarLayout(win);
 }

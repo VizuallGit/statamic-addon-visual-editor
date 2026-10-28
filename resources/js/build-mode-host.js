@@ -1,63 +1,108 @@
 /**
- * Build mode in the left column.
+ * Live Preview's three modes: Content, Visual Build and HTML Build.
  *
- * Owner: Build mode. Called by the top bar's switch (cp-shell/build-switch.js),
- * and turned off by lp-width.js as Live Preview closes.
+ * Owner: Build mode. Called by the switch under the top bar
+ * (cp-shell/build-switch.js), and set back to Content by lp-width.js as Live
+ * Preview closes.
  * May import: cp/bus.js, cp/build-mode/store.js, cp/html-tree/store.js,
- *   lazy/build-mode.js, lib/style.js. Not cp-shell/, not the kernel, and
- *   nothing of Build itself — that is the lazy chunk.
+ *   lazy/build-mode.js, lib/style.js, lib/ids.js. Not cp-shell/, not the
+ *   kernel, and nothing of Build itself — that is the lazy chunk.
  * Bus: asks `html-tree:from-preview` to pick a row by its path — the same door
  *   a pick in the preview goes through.
  *
- * Content is the editor exactly as it is. Build lends the column to the Build
- * panel the way the selection panel holds it (selection-panel.js): lent, not
- * taken. The column wears an attribute of this module's own, and one rule
- * steps everything in it but the panel aside — never removed and never
- * `display: none`, but out of the flow at the column's width, invisible and
- * untouchable — so Statamic's form stays mounted with its publish context,
- * its save and its dirty state, and whatever Statamic adds to the column
- * later steps aside by the same rule. The selection panel and the
- * component's values read `buildModeUi.on` and give the column up while it is
- * set: the selection panel unmounts its fields and draws them again on the
- * way back.
+ *   content  The editor exactly as it is.
+ *   visual   Visual Build: the Build panel in the left column, the canvas
+ *            over the preview, the HTML tree. The dock is open but not shown:
+ *            Build writes the dock's file, and the tree is the tree of the
+ *            file the dock holds.
+ *   html     HTML Build: the form in the left column, the canvas, the dock
+ *            and the tree. A click on the canvas picks in the tree; nothing
+ *            is added or dragged there — that is Visual Build's.
  *
- * The panel itself is the lazy chunk (lazy/build-mode.js → build-mode/boot.js),
- * loaded the first time Build is chosen. A switch back to Content before it
- * has arrived voids the ticket, and nothing is mounted.
+ * Visual Build lends the column to the Build panel the way the selection
+ * panel holds it (selection-panel.js): lent, not taken. The column wears an
+ * attribute of this module's own, and one rule steps everything in it but the
+ * panel aside — never removed and never `display: none`, but out of the flow
+ * at the column's width, invisible and untouchable — so Statamic's form stays
+ * mounted with its publish context, its save and its dirty state, and
+ * whatever Statamic adds to the column later steps aside by the same rule.
+ * The selection panel and the component's values read `buildModeUi.on` and
+ * give the column up while it is set: the selection panel unmounts its fields
+ * and draws them again on the way back.
+ *
+ * The dock steps aside in Visual Build the same careful way, by a rule on the
+ * mode the Control Panel's root wears (`MODE_ATTR`): invisible, untouchable,
+ * no room kept for it under the preview — never closed, so its file, its
+ * saves and the tree beside it go on as in HTML Build.
+ *
+ * The panel and the canvas are the lazy chunk (lazy/build-mode.js →
+ * build-mode/boot.js), loaded the first time a Build is chosen. A switch away
+ * before it has arrived voids the ticket, and nothing is mounted.
  */
 import { watch } from 'vue';
 import { ask } from './cp/bus.js';
 import { buildModeUi } from './cp/build-mode/store.js';
 import { htmlTreeUi } from './cp/html-tree/store.js';
-import { enterBuild, leaveBuild } from './lazy/build-mode.js';
+import { enterBuild, enterBuildView, leaveBuild } from './lazy/build-mode.js';
 import { injectStyle } from './lib/style.js';
+import { CODE_DOCK_ID } from './lib/ids.js';
+
+export const EDITOR_MODES = ['content', 'visual', 'html'];
 
 const HOST_ID = '__sve-build-panel';
 /** On the column while Build has it. Its own — never shared with the selection panel's or the component's. */
 const AWAY_ATTR = 'data-sve-build-away';
+/** On the Control Panel's root in either Build: the mode. Not there in Content. */
+const MODE_ATTR = 'data-sve-editor-mode';
 const STYLE_ID = '__sve-build-host-css';
 
 let hooksFor = null;
 let unwatch = null;
 let queued = false;
 
-export function buildModeOn() {
-  return buildModeUi.on;
+export function editorMode() {
+  return buildModeUi.mode;
 }
 
 /**
- * Content (false) or Build (true). `shell` is what only the top bar can hand
- * over: its device icons, and `openDock` — the dock and the tree beside it.
+ * Go to `mode` (EDITOR_MODES; anything else is Content). `shell` is what only the
+ * top bar can hand over: its device icons, and `openDock` — the dock and the
+ * tree beside it.
  */
-export function setBuildMode(win, on, shell = {}) {
-  if (!!on === buildModeUi.on) {
+export function setEditorMode(win, mode, shell = {}) {
+  const next = EDITOR_MODES.includes(mode) ? mode : 'content';
+  const was = buildModeUi.mode;
+  const doc = win.document;
+
+  if (next === was) {
     return;
   }
 
-  if (on) {
-    take(win, shell);
-  } else {
+  if (was === 'visual') {
     giveBack(win);
+  } else if (was === 'html') {
+    leaveBuild();
+  }
+
+  // Before anything mounts: the canvas stands while this is not Content.
+  buildModeUi.mode = next;
+
+  if (next === 'content') {
+    doc.documentElement.removeAttribute(MODE_ATTR);
+
+    return;
+  }
+
+  ensureStyles(doc);
+  doc.documentElement.setAttribute(MODE_ATTR, next);
+  // The file both Builds work on is the dock's, and what they pick is the tree's.
+  shell.openDock?.();
+  hooksFor = editorHooks(win, shell);
+
+  if (next === 'visual') {
+    take(win);
+  } else {
+    void enterBuildView(win, hooksFor);
   }
 }
 
@@ -70,14 +115,18 @@ function ensureStyles(doc) {
   // at the column's width, never `display: none` — gone from layout, the
   // publish tabs measure zero, re-render, and the lite field with the page's
   // publish context unmounts. The page's own tab bar (Page Settings, SEO)
-  // folds the same careful way.
+  // folds the same careful way. The dock's room under the preview is the
+  // padding the dock writes on `.live-preview-contents` (dock/layout.js
+  // `previewBottomPad`).
   injectStyle(
     doc,
     STYLE_ID,
     `[${AWAY_ATTR}]{position:relative}
 [${AWAY_ATTR}] > :not(#${HOST_ID}){position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #${HOST_ID}{display:flex;flex-direction:column;min-width:0;min-height:100%;flex:1 1 auto}
-.live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}`
+.live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}
+:root[${MODE_ATTR}="visual"] #${CODE_DOCK_ID}{visibility:hidden!important;pointer-events:none!important}
+:root[${MODE_ATTR}="visual"] .live-preview-contents{padding-bottom:0!important}`
   );
 }
 
@@ -108,19 +157,14 @@ function editorHooks(win, shell) {
   };
 }
 
-function take(win, shell) {
-  const doc = win.document;
-  const col = column(doc);
+function take(win) {
+  const col = column(win.document);
 
   if (!col) {
     return;
   }
 
   buildModeUi.on = true;
-  // The file Build writes is the dock's, and what it picks is the tree's.
-  shell.openDock?.();
-  hooksFor = editorHooks(win, shell);
-  ensureStyles(doc);
   mount(win, col);
   watchColumn(win);
 }
