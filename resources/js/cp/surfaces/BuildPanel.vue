@@ -238,11 +238,11 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-ib.sm { width: 1.375rem; height: 1.375rem; }
 
 /* Tabs and scroll */
-/* Add | Style: a light grey track, the open tab in the blue of Add's place (`.bm-target`). */
+/* Add | Style: a light grey track, the open tab in the blue of Style's "This element" (`.fg-target`). */
 .sve-build .bm-tabs { display: flex; flex: none; gap: 0.1875rem; margin: 0.625rem 0.75rem 0; padding: 0.1875rem; border-radius: 0.4375rem; background: var(--bm-raise); }
 .sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.5rem 0; border-radius: 0.3125rem; color: var(--bm-muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
 .sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
-.sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent-soft); color: #fff; box-shadow: inset 0 0 0 1px var(--bm-inh-line); }
+.sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
 .sve-build .bm-scroll:has(> .fg-style) { padding: 0; }
 
