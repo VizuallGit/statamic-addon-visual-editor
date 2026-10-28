@@ -145,7 +145,7 @@ try {
   await menuPick('[data-sve-build-value="font-weight"]', 'font-bold');
 
   // Position: relative, from the section's + .
-  await click('[data-sve-build-group="position"] .fg-sec__h');
+  await click('[data-sve-build-toggle="position"]');
   await sleep(150);
   await menuPick('[data-sve-build-value="position"]', 'relative');
   step('position: relative writes relative', /(^| )relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
@@ -156,7 +156,7 @@ try {
   step('…Remove takes it off', !/(^| )relative( |$)/.test(await classesOf(H2)));
 
   // Border width: a group named by hand, the same menu — the row there again keeps it.
-  await click('[data-sve-build-group="border"] .fg-sec__h');
+  await click('[data-sve-build-toggle="border"]');
   await sleep(150);
   await menuPick('[data-sve-build-value="border-width"]', 'border-2');
   await menuPick('[data-sve-build-value="border-width"]', 'border-2');
@@ -223,7 +223,7 @@ try {
   await click('[data-sve-build-flow="block"]');
   await sleep(150);
   step('Flow → block takes flex off again', !/(^| )flex( |$)/.test(await classesOf(COLUMN)), await classesOf(COLUMN));
-  await click('[data-sve-build-group="size"] .fg-sec__h');
+  await click('[data-sve-build-toggle="size"]');
   await sleep(150);
   await page.select('select[aria-label="width mode"]', 'fill');
   await sleep(150);

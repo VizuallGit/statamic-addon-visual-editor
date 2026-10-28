@@ -244,7 +244,8 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
-.sve-build .bm-scroll:has(> .fg-style) { padding: 0; }
+/* Style: the panel's own side gutter and none of the families' — their lines end where their fields do. */
+.sve-build .bm-scroll:has(> .fg-style) { padding: 0 0.75rem; }
 
 /* Add */
 .sve-build .bm-target { display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.55rem; border-radius: 0.3rem; background: var(--bm-accent-soft); color: var(--bm-accent-text); font-size: 0.75rem; }
@@ -422,7 +423,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
  * prefix inside, two to a row, Figma's alignment box
  * ------------------------------------------------------------------ */
 .sve-build .bm-ic [fill='currentColor'] { fill: currentColor; }
-.sve-build .fg-top { padding: 0.75rem 1rem 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
+.sve-build .fg-top { padding: 0.75rem 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
 .sve-build .fg-head { display: flex; align-items: center; gap: 0.5rem; }
 .sve-build .fg-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; font-weight: 600; }
 .sve-build .fg-head__acts { display: flex; gap: 0.125rem; }
@@ -454,13 +455,26 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .fg-hint code { color: var(--bm-muted); }
 .sve-build .fg-jump { display: flex; justify-content: space-between; }
 .sve-build .fg-sec { border-bottom: 1px solid var(--bm-line); }
-.sve-build .fg-sec__h { display: flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.25rem 0.5rem 0.25rem 1rem; cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); user-select: none; }
+.sve-build .fg-sec__h { display: flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.25rem 0; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); user-select: none; }
 .sve-build .fg-sec:not(.is-open) .fg-sec__h { color: var(--bm-muted); }
-.sve-build .fg-sec:not(.is-open) .fg-sec__h:hover { color: var(--bm-ink); }
-.sve-build .fg-sec__acts { margin-left: auto; display: flex; }
+.sve-build .fg-sec__acts { margin-left: auto; display: flex; align-items: center; gap: 0.25rem; }
+/* The icon and the name: a button as wide as they are, so the room after them is no target. */
+.sve-build .fg-sec__name { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; padding: 0.25rem 0; color: inherit; font-weight: inherit; }
+.sve-build .fg-sec__name:hover { color: var(--bm-ink); }
+/* The + / − that opens and closes a family, on the light grey of a field. */
+.sve-build .fg-sec__tog { background: var(--bm-raise); }
+.sve-build button.fg-sec__tog:hover:not(:disabled) { background: var(--bm-hover); color: var(--bm-ink); }
+/* Set on the element: a blue dot beside the family's name; hovered or focused, it shows the reset it does. */
+.sve-build .fg-set { width: 1.25rem; height: 1.25rem; display: grid; place-items: center; flex: none; border-radius: 999px; color: var(--bm-accent-text); }
+.sve-build .fg-set > i { width: 0.4375rem; height: 0.4375rem; border-radius: 999px; background: var(--bm-accent); box-shadow: 0 0 0 0.1875rem var(--bm-accent-soft); }
+.sve-build .fg-set > span { display: none; }
+.sve-build .fg-set svg { width: 0.8125rem; height: 0.8125rem; }
+.sve-build .fg-set:is(:hover, :focus-visible) { background: var(--bm-accent-soft); }
+.sve-build .fg-set:is(:hover, :focus-visible) > i { display: none; }
+.sve-build .fg-set:is(:hover, :focus-visible) > span { display: inline-flex; }
 .sve-build .fg-sec__icon { display: inline-flex; color: var(--bm-muted); }
 .sve-build .fg-sec__icon svg { width: 0.9375rem; height: 0.9375rem; }
-.sve-build .fg-sec__b { display: grid; gap: 0.5rem; padding: 0.15rem 1rem 1rem; }
+.sve-build .fg-sec__b { display: grid; gap: 0.5rem; padding: 0.15rem 0 1rem; }
 .sve-build .fg-sec:not(:has(.fg-sec__h)) .fg-sec__b { padding-top: 0.75rem; }
 .sve-build .fg-row { display: grid; grid-template-columns: 5.25rem minmax(0, 1fr); align-items: center; gap: 0.5rem; }
 .sve-build .fg-rlab { font: 500 0.6875rem var(--bm-mono); color: var(--bm-muted); }

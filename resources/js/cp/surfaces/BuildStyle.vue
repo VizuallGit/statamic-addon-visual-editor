@@ -262,6 +262,38 @@ function toggle(group) {
   toggled.value = { ...toggled.value, [group.id]: !isOpen(group) };
 }
 
+/**
+ * The classes a family has on the element itself at the size and state
+ * picked — not what reaches it from a wider size. Both names a tool answers
+ * to are asked (`css` and its Tailwind twin, `padding-block-start` and
+ * `padding-top`), each on its own, so the twin counts as the element's own.
+ * What the blue dot in a family's header stands for, and what it takes away.
+ */
+function groupOwn(group) {
+  port.rev.value;
+
+  const names = new Set();
+  const take = (hit) => hit && !hit.inherited && names.add(hit.name);
+
+  for (const item of group.tools) {
+    if (item.twGroup) {
+      take(effGroup(item.twGroup));
+      continue;
+    }
+
+    for (const one of [item, ...(item.kids || [])]) {
+      [...new Set([one.css, one.tw].filter(Boolean))].forEach((property) => take(eff(property)));
+    }
+  }
+
+  return [...names];
+}
+
+/** The dot pressed: the family's own classes taken off, each as the Tailwind pane takes one off (a second set toggles it). */
+function resetGroup(group) {
+  groupOwn(group).forEach((name) => port.setClass(name));
+}
+
 /* Spacing: the box or the fields, this browser's choice */
 const SPACING_VIEW_KEY = 'sve-build-spacing-view';
 
@@ -386,22 +418,45 @@ const chips = computed(() =>
       :class="{ 'is-open': isOpen(group) }"
       :data-sve-build-group="group.id"
     >
-      <header class="fg-sec__h" @click="toggle(group)">
-        <span class="fg-sec__icon" v-html="groupIcon(group, port.lists.toolIcons)"></span>
-        <span>{{ port.t(`group_${group.id}`) }}</span>
+      <header class="fg-sec__h">
+        <!-- The icon and the name open and close the family, as the + / − does; the room between them and it does nothing -->
+        <button type="button" class="fg-sec__name" :aria-expanded="isOpen(group)" :data-sve-build-name="group.id" @click="toggle(group)">
+          <span class="fg-sec__icon" v-html="groupIcon(group, port.lists.toolIcons)"></span>
+          <span>{{ port.t(`group_${group.id}`) }}</span>
+        </button>
         <i v-if="group.id === 'transform'" class="bm-soon">{{ port.t('later') }}</i>
+        <!-- Set on the element itself: the dot; pressed, the family's own classes come off -->
+        <button
+          v-if="groupOwn(group).length"
+          type="button"
+          class="fg-set"
+          :title="port.t('group_reset', { group: port.t(`group_${group.id}`) })"
+          :aria-label="port.t('group_reset', { group: port.t(`group_${group.id}`) })"
+          :data-sve-build-reset="group.id"
+          @click="resetGroup(group)"
+        ><i></i><span v-html="ic('reset')"></span></button>
         <span class="fg-sec__acts">
-          <span v-if="!isOpen(group)" class="fg-ib" v-html="ic('plus')"></span>
           <button
-            v-else-if="group.id === 'spacing'"
+            v-if="group.id === 'spacing' && isOpen(group)"
             type="button"
             class="fg-ib"
             :aria-pressed="spacingView === 'box'"
             :title="port.t(spacingView === 'box' ? 'spacing_fields' : 'spacing_box')"
             :aria-label="port.t(spacingView === 'box' ? 'spacing_fields' : 'spacing_box')"
             data-sve-build-spacing-view
-            @click.stop="flipSpacingView"
+            @click="flipSpacingView"
             v-html="ic('container')"
+          ></button>
+          <!-- Labelled "collapse", never "close": the shell takes a Live Preview button called close for Statamic's × and hides it (cp-shell/grid-rows.js) -->
+          <button
+            type="button"
+            class="fg-ib fg-sec__tog"
+            :aria-expanded="isOpen(group)"
+            :title="port.t(isOpen(group) ? 'group_close' : 'group_open', { group: port.t(`group_${group.id}`) })"
+            :aria-label="port.t(isOpen(group) ? 'group_close' : 'group_open', { group: port.t(`group_${group.id}`) })"
+            :data-sve-build-toggle="group.id"
+            @click="toggle(group)"
+            v-html="ic(isOpen(group) ? 'minus' : 'plus')"
           ></button>
         </span>
       </header>

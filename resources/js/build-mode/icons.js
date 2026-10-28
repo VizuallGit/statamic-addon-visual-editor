@@ -65,6 +65,7 @@ const P = {
   radius: '<path d="M4 20V10a6 6 0 0 1 6-6h10"/>',
   opacity: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h5v5H4zM9 4h5v5H9zM14 9h6v5h-6zM9 14h5v6H9z" fill="currentColor" stroke="none" opacity=".55"/>',
   minus: '<path d="M5 12h14"/>',
+  reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>',
   lineHeight: '<path d="M4 5h16M4 19h16"/><path d="M9 15l3-7 3 7M10 13h4"/>',
   weight: '<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"/>',
   border: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2.5"/>',
