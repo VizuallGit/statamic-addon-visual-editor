@@ -294,11 +294,11 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-tiles.is-list .bm-tile svg { width: 1.125rem; height: 1.125rem; }
 .sve-build .bm-tiles.is-list .bm-tile > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sve-build .bm-tiles.is-list .bm-tile > code { display: block; }
-/* A + pressed on the canvas: Add's place and its tiles flash once (BuildPanel `nudged`). */
-.sve-build .bm-scroll.is-nudged :is(.bm-target, .bm-tile:not(:disabled)) { animation: sve-bm-nudge 0.9s ease-out; }
+/* A + pressed on the canvas: one blue outline round the whole of Add, fading as the tiles' flash did (BuildPanel `nudged`). */
+.sve-build .bm-scroll.is-nudged { animation: sve-bm-nudge 0.9s ease-out; }
 @keyframes sve-bm-nudge {
-  0%, 35% { border-color: var(--bm-accent); box-shadow: 0 0 0 0.125rem var(--bm-accent); }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0%, 35% { box-shadow: inset 0 0 0 0.125rem var(--bm-accent); }
+  100% { box-shadow: inset 0 0 0 0.125rem transparent; }
 }
 .sve-build .bm-note { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--bm-line); font-size: 0.6875rem; line-height: 1.55; color: var(--bm-faint); }
 .sve-build .bm-note + .bm-note { margin-top: 0.5rem; padding-top: 0; border-top: 0; }
