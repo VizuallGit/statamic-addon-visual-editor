@@ -9,7 +9,7 @@
  *   breakpoints.js, html-tree-icons.js, html-tree-parse.js, html-tree-edit.js,
  *   code-dock.js (constants only — Build writes the dock's file, so the dock
  *   is loaded in Build anyway), tw-classes.js, tw-tool.js, tw-families.js,
- *   build-mode/*, cp/surfaces/BuildPanel.vue.
+ *   logic-popup.js, build-mode/*, cp/surfaces/BuildPanel.vue.
  * Bus: asks `dock:html`, `dock:set-html`, `lp:set-device`; listens to
  *   `dock:html-changed`, `tw:changed`, `lp:device`. The canvas (canvas.js)
  *   asks and listens for itself.
@@ -45,7 +45,11 @@
  *                             tw-classes.js `openStateMenu`, exported for this
  *   deviceIcons?              the top bar's LP_DEVICE_ICONS (the panel may not
  *                             import the CP shell)
- *   logic?(kind, def)         the dock's ∞ / if path, which opens the inspector
+ *   logic?(kind, def)         the dock's ∞ / if path, which opens the inspector.
+ *                             Without it the loop / if is written where Add
+ *                             points, and its settings open in a popup beside
+ *                             the panel, level with the tile (`at`) —
+ *                             logic-popup.js
  *   mountFields?(el, node)    a component's fields (the props panel) → unmount
  *   mountSettings?(el, node)  a loop's or condition's settings (the tree's inspector) → unmount
  *
@@ -79,6 +83,7 @@ import {
   twVariant,
 } from '../tw-classes.js';
 import { runTwTool, twToolActive } from '../tw-tool.js';
+import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { addAt, findByPath } from './place.js';
 import { rootFor, rootOf } from './classes.js';
@@ -297,7 +302,7 @@ export function createEditorPort(win, hooks = {}) {
         .then((res) => (res.ok ? res.json() : { items: [] }))
         .then((data) => (Array.isArray(data.items) ? data.items : []));
     },
-    logic(kind, def) {
+    logic(kind, def, at) {
       if (hooks.logic) {
         hooks.logic(kind, def);
 
@@ -306,8 +311,8 @@ export function createEditorPort(win, hooks = {}) {
 
       const out = addAt(html(), port.plusPath() || port.selectedPath(), String(def?.snippet || '').replace(/\n+$/, ''));
 
-      if (out) {
-        port.write(out.html, { select: out.path });
+      if (out && port.write(out.html, { select: out.path }) && at) {
+        openLogicPopup(win, { path: out.path, at, beside: at.closest('[data-sve-build-root]') });
       }
     },
     duplicate() {

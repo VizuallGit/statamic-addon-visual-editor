@@ -222,6 +222,8 @@ export function describeAt(source, path, options = {}) {
 
     return {
       path: node.path,
+      // Where it starts in the file: the same element after a rename, whose path is new.
+      from: node.from,
       tag: node.tag,
       label: node.label || '',
       src: node.src || '',

@@ -85,8 +85,12 @@ export const HELP_POPUP_CSS = `
   font: 0.625rem/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* The loop panel at the caret: the same look as the suggestions, the tree's controls inside. */
-[data-sve-help-loop] {
+/*
+  The loop panel at the caret: the same look as the suggestions, the tree's
+  controls inside. A condition's panel (logic-popup.js) wears the same frame.
+*/
+[data-sve-help-loop],
+[data-sve-help-condition] {
   position: fixed;
   z-index: 99999;
   width: 17em;
@@ -210,6 +214,35 @@ export const HELP_POPUP_CSS = `
   margin: 0;
   padding: 0;
   accent-color: #d4d4d4;
+}
+[data-sve-help-note] {
+  margin: 0;
+  opacity: 0.55;
+  font-size: 0.6875rem;
+}
+/* Else if / Else: written under the condition, so they read as additions, not choices. */
+[data-sve-help-branches] {
+  display: flex;
+  gap: 0.3em;
+  margin-top: 0.6em;
+}
+[data-sve-help-branches] button {
+  all: unset;
+  box-sizing: border-box;
+  padding: 0.35em 0.6em;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 0.35em;
+  cursor: pointer;
+  font-size: 0.625rem;
+  opacity: 0.8;
+}
+[data-sve-help-branches] button:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-sve-help-branches] button:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
 `;
 

@@ -95,14 +95,18 @@ function add(entry, structure, rows) {
   }
 
   picker.value = false;
+  write(markupOf(entry, { structure, rows }));
+}
 
+/** A tile clicked. Loop and If are written, then their settings open beside the panel, level with the tile. */
+function press(entry, event) {
   if (entry.logic) {
-    port.logic(entry.logic, entry.def);
+    port.logic(entry.logic, entry.def, event.currentTarget);
 
     return;
   }
 
-  write(markupOf(entry, { structure, rows }));
+  add(entry);
 }
 
 /** Loop, If and Grid open something first, so they are clicked, not dragged. */
@@ -180,7 +184,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
             :title="port.t('add_title')"
             :data-sve-build-tile="entry.id"
             @pointerdown="draggable(entry) && grab($event, label(entry), () => markupOf(entry))"
-            @click="add(entry)"
+            @click="press(entry, $event)"
           >
             <span v-html="tileIcon(entry, port.lists.htmlIcons, port.lists.toolIcons)"></span>
             <span>{{ label(entry) }}</span>

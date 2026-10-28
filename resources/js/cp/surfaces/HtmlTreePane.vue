@@ -399,7 +399,8 @@ function setQuery(value) {
     -->
     <ComponentPropsPane v-if="!componentPropsUi.inSidebar" />
     <div data-sve-html-tree-list></div>
-    <HtmlTreeInspector />
+    <!-- A loop's or a condition's settings open in a popup (logic-popup.js), not here. -->
+    <HtmlTreeInspector v-if="!ui.inspect?.logic" />
 
     <!-- Only while a component is open: on a section there is nothing to leave.
          The left column carries it instead whenever it has taken the fields. -->

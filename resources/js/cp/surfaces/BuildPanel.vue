@@ -73,14 +73,17 @@ function nameOf(row) {
  * A + in the tree or the preview opens Add at its target; a pick opens Style.
  * In the editor the + sets its target first and the tree picks that row a
  * moment later — a pick of the + target itself is the same click, and stays
- * in Add.
+ * in Add. A row renamed where it stands (a loop made a collection in its
+ * popup, h1 → h2) has a new path but is the same element: not a pick.
  */
 watch(
-  () => [port.plusPath(), port.selectedPath()],
-  ([plus, sel], [plusBefore, selBefore] = []) => {
+  () => [port.plusPath(), port.selectedPath(), picked.value?.from],
+  ([plus, sel, from], [plusBefore, selBefore, fromBefore] = []) => {
+    const renamed = from != null && from === fromBefore;
+
     if (plus && plus !== plusBefore) {
       tab.value = 'add';
-    } else if (sel && sel !== selBefore && sel !== plus && !port.justWrote?.(sel)) {
+    } else if (sel && sel !== selBefore && sel !== plus && !port.justWrote?.(sel) && !renamed) {
       tab.value = 'style';
     }
   }
@@ -98,7 +101,9 @@ function remount() {
     return;
   }
 
-  const mount = tab.value === 'fields' ? port.mountFields : tab.value === 'settings' ? port.mountSettings : null;
+  // The second tab is whatever `second` says, however it was reached: a pick
+  // sets it to 'style', and a loop picked that way still gets its Settings.
+  const mount = tab.value === 'add' ? null : second.value === 'fields' ? port.mountFields : second.value === 'settings' ? port.mountSettings : null;
 
   unmountHost = mount ? mount(host.value, picked.value) || null : null;
 }

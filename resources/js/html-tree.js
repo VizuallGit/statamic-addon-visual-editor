@@ -60,6 +60,8 @@ import { openCpOverlay } from './cp/open-overlay.js';
 import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
 import { extractComponent } from './component-extract.js';
 import { addAntlersBranch, writeAntlersExpression } from './antlers-edit.js';
+import { helpOn } from './dock/help-state.js';
+import { openLogicPopup } from './logic-popup.js';
 import {
   loopDepthEdit,
   loopIncludeHomeEdit,
@@ -1826,7 +1828,9 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onQuery = () => renderHtmlTree(win);
   paintComponentExit(win);
   htmlTreeUi.inComponent = inComponent;
-  htmlTreeUi.onSelect = (id) => {
+  // `at` is the row's element when the row itself was clicked — not Build's +
+  // on it, which picks the row to add into.
+  htmlTreeUi.onSelect = (id, at) => {
     // A field waiting for something to point at takes the row instead of
     // selecting it. The tree is the reliable half of that gesture: the preview
     // can only offer elements it has managed to line up with the open file.
@@ -1836,7 +1840,15 @@ export function renderHtmlTree(win) {
       return;
     }
 
+    // With help on, a loop or a condition opens its settings beside the tree.
+    // Not on the release of a drag: that click is suppressed, nothing is picked.
+    const opens = !!at && row?.kind === 'antlers' && !htmlTreeSuppressClick && helpOn(win);
+
     selectHtmlTreeRow(win, id, rows);
+
+    if (opens) {
+      openLogicPopup(win, { path: row.path, at, beside: htmlTreePanel(win.document) });
+    }
   };
   htmlTreeUi.onTwist = (id) => {
     const path = rows.find((item) => item.id === id)?.path;
@@ -3671,12 +3683,15 @@ function moveSectionOnPage(win, uid, targetUid, place) {
 }
 
 /**
- * What the panel under the tree shows for the selected row.
+ * The inspector's model for the selected row.
  *
  * Only conditions and loops have anything to offer: a condition is an
  * expression, a loop is the field it walks. Everything else — tags, components
- * — is edited where it already can be, so the panel stays empty rather than
- * inventing a second place to do the same thing.
+ * — is edited where it already can be, so there is nothing rather than a
+ * second place to do the same thing. A loop's or a condition's model is drawn
+ * in a popup (logic-popup.js) and in Build's Settings tab; what is left under
+ * the tree is a component's values when the Control Panel cannot lend its
+ * fields.
  */
 function paintHtmlTreeInspector(win, row) {
   if (row?.kind === 'component') {
@@ -3703,11 +3718,15 @@ function paintHtmlTreeInspector(win, row) {
   // the tree, and a key that moved with the value would rebuild the input
   // mid-edit — losing the caret, and with it picking a second field.
   const key = row.id;
+  // Loops and conditions are drawn in a popup (logic-popup.js) and in Build's
+  // Settings tab, not under the tree; `path` is the row a popup waits for.
+  const logic = { logic: true, path: row.path };
 
   // `{{ else }}` is the branch with nothing to say about itself.
   if (row.tag === 'else') {
     htmlTreeUi.inspect = {
       key,
+      ...logic,
       title: t(win, 'antlers_condition'),
       mode: 'note',
       note: t(win, 'antlers_else_note'),
@@ -3719,16 +3738,20 @@ function paintHtmlTreeInspector(win, row) {
   // A loop's panel is the shared one (loop-inspector.js): the dock's help popup
   // shows the same model and writes with the same edits.
   if (row.antlers === 'loop') {
-    htmlTreeUi.inspect = loopInspectModel(win, row, {
-      key,
-      draft: htmlTreeSortDraft?.id === row.id ? htmlTreeSortDraft.dir : '',
-    });
+    htmlTreeUi.inspect = {
+      ...loopInspectModel(win, row, {
+        key,
+        draft: htmlTreeSortDraft?.id === row.id ? htmlTreeSortDraft.dir : '',
+      }),
+      ...logic,
+    };
 
     return;
   }
 
   htmlTreeUi.inspect = {
     key,
+    ...logic,
     title: t(win, 'antlers_condition'),
     mode: 'condition',
     value: row.expr || '',

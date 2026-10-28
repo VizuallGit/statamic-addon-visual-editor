@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addAt, findByPath, insertAt, pathAt, placeFor } from '../../../resources/js/build-mode/place.js';
+import { addAt, describeAt, findByPath, insertAt, pathAt, placeFor } from '../../../resources/js/build-mode/place.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const FILE = [
@@ -119,4 +119,15 @@ test('before: its own line in front of the row, at the row’s indent; a lock st
 
   assert.equal(next.html, '<div>\n    <p>New</p>\n    {{# sve-lock #}}\n    <p>Fixed</p>\n</div>\n');
   assert.equal(next.html.slice(next.at, next.at + P.length), P);
+});
+
+test('a loop renamed where it stands has a new path and the same start', () => {
+  const field = '<div>\n    {{ items }}\n        <p>One</p>\n    {{ /items }}\n</div>\n';
+  const collection = field.replaceAll('items', 'collection:pages');
+  const before = describeAt(field, pathOf(field, (n) => n.kind === 'antlers')).node;
+  const after = describeAt(collection, pathOf(collection, (n) => n.kind === 'antlers')).node;
+
+  assert.notEqual(after.path, before.path);
+  assert.equal(after.from, before.from);
+  assert.equal(before.from, field.indexOf('{{ items }}'));
 });

@@ -146,7 +146,8 @@ function onPointerDown(event, row) {
   }
 }
 
-function onRowClick(row) {
+/** `el` is the row's own element: a loop's or a condition's settings open beside it (logic-popup.js). */
+function onRowClick(row, el) {
   if (row.synthetic) {
     ui.onFrame?.(row.frame);
 
@@ -159,7 +160,7 @@ function onRowClick(row) {
     return;
   }
 
-  ui.onSelect?.(row.id);
+  ui.onSelect?.(row.id, el);
 }
 
 function rowBind(row, dim) {
@@ -270,10 +271,10 @@ function figmaLook() {
     tabindex="0"
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
-    @click="onRowClick(row)"
+    @click="onRowClick(row, $event.currentTarget)"
     @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onRename?.(row.id)"
-    @keydown.enter.prevent="onRowClick(row)"
-    @keydown.space.prevent="onRowClick(row)"
+    @keydown.enter.prevent="onRowClick(row, $event.currentTarget)"
+    @keydown.space.prevent="onRowClick(row, $event.currentTarget)"
     @pointerdown="onPointerDown($event, row)"
     @pointerenter="isShutSection(row) ? ui.onSectionHover?.(row.section) : null"
     @contextmenu.prevent.stop="isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onContext?.($event, row.id)"
