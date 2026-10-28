@@ -251,26 +251,10 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
     /* Classes — tw-classes.js's rules, on the catalog above */
     propertyOf,
     scale: (property) => SCALES[property] || [],
-    swatches: (property) => {
-      const prefix = { color: 'text', 'background-color': 'bg', 'border-color': 'border' }[property];
+    colorOf(name) {
+      const m = /^(?:text|bg|border)-(.+)$/.exec(name || '');
 
-      return prefix ? COLORS.map((c) => ({ name: `${prefix}-${c}`, color: colors[c] || `var(--color-${c})` })) : [];
-    },
-    setGroup(names, name) {
-      const text = value();
-
-      if (text === null) {
-        return;
-      }
-
-      const hits = chips(text).filter((chip) => chip.key === variant() && names.includes(chip.name)).sort((a, b) => b.from - a.from);
-      const same = hits.some((chip) => chip.name === name);
-      let next = text;
-
-      hits.forEach((chip) => {
-        next = replaceToken(next, chip, '');
-      });
-      commit(same ? next : appendToken(next, variant() ? `${variant()}:${name}` : name));
+      return m && COLORS.includes(m[1]) ? colors[m[1]] || `var(--color-${m[1]})` : '';
     },
     pickedClasses: () => {
       const text = value();
@@ -295,33 +279,48 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
 
       commit(hit ? replaceToken(text, hit, hit.name === name ? '' : full) : appendToken(text, full));
     },
-    addClass(name) {
-      const text = value();
+    /**
+     * A value field's menu — twOpenValueMenu's rule: a pick takes the place of
+     * the field's own class (`own`), or goes in one per property and size; the
+     * row already there changes nothing; Remove takes the own class off.
+     */
+    openValueMenu(anchor, { property, names = null, title = '', own = null, free = null } = {}) {
+      const write = (name) => {
+        const text = value();
 
-      if (text === null || !name) {
-        return;
-      }
+        if (text === null) {
+          return;
+        }
 
-      const property = propertyOf(name);
-      const full = variant() ? `${variant()}:${name}` : name;
-      const hit = property ? chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property) : null;
+        const full = !name ? '' : variant() ? `${variant()}:${name}` : name;
+        const hits = own ? chips(text).filter((chip) => chip.raw === own.raw).sort((a, b) => b.from - a.from) : [];
+        let next = text;
 
-      commit(hit ? replaceToken(text, hit, full) : appendToken(text, full));
-    },
-    replaceClasses(raws, name) {
-      const text = value();
+        if (hits.length) {
+          hits.forEach((chip, i) => {
+            next = replaceToken(next, chip, i === hits.length - 1 ? full : '');
+          });
+        } else if (full && !chips(text).some((chip) => chip.raw === full)) {
+          const property = propertyOf(name);
+          const hit = property ? chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property) : null;
 
-      if (text === null) {
-        return;
-      }
+          next = hit ? replaceToken(text, hit, full) : appendToken(text, full);
+        }
 
-      const hits = chips(text).filter((chip) => raws.includes(chip.raw)).sort((a, b) => b.from - a.from);
-      let next = text;
+        if (next !== text) {
+          commit(next);
+        }
+      };
 
-      hits.forEach((chip, i) => {
-        next = replaceToken(next, chip, i === hits.length - 1 ? (variant() ? `${variant()}:${name}` : name) : '');
+      onMenu?.({
+        anchor,
+        title: title || property,
+        names: names || port.scale(property),
+        active: own?.name || '',
+        free,
+        pick: write,
+        remove: own ? () => write('') : null,
       });
-      commit(next);
     },
     openMenu(property, anchor) {
       onMenu?.({ anchor, title: property, names: port.scale(property), active: port.activeClass(property), pick: (name) => port.setClass(name) });

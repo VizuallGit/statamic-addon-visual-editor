@@ -71,12 +71,10 @@ import {
   openStateMenu as twOpenStateMenu,
   renderTwClasses,
   twActiveClass,
-  twAddClass,
-  twOpenToolMenu,
+  twColorOf,
+  twOpenValueMenu,
   twPickedClasses,
-  twReplaceClasses,
   twSetClass,
-  twSetGroup,
   twSetTag,
   twVariant,
 } from '../tw-classes.js';
@@ -416,26 +414,13 @@ export function createEditorPort(win, hooks = {}) {
 
       return familyFor(name, model)?.label || byRoot.get(rootFor(name)) || '';
     },
-    /** The site's colours for a property, base names first, from the same catalog. */
-    swatches(property) {
-      if (!model) {
-        wantModel();
-
-        return [];
-      }
-
-      const rows = optionsForProperty(property, model).filter((option) => option.color);
-      const base = rows.filter((option) => !/-\d+$/.test(option.label));
-
-      return (base.length ? base : rows).slice(0, 8).map((option) => ({ name: option.label, color: option.color }));
-    },
+    /** The colour a class paints with — the dot the Tailwind pane's menu draws beside it. */
+    colorOf: (name) => (rev.value, twColorOf(win, name)),
     pickedClasses: () => (rev.value, twPickedClasses()?.raws || []),
     activeClass: (property) => (rev.value, twActiveClass(property)),
     setClass: (name) => twSetClass(win, name),
-    setGroup: (names, name) => twSetGroup(win, names, name),
-    addClass: (name) => twAddClass(win, name),
-    replaceClasses: (raws, name) => twReplaceClasses(win, raws, twVariant() ? `${twVariant()}:${name}` : name),
-    openMenu: (property, anchor) => twOpenToolMenu(win, anchor, property),
+    /** A value field's menu — a scale, or a group named by hand: the pane's popover, search and preview, written as the field writes. */
+    openValueMenu: (anchor, options) => twOpenValueMenu(win, anchor, options),
     run: (item, anchor) => runTwTool(win, item, anchor),
     active: (item) => (rev.value, twToolActive(item)),
 

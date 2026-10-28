@@ -32,7 +32,7 @@ const FILE = `<section id="id-{{ id }}" class="[ {{ _class }} ] py-800" {{ visua
 
 const lang = new URLSearchParams(location.search).get('lang') === 'da' ? 'da' : 'en';
 const strings = reactive({ ...data.strings[lang] });
-const menu = reactive({ open: false, anchor: null, names: null, tabs: null, none: '', active: '', pick: null });
+const menu = reactive({ open: false, anchor: null, names: null, tabs: null, none: '', active: '', pick: null, free: null, remove: null });
 
 const port = createHarnessPort({
   html: FILE,
@@ -43,8 +43,8 @@ const port = createHarnessPort({
   states: data.states,
   prose: data.prose,
   colors: data.colors,
-  onMenu: ({ anchor, names = null, tabs = null, none = '', active = '', pick }) => {
-    Object.assign(menu, { open: true, anchor, names, tabs, none, active, pick });
+  onMenu: ({ anchor, names = null, tabs = null, none = '', active = '', pick, free = null, remove = null }) => {
+    Object.assign(menu, { open: true, anchor, names, tabs, none, active, pick, free, remove });
   },
 });
 

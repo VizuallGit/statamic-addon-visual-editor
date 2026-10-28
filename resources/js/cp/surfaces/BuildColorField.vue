@@ -1,21 +1,22 @@
 <script setup>
 /**
  * A colour the way Figma's Fill row and Paper's draw it: a swatch, then the
- * value — a token from the site's palette as a chip (`primary`), or what was
- * typed (`#13204f`, `var(--brand)`). The swatch opens the Tailwind pane's own
- * colour menu for the property (`port.openMenu`); the value is a
- * BuildValueInput, so typing writes the class the pane would.
+ * value — a token from the site's palette as a chip (`primary-500`), or what
+ * was typed (`#13204f`, `var(--brand)`). The value is a BuildValueInput, and
+ * the swatch opens the same menu. The swatch paints what the menu's dot for
+ * the class paints (`port.colorOf`): the catalog's colour, or the preview's
+ * for a theme variable such as `--color-primary-500`.
  */
 import { computed, inject, ref } from 'vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { effectiveClass, fromClass, variantChain } from '../../build-mode/classes.js';
+import { effectiveClass, fromClass, isColorValue, variantChain } from '../../build-mode/classes.js';
 
 const props = defineProps({
   tool: { type: Object, required: true },
 });
 
 const port = inject('sveBuild');
-const swatch = ref(null);
+const value = ref(null);
 const property = computed(() => props.tool.css || props.tool.tw);
 
 const color = computed(() => {
@@ -27,22 +28,15 @@ const color = computed(() => {
     return '';
   }
 
-  const known = port.swatches(property.value).find((sw) => sw.name === hit.name);
+  const typed = fromClass(hit.name, hit.name.split('-')[0]);
 
-  if (known) {
-    return known.color;
-  }
-
-  const value = fromClass(hit.name, hit.name.split('-')[0]);
-
-  return /^(#|rgb|hsl|oklch|var\()/.test(value) ? value : '';
+  return port.colorOf(hit.name) || (isColorValue(typed) ? typed : '');
 });
 </script>
 
 <template>
   <div class="fg-field fg-color">
     <button
-      ref="swatch"
       type="button"
       class="fg-swatch"
       :class="{ 'is-empty': !color }"
@@ -50,8 +44,8 @@ const color = computed(() => {
       :title="port.t('value_menu')"
       :aria-label="port.t('value_menu')"
       :data-sve-build-swatch="property"
-      @click="port.openMenu(tool.tw || property, swatch)"
+      @click="value?.open()"
     ></button>
-    <BuildValueInput :tool="tool" :label="property" chip />
+    <BuildValueInput ref="value" :tool="tool" :label="property" chip />
   </div>
 </template>

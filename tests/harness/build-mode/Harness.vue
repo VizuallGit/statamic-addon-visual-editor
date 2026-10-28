@@ -186,7 +186,7 @@ const width = computed(() => {
 const menuTab = ref(0);
 const menuQuery = ref('');
 
-watch(() => props.menu.anchor, () => {
+watch([() => props.menu.open, () => props.menu.anchor], () => {
   menuTab.value = 0;
   menuQuery.value = '';
 });
@@ -207,6 +207,22 @@ function pick(name) {
   props.menu.pick?.(name);
   props.menu.open = false;
 }
+
+/** Enter in the search — TwClassMenu's rule: what was typed, when it reads as a class, else the one row left. */
+function submit() {
+  const typed = props.menu.free && menuQuery.value.trim() ? props.menu.free(menuQuery.value.trim()) : '';
+
+  if (typed) {
+    pick(typed);
+  } else if (menuNames.value.length === 1) {
+    pick(menuNames.value[0]);
+  }
+}
+
+function remove() {
+  props.menu.remove?.();
+  props.menu.open = false;
+}
 </script>
 
 <template>
@@ -220,13 +236,14 @@ function pick(name) {
 
     <div v-if="menu.open" class="hx-veil" @click="menu.open = false"></div>
     <div v-if="menu.open" class="hx-menu" :style="menuStyle" data-harness-menu>
-      <input v-model="menuQuery" class="hx-menu__q" type="text" placeholder="Search… e.g. hover, prose-p" />
+      <input v-model="menuQuery" class="hx-menu__q" type="text" placeholder="Search… e.g. hover, prose-p" @keydown.enter.prevent="submit" />
       <div v-if="menu.tabs" class="hx-menu__tabs">
         <button v-for="(tab, i) in menu.tabs" :key="tab.id" type="button" :data-on="menuTab === i ? '' : null" @click="menuTab = i">{{ tab.label }}</button>
       </div>
       <div class="hx-menu__list">
         <button v-if="menu.tabs && menuTab === 0" type="button" :data-on="!menu.active ? '' : null" @click="pick('')">{{ menu.none }}</button>
         <button v-for="name in menuNames" :key="name" type="button" :data-on="name === menu.active ? '' : null" :data-harness-pick="name" @click="pick(name)">{{ name }}</button>
+        <button v-if="menu.remove" type="button" data-harness-remove @click="remove">Remove</button>
       </div>
     </div>
   </div>

@@ -1,22 +1,28 @@
 <script setup>
 /**
- * One value a designer can type: a token (`500`), a value (`10px`, `4rem`,
+ * One value a designer sets: a token (`500`), a value (`10px`, `4rem`,
  * `calc(…)`) or a custom property (`--gutter`, `var(--gutter)`).
  *
  * `tool` is a CSS_TOOLS tool or child (`css` the property it sets, `tw` the
  * property Tailwind's classic scale is built on). What it reads is the
  * picked tag's class for that property at the size and state picked, through
- * the site's own Tailwind catalog (`port.propertyOf`); what it writes goes
- * through the Tailwind pane's class functions (`port.addClass`,
- * `port.setClass`, `port.replaceClasses`). The site's scale is offered as
- * suggestions while typing.
+ * the site's own Tailwind catalog (`port.propertyOf`).
+ *
+ * A click opens the Tailwind pane's menu under the field
+ * (`port.openValueMenu`, tw-classes.js): the site's scale, its search, and the
+ * row under the pointer or the arrows shown on the canvas before it is
+ * picked — the background field's menu, for every value. Text typed into the
+ * search that is not a row is written as the value it reads as (`typedClass`),
+ * unless `typed` is off: a list of named values (position, font-weight) takes
+ * its rows only.
  *
  * Light text is a value that comes from a wider size, the plain state, or a
- * broader property (all four sides, the axis): typing over it writes the
- * field's own class.
+ * broader property (all four sides, the axis): a pick writes the field's own
+ * class. A physical class the file already had for this side (`pt-800` under
+ * padding-block-start) is the field's own, and a pick takes its place.
  */
-import { computed, inject, ref, watch } from 'vue';
-import { effectiveClass, fromClass, kindOf, rootFor, rootOf, toClass, variantChain } from '../../build-mode/classes.js';
+import { computed, inject, ref } from 'vue';
+import { effectiveClass, fromClass, kindOf, rootFor, rootOf, typedClass, variantChain } from '../../build-mode/classes.js';
 
 const props = defineProps({
   tool: { type: Object, required: true },
@@ -25,10 +31,12 @@ const props = defineProps({
   label: { type: String, default: '' },
   /** In a narrow field: the custom property without `var()`. */
   compact: { type: Boolean, default: false },
-  /** A token from the site's scale reads as a chip (`primary`, `500`) until the field is focused. */
+  /** A token from the site's scale reads as a chip (`primary`, `500`). */
   chip: { type: Boolean, default: false },
   /** What an empty field says. */
   empty: { type: String, default: '—' },
+  /** Text typed into the menu's search is written as a value; off for a list of named values. */
+  typed: { type: Boolean, default: true },
 });
 
 defineOptions({ inheritAttrs: false });
@@ -39,13 +47,13 @@ const property = computed(() => props.tool.css || props.tool.tw || '');
 /** The physical twin Tailwind's classic scale uses (`padding-top` for `padding-block-start`). */
 const twin = computed(() => (props.tool.tw && props.tool.tw !== property.value ? props.tool.tw : ''));
 
-const scale = computed(() => {
+/** The property the scale is offered for: the field's own, or its twin's when only the twin has one. */
+const scaleProperty = computed(() => {
   port.rev.value;
 
-  const own = port.scale(property.value);
-
-  return own.length ? own : twin.value ? port.scale(twin.value) : [];
+  return port.scale(property.value).length || !twin.value ? property.value : twin.value;
 });
+const scale = computed(() => (port.rev.value, port.scale(scaleProperty.value)));
 const prefix = computed(() => rootOf(scale.value));
 
 const current = computed(() => {
@@ -59,137 +67,53 @@ const current = computed(() => {
 const own = computed(() => (current.value && !current.value.inherited ? current.value : null));
 const shown = computed(() => (current.value ? fromClass(current.value.name, rootFor(current.value.name, scale.value)) : ''));
 
-const focused = ref(false);
-const input = ref(null);
 /** A name from the site's scale, not a typed value or a custom property. */
 const isToken = computed(() => !!current.value && !/[[(]/.test(current.value.name));
 
 const display = (value) => (props.compact ? value.replace(/^var\((--[\w-]+)\)$/, '$1') : value);
+const text = computed(() => (current.value ? display(shown.value) : props.empty));
 
-const text = ref('');
-/**
- * Only what a person typed is written, and only onto the element it was
- * typed for: a field that still had focus when the pick moved used to write
- * its old text onto the new element as it blurred.
- */
-let typedFor = null;
+const trigger = ref(null);
 
-watch(
-  [own, shown],
-  () => {
-    text.value = own.value ? display(shown.value) : '';
-    typedFor = null;
-  },
-  { immediate: true }
-);
+/** The field's menu, under the field — or under `anchor` (a colour field's swatch). */
+function open(anchor) {
+  const at = anchor || trigger.value?.closest('.fg-field') || trigger.value;
 
-function onInput(event) {
-  typedFor = port.selectedPath();
-
-  // A row picked from the list (not typed): written at once, as a pick is.
-  if (event?.inputType === 'insertReplacementText') {
-    commit();
-  }
-}
-
-/** Backspace or Delete in the emptied field: the value is to go — Enter or leaving writes that. */
-function onDelete() {
-  if (!text.value && held.value) {
-    typedFor = port.selectedPath();
-    held.value = '';
-  }
-}
-
-/*
- * The browser filters the list by what the field holds, so a field showing
- * `heading` offered only `heading`. Focused, the field is empty and its value
- * stands as the placeholder: the whole list shows. Left without a change, the
- * value comes back.
- */
-const held = ref('');
-
-function onFocus() {
-  focused.value = true;
-  held.value = text.value;
-  text.value = '';
-}
-
-function onBlur() {
-  focused.value = false;
-  commit();
-
-  if (typedFor === null && !text.value) {
-    text.value = own.value ? display(shown.value) : '';
-  }
-
-  held.value = '';
-}
-
-const listId = computed(() => `bm-dl-${property.value}`);
-const suggestions = computed(() => scale.value.slice(0, 40).map((name) => fromClass(name, prefix.value)));
-
-function commit() {
-  const typed = text.value.trim();
-  const mine = typedFor !== null && typedFor === port.selectedPath();
-
-  typedFor = null;
-
-  if (!mine || typed === (own.value ? display(shown.value) : '')) {
+  if (!at) {
     return;
   }
 
-  if (!typed) {
-    if (own.value) {
-      port.setClass(own.value.name);
-    }
+  const root = prefix.value || (own.value ? rootFor(own.value.name) : '');
 
-    return;
-  }
-
-  const name = toClass(prefix.value || (own.value ? rootFor(own.value.name) : ''), typed, kindOf(property.value));
-
-  if (!name) {
-    return;
-  }
-
-  // A physical class the file already had for this side is replaced by the
-  // logical one in its slot, not left beside it.
-  if (own.value && own.value.property !== property.value) {
-    port.replaceClasses([own.value.raw], name);
-  } else {
-    port.addClass(name);
-  }
+  port.openValueMenu(at, {
+    property: scaleProperty.value,
+    title: property.value,
+    own: own.value ? { raw: own.value.raw, name: own.value.name } : null,
+    free: props.typed ? (value) => typedClass(value, scale.value, root, kindOf(property.value)) || '' : null,
+  });
 }
+
+defineExpose({ open });
 </script>
 
 <template>
   <span
-    v-if="chip && isToken && !focused"
+    v-if="chip && isToken"
     class="fg-chip"
     :class="{ inh: current.inherited }"
-    @mousedown.prevent="input?.focus()"
+    @click.prevent="open()"
   >{{ display(shown) }}</span>
-  <input
+  <button
     v-bind="$attrs"
-    ref="input"
-    v-model="text"
+    ref="trigger"
+    type="button"
     class="bm-vin"
-    :class="{ inh: current && current.inherited, 'has-chip': chip && isToken && !focused }"
-    type="text"
-    autocomplete="off"
-    spellcheck="false"
-    :list="listId"
-    :placeholder="held || (current && current.inherited ? display(shown) : empty)"
+    :class="{ inh: current && current.inherited, 'is-empty': !current, 'has-chip': chip && isToken }"
     :title="label || property"
     :aria-label="label || property"
+    aria-haspopup="listbox"
     :data-sve-build-value="label || property"
-    @input="onInput"
-    @focus="onFocus"
-    @keydown.enter.prevent="commit"
-    @keydown.delete="onDelete"
-    @blur="onBlur"
-  />
-  <datalist :id="listId">
-    <option v-for="item in suggestions" :key="item" :value="item"></option>
-  </datalist>
+    @click="open()"
+    @keydown.down.prevent="open()"
+  >{{ text }}</button>
 </template>

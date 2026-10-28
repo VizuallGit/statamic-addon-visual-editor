@@ -8,8 +8,8 @@
  * Bus: asks `dock:html`; listens to the `sve:tw-preview` event on the Control
  *   Panel's document.
  *
- * The Tailwind pane's menus — the ones Build's Style opens (`port.openMenu`,
- * the tools' value menus) — say what a pick would write as they move
+ * The Tailwind pane's menus — the ones Build's Style opens (`port.openValueMenu`,
+ * the tools' menus) — say what a pick would write as they move
  * (tw-classes.js `sendPreview`: the tag's path and its would-be class value;
  * nothing when the menu moves off or closes; `keep` when the pick is being
  * written). The real preview's paint script holds that on the live page

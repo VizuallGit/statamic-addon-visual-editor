@@ -95,6 +95,20 @@ export function toClass(prefix, raw, kind = 'space') {
   return `${prefix}-[${inner}]`;
 }
 
+/**
+ * What text typed into a field's menu writes: a row of the scale as it is
+ * (`pbs-700`), anything else as the field writes a typed value (`toClass`).
+ */
+export function typedClass(text, scale, prefix, kind) {
+  const v = String(text ?? '').trim();
+
+  if (!v) {
+    return null;
+  }
+
+  return (scale || []).includes(v) ? v : toClass(prefix, v, kind);
+}
+
 /** The utility (variants are ignored) → what the field shows. */
 export function fromClass(name, prefix) {
   const { base } = splitClass(name);

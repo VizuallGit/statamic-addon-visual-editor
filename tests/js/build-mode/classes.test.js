@@ -13,6 +13,7 @@ import {
   sideFallbackTools,
   sideTool,
   toClass,
+  typedClass,
   variantChain,
 } from '../../../resources/js/build-mode/classes.js';
 
@@ -35,6 +36,18 @@ test('a font size from a variable says it is a length; a colour from one does no
   assert.equal(toClass('text', '700', 'size'), 'text-700');
   assert.equal(toClass('text', '2rem', 'size'), 'text-[2rem]');
   assert.equal(toClass('text', 'clamp(1rem, 2vw, 3rem)', 'size'), 'text-[length:clamp(1rem,_2vw,_3rem)]');
+});
+
+test('text typed into a field\'s menu: a row of the scale as it is, anything else as a typed value', () => {
+  const scale = ['pbs-0', 'pbs-700', 'pbs-72'];
+
+  assert.equal(typedClass('pbs-700', scale, 'pbs'), 'pbs-700');
+  assert.equal(typedClass('7', scale, 'pbs'), 'pbs-7');
+  assert.equal(typedClass(' 10px ', scale, 'pbs'), 'pbs-[10px]');
+  assert.equal(typedClass('--gutter', scale, 'pbs'), 'pbs-(--gutter)');
+  assert.equal(typedClass('2rem', [], 'text', 'size'), 'text-[2rem]');
+  assert.equal(typedClass('', scale, 'pbs'), null);
+  assert.equal(typedClass('7', scale, ''), null);
 });
 
 test('width and height take the words CSS uses', () => {

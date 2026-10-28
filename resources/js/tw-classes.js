@@ -1491,6 +1491,114 @@ export function twOpenGroupMenu(win, anchor, title, names, after) {
 }
 
 /**
+ * The class value with a value field's pick in it (Build's Style fields).
+ *
+ * `own` is what the field reads as its own — its class, or a physical twin
+ * under a logical field (`pt-800` under padding-block-start) — and the pick
+ * takes its place. With nothing of its own the pick goes in as `twAddClass`
+ * writes it: one per family, per variant. The row already there changes
+ * nothing: a field's row means "this one", never "off".
+ */
+function fieldValueWith(value, name, own) {
+  const drop = new Set(own || []);
+  const hits = currentChips(value)
+    .filter((chip) => !chip.dynamic && drop.has(chip.raw))
+    .sort((a, b) => b.from - a.from);
+
+  if (!hits.length) {
+    return name ? classValueWith(value, name).value : value;
+  }
+
+  const prefix = variantKey();
+  const raw = !name ? '' : prefix && !name.includes(':') ? `${prefix}:${name}` : name;
+  let next = value;
+
+  hits.forEach((chip, index) => {
+    next = replaceToken(next, chip, index === hits.length - 1 ? raw : '');
+  });
+
+  return next;
+}
+
+/**
+ * A value field's menu: the tool menu's popover, rows, search and preview,
+ * writing the way a value typed into the field does (`fieldValueWith`), so
+ * the row under the marker and the row picked are one edit.
+ *
+ * `property` is the scale offered, or `names` a group named by hand (border
+ * widths, shadows — see {@link groupValueWith}); `own` (`{ raw, name }`) the
+ * class the field holds — its ✓, what a pick replaces and what Remove takes
+ * off. `free(text)` is the class typed text would be: with it, the search
+ * also writes a value the scale does not have (`10px`, `calc(…)`, `--gutter`),
+ * once Tailwind compiles it.
+ */
+export function twOpenValueMenu(win, anchor, { property, names = null, title = '', own = null, free = null, after } = {}) {
+  if (!currentValue()) {
+    return;
+  }
+
+  const options = names ? names.map((label) => ({ label, css: '', color: '' })) : optionsForProperty(property, model);
+
+  if (!options.length && !free) {
+    return;
+  }
+
+  const owned = own?.raw ? [own.raw] : [];
+  const next = (label) => {
+    const now = !locked() ? currentValue() : null;
+    const value = now ? fieldValueWith(now.value, label, owned) : null;
+
+    return now && value !== now.value ? { html: now.html, value } : null;
+  };
+
+  openMenu(win, anchor, TwClassMenu, {
+    title: title || property,
+    removeLabel: t(win, 'tw_classes_remove'),
+    searchPlaceholder: t(win, 'tw_filter_placeholder'),
+    options: optionRows(win, options, own?.name || ''),
+    free: free
+      ? (text) => {
+        const name = free(text);
+
+        return name && model?.catalog?.resolve(name) ? name : '';
+      }
+      : null,
+    onPreview: (label) => {
+      const change = label ? next(label) : null;
+
+      sendPreview(win, change ? { path: node.path, value: change.value } : null);
+    },
+    onPick: (label) => {
+      const change = next(label);
+
+      if (change) {
+        keepPreview(win);
+        commit(win, change.html, change.value);
+      }
+
+      closeTwMenu(win);
+      after?.(label);
+    },
+    onRemove: () => {
+      const change = owned.length ? next('') : null;
+
+      if (change) {
+        keepPreview(win);
+        commit(win, change.html, change.value);
+      }
+
+      closeTwMenu(win);
+      after?.('');
+    },
+  });
+}
+
+/** The colour a class paints with, as the menu's dot shows it: the catalog's, or the preview's for a theme variable. */
+export function twColorOf(win, name) {
+  return name ? chipColor(win, name) : '';
+}
+
+/**
  * The same scale, as CSS values rather than as class names.
  *
  * The CSS row and the Tailwind row offer the same choices because they read

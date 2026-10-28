@@ -53,6 +53,23 @@ async function typeInto(selector, text) {
   await page.keyboard.press('Enter');
   await sleep(200);
 }
+/** A value field: open its menu, type into the search, Enter — a value the scale does not have is written as typed. */
+async function menuWrite(selector, text) {
+  await click(selector);
+  await sleep(150);
+  await page.type('[data-harness-menu] .hx-menu__q', text);
+  await page.keyboard.press('Enter');
+  await sleep(200);
+}
+/** A value field: open its menu and click a row. */
+async function menuPick(selector, name) {
+  await click(selector);
+  await sleep(150);
+  await click(`[data-harness-pick="${name}"]`);
+  await sleep(150);
+}
+const menuOpen = () => page.evaluate(() => !!document.querySelector('[data-harness-menu]'));
+const menuActive = () => page.evaluate(() => document.querySelector('[data-harness-menu] [data-harness-pick][data-on]')?.dataset.harnessPick || '');
 
 try {
   await page.goto(URL, { waitUntil: 'networkidle0' });
@@ -67,37 +84,90 @@ try {
   step('sizes wear the top bar\'s device icons: All, Tablet, Mobile', await page.evaluate(() => ['all', 'tablet', 'mobile'].every((h) => document.querySelector(`[data-sve-build-size="${h}"] svg`))));
   await shot('1-style');
 
-  // Padding as Figma draws it: open the four sides, type block-start.
+  // Padding as Figma draws it: open the four sides; block-start opens the scale's menu.
   await click('[data-sve-build-sides="padding"]');
   await sleep(150);
-  await typeInto('[data-sve-build-value="padding-block-start"]', '10px');
-  step('a typed value in padding block-start writes pbs-[10px]', / pbs-\[10px\]/.test(await classesOf(H2)), await classesOf(H2));
+  await click('[data-sve-build-value="padding-block-start"]');
+  await sleep(150);
+  const padRows = await page.evaluate(() => [...document.querySelectorAll('[data-harness-pick]')].map((b) => b.dataset.harnessPick));
+  step('a click on padding block-start opens a menu of the site\'s scale', await menuOpen() && padRows.includes('pbs-500'), padRows.slice(0, 3).join(' '));
+  await page.click('.hx-veil');
+  await sleep(100);
+  await menuWrite('[data-sve-build-value="padding-block-start"]', '10px');
+  step('10px typed into its search writes pbs-[10px]', / pbs-\[10px\]/.test(await classesOf(H2)), await classesOf(H2));
+  step('…and the field reads 10px', (await page.evaluate(() => document.querySelector('[data-sve-build-value="padding-block-start"]').textContent.trim())) === '10px');
+  await menuPick('[data-sve-build-value="padding-block-start"]', 'pbs-700');
+  step('a row picked takes the typed value\'s place', / pbs-700( |$)/.test(await classesOf(H2)) && !/pbs-\[10px\]/.test(await classesOf(H2)), await classesOf(H2));
+  await menuWrite('[data-sve-build-value="padding-block-start"]', '10px');
   const painted = await page.evaluate(() => getComputedStyle(document.querySelector('.hx-frame').contentDocument.querySelector('h2')).paddingBlockStart);
   step('…and the compiler paints it in the preview', painted === '10px', `padding-block-start ${painted}`);
 
   // Back to two fields: down, a custom property.
   await click('[data-sve-build-sides="padding"]');
   await sleep(150);
-  await typeInto('[data-sve-build-value="padding-block"]', '--gutter');
+  await menuWrite('[data-sve-build-value="padding-block"]', '--gutter');
   step('the vertical padding field with --gutter writes py-(--gutter)', /(^| )py-\(--gutter\)/.test(await classesOf(H2)), await classesOf(H2));
+
+  // Font size: the menu marks the class the heading has; that row again changes nothing.
+  const sizeBefore = await classesOf(H2);
+  await click('[data-sve-build-value="font-size"]');
+  await sleep(150);
+  step('the font-size menu marks text-800 as the one the heading has', (await menuActive()) === 'text-800', await menuActive());
+  await click('[data-harness-pick="text-800"]');
+  await sleep(150);
+  step('…picked again it stays — a row means "this one", never "off"', (await classesOf(H2)) === sizeBefore, await classesOf(H2));
 
   // Mobile + font-size from a token.
   await click('[data-sve-build-size="mobile"]');
   await sleep(150);
-  await typeInto('[data-sve-build-value="font-size"]', '500');
+  await menuWrite('[data-sve-build-value="font-size"]', '500');
   step('on Mobile, font-size 500 writes max-md:text-500 and keeps the base text-800', /max-md:text-500/.test(await classesOf(H2)) && /(^| )text-800/.test(await classesOf(H2)), await classesOf(H2));
   await click('[data-sve-build-size="all"]');
   await sleep(150);
 
+  // Colour: the swatch paints the heading's text-primary, and opens the same menu.
+  const swatch = () => page.evaluate(() => {
+    const el = document.querySelector('[data-sve-build-swatch="color"]');
+
+    return { empty: el.classList.contains('is-empty'), bg: getComputedStyle(el).backgroundColor };
+  });
+  const primary = await swatch();
+  step('the colour swatch paints text-primary', !primary.empty && primary.bg !== 'rgba(0, 0, 0, 0)', primary.bg);
+  await menuPick('[data-sve-build-swatch="color"]', 'text-secondary');
+  const secondary = await swatch();
+  step('…its menu picks text-secondary in text-primary\'s place, and the swatch follows', /(^| )text-secondary( |$)/.test(await classesOf(H2)) && !/text-primary/.test(await classesOf(H2)) && secondary.bg !== primary.bg, `${await classesOf(H2)} · ${secondary.bg}`);
+  await menuPick('[data-sve-build-swatch="color"]', 'text-primary');
+
+  // Font weight: a list, the same menu.
+  step('font-weight reads the heading\'s font-bold', (await page.evaluate(() => document.querySelector('[data-sve-build-value="font-weight"]').textContent.trim())) === 'bold');
+  await menuPick('[data-sve-build-value="font-weight"]', 'font-semibold');
+  step('…font-semibold picked replaces it', /(^| )font-semibold( |$)/.test(await classesOf(H2)) && !/font-bold/.test(await classesOf(H2)), await classesOf(H2));
+  await menuPick('[data-sve-build-value="font-weight"]', 'font-bold');
+
   // Position: relative, from the section's + .
   await click('[data-sve-build-group="position"] .fg-sec__h');
   await sleep(150);
-  await page.select('[data-sve-build-position]', 'relative');
-  await sleep(150);
+  await menuPick('[data-sve-build-value="position"]', 'relative');
   step('position: relative writes relative', /(^| )relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
-  await page.select('[data-sve-build-position]', '');
+  await click('[data-sve-build-value="position"]');
   await sleep(150);
-  step('…set back to —, it is taken off', !/(^| )relative( |$)/.test(await classesOf(H2)));
+  await click('[data-harness-remove]');
+  await sleep(150);
+  step('…Remove takes it off', !/(^| )relative( |$)/.test(await classesOf(H2)));
+
+  // Border width: a group named by hand, the same menu — the row there again keeps it.
+  await click('[data-sve-build-group="border"] .fg-sec__h');
+  await sleep(150);
+  await menuPick('[data-sve-build-value="border-width"]', 'border-2');
+  await menuPick('[data-sve-build-value="border-width"]', 'border-2');
+  step('border-width 2, picked twice, stays border-2', /(^| )border-2( |$)/.test(await classesOf(H2)), await classesOf(H2));
+  await menuPick('[data-sve-build-value="border-width"]', 'border-4');
+  step('…border-4 takes its place', /(^| )border-4( |$)/.test(await classesOf(H2)) && !/border-2/.test(await classesOf(H2)), await classesOf(H2));
+  await click('[data-sve-build-value="border-width"]');
+  await sleep(150);
+  await click('[data-harness-remove]');
+  await sleep(150);
+  step('…and Remove takes the group off', !/(^| )border-\d( |$)/.test(await classesOf(H2)), await classesOf(H2));
 
   // State: the Tailwind pane's menu, State | Prose.
   await click('[data-sve-build-state]');
@@ -107,8 +177,7 @@ try {
   await click('[data-harness-pick="hover"]');
   await sleep(200);
   step('…hover picked: the button says hover, the hint says on hover', await page.evaluate(() => /hover/.test(document.querySelector('[data-sve-build-state]').textContent) && /hover/.test(document.querySelector('.fg-hint').textContent)));
-  await page.select('[data-sve-build-position]', 'relative');
-  await sleep(150);
+  await menuPick('[data-sve-build-value="position"]', 'relative');
   step('…and a class is written for hover', /(^| )hover:relative( |$)/.test(await classesOf(H2)), await classesOf(H2));
   await shot('2-hover');
   await click('[data-sve-build-state]');

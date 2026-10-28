@@ -7,9 +7,10 @@
  *
  * The families, their order and everything a control does are the same as
  * the sketch version: every click is the Tailwind pane's own (`port.setClass`
- * → twSetClass, `port.setGroup` → twSetGroup, `port.run` → runTwTool, the
- * pane's state menu, the strip's twSetTag), on the same CSS_TOOLS tools. A
- * dock tool this layout never drew is drawn in its family from its shape.
+ * → twSetClass, `port.openValueMenu` → the pane's menu with its search and
+ * canvas preview, `port.run` → runTwTool, the pane's state menu, the strip's
+ * twSetTag), on the same CSS_TOOLS tools. A dock tool this layout never drew
+ * is drawn in its family from its shape.
  */
 import { computed, inject, ref, watch } from 'vue';
 import BuildAlign from './BuildAlign.vue';
@@ -196,11 +197,11 @@ function setSizeMode(property, mode) {
 
 /* ---------------- the rest ---------------- */
 
-const WEIGHTS = [['font-light', '300', 'light'], ['font-normal', '400', 'normal'], ['font-medium', '500', 'medium'], ['font-semibold', '600', 'semibold'], ['font-bold', '700', 'bold']];
 const ALIGNS = [['text-start', 'alL', 'start'], ['text-center', 'alC', 'center'], ['text-end', 'alR', 'end']];
-const POSITIONS = ['static', 'relative', 'absolute', 'fixed', 'sticky'];
-const SHADOWS = [['shadow-sm', 'sm'], ['shadow-md', 'md'], ['shadow-lg', 'lg']];
-const OVERFLOWS = ['visible', 'hidden', 'clip', 'auto', 'scroll'];
+/** Named values only: the site's scale for the property, nothing typed. */
+const POSITION = { css: 'position' };
+const WEIGHT = { css: 'font-weight' };
+const OVERFLOW = { css: 'overflow' };
 
 const borderNames = computed(() => ['border-0', ...(kidsById(tool('tw-border')).get('bw-all')?.twGroup || ['border', 'border-2', 'border-4', 'border-8'])]);
 const radiusKid = computed(() => kidsById(tool('tw-radius')).get('rd-all') || tool('tw-radius'));
@@ -208,24 +209,19 @@ const cornerKids = computed(() => (tool('tw-radius')?.kids || []).filter((kid) =
 const corners = ref(false);
 const borderColor = computed(() => kidsById(tool('tw-border-color')).get('bd-all') || { css: 'border-color', tw: 'border-color' });
 
-function setOrClear(property, value) {
-  const now = eff(property);
+const shadowNames = computed(() => tool('tw-shadow')?.twGroup || []);
+const borderLabel = (name) => (name === 'border' ? '1' : name.replace(/^border-/, ''));
+const shadowLabel = (name) => name.replace(/^shadow-/, '');
 
-  if (value) {
-    port.setClass(value);
-  } else if (now && !now.inherited) {
-    port.setClass(now.name);
-  }
-}
-
-function setGroupOrClear(names, value) {
+/** A group named by hand (border width, shadow): a value field's menu over its names. */
+function openGroup(event, names, title) {
   const now = effGroup(names);
 
-  if (value) {
-    port.setGroup(names, value);
-  } else if (now && !now.inherited) {
-    port.setGroup(names, now.name);
-  }
+  port.openValueMenu(event.currentTarget.closest('.fg-field') || event.currentTarget, {
+    names,
+    title,
+    own: now && !now.inherited ? { raw: now.raw, name: now.name } : null,
+  });
 }
 
 /** The tools this layout draws by hand; anything else in a family is drawn from its shape. */
@@ -465,10 +461,7 @@ const chips = computed(() =>
         <template v-else-if="group.id === 'position'">
           <label class="fg-field">
             <span class="fg-pre" v-html="groupIcon(group, port.lists.toolIcons)"></span>
-            <select class="fg-select" aria-label="position" :class="{ inh: eff('position')?.inherited }" :value="eff('position')?.name || ''" data-sve-build-position @change="setOrClear('position', $event.target.value)">
-              <option value="">—</option>
-              <option v-for="value in POSITIONS" :key="value" :value="value">{{ value }}</option>
-            </select>
+            <BuildValueInput :tool="POSITION" label="position" :typed="false" />
           </label>
           <p class="fg-hint">{{ port.t('position_hint') }}</p>
         </template>
@@ -523,10 +516,7 @@ const chips = computed(() =>
           <div class="fg-grid">
             <label class="fg-field" title="font-weight">
               <span class="fg-pre" v-html="ic('weight')"></span>
-              <select class="fg-select" :class="{ inh: eff('font-weight')?.inherited }" aria-label="font-weight" :value="eff('font-weight')?.name || ''" @change="setOrClear('font-weight', $event.target.value)">
-                <option value="">—</option>
-                <option v-for="[cls, num, word] in WEIGHTS" :key="cls" :value="cls">{{ num }} {{ word }}</option>
-              </select>
+              <BuildValueInput :tool="WEIGHT" label="font-weight" :typed="false" />
             </label>
             <BuildField v-if="tool('tw-text')" letter="Aa" title="font-size">
               <BuildValueInput :tool="tool('tw-text')" label="font-size" compact chip />
@@ -570,10 +560,16 @@ const chips = computed(() =>
           <div class="fg-grid">
             <label class="fg-field" title="border-width">
               <span class="fg-pre" v-html="ic('border')"></span>
-              <select class="fg-select" :class="{ inh: effGroup(borderNames)?.inherited }" aria-label="border-width" :value="effGroup(borderNames)?.name || ''" @change="setGroupOrClear(borderNames, $event.target.value)">
-                <option value="">—</option>
-                <option v-for="name in borderNames" :key="name" :value="name">{{ name === 'border' ? '1' : name.replace('border-', '') }}</option>
-              </select>
+              <button
+                type="button"
+                class="bm-vin"
+                :class="{ inh: effGroup(borderNames)?.inherited, 'is-empty': !effGroup(borderNames) }"
+                aria-label="border-width"
+                aria-haspopup="listbox"
+                data-sve-build-value="border-width"
+                @click="openGroup($event, borderNames, 'border-width')"
+                @keydown.down.prevent="openGroup($event, borderNames, 'border-width')"
+              >{{ effGroup(borderNames) ? borderLabel(effGroup(borderNames).name) : '—' }}</button>
             </label>
             <div class="fg-line">
               <BuildField icon="radius" title="border-radius">
@@ -595,19 +591,22 @@ const chips = computed(() =>
             </BuildField>
             <label v-if="tool('tw-shadow')" class="fg-field" title="box-shadow">
               <span class="fg-pre" v-html="ic('shadow')"></span>
-              <select class="fg-select" :class="{ inh: effGroup(tool('tw-shadow').twGroup)?.inherited }" aria-label="box-shadow" :value="effGroup(tool('tw-shadow').twGroup)?.name || ''" @change="setGroupOrClear(tool('tw-shadow').twGroup, $event.target.value)">
-                <option value="">—</option>
-                <option v-for="[cls, label] in SHADOWS" :key="cls" :value="cls">{{ label }}</option>
-              </select>
+              <button
+                type="button"
+                class="bm-vin"
+                :class="{ inh: effGroup(shadowNames)?.inherited, 'is-empty': !effGroup(shadowNames) }"
+                aria-label="box-shadow"
+                aria-haspopup="listbox"
+                data-sve-build-value="box-shadow"
+                @click="openGroup($event, shadowNames, 'box-shadow')"
+                @keydown.down.prevent="openGroup($event, shadowNames, 'box-shadow')"
+              >{{ effGroup(shadowNames) ? shadowLabel(effGroup(shadowNames).name) : '—' }}</button>
             </label>
           </div>
           <div class="fg-lab">overflow</div>
           <label class="fg-field">
             <span class="fg-pre" v-html="ic('sides')"></span>
-            <select class="fg-select" :class="{ inh: eff('overflow')?.inherited }" aria-label="overflow" :value="eff('overflow')?.name || ''" @change="setOrClear('overflow', $event.target.value)">
-              <option value="">—</option>
-              <option v-for="value in OVERFLOWS" :key="value" :value="`overflow-${value}`">{{ value }}</option>
-            </select>
+            <BuildValueInput :tool="OVERFLOW" label="overflow" :typed="false" />
           </label>
         </template>
 

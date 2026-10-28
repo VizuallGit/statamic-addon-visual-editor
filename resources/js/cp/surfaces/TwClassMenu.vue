@@ -11,6 +11,12 @@ const props = defineProps({
   onPreview: { type: Function, default: null },
   /** With a placeholder the list gets a search field; without, it is the plain list. */
   searchPlaceholder: { type: String, default: '' },
+  /**
+   * The class typed text would write, or '' when it is none. With it, the
+   * text is previewed while no row is marked and Enter writes it; without
+   * it, Enter picks a row only.
+   */
+  free: { type: Function, default: null },
 });
 
 const typed = ref('');
@@ -29,7 +35,9 @@ const rows = computed(() => (query.value
   ? props.options.filter((option) => String(option.label).toLowerCase().includes(query.value))
   : props.options));
 
-const previewed = computed(() => (cursor.value >= 0 ? rows.value[cursor.value]?.label || '' : ''));
+const typedClass = computed(() => (props.free && typed.value.trim() ? props.free(typed.value.trim()) || '' : ''));
+
+const previewed = computed(() => (cursor.value >= 0 ? rows.value[cursor.value]?.label || '' : typedClass.value));
 
 watch(previewed, (next, prev) => {
   if (next !== prev) {
@@ -97,10 +105,12 @@ function reset() {
 }
 
 function submit() {
-  const picked = cursor.value >= 0 ? rows.value[cursor.value] : rows.value.length === 1 ? rows.value[0] : null;
+  const picked = cursor.value >= 0 ? rows.value[cursor.value] : !typedClass.value && rows.value.length === 1 ? rows.value[0] : null;
 
   if (picked) {
     props.onPick(picked.label);
+  } else if (typedClass.value) {
+    props.onPick(typedClass.value);
   }
 }
 </script>
