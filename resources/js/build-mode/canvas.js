@@ -6,6 +6,7 @@
  * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
  *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
+ *   build-mode/canvas-hold.js,
  *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
  *   `dock:chrome-kind`, `html-tree:open-section`; listens to
@@ -69,6 +70,7 @@ import { note } from '../lib/debug.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
 import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
+import { canvasHold } from './canvas-hold.js';
 
 const morph = (() => {
   const holder = {};
@@ -269,6 +271,11 @@ export function startCanvas(win) {
   };
 
   const ui = canvasUi(win, { page: cdoc, frame: () => frame, port: () => port, hovered: () => hovered, schedule });
+  // A menu's would-be classes on the canvas before they are picked, compiled beside the section's own (canvas-hold.js).
+  const hold = canvasHold(win, {
+    page: cdoc,
+    compile: (classes) => sheet(classes ? `${painted.html || ''}<i class="${classes.replace(/"/g, '&quot;')}"></i>` : painted.html),
+  });
 
   /* The frame */
 
@@ -787,6 +794,7 @@ export function startCanvas(win) {
       const next = parse(html);
 
       if (next) {
+        hold.forget();
         morph(root, next, { key: bySid });
       }
 
@@ -944,6 +952,7 @@ export function startCanvas(win) {
     stop() {
       alive = false;
       ui.stop();
+      hold.stop();
       stopMarks?.();
       stopMarks = null;
       port = null;
