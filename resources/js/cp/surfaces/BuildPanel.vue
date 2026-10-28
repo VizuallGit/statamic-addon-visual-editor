@@ -256,8 +256,10 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-seg button[aria-pressed='true'] { background: var(--bm-panel); color: var(--bm-ink); box-shadow: inset 0 0 0 1px var(--bm-edge); }
 .sve-build .bm-seg button.inh { background: transparent; color: var(--bm-inh); box-shadow: inset 0 0 0 1px var(--bm-inh-line); font-style: italic; }
 .sve-build .bm-seg .bm-ic, .sve-build .bm-seg svg { width: 0.875rem; height: 0.875rem; }
-.sve-build .bm-sub { margin: 0.65rem 0; }
-.sve-build .bm-sub button { font-size: 0.75rem; padding: 0.4rem; }
+/* All | Elements | Components: each keeps its word; a column too narrow for all three scrolls them sideways. */
+.sve-build .bm-sub { margin: 0.65rem 0; overflow-x: auto; scrollbar-width: none; }
+.sve-build .bm-sub::-webkit-scrollbar { display: none; }
+.sve-build .bm-sub button { flex: 1 0 auto; font-size: 0.75rem; padding: 0.4rem 0.6rem; }
 .sve-build .bm-search { display: flex; align-items: center; gap: 0.45rem; padding: 0 0.55rem; height: 1.875rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; color: var(--bm-muted); }
 .sve-build .bm-search:focus-within { border-color: var(--bm-accent); }
 .sve-build .bm-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--bm-ink); }
@@ -266,7 +268,8 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-view { flex: none; }
 .sve-build .bm-view button { padding: 0.32rem 0.4rem; }
 .sve-build .bm-g h4 { margin: 1rem 0 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); }
-.sve-build .bm-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.375rem; }
+/* As many tiles as the column has room for, 5.5rem each at the least: one in a narrow column, five at the most. */
+.sve-build .bm-tiles { --bm-tile-gap: 0.375rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(max(5.5rem, calc((100% - 4 * var(--bm-tile-gap)) / 5)), 1fr)); gap: var(--bm-tile-gap); }
 .sve-build .bm-tile { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.7rem 0.2rem 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid transparent; font-size: 0.6875rem; text-align: center; user-select: none; }
 .sve-build .bm-tile > span:first-child { color: var(--bm-muted); }
 .sve-build .bm-tile > span:nth-child(2) { max-width: 100%; overflow-wrap: anywhere; }
