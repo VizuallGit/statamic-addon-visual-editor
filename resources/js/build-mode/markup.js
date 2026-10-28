@@ -28,11 +28,12 @@ function open(tag, classes = '', attrs = '') {
 
 /**
  * @param {object} entry  one item of addGroups()
- * @param {{ sectionTag?: string, text?: object, heading?: string, structure?: string, mobile?: string }} opts
+ * @param {{ sectionTag?: string, text?: object, heading?: string, structure?: string, rows?: number, mobile?: string }} opts
  *   `sectionTag` the site's section attributes (Statamic config `sveSectionTag`),
  *   `text` the words new elements start with ({ heading, text, button, link, item }),
- *   `heading` the heading level (h2), `structure` a STRUCTURES key for Columns,
- *   `mobile` the narrowest size's Tailwind variant (breakpoints(), e.g. `max-md`)
+ *   `heading` the heading level (h2), `structure` a STRUCTURES key for a Grid's
+ *   columns and `rows` its rows (ROWS), `mobile` the narrowest size's Tailwind
+ *   variant (breakpoints(), e.g. `max-md`)
  * @returns {string} markup, not indented, children indented with INDENT
  */
 export function markupFor(entry, opts = {}) {
@@ -41,7 +42,7 @@ export function markupFor(entry, opts = {}) {
 
   switch (entry?.source) {
     case 'columns':
-      return columnsMarkup(opts.structure || '2', opts.mobile);
+      return columnsMarkup(opts.structure || '2', opts.mobile, opts.rows);
 
     case 'div':
       return `${open('div', def.classes)}</div>`;
@@ -101,11 +102,12 @@ function toolMarkup(entry, def, opts, text) {
   return `<${tag}></${tag}>`;
 }
 
-/** A grid with one empty div per column, stacking at the narrowest size. */
-export function columnsMarkup(key, mobile = 'max-md') {
+/** A grid with one empty div per cell — its columns times its rows — stacking at the narrowest size. */
+export function columnsMarkup(key, mobile = 'max-md', rows = 1) {
   const structure = STRUCTURES.find((s) => s.key === key) || STRUCTURES[1];
   const stack = structure.parts.length > 1 && mobile ? ` ${mobile}:grid-cols-1` : '';
-  const kids = structure.parts.map(() => `${INDENT}<div></div>`).join('\n');
+  const cells = structure.parts.length * Math.max(1, Math.floor(rows) || 1);
+  const kids = Array.from({ length: cells }, () => `${INDENT}<div></div>`).join('\n');
 
   return `<div class="grid ${structure.cls}${stack}">\n${kids}\n</div>`;
 }

@@ -266,6 +266,19 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-sp-o[aria-pressed='true'] { border-color: var(--bm-accent); }
 .sve-build .bm-sp-l { font-size: 0.625rem; color: var(--bm-muted); text-align: center; }
 
+/* A Grid's rows and columns (BuildGridPicker.vue): each structure drawn as its cells */
+.sve-build .bm-gp h4 { margin: 0.75rem 0 0.4rem; font-size: 0.6875rem; font-weight: 600; color: var(--bm-muted); }
+.sve-build .bm-gp h4:first-child { margin-top: 0; }
+.sve-build .bm-cells { display: flex; flex-direction: column; gap: 0.2rem; height: 2.25rem; }
+.sve-build .bm-cells .bm-bars { flex: 1; height: auto; min-height: 0; }
+
+/* The menu at a + on the canvas (BuildQuickAdd.vue): the panel's own look, floating over the page */
+.sve-build.bm-quick { position: fixed; z-index: 99999; display: block; width: 17rem; height: auto; max-height: calc(100vh - 1rem); overflow: auto; padding: 0.25rem 0.75rem 0.75rem; border: 1px solid var(--bm-edge); border-radius: 0.5rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); }
+.sve-build.bm-quick .bm-g h4 { margin-top: 0.6rem; }
+.sve-build .bm-quick-head { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 0.6rem; font-size: 0.8125rem; }
+.sve-build .bm-quick-more { display: block; width: 100%; margin-top: 0.75rem; padding: 0.45rem; border-radius: 0.375rem; color: var(--bm-accent-text); font-size: 0.6875rem; font-weight: 600; text-align: center; }
+.sve-build .bm-quick-more:hover { background: var(--bm-hover); }
+
 /* Style */
 .sve-build .bm-st-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
 .sve-build .bm-st-head b { font-size: 0.875rem; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

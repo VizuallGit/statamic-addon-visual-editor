@@ -58,7 +58,7 @@ try {
   await page.goto(URL, { waitUntil: 'networkidle0' });
   await sleep(500);
   step('the page is the panel and the preview, nothing else', await page.evaluate(() => !document.querySelector('.hx-right, .hx-top') && !!document.querySelector('.sve-build') && !!document.querySelector('.hx-frame')));
-  step('the panel draws Add with the dock\'s own tiles', await page.evaluate(() => ['section', 'container', 'columns', 'heading', 'loop', 'li'].every((id) => document.querySelector(`[data-sve-build-tile="${id}"]`))));
+  step('the panel draws Add with the dock\'s own tiles', await page.evaluate(() => ['section', 'container', 'grid', 'heading', 'loop', 'li'].every((id) => document.querySelector(`[data-sve-build-tile="${id}"]`))));
 
   // Pick the heading: the panel turns to Style.
   await select(H2);
@@ -176,14 +176,14 @@ try {
   step('Heading lands as the column\'s last child, indented', (await html()).includes('<a href="/cases" class="btn">Se vores cases</a>\n                <h2>New heading</h2>\n            </div>'));
   step('…and is picked', await page.evaluate(() => /h2$/.test(window.__sveBuildHarness.selectedPath())));
 
-  // + on the wrapper → Columns ⅓ × 3.
+  // + on the wrapper → Grid ⅓ × 3.
   await page.evaluate((p) => window.__sveBuildHarness.setPlus(p), WRAPPER);
   await sleep(150);
-  await click('[data-sve-build-tile="columns"]');
+  await click('[data-sve-build-tile="grid"]');
   await sleep(150);
   await click('[data-sve-build-structure="3"]');
   await sleep(250);
-  step('+ on the wrapper, Columns ⅓ × 3: a grid with three empty columns at the end of the wrapper',
+  step('+ on the wrapper, Grid ⅓ × 3: a grid with three empty cells at the end of the wrapper',
     (await html()).includes('        <div class="grid grid-cols-3 max-md:grid-cols-1">\n            <div></div>\n            <div></div>\n            <div></div>\n        </div>\n    </div>'));
   const cols = await page.evaluate(() => {
     const grid = document.querySelector('.hx-frame').contentDocument.querySelector('.grid-cols-3');
@@ -195,7 +195,7 @@ try {
   // A click on an empty column in the preview is "+ Add element" there.
   await page.evaluate(() => document.querySelector('.hx-frame').contentDocument.querySelector('[data-sve-build-empty]').click());
   await sleep(200);
-  step('an empty column in the preview sets where Add inserts', /Column 1/.test(await page.evaluate(() => document.querySelector('[data-sve-build-target]').textContent)));
+  step('an empty column in the preview sets where Add inserts', /Cell 1/.test(await page.evaluate(() => document.querySelector('[data-sve-build-target]').textContent)));
 
   // A component from the site's folder.
   await click('[data-sve-build-sub="comp"]');

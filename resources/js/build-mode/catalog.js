@@ -13,7 +13,7 @@
  * hands it the dock's live lists. A tool the dock gains later that no group
  * names lands in Other, in Build, by itself.
  *
- * Build adds only what the dock has no button for yet — Columns, Grid,
+ * Build adds only what the dock has no button for yet — Grid with its cells,
  * Button, Divider, four more HTML tags, and grid-template-columns in Style —
  * each written in the dock's own shape (`{ id, classes }` like HTML_DIVS,
  * `{ id, title, css, tw }` like CSS_TOOLS), so moving one into the dock is a
@@ -26,8 +26,7 @@ import { tagFamily } from '../lib/tag-families.js';
  * Add
  * ------------------------------------------------------------------ */
 
-/** Build's own elements, in HTML_DIVS / HTML_TOOLS shape. */
-export const BUILD_DIVS = [{ id: 'grid', classes: 'grid' }];
+/** Build's own elements, in HTML_TOOLS shape. */
 export const BUILD_ELEMENTS = {
   // The site's own button class, as `wrapper` is its container in HTML_DIVS.
   button: { id: 'button', tag: 'a', classes: 'btn' },
@@ -41,8 +40,9 @@ export const BUILD_ELEMENTS = {
 };
 
 /**
- * Columns: one grid, a structure, an empty div per column. The column
- * stacks on the narrowest size by itself; that size's variant is the site's
+ * Grid: one grid, its columns (a structure) and rows, an empty div per cell
+ * — the cells are what the canvas outlines and drops into. The columns stack
+ * on the narrowest size by themselves; that size's variant is the site's
  * (breakpoints()), handed to markup.js.
  */
 export const STRUCTURES = [
@@ -53,16 +53,16 @@ export const STRUCTURES = [
   { key: '12', parts: [1, 2], cls: 'grid-cols-[1fr_2fr]', label: '⅓ + ⅔', later: true },
   { key: '4', parts: [1, 1, 1, 1], cls: 'grid-cols-4', label: '¼ × 4' },
 ];
+export const ROWS = [1, 2, 3];
 
 /**
- * The tiles, by group. `tool` names an HTML_TOOLS id, `div` an HTML_DIVS one
- * (or BUILD_DIVS), `own` a BUILD_ELEMENTS one, `columns` the structure picker.
+ * The tiles, by group. `tool` names an HTML_TOOLS id, `div` an HTML_DIVS one,
+ * `own` a BUILD_ELEMENTS one, `columns` the Grid picker (columns and rows).
  */
 const ADD_LAYOUT = [
   { id: 'section', tool: 'section' },
   { id: 'container', div: 'container' },
-  { id: 'columns', columns: true },
-  { id: 'grid', div: 'grid' },
+  { id: 'grid', columns: true },
   { id: 'flex', div: 'flex' },
   { id: 'div', div: 'div' },
 ];
@@ -95,7 +95,7 @@ const NOT_ELEMENTS = new Set(['component', 'pagination']);
  */
 export function addGroups(dock = {}) {
   const tools = new Map((dock.htmlTools || []).map((tool) => [tool.id, tool]));
-  const divs = new Map([...(dock.divs || []), ...BUILD_DIVS].map((div) => [div.id, div]));
+  const divs = new Map((dock.divs || []).map((div) => [div.id, div]));
   // The toolbar's div button is a menu of HTML_DIVS, and those are tiles of their own.
   const named = new Set(['div']);
   const namedDivs = new Set();

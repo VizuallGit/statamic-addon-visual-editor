@@ -15,7 +15,7 @@ test('Add shows the brief\'s groups, in order, every tile resolved', () => {
   const ids = (id) => groups.find((g) => g.id === id).items.map((item) => item.id);
 
   assert.deepEqual(groups.map((g) => g.id).slice(0, 4), ['layout', 'basic', 'logic', 'tags']);
-  assert.deepEqual(ids('layout'), ['section', 'container', 'columns', 'grid', 'flex', 'div']);
+  assert.deepEqual(ids('layout'), ['section', 'container', 'grid', 'flex', 'div']);
   assert.deepEqual(ids('basic'), ['heading', 'text', 'button', 'link', 'image', 'video', 'list', 'divider']);
   assert.deepEqual(ids('logic'), ['loop', 'if']);
   assert.deepEqual(ids('tags'), ['article', 'aside', 'nav', 'header', 'footer', 'figure']);

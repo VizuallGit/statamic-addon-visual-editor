@@ -37,7 +37,9 @@
  *   setPlus? / plusPath?      a + target set from the tree or the preview
  *
  * `drag(event, item)` hands a tile pressed in Add to the canvas
- * (canvas-ui.js); false when Build has no canvas to drop on.
+ * (canvas-ui.js); false when Build has no canvas to drop on. `openPlus(path,
+ * at, docs)` is a + pressed on the canvas: Add's target, and the menu of what
+ * fits at the + (quick-add.js).
  *   setSize?(handle)          the pane's own size door; default `lp:set-device`
  *   openStateMenu?(anchor)    the Tailwind pane's state menu (State | Prose) —
  *                             tw-classes.js `openStateMenu`, exported for this
@@ -84,6 +86,7 @@ import { addAt, findByPath } from './place.js';
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { startColumnsOverlay } from './columns-overlay.js';
+import { quickAdd } from './quick-add.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
@@ -143,6 +146,7 @@ function buildCanvas(win) {
 export function createEditorPort(win, hooks = {}) {
   const rev = ref(0);
   const plus = ref('');
+  const quick = quickAdd(win);
   let wrote = '';
   let model = null;
   let modelWanted = false;
@@ -279,6 +283,11 @@ export function createEditorPort(win, hooks = {}) {
     },
     justWrote: (path) => path === wrote,
     drag: (event, item) => !!canvas?.dragNew(event, item),
+    /** A + on the canvas: Add takes its place, and a menu of what fits opens at the + (quick-add.js). */
+    openPlus(path, at, docs = []) {
+      port.setPlus(path);
+      quick.open(port, path, at, docs);
+    },
     sectionTag: () => String(win.Statamic?.$config?.get?.('sveSectionTag') || ''),
     mobileVariant: () => rows()[rows().length - 1]?.tw || 'max-md',
     components() {
@@ -431,6 +440,7 @@ export function createEditorPort(win, hooks = {}) {
     active: (item) => (rev.value, twToolActive(item)),
 
     dispose() {
+      quick.close();
       unhooks.forEach((unhook) => unhook());
     },
   };

@@ -4,12 +4,13 @@
  * Owner: Build mode (resources/js/build-mode/).
  * May import: lib/style.js, html-tree-parse.js, build-mode/canvas-paint.js,
  *   build-mode/drop.js, build-mode/place.js, build-mode/columns-overlay.js.
- * Bus: none. The file is written through the port (`write`, `setPlus`), as
+ * Bus: none. The file is written through the port (`write`, `openPlus`), as
  *   Add writes it.
  *
  *   The +        on the hovered and the picked element, and in each empty
- *                column of the picked Columns: a press makes it the place Add
- *                puts the next element (`port.setPlus`). An empty element wears
+ *                cell of the picked Grid: a press makes it the place Add puts
+ *                the next element and opens the menu of what fits at the +
+ *                (`port.openPlus`, quick-add.js). An empty element wears
  *                it in its middle, any other on its bottom edge. Nothing
  *                locked wears one.
  *   A drag       a tile from Add (`dragNew`, pressed in the panel) or an
@@ -522,7 +523,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     return !!elementOf(node)?.closest(`#${UI_ID}`);
   }
 
-  /** A click on the canvas the layer answers: a + (the next element's place), or the end of a drag. */
+  /** A click on the canvas the layer answers: a + (the menu of what fits, at the +), or the end of a drag. */
   function click(event) {
     if (swallow) {
       return true;
@@ -534,7 +535,17 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       return false;
     }
 
-    port()?.setPlus(btn.getAttribute(ADD));
+    // The + in the Control Panel's coordinates, through the frame (Live Preview may scale it).
+    const el = frame();
+    const box = el.getBoundingClientRect();
+    const scale = el.offsetWidth ? box.width / el.offsetWidth : 1;
+    const r = btn.getBoundingClientRect();
+
+    port()?.openPlus(
+      btn.getAttribute(ADD),
+      { x: box.left + (r.left + r.width / 2) * scale, top: box.top + r.top * scale, bottom: box.top + r.bottom * scale },
+      [page()]
+    );
 
     return true;
   }

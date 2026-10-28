@@ -361,7 +361,8 @@ export function startCanvas(win) {
         return;
       }
 
-      frame.contentWindow.scrollTo(0, realWin?.scrollY || 0);
+      // Instant: a site's `scroll-behavior: smooth` would glide the canvas down from the top.
+      frame.contentWindow.scrollTo({ top: realWin?.scrollY || 0, behavior: 'instant' });
       frame.removeAttribute(UNSTYLED_ATTR);
       real.setAttribute(HIDDEN_ATTR, '');
     });

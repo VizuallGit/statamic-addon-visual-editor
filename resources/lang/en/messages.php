@@ -189,8 +189,8 @@ return [
     // What an element is: the HTML tree's row names and Build's panel (lib/element-kind.js).
     'el_section' => 'Section',
     'el_container' => 'Container',
-    'el_columns' => 'Columns',
-    'el_column' => 'Column :n',
+    'el_columns' => 'Grid',
+    'el_column' => 'Cell :n',
     'el_grid' => 'Grid',
     'el_flex' => 'Flex',
     'el_div' => 'Div',

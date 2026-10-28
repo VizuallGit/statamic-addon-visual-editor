@@ -23,7 +23,6 @@ test('the div menu\'s classes, and nothing of Build\'s own', () => {
   assert.equal(write('container'), '<div class="wrapper"></div>');
   assert.equal(write('flex'), '<div class="flex"></div>');
   assert.equal(write('div'), '<div></div>');
-  assert.equal(write('grid'), '<div class="grid"></div>');
   assert.equal(markupFor(items.find((i) => i.id === 'div:flex-col'), {}), '<div class="flex flex-col"></div>');
 });
 
@@ -46,9 +45,15 @@ test('elements that hold text start with a word to see and click', () => {
   assert.equal(markupFor(tile('heading'), { text: { heading: 'A <b> & c' } }), '<h2>A &lt;b&gt; &amp; c</h2>');
 });
 
-test('columns: one grid, one empty div per column, stacked at the narrowest size', () => {
+test('a grid: one empty div per cell, its columns stacked at the narrowest size', () => {
   assert.equal(columnsMarkup('3', 'max-md'), '<div class="grid grid-cols-3 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n    <div></div>\n</div>');
   assert.equal(columnsMarkup('1', 'max-md'), '<div class="grid grid-cols-1">\n    <div></div>\n</div>');
   assert.equal(columnsMarkup('21', 'max-sm'), '<div class="grid grid-cols-[2fr_1fr] max-sm:grid-cols-1">\n    <div></div>\n    <div></div>\n</div>');
-  assert.equal(write('columns', { structure: '4', mobile: 'max-md' }).split('<div></div>').length - 1, 4);
+  assert.equal(write('grid', { structure: '4', mobile: 'max-md' }).split('<div></div>').length - 1, 4);
+});
+
+test('a grid\'s rows: a line of cells per row, the same columns', () => {
+  assert.equal(columnsMarkup('2', 'max-md', 2), '<div class="grid grid-cols-2 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n    <div></div>\n    <div></div>\n</div>');
+  assert.equal(write('grid', { structure: '3', rows: 3 }).split('<div></div>').length - 1, 9);
+  assert.equal(write('grid', { structure: '2', rows: 0 }).split('<div></div>').length - 1, 2);
 });

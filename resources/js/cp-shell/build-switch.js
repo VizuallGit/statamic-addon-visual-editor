@@ -12,8 +12,8 @@
  * Where it stands: in a holder that takes the free room between the icon row
  * and the right-hand cluster, centred in it — and only that room. The bar is
  * nearly full already (25 icons and the right-hand cluster leave ~120 px at
- * 1600 px), so the words "Content | Build" show when the holder has room for
- * them and two icons with the same words as tooltips when it has not: a
+ * 1600 px), so each mode is its icon, with the words "Content | Build" beside
+ * it when the holder has room for them and as tooltips when it has not: a
  * container query, so no script measures anything. The switch never pushes
  * the right-hand cluster off the screen. It never joins the right-hand
  * cluster — syncLpRightBarGaps owns that order and re-states it on every
@@ -45,12 +45,12 @@ import { LP_DEVICE_ICONS } from './preview-chrome.js';
 const SWITCH_ID = '__sve-build-switch';
 const STYLE_ID = '__sve-build-switch-css';
 const MODES = ['content', 'build'];
-// Drawn like the toolbar's own icons (stroke 2, round): the form, and a block being added.
+// Drawn like the toolbar's own icons (stroke 2, round): a pen writing the content, and a page laid out in blocks.
 const ICONS = {
   content:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
   build:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="10" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
 };
 
 function ensureStyles(doc) {
@@ -59,10 +59,9 @@ function ensureStyles(doc) {
     STYLE_ID,
     `#${SWITCH_ID}{display:flex;flex:1 1 0;min-width:3.875rem;justify-content:center;align-items:center;container-type:inline-size}
 #${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;padding:0 .5rem}
-#${SWITCH_ID} [data-sve-build-mode] svg{display:none;flex:none}
-@container (max-width: 8.5rem){
+#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none}
+@container (max-width: 11rem){
   #${SWITCH_ID} [data-sve-build-mode]{padding:0 .3rem}
-  #${SWITCH_ID} [data-sve-build-mode] svg{display:block}
   #${SWITCH_ID} [data-sve-build-mode] span{display:none}
 }`
   );

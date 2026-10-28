@@ -104,7 +104,7 @@ export function tileIcon(entry, htmlIcons = {}, toolIcons = {}) {
   }
 
   if (entry.source === 'columns') {
-    return ic('columns');
+    return ic('grid');
   }
 
   return P[entry.id] ? ic(entry.id) : htmlIcons[entry.def?.tag] || ic('tag');

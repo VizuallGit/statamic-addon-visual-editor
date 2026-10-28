@@ -2,11 +2,12 @@
 /**
  * Build's Add tab, as the approved sketch draws it: where the next element
  * lands, Elements | Components, a search, the tiles in groups, and the
- * Columns picker.
+ * Grid picker (BuildGridPicker.vue).
  *
  * The tiles are the dock's own (catalog.js `addGroups` over HTML_TOOLS,
  * HTML_DIVS and HTML_HEADINGS), wearing the toolbar's icons, and each writes
- * what the toolbar writes for it (markup.js). Where it lands is place.js: into
+ * what the toolbar writes for it (build-mode/add.js, as the menu at a + on the
+ * canvas does). Where it lands is place.js: into
  * the picked element when it holds others, else after it. The file is
  * written through the port — `dock:set-html` in the editor, the door the
  * Tailwind pane writes a class through — and the new element is picked.
@@ -21,9 +22,9 @@
  * (`/!/sve/components`); a tile writes the call that menu writes.
  */
 import { computed, inject, ref, watch } from 'vue';
-import { STRUCTURES, addGroups } from '../../build-mode/catalog.js';
-import { markupFor } from '../../build-mode/markup.js';
-import { addAt } from '../../build-mode/place.js';
+import BuildGridPicker from './BuildGridPicker.vue';
+import { addGroups } from '../../build-mode/catalog.js';
+import { tileLabel, tileMarkup, writeAt } from '../../build-mode/add.js';
 import { ic, tileIcon } from '../../build-mode/icons.js';
 
 const props = defineProps({
@@ -40,20 +41,7 @@ const components = ref(null);
 const groups = computed(() => addGroups({ htmlTools: port.lists.htmlTools, divs: port.lists.divs, headings: port.lists.headings }));
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-function label(entry) {
-  if (entry.lang) {
-    return port.t(entry.lang);
-  }
-
-  if (entry.title) {
-    return entry.title;
-  }
-
-  const key = `el_${entry.id}`;
-  const word = port.t(key);
-
-  return word === key ? entry.id : word;
-}
+const label = (entry) => tileLabel(port, entry);
 
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -96,31 +84,10 @@ const target = computed(() => {
   return { html: esc(port.t('insert_end')) };
 });
 
-function write(markup) {
-  const out = addAt(port.html(), port.plusPath() || port.selectedPath(), markup);
+const write = (markup) => writeAt(port, port.plusPath() || port.selectedPath(), markup);
+const markupOf = (entry, grid) => tileMarkup(port, entry, grid);
 
-  if (out) {
-    port.write(out.html, { select: out.path });
-  }
-}
-
-/** What a tile writes: the toolbar's markup for its element (markup.js). */
-function markupOf(entry, structure) {
-  return markupFor(entry, {
-    sectionTag: port.sectionTag(),
-    mobile: port.mobileVariant(),
-    structure,
-    text: {
-      heading: port.t('new_heading'),
-      text: port.t('new_text'),
-      button: port.t('new_button'),
-      link: port.t('new_link'),
-      item: port.t('new_item'),
-    },
-  });
-}
-
-function add(entry, structure) {
+function add(entry, structure, rows) {
   if (entry.source === 'columns' && !structure) {
     picker.value = true;
 
@@ -135,10 +102,10 @@ function add(entry, structure) {
     return;
   }
 
-  write(markupOf(entry, structure));
+  write(markupOf(entry, { structure, rows }));
 }
 
-/** Loop, If and Columns open something first, so they are clicked, not dragged. */
+/** Loop, If and Grid open something first, so they are clicked, not dragged. */
 const draggable = (entry) => !entry.logic && entry.source !== 'columns';
 
 /** A tile pressed: the canvas takes it over once the pointer moves. `markup` is asked for when it lands. */
@@ -146,11 +113,13 @@ function grab(event, label, markup) {
   port.drag?.(event, { label, markup });
 }
 
-/** A Columns structure dropped on the canvas: the picker has done its job. */
-function structureMarkup(key) {
-  picker.value = false;
+/** A Grid structure pressed: dropped on the canvas, the picker has done its job. */
+function grabStructure(event, structure, rows) {
+  grab(event, structure.label, () => {
+    picker.value = false;
 
-  return markupOf(columnsEntry.value, key);
+    return markupOf(columnsEntry.value, { structure: structure.key, rows });
+  });
 }
 
 const columnsEntry = computed(() => groups.value.flatMap((group) => group.items).find((item) => item.source === 'columns'));
@@ -163,20 +132,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
       <button type="button" class="bm-ib sm" :title="port.t('close')" :aria-label="port.t('close')" @click="picker = false" v-html="ic('x')"></button>
     </h3>
     <p>{{ port.t('columns_note') }}</p>
-    <div class="bm-pk-grid">
-      <button
-        v-for="structure in STRUCTURES"
-        :key="structure.key"
-        type="button"
-        class="bm-pk"
-        :data-sve-build-structure="structure.key"
-        @pointerdown="grab($event, structure.label, () => structureMarkup(structure.key))"
-        @click="add(columnsEntry, structure.key)"
-      >
-        <span class="bm-bars"><i v-for="(part, n) in structure.parts" :key="n" :style="{ flex: part }"></i></span>
-        <span class="bm-pk-l">{{ structure.label }} <i v-if="structure.later" class="bm-soon">{{ port.t('later') }}</i></span>
-      </button>
-    </div>
+    <BuildGridPicker :grab="grabStructure" @pick="(key, rows) => add(columnsEntry, key, rows)" />
   </div>
 
   <template v-else>

@@ -186,8 +186,8 @@ return [
     // Hvad et element er: HTML-træets rækkenavne og Build-panelet (lib/element-kind.js).
     'el_section' => 'Sektion',
     'el_container' => 'Container',
-    'el_columns' => 'Kolonner',
-    'el_column' => 'Kolonne :n',
+    'el_columns' => 'Grid',
+    'el_column' => 'Celle :n',
     'el_grid' => 'Grid',
     'el_flex' => 'Flex',
     'el_div' => 'Div',
