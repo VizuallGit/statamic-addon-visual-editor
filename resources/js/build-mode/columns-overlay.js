@@ -3,8 +3,14 @@
  * — or of the Columns around a picked column — outlined dashed, with a + in
  * every empty one that makes it the place Add puts the next element.
  *
+ * Any other grid — the pick, or the row it stands in, laid out as a grid in
+ * the frame (Flow: grid on an element with its own content, or a grid from the
+ * site's CSS) — has its column tracks outlined the same way, from the tracks
+ * the browser resolved (cp/xray/measure.js, X-ray's own arithmetic).
+ *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: vue, lib/preview-frame.js, lib/style.js, html-pick-align.js, build-mode/place.js. Drawn from the Control Panel over the frame, the way
+ * May import: vue, lib/preview-frame.js, lib/style.js, html-pick-align.js, build-mode/place.js,
+ *   cp/xray/measure.js. Drawn from the Control Panel over the frame, the way
  *   tw-overlay.js draws the class strip: the frame is same origin, so the
  *   boxes are read straight out of it by the paths stamped on its elements —
  *   the preview's (`data-sve-ht-path`, html-pick-align.js) or the canvas's
@@ -24,7 +30,8 @@ import { watch } from 'vue';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { HT_PATH_ATTR } from '../html-pick-align.js';
-import { columnsFor } from './place.js';
+import { columnsFor, selfAndParent } from './place.js';
+import { parseGap, parseTracks, trackOffsets } from '../cp/xray/measure.js';
 
 const LAYER_ID = '__sve-build-columns';
 const STYLE_ID = '__sve-build-columns-css';
@@ -62,6 +69,8 @@ export function startColumnsOverlay(
   const doc = win.document;
   let target = null;
   let els = [];
+  // A grid that is not Columns: its tracks are drawn, not its children.
+  let tracksOf = null;
   let observer = null;
   let frameWin = null;
   let queued = false;
@@ -73,18 +82,62 @@ export function startColumnsOverlay(
     observer?.disconnect();
     observer = null;
     els = [];
+    tracksOf = null;
+  };
+
+  /** One box per column track, from the content box's edge — redrawn as the grid changes its columns. */
+  const placeTracks = (box, frameBox, scale) => {
+    const view = tracksOf.ownerDocument.defaultView;
+    const cs = view.getComputedStyle(tracksOf);
+    const r = tracksOf.getBoundingClientRect();
+    const px = (value) => parseFloat(value) || 0;
+    const x = r.left + px(cs.borderLeftWidth) + px(cs.paddingLeft);
+    const y = r.top + px(cs.borderTopWidth) + px(cs.paddingTop);
+    const w = r.width - px(cs.borderLeftWidth) - px(cs.paddingLeft) - px(cs.paddingRight) - px(cs.borderRightWidth);
+    const h = r.height - px(cs.borderTopWidth) - px(cs.paddingTop) - px(cs.paddingBottom) - px(cs.borderBottomWidth);
+    const tracks = trackOffsets(parseTracks(cs.gridTemplateColumns), parseGap(cs.columnGap), w, cs.justifyContent);
+
+    while (box.children.length > tracks.length) {
+      box.lastElementChild.remove();
+    }
+
+    while (box.children.length < tracks.length) {
+      const cell = doc.createElement('div');
+
+      cell.dataset.col = '';
+      cell.dataset.track = String(box.children.length);
+      box.appendChild(cell);
+    }
+
+    tracks.forEach((track, n) => {
+      const cell = box.children[n];
+      const top = frameBox.top + y * scale;
+      const height = Math.max(h * scale, 32);
+
+      cell.style.left = `${frameBox.left + (x + track.start) * scale}px`;
+      cell.style.top = `${top}px`;
+      cell.style.width = `${(track.end - track.start) * scale}px`;
+      cell.style.height = `${height}px`;
+      cell.hidden = top + height < frameBox.top || top > frameBox.bottom;
+    });
   };
 
   const place = () => {
     const frame = frameOf();
     const box = layer();
 
-    if (!frame || !box || !els.length) {
+    if (!frame || !box || (!els.length && !tracksOf)) {
       return;
     }
 
     const frameBox = frame.getBoundingClientRect();
     const scale = frame.clientWidth ? frameBox.width / frame.clientWidth : 1;
+
+    if (tracksOf) {
+      placeTracks(box, frameBox, scale);
+
+      return;
+    }
 
     els.forEach(({ el, cell }) => {
       const r = el.getBoundingClientRect();
@@ -137,29 +190,54 @@ export function startColumnsOverlay(
     }
   };
 
-  function find() {
-    clear();
-    target = columnsFor(port.html(), port.selectedPath());
+  /** The pick, or the row it stands in, when the frame lays it out as a grid. */
+  const gridAround = (inner, html, path) =>
+    selfAndParent(html, path)
+      .map((at) => inner.querySelector(`[${attr}="${at}"]`))
+      .find((el) => el && /^(inline-)?grid$/.test(el.ownerDocument.defaultView.getComputedStyle(el).display)) || null;
 
-    if (!target) {
-      return;
-    }
-
-    bindFrame();
-
-    const inner = frameOf()?.contentDocument;
-    const grid = inner?.querySelector(`[${attr}="${target.path}"]`);
-
-    if (!grid) {
-      return;
-    }
-
+  const openLayer = () => {
     ensureStyles(doc);
 
     const wrap = doc.createElement('div');
 
     wrap.id = LAYER_ID;
     doc.body.appendChild(wrap);
+
+    return wrap;
+  };
+
+  function find() {
+    clear();
+
+    const html = port.html();
+    const path = port.selectedPath();
+
+    target = columnsFor(html, path);
+    bindFrame();
+
+    const inner = frameOf()?.contentDocument;
+
+    if (!target) {
+      tracksOf = inner && path ? gridAround(inner, html, path) : null;
+
+      if (tracksOf) {
+        openLayer();
+        observer = new win.ResizeObserver(schedule);
+        observer.observe(tracksOf);
+        place();
+      }
+
+      return;
+    }
+
+    const grid = inner?.querySelector(`[${attr}="${target.path}"]`);
+
+    if (!grid) {
+      return;
+    }
+
+    const wrap = openLayer();
 
     const plus = port.plusPath();
 

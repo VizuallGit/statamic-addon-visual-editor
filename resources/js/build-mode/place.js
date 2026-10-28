@@ -15,7 +15,10 @@
  *
  * - a section whose first child is its container fills the container, not
  *   the space beside it;
- * - Columns fill their first empty column, else their last.
+ * - Columns fill their first empty column, else their last;
+ * - nothing picked is the end of the file's section, where the page shows it
+ *   — not after its closing tag, where the canvas shows nothing (a file
+ *   without a section, a header or a component, still ends at the end).
  *
  * "After" is `withTemplateMarkup` — the HTML tree's plus, one way of putting
  * a block into a file. "Into" is new here and indents the same way: the
@@ -79,7 +82,7 @@ export function kindAt(source, roots, node) {
  *   null when that place takes nothing (locked, inside a lock, commented out)
  */
 export function placeFor(source, roots, path) {
-  let target = path ? findByPath(roots, path) : null;
+  let target = path ? findByPath(roots, path) : (roots || []).find((node) => kindAt(source, roots, node) === 'section') || null;
 
   if (!target) {
     return { mode: 'end', parent: null, after: null };
@@ -255,6 +258,19 @@ export function addAt(source, path, markup, options = {}) {
   const next = insertAt(html, place, markup);
 
   return { ...next, path: pathAt(next.html, next.at, options), place };
+}
+
+/** The pick's path and its parent's, by path, nearest first; [] for none. */
+export function selfAndParent(html, path) {
+  if (!path) {
+    return [];
+  }
+
+  const roots = parseTemplateTree(html);
+  const node = findByPath(roots, path);
+  const parent = node && parentOf(roots, node);
+
+  return node ? [node.path, ...(parent ? [parent.path] : [])] : [];
 }
 
 /**

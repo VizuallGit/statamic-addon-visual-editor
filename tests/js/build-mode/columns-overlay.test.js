@@ -1,9 +1,10 @@
 /**
- * build-mode/place.js columnsFor — which columns the preview outlines for a pick.
+ * build-mode/place.js columnsFor — which columns the preview outlines for a
+ * pick — and selfAndParent, where any other grid to outline may be.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { columnsFor } from '../../../resources/js/build-mode/place.js';
+import { columnsFor, selfAndParent } from '../../../resources/js/build-mode/place.js';
 
 const FILE = [
   '<section class="py-800">',
@@ -35,4 +36,11 @@ test('a picked column draws the Columns around it', () => {
 test('anything else draws nothing', () => {
   assert.equal(columnsFor(FILE, '0:section/0:div/0:h2'), null);
   assert.equal(columnsFor(FILE, ''), null);
+});
+
+test('any other grid is looked for at the pick, then the row it stands in', () => {
+  assert.deepEqual(selfAndParent(FILE, '0:section/0:div/0:h2'), ['0:section/0:div/0:h2', '0:section/0:div']);
+  assert.deepEqual(selfAndParent(FILE, '0:section'), ['0:section']);
+  assert.deepEqual(selfAndParent(FILE, ''), []);
+  assert.deepEqual(selfAndParent(FILE, '9:nope'), []);
 });

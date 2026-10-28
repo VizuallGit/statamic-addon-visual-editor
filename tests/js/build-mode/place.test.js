@@ -60,10 +60,25 @@ test('a column with something in it gets the new one at the end', () => {
   assert.ok(out.html.includes('                <p>One</p>\n                <ul>\n                    <li>Item</li>\n                </ul>\n            </div>'), out.html);
 });
 
-test('nothing picked: the end of the file, after a blank line', () => {
+test('nothing picked: the end of the section, in its container — not after </section>, where the canvas shows nothing', () => {
   const out = addAt(FILE, '', P);
 
-  assert.ok(out.html.endsWith('</section>\n\n<p>New</p>\n'));
+  assert.ok(out.html.includes('        </div>\n        <p>New</p>\n    </div>\n</section>\n'), out.html);
+  assert.equal(out.place.mode, 'into');
+  assert.equal(out.place.parent.tag, 'div');
+});
+
+test('nothing picked in a section without a container: its last child', () => {
+  const html = '{{# sve-unlocked #}}\n<section class="py-800">\n    <h2>Title</h2>\n</section>\n\n{{ sve_tw }}\n';
+  const out = addAt(html, '', P);
+
+  assert.ok(out.html.includes('    <h2>Title</h2>\n    <p>New</p>\n</section>\n\n{{ sve_tw }}'), out.html);
+});
+
+test('nothing picked in a file without a section (a component, a header): the end of the file, after a blank line', () => {
+  const out = addAt('<div class="card">\n    <p>One</p>\n</div>\n', '', P);
+
+  assert.ok(out.html.endsWith('</div>\n\n<p>New</p>\n'), out.html);
   assert.equal(out.place.mode, 'end');
 });
 

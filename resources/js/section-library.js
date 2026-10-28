@@ -61,6 +61,7 @@ import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
 import { hideSettingsBar } from './lp-width.js';
 import { selectRow, selectionPanelShowing } from './selection-panel.js';
+import { buildModeUi } from './cp/build-mode/store.js';
 import { activeChromeKind, closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind } from './globals-panel.js';
 import { savePageAsTemplate } from './inline-edit.js';
 import { closeGlobalSectionPanel, globalSectionEditorOpen, openGlobalSectionInline } from './global-section.js';
@@ -2072,7 +2073,7 @@ export function mountInLivePreviewEditor(win, panel) {
   }
 }
 
-/** After chrome overlays close, follow LP mode — unless a solo section needs the pane. */
+/** After chrome overlays close, follow LP mode — unless a solo section or Build needs the pane. */
 export function releaseLeftEdgeIfFree(win) {
   const doc = win.document;
 
@@ -2086,7 +2087,10 @@ export function releaseLeftEdgeIfFree(win) {
     return;
   }
 
-  if (selectionPanelShowing()) {
+  // Build holds the column for its panel (build-switch.js opens it); the HTML
+  // tree that opens with Build's dock closes the right panels, and must not
+  // fold the column away under it.
+  if (selectionPanelShowing() || buildModeUi.on) {
     setLpCollapsed(win, false);
 
     return;
