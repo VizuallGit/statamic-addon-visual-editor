@@ -6,7 +6,8 @@
  * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
  *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
- *   build-mode/canvas-hold.js, build-mode/canvas-live.js, cp/html-tree/store.js,
+ *   build-mode/canvas-hold.js,
+ *   build-mode/canvas-live.js, cp/html-tree/store.js,
  *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
  *   `dock:chrome-kind`, `html-tree:open-section`; listens to
