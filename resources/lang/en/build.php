@@ -83,6 +83,8 @@ return [
     'link_title' => 'Link all four sides',
     'box_content' => 'content',
     'box_element' => 'element',
+    'spacing_box' => 'Show spacing as a box',
+    'spacing_fields' => 'Show spacing as fields',
     'value_hint' => 'Type a token (<code>500</code>), a value (<code>10px</code>, <code>4rem</code>, <code>calc(…)</code>) or a custom property (<code>--gutter</code>). Light text is inherited.',
     'classes' => 'Classes on the element',
     'classes_none' => 'None yet',

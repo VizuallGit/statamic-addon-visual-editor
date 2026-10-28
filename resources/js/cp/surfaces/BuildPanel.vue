@@ -238,10 +238,11 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-ib.sm { width: 1.375rem; height: 1.375rem; }
 
 /* Tabs and scroll */
-.sve-build .bm-tabs { display: flex; flex: none; border-bottom: 1px solid var(--bm-line); padding: 0 0.5rem; }
-.sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.75rem 0 0.65rem; color: var(--bm-muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; border-bottom: 2px solid transparent; }
-.sve-build .bm-tabs button:hover { color: var(--bm-ink); }
-.sve-build .bm-tabs button[aria-selected='true'] { color: var(--bm-ink); border-bottom-color: var(--bm-accent); }
+/* Add | Style: a light grey track, the open tab in the blue of Add's place (`.bm-target`). */
+.sve-build .bm-tabs { display: flex; flex: none; gap: 0.1875rem; margin: 0.625rem 0.75rem 0; padding: 0.1875rem; border-radius: 0.4375rem; background: var(--bm-raise); }
+.sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.5rem 0; border-radius: 0.3125rem; color: var(--bm-muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
+.sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
+.sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent-soft); color: #fff; box-shadow: inset 0 0 0 1px var(--bm-inh-line); }
 .sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
 .sve-build .bm-scroll:has(> .fg-style) { padding: 0; }
 
@@ -404,10 +405,11 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-spx .bm-sp-b { bottom: 7%; left: 50%; transform: translateX(-50%); }
 .sve-build .bm-spx .bm-sp-l { left: 1.5%; top: 50%; transform: translateY(-50%); width: 25%; }
 .sve-build .bm-spx .bm-sp-r { right: 1.5%; top: 50%; transform: translateY(-50%); width: 25%; }
-.sve-build .bm-spx:has(.bm-sp-t:not(:placeholder-shown)) .bm-tz-t,
-.sve-build .bm-spx:has(.bm-sp-b:not(:placeholder-shown)) .bm-tz-b,
-.sve-build .bm-spx:has(.bm-sp-l:not(:placeholder-shown)) .bm-tz-l,
-.sve-build .bm-spx:has(.bm-sp-r:not(:placeholder-shown)) .bm-tz-r { background: rgba(56, 88, 233, 0.16); }
+/* A side with a value of its own (BuildValueInput: not empty, not inherited) is tinted. */
+.sve-build .bm-spx:has(.bm-sp-t:not(.is-empty, .inh)) .bm-tz-t,
+.sve-build .bm-spx:has(.bm-sp-b:not(.is-empty, .inh)) .bm-tz-b,
+.sve-build .bm-spx:has(.bm-sp-l:not(.is-empty, .inh)) .bm-tz-l,
+.sve-build .bm-spx:has(.bm-sp-r:not(.is-empty, .inh)) .bm-tz-r { background: rgba(56, 88, 233, 0.16); }
 .sve-build .bm-spx:has(.bm-sp-t:hover, .bm-sp-t:focus) .bm-tz-t,
 .sve-build .bm-spx:has(.bm-sp-b:hover, .bm-sp-b:focus) .bm-tz-b,
 .sve-build .bm-spx:has(.bm-sp-l:hover, .bm-sp-l:focus) .bm-tz-l,

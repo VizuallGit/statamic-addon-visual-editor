@@ -11,11 +11,16 @@
  * canvas preview, `port.run` → runTwTool, the pane's state menu, the strip's
  * twSetTag), on the same CSS_TOOLS tools. A dock tool this layout never drew
  * is drawn in its family from its shape.
+ *
+ * Spacing is drawn one of two ways, switched in its header and kept in this
+ * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
+ * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
 import { computed, inject, ref, watch } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
+import BuildSpacingBox from './BuildSpacingBox.vue';
 import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
 import BuildValueInput from './BuildValueInput.vue';
@@ -257,6 +262,29 @@ function toggle(group) {
   toggled.value = { ...toggled.value, [group.id]: !isOpen(group) };
 }
 
+/* Spacing: the box or the fields, this browser's choice */
+const SPACING_VIEW_KEY = 'sve-build-spacing-view';
+
+function readSpacingView() {
+  try {
+    return window.localStorage.getItem(SPACING_VIEW_KEY) === 'fields' ? 'fields' : 'box';
+  } catch {
+    return 'box';
+  }
+}
+
+const spacingView = ref(readSpacingView());
+
+function flipSpacingView() {
+  spacingView.value = spacingView.value === 'box' ? 'fields' : 'box';
+
+  try {
+    window.localStorage.setItem(SPACING_VIEW_KEY, spacingView.value);
+  } catch {
+    /* the choice lasts this visit */
+  }
+}
+
 function jump(group) {
   toggled.value = { ...toggled.value, [group.id]: true };
   requestAnimationFrame(() => root.value?.querySelector(`[data-sve-build-group="${group.id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
@@ -364,6 +392,17 @@ const chips = computed(() =>
         <i v-if="group.id === 'transform'" class="bm-soon">{{ port.t('later') }}</i>
         <span class="fg-sec__acts">
           <span v-if="!isOpen(group)" class="fg-ib" v-html="ic('plus')"></span>
+          <button
+            v-else-if="group.id === 'spacing'"
+            type="button"
+            class="fg-ib"
+            :aria-pressed="spacingView === 'box'"
+            :title="port.t(spacingView === 'box' ? 'spacing_fields' : 'spacing_box')"
+            :aria-label="port.t(spacingView === 'box' ? 'spacing_fields' : 'spacing_box')"
+            data-sve-build-spacing-view
+            @click.stop="flipSpacingView"
+            v-html="ic('container')"
+          ></button>
         </span>
       </header>
 
@@ -501,10 +540,16 @@ const chips = computed(() =>
 
         <!-- Spacing -->
         <template v-else-if="group.id === 'spacing'">
-          <div class="fg-lab">padding</div>
-          <BuildBoxFields v-if="tool('padding')" :tool="tool('padding')" />
-          <div class="fg-lab">margin</div>
-          <BuildBoxFields v-if="tool('margin')" :tool="tool('margin')" />
+          <BuildSpacingBox
+            v-if="spacingView === 'box' && tool('padding') && tool('margin')"
+            :tools="{ padding: tool('padding'), margin: tool('margin') }"
+          />
+          <template v-else>
+            <div class="fg-lab">padding</div>
+            <BuildBoxFields v-if="tool('padding')" :tool="tool('padding')" />
+            <div class="fg-lab">margin</div>
+            <BuildBoxFields v-if="tool('margin')" :tool="tool('margin')" />
+          </template>
           <p class="fg-hint" v-html="port.t('value_hint')"></p>
         </template>
 
