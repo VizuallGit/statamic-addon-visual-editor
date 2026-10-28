@@ -104,6 +104,7 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
   const file = ref(html);
   const selected = ref('');
   const plus = ref('');
+  const pointed = ref(0);
   const size = ref(null);
   const state = ref('');
   const rev = ref(0);
@@ -168,6 +169,11 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
       }
 
       bump();
+    },
+    pointed,
+    openPlus(path) {
+      port.setPlus(path);
+      pointed.value += 1;
     },
     write(next, { select = '' } = {}) {
       file.value = next;

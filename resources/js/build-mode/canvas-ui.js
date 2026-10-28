@@ -9,8 +9,8 @@
  *
  *   The +        on the hovered and the picked element, and in each empty
  *                cell of the picked Grid: a press makes it the place Add puts
- *                the next element and opens the menu of what fits at the +
- *                (`port.openPlus`, quick-add.js). An empty element wears
+ *                the next element, and the panel opens Add and flashes it
+ *                (`port.openPlus`). An empty element wears
  *                it in its middle, any other on its bottom edge. Nothing
  *                locked wears one.
  *   A drag       a tile from Add (`dragNew`, pressed in the panel) or an
@@ -523,7 +523,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     return !!elementOf(node)?.closest(`#${UI_ID}`);
   }
 
-  /** A click on the canvas the layer answers: a + (the menu of what fits, at the +), or the end of a drag. */
+  /** A click on the canvas the layer answers: a + (Add's place, shown in the panel), or the end of a drag. */
   function click(event) {
     if (swallow) {
       return true;
@@ -535,17 +535,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       return false;
     }
 
-    // The + in the Control Panel's coordinates, through the frame (Live Preview may scale it).
-    const el = frame();
-    const box = el.getBoundingClientRect();
-    const scale = el.offsetWidth ? box.width / el.offsetWidth : 1;
-    const r = btn.getBoundingClientRect();
-
-    port()?.openPlus(
-      btn.getAttribute(ADD),
-      { x: box.left + (r.left + r.width / 2) * scale, top: box.top + r.top * scale, bottom: box.top + r.bottom * scale },
-      [page()]
-    );
+    port()?.openPlus(btn.getAttribute(ADD));
 
     return true;
   }

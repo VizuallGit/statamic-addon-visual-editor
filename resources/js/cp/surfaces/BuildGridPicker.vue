@@ -1,9 +1,9 @@
 <script setup>
 /**
- * A Grid's rows and columns, for Add's tab (BuildAdd.vue) and the menu at a +
- * on the canvas (BuildQuickAdd.vue). Each structure draws its cells — one bar
- * per column, one line of bars per row — and is clicked (`pick`) or, where
- * `grab` is given, pressed and dragged onto the canvas.
+ * A Grid's rows and columns, for Add's tab (BuildAdd.vue). Each structure
+ * draws its cells — one bar per column, one line of bars per row — and is
+ * clicked (`pick`) or, where `grab` is given, pressed and dragged onto the
+ * canvas.
  */
 import { inject, ref } from 'vue';
 import { ROWS, STRUCTURES } from '../../build-mode/catalog.js';

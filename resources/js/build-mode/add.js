@@ -1,7 +1,5 @@
 /**
- * What an Add tile does, wherever it is pressed: in Add's tab (BuildAdd.vue)
- * and in the menu at a + on the canvas (BuildQuickAdd.vue) — one label, one
- * markup, one write, so the two never insert differently.
+ * What an Add tile does (BuildAdd.vue): its label, its markup and its write.
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: build-mode/markup.js, build-mode/place.js. No editor, no bus, no

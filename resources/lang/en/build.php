@@ -24,10 +24,14 @@ return [
     'tab_settings' => 'Settings',
 
     // Add
+    'all' => 'All',
     'elements' => 'Elements',
     'components' => 'Components',
+    'search_all' => 'Search…',
     'search_elements' => 'Search elements…',
     'search_components' => 'Search components…',
+    'view_grid' => 'Grid',
+    'view_list' => 'List',
     'none_found' => 'Nothing is called “:q”.',
     'group_layout' => 'Layout',
     'group_basic' => 'Basic',
@@ -43,7 +47,6 @@ return [
     'columns_note' => 'The columns stack on mobile by themselves. Every cell gets its own + and takes what you drag into it.',
     'grid_columns' => 'Columns',
     'grid_rows' => 'Rows',
-    'quick_more' => 'All elements in Add',
     'add_note' => 'Click to insert. :later Drag into the HTML tree or straight into the preview.',
     'logic_note' => 'Loop and If are inserted and open their settings in a popup: Field / Collection / Nav, sorting, limit, offset · condition, else if, else.',
     'components_note' => 'Read from :path. A new component shows up here by itself.',

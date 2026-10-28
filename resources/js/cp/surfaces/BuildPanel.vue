@@ -8,14 +8,15 @@
  * through one object, the port (`provide('sveBuild')`), which
  * build-mode/boot.js builds from the editor: the dock's file and lists, the
  * HTML tree's pick, the Tailwind pane's class functions and its state menu.
- * The panel holds only what it shows: which tab. A write bumps `port.rev`,
+ * The panel holds only what it shows: which tab, and the flash a + on the
+ * canvas sets off. A write bumps `port.rev`,
  * and everything drawn from the file reads it.
  *
  * Fields and Settings are not drawn here: a component's fields are the props
  * panel's, a loop's or condition's settings the HTML tree inspector's. The
  * port mounts those into the host this panel gives them.
  */
-import { computed, onBeforeUnmount, provide, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue';
 import BuildAdd from './BuildAdd.vue';
 import BuildStyle from './BuildStyle.vue';
 import { describeAt } from '../../build-mode/place.js';
@@ -89,6 +90,36 @@ watch(
   }
 );
 
+/*
+ * A + pressed on the canvas (`port.pointed` counts them) opens Add at its top,
+ * and Add's place and tiles flash once — the same + pressed again too.
+ */
+const scroller = ref(null);
+const nudged = ref(false);
+
+watch(
+  () => port.pointed?.value,
+  async () => {
+    tab.value = 'add';
+    nudged.value = false;
+    await nextTick();
+
+    if (scroller.value) {
+      scroller.value.scrollTop = 0;
+      // Read once the class is off, so a second + starts the flash over.
+      void scroller.value.offsetWidth;
+    }
+
+    nudged.value = true;
+  }
+);
+
+function nudgeEnd(event) {
+  if (event.animationName === 'sve-bm-nudge') {
+    nudged.value = false;
+  }
+}
+
 /* Fields / Settings: the editor's own panels, mounted into our host. */
 const host = ref(null);
 let unmountHost = null;
@@ -125,7 +156,7 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
       </button>
     </div>
 
-    <div class="bm-scroll">
+    <div ref="scroller" class="bm-scroll" :class="{ 'is-nudged': nudged }" @animationend="nudgeEnd">
       <BuildAdd v-if="tab === 'add'" :here="here" :name-of="nameOf" />
 
       <div v-else-if="!picked" class="bm-empty">
@@ -230,10 +261,15 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-search { display: flex; align-items: center; gap: 0.45rem; padding: 0 0.55rem; height: 1.875rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; color: var(--bm-muted); }
 .sve-build .bm-search:focus-within { border-color: var(--bm-accent); }
 .sve-build .bm-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--bm-ink); }
+.sve-build .bm-find { display: flex; align-items: center; gap: 0.375rem; }
+.sve-build .bm-find .bm-search { flex: 1; min-width: 0; }
+.sve-build .bm-view { flex: none; }
+.sve-build .bm-view button { padding: 0.32rem 0.4rem; }
 .sve-build .bm-g h4 { margin: 1rem 0 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); }
 .sve-build .bm-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.375rem; }
 .sve-build .bm-tile { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.7rem 0.2rem 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid transparent; font-size: 0.6875rem; text-align: center; user-select: none; }
 .sve-build .bm-tile > span:first-child { color: var(--bm-muted); }
+.sve-build .bm-tile > span:nth-child(2) { max-width: 100%; overflow-wrap: anywhere; }
 .sve-build .bm-tile svg { width: 1.25rem; height: 1.25rem; }
 .sve-build .bm-tile:hover:not(:disabled) { border-color: var(--bm-accent); background: var(--bm-hover); }
 .sve-build .bm-tile:hover:not(:disabled) > span:first-child { color: #fff; }
@@ -241,13 +277,25 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-tile.is-mono > span:last-child { font-family: var(--bm-mono); }
 .sve-build .bm-tile.is-loop > span:first-child { color: var(--sve-fam-loop, #a5b4fc); }
 .sve-build .bm-tile.is-if > span:first-child { color: var(--sve-fam-if, #e8c468); }
-.sve-build .bm-comps { display: grid; gap: 0.375rem; margin-top: 0.75rem; }
-.sve-build .bm-comp { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.6rem; padding: 0.55rem 0.65rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); text-align: left; user-select: none; }
-.sve-build .bm-comp > span:first-child { color: var(--bm-comp); }
-.sve-build .bm-comp svg { width: 1.125rem; height: 1.125rem; }
-.sve-build .bm-comp code { color: var(--bm-faint); font-size: 0.625rem; }
-.sve-build .bm-comp:hover:not(:disabled) { border-color: var(--bm-comp); }
+/* A component wears an element's tile, in the components' green; its handle is the tooltip, and the list's right edge. */
+.sve-build .bm-tile.is-comp > span:first-child,
+.sve-build .bm-tile.is-comp:hover:not(:disabled) > span:first-child { color: var(--bm-comp); }
+.sve-build .bm-tile.is-comp:hover:not(:disabled) { border-color: var(--bm-comp); }
+.sve-build .bm-tile > code { display: none; color: var(--bm-faint); font-size: 0.625rem; }
+/* The list view: one row per tile, icon and name on a line. */
+.sve-build .bm-tiles.is-list { grid-template-columns: minmax(0, 1fr); gap: 0.25rem; }
+.sve-build .bm-tiles.is-list .bm-tile { flex-direction: row; gap: 0.6rem; padding: 0.45rem 0.65rem; font-size: 0.75rem; text-align: start; }
+.sve-build .bm-tiles.is-list .bm-tile svg { width: 1.125rem; height: 1.125rem; }
+.sve-build .bm-tiles.is-list .bm-tile > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve-build .bm-tiles.is-list .bm-tile > code { display: block; }
+/* A + pressed on the canvas: Add's place and its tiles flash once (BuildPanel `nudged`). */
+.sve-build .bm-scroll.is-nudged :is(.bm-target, .bm-tile:not(:disabled)) { animation: sve-bm-nudge 0.9s ease-out; }
+@keyframes sve-bm-nudge {
+  0%, 35% { border-color: var(--bm-accent); box-shadow: 0 0 0 0.125rem var(--bm-accent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
 .sve-build .bm-note { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--bm-line); font-size: 0.6875rem; line-height: 1.55; color: var(--bm-faint); }
+.sve-build .bm-note + .bm-note { margin-top: 0.5rem; padding-top: 0; border-top: 0; }
 .sve-build .bm-note.is-top { margin: 0 0 0.5rem; padding: 0; border: 0; }
 .sve-build .bm-note code { color: var(--bm-muted); }
 .sve-build .bm-muted { color: var(--bm-muted); font-size: 0.75rem; }
@@ -276,13 +324,6 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-gp h4:first-child { margin-top: 0; }
 .sve-build .bm-cells { display: flex; flex-direction: column; gap: 0.2rem; height: 2.25rem; }
 .sve-build .bm-cells .bm-bars { flex: 1; height: auto; min-height: 0; }
-
-/* The menu at a + on the canvas (BuildQuickAdd.vue): the panel's own look, floating over the page */
-.sve-build.bm-quick { position: fixed; z-index: 99999; display: block; width: 17rem; height: auto; max-height: calc(100vh - 1rem); overflow: auto; padding: 0.25rem 0.75rem 0.75rem; border: 1px solid var(--bm-edge); border-radius: 0.5rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); }
-.sve-build.bm-quick .bm-g h4 { margin-top: 0.6rem; }
-.sve-build .bm-quick-head { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 0.6rem; font-size: 0.8125rem; }
-.sve-build .bm-quick-more { display: block; width: 100%; margin-top: 0.75rem; padding: 0.45rem; border-radius: 0.375rem; color: var(--bm-accent-text); font-size: 0.6875rem; font-weight: 600; text-align: center; }
-.sve-build .bm-quick-more:hover { background: var(--bm-hover); }
 
 /* Style */
 .sve-build .bm-st-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }

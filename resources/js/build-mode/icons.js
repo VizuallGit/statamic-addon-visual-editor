@@ -23,6 +23,7 @@ const P = {
   button: '<rect x="3" y="7" width="18" height="10" rx="3"/><path d="M8 12h8"/>',
   divider: '<path d="M3 12h18"/>',
   tag: '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
   cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
   search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
   chev: '<path d="M6 9l6 6 6-6"/>',

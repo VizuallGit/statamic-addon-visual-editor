@@ -266,6 +266,62 @@ try {
   await sleep(200);
   step('an empty column in the preview sets where Add inserts', /Cell 1/.test(await page.evaluate(() => document.querySelector('[data-sve-build-target]').textContent)));
 
+  // All, Elements, Components — one tile for both, a grid or a list.
+  const tiles = () => page.evaluate(() => {
+    const all = [...document.querySelectorAll('[data-sve-build-tile], [data-sve-build-component]')];
+    const isEl = all.map((t) => t.hasAttribute('data-sve-build-tile'));
+
+    return {
+      sub: document.querySelector('[data-sve-build-sub][aria-pressed="true"]')?.dataset.sveBuildSub || '',
+      els: isEl.filter(Boolean).length,
+      comps: isEl.filter((el) => !el).length,
+      elementsFirst: isEl.indexOf(false) > isEl.lastIndexOf(true),
+      oneShape: all.every((t) => t.classList.contains('bm-tile')),
+      lists: document.querySelectorAll('.bm-tiles.is-list').length,
+      grids: document.querySelectorAll('.bm-tiles:not(.is-list)').length,
+    };
+  });
+  await sleep(200);
+  let seen = await tiles();
+  step('Add opens on All: the elements, then the components, on one tile', seen.sub === 'all' && seen.els > 10 && seen.comps > 5 && seen.elementsFirst && seen.oneShape, JSON.stringify(seen));
+  await click('[data-sve-build-sub="el"]');
+  await sleep(150);
+  seen = await tiles();
+  step('Elements: only the elements', seen.els > 10 && seen.comps === 0, JSON.stringify(seen));
+  await click('[data-sve-build-view="list"]');
+  await sleep(150);
+  await click('[data-sve-build-sub="comp"]');
+  await sleep(150);
+  seen = await tiles();
+  step('Components: only the components — and the list view, chosen on Elements, is theirs too', seen.els === 0 && seen.comps > 5 && seen.lists > 0 && seen.grids === 0, JSON.stringify(seen));
+  step('…the list view is kept in the browser', (await page.evaluate(() => localStorage.getItem('sve-build-add-view'))) === 'list');
+  await click('[data-sve-build-view="grid"]');
+  await click('[data-sve-build-sub="all"]');
+  await sleep(150);
+  seen = await tiles();
+  step('…and the grid view again for both', seen.lists === 0 && seen.grids > 1, JSON.stringify(seen));
+
+  // A + on the canvas: no menu at the +; Add opens and flashes, each time.
+  const flash = () => page.evaluate(() => ({
+    tab: document.querySelector('[data-sve-build-tab][aria-selected="true"]')?.dataset.sveBuildTab || '',
+    on: !!document.querySelector('.bm-scroll.is-nudged'),
+    anim: getComputedStyle(document.querySelector('[data-sve-build-target]')).animationName,
+    menu: !!document.querySelector('[data-sve-build-quick]'),
+  }));
+  await click('[data-sve-build-tab="style"]');
+  await sleep(150);
+  await page.evaluate((p) => window.__sveBuildHarness.openPlus(p), WRAPPER);
+  await sleep(100);
+  let lit = await flash();
+  step('a + on the canvas opens Add and flashes its place and tiles, with no menu at the +', lit.tab === 'add' && lit.on && lit.anim === 'sve-bm-nudge' && !lit.menu, JSON.stringify(lit));
+  await sleep(1200);
+  step('…once', !(await flash()).on);
+  await page.evaluate((p) => window.__sveBuildHarness.openPlus(p), WRAPPER);
+  await sleep(100);
+  lit = await flash();
+  step('the same + pressed again flashes again', lit.on && lit.anim === 'sve-bm-nudge', JSON.stringify(lit));
+  await sleep(1200);
+
   // A component from the site's folder.
   await click('[data-sve-build-sub="comp"]');
   await sleep(300);
