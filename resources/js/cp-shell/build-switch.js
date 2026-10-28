@@ -1,6 +1,6 @@
 /**
- * The Content | Visual Build | HTML Build switch, hanging under the middle of
- * the Live Preview top bar.
+ * The Content | Visual Build | HTML Build switch in the middle of the Live
+ * Preview top bar.
  *
  * Owner: Build mode. Drawn by ensureHeaderToolbar on every pass, and only when
  * `build_mode` is on for this user (Features::visible — it also needs the
@@ -10,13 +10,15 @@
  *   Visual Build  the Build panel, the canvas, the HTML tree (build-mode-host.js).
  *   HTML Build    the form, the canvas, the dock and the HTML tree.
  *
- * Where it stands: a tab of the top bar's own colour hanging from its lower
- * edge, in the middle of the whole window — over the left column, the
- * preview and the right-hand panels alike, not the preview's middle. It is a
- * child of Statamic's header, placed from it (`top: 100%`, `left: 50%`), so
- * nothing measures anything and the bar keeps all its room for its icons.
- * Our own sheet keeps the header the box it hangs from (it already is: the
- * rule only says so for a header that holds the switch).
+ * Where it stands: in the bar's flow, between the icon row and the right-hand
+ * cluster (the box round Save that holds the sizes, syncLpRightBarGaps). The
+ * two sides share the room equally (`flex: 1 1 0`, the cluster's contents
+ * pushed to its right edge), so the switch stands dead in the middle of the
+ * whole bar while both fit in their half. A side wider than its half keeps
+ * its width — a flex item never shrinks below its content — and the switch
+ * moves over, the same gap on each side, never over an icon. The icon row's
+ * own margin is set aside while the switch is there, so the middle is exact.
+ * Plain flex: nothing is measured.
  *
  * In the top bar's look: one group box like the sizes' (HEADER_GROUP_STYLE),
  * three framed controls in it, the picked one painted as every picked control
@@ -39,6 +41,7 @@
 import { sveState } from '../cp-state.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
+import { HEADER_TOOLBAR_ID, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
 import { editorMode, setEditorMode } from '../build-mode-host.js';
@@ -66,20 +69,16 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="10" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
 };
 const iconOf = (mode) => (mode === 'html' ? TOOLBAR_ICONS.code : ICONS[mode]);
-/** The tab's rounding, and the hollow it meets the bar with on each side. */
-const ROUND = '.75rem';
 
 function ensureStyles(doc) {
-  // The two hollows are the bar's colour (inherited, never named) cut round
-  // by a mask, so the tab flows out of the bar the way a drawer tab does.
+  const bar = `.live-preview-header:has(> #${SWITCH_ID})`;
+
   injectStyle(
     doc,
     STYLE_ID,
-    `.live-preview-header:has(> #${SWITCH_ID}){position:relative}
-#${SWITCH_ID}{position:absolute;top:100%;left:50%;transform:translateX(-50%);display:flex;padding:0 .375rem .375rem;border-radius:0 0 ${ROUND} ${ROUND};background-color:inherit}
-#${SWITCH_ID}::before,#${SWITCH_ID}::after{content:'';position:absolute;top:0;width:${ROUND};height:${ROUND};background-color:inherit;pointer-events:none}
-#${SWITCH_ID}::before{right:100%;-webkit-mask:radial-gradient(circle at 0 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px));mask:radial-gradient(circle at 0 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px))}
-#${SWITCH_ID}::after{left:100%;-webkit-mask:radial-gradient(circle at 100% 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px));mask:radial-gradient(circle at 100% 100%,transparent ${ROUND},#000 calc(${ROUND} + .5px))}
+    `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
+${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
+#${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
 #${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
 #${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}`
   );
@@ -198,8 +197,9 @@ export function ensureBuildSwitch(win) {
 
   const doc = win.document;
   const header = lpHeader(doc);
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
-  if (!header) {
+  if (!header || !bar) {
     return;
   }
 
@@ -233,8 +233,10 @@ export function ensureBuildSwitch(win) {
     holder.appendChild(group);
   }
 
-  if (holder.parentElement !== header) {
-    header.appendChild(holder);
+  // Right after the icon row, as the bar's other placements anchor theirs:
+  // only a switch out of place is moved, so a pass has nothing to undo.
+  if (holder.parentElement !== header || holder.previousElementSibling !== bar) {
+    bar.after(holder);
   }
 
   paint(holder);
