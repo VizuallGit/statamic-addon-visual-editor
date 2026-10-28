@@ -239,8 +239,9 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 
 /* Tabs and scroll */
 /* Add | Style: a light grey track, the open tab in the blue of Style's "This element" (`.fg-target`). */
-.sve-build .bm-tabs { display: flex; flex: none; gap: 0.1875rem; margin: 0.625rem 0.75rem 0; padding: 0.1875rem; border-radius: 0.4375rem; background: var(--bm-raise); }
-.sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.5rem 0; border-radius: 0.3125rem; color: var(--bm-muted); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
+.sve-build .bm-tabs { display: flex; flex: none; gap: 0.1875rem; margin: 0.625rem 0.75rem 0; padding: 0.15rem; border-radius: 0.375rem; background: var(--bm-raise); }
+.sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.375rem 0; border-radius: 0.28rem; color: var(--bm-muted); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
+.sve-build .bm-tabs .bm-ic, .sve-build .bm-tabs svg { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
@@ -390,6 +391,12 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-sp-top { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0.5rem; }
 .sve-build .bm-sp-mode { flex: 1; }
 .sve-build .bm-sp-mode button { font-family: var(--bm-mono); font-size: 0.6875rem; }
+/* The unit a side is dragged in, beside padding | margin. */
+.sve-build .bm-sp-unit { flex: none; }
+.sve-build .bm-sp-unit button { flex: none; padding: 0.32rem 0.35rem; font-family: var(--bm-mono); font-size: 0.625rem; }
+/* A side that drags: up and down, and the value it is on while it moves. */
+.sve-build .bm-spx .bm-vin.is-scrub { cursor: ns-resize; touch-action: none; }
+.sve-build .bm-spx .bm-vin.is-live { color: #fff; background: var(--bm-bg); border-color: var(--bm-accent); }
 .sve-build .bm-spx { position: relative; display: block; height: 9.5rem; padding: 0; margin-top: 0.2rem; border-radius: 0.45rem; overflow: hidden; border: 1px solid var(--bm-line); background: var(--bm-bg); }
 .sve-build .bm-tz { position: absolute; inset: 0; background: var(--bm-raise); transition: background 0.12s; }
 .sve-build .bm-tz-t, .sve-build .bm-tz-b { background: var(--bm-zone-end); }
@@ -462,11 +469,14 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .fg-sec__name { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; padding: 0.25rem 0; color: inherit; font-weight: inherit; }
 .sve-build .fg-sec__name:hover { color: var(--bm-ink); }
 /* The + / − that opens and closes a family, on the light grey of a field. */
-.sve-build .fg-sec__tog { background: var(--bm-raise); }
+/* 40 % smaller than a field's icon button (1.75rem, its icon 0.9375rem). */
+.sve-build .fg-sec__tog { width: 1.05rem; height: 1.05rem; border-radius: 0.25rem; background: var(--bm-raise); }
+.sve-build .fg-sec__tog .bm-ic, .sve-build .fg-sec__tog svg { width: 0.5625rem; height: 0.5625rem; }
 .sve-build button.fg-sec__tog:hover:not(:disabled) { background: var(--bm-hover); color: var(--bm-ink); }
 /* Set on the element: a blue dot beside the family's name; hovered or focused, it shows the reset it does. */
 .sve-build .fg-set { width: 1.25rem; height: 1.25rem; display: grid; place-items: center; flex: none; border-radius: 999px; color: var(--bm-accent-text); }
-.sve-build .fg-set > i { width: 0.4375rem; height: 0.4375rem; border-radius: 999px; background: var(--bm-accent); box-shadow: 0 0 0 0.1875rem var(--bm-accent-soft); }
+/* The blue of "This element", solid — no soft ring, which read as a darker blue. */
+.sve-build .fg-set > i { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--bm-accent); }
 .sve-build .fg-set > span { display: none; }
 .sve-build .fg-set svg { width: 0.8125rem; height: 0.8125rem; }
 .sve-build .fg-set:is(:hover, :focus-visible) { background: var(--bm-accent-soft); }

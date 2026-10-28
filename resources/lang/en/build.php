@@ -86,6 +86,7 @@ return [
     'group_open' => 'Open :group',
     'group_close' => 'Collapse :group',
     'group_reset' => 'Set on this element — reset :group',
+    'spacing_unit' => 'The unit a side is dragged in',
     'spacing_box' => 'Show spacing as a box',
     'spacing_fields' => 'Show spacing as fields',
     'value_hint' => 'Type a token (<code>500</code>), a value (<code>10px</code>, <code>4rem</code>, <code>calc(…)</code>) or a custom property (<code>--gutter</code>). Light text is inherited.',

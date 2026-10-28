@@ -76,6 +76,7 @@ return [
     'group_open' => 'Åbn :group',
     'group_close' => 'Fold :group sammen',
     'group_reset' => 'Sat på elementet — nulstil :group',
+    'spacing_unit' => 'Enheden en side trækkes i',
     'spacing_box' => 'Vis spacing som boks',
     'spacing_fields' => 'Vis spacing som felter',
     'value_hint' => 'Skriv et token (<code>500</code>), en værdi (<code>10px</code>, <code>4rem</code>, <code>calc(…)</code>) eller en custom property (<code>--gutter</code>). Lys tekst er arvet.',

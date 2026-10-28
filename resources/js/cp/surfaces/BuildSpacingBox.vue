@@ -11,6 +11,10 @@
  * The sides are the dock's own box tools — CSS_TOOLS `padding` / `margin` and
  * their children (`padding-block-start`, `padding-all` …) — so a side here,
  * a field in the Figma view and a side in the Tailwind pane are one tool.
+ *
+ * The unit beside the tabs (px, rem, em, %; kept in this browser) is what a
+ * side is dragged in: up and down on a side writes `pt-[5rem]`
+ * (BuildValueInput.vue `scrub`); a click on it still opens the menu.
  */
 import { computed, inject, ref } from 'vue';
 import BuildValueInput from './BuildValueInput.vue';
@@ -25,6 +29,31 @@ const props = defineProps({
 const port = inject('sveBuild');
 const box = ref('padding');
 const link = ref('');
+
+const UNITS = ['px', 'rem', 'em', '%'];
+const UNIT_KEY = 'sve-build-spacing-unit';
+
+function readUnit() {
+  try {
+    const kept = window.localStorage.getItem(UNIT_KEY);
+
+    return UNITS.includes(kept) ? kept : 'rem';
+  } catch {
+    return 'rem';
+  }
+}
+
+const unit = ref(readUnit());
+
+function setUnit(value) {
+  unit.value = value;
+
+  try {
+    window.localStorage.setItem(UNIT_KEY, value);
+  } catch {
+    /* kept for this visit */
+  }
+}
 
 const kids = computed(() => kidsById(props.tools[box.value]));
 const POS = { 'block-start': 't', 'inline-end': 'r', 'block-end': 'b', 'inline-start': 'l' };
@@ -57,6 +86,16 @@ const sides = computed(() =>
         @click="box = item"
       ><span>{{ item }}</span></button>
     </div>
+    <div class="bm-seg bm-sp-unit" :title="port.t('spacing_unit')" :aria-label="port.t('spacing_unit')">
+      <button
+        v-for="item in UNITS"
+        :key="item"
+        type="button"
+        :aria-pressed="unit === item"
+        :data-sve-build-unit="item"
+        @click="setUnit(item)"
+      >{{ item }}</button>
+    </div>
     <button
       type="button"
       class="bm-ib sm"
@@ -83,6 +122,8 @@ const sides = computed(() =>
       :tool="row.tool"
       :fallbacks="row.fallbacks"
       :label="`${box}-${row.side}`"
+      :scrub="unit"
+      :negative="box === 'margin'"
       compact
     />
   </div>
