@@ -109,8 +109,11 @@ export const LP_PUBLISH_ID = '__sve-lp-static-publish';
 export const HEADER_TOOLBAR_ID = '__sve-toolbar';
 /** Id prefix of the frame around an icon that folds a control out beside it (pages, globals). */
 export const HEADER_FRAME_PREFIX = '__sve-frame-';
-/** Per-user icons left out of the topbar, JSON [tab key, …]; unset = every icon shown. */
-export const TOOLBAR_HIDDEN_KEY = 'sve-toolbar-hidden';
+/**
+ * Per-user icons left out of the topbar, one list per mode of Live Preview,
+ * JSON [tab key, …]; unset = every icon the mode may have shown.
+ */
+export const TOOLBAR_HIDDEN_KEYS = { content: 'sve-toolbar-hidden-content', build: 'sve-toolbar-hidden-build' };
 /** The old per-user order of the topbar icons, JSON [tab key, …] — read once and carried into TOOLBAR_GROUPS_KEY. */
 export const TOOLBAR_ORDER_KEY = 'sve-toolbar-order';
 /** Per-user groups of the topbar icons, JSON [{ id: 'g-…', name, tools: [tab key, …] }]; unset = one group, drawn order. */
@@ -121,12 +124,6 @@ export const TOOLBAR_GROUP_ATTR = 'data-sve-toolbar-group';
 export const TOOLBAR_ADD_ATTR = 'data-sve-toolbar-add';
 /** On the square right of the last group: its «+» starts a new group. */
 export const TOOLBAR_NEW_GROUP_ATTR = 'data-sve-toolbar-new-group';
-/** Per-user presets of their own, JSON [{ id: 'u-…', name, tools, dock, panes }]. */
-export const TOOLBAR_PRESETS_KEY = 'sve-toolbar-presets';
-/** The preset this user last picked, by id — marked when two presets are the same bar. */
-export const TOOLBAR_PRESET_KEY = 'sve-toolbar-preset';
-/** Per-user right-sidebar panes per preset, JSON { preset id: [pane key, …] }; a missing id = the preset's own. */
-export const TOOLBAR_PRESET_PANES_KEY = 'sve-toolbar-preset-panes';
 
 // Topbar surfaces: colour tokens the toolbar, the reload button and the pickers share
 /** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */

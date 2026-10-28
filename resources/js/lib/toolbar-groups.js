@@ -25,7 +25,7 @@ export const DEFAULT_GROUP_ID = 'g-default';
 
 /**
  * Every icon, left to right, as the top bar draws it when nobody has moved
- * one. The same list as ToolbarPresets::TOOLS in PHP; a test holds them in
+ * one. The same list as ToolbarModes::TOOLS in PHP; a test holds them in
  * step. Page settings is not a tool here: always first, outside every group.
  */
 export const DEFAULT_ORDER = [
@@ -244,4 +244,39 @@ export function deleteGroup(groups, id) {
 
       return { ...group, tools: at > 0 ? [...group.tools, ...gone.tools] : [...gone.tools, ...group.tools] };
     });
+}
+
+/** Move `key` to `index` in `keys` (clamped). A new array. */
+export function moveKey(keys, key, index) {
+  const from = keys.indexOf(key);
+
+  if (from === -1) {
+    return [...keys];
+  }
+
+  const out = keys.filter((item) => item !== key);
+  const to = Math.max(0, Math.min(out.length, index));
+
+  out.splice(to, 0, key);
+
+  return out;
+}
+
+/**
+ * A place counted among the items that show (`shown`), as a place among all
+ * of `items` once `item` is out of them — so a move made where only some show
+ * (a mode holds the rest back) lands where it was seen to: right before the
+ * shown item now at `index`, or right after the last shown one; the end when
+ * none shows. `item` may be one that is not in `items` yet.
+ */
+export function indexAmongAll(items, shown, item, index) {
+  const rest = items.filter((x) => x !== item);
+  const seen = rest.filter((x) => shown.includes(x));
+  const at = Math.max(0, Number.isFinite(index) ? index : seen.length);
+
+  if (at < seen.length) {
+    return rest.indexOf(seen[at]);
+  }
+
+  return seen.length ? rest.indexOf(seen[seen.length - 1]) + 1 : rest.length;
 }

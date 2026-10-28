@@ -15,9 +15,10 @@
  * the square right of the last group is always there, quiet until hovered, its «+» starts a new
  * group with any tool, and an icon dropped on it does the same; Reset groups
  * undoes it all.
- * Then the presets: the site's Developer and Content editor (skipped when the
- * site's PHP does not provide them yet), and one of the user's own — saved,
- * picked again, kept by the reset, deleted.
+ * Then the modes: Content shows only the icons the site gave Content, the HTML
+ * dock never among them; with Build on for this user, Build shows its own and
+ * the dock, and the way back to Content shuts the dock. Last, the reset brings
+ * a hidden icon back.
  *
  * The run never saves the editor layout to the server: every write to
  * /!/sve/chrome-prefs is answered here and goes nowhere, so the reset step
@@ -60,7 +61,6 @@ const step = (name, ok, detail = '') => {
 };
 
 const BAR = '#__sve-toolbar';
-const PRESET_NAME = `sve-test ${Date.now().toString(36)}`;
 const MORE = '#__sve-lp-more';
 const MENU = '#__sve-lp-more-menu';
 const tabButton = (id) => `${MENU} [data-sve-lp-settings-tab="${id}"]`;
@@ -171,7 +171,7 @@ const storedKey = (frame, key) => frame.evaluate((k) => {
 
   return localStorage.getItem(id ? `sve-u:${id}:${k}` : k);
 }, key);
-const stored = (frame) => storedKey(frame, 'sve-toolbar-hidden');
+const stored = (frame) => storedKey(frame, 'sve-toolbar-hidden-content');
 
 /** The icons on screen, left to right as they are drawn (CSS order included). */
 const barOrder = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab]`)]
@@ -461,7 +461,7 @@ try {
 
   const tabs = await cp.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-lp-settings-tab]`)].map((el) => el.dataset.sveLpSettingsTab), MENU);
 
-  step('three tabs: sidebars, HTML tree, top bar', tabs.join() === 'sidebars,tree,toolbar', tabs.join());
+  step('four tabs: sidebars, HTML tree, top bar, shortcuts', tabs.join() === 'sidebars,tree,toolbar,shortcuts', tabs.join());
   step('Sidebars first: the mode as one small row, two width sliders',
     (await cp.evaluate((m) => document.querySelectorAll(`${m} .sve-lp-settings__modes button`).length === 3
       && document.querySelectorAll(`${m} input[type="range"]`).length === 2, MENU)));
@@ -515,15 +515,15 @@ try {
 
   // ── A reload ──────────────────────────────────────────────────────────
   cp = await openLivePreview(page);
-  reloadStep('sve-toolbar-hidden', `${panelTool} still hidden after a reload`, !(await seen(cp, icon(panelTool))));
+  reloadStep('sve-toolbar-hidden-content', `${panelTool} still hidden after a reload`, !(await seen(cp, icon(panelTool))));
 
   if (framed) {
-    reloadStep('sve-toolbar-hidden', 'Pages still hidden after a reload', !(await seen(cp, `#__sve-frame-${framed}`)));
+    reloadStep('sve-toolbar-hidden-content', 'Pages still hidden after a reload', !(await seen(cp, `#__sve-frame-${framed}`)));
   }
 
   // The account's own hidden icons came back with the reload: this run's two
   // are hidden again, the rest shown, before the steps that open them.
-  if (accountHas('sve-toolbar-hidden')) {
+  if (accountHas('sve-toolbar-hidden-content')) {
     await openMenuTab(page, cp, 'toolbar');
 
     if (await cp.$(`${MENU} [data-sve-toolbar-all]`)) {
@@ -556,11 +556,12 @@ try {
   if (framed) {
     await openMenuTab(page, cp, 'toolbar');
     await click(page, cp, `${toolRow(framed)} [data-sve-toolbar-open]`);
-    step('Pages opens in its frame', await waitFor(cp, (sel) => {
+    // Its icon stays hidden; the control stands under the bar's left edge (header-toolbar.js UNDER_BAR_ID).
+    step('Pages opens under the bar', await waitFor(cp, (sel) => {
       const el = document.querySelector(sel);
 
       return !!el && el.getBoundingClientRect().width > 40;
-    }, `#__sve-frame-${framed}`, 5000));
+    }, '#__sve-under-bar', 5000));
     await click(page, cp, icon(framed));
     await sleep(600);
     step('and goes again when closed', !(await seen(cp, `#__sve-frame-${framed}`)));
@@ -588,7 +589,7 @@ try {
 
   // The account's own hidden icons came back with the reload; the group steps
   // look at every icon.
-  if (accountHas('sve-toolbar-hidden')) {
+  if (accountHas('sve-toolbar-hidden-content')) {
     await cleanSlate(page, cp, { groups: false });
   }
 
@@ -773,93 +774,50 @@ try {
   step('and clears the stored groups', (await storedKey(cp, 'sve-toolbar-groups')) === null);
   step('the list is one group too', (await cp.evaluate((m) => document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length, MENU)) === 1);
 
-  // ── The site's presets ────────────────────────────────────────────────
+  // ── Content and Build ─────────────────────────────────────────────────
   // Statamic's config hands back reactive proxies, which do not cross into
   // the test as values — made plain JSON in the page first.
-  const sitePresets = await cp.evaluate(() => JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveToolbarPresets') || [])));
+  const modes = await cp.evaluate(() => JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveToolbarModes') || null)));
   const dockArmed = async () => (await storedKey(cp, 'sve-code-dock-armed')) === '1';
 
-  if (!sitePresets.length) {
-    console.log("info site presets not provided by this site's PHP (older than the build) — those steps skipped");
+  if (!modes) {
+    console.log("info the modes' lists not provided by this site's PHP (older than the build) — those steps skipped");
   } else {
-    const editorPreset = sitePresets.find((preset) => preset.id === 'editor');
-    const developerPreset = sitePresets.find((preset) => preset.id === 'developer');
+    const inContent = await visibleIcons(cp);
 
-    step('Developer and Content editor are offered', !!(await cp.$(`${MENU} [data-sve-toolbar-preset="developer"]`)) && !!(await cp.$(`${MENU} [data-sve-toolbar-preset="editor"]`)));
-    await click(page, cp, `${MENU} [data-sve-toolbar-preset="editor"] button`);
-    await sleep(800);
+    step('Content shows only what the site gave Content', inContent.every((key) => key === 'settings' || modes.content.includes(key)), inContent.join(' '));
+    step('the HTML dock is never one of them', !inContent.includes('code') && !(await dockArmed()));
+    await openMenuTab(page, cp, 'toolbar');
+    step('⋮ → Top bar lists only Content’s', (await listOrder(cp)).every((key) => modes.content.includes(key)), (await listOrder(cp)).join(' '));
+    await page.keyboard.press('Escape');
 
-    const shownEditor = await visibleIcons(cp);
+    const switchTo = (mode) => `[data-sve-build-switch] [data-sve-build-mode="${mode}"]`;
 
-    step('Content editor shows its icons', sameSet(shownEditor, before.filter((key) => key === 'settings' || editorPreset.tools.includes(key))), shownEditor.join(' '));
-    step('and is marked as on', await cp.$eval(`${MENU} [data-sve-toolbar-preset="editor"]`, (el) => el.classList.contains('is-on')));
-    step('the template dock follows it', (await dockArmed()) === editorPreset.dock);
+    if (!(await cp.$(switchTo('build')))) {
+      console.log('info no Build for this user — Content is all there is, no switch to try');
+    } else {
+      await click(page, cp, switchTo('build'));
+      await sleep(1500);
 
-    await click(page, cp, `${MENU} [data-sve-toolbar-preset="developer"] button`);
-    await sleep(800);
-    step('Developer shows its icons', sameSet(await visibleIcons(cp), before.filter((key) => key === 'settings' || developerPreset.tools.includes(key))), (await visibleIcons(cp)).join(' '));
-    step('and the template dock follows it', (await dockArmed()) === developerPreset.dock);
+      const inBuild = await visibleIcons(cp);
 
-    // A copy of Developer is the same bar: the one picked is the one marked.
-    const isOn = (id) => cp.$eval(`${MENU} [data-sve-toolbar-preset="${id}"]`, (el) => el.classList.contains('is-on')).catch(() => false);
+      step('Build shows only what the site gave Build', inBuild.every((key) => key === 'settings' || modes.build.includes(key)), inBuild.join(' '));
+      step('and the HTML dock, open', inBuild.includes('code') && (await dockArmed()));
 
-    await click(page, cp, `${MENU} [data-sve-toolbar-preset-new]`);
-    await cp.waitForSelector(`${MENU} [data-sve-toolbar-preset-name]`, { timeout: 3000 });
-    await page.keyboard.type(`${PRESET_NAME} copy`);
-    await page.keyboard.press('Enter');
-    await sleep(400);
-
-    const copy = await cp.evaluate((m, name) => [...document.querySelectorAll(`${m} [data-sve-toolbar-preset^="u-"]`)]
-      .find((el) => el.textContent.includes(name))?.dataset.sveToolbarPreset || '', MENU, `${PRESET_NAME} copy`);
-
-    step('a copy of Developer, just saved, is the one marked', !!copy && (await isOn(copy)) && !(await isOn('developer')));
-    await click(page, cp, `${MENU} [data-sve-toolbar-preset="developer"] button`);
-    await sleep(400);
-    step('picking Developer marks Developer', (await isOn('developer')) && !(await isOn(copy)));
-    await click(page, cp, `${MENU} [data-sve-toolbar-preset="${copy}"] button`);
-    await sleep(400);
-    step('picking the copy marks the copy', (await isOn(copy)) && !(await isOn('developer')));
-    await click(page, cp, `${MENU} [data-sve-toolbar-preset="${copy}"] [data-sve-toolbar-preset-delete]`);
-    await sleep(300);
+      await click(page, cp, switchTo('content'));
+      await sleep(1500);
+      step('back in Content, the dock is shut and its icon gone', !(await dockArmed()) && !(await visibleIcons(cp)).includes('code'));
+    }
   }
 
-  // ── A preset of one's own ─────────────────────────────────────────────
-  await click(page, cp, `${MENU} [data-sve-toolbar-all]`).catch(() => {});
-  await sleep(200);
+  // ── The reset ─────────────────────────────────────────────────────────
+  await openMenuTab(page, cp, 'toolbar');
   await click(page, cp, `${toolRow(panelTool)} input[type="checkbox"]`);
-  await sleep(200);
-  await click(page, cp, `${MENU} [data-sve-toolbar-preset-new]`);
-  await cp.waitForSelector(`${MENU} [data-sve-toolbar-preset-name]`, { timeout: 3000 });
-  await page.keyboard.type(PRESET_NAME);
-  await page.keyboard.press('Enter');
   await sleep(300);
-
-  // Found by its name: the account may have presets of its own already.
-  const own = await cp.evaluate((m, name) => [...document.querySelectorAll(`${m} [data-sve-toolbar-preset^="u-"]`)]
-    .find((el) => el.textContent.includes(name))?.dataset.sveToolbarPreset || '', MENU, PRESET_NAME);
-
-  step('a new preset is saved under its name', !!own);
-  // The first preset that is the bar is marked; the account may hold an
-  // identical one of its own ahead of this one.
-  step('and a preset of your own with that bar is on', !!(await cp.$(`${MENU} [data-sve-toolbar-preset^="u-"].is-on`)));
-
-  await click(page, cp, `${MENU} [data-sve-toolbar-all]`);
-  await sleep(300);
-  step('Show all leaves the preset', !(await cp.$eval(`${MENU} [data-sve-toolbar-preset="${own}"]`, (el) => el.classList.contains('is-on'))));
-  await click(page, cp, `${MENU} [data-sve-toolbar-preset="${own}"] button`);
-  await sleep(500);
-  step('picking it again hides what it hides', !(await seen(cp, icon(panelTool))));
-
-  // ── The reset: the layout goes, the user's own presets stay ───────────
+  step('a tool hidden again', !(await seen(cp, icon(panelTool))));
   await click(page, cp, `${MENU} .sve-lp-settings__reset`);
   await sleep(800);
   step('Reset Live Preview settings brings it back', await seen(cp, icon(panelTool)));
-  await openMenuTab(page, cp, 'toolbar');
-  step('and keeps the preset of your own', !!(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)));
-  await click(page, cp, `${MENU} [data-sve-toolbar-preset="${own}"] [data-sve-toolbar-preset-delete]`);
-  await sleep(300);
-  step('× deletes it', !(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)) && !String(await storedKey(cp, 'sve-toolbar-presets')).includes(own));
-  await page.keyboard.press('Escape');
 
   const jsErrors = errors.filter((line) => !line.startsWith('console: Failed to load resource'));
   // With SVE_WORKTREE the page HTML still carries the installed build's

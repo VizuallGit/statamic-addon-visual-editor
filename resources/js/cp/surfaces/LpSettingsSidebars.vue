@@ -1,26 +1,19 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 
 // Sidebars tab: the page-settings panel on the left (mode + width) and what
-// the right sidebar opens with (panes + width) — for the preset that is on
-// (`activeId`, from the presets row on top of the menu). A preset lists its
-// own tools that can sit in the sidebar; ticking one is this user's own
-// choice for it, and the sidebar follows at once. All lists every sidebar
-// tool and ticks the pins as they are. Local copies so the controls answer at
-// once; every change goes straight to lp-more-menu.js.
+// the right sidebar opens with (panes + width): the sidebar tools of the mode
+// Live Preview is in, ticked where they are pinned; a tick pins and opens at
+// once. Local copies so the controls answer at once; every change goes
+// straight to lp-more-menu.js.
 const props = defineProps({
-  activeId: { type: String, default: '' },
   panelLabel: { type: String, required: true },
   modes: { type: Array, required: true },
   panelMode: { type: String, required: true },
   editorWidth: { type: Number, required: true },
   sidebarLabel: { type: String, required: true },
-  // ":name" is filled with the preset's name.
-  presetHint: { type: String, required: true },
-  allHint: { type: String, required: true },
-  keepHint: { type: String, required: true },
+  hint: { type: String, required: true },
   emptyHint: { type: String, required: true },
-  treeHint: { type: String, required: true },
   dockWidth: { type: Number, required: true },
   widthLabel: { type: String, required: true },
   widthMin: { type: Number, required: true },
@@ -31,23 +24,8 @@ const props = defineProps({
 const panelMode = ref(props.panelMode);
 const editorWidth = ref(props.editorWidth);
 const dockWidth = ref(props.dockWidth);
-// Read when the tab opens; a switch on the presets row opens it again.
-const state = props.on.sidebarState(props.activeId || 'all');
-const tools = ref(state.tools.map((tool) => ({ ...tool })));
-const keep = ref(state.keep);
-
-const title = computed(() => (state.label ? `${props.sidebarLabel} · ${state.label}` : props.sidebarLabel));
-const hint = computed(() => {
-  if (state.id === 'all') {
-    return props.allHint;
-  }
-
-  if (!tools.value.length) {
-    return props.emptyHint;
-  }
-
-  return keep.value ? props.keepHint : props.presetHint.replace(':name', state.label);
-});
+// Read when the tab opens.
+const tools = ref(props.on.sidebarState().tools.map((tool) => ({ ...tool })));
 
 function setMode(id) {
   panelMode.value = id;
@@ -61,8 +39,7 @@ function setTool(id, value) {
     row.on = value;
   }
 
-  keep.value = false;
-  props.on.presetPane(state.id, id, value);
+  props.on.pane(id, value);
 }
 
 function setEditorWidth(value) {
@@ -109,18 +86,14 @@ function setDockWidth(value) {
   </div>
 
   <div class="sve-lp-settings__section">
-    <div class="sve-lp-settings__label">{{ title }}</div>
-    <div v-if="tools.length || state.tree" class="sve-lp-settings__grid" :data-sve-sidebar-preset="state.id">
-      <label v-if="state.tree" class="sve-lp-settings__row is-fixed" :title="treeHint" data-sve-sidebar-pane="html_tree">
-        <input type="checkbox" checked disabled>
-        <span>{{ state.tree }}</span>
-      </label>
+    <div class="sve-lp-settings__label">{{ sidebarLabel }}</div>
+    <div v-if="tools.length" class="sve-lp-settings__grid">
       <label v-for="tool in tools" :key="tool.id" class="sve-lp-settings__row" :title="tool.label" :data-sve-sidebar-pane="tool.id">
         <input type="checkbox" :checked="tool.on" @change="setTool(tool.id, $event.target.checked)">
         <span>{{ tool.label }}</span>
       </label>
     </div>
-    <p class="sve-lp-settings__hint">{{ hint }}</p>
+    <p class="sve-lp-settings__hint">{{ tools.length ? hint : emptyHint }}</p>
     <label class="sve-lp-settings__range">
       <span>{{ widthLabel }}</span>
       <input

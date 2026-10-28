@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ask, on, register } from '../../resources/js/cp/bus.js';
 import { BP_CHANGED_EVENT } from '../../resources/js/breakpoints.js';
-import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY } from '../../resources/js/lib/ids.js';
+import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEYS } from '../../resources/js/lib/ids.js';
+import { followToolbarMode } from '../../resources/js/toolbar-visibility.js';
 import { MSG, SOURCE } from '../../resources/js/lib/protocol.js';
 import {
   activeShortcuts,
@@ -15,6 +16,9 @@ import {
   startShortcuts,
   syncPreviewShortcuts,
 } from '../../resources/js/toolbar-shortcuts.js';
+
+/** Content's own hidden icons. */
+const TOOLBAR_HIDDEN_KEY = TOOLBAR_HIDDEN_KEYS.content;
 
 // ── Just enough Control Panel ───────────────────────────────────────────
 
@@ -51,7 +55,7 @@ function button(tab) {
  * sends. With `preview`, a preview iframe whose window collects what the CP
  * posts to it (`win.toPreview`).
  */
-function fakeWin({ tabs = ['settings', 'pages', 'globals', 'xray'], site = {}, rows = ROWS, stored = {}, header = true, mac = true, preview = false } = {}) {
+function fakeWin({ tabs = ['settings', 'pages', 'globals', 'xray'], site = {}, rows = ROWS, stored = {}, header = true, mac = true, preview = false, modes = null } = {}) {
   const store = new Map(Object.entries(stored));
   const buttons = Object.fromEntries(tabs.map((tab) => [tab, button(tab)]));
   const bar = {
@@ -64,6 +68,7 @@ function fakeWin({ tabs = ['settings', 'pages', 'globals', 'xray'], site = {}, r
   const config = {
     sveShortcuts: { builtIn: BUILT_IN, site, locked: ['mod+s', 'mod+t'], labels: { 'tool:pages': 'Pages' } },
     sveBreakpoints: rows,
+    sveToolbarModes: modes,
   };
 
   return {
@@ -175,6 +180,26 @@ test('a user\'s own: set, moved here from another action (none there, same layer
   assert.equal(changed.length, 3);
   assert.ok(changed.every((target) => target === win));
   off();
+});
+
+test('a tool the mode may not have has no shortcut, and its keys press nothing; in the mode that has it, they do', () => {
+  const modes = { content: ['pages', 'globals'], build: ['pages', 'globals', 'xray'] };
+  const win = fakeWin({ modes });
+
+  assert.deepEqual(shortcutActions(win), ['tool:settings', 'tool:pages', 'tool:globals', 'size:laptop', 'size:tablet', 'size:mobile']);
+  startShortcuts(win);
+  win.press({ key: 'X', code: 'KeyX', metaKey: true, shiftKey: true });
+  assert.equal(win.buttons.xray.clicks, 0);
+
+  followToolbarMode(() => 'build');
+
+  try {
+    assert.ok(shortcutActions(win).includes('tool:xray'));
+    win.press({ key: 'X', code: 'KeyX', metaKey: true, shiftKey: true });
+    assert.equal(win.buttons.xray.clicks, 1);
+  } finally {
+    followToolbarMode(() => 'content');
+  }
 });
 
 // ── A keypress ──────────────────────────────────────────────────────────

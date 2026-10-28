@@ -59,9 +59,10 @@ class Features
         // the owner has seen it; closed, it is one button and nothing else.
         'site_canvas',
         // Build mode (preview): a Content | Build switch in the Live Preview top
-        // bar; Build puts the Build panel (Add | Style) in the left column. It
-        // writes the dock's file, so it goes only to whoever has the dock. Off
-        // until the owner says on; off, nothing of it is drawn or loaded.
+        // bar; Build puts the Build panel (Add | Style) in the left column. Who
+        // gets it is its own list (build_mode_access), and the HTML dock goes
+        // with it (TOGETHER). Off until the owner says on; off, nothing of it
+        // is drawn or loaded.
         'build_mode',
         'pages',
         'globals',
@@ -165,6 +166,15 @@ class Features
     }
 
     /**
+     * Toggles that are on only together: Build writes the HTML dock's file,
+     * and the dock is only in Build. Either off, both are off for everyone.
+     */
+    protected const TOGETHER = [
+        'build_mode' => 'template_dock',
+        'template_dock' => 'build_mode',
+    ];
+
+    /**
      * Is this tool on *and* allowed for the current user?
      *
      * Site toggle first, then toolbar access (everyone / super / named people).
@@ -172,7 +182,7 @@ class Features
      */
     public static function allows(string $key, ?\Statamic\Contracts\Auth\User $user = null): bool
     {
-        if (! static::enabled($key)) {
+        if (! static::enabled($key) || (isset(static::TOGETHER[$key]) && ! static::enabled(static::TOGETHER[$key]))) {
             return false;
         }
 
@@ -195,9 +205,6 @@ class Features
         foreach (ToolbarAccess::KEYS as $key) {
             $map[$key] = static::allows($key, $user);
         }
-
-        // Build writes the dock's file: no dock for this user, no Build.
-        $map['build_mode'] = ($map['build_mode'] ?? false) && ($map['template_dock'] ?? false);
 
         return $map;
     }

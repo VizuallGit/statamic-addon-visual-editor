@@ -24,6 +24,10 @@
  * The state lives in memory for this Live Preview (build-mode-host.js); every
  * Live Preview opens in Content, because closing one turns Build off (lp-width.js).
  *
+ * The top bar's icons follow the mode (toolbar-visibility.js): each mode has
+ * the ones the site gave it, so a switch closes what the new mode may not
+ * have — the HTML dock on the way back to Content — and draws the bar anew.
+ *
  * The Build panel is the left column, so Build opens the column when it was
  * folded away, and Content folds it back the way it was. "Started with it
  * closed" is the shell's rule that shuts it again on the next pass
@@ -40,6 +44,7 @@ import { isCodeDockArmed } from '../code-dock-state.js';
 import { openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
 import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, toggleCodeDockButton } from './header-toolbar.js';
+import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
 
 const SWITCH_ID = '__sve-build-switch';
@@ -120,6 +125,8 @@ function restoreColumn(win) {
   }
 }
 
+const modeNow = () => (buildModeOn() ? 'build' : 'content');
+
 function paint(holder) {
   holder.querySelectorAll('[data-sve-build-mode]').forEach((btn) => {
     paintLpActiveControl(btn, (btn.dataset.sveBuildMode === 'build') === buildModeOn());
@@ -139,7 +146,16 @@ function choose(win, holder, mode) {
 
   setBuildMode(win, build, {
     deviceIcons: LP_DEVICE_ICONS,
-    openDock: () => openDockAndTree(win),
+    // After the panel has painted: Content shut the dock, and an editor
+    // already loaded mounts in the same task (~200 ms) — the switch first.
+    openDock: () =>
+      win.requestAnimationFrame(() =>
+        win.setTimeout(() => {
+          if (buildModeOn()) {
+            openDockAndTree(win);
+          }
+        }, 0)
+      ),
   });
 
   if (!build) {
@@ -147,12 +163,17 @@ function choose(win, holder, mode) {
   }
 
   paint(holder);
+  // What the new mode may not have shuts once the switch has painted — on the
+  // way to Content that is the dock, ~50 ms of its own.
+  win.requestAnimationFrame(() => win.setTimeout(() => leaveToolbarToolsOutsideMode(win), 0));
 }
 
 export function ensureBuildSwitch(win) {
   if (!featureSaidOn(win, 'build_mode')) {
     return;
   }
+
+  followToolbarMode(modeNow);
 
   const doc = win.document;
   const header = lpHeader(doc);

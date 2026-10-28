@@ -111,6 +111,56 @@ class ToolbarAccessTest extends TestCase
         $this->assertTrue(Features::visible($this->user(super: true))['page_activity']);
     }
 
+    public function test_build_defaults_to_super_admins(): void
+    {
+        $this->assertSame(ToolbarAccess::AUDIENCE_SUPER, ToolbarAccess::rule('build_mode')['audience']);
+    }
+
+    public function test_build_starts_from_the_docks_list_and_the_dock_follows_builds_own_once_it_has_one(): void
+    {
+        config([
+            'statamic-visual-editor.features.template_dock' => true,
+            'statamic-visual-editor.features.build_mode' => true,
+            'statamic-visual-editor.features.template_dock_access' => ['audience' => 'people', 'users' => ['me']],
+        ]);
+        Features::flush();
+
+        // Before Build had a list of its own, the dock's said who got Build.
+        $this->assertTrue(Features::allows('build_mode', $this->user(super: false, id: 'me')));
+        $this->assertFalse(Features::allows('build_mode', $this->user(super: true, id: 'customer')));
+
+        config(['statamic-visual-editor.features.build_mode_access' => ['audience' => 'people', 'users' => ['designer']]]);
+        Features::flush();
+
+        $designer = $this->user(super: false, id: 'designer');
+        $me = $this->user(super: false, id: 'me');
+
+        $this->assertTrue(Features::allows('build_mode', $designer));
+        $this->assertTrue(Features::allows('template_dock', $designer), 'whoever has Build has the dock');
+        $this->assertFalse(Features::allows('template_dock', $me), 'and no one else');
+        $this->assertSame(['build_mode' => true, 'template_dock' => true], array_intersect_key(Features::visible($designer), ['build_mode' => 1, 'template_dock' => 1]));
+        $this->assertSame(['build_mode' => false, 'template_dock' => false], array_intersect_key(Features::visible($me), ['build_mode' => 1, 'template_dock' => 1]));
+    }
+
+    public function test_the_dock_and_build_are_on_only_together(): void
+    {
+        $super = $this->user(super: true);
+
+        config(['statamic-visual-editor.features.template_dock' => true, 'statamic-visual-editor.features.build_mode' => false]);
+        Features::flush();
+        $this->assertFalse(Features::allows('template_dock', $super), 'no Build, no dock');
+        $this->assertFalse(Features::visible($super)['template_dock']);
+
+        config(['statamic-visual-editor.features.template_dock' => false, 'statamic-visual-editor.features.build_mode' => true]);
+        Features::flush();
+        $this->assertFalse(Features::allows('build_mode', $super), 'no dock, no Build');
+
+        config(['statamic-visual-editor.features.template_dock' => true, 'statamic-visual-editor.features.build_mode' => true]);
+        Features::flush();
+        $this->assertTrue(Features::allows('build_mode', $super));
+        $this->assertTrue(Features::allows('template_dock', $super));
+    }
+
     public function test_normalize_fills_defaults_for_missing_keys(): void
     {
         $rules = ToolbarAccess::normalize(['pages' => ['audience' => 'super']]);

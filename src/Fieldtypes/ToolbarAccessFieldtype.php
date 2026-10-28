@@ -72,7 +72,9 @@ class ToolbarAccessFieldtype extends Fieldtype
             $data = $data[$tool];
         }
 
-        return ToolbarAccess::normalizeRow($tool, is_array($data) ? $data : null);
+        // Nothing saved yet: the rule that applies now, which for Build may be
+        // the dock's from before Build had a list of its own.
+        return is_array($data) ? ToolbarAccess::normalizeRow($tool, $data) : ToolbarAccess::rule($tool);
     }
 
     public function process($data)

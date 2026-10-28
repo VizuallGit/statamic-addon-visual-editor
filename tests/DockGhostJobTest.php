@@ -215,6 +215,8 @@ class DockGhostJobTest extends TestCase
 
         config([
             'statamic-visual-editor.features.template_dock' => true,
+            // The dock is only in Build.
+            'statamic-visual-editor.features.build_mode' => true,
             'statamic-visual-editor.features.dock_ghost' => true,
         ]);
         Features::flush();

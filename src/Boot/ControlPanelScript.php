@@ -19,7 +19,7 @@ use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\Shortcuts;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
-use MarioHamann\StatamicVisualEditor\ToolbarPresets;
+use MarioHamann\StatamicVisualEditor\ToolbarModes;
 use Statamic\Facades\User;
 use Statamic\Statamic;
 
@@ -87,10 +87,10 @@ final class ControlPanelScript
                 // site gets (Addons > Statamic Visual Editor).
                 'sveEnabled' => Features::editorEnabled(),
                 'sveFeatures' => Features::visible(),
-                // Developer / Content editor for the top bar (⋮ → Top bar), and
+                // The icons Content and Build may have in the top bar, and
                 // where they are edited — only for a user who may edit them.
-                'sveToolbarPresets' => ToolbarPresets::all(),
-                'sveToolbarPresetsUrl' => ToolbarPresets::settingsUrl(),
+                'sveToolbarModes' => ToolbarModes::all(),
+                'sveToolbarModesUrl' => ToolbarModes::settingsUrl(),
                 // The keyboard shortcuts' built-in and site layers, the locked
                 // ones and the tools' names; each user's own are a chrome pref.
                 'sveShortcuts' => Shortcuts::forScript(),

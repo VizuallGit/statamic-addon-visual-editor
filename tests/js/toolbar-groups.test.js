@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { GROUP_NAME_MAX, DEFAULT_GROUP_ID, DEFAULT_ORDER, cleanGroups, newGroupId, groupsFromOrder, layoutGroups, groupOf, moveTool, moveToolToNewGroup, renameGroup, moveGroup, deleteGroup } from '../../resources/js/lib/toolbar-groups.js';
+import { GROUP_NAME_MAX, DEFAULT_GROUP_ID, DEFAULT_ORDER, cleanGroups, newGroupId, groupsFromOrder, layoutGroups, groupOf, moveTool, moveToolToNewGroup, renameGroup, moveGroup, deleteGroup, moveKey, indexAmongAll } from '../../resources/js/lib/toolbar-groups.js';
 
 test('anything other than a list of groups is no groups', () => {
   assert.deepEqual(cleanGroups(null), []);
@@ -348,10 +348,40 @@ test('deleting a group gives its tools to the neighbour, and the only group cann
   assert.notEqual(unknown, groups);
 });
 
-test('the default tool order is the same list as ToolbarPresets::TOOLS', () => {
-  const php = readFileSync(new URL('../../src/ToolbarPresets.php', import.meta.url), 'utf8');
+test('the default tool order is the same list as ToolbarModes::TOOLS', () => {
+  const php = readFileSync(new URL('../../src/ToolbarModes.php', import.meta.url), 'utf8');
   const block = php.match(/public const TOOLS = \[([\s\S]*?)\];/);
 
   assert.ok(block);
   assert.deepEqual([...block[1].matchAll(/'([^']*)'/g)].map((match) => match[1]), DEFAULT_ORDER);
+});
+
+test('moveKey moves one key to a clamped place and leaves the list alone', () => {
+  const keys = ['a', 'b', 'c'];
+
+  assert.deepEqual(moveKey(keys, 'c', 0), ['c', 'a', 'b']);
+  assert.deepEqual(moveKey(keys, 'a', 9), ['b', 'c', 'a']);
+  assert.deepEqual(moveKey(keys, 'a', -3), ['a', 'b', 'c']);
+  assert.deepEqual(moveKey(keys, 'x', 1), ['a', 'b', 'c']);
+  assert.deepEqual(keys, ['a', 'b', 'c']);
+});
+
+test('a place among what shows lands where it was seen, between the ones that do not show', () => {
+  // X and Y are held back; the menu sees a, b, c.
+  const tools = ['a', 'X', 'b', 'Y', 'c'];
+  const shown = ['a', 'b', 'c'];
+
+  // c dropped first: right before a.
+  assert.equal(indexAmongAll(tools, shown, 'c', 0), 0);
+  // a dropped after b (second among the others it sees: b, c → before c).
+  assert.equal(indexAmongAll(tools, shown, 'a', 1), 3);
+  assert.deepEqual(moveKey(tools, 'a', indexAmongAll(tools, shown, 'a', 1)).filter((key) => shown.includes(key)), ['b', 'a', 'c']);
+  // Last: right after the last one that shows.
+  assert.equal(indexAmongAll(tools, shown, 'a', 2), 4);
+  assert.equal(indexAmongAll(tools, shown, 'a', Infinity), 4);
+  // A tool from elsewhere, into a group where nothing shows: the end.
+  assert.equal(indexAmongAll(['X', 'Y'], [], 'z', 0), 2);
+  // Groups by id, one with nothing to show between the two the menu sees.
+  assert.equal(indexAmongAll(['g-a', 'g-x', 'g-b'], ['g-a', 'g-b'], null, 1), 2);
+  assert.equal(indexAmongAll(['g-a', 'g-x', 'g-b'], ['g-a', 'g-b'], 'g-b', 0), 0);
 });

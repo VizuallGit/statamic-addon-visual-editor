@@ -1,6 +1,14 @@
 /**
- * The Live Preview topbar as this user wants it: which icons show, how they
- * are grouped and ordered, and the presets of their own.
+ * The Live Preview topbar as this user wants it: which icons show in each mode
+ * (Content, Build), and how they are grouped and ordered.
+ *
+ * What a mode may have is the site's (Settings → Top bar: Content and Build,
+ * lib/toolbar-modes.js): an icon its list leaves out is hidden, left out of
+ * every list the menus show, and neither a shortcut nor Open presses it — as
+ * if the user had no access to it. Within that, each user hides icons for
+ * themselves, one list per mode. The groups are one for both modes: a tool
+ * stands in the same place in each, and a group with nothing to show in a
+ * mode is not drawn in it.
  *
  * The row is drawn by cp-shell/header-toolbar.js, and its passes re-create
  * buttons and write their inline `display` over and over. So two things are
@@ -22,8 +30,8 @@
  *     to react to.
  *
  * Page settings is always first, always shown, and drawn in a box of its own,
- * apart from the groups. A hidden tool keeps its place in its group: a preset
- * that shows it again finds it where the user put it. A group is never empty:
+ * apart from the groups. A hidden tool keeps its place in its group: shown
+ * again, or in the other mode, it is where the user put it. A group is never empty:
  * the new-group square makes one with the tool picked for it, and a group
  * whose last tool moves out is gone.
  *
@@ -31,6 +39,9 @@
  * tool or a whole group (toolbar-drag.js) — and the two «+» (toolbar-add-menu.js)
  * are the writers. A tool this user has no access to never gets a button, so
  * it never reaches a list.
+ *
+ * Which mode Live Preview is in is Build's to say (followToolbarMode, from the
+ * switch in cp-shell/build-switch.js); until it does, it is Content.
  *
  * May import: chrome-prefs.js and lib/ — header-toolbar.js imports this file.
  */
@@ -47,19 +58,18 @@ import {
   TOOLBAR_ADD_ATTR,
   TOOLBAR_GROUP_ATTR,
   TOOLBAR_GROUPS_KEY,
-  TOOLBAR_HIDDEN_KEY,
+  TOOLBAR_HIDDEN_KEYS,
   TOOLBAR_NEW_GROUP_ATTR,
   TOOLBAR_ORDER_KEY,
-  TOOLBAR_PRESET_KEY,
-  TOOLBAR_PRESET_PANES_KEY,
-  TOOLBAR_PRESETS_KEY,
 } from './lib/ids.js';
 import { t } from './lib/i18n.js';
-import { cleanPaneChoices, cleanPreset } from './lib/toolbar-presets.js';
+import { cleanModes, modeAllows } from './lib/toolbar-modes.js';
 import {
+  DEFAULT_ORDER,
   cleanGroups,
   deleteGroup,
   groupsFromOrder,
+  indexAmongAll,
   layoutGroups,
   moveGroup,
   moveTool,
@@ -168,9 +178,36 @@ function writeKeys(win, storageKey, keys) {
   }
 }
 
-/** The tab keys this user left out, as stored. */
+let readMode = () => 'content';
+
+/** How the bar learns which mode Live Preview is in: a reader of the one place that knows. */
+export function followToolbarMode(read) {
+  readMode = read;
+}
+
+/** 'content' or 'build'. */
+export function toolbarMode() {
+  return readMode() === 'build' ? 'build' : 'content';
+}
+
+/** The site's lists of what each mode may have; null on a page without them. */
+function toolbarModes(win) {
+  return cleanModes(win.Statamic?.$config?.get?.('sveToolbarModes'));
+}
+
+/** May the mode Live Preview is in now have this icon? Page settings: always. */
+export function toolbarToolAllowed(win, key) {
+  return ALWAYS_SHOWN.includes(key) || modeAllows(toolbarModes(win), toolbarMode(), key);
+}
+
+/** The tab keys this user left out in the mode Live Preview is in, as stored. */
+function storedHidden(win) {
+  return readKeys(win, TOOLBAR_HIDDEN_KEYS[toolbarMode()]);
+}
+
+/** The tab keys hidden now: those this user left out, and those this mode may not have. */
 export function readHiddenTools(win) {
-  return readKeys(win, TOOLBAR_HIDDEN_KEY);
+  return [...new Set([...storedHidden(win), ...DEFAULT_ORDER.filter((key) => !toolbarToolAllowed(win, key))])];
 }
 
 /**
@@ -435,14 +472,14 @@ export function placeToolbarButton(win, el) {
   syncToolbarGroups(win);
 }
 
-/** Replace the hidden list (a preset, Show all). */
+/** Replace this mode's hidden list (Show all). An icon the mode may not have is not this user's to list. */
 export function setHiddenTools(win, keys) {
-  writeKeys(win, TOOLBAR_HIDDEN_KEY, [...new Set(keys.filter(validKey))]);
+  writeKeys(win, TOOLBAR_HIDDEN_KEYS[toolbarMode()], [...new Set(keys.filter((key) => validKey(key) && toolbarToolAllowed(win, key)))]);
   syncToolbarLayout(win);
 }
 
 export function setToolbarToolShown(win, key, shown) {
-  const next = readHiddenTools(win).filter((item) => item !== key);
+  const next = storedHidden(win).filter((item) => item !== key);
 
   if (!shown && validKey(key)) {
     next.push(key);
@@ -464,6 +501,44 @@ export function setToolbarGroups(win, groups) {
 /** Move a tool into a group at `index` among its tools (hidden ones counted). */
 export function moveToolbarTool(win, key, groupId, index) {
   setToolbarGroups(win, moveTool(toolbarLayout(win), key, groupId, index));
+}
+
+// ── Moves from ⋮ → Top bar, which lists what this mode has: a place counted
+// among those is made a place among all, so it lands where it was seen to. ──
+
+function modeKeys(win, keys) {
+  return keys.filter((key) => toolbarToolAllowed(win, key));
+}
+
+/** The ids of the groups, and of those with something of this mode's in them. */
+function modeGroupIds(win, layout) {
+  return {
+    ids: layout.map((item) => item.id),
+    seen: layout.filter((item) => modeKeys(win, item.tools).length).map((item) => item.id),
+  };
+}
+
+/** Move a tool into a group at `index` among the group's tools this mode has. */
+export function moveModeTool(win, key, groupId, index) {
+  const target = toolbarLayout(win).find((item) => item.id === groupId);
+
+  if (target) {
+    moveToolbarTool(win, key, groupId, indexAmongAll(target.tools, modeKeys(win, target.tools), key, index));
+  }
+}
+
+/** Move a tool into a new group at `groupIndex` among the groups this mode draws; returns the group's id. */
+export function moveModeToolToNewGroup(win, key, groupIndex, name = '') {
+  const { ids, seen } = modeGroupIds(win, toolbarLayout(win));
+
+  return moveToolbarToolToNewGroup(win, key, indexAmongAll(ids, seen, null, groupIndex), name);
+}
+
+/** Move a group to `index` among the other groups this mode draws. */
+export function moveModeGroup(win, id, index) {
+  const { ids, seen } = modeGroupIds(win, toolbarLayout(win));
+
+  moveToolbarGroup(win, id, indexAmongAll(ids, seen, id, index));
 }
 
 /** Move a tool into a group, right before `beforeKey`; null = at the end. */
@@ -528,63 +603,6 @@ export function resetToolbarGroups(win) {
   syncToolbarLayout(win);
 }
 
-/** This user's own presets, as stored and cleaned. */
-export function readUserPresets(win) {
-  let list;
-
-  try {
-    list = JSON.parse(chromeGet(win, TOOLBAR_PRESETS_KEY) || '[]');
-  } catch {
-    list = [];
-  }
-
-  return Array.isArray(list) ? list.map((raw) => cleanPreset(raw, { user: true })).filter(Boolean) : [];
-}
-
-export function writeUserPresets(win, presets) {
-  const clean = presets.map((raw) => cleanPreset(raw, { user: true })).filter(Boolean);
-
-  if (clean.length) {
-    chromeSet(win, TOOLBAR_PRESETS_KEY, JSON.stringify(clean));
-  } else {
-    chromeRemove(win, TOOLBAR_PRESETS_KEY);
-  }
-}
-
-/** This user's own right-sidebar panes per preset: { preset id: [pane key, …] }. */
-export function readPaneChoices(win) {
-  try {
-    return cleanPaneChoices(JSON.parse(chromeGet(win, TOOLBAR_PRESET_PANES_KEY) || '{}'));
-  } catch {
-    return {};
-  }
-}
-
-export function writePaneChoices(win, choices) {
-  const clean = cleanPaneChoices(choices);
-
-  if (Object.keys(clean).length) {
-    chromeSet(win, TOOLBAR_PRESET_PANES_KEY, JSON.stringify(clean));
-  } else {
-    chromeRemove(win, TOOLBAR_PRESET_PANES_KEY);
-  }
-}
-
-/** The preset this user last picked ('' = none). */
-export function readPickedPreset(win) {
-  const id = chromeGet(win, TOOLBAR_PRESET_KEY) || '';
-
-  return /^[a-z0-9_-]+$/.test(id) ? id : '';
-}
-
-export function writePickedPreset(win, id) {
-  if (id) {
-    chromeSet(win, TOOLBAR_PRESET_KEY, id);
-  } else {
-    chromeRemove(win, TOOLBAR_PRESET_KEY);
-  }
-}
-
 function toolbarButton(win, key) {
   return barEl(win)?.querySelector(`button[data-tab="${key}"]`) || null;
 }
@@ -604,7 +622,11 @@ function toolInfo(btn, hidden) {
   };
 }
 
-/** The groups with their icons, in this user's order, the way the menu lists them. */
+/**
+ * The groups with their icons, in this user's order, the way the menu lists
+ * them: only what the mode Live Preview is in may have, and only the groups
+ * with some of that in them.
+ */
 export function toolbarGroups(win) {
   const barNode = barEl(win);
 
@@ -613,13 +635,19 @@ export function toolbarGroups(win) {
   }
 
   const hidden = readHiddenTools(win);
-  const byKey = new Map([...barNode.querySelectorAll('button[data-tab]')].filter((btn) => validKey(btn.dataset.tab)).map((btn) => [btn.dataset.tab, btn]));
+  const byKey = new Map(
+    [...barNode.querySelectorAll('button[data-tab]')]
+      .filter((btn) => validKey(btn.dataset.tab) && toolbarToolAllowed(win, btn.dataset.tab))
+      .map((btn) => [btn.dataset.tab, btn])
+  );
 
-  return toolbarLayout(win).map((item) => ({
-    id: item.id,
-    name: item.name,
-    tools: item.tools.filter((key) => byKey.has(key)).map((key) => toolInfo(byKey.get(key), hidden)),
-  }));
+  return toolbarLayout(win)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      tools: item.tools.filter((key) => byKey.has(key)).map((key) => toolInfo(byKey.get(key), hidden)),
+    }))
+    .filter((item) => item.tools.length);
 }
 
 /** The icons in the row, in this user's order, group after group. */
@@ -628,7 +656,7 @@ export function toolbarTools(win) {
 }
 
 /**
- * Press a tool's icon — also one the user hid.
+ * Press a tool's icon — also one the user hid, never one this mode may not have.
  *
  * A hidden one is shown while it is open: pages and globals open their control
  * inside the icon's frame, and a panel or popover may be placed under its
@@ -638,7 +666,7 @@ export function toolbarTools(win) {
 export function openToolbarTool(win, key) {
   const btn = toolbarButton(win, key);
 
-  if (!btn) {
+  if (!btn || !toolbarToolAllowed(win, key)) {
     return false;
   }
 
@@ -654,26 +682,39 @@ export function openToolbarTool(win, key) {
 /**
  * A keyboard shortcut's press: exactly a click on the tool's icon, so a second
  * press closes what the first opened, as a second click does. Nothing else is
- * touched — not the hidden icons, the groups or the presets: a hidden icon
+ * touched — not the hidden icons or the groups: a hidden icon
  * stays hidden. What opens from a hidden icon finds its own place: Pages and
  * Globals put their control under the bar's left edge (header-toolbar.js),
  * the design overlay its menu (design-overlay.js); the rest open a panel, a
  * drawer or a popup over the bar, wherever the icon is.
  *
  * Nothing happens, and false comes back, when the bar has no such icon (a
- * tool this user has no access to) or when the bar has nothing for it on
- * this page (Patterns without a page builder).
+ * tool this user has no access to), when the mode Live Preview is in may not
+ * have it, or when the bar has nothing for it on this page (Patterns without
+ * a page builder).
  */
 export function pressToolbarTool(win, key) {
   const btn = toolbarButton(win, key);
 
-  if (!btn || btn.style.display === 'none') {
+  if (!btn || btn.style.display === 'none' || !toolbarToolAllowed(win, key)) {
     return false;
   }
 
   btn.click();
 
   return true;
+}
+
+/**
+ * A switch of mode: what the new mode may not have closes, as a click on its
+ * icon closes it — the dock, a panel, an overlay. Then the bar is drawn for
+ * the new mode.
+ */
+export function leaveToolbarToolsOutsideMode(win) {
+  [...(barEl(win)?.querySelectorAll('button[data-tab]') || [])]
+    .filter((btn) => btn.getAttribute('aria-pressed') === 'true' && !toolbarToolAllowed(win, btn.dataset.tab))
+    .forEach((btn) => btn.click());
+  syncToolbarLayout(win);
 }
 
 function peek(win, btn, key) {

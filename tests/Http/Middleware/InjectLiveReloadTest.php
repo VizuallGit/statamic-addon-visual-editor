@@ -96,6 +96,11 @@ class InjectLiveReloadTest extends TestCase
 
         config(['statamic-visual-editor.features.template_dock' => true]);
         Features::flush();
+
+        $this->assertStringContainsString('"tailwind":null', $this->inject(), 'the dock is only in Build: no Build, no dock');
+
+        config(['statamic-visual-editor.features.build_mode' => true]);
+        Features::flush();
         $url = BuiltAssets::url('resources/js/tw-compile.js');
 
         $this->assertStringContainsString('"tailwind":"'.$url.'"', $this->inject());

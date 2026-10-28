@@ -13,10 +13,7 @@ import {
   placeToolbarButton,
   pressToolbarTool,
   readHiddenTools,
-  readPaneChoices,
-  readPickedPreset,
   readToolbarGroups,
-  readUserPresets,
   renameToolbarGroup,
   resetToolbarGroups,
   setToolbarToolShown,
@@ -26,22 +23,27 @@ import {
   toolbarGrouped,
   toolbarGroups,
   toolbarTools,
-  writePaneChoices,
-  writePickedPreset,
-  writeUserPresets,
   toolbarLayout,
+  followToolbarMode,
+  leaveToolbarToolsOutsideMode,
+  moveModeGroup,
+  moveModeTool,
+  moveModeToolToNewGroup,
+  toolbarMode,
+  toolbarToolAllowed,
 } from '../../resources/js/toolbar-visibility.js';
 import {
   HEADER_TOOLBAR_ID,
   TOOLBAR_ADD_ATTR,
   TOOLBAR_GROUP_ATTR,
   TOOLBAR_GROUPS_KEY,
-  TOOLBAR_HIDDEN_KEY,
+  TOOLBAR_HIDDEN_KEYS,
   TOOLBAR_NEW_GROUP_ATTR,
   TOOLBAR_ORDER_KEY,
-  TOOLBAR_PRESET_PANES_KEY,
-  TOOLBAR_PRESETS_KEY,
 } from '../../resources/js/lib/ids.js';
+
+/** Content's own hidden icons: the list every test here writes, unless it says Build. */
+const TOOLBAR_HIDDEN_KEY = TOOLBAR_HIDDEN_KEYS.content;
 
 /** The sheet with nothing hidden: the frame — groups, Page settings' box, the «+». */
 const FRAME = toolbarCss();
@@ -225,7 +227,7 @@ function fakeFrame(tab, options = {}) {
 }
 
 /** Just enough window for chrome-prefs.js, the sheet and the icon row. */
-function fakeWin({ stored = null, order = null, groups = null, row = null } = {}) {
+function fakeWin({ stored = null, order = null, groups = null, row = null, modes = null } = {}) {
   const store = new Map([
     ...(stored == null ? [] : [[TOOLBAR_HIDDEN_KEY, stored]]),
     ...(order == null ? [] : [[TOOLBAR_ORDER_KEY, order]]),
@@ -262,7 +264,7 @@ function fakeWin({ stored = null, order = null, groups = null, row = null } = {}
       setItem: (key, value) => store.set(key, String(value)),
       removeItem: (key) => store.delete(key),
     },
-    Statamic: { $config: { get: (key) => (key === 'sveStrings' ? { toolbar_add_tip: 'Add a tool' } : undefined) } },
+    Statamic: { $config: { get: (key) => ({ sveStrings: { toolbar_add_tip: 'Add a tool' }, sveToolbarModes: modes })[key] ?? undefined } },
     setTimeout: () => 1,
     clearTimeout: () => {},
     document: {
@@ -678,49 +680,146 @@ test('no icon for the tool, or nothing for it on this page: nothing happens', ()
   assert.equal(pressToolbarTool(fakeWin(), 'globals'), false, 'no top bar');
 });
 
-// ── Presets ─────────────────────────────────────────────────────────────
+// ── Content and Build ───────────────────────────────────────────────────
+//
+// The site's lists: Content may have pages and sections; Build has those,
+// performance and the dock (PHP puts the dock on Build's list, never Content's).
 
-test("a user's own presets are stored clean", () => {
-  const win = fakeWin();
+const MODES = { content: ['pages', 'sections'], build: ['pages', 'sections', 'performance', 'code'] };
 
-  writeUserPresets(win, [
-    { id: 'u-abc', name: '  Kunde-demo  ', tools: ['pages', 'pages', 'x"y'], dock: true },
-    { id: 'u-pan', name: 'Panes', tools: [], panes: ['listview', 'x"y', 'listview'] },
-    { id: 'developer', name: 'Not mine', tools: [] },
-    { id: 'u-def', name: '   ', tools: [] },
-  ]);
-  assert.deepEqual(readUserPresets(win), [
-    // Saved before presets had panes: it leaves the sidebar alone.
-    { id: 'u-abc', name: 'Kunde-demo', tools: ['pages'], dock: true, panes: null },
-    { id: 'u-pan', name: 'Panes', tools: [], dock: false, panes: ['listview'] },
-  ]);
+/** Run `fn` with Live Preview in Build, and back to Content after. */
+function inBuild(fn) {
+  followToolbarMode(() => 'build');
 
-  writeUserPresets(win, []);
-  assert.equal(win.store.has(TOOLBAR_PRESETS_KEY), false);
-  assert.deepEqual(readUserPresets(win), []);
+  try {
+    return fn();
+  } finally {
+    followToolbarMode(() => 'content');
+  }
+}
+
+test('the mode is Content until Build says otherwise', () => {
+  assert.equal(toolbarMode(), 'content');
+  inBuild(() => assert.equal(toolbarMode(), 'build'));
+  followToolbarMode(() => 'nonsense');
+  assert.equal(toolbarMode(), 'content');
+  followToolbarMode(() => 'content');
 });
 
-test('the picked preset is remembered, and only as an id', () => {
-  const win = fakeWin();
+test('what a mode may not have is hidden, whatever the user has stored; Page settings always stays', () => {
+  const win = fakeWin({ modes: MODES, row: row() });
 
-  writePickedPreset(win, 'u-abc');
-  assert.equal(readPickedPreset(win), 'u-abc');
-  writePickedPreset(win, '');
-  assert.equal(readPickedPreset(win), '');
-  win.store.set('sve-toolbar-preset', 'x"y');
-  assert.equal(readPickedPreset(win), '');
+  syncToolbarLayout(win);
+  // Every icon Content's list leaves out — also one with no button yet, so a
+  // button a pass makes is hidden before it paints.
+  assert.ok(readHiddenTools(win).includes('performance') && readHiddenTools(win).includes('code') && readHiddenTools(win).includes('ai'));
+  assert.ok(!readHiddenTools(win).includes('pages') && !readHiddenTools(win).includes('sections'));
+  assert.match(win.sheet(), /button\[data-tab="code"\]:not\(\[data-sve-peek\]\)/);
+  assert.equal(toolbarToolAllowed(win, 'settings'), true);
+  assert.equal(toolbarToolAllowed(win, 'code'), false);
+
+  inBuild(() => {
+    syncToolbarLayout(win);
+    assert.ok(!['pages', 'sections', 'performance', 'code'].some((key) => readHiddenTools(win).includes(key)));
+    assert.doesNotMatch(win.sheet(), /button\[data-tab="code"\]:not/);
+    assert.equal(toolbarToolAllowed(win, 'code'), true);
+  });
 });
 
-test("a preset's panes chosen by the user are stored clean, per preset id", () => {
-  const win = fakeWin();
+test('each mode keeps its own hidden icons, and an icon a mode may not have is never stored as hidden', () => {
+  const win = fakeWin({ modes: MODES, row: row() });
 
-  writePaneChoices(win, { developer: ['listview', 'x"y'], 'u-abc': [], 'bad id': ['ai'], editor: 'ai' });
-  assert.deepEqual(readPaneChoices(win), { developer: ['listview'], 'u-abc': [] });
+  setToolbarToolShown(win, 'pages', false);
+  setToolbarToolShown(win, 'code', false);
+  assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.content), '["pages"]');
 
-  writePaneChoices(win, {});
-  assert.equal(win.store.has(TOOLBAR_PRESET_PANES_KEY), false);
-  assert.deepEqual(readPaneChoices(win), {});
+  inBuild(() => {
+    assert.ok(!readHiddenTools(win).includes('pages'), 'Build has its own list');
+    setToolbarToolShown(win, 'code', false);
+    assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.build), '["code"]');
+    showAllToolbarTools(win);
+    assert.equal(win.store.has(TOOLBAR_HIDDEN_KEYS.build), false);
+  });
 
-  win.store.set(TOOLBAR_PRESET_PANES_KEY, '{not json');
-  assert.deepEqual(readPaneChoices(win), {});
+  assert.equal(win.store.get(TOOLBAR_HIDDEN_KEYS.content), '["pages"]', 'Content’s untouched');
+});
+
+test('the menus list only what the mode may have, and only the groups with some of it', () => {
+  const groups = '[{"id":"g-a","tools":["code","performance"]},{"id":"g-b","tools":["pages","sections"]}]';
+  const win = fakeWin({ modes: MODES, groups, row: row() });
+
+  syncToolbarLayout(win);
+  assert.deepEqual(toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]), [['g-b', ['pages', 'sections']]]);
+  assert.deepEqual(toolbarTools(win).map((tool) => tool.key), ['pages', 'sections']);
+
+  inBuild(() => {
+    assert.deepEqual(toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]), [
+      ['g-a', ['code', 'performance']],
+      ['g-b', ['pages', 'sections']],
+    ]);
+  });
+});
+
+test('neither Open nor a shortcut presses what the mode may not have', () => {
+  const win = fakeWin({ modes: MODES, row: row() });
+  const code = win.bar.querySelector('button[data-tab="code"]');
+
+  assert.equal(openToolbarTool(win, 'code'), false);
+  assert.equal(pressToolbarTool(win, 'code'), false);
+  assert.equal(code.clicks, 0);
+  assert.equal(pressToolbarTool(win, 'settings'), true);
+
+  inBuild(() => {
+    assert.equal(pressToolbarTool(win, 'code'), true);
+    assert.equal(code.clicks, 1);
+  });
+});
+
+test('a move in the menu lands where it was seen, between tools the mode does not show', () => {
+  const win = fakeWin({ modes: MODES, groups: '[{"id":"g-a","tools":["pages","code","performance","sections"]}]', row: row() });
+
+  // Content sees pages, sections: sections first.
+  moveModeTool(win, 'sections', 'g-a', 0);
+  assert.deepEqual(toolbarLayout(win)[0].tools, ['sections', 'pages', 'code', 'performance']);
+
+  // Pages after sections — last of what Content sees, right after it.
+  moveModeTool(win, 'pages', 'g-a', 1);
+  assert.deepEqual(toolbarLayout(win)[0].tools, ['sections', 'pages', 'code', 'performance']);
+  moveModeTool(win, 'sections', 'g-a', 1);
+  assert.deepEqual(toolbarLayout(win)[0].tools, ['pages', 'sections', 'code', 'performance']);
+});
+
+test('a group moved or made in the menu counts only the groups the mode draws', () => {
+  const groups = '[{"id":"g-a","tools":["pages"]},{"id":"g-x","tools":["code","performance"]},{"id":"g-b","tools":["sections"]}]';
+  const win = fakeWin({ modes: MODES, groups, row: row() });
+
+  // Content sees g-a, g-b. g-b first.
+  moveModeGroup(win, 'g-b', 0);
+  assert.deepEqual(toolbarLayout(win).map((group) => group.id), ['g-b', 'g-a', 'g-x']);
+
+  // A new group after the last Content sees: after g-a, not before g-x's tools jump.
+  const id = moveModeToolToNewGroup(win, 'sections', 2, 'Mine');
+  assert.deepEqual(toolbarLayout(win).map((group) => [group.id === id ? 'new' : group.id, group.tools]), [
+    ['g-a', ['pages']],
+    ['new', ['sections']],
+    ['g-x', ['code', 'performance']],
+  ]);
+});
+
+test('a switch of mode closes what is open and the new mode may not have — nothing else', () => {
+  const win = fakeWin({ modes: MODES, row: row() });
+  const code = win.bar.querySelector('button[data-tab="code"]');
+  const pages = win.bar.querySelector('button[data-tab="pages"]');
+
+  code.setAttribute('aria-pressed', 'true');
+  pages.setAttribute('aria-pressed', 'true');
+  leaveToolbarToolsOutsideMode(win);
+  assert.equal(code.clicks, 1, 'the dock shuts on the way into Content');
+  assert.equal(pages.clicks, 0);
+
+  inBuild(() => {
+    code.clicks = 0;
+    leaveToolbarToolsOutsideMode(win);
+    assert.equal(code.clicks, 0);
+  });
 });

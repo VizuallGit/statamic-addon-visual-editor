@@ -69,11 +69,20 @@ tabs:
             field:
               type: toggle
               display: 'Build mode (preview)'
-              instructions: 'A Content | Build switch in the middle of the Live Preview top bar. Build shows Add and Style for the picked element in the left column, in place of the fields, and writes the HTML dock''s file. Only for people who have the HTML dock. Nothing is loaded until Build is chosen. Off by default while it is a preview.'
+              instructions: 'A Content | Build switch in the middle of the Live Preview top bar. Build shows Add and Style for the picked element in the left column, in place of the fields, and writes the HTML dock''s file. Choose below who gets it: they get the HTML dock with it, and only in Build. Without Build, Live Preview is Content only, with no switch. Needs Edit section templates on. Nothing is loaded until Build is chosen. Off by default while it is a preview.'
               default: false
               width: 50
               if:
                 enabled: 'equals true'
+          -
+            handle: build_mode_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: build_mode
+              if:
+                enabled: 'equals true'
+                build_mode: 'equals true'
           -
             handle: pages
             field:
@@ -316,57 +325,14 @@ tabs:
                 enabled: 'equals true'
                 comments: 'equals true'
       -
-        display: 'Top bar presets'
-        instructions: 'Presets editors pick in Live Preview under ⋮ → Top bar, or by right-clicking ⋮: All (every icon, nothing else changed — the default), then these two. A preset shows the icons ticked here, opens the HTML dock or not (the HTML tree comes with the dock), and opens the right-sidebar panes ticked here; everyone keeps their own order, and Page settings always stands first on its own. An icon a user has no access to stays hidden whatever a preset says. Editors can still tick icons on and off themselves, choose a preset''s panes for themselves under ⋮ → Sidebars, and save presets of their own.'
+        display: 'Top bar: Content and Build'
+        instructions: 'The icons each mode of Live Preview may have. An icon that is not ticked for a mode is not there in that mode — not in the top bar, not under ⋮ → Top bar, not on a keyboard shortcut. Someone without Build mode is always in Content. Within its mode, each editor shows, hides and groups the icons for themselves; Page settings always stands first on its own, and an icon a user has no access to stays away whatever is ticked here. The HTML dock is not on either list: it is always in Build and never in Content.'
         fields:
-          -
-            handle: toolbar_preset_developer_tools
-            field:
-              type: checkboxes
-              display: 'Developer: icons'
-              options:
-                pages: 'Pages'
-                globals: 'Globals'
-                collections: 'Collections'
-                forms: 'Forms'
-                templates: 'Templates'
-                blueprint: 'Blueprint'
-                bard_styles: 'Bard styles'
-                sections: 'Patterns'
-                listview: 'Block tree'
-                outline: 'Accessibility'
-                performance: 'Performance'
-                code: 'HTML dock'
-                site_css: 'Stylesheets'
-                theme: 'Theme'
-                xray: 'X-ray'
-                design_overlay: 'Design overlay'
-                site_canvas: 'Site canvas'
-                ai: 'AI'
-                aitext: 'AI text'
-                schema: 'Structured data'
-                edits: 'Edit history'
-                comments: 'Comments'
-              default:
-                - collections
-                - forms
-                - templates
-                - blueprint
-                - bard_styles
-                - sections
-                - code
-                - site_css
-                - theme
-                - xray
-                - design_overlay
-              width: 50
-              if:
-                enabled: 'equals true'
           -
             handle: toolbar_preset_editor_tools
             field:
               type: checkboxes
-              display: 'Content editor: icons'
+              display: 'Content: icons'
               options:
                 pages: 'Pages'
                 globals: 'Globals'
@@ -379,7 +345,6 @@ tabs:
                 listview: 'Block tree'
                 outline: 'Accessibility'
                 performance: 'Performance'
-                code: 'HTML dock'
                 site_css: 'Stylesheets'
                 theme: 'Theme'
                 xray: 'X-ray'
@@ -406,63 +371,58 @@ tabs:
               if:
                 enabled: 'equals true'
           -
-            handle: toolbar_preset_developer_dock
-            field:
-              type: toggle
-              display: 'Developer: HTML dock open'
-              instructions: 'The HTML dock opens with Live Preview when this preset is picked.'
-              default: true
-              width: 50
-              if:
-                enabled: 'equals true'
-          -
-            handle: toolbar_preset_editor_dock
-            field:
-              type: toggle
-              display: 'Content editor: HTML dock open'
-              instructions: 'The HTML dock opens with Live Preview when this preset is picked.'
-              default: false
-              width: 50
-              if:
-                enabled: 'equals true'
-          -
-            handle: toolbar_preset_developer_panes
+            handle: toolbar_preset_developer_tools
             field:
               type: checkboxes
-              display: 'Developer: open in the right sidebar'
-              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Only those whose icon the preset shows. Each editor can change this for themselves.'
+              display: 'Build: icons'
               options:
+                pages: 'Pages'
+                globals: 'Globals'
+                collections: 'Collections'
+                forms: 'Forms'
+                templates: 'Templates'
+                blueprint: 'Blueprint'
+                bard_styles: 'Bard styles'
+                sections: 'Patterns'
                 listview: 'Block tree'
                 outline: 'Accessibility'
-                comments: 'Comments'
-                sections: 'Patterns'
-                ai: 'AI'
                 performance: 'Performance'
+                site_css: 'Stylesheets'
                 theme: 'Theme'
-              default: []
-              width: 50
-              if:
-                enabled: 'equals true'
-          -
-            handle: toolbar_preset_editor_panes
-            field:
-              type: checkboxes
-              display: 'Content editor: open in the right sidebar'
-              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Only those whose icon the preset shows. Each editor can change this for themselves.'
-              options:
-                listview: 'Block tree'
-                outline: 'Accessibility'
-                comments: 'Comments'
-                sections: 'Patterns'
+                xray: 'X-ray'
+                design_overlay: 'Design overlay'
+                site_canvas: 'Site canvas'
                 ai: 'AI'
-                performance: 'Performance'
-                theme: 'Theme'
+                aitext: 'AI text'
+                schema: 'Structured data'
+                edits: 'Edit history'
+                comments: 'Comments'
               default:
-                - listview
+                - pages
+                - globals
+                - collections
+                - forms
+                - templates
+                - blueprint
+                - bard_styles
                 - sections
+                - listview
+                - outline
+                - performance
+                - site_css
+                - theme
+                - xray
+                - design_overlay
+                - site_canvas
+                - ai
+                - aitext
+                - schema
+                - edits
+                - comments
               width: 50
               if:
                 enabled: 'equals true'
+                build_mode: 'equals true'
       -
         display: 'Keyboard shortcuts'
         instructions: 'A shortcut does exactly what a click on the icon does, and pressing it again closes what it opened — a hidden icon stays hidden. ⌘ on a Mac, Ctrl on Windows. Greyed out is the built-in shortcut, which applies until you record one here; Backspace while recording means none. This is the site''s default: every editor can change their own in Live Preview under ⋮ → Shortcuts. A screen size''s shortcut is set on its row under Screen sizes.'
@@ -491,19 +451,10 @@ tabs:
             field:
               type: toggle
               display: 'Edit section templates'
-              instructions: 'When a section is selected, a bottom panel opens the section''s Antlers file. Saving writes the file on this server. Off by default. Super admins see the icon unless you name specific people — so a customer who is also super does not get the code dock by default.'
+              instructions: 'When a section is selected, a bottom panel opens the section''s Antlers file. Saving writes the file on this server. Off by default. The dock is only in Build mode: whoever has Build has the dock, and no one else — choose them under Build mode.'
               default: false
               if:
                 enabled: 'equals true'
-          -
-            handle: template_dock_access
-            field:
-              type: toolbar_access
-              hide_display: true
-              tool: template_dock
-              if:
-                enabled: 'equals true'
-                template_dock: 'equals true'
           -
             handle: site_css
             field:

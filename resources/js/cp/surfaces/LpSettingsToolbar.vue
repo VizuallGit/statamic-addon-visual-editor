@@ -1,19 +1,25 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
-import { moveKey } from '../../lib/toolbar-presets.js';
+import { moveKey } from '../../lib/toolbar-groups.js';
 
 // Top bar tab: one box per group, left to right as the bar draws them, one
 // row per icon inside — drag the handle to move it (also into another group),
 // the box to show or hide it, Open to press a hidden one. A group's own handle
 // moves the group, its name is typed in place, × merges it into its neighbour.
-// The presets sit on top of the menu (LpSettingsPresets.vue), and a switch
-// remounts this tab with the icons the new preset shows. The list is read off
-// the toolbar itself, so a tool this user may not use — no button — is not in
-// it. lp-more-menu.js owns every write (`on.*`); this keeps the rows in step,
+// It is the mode Live Preview is in (`modeLabel`, said only to someone who has
+// Build): only the icons the site gave that mode, and only the groups with
+// some of them — places are counted among those, and lp-more-menu.js makes
+// them places among all. The list is read off the toolbar itself, so a tool
+// this user may not use — no button — is not in it. lp-more-menu.js owns every write (`on.*`); this keeps the rows in step,
 // and reads the groups back after each structural write — storage decides.
 const props = defineProps({
   label: { type: String, required: true },
+  // 'Content' or 'Build'; '' for someone without Build.
+  modeLabel: { type: String, default: '' },
   hint: { type: String, required: true },
+  // Where the site says what each mode may have; '' for someone who may not edit it.
+  editUrl: { type: String, default: '' },
+  editLabel: { type: String, required: true },
   emptyLabel: { type: String, required: true },
   openLabel: { type: String, required: true },
   closeLabel: { type: String, required: true },
@@ -310,7 +316,15 @@ function nudgeGroup(id, step) {
 <template>
   <div class="sve-lp-settings__section is-tight">
     <div class="sve-lp-settings__line">
-      <span class="sve-lp-settings__label">{{ label }}</span>
+      <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{ modeLabel ? `${label} · ${modeLabel}` : label }}</span>
+      <a
+        v-if="editUrl"
+        class="sve-lp-settings__link"
+        :href="editUrl"
+        target="_blank"
+        rel="noopener"
+        data-sve-toolbar-modes-edit
+      >{{ editLabel }} ↗</a>
       <button v-if="anyHidden" type="button" class="sve-lp-settings__small" data-sve-toolbar-all @click="showAll">
         {{ showAllLabel }}
       </button>

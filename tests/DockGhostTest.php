@@ -246,7 +246,7 @@ class DockGhostTest extends TestCase
         $user->save();
         $this->actingAs($user);
 
-        config(['statamic-visual-editor.features.template_dock' => true]);
+        config(['statamic-visual-editor.features.template_dock' => true, 'statamic-visual-editor.features.build_mode' => true]);
         Features::flush();
 
         $this->postJson('/!/sve/dock-ghost', ['before' => '<div>'])->assertForbidden();
@@ -262,6 +262,8 @@ class DockGhostTest extends TestCase
 
         config([
             'statamic-visual-editor.features.template_dock' => true,
+            // The dock is only in Build.
+            'statamic-visual-editor.features.build_mode' => true,
             'statamic-visual-editor.features.dock_ghost' => true,
             'statamic-visual-editor.ghost.provider' => 'claude',
             'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
@@ -439,6 +441,8 @@ class DockGhostTest extends TestCase
 
         config([
             'statamic-visual-editor.features.template_dock' => true,
+            // The dock is only in Build.
+            'statamic-visual-editor.features.build_mode' => true,
             'statamic-visual-editor.features.dock_ghost' => true,
             'statamic-visual-editor.ghost.provider' => 'claude',
             'statamic-visual-editor.ghost.api_key' => 'sk-ant-test',
@@ -467,6 +471,8 @@ class DockGhostTest extends TestCase
     {
         config([
             'statamic-visual-editor.features.template_dock' => true,
+            // The dock is only in Build.
+            'statamic-visual-editor.features.build_mode' => true,
             'statamic-visual-editor.features.dock_ghost' => true,
             'statamic-visual-editor.ai.api_key' => 'crsr-test',
         ]);

@@ -15,7 +15,7 @@ import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShort
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
-import { placeToolbarButton, readHiddenTools, syncToolbarLayout } from '../toolbar-visibility.js';
+import { placeToolbarButton, readHiddenTools, syncToolbarLayout, toolbarToolAllowed } from '../toolbar-visibility.js';
 import { startShortcuts } from '../toolbar-shortcuts.js';
 import { bindMenuDismiss } from '../lp-menu-dismiss.js';
 import { remToPx } from '../lib/dom.js';
@@ -268,7 +268,7 @@ export function loadHeaderTab(win) {
 
 export function restoreRememberedCodeDock(win) {
   try {
-    if (isCodeDockArmed(win) && templateDockAllowed(win)) {
+    if (isCodeDockArmed(win) && templateDockAllowed(win) && toolbarToolAllowed(win, 'code')) {
       syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
     }
   } catch (err) {
@@ -346,6 +346,8 @@ export function restoreDockedHeaderPanels(win) {
 
   keys = keys.filter((key) => key !== 'html_tree');
   keys = keys.filter((key) => key !== 'sections' || headerTabAvailable(win, 'sections'));
+  // Live Preview opens in Content: what Content may not have stays shut.
+  keys = keys.filter((key) => toolbarToolAllowed(win, key));
 
   if (!keys.length) {
     sveState.dockedHeaderRestored = true;
@@ -885,6 +887,14 @@ export function ensureCodeDockToolbarButton(win) {
     }
 
     return;
+  }
+
+  // The dock is only in Build. In Content it is shut and stays shut — also
+  // when it was left switched on, and a picked section would open it.
+  if (!toolbarToolAllowed(win, 'code') && isCodeDockArmed(win)) {
+    setCodeDockArmed(win, false);
+    closeCodeDock(doc);
+    applyHeaderTab(win);
   }
 
   if (existing) {

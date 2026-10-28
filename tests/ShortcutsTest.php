@@ -6,7 +6,7 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\ShortcutFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ShortcutsFieldtype;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Shortcuts;
-use MarioHamann\StatamicVisualEditor\ToolbarPresets;
+use MarioHamann\StatamicVisualEditor\ToolbarModes;
 
 /**
  * The keyboard shortcuts' PHP half: the built-in list (its only copy), the
@@ -52,7 +52,7 @@ class ShortcutsTest extends TestCase
     {
         $tools = array_map(fn ($action) => substr($action, 5), Shortcuts::tools());
 
-        $this->assertSame(['settings', ...ToolbarPresets::TOOLS], $tools, 'Page settings, then every icon a preset can list');
+        $this->assertSame(['settings', ...ToolbarModes::TOOLS], $tools, 'Page settings, then every icon a mode can list');
         $this->assertSame($tools, array_keys(Shortcuts::LABELS));
 
         foreach (Shortcuts::labels() as $action => $label) {

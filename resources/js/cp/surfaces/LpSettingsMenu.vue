@@ -1,17 +1,15 @@
 <script setup>
 import { ref } from 'vue';
-import LpSettingsPresets from './LpSettingsPresets.vue';
 import LpSettingsSidebars from './LpSettingsSidebars.vue';
 import LpSettingsTree from './LpSettingsTree.vue';
 import LpSettingsToolbar from './LpSettingsToolbar.vue';
 import LpSettingsShortcuts from './LpSettingsShortcuts.vue';
 
-// The ⋮ menu: the presets on top — a click switches — then four tabs, one
-// job each. Sidebars = what is open and how wide, for the preset that is on;
-// HTML tree = the tree's face and the tag colours; Top bar = which icons show;
-// Shortcuts = this user's own keyboard shortcuts.
-// A switch opens the tab again, so it shows the new preset. lp-more-menu.js
-// builds the props and owns every write; the tabs only report.
+// The ⋮ menu: four tabs, one job each. Sidebars = what is open and how wide;
+// HTML tree = the tree's face and the tag colours; Top bar = which icons show,
+// in the mode Live Preview is in; Shortcuts = this user's own keyboard
+// shortcuts. lp-more-menu.js builds the props and owns every write; the tabs
+// only report.
 const props = defineProps({
   top: { type: Number, required: true },
   right: { type: Number, required: true },
@@ -19,7 +17,6 @@ const props = defineProps({
   // [{ id, label }] — only the tabs that have something to show.
   tabs: { type: Array, required: true },
   tab: { type: String, required: true },
-  presets: { type: Object, required: true },
   sidebars: { type: Object, required: true },
   tree: { type: Object, required: true },
   toolbar: { type: Object, required: true },
@@ -39,46 +36,6 @@ function pick(id) {
   props.onTab(id);
 }
 
-// Which preset is on. Icons ticked by hand, or the dock switched, can make it
-// none (or another): read again after each. A switch is marked at once.
-const presetState = props.on.presetState();
-const presetList = ref(presetState.presets);
-const activeId = ref(presetState.activeId);
-const switched = ref(0);
-
-function refreshActive() {
-  activeId.value = props.on.activePreset();
-}
-
-function onSwitched(id) {
-  activeId.value = id;
-  switched.value += 1;
-}
-
-function onAdded(preset) {
-  presetList.value = [...presetList.value, preset];
-}
-
-function onDeleted(id) {
-  presetList.value = presetList.value.filter((preset) => preset.id !== id);
-  refreshActive();
-}
-
-const on = {
-  ...props.on,
-  toolbarShown: (key, shown) => {
-    props.on.toolbarShown(key, shown);
-    refreshActive();
-  },
-  toolbarShowAll: () => {
-    props.on.toolbarShowAll();
-    refreshActive();
-  },
-  codeDock: (value) => {
-    props.on.codeDock(value);
-    refreshActive();
-  },
-};
 </script>
 
 <template>
@@ -91,16 +48,6 @@ const on = {
     @keydown.escape.stop.prevent="onClose"
   >
     <div class="sve-lp-settings__title">{{ title }}</div>
-
-    <LpSettingsPresets
-      v-bind="presets"
-      :presets="presetList"
-      :active-id="activeId"
-      :on="on"
-      @switched="onSwitched"
-      @added="onAdded"
-      @deleted="onDeleted"
-    />
 
     <nav v-if="tabs.length > 1" class="sve-lp-settings__tabs" role="tablist" :aria-label="title">
       <button
@@ -120,9 +67,9 @@ const on = {
     </nav>
 
     <div class="sve-lp-settings__body" role="tabpanel">
-      <LpSettingsSidebars v-if="current === 'sidebars'" :key="`sidebars-${switched}`" v-bind="sidebars" :active-id="activeId" :on="on" />
-      <LpSettingsTree v-else-if="current === 'tree'" :key="`tree-${switched}`" v-bind="tree" :on="on" />
-      <LpSettingsToolbar v-else-if="current === 'toolbar'" :key="`toolbar-${switched}`" v-bind="toolbar" :on="on" />
+      <LpSettingsSidebars v-if="current === 'sidebars'" v-bind="sidebars" :on="on" />
+      <LpSettingsTree v-else-if="current === 'tree'" v-bind="tree" :on="on" />
+      <LpSettingsToolbar v-else-if="current === 'toolbar'" v-bind="toolbar" :on="on" />
       <LpSettingsShortcuts v-else-if="current === 'shortcuts'" v-bind="shortcuts" :on="on" />
     </div>
 
@@ -459,12 +406,6 @@ const on = {
 button.sve-lp-settings__group-new {
   align-self: flex-start;
 }
-/* Presets: one pill each; the user's own carry an × to delete them. */
-.sve-lp-settings__pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
 .sve-lp-settings__pill {
   display: inline-flex;
   align-items: center;
@@ -481,15 +422,8 @@ button.sve-lp-settings__pill {
   border-radius: 999px;
   white-space: nowrap;
 }
-.sve-lp-settings__pill.is-own > button:first-child {
-  padding-right: 0.25rem;
-}
 .sve-lp-settings__pill:hover {
   background: rgba(255, 255, 255, 0.14);
-}
-.sve-lp-settings__pill.is-on {
-  background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
-  color: #fff;
 }
 .sve-lp-settings__pill.is-add {
   background: transparent;
@@ -498,39 +432,6 @@ button.sve-lp-settings__pill {
 }
 .sve-lp-settings__pill.is-add:hover {
   opacity: 1;
-}
-.sve-lp-settings__pill .sve-lp-settings__pill-x {
-  padding: 0.25rem 0.5rem 0.25rem 0.125rem;
-  opacity: 0.6;
-}
-.sve-lp-settings__pill .sve-lp-settings__pill-x:hover {
-  opacity: 1;
-}
-.sve-lp-settings__name {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-.sve-lp-settings__name input {
-  flex: 1 1 auto;
-  min-width: 0;
-  box-sizing: border-box;
-  height: 1.625rem;
-  padding: 0 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0.375rem;
-  background: rgba(0, 0, 0, 0.25);
-  color: inherit;
-  font: inherit;
-  font-size: 0.75rem;
-  outline: none;
-}
-.sve-lp-settings__name input:focus {
-  border-color: var(--theme-color-primary, #4f46e5);
-}
-.sve-lp-settings__small.is-primary {
-  background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
-  color: #fff;
 }
 .sve-lp-settings__link {
   font-size: 0.6875rem;

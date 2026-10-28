@@ -1,11 +1,11 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 
-// HTML tree tab: whether the template dock opens with Live Preview, the tree's
-// face (coloured tags or the classic cards), and one colour per tag family —
-// the tree and the HTML pane both read them.
+// HTML tree tab: the HTML pane's help and grey text, the tree's face
+// (coloured tags or the classic cards), and one colour per tag family — the
+// tree and the HTML pane both read them. Whether the dock is open is Build's:
+// it is only there.
 const props = defineProps({
-  codeDock: { type: Object, required: true },
   codeDockHelp: { type: Object, default: () => ({ show: false }) },
   codeDockGhost: { type: Object, default: () => ({ show: false }) },
   htmlTree: { type: Object, required: true },
@@ -13,9 +13,6 @@ const props = defineProps({
   on: { type: Object, required: true },
 });
 
-// Read now, not from the props: a preset in the Top bar tab may have opened
-// or closed the dock since the menu was built.
-const codeDockOn = ref(props.on.dockOn ? props.on.dockOn() : props.codeDock.on);
 const htmlTreeOn = ref(props.htmlTree.on);
 const codeDockHelpOn = ref(!!props.codeDockHelp.on);
 const codeDockHelpClick = ref(props.codeDockHelp.click ? !!props.codeDockHelp.click.on : true);
@@ -32,11 +29,6 @@ onMounted(() => {
   }
 });
 const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
-
-function setCodeDock(value) {
-  codeDockOn.value = value;
-  props.on.codeDock(value);
-}
 
 function setCodeDockHelp(value) {
   codeDockHelpOn.value = value;
@@ -82,11 +74,7 @@ function resetFamilyColors() {
 </script>
 
 <template>
-  <div v-if="codeDock.show || codeDockHelp.show || codeDockGhost.show || htmlTree.show" class="sve-lp-settings__section">
-    <label v-if="codeDock.show" class="sve-lp-settings__row">
-      <input type="checkbox" :checked="codeDockOn" @change="setCodeDock($event.target.checked)">
-      <span :title="codeDock.label">{{ codeDock.label }}</span>
-    </label>
+  <div v-if="codeDockHelp.show || codeDockGhost.show || htmlTree.show" class="sve-lp-settings__section">
     <label v-if="codeDockHelp.show" class="sve-lp-settings__row">
       <input type="checkbox" :checked="codeDockHelpOn" @change="setCodeDockHelp($event.target.checked)">
       <span :title="codeDockHelp.label">{{ codeDockHelp.label }}</span>

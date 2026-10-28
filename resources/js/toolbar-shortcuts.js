@@ -38,7 +38,7 @@
 import { ask, emit, on, register } from './cp/bus.js';
 import { BP_CHANGED_EVENT, breakpoints } from './breakpoints.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
-import { pressToolbarTool } from './toolbar-visibility.js';
+import { pressToolbarTool, toolbarToolAllowed } from './toolbar-visibility.js';
 import { HEADER_TOOLBAR_ID } from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
@@ -100,13 +100,16 @@ export function resetUserShortcuts(win) {
 }
 
 /**
- * The actions this user has in this Live Preview: every icon in the top bar,
- * Page settings and hidden ones included — a tool this user may not use has
- * no icon — and every screen size.
+ * The actions this user has in this Live Preview: every icon in the top bar
+ * the mode it is in may have, Page settings and hidden ones included — a tool
+ * this user may not use has no icon — and every screen size.
  */
 export function shortcutActions(win) {
   const bar = win.document.getElementById(HEADER_TOOLBAR_ID);
-  const tools = bar ? [...bar.querySelectorAll('button[data-tab]')].map((btn) => `tool:${btn.dataset.tab}`) : [];
+  // Only what the mode Live Preview is in may have: a Build tool's keys are free in Content.
+  const tools = bar
+    ? [...bar.querySelectorAll('button[data-tab]')].filter((btn) => toolbarToolAllowed(win, btn.dataset.tab)).map((btn) => `tool:${btn.dataset.tab}`)
+    : [];
 
   return [...new Set(tools), ...breakpoints(win).map((row) => `size:${row.handle}`)];
 }

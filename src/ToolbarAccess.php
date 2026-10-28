@@ -41,6 +41,7 @@ class ToolbarAccess
         'bard_styles',
         'comments',
         'page_activity',
+        'build_mode',
     ];
 
     public const AUDIENCE_EVERYONE = 'everyone';
@@ -68,6 +69,7 @@ class ToolbarAccess
         'bard_styles' => self::AUDIENCE_SUPER,
         'comments' => self::AUDIENCE_EVERYONE,
         'page_activity' => self::AUDIENCE_EVERYONE,
+        'build_mode' => self::AUDIENCE_SUPER,
     ];
 
     /**
@@ -104,6 +106,24 @@ class ToolbarAccess
      */
     public static function rule(string $key): array
     {
+        // The HTML dock is only in Build: whoever has Build has the dock.
+        if ($key === 'template_dock') {
+            $key = 'build_mode';
+        }
+
+        $row = static::savedRow($key);
+
+        // Before Build had a list of its own, the dock's said who got Build.
+        if ($row === null && $key === 'build_mode') {
+            $row = static::savedRow('template_dock');
+        }
+
+        return static::normalizeRow($key, $row);
+    }
+
+    /** One icon's rule as the settings file has it; null when it has none. */
+    protected static function savedRow(string $key): ?array
+    {
         $row = Features::setting("{$key}_access");
 
         if (! is_array($row)) {
@@ -111,7 +131,7 @@ class ToolbarAccess
             $row = is_array($blob) ? ($blob[$key] ?? null) : null;
         }
 
-        return static::normalizeRow($key, $row);
+        return is_array($row) ? $row : null;
     }
 
     /**
