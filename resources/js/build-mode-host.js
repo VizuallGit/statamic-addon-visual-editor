@@ -1,7 +1,8 @@
 /**
  * Build mode in the left column.
  *
- * Owner: Build mode. Called by the top bar's switch (cp-shell/build-switch.js).
+ * Owner: Build mode. Called by the top bar's switch (cp-shell/build-switch.js),
+ * and turned off by lp-width.js as Live Preview closes.
  * May import: cp/bus.js, cp/build-mode/store.js, cp/html-tree/store.js,
  *   lazy/build-mode.js, lib/style.js. Not cp-shell/, not the kernel, and
  *   nothing of Build itself — that is the lazy chunk.

@@ -22,7 +22,7 @@
  * a holder that has already taken the room, so the two never pull.
  *
  * The state lives in memory for this Live Preview (build-mode-host.js); every
- * Live Preview opens in Content.
+ * Live Preview opens in Content, because closing one turns Build off (lp-width.js).
  *
  * The Build panel is the left column, so Build opens the column when it was
  * folded away, and Content folds it back the way it was. "Started with it
@@ -166,12 +166,6 @@ export function ensureBuildSwitch(win) {
   let holder = doc.getElementById(SWITCH_ID);
 
   if (!holder) {
-    // A new Live Preview (the last one closed in Build): it opens in Content.
-    if (buildModeOn()) {
-      leftAs = null;
-      setBuildMode(win, false);
-    }
-
     ensureStyles(doc);
     holder = doc.createElement('div');
     holder.id = SWITCH_ID;

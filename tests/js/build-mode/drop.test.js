@@ -123,6 +123,36 @@ test('a container moved inside its own section lands in the section, not in itse
   assert.equal(out.path, '0:section/1:div');
 });
 
+test('a move onto a loop or an if behind it: their paths hold offsets the mark must not shift', () => {
+  const html = [
+    '<section>',
+    '    <p>Loose</p>',
+    '    {{ items }}',
+    '        <li>{{ title }}</li>',
+    '    {{ /items }}',
+    '    {{ if show }}',
+    '        <span>Yes</span>',
+    '    {{ /if }}',
+    '</section>',
+    '',
+  ].join('\n');
+  const [loop, branch] = parseTemplateTree(html)[0].children.slice(1);
+
+  const into = dropMove(html, '0:section/0:p', loop.path, 'inside');
+
+  assert.ok(order(into.html, '{{ items }}', '<p>Loose</p>', '{{ /items }}', '{{ if show }}'), into.html);
+  assert.equal(tagAt(into.html, into.path), 'p');
+
+  for (const where of ['before', 'after']) {
+    const out = dropMove(html, '0:section/0:p', branch.path, where);
+    const [first, second] = where === 'before' ? ['<p>Loose</p>', '{{ if show }}'] : ['{{ /if }}', '<p>Loose</p>'];
+
+    assert.ok(order(out.html, '{{ /items }}', first, second), out.html);
+    assert.ok(!out.html.includes('data-sve-build-moving'));
+    assert.equal(tagAt(out.html, out.path), 'p');
+  }
+});
+
 test('what does not move: the section’s own element, a locked one, into itself', () => {
   const locked = '<section>\n    {{# sve-lock #}}\n    <p>Fixed</p>\n    <p>Free</p>\n</section>\n';
   const before = dropMove(locked, '0:section/1:p', '0:section/0:p', 'before');
