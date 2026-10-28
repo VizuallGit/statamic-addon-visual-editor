@@ -6,7 +6,7 @@
  * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
  *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
- *   build-mode/canvas-hold.js,
+ *   build-mode/canvas-hold.js, build-mode/canvas-live.js, cp/html-tree/store.js,
  *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
  *   `dock:chrome-kind`, `html-tree:open-section`; listens to
@@ -31,6 +31,12 @@
  *   Its own      an element the file leaves empty stands open, dashed, until
  *                something is put in it (`CANVAS_EMPTY`, stamped by the paint);
  *                the + and the drags are canvas-ui.js's.
+ *   What runs    the tree's video icon and Alpine toggle talk to the real
+ *                preview, as in Content. Its videos and dialogs are followed
+ *                on the canvas (canvas-live.js), and while the tree holds an
+ *                Alpine state the file does not have, the open section is the
+ *                real preview's own drawing, read again each time it changes:
+ *                Alpine runs there, not here.
  *
  * The morph is Alpine's. preview.js and live-reload-morph.js import the
  * package already, each by a build of its own; a module two entries import
@@ -52,7 +58,8 @@
  *   - Instant-JS is unchanged and still paints the real preview underneath.
  *   - `previewFrame` still names the real preview, so the class strip and
  *     X-ray do not show in Build.
- *   - Header and footer are a copy; Alpine and the site's JS do not run.
+ *   - Header and footer are a copy; Alpine and the site's JS do not run (what
+ *     they show in the real preview does — see What runs).
  *   - An island whose own Antlers change (a loop's parameters) waits, empty,
  *     until the real preview has rendered it.
  *   - A tag in an attribute that the server answers otherwise than the form
@@ -71,6 +78,8 @@ import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '.
 import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { canvasHold } from './canvas-hold.js';
+import { followReal, sectionKeyOf } from './canvas-live.js';
+import { htmlTreeUi } from '../cp/html-tree/store.js';
 
 const morph = (() => {
   const holder = {};
@@ -99,6 +108,7 @@ const LEFT_OFF = 'script, noscript, link[rel~="modulepreload"], link[as="script"
 export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 
 // The placeholder first: a hover, a pick or a + target draws over its dashes.
+// A video without `controls` wears none: the browser shows its own wherever scripts are off, as on the canvas.
 const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
 [${CANVAS_EMPTY}="text"]{min-height:1.5em!important}
 [${CANVAS_ROOT}][${CANVAS_EMPTY}]{min-height:8rem!important}
@@ -106,6 +116,7 @@ const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed 
 [${SELECTED}]{outline:.125rem solid #3858e9;outline-offset:-.125rem}
 [${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
 ${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}
+video:not([controls])::-webkit-media-controls{display:none!important}
 ${UI_CSS}`;
 
 /** The row in the form the dock's uid names: its values fill the section's fields. */
@@ -233,7 +244,8 @@ export function startCanvas(win) {
   const doc = win.document;
   const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map() };
   const forget = () => Object.values(known).forEach((store) => store.clear());
-  const painted = { uid: null, html: null, sheet: null };
+  // rootKey: the open section's key in the real preview, which its painted root stands for (canvas-live.js).
+  const painted = { uid: null, html: null, sheet: null, rootKey: '' };
   const rowCache = { uid: '', path: '' };
   const stats = { paints: 0, lastMs: 0, maxMs: 0, truths: 0, truthMs: 0, waiting: 0 };
   const queued = new Set();
@@ -250,9 +262,18 @@ export function startCanvas(win) {
   let tw = null;
   let buildTailwind = null;
   let observers = [];
+  let liveObserver = null;
+  let dialogObserver = null;
   let alive = true;
 
   const cdoc = () => frame?.contentDocument || null;
+
+  /**
+   * The tree's Alpine toggle is lit: the real preview shows a state the file
+   * does not have. Alpine runs only there, so while it is lit the open section
+   * is the real preview's own drawing, not the dock's painting.
+   */
+  const alpineLive = () => htmlTreeUi.rows.some((row) => row.alpineSet);
 
   /** One run per frame for each kind of work, whatever asked for it. */
   const schedule = (job) => {
@@ -438,6 +459,12 @@ export function startCanvas(win) {
     realWin.addEventListener('statamic:preview-updated', onRealUpdated);
     headObserver = new win.MutationObserver(() => schedule(syncHead));
     headObserver.observe(realDoc.head, { childList: true, subtree: true, characterData: true, attributes: true });
+    // A video started or held, a dialog opened or shut: the canvas follows (canvas-live.js).
+    realDoc.addEventListener('play', onRealMedia, true);
+    realDoc.addEventListener('pause', onRealMedia, true);
+    dialogObserver = new win.MutationObserver(onRealMedia);
+    dialogObserver.observe(realDoc.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+    watchLive();
     forget();
     painted.uid = null;
 
@@ -447,9 +474,15 @@ export function startCanvas(win) {
   function unbindReal() {
     headObserver?.disconnect();
     headObserver = null;
+    dialogObserver?.disconnect();
+    dialogObserver = null;
+    liveObserver?.disconnect();
+    liveObserver = null;
 
     try {
       realWin?.removeEventListener('statamic:preview-updated', onRealUpdated);
+      realDoc?.removeEventListener('play', onRealMedia, true);
+      realDoc?.removeEventListener('pause', onRealMedia, true);
     } catch {
       /* gone with its document */
     }
@@ -464,6 +497,57 @@ export function startCanvas(win) {
 
   function onRealLoad() {
     schedule(truth);
+  }
+
+  function onRealMedia() {
+    schedule(follow);
+  }
+
+  /** The editor's own marks and nodes in the real preview: no reason to read the section again. */
+  function editorOnly(record) {
+    const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+
+    if (target?.closest(LEFT_OFF)) {
+      return true;
+    }
+
+    if (record.type === 'attributes') {
+      return record.attributeName.startsWith('data-sve');
+    }
+
+    if (record.type === 'childList') {
+      return [...record.addedNodes, ...record.removedNodes].every((node) => node.nodeType === 1 && node.matches(LEFT_OFF));
+    }
+
+    return false;
+  }
+
+  /** While the Alpine toggle is lit, every change Alpine makes in the real preview is read onto the canvas. */
+  function watchLive() {
+    const want = alive && !!realDoc?.body && alpineLive();
+
+    if (want === !!liveObserver) {
+      return;
+    }
+
+    if (!want) {
+      liveObserver.disconnect();
+      liveObserver = null;
+
+      return;
+    }
+
+    liveObserver = new win.MutationObserver((records) => {
+      if (!records.every(editorOnly)) {
+        schedule(truth);
+      }
+    });
+    liveObserver.observe(realDoc.body, { subtree: true, childList: true, attributes: true, characterData: true });
+  }
+
+  /** The real preview's videos and dialogs, as they are now, on the canvas. */
+  function follow() {
+    followReal(cdoc(), realDoc, { root: cdoc()?.querySelector(`[${CANVAS_ROOT}]`) || null, rootKey: painted.rootKey, skip: LEFT_OFF });
   }
 
   /* What the dock holds */
@@ -664,7 +748,12 @@ export function startCanvas(win) {
     const next = page.importNode(realDoc.body, true);
     const slot = realRoot && section?.plan ? counterpart(realRoot, realDoc.body, next) : null;
 
-    if (slot) {
+    if (slot && alpineLive()) {
+      // The real preview's drawing stays, stamped with the file's paths so picks, + and hover work on it.
+      stampHtmlPickAll([slot], serializePickTree([section.plan.node]), page);
+      slot.setAttribute(CANVAS_ROOT, '');
+      stats.waiting = 0;
+    } else if (slot) {
       const { html, waiting } = paintPlan(section.plan, known);
       const painting = parse(html);
 
@@ -707,9 +796,11 @@ export function startCanvas(win) {
 
     painted.uid = uid;
     painted.html = section?.html ?? null;
+    painted.rootKey = sectionKeyOf(realRoot);
     sheet(painted.html);
     marks();
     rehover();
+    follow();
 
     if (first) {
       reveal();
@@ -777,6 +868,13 @@ export function startCanvas(win) {
       return;
     }
 
+    // The Alpine toggle is lit: the section is the real preview's, read again rather than painted.
+    if (section && alpineLive()) {
+      truth();
+
+      return;
+    }
+
     if (!section || section.html === painted.html || !section.plan) {
       marks();
 
@@ -804,6 +902,7 @@ export function startCanvas(win) {
     sheet(section.html);
     marks();
     rehover();
+    follow();
 
     const ms = Math.round((win.performance.now() - t0) * 10) / 10;
 
@@ -923,7 +1022,15 @@ export function startCanvas(win) {
     }
   }
 
-  const unhooks = [on('dock:html-changed', paint), on('tw:changed', paint)];
+  const unhooks = [
+    on('dock:html-changed', paint),
+    on('tw:changed', paint),
+    // The toggle lit or put out: the section is read from the real preview, or painted again.
+    watch(alpineLive, () => {
+      watchLive();
+      schedule(truth);
+    }),
+  ];
 
   schedule(truth);
   ensure();
