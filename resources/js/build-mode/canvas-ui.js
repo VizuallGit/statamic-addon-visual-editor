@@ -340,7 +340,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       schedule(track);
     };
 
-    const finish = (commit) => {
+    const finish = (commit, held = false) => {
       unhook();
       cancel = null;
 
@@ -372,10 +372,30 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       // The click that ends a drag is not a pick (click), nor a tile's add (swallowClick).
       swallow = true;
       win.addEventListener('click', swallowClick, true);
-      win.setTimeout(() => {
-        swallow = false;
-        win.removeEventListener('click', swallowClick, true);
-      }, 0);
+
+      if (held) {
+        // Esc: the button is still down, and that click comes with the release.
+        // A release none of our documents hears is ended by the next press instead.
+        const over = (e) => {
+          docs.forEach((doc) => {
+            doc.removeEventListener('pointerup', over, true);
+            doc.removeEventListener('pointerdown', over, true);
+          });
+
+          if (e.type === 'pointerdown') {
+            unswallow();
+          } else {
+            win.setTimeout(unswallow, 0);
+          }
+        };
+
+        docs.forEach((doc) => {
+          doc.addEventListener('pointerup', over, true);
+          doc.addEventListener('pointerdown', over, true);
+        });
+      } else {
+        win.setTimeout(unswallow, 0);
+      }
 
       if (commit && done.over) {
         land(done.over);
@@ -392,7 +412,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     const onKey = (e) => {
       if (e.key === 'Escape' && started) {
         e.preventDefault();
-        finish(false);
+        finish(false, true);
       }
     };
     // From the press on: a drag across the page's text selects none of it.
@@ -425,6 +445,11 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       event.preventDefault();
       event.stopPropagation();
     }
+  }
+
+  function unswallow() {
+    swallow = false;
+    win.removeEventListener('click', swallowClick, true);
   }
 
   const write = (out) => {
