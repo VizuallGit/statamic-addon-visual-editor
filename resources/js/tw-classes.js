@@ -1520,6 +1520,15 @@ function fieldValueWith(value, name, own) {
   return next;
 }
 
+/** A value field's class written straight — a drag on Spacing's box — in the place of `own` (a raw), as its menu's pick is. */
+export function twSetFieldClass(win, name, own) {
+  const current = name && !locked() ? currentValue() : null;
+
+  if (current) {
+    commit(win, current.html, fieldValueWith(current.value, name, own ? [own] : []));
+  }
+}
+
 /**
  * A value field's menu: the tool menu's popover, rows, search and preview,
  * writing the way a value typed into the field does (`fieldValueWith`), so

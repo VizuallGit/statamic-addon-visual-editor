@@ -87,6 +87,7 @@ import {
   twOpenValueMenu,
   twPickedClasses,
   twSetClass,
+  twSetFieldClass,
   twSetTag,
   twVariant,
 } from '../tw-classes.js';
@@ -603,6 +604,8 @@ export function createEditorPort(win, hooks = {}) {
     pickedClasses: () => (rev.value, twPickedClasses()?.raws || []),
     activeClass: (property) => (rev.value, twActiveClass(property)),
     setClass: (name) => twSetClass(win, name),
+    /** A value field's class in the place of its own (`own`, a raw) — Spacing's drag. */
+    setFieldClass: (name, own) => twSetFieldClass(win, name, own),
     /** A value field's menu — a scale, or a group named by hand: the pane's popover, search and preview, written as the field writes. */
     openValueMenu: (anchor, options) => twOpenValueMenu(win, anchor, options),
     run: (item, anchor) => runTwTool(win, item, anchor),

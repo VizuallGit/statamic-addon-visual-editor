@@ -59,11 +59,15 @@ const property = computed(() => props.tool.css || props.tool.tw || '');
 /** The physical twin Tailwind's classic scale uses (`padding-top` for `padding-block-start`). */
 const twin = computed(() => (props.tool.tw && props.tool.tw !== property.value ? props.tool.tw : ''));
 
-/** The property the scale is offered for: the field's own, or its twin's when only the twin has one. */
+/**
+ * The property the scale is offered for: the twin's whenever it has one —
+ * Tailwind's classic `pt` `pr` `pb` `pl`, never the logical `pbs` `pe` that
+ * Tailwind 4.2 added — and the field's own only where there is no twin.
+ */
 const scaleProperty = computed(() => {
   port.rev.value;
 
-  return port.scale(property.value).length || !twin.value ? property.value : twin.value;
+  return twin.value && port.scale(twin.value).length ? twin.value : property.value;
 });
 const scale = computed(() => (port.rev.value, port.scale(scaleProperty.value)));
 const prefix = computed(() => rootOf(scale.value));
@@ -154,9 +158,9 @@ function press(event) {
   const write = () => {
     frame = 0;
 
-    // Setting the class already there takes it off (twSetClass toggles): written only when it changes.
+    // In the field's place, as its menu writes: an old `pbs-…` under the top's field goes as `pt-…` comes.
     if (want && want !== wrote) {
-      port.setClass(want);
+      port.setFieldClass(want, own.value?.raw || '');
       wrote = want;
     }
   };
@@ -219,7 +223,7 @@ function press(event) {
           const name = typedClass(last, scale.value, p, kind);
 
           if (name && name !== own.value?.name) {
-            port.setClass(name);
+            port.setFieldClass(name, own.value?.raw || '');
           }
         }
       });

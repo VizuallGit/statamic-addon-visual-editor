@@ -349,33 +349,35 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
      * the field's own class (`own`), or goes in one per property and size; the
      * row already there changes nothing; Remove takes the own class off.
      */
+    /** twSetFieldClass's rule, which the menu's pick writes by as well. */
+    setFieldClass(name, ownRaw) {
+      const text = value();
+
+      if (text === null) {
+        return;
+      }
+
+      const full = !name ? '' : variant() ? `${variant()}:${name}` : name;
+      const hits = ownRaw ? chips(text).filter((chip) => chip.raw === ownRaw).sort((a, b) => b.from - a.from) : [];
+      let next = text;
+
+      if (hits.length) {
+        hits.forEach((chip, i) => {
+          next = replaceToken(next, chip, i === hits.length - 1 ? full : '');
+        });
+      } else if (full && !chips(text).some((chip) => chip.raw === full)) {
+        const property = propertyOf(name);
+        const hit = property ? chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property) : null;
+
+        next = hit ? replaceToken(text, hit, full) : appendToken(text, full);
+      }
+
+      if (next !== text) {
+        commit(next);
+      }
+    },
     openValueMenu(anchor, { property, names = null, title = '', own = null, free = null } = {}) {
-      const write = (name) => {
-        const text = value();
-
-        if (text === null) {
-          return;
-        }
-
-        const full = !name ? '' : variant() ? `${variant()}:${name}` : name;
-        const hits = own ? chips(text).filter((chip) => chip.raw === own.raw).sort((a, b) => b.from - a.from) : [];
-        let next = text;
-
-        if (hits.length) {
-          hits.forEach((chip, i) => {
-            next = replaceToken(next, chip, i === hits.length - 1 ? full : '');
-          });
-        } else if (full && !chips(text).some((chip) => chip.raw === full)) {
-          const property = propertyOf(name);
-          const hit = property ? chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property) : null;
-
-          next = hit ? replaceToken(text, hit, full) : appendToken(text, full);
-        }
-
-        if (next !== text) {
-          commit(next);
-        }
-      };
+      const write = (name) => port.setFieldClass(name, own?.raw || '');
 
       onMenu?.({
         anchor,
