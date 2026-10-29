@@ -713,6 +713,7 @@ return [
     'lp_settings_tab_toolbar' => 'Topbar',
     'lp_settings_tab_shortcuts' => 'Genveje',
     'lp_settings_toolbar' => 'Vises i topbaren',
+    'lp_settings_switch_tab' => 'Tilstandskontakten på en fane, der hænger ned i previewet',
     'lp_settings_toolbar_hint' => 'Træk i ⠿ for at flytte et værktøj — også over i en anden gruppe. Et skjult værktøj ligger stadig her: åbn det med Åbn.',
     'lp_settings_toolbar_groups_reset' => 'Nulstil grupper',
     'lp_settings_toolbar_group_new' => 'Ny gruppe',

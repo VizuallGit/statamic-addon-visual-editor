@@ -721,6 +721,7 @@ return [
     'lp_settings_tab_toolbar' => 'Top bar',
     'lp_settings_tab_shortcuts' => 'Shortcuts',
     'lp_settings_toolbar' => 'Shown in the top bar',
+    'lp_settings_switch_tab' => 'Mode switch on a tab that hangs into the preview',
     'lp_settings_toolbar_hint' => 'Drag ⠿ to move a tool — into another group too. A hidden tool is still here: open it with Open.',
     'lp_settings_toolbar_groups_reset' => 'Reset groups',
     'lp_settings_toolbar_group_new' => 'New group',

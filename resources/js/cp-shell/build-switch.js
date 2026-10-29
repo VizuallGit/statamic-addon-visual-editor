@@ -50,6 +50,7 @@ import { openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
 import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
 import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
+import { SWITCH_TAB_ATTR, buildSwitchTabOn } from '../build-switch-tab.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
 
 const SWITCH_ID = '__sve-build-switch';
@@ -72,6 +73,7 @@ const iconOf = (mode) => (mode === 'html' ? TOOLBAR_ICONS.code : ICONS[mode]);
 
 function ensureStyles(doc) {
   const bar = `.live-preview-header:has(> #${SWITCH_ID})`;
+  const tab = `#${SWITCH_ID}[${SWITCH_TAB_ATTR}]`;
 
   injectStyle(
     doc,
@@ -79,19 +81,22 @@ function ensureStyles(doc) {
     `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
 ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
 #${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
-#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .75rem;white-space:nowrap}
-#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.9375rem;height:.9375rem}
-/* The switch on a tab of the bar, as a canvas tool sits on one: the grey group a little larger than
-   the bar's others (2rem; this one 2.25rem) and from the same top (the margin gives the extra back
-   below, so the bar centres it as one of them); behind it a tab in the bar's own colour
-   (--sve-switch-base) with --sve-switch-pad of room round the group, hanging --sve-switch-drop under
-   the bar with rounded corners, the bar running into it in two small curves. --sve-switch-reach is
-   the distance from the group to the bar's bottom, measured where the switch is placed. */
-#${SWITCH_ID}{--sve-switch-drop:1rem;--sve-switch-pad:.375rem;--sve-switch-ear:.5rem;margin-bottom:calc(2rem - 2.25rem);position:relative;z-index:1}
-#${SWITCH_ID}::before{content:"";position:absolute;z-index:-1;left:calc(-1 * var(--sve-switch-pad));right:calc(-1 * var(--sve-switch-pad));top:calc(-1 * var(--sve-switch-pad));bottom:calc(-1 * (var(--sve-switch-reach, .40625rem) + var(--sve-switch-drop)));border-radius:0 0 .875rem .875rem;background:var(--sve-switch-base,transparent);pointer-events:none}
-#${SWITCH_ID}::after{content:"";position:absolute;z-index:-1;left:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));right:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));top:calc(100% + var(--sve-switch-reach, .40625rem));height:var(--sve-switch-ear);pointer-events:none;background:radial-gradient(circle at 0 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) left/var(--sve-switch-ear) 100% no-repeat,radial-gradient(circle at 100% 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) right/var(--sve-switch-ear) 100% no-repeat}
-#${SWITCH_ID} > [role="group"]{height:2.25rem!important;padding:.25rem!important;border-radius:.625rem!important}
-#${SWITCH_ID} [data-sve-build-mode]{height:1.75rem!important;font-size:.8125rem!important;border-radius:.4375rem!important}`
+#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
+#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}
+/* Everything below is the tab (SWITCH_TAB_ATTR, Live Preview settings → Top bar); without it the
+   switch is the group above, like the bar's others.
+   The switch on a tab of the bar, as a canvas tool sits on one: no group box, the three buttons
+   (--sve-switch-h tall) stand on a tab in the bar's own colour (--sve-switch-base) with
+   --sve-switch-pad of tab round them. The tab ends --sve-switch-drop under the bar, the bar running
+   into it in two small curves, so the buttons stand that much lower than the bar's other groups.
+   The margins keep the switch a 2rem box to the bar, which centres it as one of them;
+   --sve-switch-reach is that box's distance to the bar's bottom, measured where the switch is placed. */
+${tab}{--sve-switch-h:2.5rem;--sve-switch-pad:.375rem;--sve-switch-drop:1rem;--sve-switch-ear:.5rem;--sve-switch-down:calc(var(--sve-switch-reach, .625rem) + 2rem - var(--sve-switch-h) + var(--sve-switch-drop) - var(--sve-switch-pad));margin-top:var(--sve-switch-down);margin-bottom:calc(2rem - var(--sve-switch-h) - var(--sve-switch-down));position:relative;z-index:1}
+${tab}::before{content:"";position:absolute;z-index:-1;inset:calc(-1 * var(--sve-switch-pad));border-radius:0 0 .625rem .625rem;background:var(--sve-switch-base,transparent);pointer-events:none}
+${tab}::after{content:"";position:absolute;z-index:-1;left:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));right:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));top:calc(100% + var(--sve-switch-pad) - var(--sve-switch-drop));height:var(--sve-switch-ear);pointer-events:none;background:radial-gradient(circle at 0 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) left/var(--sve-switch-ear) 100% no-repeat,radial-gradient(circle at 100% 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) right/var(--sve-switch-ear) 100% no-repeat}
+${tab} > [role="group"]{height:auto!important;padding:0!important;background:transparent!important;border-radius:0!important}
+${tab} [data-sve-build-mode]{height:var(--sve-switch-h)!important;padding:0 .75rem;font-size:.8125rem!important;border-radius:.375rem!important}
+${tab} [data-sve-build-mode] svg{width:.9375rem;height:.9375rem}`
   );
 }
 
@@ -251,9 +256,13 @@ export function ensureBuildSwitch(win) {
   }
 
   // The bar's colour, for the tab that hangs over the preview (light or dark theme), and how far
-  // the group stands above the bar's bottom, where the tab's part under the bar begins.
+  // the switch's 2rem box (its margin box, which the bar centres) stands above the bar's bottom.
+  holder.toggleAttribute(SWITCH_TAB_ATTR, buildSwitchTabOn(win));
+
+  const holderCss = win.getComputedStyle(holder);
+
   holder.style.setProperty('--sve-switch-base', win.getComputedStyle(header).backgroundColor);
-  holder.style.setProperty('--sve-switch-reach', `${Math.max(0, header.getBoundingClientRect().bottom - holder.getBoundingClientRect().bottom)}px`);
+  holder.style.setProperty('--sve-switch-reach', `${Math.max(0, header.getBoundingClientRect().bottom - (holder.getBoundingClientRect().bottom + parseFloat(holderCss.marginBottom)))}px`);
 
   paint(holder);
 }
