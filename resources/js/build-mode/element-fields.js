@@ -1,7 +1,8 @@
 /**
- * An element's address as the Control Panel's own field: an image's or a
+ * An element's content as the Control Panel's own field: an image's or a
  * video's `src` picked in the asset browser, a link's `href` in the page
- * picker — Visual Build's Content (BuildContent.vue).
+ * picker, a block of rich text in Bard — Visual Build's Content
+ * (BuildContent.vue).
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: cp/mount-statamic.js, cp/surfaces/PropValues.vue, lib/csrf.js, attrs.js.
@@ -25,23 +26,29 @@ import PropValues from '../cp/surfaces/PropValues.vue';
 import { csrfToken } from '../lib/csrf.js';
 import { ADDRESS } from './attrs.js';
 
-/** Whether the Control Panel can lend this tag's field — an older one gets a plain box instead. */
-export function elementFieldReady(tag) {
-  const field = ADDRESS[tag];
+/** The fieldtype a kind of content is edited with: an address's (attrs.js), or Bard for rich text (rich.js). */
+function fieldtypeOf(kind) {
+  return kind === 'rich' ? 'bard' : ADDRESS[kind]?.fieldtype || '';
+}
 
-  return !!field && statamicFieldsReady([field.fieldtype]);
+/** Whether the Control Panel can lend this kind's field — an older one gets a plain box instead. */
+export function elementFieldReady(kind) {
+  const type = fieldtypeOf(kind);
+
+  return !!type && statamicFieldsReady([type]);
 }
 
 /**
- * The field, mounted into `el`, opened on the element's address `value`.
- * `write(value)` gets the attribute's new value, once the field settles.
+ * The field for `kind` (a tag with an address, or `rich`), mounted into `el`,
+ * opened on what the element holds (`value`). `write(value)` gets the new
+ * value — a URL, HTML — once the field settles.
  *
  * @returns {() => void} unmount — a change still on its way is sent first
  */
-export function mountElementField(win, el, { tag, value, display, write }) {
+export function mountElementField(win, el, { kind, value, display, write }) {
   const ui = reactive({
     ready: false,
-    name: `sve-build-${tag}`,
+    name: `sve-build-${kind}`,
     blueprint: null,
     fields: [],
     values: {},
@@ -71,7 +78,7 @@ export function mountElementField(win, el, { tag, value, display, write }) {
   let pending = false;
   let gone = false;
 
-  post('/!/sve/element-fields/form', { tag, value, display })
+  post('/!/sve/element-fields/form', { kind, value, display })
     .then((data) => {
       if (gone || !data?.blueprint) {
         return;
@@ -113,7 +120,7 @@ export function mountElementField(win, el, { tag, value, display, write }) {
 
     // Written even when the panel has moved on: `write` is bound to the
     // element the field was opened for, not to whatever is picked now.
-    post('/!/sve/element-fields', { tag, value, values: ui.values })
+    post('/!/sve/element-fields', { kind, value, values: ui.values })
       .then((data) => {
         saving = false;
 

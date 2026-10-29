@@ -236,6 +236,28 @@ try {
   step('an image\'s Content is its address and a note that the alt text is the image\'s own — no alt box, no text box', await page.evaluate(() => !!document.querySelector('[data-sve-build-src]') && !!document.querySelector('[data-sve-build-alt-note]') && !document.querySelector('[data-sve-build-alt]') && !document.querySelector('[data-sve-build-text]')));
   await typeInto('[data-sve-build-src]', '/assets/team.webp');
   step('…the address written with an alt that reads the asset\'s own', (await html()).includes(`<img src="/assets/team.webp" alt="{{ asset url='/assets/team.webp' }}{{ alt | entities }}{{ /asset }}" class="w-full aspect-video rounded-lg">`));
+  // Rich text: a div of classed elements is not; the tile's is, and Content edits it (a plain box here — no Control Panel to lend Bard).
+  await select(COLUMN);
+  await sleep(150);
+  step('a div of classed elements is not rich text: Content says a layout has no text of its own', await page.evaluate(() => !!document.querySelector('[data-sve-build-content-soon]') && !document.querySelector('[data-sve-build-rich]')));
+  // After the image, so the column the steps below add to keeps what they expect.
+  await select(IMG);
+  await sleep(150);
+  await click('[data-sve-build-add]');
+  await sleep(150);
+  await click('[data-sve-build-tile="richtext"]');
+  await sleep(200);
+  const richPath = await page.evaluate(() => window.__sveBuildHarness.selectedPath());
+  step('the Rich text tile writes a div with a paragraph, and Add stays open', /<div>\n\s+<p>Write your text here\.<\/p>\n\s+<\/div>/.test(await html()) && (await page.evaluate(() => document.querySelector('[data-sve-build-root]').dataset.sveBuildSide)) === 'add', richPath);
+  await select(richPath);
+  await sleep(150);
+  step('Content on it is its rich text', (await page.evaluate(() => document.querySelector('[data-sve-build-rich-html]')?.value)) === '<p>Write your text here.</p>');
+  await page.evaluate(() => { const box = document.querySelector('[data-sve-build-rich-html]'); box.focus(); box.select(); });
+  await page.keyboard.type('<h2>Om os</h2><p>Vi er <strong>tre</strong>.</p>');
+  step('…nothing is written while it is typed', /<p>Write your text here\.<\/p>/.test(await html()));
+  await page.keyboard.press('Tab');
+  await sleep(200);
+  step('…and when typing is over, one block to a line at the div\'s indent', /<div>\n(\s+)<h2>Om os<\/h2>\n\1<p>Vi er <strong>tre<\/strong>\.<\/p>\n\s+<\/div>/.test(await html()));
   await click('[data-sve-build-tab="style"]');
   await sleep(150);
   await select(LINK);

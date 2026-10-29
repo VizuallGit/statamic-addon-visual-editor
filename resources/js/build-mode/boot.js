@@ -98,6 +98,7 @@ import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectio
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { readText, withText } from './text.js';
+import { readRich, sameRich, withRich } from './rich.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
@@ -468,6 +469,23 @@ export function createEditorPort(win, hooks = {}) {
         port.write(next, { select: path });
       }
     },
+    /** The picked element's rich text — a block of prose Bard edits — or null (rich.js). */
+    rich: () => {
+      rev.value;
+
+      const node = picked();
+
+      return node ? readRich(html(), node) : null;
+    },
+    /** An element's rich text by its path; the same HTML laid out another way is no change. */
+    setRichAt(path, value) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const now = node ? readRich(html(), node) : null;
+
+      if (now && !sameRich(now.html, value)) {
+        port.write(withRich(html(), node, value), { select: path });
+      }
+    },
     /** The picked element's text as Content shows it, or null when it holds none (text.js). */
     text: () => {
       rev.value;
@@ -487,9 +505,9 @@ export function createEditorPort(win, hooks = {}) {
         port.write(withText(html(), node, value), { select: path });
       }
     },
-    /** An image's, a video's or a link's address as the Control Panel's own field (element-fields.js) → unmount. */
-    addressFieldReady: (tag) => elementFieldReady(tag),
-    mountAddress: (el, options) => mountElementField(win, el, options),
+    /** An image's, a video's, a link's or rich text's content as the Control Panel's own field (element-fields.js) → unmount. */
+    fieldReady: (kind) => elementFieldReady(kind),
+    mountField: (el, options) => mountElementField(win, el, options),
     mountFields: hooks.mountFields || ((el) => unmounter(mountStatamicSurface(ComponentSidebar, el))),
     mountSettings: hooks.mountSettings || ((el) => unmounter(mountStatamicSurface(HtmlTreeInspector, el))),
 

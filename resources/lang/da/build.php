@@ -57,6 +57,9 @@ return [
     'content_markup' => 'Elementet indeholder andre elementer. Klik på et af dem for at redigere dets tekst.',
     'content_layout' => 'Et layout-element har ingen tekst selv: dets indhold er elementerne indeni.',
     'content_soon' => 'Indhold til dette element kommer i et senere trin.',
+    'content_rich' => 'Rich text',
+    // The Rich text tile (Add → Basic); its element is a div, named as one elsewhere.
+    'el_richtext' => 'Rich text',
     'content_img' => 'Billede',
     'content_video' => 'Video',
     'content_a' => 'Link',

@@ -9,10 +9,10 @@
  * paints it as it is typed. What a box shows comes from the file; while it is
  * being typed in, the box is the one that knows, and the file catches up.
  *
- * An image and a video get the asset browser, a link the page picker — the
- * Control Panel's own fields, mounted by the port (`mountAddress`,
- * build-mode/element-fields.js), the attribute written once the field
- * settles. An image's alt text is the asset's own ("Set Alt" on it): its
+ * An image and a video get the asset browser, a link the page picker, a
+ * block of rich text (build-mode/rich.js) Bard — the Control Panel's own
+ * fields, mounted by the port (`mountField`, build-mode/element-fields.js),
+ * written once the field settles. An image's alt text is the asset's own ("Set Alt" on it): its
  * `alt` reads it on the server (attrs.js `altFromAsset`), written with the
  * `src`, so there is one alt text and it follows wherever it changes. A
  * Control Panel that cannot lend the field — or a page without one — gets a
@@ -41,8 +41,12 @@ const ANTLERS = /\{\{[\s\S]*?\}\}/;
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const fromField = (expr) => port.t('content_antlers', { tag: `<code>${esc(expr.replace(/\s+/g, ' '))}</code>` });
 
-/** A box typed into: the file's value until it is typed in, then the box's, written once a frame. */
-function typed(fromFile, write) {
+/**
+ * A box typed into: the file's value until it is typed in, then the box's,
+ * written once a frame — or, `live: false`, once typing is over (raw HTML,
+ * where every keystroke on the way is half a tag).
+ */
+function typed(fromFile, write, { live = true } = {}) {
   const value = ref(fromFile.value ?? '');
   let typing = false;
   let frame = 0;
@@ -62,7 +66,7 @@ function typed(fromFile, write) {
     input() {
       typing = true;
 
-      if (!frame) {
+      if (live && !frame) {
         frame = window.requestAnimationFrame(flush);
       }
     },
@@ -70,6 +74,8 @@ function typed(fromFile, write) {
     done() {
       if (frame) {
         window.cancelAnimationFrame(frame);
+        flush();
+      } else if (!live && typing) {
         flush();
       }
 
@@ -96,7 +102,6 @@ const rows = computed(() => (/^h[1-6]$/.test(tag.value) ? 2 : 4));
 const address = ADDRESS[tag.value] || null;
 const addressNow = computed(() => (port.rev.value, address ? port.attr(address.attr) ?? '' : null));
 const addressExpr = computed(() => ANTLERS.exec(addressNow.value || '')?.[0] || '');
-const statamic = !!address && !!port.addressFieldReady?.(tag.value);
 
 /** The address written — an image's alt with it, read off the asset it now points at. */
 function writeAddress(value) {
@@ -105,6 +110,22 @@ function writeAddress(value) {
 
 const addressBox = typed(addressNow, writeAddress);
 
+/* ---------------- rich text: a block of prose, in Bard ---------------- */
+
+const rich = computed(() => (port.rev.value, address || read.value ? null : port.rich()));
+const richNow = computed(() => rich.value?.html ?? null);
+
+/** Bard's HTML, with the apostrophes it escapes for a partial's parameter back as they are typed. */
+function writeRich(value) {
+  port.setRichAt(path, String(value || '').replace(/&#39;/g, "'"));
+}
+
+const richBox = typed(richNow, writeRich, { live: false });
+
+/* ---------------- the Control Panel's own field, for either ---------------- */
+
+const kind = address ? tag.value : 'rich';
+const statamic = !!port.fieldReady?.(kind);
 const host = ref(null);
 let unmountField = null;
 
@@ -113,23 +134,24 @@ watch(
   (el) => {
     unmountField?.();
     unmountField = el
-      ? port.mountAddress(el, {
-          tag: tag.value,
-          value: addressNow.value || '',
-          display: port.t(`content_${tag.value}`),
-          write: writeAddress,
+      ? port.mountField(el, {
+          kind,
+          value: (address ? addressNow.value : richNow.value) || '',
+          display: port.t(`content_${kind}`),
+          write: address ? writeAddress : writeRich,
         })
       : null;
   },
   { flush: 'post' }
 );
 
-const nothing = computed(() => !read.value && !address);
+const nothing = computed(() => !read.value && !address && !rich.value);
 const layout = computed(() => tagFamily(tag.value) === 'layout');
 
 onBeforeUnmount(() => {
   text.done();
   addressBox.done();
+  richBox.done();
   unmountField?.();
   unmountField = null;
 });
@@ -174,6 +196,20 @@ onBeforeUnmount(() => {
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
     </div>
 
+    <div v-if="rich" class="bm-text" data-sve-build-rich>
+      <template v-if="!statamic">
+        <span class="fg-lab">{{ port.t('content_rich') }}</span>
+        <textarea
+          v-model="richBox.value.value"
+          rows="6"
+          spellcheck="false"
+          data-sve-build-rich-html
+          @input="richBox.input"
+          @blur="richBox.done"
+        ></textarea>
+      </template>
+      <div v-else ref="host" class="bm-field-host" data-sve-build-field></div>
+    </div>
 
     <div v-if="nothing" class="bm-empty" data-sve-build-content-soon>
       <span v-html="ic('form')"></span>

@@ -52,6 +52,10 @@ export function markupFor(entry, opts = {}) {
         return '<hr>';
       }
 
+      if (def.rich) {
+        return `<div>\n${INDENT}<p>${esc(text.text)}</p>\n</div>`;
+      }
+
       return def.tag === 'a'
         ? `${open('a', def.classes, 'href=""')}${esc(text.button)}</a>`
         : `${open(def.tag, def.classes)}</${def.tag}>`;

@@ -14,7 +14,7 @@
  * names lands in Other, in Build, by itself.
  *
  * Build adds only what the dock has no button for yet — Grid with its cells,
- * Button, Divider, four more HTML tags, and grid-template-columns in Style —
+ * Button, Divider, Rich text, four more HTML tags, and grid-template-columns in Style —
  * each written in the dock's own shape (`{ id, classes }` like HTML_DIVS,
  * `{ id, title, css, tw }` like CSS_TOOLS), so moving one into the dock is a
  * cut and paste and then it is in both.
@@ -31,6 +31,8 @@ export const BUILD_ELEMENTS = {
   // The site's own button class, as `wrapper` is its container in HTML_DIVS.
   button: { id: 'button', tag: 'a', classes: 'btn' },
   divider: { id: 'divider', tag: 'hr' },
+  // A block of prose Content edits with Bard (rich.js): a div of paragraphs, nothing else on it.
+  richtext: { id: 'richtext', tag: 'div', rich: true },
   article: { id: 'article', tag: 'article' },
   aside: { id: 'aside', tag: 'aside' },
   nav: { id: 'nav', tag: 'nav' },
@@ -69,6 +71,7 @@ const ADD_LAYOUT = [
 const ADD_BASIC = [
   { id: 'heading', tool: 'heading' },
   { id: 'text', tool: 'text' },
+  { id: 'richtext', own: 'richtext' },
   { id: 'button', own: 'button' },
   { id: 'link', tool: 'a' },
   { id: 'image', tool: 'img' },
