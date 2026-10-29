@@ -81,7 +81,7 @@ import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '.
 import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
-import { enterChromeAsked } from '../chrome-enter.js';
+import { canvasFocus } from './canvas-focus.js';
 import { canvasHold } from './canvas-hold.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
@@ -302,6 +302,8 @@ export function startCanvas(win) {
   const ui = canvasUi(win, { page: cdoc, frame: () => frame, port: () => port, hovered: () => hovered, schedule });
   // The section's toolbar, as the bridge draws it in Content (canvas-section-bar.js): in both Builds.
   const bar = sectionBar(win, { page: cdoc });
+  // Inside the header, the footer, a global section or a component, as in Content — through the bridge (canvas-focus.js).
+  const focus = canvasFocus(win, { page: cdoc, onState: () => schedule(truth) });
   // A menu's would-be classes on the canvas before they are picked, compiled beside the section's own (canvas-hold.js).
   const hold = canvasHold(win, {
     page: cdoc,
@@ -381,8 +383,11 @@ export function startCanvas(win) {
     page.addEventListener('pointerdown', ui.grab, true);
     page.addEventListener('scroll', ui.draw, true);
     page.addEventListener('scroll', bar.place, true);
+    page.addEventListener('scroll', focus.place, true);
+    page.addEventListener('keydown', focus.key, true);
     frame.contentWindow.addEventListener('resize', ui.draw);
     frame.contentWindow.addEventListener('resize', bar.place);
+    frame.contentWindow.addEventListener('resize', focus.place);
     page.documentElement.addEventListener('mouseleave', () => {
       setHover(null);
       bar.hide();
@@ -488,6 +493,7 @@ export function startCanvas(win) {
 
     realDoc = next;
     realWin = next.defaultView;
+    focus.bind(realDoc);
     realWin.addEventListener('statamic:preview-updated', onRealUpdated);
     headObserver = new win.MutationObserver(() => schedule(syncHead));
     headObserver.observe(realDoc.head, { childList: true, subtree: true, characterData: true, attributes: true });
@@ -504,6 +510,7 @@ export function startCanvas(win) {
   }
 
   function unbindReal() {
+    focus.unbind();
     headObserver?.disconnect();
     headObserver = null;
     dialogObserver?.disconnect();
@@ -1006,6 +1013,7 @@ export function startCanvas(win) {
 
     ui.draw();
     bar.place();
+    focus.refresh();
   }
 
   /** The section the dock opened, brought into view when it is off screen. */
@@ -1061,7 +1069,7 @@ export function startCanvas(win) {
     event.preventDefault();
     event.stopPropagation();
 
-    if (bar.click(event) || ui.click(event)) {
+    if (bar.click(event) || focus.click(event) || ui.click(event)) {
       return;
     }
 
@@ -1070,15 +1078,6 @@ export function startCanvas(win) {
 
     if (el && port) {
       port.select(el.getAttribute(CANVAS_PATH));
-
-      return;
-    }
-
-    // The header or the footer, not open: asked as the bridge asks in Content (chrome-enter.js).
-    const half = target?.closest('[data-sve-chrome]');
-
-    if (half && !target.closest('[data-sid-section-orderable], [data-sve-global-root]')) {
-      enterChromeAsked(win, half.getAttribute('data-sve-chrome'));
 
       return;
     }
@@ -1133,6 +1132,7 @@ export function startCanvas(win) {
       alive = false;
       ui.stop();
       bar.stop();
+      focus.stop();
       hold.stop();
       stopMarks?.();
       stopMarks = null;

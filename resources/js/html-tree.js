@@ -74,8 +74,6 @@ import {
   loopSourceEdit,
 } from './loop-inspector.js';
 import { previewDocument } from './lib/preview-frame.js';
-import { buildCanvasFrame } from './lib/build-canvas.js';
-import { enterChromeAsked } from './chrome-enter.js';
 import { injectStyle } from './lib/style.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields, sectionRootTag } from './lib/config.js';
@@ -2441,9 +2439,7 @@ function resetForFrame(win) {
  * A half: clicked in the preview, exactly as the reader clicks it there —
  * the bridge asks its "this is global" question, and on yes steps in: focus,
  * the page faded around it, the form, the file. Only a preview without the
- * half (not rendered, not editable) is told directly. While Build's canvas
- * stands over the preview, the bridge's question would be asked where no one
- * sees it: the Control Panel asks it instead (chrome-enter.js).
+ * half (not rendered, not editable) is told directly.
  *
  * Main: the layout's file in the dock, and the tree stands on its <main>.
  *
@@ -2483,12 +2479,9 @@ function enterFrame(win, kind) {
     return;
   }
 
-  const onCanvas = !!buildCanvasFrame(win);
-  const el = onCanvas ? null : previewDocument(win)?.querySelector(`[data-sve-chrome="${kind}"]`);
+  const el = previewDocument(win)?.querySelector(`[data-sve-chrome="${kind}"]`);
 
-  if (onCanvas) {
-    enterChromeAsked(win, kind);
-  } else if (el) {
+  if (el) {
     el.scrollIntoView({ block: 'nearest' });
     el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('click', { bubbles: true, cancelable: true }));
   } else {
