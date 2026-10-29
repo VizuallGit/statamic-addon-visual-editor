@@ -39,6 +39,7 @@ const port = createHarnessPort({
   lists: { ...data.lists, htmlIcons: HTML_ICONS },
   strings,
   components: data.components,
+  svgs: data.svgs,
   sectionTag: data.sectionTag,
   states: data.states,
   prose: data.prose,

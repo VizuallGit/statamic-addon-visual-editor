@@ -1,13 +1,14 @@
 /**
  * HTML tags in an Antlers file — not Antlers tags, not the rendered page.
  *
- * Two Antlers tags are the exception, because both are places the page is
+ * Three Antlers tags are the exception, because each is a place the page is
  * assembled from. `{{ partial:… }}` is a piece of the page with a name, so it
  * earns a row — a component node, with the call's own offsets, sitting where
  * the call sits. It has no children here: what is inside it belongs to that
- * file, and is edited by opening it. `{{ template_content }}` and
- * `{{ yield:… }}` are the holes the renderer fills; without a row, the element
- * around them reads as empty.
+ * file, and is edited by opening it. `{{ svg … }}` is an element the server
+ * draws from a file: an `svg` row, the tag's own offsets, as a call has.
+ * `{{ template_content }}` and `{{ yield:… }}` are the holes the renderer
+ * fills; without a row, the element around them reads as empty.
  *
  * `{{ … }}` is blanked to spaces of the same length so offsets still match
  * the source, then a tag scanner walks the result. Closing tags never become
@@ -39,7 +40,7 @@ const VOID = new Set([
 
 // One scanner for the dock's readers of a template: a tag inside another's
 // parameter is part of the outer tag (lib/antlers-tags.js).
-import { maskAntlers } from './lib/antlers-tags.js';
+import { antlersTags, maskAntlers } from './lib/antlers-tags.js';
 
 export { maskAntlers };
 
@@ -429,6 +430,86 @@ function addComponents(roots, source) {
   return roots;
 }
 
+const SVG_SRC = /(?:^|\s)src\s*=\s*(["'])([^"']*)\1/;
+
+/**
+ * `{{ svg src="set-icons/hero" class="…" }}` and `{{ svg:hero }}`: Statamic's
+ * own tag, an element the server draws from a file. Added as component rows
+ * are — after the tags, so no tag's path moves. Its path's last step is `svg`,
+ * and the element the server draws for it is an `<svg>` in that place: the
+ * pick alignment (html-pick-align.js) stamps it, so a click on it is the row.
+ *
+ * Only a file named in the tag gets a row. `src="/icons/{{ icon }}"` and
+ * `:src="logo"` draw nothing when the field is empty, and the alignment
+ * matches by tag in order: a row for an `<svg>` that is not there stamps the
+ * next one with its path and leaves the tags after it unstamped.
+ *
+ * Skipped as well: a tag inside an HTML comment (its tags are the comment's,
+ * as a partial's are) and one inside an opening tag, where it is an
+ * attribute's.
+ */
+function addSvgs(roots, source) {
+  const masked = String(source || '').replace(/<!--[\s\S]*?(?:-->|$)/g, (chunk) => ' '.repeat(chunk.length));
+
+  for (const tag of antlersTags(masked)) {
+    if (!tag.closed || tag.comment || tag.closer || (tag.name !== 'svg' && !tag.name.startsWith('svg:')) || inOpeningTag(roots, tag.from)) {
+      continue;
+    }
+
+    const src = tag.name.startsWith('svg:') ? tag.name.slice(4) : SVG_SRC.exec(tag.body)?.[2].trim() || '';
+
+    if (!src || src.includes('{')) {
+      continue;
+    }
+
+    const host = deepestHost(roots, tag.from, tag.to);
+    const siblings = host ? host.children : roots;
+    const name = src.split('/').pop();
+
+    const node = {
+      id: `svg-${tag.from}`,
+      tag: 'svg',
+      kind: 'svg',
+      // The file the tag draws, and the tag's own name (`svg`, `svg:hero`) — the Tailwind pane finds the call by it.
+      src,
+      call: tag.name,
+      klass: name,
+      path: `${host ? `${host.path}/` : ''}i${tag.from}:svg`,
+      label: name,
+      from: tag.from,
+      to: tag.to,
+      openTo: tag.to,
+      hidden: !!host?.hidden,
+      children: [],
+    };
+
+    let at = siblings.findIndex((item) => item.from > tag.from);
+
+    if (at === -1) {
+      at = siblings.length;
+    }
+
+    siblings.splice(at, 0, node);
+  }
+
+  return roots;
+}
+
+/** Whether `at` is inside a tag's opening tag — among its attributes. */
+function inOpeningTag(nodes, at) {
+  for (const node of nodes || []) {
+    if (!node.kind && at > node.from && at < node.openTo) {
+      return true;
+    }
+
+    if (at > node.from && at < node.to && inOpeningTag(node.children, at)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Tags only. The CSS scope pane and the Tailwind class pane both walk this,
  * and both write into the tag a row stands for — so a partial call, which has
@@ -444,7 +525,7 @@ export function parseHtmlTree(html) {
 }
 
 /**
- * Tags, conditions, loops, components and slots — what the HTML tree shows.
+ * Tags, conditions, loops, components, SVGs and slots — what the HTML tree shows.
  * `options.sectionLoops` / `options.sectionsLabel`: see addAntlersBlocks.
  */
 export function parseTemplateTree(html, options = {}) {
@@ -452,7 +533,7 @@ export function parseTemplateTree(html, options = {}) {
 
   return markLocks(
     emptySectionSlots(
-      addSlots(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source)
+      addSlots(addSvgs(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source), source)
     ),
     source
   );
@@ -639,13 +720,13 @@ export function isVoidTag(tag) {
 
 /**
  * A row that stands for no tag in this file: a `{{ partial }}` call, whose
- * markup lives in another file, a slot, which is a hole the renderer fills,
- * and a template's sections loop. None has an opening tag to write a class
- * into or an inside to drop anything into, so every path that edits the file
- * has to step over them.
+ * markup lives in another file, an `{{ svg }}`, which the server draws from
+ * one, a slot, which is a hole the renderer fills, and a template's sections
+ * loop. None has an opening tag to write a class into or an inside to drop
+ * anything into, so every path that edits the file has to step over them.
  */
 export function isTaglessRow(row) {
   const kind = row?.kind;
 
-  return kind === 'component' || kind === 'slot' || kind === 'sections';
+  return kind === 'component' || kind === 'svg' || kind === 'slot' || kind === 'sections';
 }

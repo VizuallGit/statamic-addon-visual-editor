@@ -5,6 +5,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\PropFields;
+use MarioHamann\StatamicVisualEditor\SiteCss;
+use MarioHamann\StatamicVisualEditor\SiteCss\Root;
 use Statamic\Facades\User;
 
 /**
@@ -63,6 +65,54 @@ class ElementFieldsController
         $values = is_array($values) ? $values : [];
 
         return response()->json(['value' => PropFields::toParam($prop, $values[$prop['handle']] ?? null)]);
+    }
+
+    /** Larger than this, an icon is offered by its name alone: its markup stays out of the list. */
+    public const SVG_PREVIEW_BYTES = 262144;
+
+    /**
+     * The icons Visual Build offers for `{{ svg }}`: every SVG in the site's SVG
+     * folder (Root — the `svg_folder` setting), with the `src` Statamic's tag
+     * finds it by and its markup for the thumbnail. A file no `src` reaches is
+     * left out: picked, the tag would draw another file.
+     */
+    public function svgs()
+    {
+        abort_unless(User::current(), 403);
+        abort_unless(Features::allows('build_mode'), 403);
+
+        SiteCss::use('svg');
+
+        $listing = SiteCss::listing();
+        $icons = [];
+        $walk = function (array $items) use (&$walk, &$icons) {
+            foreach ($items as $item) {
+                if ($item['type'] === 'dir') {
+                    $walk($item['children']);
+
+                    continue;
+                }
+
+                $src = Root::svgSrc($item['path']);
+                $full = $src !== null ? Root::existingPath($item['path']) : null;
+
+                if (! $full) {
+                    continue;
+                }
+
+                $icons[] = [
+                    'path' => $item['path'],
+                    'name' => preg_replace('/\.svg$/i', '', $item['name']),
+                    'folder' => str_contains($item['path'], '/') ? dirname($item['path']) : '',
+                    'src' => $src,
+                    'svg' => filesize($full) <= self::SVG_PREVIEW_BYTES ? (string) file_get_contents($full) : '',
+                ];
+            }
+        };
+
+        $walk($listing['tree']);
+
+        return response()->json(['root' => $listing['root'], 'icons' => $icons]);
     }
 
     /**

@@ -379,6 +379,20 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-empty .bm-ic { width: 1.5rem; height: 1.5rem; }
 .sve-build .bm-soon { display: inline-block; font-style: normal; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bm-lock); border: 1px solid rgba(228, 178, 79, 0.45); border-radius: 999px; padding: 0 0.35rem; line-height: 1.5; vertical-align: middle; }
 .sve-build .bm-legend { margin: 0.75rem 0 0; font-size: 0.6875rem; color: var(--bm-faint); display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+/* SVG's popup (BuildSvgPopup.vue): the panel's look on the body, beside the panel — the frame Loop and If's popup wears. */
+.sve-build.bm-pop { position: fixed; z-index: 99999; width: 20rem; height: auto; max-height: min(30rem, calc(100vh - 1rem)); border: 1px solid var(--bm-edge); border-radius: 0.6rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4); overflow: hidden; }
+.sve-build .bm-pop-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0; padding: 0.4rem 0.4rem 0.4rem 0.75rem; border-bottom: 1px solid var(--bm-line); font-size: 0.625rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bm-muted); }
+.sve-build .bm-pop-body { min-height: 0; overflow: auto; padding: 0.625rem 0.75rem 0.75rem; }
+/* The site's SVGs (BuildSvgPicker.vue): each on a light ground, as currentColor draws black in an <img>. */
+.sve-build .bm-svgs { display: grid; gap: 0.625rem; }
+.sve-build .bm-svg-g h4 { margin: 0 0 0.375rem; font-size: 0.6875rem; font-weight: 600; color: var(--bm-muted); overflow-wrap: anywhere; }
+.sve-build .bm-svg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr)); gap: 0.375rem; }
+.sve-build .bm-svg { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; min-width: 0; padding: 0.3rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid transparent; font-size: 0.625rem; color: var(--bm-muted); }
+.sve-build .bm-svg > img, .sve-build .bm-svg > .bm-svg-big { display: grid; place-items: center; width: 100%; height: 2.75rem; padding: 0.4rem; border-radius: 0.25rem; background: #f4f4f5; color: #52525b; object-fit: contain; }
+.sve-build .bm-svg > .bm-svg-big svg { width: 1.25rem; height: 1.25rem; }
+.sve-build .bm-svg > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.sve-build .bm-svg:hover { border-color: var(--bm-accent); color: var(--bm-ink); }
+.sve-build .bm-svg.is-on { border-color: var(--bm-accent); background: var(--bm-accent-soft); color: var(--bm-accent-text); }
 .sve-build .bm-picker h3 { display: flex; align-items: center; justify-content: space-between; font-size: 0.875rem; }
 .sve-build .bm-picker p { margin: 0.25rem 0 0.75rem; font-size: 0.75rem; color: var(--bm-muted); }
 .sve-build .bm-pk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }

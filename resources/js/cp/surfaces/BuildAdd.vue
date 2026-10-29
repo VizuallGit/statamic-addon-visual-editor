@@ -22,7 +22,9 @@
  * (build-mode/new-section.js, through the port).
  *
  * Loop and If are handed to the port, which writes them and opens their
- * settings in a popup — clicked, not dragged. Components are the files in
+ * settings in a popup — clicked, not dragged. SVG opens the site's SVGs in a
+ * popup of the same kind (BuildSvgPopup.vue) and writes Statamic's
+ * `{{ svg }}` for the one picked (build-mode/svg.js). Components are the files in
  * partials/components as the dock's component menu lists them
  * (`/!/sve/components`); a tile writes the call that menu writes.
  *
@@ -31,8 +33,10 @@
  */
 import { computed, inject, ref, watch } from 'vue';
 import BuildGridPicker from './BuildGridPicker.vue';
+import BuildSvgPopup from './BuildSvgPopup.vue';
 import { addGroups } from '../../build-mode/catalog.js';
 import { tileLabel, tileMarkup, writeAt } from '../../build-mode/add.js';
+import { svgMarkup } from '../../build-mode/svg.js';
 import { ic, tileIcon } from '../../build-mode/icons.js';
 
 const props = defineProps({
@@ -50,6 +54,8 @@ const sub = computed(() => props.sub);
 const view = ref(window.localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid');
 const query = ref('');
 const picker = ref(false);
+/** The SVG tile's popup, open: the tile's box and the panel's, to stand beside. */
+const svgAt = ref(null);
 const components = ref(null);
 
 function setView(value) {
@@ -133,7 +139,10 @@ function add(entry, structure, rows) {
   }
 }
 
-/** A tile clicked. Loop and If are written, then their settings open beside the panel, level with the tile. */
+/**
+ * A tile clicked. Loop and If are written, then their settings open beside the
+ * panel, level with the tile; SVG's pictures open there first.
+ */
 function press(entry, event) {
   if (entry.logic) {
     port.logic(entry.logic, entry.def, event.currentTarget);
@@ -141,7 +150,26 @@ function press(entry, event) {
     return;
   }
 
+  if (entry.def?.svg) {
+    const tile = event.currentTarget;
+
+    svgAt.value = { row: tile.getBoundingClientRect(), column: (tile.closest('[data-sve-build-root]') || tile).getBoundingClientRect() };
+
+    return;
+  }
+
   add(entry);
+}
+
+/** A picture picked in SVG's popup: its `{{ svg }}`, where Add points. */
+function addSvg(src) {
+  svgAt.value = null;
+
+  const markup = svgMarkup(src);
+
+  if (markup) {
+    write(markup);
+  }
 }
 
 /** A tile with nowhere to land: beside a lock only Section, with nothing open only a section's tiles still go. */
@@ -151,8 +179,8 @@ function offFor(entry) {
   return target.value.nowhere ? !kind : !!target.value.locked && kind !== 'always';
 }
 
-/** Loop, If and Grid open something first, so they are clicked, not dragged. */
-const draggable = (entry) => !entry.logic && entry.source !== 'columns';
+/** Loop, If, Grid and SVG open something first, so they are clicked, not dragged. */
+const draggable = (entry) => !entry.logic && entry.source !== 'columns' && !entry.def?.svg;
 
 /**
  * A tile pressed: the canvas takes it over once the pointer moves. `markup` is
@@ -269,6 +297,8 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
         </button>
       </div>
     </div>
+
+    <BuildSvgPopup v-if="svgAt" :row="svgAt.row" :column="svgAt.column" @pick="addSvg" @close="svgAt = null" />
 
     <p v-if="nothing" class="bm-muted">{{ port.t('none_found', { q: query }) }}</p>
     <p v-if="withElements" class="bm-note">{{ port.t('logic_note') }}</p>

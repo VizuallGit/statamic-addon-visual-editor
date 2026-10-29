@@ -18,6 +18,9 @@
  * Control Panel that cannot lend the field — or a page without one — gets a
  * plain box for the address.
  *
+ * An `{{ svg }}` gets the site's SVGs as pictures (BuildSvgPicker.vue): the
+ * one picked swaps the file the tag draws (`port.setSvgAt`, build-mode/svg.js).
+ *
  * Everything is written by the element's path, not the pick's: what is still
  * on its way when another element is clicked lands where it was typed.
  *
@@ -26,6 +29,7 @@
  * section — nothing, as a layout has no text of its own.
  */
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
+import BuildSvgPicker from './BuildSvgPicker.vue';
 import { tagFamily } from '../../lib/tag-families.js';
 import { ic } from '../../build-mode/icons.js';
 import { ADDRESS, altFromAsset } from '../../build-mode/attrs.js';
@@ -37,6 +41,7 @@ const props = defineProps({
 const port = inject('sveBuild');
 const tag = computed(() => String(props.node.tag || '').toLowerCase());
 const path = props.node.path;
+const svg = props.node.kind === 'svg';
 const ANTLERS = /\{\{[\s\S]*?\}\}/;
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const fromField = (expr) => port.t('content_antlers', { tag: `<code>${esc(expr.replace(/\s+/g, ' '))}</code>` });
@@ -90,7 +95,7 @@ function typed(fromFile, write, { live = true } = {}) {
 
 /* ---------------- the text ---------------- */
 
-const read = computed(() => (port.rev.value, port.text()));
+const read = computed(() => (port.rev.value, svg ? null : port.text()));
 const text = typed(
   computed(() => (read.value?.kind === 'text' ? read.value.text : null)),
   (value) => port.setText(path, value)
@@ -112,7 +117,7 @@ const addressBox = typed(addressNow, writeAddress);
 
 /* ---------------- rich text: a block of prose, in Bard ---------------- */
 
-const rich = computed(() => (port.rev.value, address || read.value ? null : port.rich()));
+const rich = computed(() => (port.rev.value, svg || address || read.value ? null : port.rich()));
 const richNow = computed(() => rich.value?.html ?? null);
 
 /** Bard's HTML, with the apostrophes it escapes for a partial's parameter back as they are typed. */
@@ -145,7 +150,7 @@ watch(
   { flush: 'post' }
 );
 
-const nothing = computed(() => !read.value && !address && !rich.value);
+const nothing = computed(() => !svg && !read.value && !address && !rich.value);
 const layout = computed(() => tagFamily(tag.value) === 'layout');
 
 onBeforeUnmount(() => {
@@ -209,6 +214,12 @@ onBeforeUnmount(() => {
         ></textarea>
       </template>
       <div v-else ref="host" class="bm-field-host" data-sve-build-field></div>
+    </div>
+
+    <div v-if="svg" class="bm-text" data-sve-build-svg-content>
+      <span class="fg-lab">{{ port.t('content_svg') }}</span>
+      <p class="bm-note is-top" v-html="port.t('content_svg_now', { src: `<code>${esc(node.src)}</code>` })"></p>
+      <BuildSvgPicker :current="node.src" @pick="(src) => port.setSvgAt(path, src)" />
     </div>
 
     <div v-if="nothing" class="bm-empty" data-sve-build-content-soon>

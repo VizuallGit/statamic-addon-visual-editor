@@ -17,6 +17,7 @@ import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitU
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
 import { readText, withText } from '../../../resources/js/build-mode/text.js';
 import { readRich, sameRich, withRich } from '../../../resources/js/build-mode/rich.js';
+import { withSvgSrc } from '../../../resources/js/build-mode/svg.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
 import { HTML_ICONS } from '../../../resources/js/html-tree-icons.js';
 import { addAt, findByPath } from '../../../resources/js/build-mode/place.js';
@@ -102,7 +103,7 @@ export function propertyOf(name) {
  * The port
  * ------------------------------------------------------------------ */
 
-export function createHarnessPort({ html, lists, strings, components, sectionTag, states, prose, colors, onMenu }) {
+export function createHarnessPort({ html, lists, strings, components, svgs, sectionTag, states, prose, colors, onMenu }) {
   const file = ref(html);
   const selected = ref('');
   const plus = ref('');
@@ -200,6 +201,15 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
     sectionTag: () => sectionTag,
     mobileVariant: () => rows()[rows().length - 1]?.tw || 'max-md',
     components: () => Promise.resolve(components),
+    svgs: () => Promise.resolve(svgs || { root: 'resources/svg', icons: [] }),
+    setSvgAt(path, src) {
+      const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
+      const next = target ? withSvgSrc(file.value, target, src) : file.value;
+
+      if (next !== file.value) {
+        port.write(next, { select: path });
+      }
+    },
     logic(kind, def) {
       const out = addAt(file.value, plus.value || selected.value, String(def?.snippet || '').replace(/\n+$/, ''));
 

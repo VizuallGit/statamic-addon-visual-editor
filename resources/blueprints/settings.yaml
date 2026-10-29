@@ -474,6 +474,15 @@ tabs:
                 enabled: 'equals true'
                 site_css: 'equals true'
           -
+            handle: svg_folder
+            field:
+              type: text
+              display: 'SVG folder'
+              instructions: 'Where the site''s SVG icons are: the folder Site CSS lists and uploads SVGs to, and the icons Visual Build offers when an SVG is added. A folder under `resources/` or `public/` — `resources/svg/set-icons`, `public/assets/icons` — as Statamic''s own `{{ svg }}` tag looks there. Empty is `resources/svg`.'
+              placeholder: resources/svg
+              if:
+                enabled: 'equals true'
+          -
             handle: file_manager
             field:
               type: toggle

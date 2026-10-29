@@ -16,6 +16,7 @@
  *   colors      the site's colour tokens, from its <head>
  *   strings     resources/lang/{en,da}/build.php over messages.php, through PHP
  *   components  the site's resources/views/partials/components, as Component::all() lists them
+ *   svgs        the site's resources/svg, as Build's SVG picker lists them
  *   siteHead    the <head> CSS of a page of the site (SVE_SITE_PAGE), inlined
  *   sectionTag  the addon's default `templates.section_tag`
  *   tailwind    the site's theme as `/!/sve/tailwind-theme` answers it
@@ -72,6 +73,34 @@ function components() {
     .map((file) => file.replace(/\.antlers\.html$/, ''))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     .map((name) => ({ name, tag: `{{ partial:components/${name} }}` }));
+}
+
+/** The site's SVGs as `/!/sve/element-fields/svgs` lists them with the SVG folder at its default, resources/svg. */
+function svgs() {
+  const icons = [];
+  const walk = (dir, folder) => {
+    let entries = [];
+
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = folder ? `${folder}/${entry.name}` : entry.name;
+
+      if (entry.isDirectory()) {
+        walk(`${dir}/${entry.name}`, path);
+      } else if (/\.svg$/i.test(entry.name)) {
+        icons.push({ path, name: entry.name.replace(/\.svg$/i, ''), folder, src: path.replace(/\.svg$/i, ''), svg: readFileSync(`${dir}/${entry.name}`, 'utf8') });
+      }
+    }
+  };
+
+  walk(`${SITE}/resources/svg`, '');
+
+  return { root: 'resources/svg', icons };
 }
 
 /** The page's own <head> CSS: inline <style> blocks and same-origin stylesheets, inlined. */
@@ -144,6 +173,7 @@ function harnessData() {
         },
         strings: { en: lang('en'), da: lang('da') },
         components: components(),
+        svgs: svgs(),
         states: STATES,
         prose: PROSE_VARIANTS,
         colors,

@@ -2,6 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor\SiteCss;
 
+use MarioHamann\StatamicVisualEditor\Features;
+
 /**
  * Where the site's stylesheets live and which relative paths are accepted.
  * Moved verbatim out of SiteCss in WP7d.
@@ -70,6 +72,10 @@ final class Root
 
     public static function root(): string
     {
+        if (self::$kind === 'svg' && ($folder = static::svgFolder()) !== null) {
+            return base_path($folder);
+        }
+
         $configured = config(self::$kind === 'css'
             ? 'statamic-visual-editor.site_css.root'
             : 'statamic-visual-editor.site_css.'.self::$kind.'_root');
@@ -77,6 +83,63 @@ final class Root
         return is_string($configured) && $configured !== ''
             ? rtrim($configured, '/')
             : resource_path(self::$kind);
+    }
+
+    /**
+     * The SVG folder chosen on the settings screen (`svg_folder`), relative to
+     * the site, or null for the default. Only a folder under `resources/` or
+     * `public/`: those are where Statamic's `{{ svg }}` tag looks.
+     */
+    public static function svgFolder(): ?string
+    {
+        $folder = trim(str_replace('\\', '/', (string) Features::setting('svg_folder', '')), " \t/");
+
+        return preg_match('#^(resources|public)(/[A-Za-z0-9][A-Za-z0-9_\-]*)*$#', $folder) ? $folder : null;
+    }
+
+    /**
+     * What `{{ svg src="…" }}` says for a file in the SVG folder: its path from
+     * one of the folders Statamic's own tag looks in (Tags\Svg::index), without
+     * `.svg` — the first one whose answer the tag resolves to this very file, so
+     * an icon of the same name earlier in the tag's order never stands in for it.
+     * Null when no folder of the tag reaches it. tests/SvgFolderTest renders
+     * the tag, so a Statamic that looks elsewhere fails the suite.
+     */
+    public static function svgSrc(string $relative): ?string
+    {
+        $full = static::existingPath($relative);
+
+        if (! $full) {
+            return null;
+        }
+
+        $full = str_replace('\\', '/', $full);
+        $bases = array_values(array_filter(array_map(
+            fn ($base) => ($real = realpath($base)) ? str_replace('\\', '/', $real) : null,
+            [resource_path('svg'), resource_path(), public_path('svg'), public_path()]
+        )));
+
+        foreach ($bases as $base) {
+            if (! str_starts_with($full, $base.'/')) {
+                continue;
+            }
+
+            $src = preg_replace('/\.svg$/i', '', substr($full, strlen($base) + 1));
+            $found = null;
+
+            foreach ($bases as $look) {
+                if (is_file("{$look}/{$src}.svg")) {
+                    $found = str_replace('\\', '/', (string) realpath("{$look}/{$src}.svg"));
+                    break;
+                }
+            }
+
+            if ($found === $full) {
+                return $src;
+            }
+        }
+
+        return null;
     }
 
     public static function relativeRoot(): string

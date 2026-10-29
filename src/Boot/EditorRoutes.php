@@ -236,6 +236,9 @@ final class EditorRoutes
                 ->name('sve.element-fields');
             Route::post('/!/sve/element-fields', [ElementFieldsController::class, 'store'])
                 ->name('sve.element-fields.store');
+            // Visual Build's SVG picker: the icons in the site's SVG folder.
+            Route::get('/!/sve/element-fields/svgs', [ElementFieldsController::class, 'svgs'])
+                ->name('sve.element-fields.svgs');
 
             Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
                 ->name('sve.ai-chat');

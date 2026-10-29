@@ -19,7 +19,7 @@ const has = (classes, name) => String(classes || '').split(/\s+/).includes(name)
  * A tree row (parseTemplateTree) and its class attribute → what it is:
  * `section`, `container`, `columns`, `column`, `grid`, `flex`, `div`,
  * `heading`, `text`, `button`, `link`, `image`, `video`, `list`, `divider`,
- * `component`, `loop`, `if`, or `tag` (named by its tag).
+ * `component`, `svg`, `loop`, `if`, or `tag` (named by its tag).
  *
  * Columns are a grid whose children are all plain divs; a column is one of
  * them.
@@ -29,8 +29,8 @@ export function elementKind(node, classes = '', parent = null, parentClasses = '
     return '';
   }
 
-  if (node.kind === 'component') {
-    return 'component';
+  if (node.kind === 'component' || node.kind === 'svg') {
+    return node.kind;
   }
 
   if (node.kind === 'antlers') {

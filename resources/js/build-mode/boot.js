@@ -99,6 +99,7 @@ import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { readText, withText } from './text.js';
 import { readRich, sameRich, withRich } from './rich.js';
+import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
@@ -239,11 +240,15 @@ export function createEditorPort(win, hooks = {}) {
    * The dock tells it from its cursor only while its own style pane is in
    * Tailwind mode (dock/style-modes.js `syncTwTarget`); Build tells it from
    * the tree's pick, every time the pick moves — the same function, the same
-   * row shape (parseHtmlTree), so the pane and Build write on one tag.
+   * row shape (parseHtmlTree), so the pane and Build write on one tag. An
+   * `{{ svg }}` is no tag of the file's: its `class` parameter, as the dock's
+   * cursor on one hands it over (svg.js `svgClassRow`).
    */
   const follow = () => {
     const path = hooks.selectedPath?.() || '';
-    const row = path ? flattenHtmlTree(parseHtmlTree(html()), new Set()).find((item) => item.path === path) : null;
+    const row = path
+      ? flattenHtmlTree(parseHtmlTree(html()), new Set()).find((item) => item.path === path) || svgClassRow(picked())
+      : null;
 
     renderTwClasses(win, row || null);
     bump();
@@ -410,6 +415,25 @@ export function createEditorPort(win, hooks = {}) {
         })
         .then((res) => (res.ok ? res.json() : { items: [] }))
         .then((data) => (Array.isArray(data.items) ? data.items : []));
+    },
+    /** The site's SVGs — the folder set under Visual Editor → SVG folder: `{ root, icons: [{ src, name, folder, svg }] }`. */
+    svgs() {
+      return win
+        .fetch('/!/sve/element-fields/svgs', {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+        })
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`svgs ${res.status}`))))
+        .then((data) => ({ root: String(data.root || ''), icons: Array.isArray(data.icons) ? data.icons : [] }));
+    },
+    /** An `{{ svg }}`'s file, by its path (svg.js); the tag starts where it did, so the path stays. */
+    setSvgAt(path, src) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const next = node ? withSvgSrc(html(), node, src) : html();
+
+      if (next !== html()) {
+        port.write(next, { select: path });
+      }
     },
     logic(kind, def, at) {
       if (hooks.logic) {

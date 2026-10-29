@@ -3256,8 +3256,8 @@ function openHtmlTreeMenu(win, event, id) {
 
   // A slot is a hole, not a tag: nothing in the menu applies to it. Nor to a
   // sections loop: made a component, it would carry every page's sections
-  // off into another file.
-  if (row.kind === 'slot' || row.kind === 'sections' || row.locked || row.lockedIn) {
+  // off into another file. Nor to an `{{ svg }}`: it is a call, not markup.
+  if (row.kind === 'slot' || row.kind === 'sections' || row.kind === 'svg' || row.locked || row.lockedIn) {
     return;
   }
 
