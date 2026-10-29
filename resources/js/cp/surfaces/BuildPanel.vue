@@ -402,12 +402,15 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-cells .bm-bars { flex: 1; height: auto; min-height: 0; }
 
 /* Content: the element's text, in a box the colour of a field */
+.sve-build .bm-content { display: grid; gap: 0.875rem; }
 .sve-build .bm-text { display: grid; gap: 0.4rem; }
 .sve-build .bm-text .fg-lab { margin: 0; }
 .sve-build .bm-text textarea { display: block; width: 100%; min-height: 3.25rem; max-height: 20rem; padding: 0.45rem 0.55rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; outline: 0; color: var(--bm-ink); font: 450 0.8125rem/1.45 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; resize: vertical; field-sizing: content; }
 .sve-build .bm-text textarea:hover { border-color: var(--bm-edge); }
 .sve-build .bm-text textarea:focus { border-color: var(--bm-accent); }
 .sve-build .bm-text textarea::placeholder { color: var(--bm-faint); }
+/* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */
+.sve-build .bm-field-host .sve-pv__label { font-size: 0.6875rem; font-weight: 450; color: var(--bm-muted); }
 
 /* Style */
 .sve-build .bm-chip-tag { flex: none; font: 500 0.6875rem/1.3 var(--bm-mono); padding: 0.1rem 0.35rem; border-radius: 0.25rem; background: var(--bm-tag-bg); color: var(--bm-tag); }

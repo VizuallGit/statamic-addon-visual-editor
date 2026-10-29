@@ -3,7 +3,7 @@
  * heading, a paragraph, a link's words.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: lib/tag-families.js, html-tree-edit.js, html-tree-parse.js. Pure.
+ * May import: lib/tag-families.js, html-tree-edit.js, html-tree-parse.js, attrs.js. Pure.
  * Bus messages: none.
  *
  * Only an element whose body is plain text has text to edit here. A body with
@@ -21,14 +21,13 @@
 import { tagFamily } from '../lib/tag-families.js';
 import { closingTagIndex } from '../html-tree-edit.js';
 import { isVoidTag } from '../html-tree-parse.js';
+import { decodeEntities } from './attrs.js';
 
 /** Text-family tags that are form controls: their words are an attribute or options, not a body. */
 const NOT_TEXT = new Set(['input', 'select', 'textarea', 'option', 'optgroup']);
 
 /** Layout-family tags that hold words of their own. */
 const ALSO_TEXT = new Set(['li', 'dt', 'dd', 'td', 'th', 'summary', 'legend', 'caption', 'figcaption', 'address']);
-
-const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
 /** Whether an element of this tag holds text — a heading, a paragraph, a link, a list item. */
 export function holdsText(tag) {
@@ -45,18 +44,6 @@ function body(source, node) {
   const close = closingTagIndex(source, node);
 
   return close < node.openTo ? null : { from: node.openTo, to: close, text: source.slice(node.openTo, close) };
-}
-
-function decode(text) {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name) => {
-    if (name[0] === '#') {
-      const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-
-    return ENTITIES[name.toLowerCase()] ?? whole;
-  });
 }
 
 /**
@@ -88,7 +75,7 @@ export function readText(source, node) {
     return { kind: 'antlers', tag: antlers[0].replace(/\s+/g, ' ') };
   }
 
-  return { kind: 'text', text: decode(inner.text.trim().replace(/\s+/g, ' ')) };
+  return { kind: 'text', text: decodeEntities(inner.text.trim().replace(/\s+/g, ' ')) };
 }
 
 /** The file with the element's text replaced — only an element `readText` calls text. */

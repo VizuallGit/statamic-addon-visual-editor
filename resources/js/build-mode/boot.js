@@ -98,6 +98,7 @@ import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectio
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { readText, withText } from './text.js';
+import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
@@ -453,11 +454,12 @@ export function createEditorPort(win, hooks = {}) {
 
       return node ? readAttribute(html(), node, name) : null;
     },
-    setAttr(name, value) {
-      const node = picked();
+    /** An attribute of an element by its path (Content's src, alt, href) — as `setText`, where it was typed. */
+    setAttrAt(path, name, value) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
       if (node) {
-        port.write(withAttribute(html(), node, name, value), { select: node.path });
+        port.write(withAttribute(html(), node, name, value), { select: path });
       }
     },
     /** The picked element's text as Content shows it, or null when it holds none (text.js). */
@@ -479,6 +481,9 @@ export function createEditorPort(win, hooks = {}) {
         port.write(withText(html(), node, value), { select: path });
       }
     },
+    /** An image's, a video's or a link's address as the Control Panel's own field (element-fields.js) → unmount. */
+    addressFieldReady: (tag) => elementFieldReady(tag),
+    mountAddress: (el, options) => mountElementField(win, el, options),
     mountFields: hooks.mountFields || ((el) => unmounter(mountStatamicSurface(ComponentSidebar, el))),
     mountSettings: hooks.mountSettings || ((el) => unmounter(mountStatamicSurface(HtmlTreeInspector, el))),
 

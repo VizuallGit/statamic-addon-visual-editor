@@ -22,6 +22,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FontsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LayoutPatternsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\ElementFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
@@ -228,6 +229,13 @@ final class EditorRoutes
                 ->name('sve.prop-fields');
             Route::post('/!/sve/prop-fields', [PropFieldsController::class, 'store'])
                 ->name('sve.prop-fields.store');
+
+            // Visual Build's Content for an image, a video, a link: the
+            // element's address as the Control Panel's own field, and back.
+            Route::post('/!/sve/element-fields/form', [ElementFieldsController::class, 'show'])
+                ->name('sve.element-fields');
+            Route::post('/!/sve/element-fields', [ElementFieldsController::class, 'store'])
+                ->name('sve.element-fields.store');
 
             Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
                 ->name('sve.ai-chat');

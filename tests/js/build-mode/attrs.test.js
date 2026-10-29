@@ -29,6 +29,16 @@ test('an Antlers tag inside the element never counts as the attribute', () => {
   assert.equal(withAttribute(html, first(html), 'href', '/y'), '<a {{ visual_edit href="nope" }} href="/y">Go</a>');
 });
 
+test('a value reads as the characters it stands for, so a write and a read go round without growing', () => {
+  let html = '<img src="" alt="">';
+
+  html = withAttribute(html, first(html), 'alt', 'Holdet & "kontoret"');
+  assert.equal(html, '<img src="" alt="Holdet &amp; &quot;kontoret&quot;">');
+  assert.equal(readAttribute(html, first(html), 'alt'), 'Holdet & "kontoret"');
+  html = withAttribute(html, first(html), 'alt', readAttribute(html, first(html), 'alt'));
+  assert.equal(html, '<img src="" alt="Holdet &amp; &quot;kontoret&quot;">');
+});
+
 test('a quote in the value is escaped', () => {
   const html = '<a href="">Go</a>';
 

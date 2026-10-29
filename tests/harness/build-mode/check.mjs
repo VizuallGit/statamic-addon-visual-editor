@@ -29,6 +29,7 @@ const step = (name, ok, note = '') => {
 const H2 = '0:section/0:div/0:div/0:div/1:h2';
 const LINK = '0:section/0:div/0:div/0:div/3:a';
 const COLUMN = '0:section/0:div/0:div/0:div';
+const IMG = '0:section/0:div/0:div/1:div/0:img';
 const WRAPPER = '0:section/0:div';
 
 const browser = await puppeteer.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', defaultViewport: { width: 1500, height: 950 } });
@@ -220,11 +221,29 @@ try {
   await sleep(200);
   step('tag h3 renames the heading in the file', /<h3 class="text-800[^"]*">Vi bygger brands, der kan mærkes<\/h3>/.test(await html()));
 
-  // A link's href.
+  // A link's Content: its words and its address (a plain box here — the harness has no Control Panel to lend the page picker).
   await select(LINK);
   await sleep(200);
+  await click('[data-sve-build-tab="content"]');
+  await sleep(150);
+  step('a link\'s Content is its text and its address, and Style has no href of its own', (await page.evaluate(() => document.querySelector('[data-sve-build-text]')?.value)) === 'Se vores cases' && (await page.evaluate(() => !!document.querySelector('[data-sve-build-address="href"] [data-sve-build-href]'))));
   await typeInto('[data-sve-build-href]', '/cases');
   step('href writes the link\'s href', (await html()).includes('<a href="/cases" class="btn">'));
+
+  // An image's Content: its address and its alt text.
+  await select(IMG);
+  await sleep(200);
+  step('an image\'s Content is its address and its alt text, and no text box', await page.evaluate(() => !!document.querySelector('[data-sve-build-src]') && !!document.querySelector('[data-sve-build-alt]') && !document.querySelector('[data-sve-build-text]')));
+  await typeInto('[data-sve-build-src]', '/assets/team.webp');
+  await page.evaluate(() => { const box = document.querySelector('[data-sve-build-alt]'); box.focus(); box.select(); });
+  await page.keyboard.type('Holdet på kontoret');
+  await page.keyboard.press('Tab');
+  await sleep(150);
+  step('…both written into the img', (await html()).includes('<img src="/assets/team.webp" alt="Holdet på kontoret" class="w-full aspect-video rounded-lg">'));
+  await click('[data-sve-build-tab="style"]');
+  await sleep(150);
+  await select(LINK);
+  await sleep(150);
 
   // A field that still has focus when the pick moves writes nothing anywhere.
   const columnBefore = await classesOf(COLUMN);

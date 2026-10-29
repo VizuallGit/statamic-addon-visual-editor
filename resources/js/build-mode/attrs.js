@@ -7,10 +7,23 @@
  *
  * The same shape as tw-parse.js's class attribute: offsets read from a
  * masked copy, so a `{{ … }}` inside the tag never ends or starts an
- * attribute; the value written back is escaped for a double-quoted attribute.
+ * attribute; the value written back is escaped for a double-quoted attribute,
+ * and read back as the characters it stands for — `&amp;` is `&` in a box,
+ * or the next write would make it `&amp;amp;`.
  */
 
 import { maskAntlers } from '../html-tree-parse.js';
+
+/**
+ * The tags with an address of their own — Content's image, video and link:
+ * the attribute, and the Control Panel field it is picked with
+ * (element-fields.js).
+ */
+export const ADDRESS = {
+  img: { attr: 'src', fieldtype: 'assets' },
+  video: { attr: 'src', fieldtype: 'assets' },
+  a: { attr: 'href', fieldtype: 'link' },
+};
 
 function find(source, node, name) {
   const open = String(source || '').slice(node.from, node.openTo);
@@ -27,9 +40,26 @@ function find(source, node, name) {
   return to === -1 ? null : { from: node.from + from, to: node.from + to, value: open.slice(from, to) };
 }
 
-/** The attribute's value, or null when the tag has none. */
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+
+/** HTML entities as the characters they stand for — an attribute's or an element's text, as it reads on the page. */
+export function decodeEntities(text) {
+  return String(text ?? '').replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, name) => {
+    if (name[0] === '#') {
+      const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+    }
+
+    return ENTITIES[name.toLowerCase()] ?? whole;
+  });
+}
+
+/** The attribute's value as it reads, or null when the tag has none. */
 export function readAttribute(source, node, name) {
-  return node && !node.kind ? find(source, node, name)?.value ?? null : null;
+  const hit = node && !node.kind ? find(source, node, name) : null;
+
+  return hit ? decodeEntities(hit.value) : null;
 }
 
 /** The file with the attribute set — added after the tag name when the tag has none. */

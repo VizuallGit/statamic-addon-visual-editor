@@ -17,7 +17,7 @@
  * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
  * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
-import { computed, inject, ref, watch } from 'vue';
+import { computed, inject, ref } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
@@ -95,24 +95,6 @@ const sizeHint = computed(() => {
 const HEADINGS = ['h1', 'h2', 'h3', 'h4'];
 const TAGS = ['div', 'article', 'aside', 'nav', 'header', 'footer', 'figure', 'section'];
 const holdsTag = computed(() => ['div', 'tag', 'container', 'flex', 'grid', 'section'].includes(props.node.kind));
-const isLink = computed(() => props.node.kind === 'link' || props.node.kind === 'button');
-const href = ref('');
-let hrefTyped = false;
-const hrefNow = computed(() => (port.rev.value, isLink.value ? port.attr('href') ?? '' : ''));
-
-watch(hrefNow, (value) => {
-  if (!hrefTyped) {
-    href.value = value;
-  }
-}, { immediate: true });
-
-function commitHref() {
-  if (hrefTyped && href.value !== hrefNow.value) {
-    port.setAttr('href', href.value);
-  }
-
-  hrefTyped = false;
-}
 
 /* ---------------- Layout ---------------- */
 
@@ -377,7 +359,7 @@ const chips = computed(() =>
       </div>
     </div>
 
-    <section v-if="node.kind === 'heading' || isLink || holdsTag" class="fg-sec is-open">
+    <section v-if="node.kind === 'heading' || holdsTag" class="fg-sec is-open">
       <div class="fg-sec__b">
         <div v-if="node.kind === 'heading'" class="fg-row">
           <span class="fg-rlab">tag</span>
@@ -391,12 +373,6 @@ const chips = computed(() =>
             <select class="fg-select" aria-label="tag" :value="node.tag" @change="port.setTag($event.target.value)">
               <option v-for="tag in TAGS" :key="tag" :value="tag">{{ tag }}</option>
             </select>
-          </label>
-        </div>
-        <div v-if="isLink" class="fg-row">
-          <span class="fg-rlab">href</span>
-          <label class="fg-field">
-            <input v-model="href" class="bm-vin" type="text" aria-label="href" data-sve-build-href @input="hrefTyped = true" @keydown.enter.prevent="commitHref" @blur="commitHref" />
           </label>
         </div>
       </div>
