@@ -19,7 +19,7 @@ return [
     // Tabs
     'tab_add' => 'Add',
     'tab_style' => 'Style',
-    'tab_fields' => 'Fields',
+    'tab_content' => 'Content',
     'tab_settings' => 'Settings',
 
     // Add
@@ -61,7 +61,7 @@ return [
     'new_item' => 'List item',
 
     // Style
-    'style_empty' => 'Pick an element in the preview or the tree to style it.',
+    'content_soon' => 'Content for this element comes in the next step.',
     'size_all' => 'All',
     'size_hint' => 'Changes apply to :size. Same breakpoints as the Tailwind pane.',
     'size_hint_all' => 'all sizes',

@@ -73,14 +73,33 @@ const menuActive = () => page.evaluate(() => document.querySelector('[data-harne
 
 try {
   await page.goto(URL, { waitUntil: 'networkidle0' });
+  // The steps below drive Spacing's two fields (BuildBoxFields.vue); the box is the panel's default.
+  await page.evaluate(() => localStorage.setItem('sve-build-spacing-view', 'fields'));
+  await page.reload({ waitUntil: 'networkidle0' });
   await sleep(500);
   step('the page is the panel and the preview, nothing else', await page.evaluate(() => !document.querySelector('.hx-right, .hx-top') && !!document.querySelector('.sve-build') && !!document.querySelector('.hx-frame')));
   step('the panel draws Add with the dock\'s own tiles', await page.evaluate(() => ['section', 'container', 'grid', 'heading', 'loop', 'li'].every((id) => document.querySelector(`[data-sve-build-tile="${id}"]`))));
 
-  // Pick the heading: the panel turns to Style.
+  step('nothing picked: the panel is Add, with All | Elements | Components as its tabs', await page.evaluate(() => document.querySelector('[data-sve-build-root]').dataset.sveBuildSide === 'add' && ['all', 'el', 'comp'].every((id) => document.querySelector(`.bm-tabs [data-sve-build-sub="${id}"]`)) && !document.querySelector('[data-sve-build-tab]')));
+
+  // Pick the heading: the panel turns to the element, on Style (nothing chosen yet).
   await select(H2);
   await sleep(250);
-  step('picking an element opens Style with its name', await page.evaluate(() => /Heading/.test(document.querySelector('.fg-head b')?.textContent || '')));
+  step('picking an element opens it with its name, + / duplicate / delete, and Content | Style', await page.evaluate(() => /Heading/.test(document.querySelector('.fg-head b')?.textContent || '') && !!document.querySelector('[data-sve-build-add]') && !!document.querySelector('[data-sve-build-tab="content"]') && document.querySelector('[data-sve-build-tab="style"]')?.getAttribute('aria-selected') === 'true'));
+  await click('[data-sve-build-tab="content"]');
+  await sleep(150);
+  step('Content on a heading says its content comes next', await page.evaluate(() => !!document.querySelector('[data-sve-build-content-soon]') && !document.querySelector('.fg-style')));
+  await select(LINK);
+  await sleep(150);
+  step('…and the tab is kept: the next element opens on Content too', await page.evaluate(() => document.querySelector('[data-sve-build-tab="content"]')?.getAttribute('aria-selected') === 'true' && localStorage.getItem('sve-build-element-tab') === 'content'));
+  await click('[data-sve-build-tab="style"]');
+  await sleep(150);
+  await select(H2);
+  await sleep(150);
+  step('Escape lets go of the element: Add again', (await page.evaluate(() => window.__sveBuildHarness.escape())) && (await page.evaluate(() => document.querySelector('[data-sve-build-root]').dataset.sveBuildSide)) === 'add');
+  step('…and a second Escape is not the panel\'s', !(await page.evaluate(() => window.__sveBuildHarness.escape())));
+  await select(H2);
+  await sleep(150);
   step('sizes wear the top bar\'s device icons: All, Tablet, Mobile', await page.evaluate(() => ['all', 'tablet', 'mobile'].every((h) => document.querySelector(`[data-sve-build-size="${h}"] svg`))));
   await shot('1-style');
 
@@ -236,14 +255,15 @@ try {
   // Add: a heading into the picked column, at its end.
   await select(COLUMN);
   await sleep(150);
-  await click('[data-sve-build-tab="add"]');
+  await click('[data-sve-build-add]');
   await sleep(150);
   const target = await page.evaluate(() => document.querySelector('[data-sve-build-target] > span:nth-child(2)')?.textContent);
-  step('Add says where the element lands', /into/.test(target || ''), target);
+  step('the element\'s + opens Add, which says where the element lands', /into/.test(target || ''), target);
   await click('[data-sve-build-tile="heading"]');
   await sleep(200);
   step('Heading lands as the column\'s last child, indented', (await html()).includes('<a href="/cases" class="btn">Se vores cases</a>\n                <h2>New heading</h2>\n            </div>'));
   step('…and is picked', await page.evaluate(() => /h2$/.test(window.__sveBuildHarness.selectedPath())));
+  step('…and Add stays open: only a click opens an element', await page.evaluate(() => document.querySelector('[data-sve-build-root]').dataset.sveBuildSide === 'add'));
 
   // + on the wrapper → Grid ⅓ × 3.
   await page.evaluate((p) => window.__sveBuildHarness.setPlus(p), WRAPPER);
@@ -272,7 +292,7 @@ try {
     const isEl = all.map((t) => t.hasAttribute('data-sve-build-tile'));
 
     return {
-      sub: document.querySelector('[data-sve-build-sub][aria-pressed="true"]')?.dataset.sveBuildSub || '',
+      sub: document.querySelector('[data-sve-build-sub][aria-selected="true"]')?.dataset.sveBuildSub || '',
       els: isEl.filter(Boolean).length,
       comps: isEl.filter((el) => !el).length,
       elementsFirst: isEl.indexOf(false) > isEl.lastIndexOf(true),
@@ -303,17 +323,18 @@ try {
 
   // A + on the canvas: no menu at the +; Add opens and flashes, each time.
   const flash = () => page.evaluate(() => ({
-    tab: document.querySelector('[data-sve-build-tab][aria-selected="true"]')?.dataset.sveBuildTab || '',
+    side: document.querySelector('[data-sve-build-root]').dataset.sveBuildSide,
     on: !!document.querySelector('.bm-scroll.is-nudged'),
-    anim: getComputedStyle(document.querySelector('[data-sve-build-target]')).animationName,
+    // One outline round the whole of Add (v1.1.669), not the place and the tiles one by one.
+    anim: getComputedStyle(document.querySelector('.bm-scroll')).animationName,
     menu: !!document.querySelector('[data-sve-build-quick]'),
   }));
-  await click('[data-sve-build-tab="style"]');
+  await select(COLUMN);
   await sleep(150);
   await page.evaluate((p) => window.__sveBuildHarness.openPlus(p), WRAPPER);
   await sleep(100);
   let lit = await flash();
-  step('a + on the canvas opens Add and flashes its place and tiles, with no menu at the +', lit.tab === 'add' && lit.on && lit.anim === 'sve-bm-nudge' && !lit.menu, JSON.stringify(lit));
+  step('a + on the canvas opens Add and flashes its place and tiles, with no menu at the +', lit.side === 'add' && lit.on && lit.anim === 'sve-bm-nudge' && !lit.menu, JSON.stringify(lit));
   await sleep(1200);
   step('…once', !(await flash()).on);
   await page.evaluate((p) => window.__sveBuildHarness.openPlus(p), WRAPPER);
@@ -336,7 +357,7 @@ try {
   // Danish.
   await page.goto(`${URL}?lang=da`, { waitUntil: 'networkidle0' });
   await sleep(400);
-  step('the panel speaks Danish when the CP does', await page.evaluate(() => /Tilføj/i.test(document.querySelector('.bm-tabs').textContent)));
+  step('the panel speaks Danish when the CP does', await page.evaluate(() => /Alle.*Elementer.*Komponenter/i.test(document.querySelector('.bm-tabs').textContent)));
 } catch (e) {
   step('no exception', false, e.stack);
 } finally {

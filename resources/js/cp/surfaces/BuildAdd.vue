@@ -1,8 +1,9 @@
 <script setup>
 /**
- * Build's Add tab, as the approved sketch draws it: where the next element
- * lands, All | Elements | Components, a search beside the grid / list view,
- * the tiles in groups, and the Grid picker (BuildGridPicker.vue).
+ * Build's Add side, as the approved sketch draws it: where the next element
+ * lands, a search beside the grid / list view, the tiles in groups, and the
+ * Grid picker (BuildGridPicker.vue). All | Elements | Components are the
+ * panel's tabs above it (`sub`).
  *
  * The tiles are the dock's own (catalog.js `addGroups` over HTML_TOOLS,
  * HTML_DIVS and HTML_HEADINGS), wearing the toolbar's icons, and each writes
@@ -37,13 +38,15 @@ import { ic, tileIcon } from '../../build-mode/icons.js';
 const props = defineProps({
   here: { type: Object, required: true },
   nameOf: { type: Function, required: true },
+  /** All | Elements | Components — the tabs at the top of the panel (BuildPanel.vue). */
+  sub: { type: String, default: 'all' },
 });
 
 const VIEW_KEY = 'sve-build-add-view';
 const SEARCH = { all: 'search_all', el: 'search_elements', comp: 'search_components' };
 
 const port = inject('sveBuild');
-const sub = ref('all');
+const sub = computed(() => props.sub);
 const view = ref(window.localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid');
 const query = ref('');
 const picker = ref(false);
@@ -199,12 +202,6 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
         @click="port.setPlus('')"
         v-html="ic('x')"
       ></button>
-    </div>
-
-    <div class="bm-seg bm-sub">
-      <button type="button" data-sve-build-sub="all" :aria-pressed="sub === 'all'" @click="sub = 'all'">{{ port.t('all') }}</button>
-      <button type="button" data-sve-build-sub="el" :aria-pressed="sub === 'el'" @click="sub = 'el'">{{ port.t('elements') }}</button>
-      <button type="button" data-sve-build-sub="comp" :aria-pressed="sub === 'comp'" @click="sub = 'comp'">{{ port.t('components') }}</button>
     </div>
 
     <div class="bm-find">

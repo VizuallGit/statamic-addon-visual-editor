@@ -105,6 +105,7 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
   const selected = ref('');
   const plus = ref('');
   const pointed = ref(0);
+  const panel = ref('add');
   const size = ref(null);
   const state = ref('');
   const rev = ref(0);
@@ -159,6 +160,7 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
     select(path) {
       selected.value = path || '';
       plus.value = '';
+      panel.value = 'element';
       bump();
     },
     setPlus(path) {
@@ -169,6 +171,16 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
       }
 
       bump();
+    },
+    panel,
+    escape() {
+      if (panel.value !== 'element' || !selected.value) {
+        return false;
+      }
+
+      panel.value = 'add';
+
+      return true;
     },
     pointed,
     openPlus(path) {

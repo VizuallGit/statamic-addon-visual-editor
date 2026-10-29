@@ -1,7 +1,14 @@
 <script setup>
 /**
- * The left column in Build mode: Add, and Style for the picked element —
- * Fields when it is a component, Settings when it is a loop or a condition.
+ * The left column in Visual Build, two sides as Bricks has them: Add (All |
+ * Elements | Components and the tiles) when nothing is picked, and the picked
+ * element (Content | Style) once it is clicked on the canvas or in the HTML
+ * tree. Content is a component's fields, a loop's or condition's Settings.
+ *
+ * Which side shows is the port's (`port.panel`): a click on an element sets
+ * it, a + or Escape puts Add back — the canvas's Escape reads it too, so the
+ * first Escape lets go of the element and only the next one leaves the
+ * section. Adding something keeps Add open: only a click opens the element.
  *
  * Drawn in the Figma look (Figma and Paper's design panels), on the approved
  * sketch's content, in the editor's blue. Everything the panel knows and does goes
@@ -29,7 +36,6 @@ const props = defineProps({
 provide('sveBuild', props.port);
 
 const port = props.port;
-const tab = ref('add');
 const here = computed(() => {
   port.rev.value;
 
@@ -40,10 +46,61 @@ const picked = computed(() => {
 
   return port.plusPath() ? describeAt(port.html(), port.selectedPath()).node : here.value.node;
 });
-const second = computed(() => {
+
+/** Add, or the element — the element only while there is one to show. */
+const side = computed(() => (port.panel.value === 'element' && picked.value ? 'element' : 'add'));
+
+/** All | Elements | Components, at the top of Add. */
+const SUBS = [
+  ['all', 'all'],
+  ['el', 'elements'],
+  ['comp', 'components'],
+];
+const sub = ref('all');
+
+/** What the element's Content is: a component's fields, a loop's or condition's settings, or its own. */
+const content = computed(() => {
   const kind = picked.value?.kind;
 
-  return kind === 'component' ? 'fields' : kind === 'loop' || kind === 'if' ? 'settings' : 'style';
+  return kind === 'component' ? 'fields' : kind === 'loop' || kind === 'if' ? 'settings' : 'content';
+});
+/** A component, a loop and a condition have no classes of their own: Content is all they have. */
+const styled = computed(() => content.value === 'content');
+
+/* Content | Style: the last one chosen, kept in this browser. */
+const TAB_KEY = 'sve-build-element-tab';
+
+function readTab() {
+  try {
+    return window.localStorage.getItem(TAB_KEY) === 'content' ? 'content' : 'style';
+  } catch {
+    return 'style';
+  }
+}
+
+const chosen = ref(readTab());
+const tab = computed(() => (styled.value ? chosen.value : 'content'));
+
+function choose(value) {
+  chosen.value = value;
+
+  try {
+    window.localStorage.setItem(TAB_KEY, value);
+  } catch {
+    /* the choice lasts this visit */
+  }
+}
+
+/** The element's tabs: [value, icon, word]. A loop's or condition's one tab is its Settings. */
+const TABS = computed(() => {
+  if (styled.value) {
+    return [
+      ['content', 'form', 'tab_content'],
+      ['style', 'sliders', 'tab_style'],
+    ];
+  }
+
+  return content.value === 'fields' ? [['content', 'form', 'tab_content']] : [['content', 'sliders', 'tab_settings']];
 });
 
 /** A row's name in the panel: what it is, a column's number, a component's file. */
@@ -70,22 +127,12 @@ function nameOf(row) {
   return word === key ? row.tag : word;
 }
 
-/*
- * A + in the preview opens Add at its target; a pick opens Style.
- * In the editor the + sets its target first and the tree picks that row a
- * moment later — a pick of the + target itself is the same click, and stays
- * in Add. A row renamed where it stands (a loop made a collection in its
- * popup, h1 → h2) has a new path but is the same element: not a pick.
- */
+/* A + target set anywhere — the canvas's +, the tree's — is Add's. */
 watch(
-  () => [port.plusPath(), port.selectedPath(), picked.value?.from],
-  ([plus, sel, from], [plusBefore, selBefore, fromBefore] = []) => {
-    const renamed = from != null && from === fromBefore;
-
-    if (plus && plus !== plusBefore) {
-      tab.value = 'add';
-    } else if (sel && sel !== selBefore && sel !== plus && !port.justWrote?.(sel) && !renamed) {
-      tab.value = 'style';
+  () => port.plusPath(),
+  (plus, before) => {
+    if (plus && plus !== before) {
+      port.panel.value = 'add';
     }
   }
 );
@@ -100,7 +147,7 @@ const nudged = ref(false);
 watch(
   () => port.pointed?.value,
   async () => {
-    tab.value = 'add';
+    port.panel.value = 'add';
     nudged.value = false;
     await nextTick();
 
@@ -132,50 +179,75 @@ function remount() {
     return;
   }
 
-  // The second tab is whatever `second` says, however it was reached: a pick
-  // sets it to 'style', and a loop picked that way still gets its Settings.
-  const mount = tab.value === 'add' ? null : second.value === 'fields' ? port.mountFields : second.value === 'settings' ? port.mountSettings : null;
+  const mount = side.value !== 'element' || tab.value !== 'content' ? null : content.value === 'fields' ? port.mountFields : content.value === 'settings' ? port.mountSettings : null;
 
   unmountHost = mount ? mount(host.value, picked.value) || null : null;
 }
 
-watch([host, tab, () => picked.value?.path], remount);
+watch([host, side, tab, () => picked.value?.path], remount);
 onBeforeUnmount(() => unmountHost?.());
-
-const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 </script>
 
 <template>
-  <div class="sve-build" data-sve-build-root>
-    <div class="bm-tabs" role="tablist">
-      <button type="button" role="tab" :aria-selected="tab === 'add'" data-sve-build-tab="add" @click="tab = 'add'">
-        <span v-html="ic('plus')"></span>{{ port.t('tab_add') }}
-      </button>
-      <button type="button" role="tab" :aria-selected="tab !== 'add'" data-sve-build-tab="style" @click="tab = second">
-        <span v-html="ic(SECOND_ICON[second])"></span>{{ port.t(`tab_${second}`) }}
-      </button>
-    </div>
-
-    <div ref="scroller" class="bm-scroll" :class="{ 'is-nudged': nudged }" @animationend="nudgeEnd">
-      <BuildAdd v-if="tab === 'add'" :here="here" :name-of="nameOf" />
-
-      <div v-else-if="!picked" class="bm-empty">
-        <span v-html="ic('cursor')"></span>
-        <p>{{ port.t('style_empty') }}</p>
+  <div class="sve-build" data-sve-build-root :data-sve-build-side="side">
+    <template v-if="side === 'add'">
+      <div class="bm-tabs" role="tablist">
+        <button
+          v-for="[value, word] in SUBS"
+          :key="value"
+          type="button"
+          role="tab"
+          :aria-selected="sub === value"
+          :data-sve-build-sub="value"
+          @click="sub = value"
+        >{{ port.t(word) }}</button>
       </div>
 
-      <BuildStyle v-else-if="second === 'style'" :key="picked.path" :node="picked" :name="nameOf(picked)" />
+      <div ref="scroller" class="bm-scroll" :class="{ 'is-nudged': nudged }" @animationend="nudgeEnd">
+        <BuildAdd :here="here" :name-of="nameOf" :sub="sub" />
+      </div>
+    </template>
 
-      <template v-else>
-        <div class="bm-st-head">
-          <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
-          <b>{{ nameOf(picked) }}</b>
+    <template v-else>
+      <div class="fg-head bm-el-head">
+        <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
+        <b>{{ nameOf(picked) }}</b>
+        <span class="fg-head__acts">
+          <button type="button" class="fg-ib" :title="port.t('tab_add')" :aria-label="port.t('tab_add')" data-sve-build-add @click="port.panel.value = 'add'" v-html="ic('plus')"></button>
+          <template v-if="styled">
+            <button type="button" class="fg-ib" :title="port.t('duplicate')" :aria-label="port.t('duplicate')" @click="port.duplicate()" v-html="ic('copy')"></button>
+            <button type="button" class="fg-ib" :title="port.t('delete')" :aria-label="port.t('delete')" @click="port.remove()" v-html="ic('trash')"></button>
+          </template>
+        </span>
+      </div>
+
+      <div class="bm-tabs" role="tablist">
+        <button
+          v-for="[value, icon, word] in TABS"
+          :key="value"
+          type="button"
+          role="tab"
+          :aria-selected="tab === value"
+          :data-sve-build-tab="value"
+          @click="choose(value)"
+        ><span v-html="ic(icon)"></span>{{ port.t(word) }}</button>
+      </div>
+
+      <div ref="scroller" class="bm-scroll">
+        <BuildStyle v-if="tab === 'style'" :key="picked.path" :node="picked" />
+
+        <div v-else-if="!styled" class="bm-content">
+          <p v-if="content === 'fields'" class="bm-note is-top" v-html="port.t('fields_note', { path: `<code>partials/components/${picked.label}.antlers.html</code>` })"></p>
+          <p v-else class="bm-note is-top">{{ port.t('settings_note') }}</p>
+          <div ref="host" class="bm-host"></div>
         </div>
-        <p v-if="second === 'fields'" class="bm-note is-top" v-html="port.t('fields_note', { path: `<code>partials/components/${picked.label}.antlers.html</code>` })"></p>
-        <p v-else class="bm-note is-top">{{ port.t('settings_note') }}</p>
-        <div ref="host" class="bm-host"></div>
-      </template>
-    </div>
+
+        <div v-else class="bm-empty" data-sve-build-content-soon>
+          <span v-html="ic('form')"></span>
+          <p>{{ port.t('content_soon') }}</p>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -244,6 +316,8 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-tabs .bm-ic, .sve-build .bm-tabs svg { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
+/* The picked element's name and its +, duplicate and delete, above Content | Style, on the tabs' side gutter. */
+.sve-build .bm-el-head { flex: none; margin: 0.625rem 0.75rem 0; }
 .sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
 /* Style: the panel's own side gutter and none of the families' — their lines end where their fields do. */
 .sve-build .bm-scroll:has(> .fg-style) { padding: 0 0.75rem; }
@@ -259,14 +333,11 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-seg button[aria-pressed='true'] { background: var(--bm-panel); color: var(--bm-ink); box-shadow: inset 0 0 0 1px var(--bm-edge); }
 .sve-build .bm-seg button.inh { background: transparent; color: var(--bm-inh); box-shadow: inset 0 0 0 1px var(--bm-inh-line); font-style: italic; }
 .sve-build .bm-seg .bm-ic, .sve-build .bm-seg svg { width: 0.875rem; height: 0.875rem; }
-/* All | Elements | Components: each keeps its word; a column too narrow for all three scrolls them sideways. */
-.sve-build .bm-sub { margin: 0.65rem 0; overflow-x: auto; scrollbar-width: none; }
-.sve-build .bm-sub::-webkit-scrollbar { display: none; }
-.sve-build .bm-sub button { flex: 1 0 auto; font-size: 0.75rem; padding: 0.4rem 0.6rem; }
 .sve-build .bm-search { display: flex; align-items: center; gap: 0.45rem; padding: 0 0.55rem; height: 1.875rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; color: var(--bm-muted); }
 .sve-build .bm-search:focus-within { border-color: var(--bm-accent); }
 .sve-build .bm-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--bm-ink); }
 .sve-build .bm-find { display: flex; align-items: center; gap: 0.375rem; }
+.sve-build .bm-target + .bm-find { margin-top: 0.65rem; }
 .sve-build .bm-find .bm-search { flex: 1; min-width: 0; }
 .sve-build .bm-view { flex: none; }
 .sve-build .bm-view button { padding: 0.32rem 0.4rem; }
@@ -332,10 +403,6 @@ const SECOND_ICON = { style: 'sliders', fields: 'form', settings: 'sliders' };
 .sve-build .bm-cells .bm-bars { flex: 1; height: auto; min-height: 0; }
 
 /* Style */
-.sve-build .bm-st-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
-.sve-build .bm-st-head b { font-size: 0.875rem; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sve-build .bm-st-acts { display: flex; gap: 0.125rem; }
-.sve-build .bm-st-acts .bm-ic { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-chip-tag { flex: none; font: 500 0.6875rem/1.3 var(--bm-mono); padding: 0.1rem 0.35rem; border-radius: 0.25rem; background: var(--bm-tag-bg); color: var(--bm-tag); }
 .sve-build .bm-chip-tag.bm-chip-comp { background: var(--bm-comp-bg); color: var(--bm-comp); }
 .sve-build .bm-st-sel { display: flex; gap: 0.35rem; flex-wrap: wrap; padding: 0.35rem; margin-bottom: 0.6rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-line); }

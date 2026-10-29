@@ -12,7 +12,7 @@ return [
 
     'tab_add' => 'Tilføj',
     'tab_style' => 'Stil',
-    'tab_fields' => 'Felter',
+    'tab_content' => 'Indhold',
     'tab_settings' => 'Indstillinger',
 
     'all' => 'Alle',
@@ -51,7 +51,7 @@ return [
     'new_link' => 'Link',
     'new_item' => 'Punkt',
 
-    'style_empty' => 'Vælg et element i previewet eller træet for at style det.',
+    'content_soon' => 'Indhold til dette element kommer i næste trin.',
     'size_all' => 'Alle',
     'size_hint' => 'Ændringer gælder for :size. Samme breakpoints som Tailwind-ruden.',
     'size_hint_all' => 'alle størrelser',

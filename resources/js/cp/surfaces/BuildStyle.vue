@@ -1,6 +1,7 @@
 <script setup>
 /**
- * Build's Style tab in the Figma look: sections with a plain bold title, a
+ * Build's Style tab in the Figma look (the element's name, duplicate and
+ * delete are the panel's, above its tabs): sections with a plain bold title, a
  * `+` on the ones nothing is set in yet, small labels over the fields, two
  * fields to a row with their prefix inside (W, H, a gap or padding icon),
  * Flow as icons and Figma's nine-cell alignment box.
@@ -30,7 +31,6 @@ import { groupIcon, ic } from '../../build-mode/icons.js';
 
 const props = defineProps({
   node: { type: Object, required: true },
-  name: { type: String, default: '' },
 });
 
 const port = inject('sveBuild');
@@ -334,15 +334,6 @@ const chips = computed(() =>
 <template>
   <div ref="root" class="fg-style">
     <div class="fg-top">
-      <div class="fg-head">
-        <span class="bm-chip-tag">{{ node.tag }}</span>
-        <b>{{ name }}</b>
-        <span class="fg-head__acts">
-          <button type="button" class="fg-ib" :title="port.t('duplicate')" :aria-label="port.t('duplicate')" @click="port.duplicate()" v-html="ic('copy')"></button>
-          <button type="button" class="fg-ib" :title="port.t('delete')" :aria-label="port.t('delete')" @click="port.remove()" v-html="ic('trash')"></button>
-        </span>
-      </div>
-
       <div class="fg-seg fg-target">
         <button type="button" aria-pressed="true"><span v-html="ic('cursor')"></span>{{ port.t('this_element') }}</button>
         <button type="button" disabled><span v-html="ic('plus')"></span>{{ port.t('own_class') }} <i class="bm-soon">{{ port.t('later') }}</i></button>

@@ -384,7 +384,7 @@ export function startCanvas(win) {
     page.addEventListener('scroll', ui.draw, true);
     page.addEventListener('scroll', bar.place, true);
     page.addEventListener('scroll', focus.place, true);
-    page.addEventListener('keydown', focus.key, true);
+    page.addEventListener('keydown', onKey, true);
     frame.contentWindow.addEventListener('resize', ui.draw);
     frame.contentWindow.addEventListener('resize', bar.place);
     frame.contentWindow.addEventListener('resize', focus.place);
@@ -1063,6 +1063,18 @@ export function startCanvas(win) {
     const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
 
     setHover(target?.closest(`[${CANVAS_PATH}]`) || null);
+  }
+
+  /** Escape: Visual Build's panel lets go of the picked element first (`port.escape`), then the bridge's way out. */
+  function onKey(event) {
+    if (event.key === 'Escape' && port?.escape?.()) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      return;
+    }
+
+    focus.key(event);
   }
 
   function onClick(event) {

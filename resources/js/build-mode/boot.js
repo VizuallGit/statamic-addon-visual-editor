@@ -44,6 +44,10 @@
  * (`addSection`, `dropSection` — new-section.js). `openPlus(path)`
  * is a + pressed on the canvas: Add's target, shown in the panel — Add opens
  * and flashes (`pointed` counts the presses; BuildPanel.vue).
+ * `panel` is the side the panel shows, 'add' or 'element': a click on an
+ * element — on the canvas (`select`) or on a row of the HTML tree — opens the
+ * element, and `escape()` puts Add back (true when it did, and the key is
+ * spent). The canvas asks it before its own Escape leaves the section.
  *   setSize?(handle)          the pane's own size door; default `lp:set-device`
  *   openStateMenu?(anchor)    the Tailwind pane's state menu (State | Prose) —
  *                             tw-classes.js `openStateMenu`, exported for this
@@ -195,6 +199,7 @@ export function createEditorPort(win, hooks = {}) {
   const rev = ref(0);
   const plus = ref('');
   const pointed = ref(0);
+  const panel = ref('add');
   let wrote = '';
   let model = null;
   let modelWanted = false;
@@ -246,6 +251,27 @@ export function createEditorPort(win, hooks = {}) {
     on('tw:changed', bump),
     on('lp:device', bump),
     hooks.onSelect?.(follow),
+    listen(win.document, 'click', (event) => {
+      // A row of the HTML tree clicked: the element, as a click on the canvas.
+      // Its buttons (eye, lock, delete) stop their own click on the way.
+      if (event.target?.closest?.('[data-sve-ht-row]')) {
+        panel.value = 'element';
+      }
+    }),
+    listen(win.document, 'keydown', (event) => {
+      // Escape where the pick lives — the tree, the panel, nothing focused —
+      // and not in a field being typed in or in a menu that took it first.
+      const el = event.target;
+
+      if (event.key !== 'Escape' || event.defaultPrevented || el?.closest?.('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+
+      if ((el === win.document.body || el?.closest?.('[data-sve-ht-row], [data-sve-build-root]')) && port.escape()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }),
   ].filter(Boolean);
 
   const html = () => {
@@ -297,6 +323,7 @@ export function createEditorPort(win, hooks = {}) {
     select(path) {
       clearPlus();
       hooks.select?.(path || '');
+      panel.value = 'element';
       bump();
     },
     setPlus(path) {
@@ -331,6 +358,17 @@ export function createEditorPort(win, hooks = {}) {
     },
     justWrote: (path) => path === wrote,
     drag: (event, item) => !!canvas?.dragNew(event, item),
+    /** Which side of the panel shows; Escape lets go of the element when it is the one shown. */
+    panel,
+    escape() {
+      if (panel.value !== 'element' || !picked()) {
+        return false;
+      }
+
+      panel.value = 'add';
+
+      return true;
+    },
     /** A + on the canvas: Add takes its place, and the panel shows it took it. */
     pointed,
     openPlus(path) {
@@ -507,6 +545,13 @@ export function createEditorPort(win, hooks = {}) {
   }
 
   return port;
+}
+
+/** A listener as the port's unhook for it. */
+function listen(target, type, fn) {
+  target.addEventListener(type, fn);
+
+  return () => target.removeEventListener(type, fn);
 }
 
 /** A mounted app as the port's unmount function. */
