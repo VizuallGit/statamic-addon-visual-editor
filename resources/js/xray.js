@@ -15,15 +15,24 @@
  * kernel file knows it exists. Turned off, every node and listener it added is
  * gone again.
  *
+ * The page on screen is the one drawn on: the real preview in Content, Build's
+ * canvas in Visual and HTML Build (build-mode/canvas.js stands it over the
+ * preview, which keeps rendering underneath, hidden). The canvas is sandboxed
+ * without scripts, and such a page shows no <canvas>: there the drawing is
+ * laid over the frame in the Control Panel, where the bar lives
+ * (cp/preview-bar.js `placeOver`), at the frame's zoom. The canvas says when it
+ * comes and goes (`BUILD_CANVAS_SHOWN_EVENT`), and the drawing moves with it.
+ *
  * May import: lib/*, cp/xray/*, lp-panel.js (the toolbar's painter).
  */
 import { t } from './lib/i18n.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from './lib/build-canvas-ids.js';
 import { paintLpActiveControl } from './lp-panel.js';
 import { XRAY_LAYERS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from './cp/xray/prefs.js';
-import { followFrame, mountBar, placeBar as placeBarOver } from './cp/preview-bar.js';
+import { followFrame, mountBar, placeBar as placeBarOver, placeOver } from './cp/preview-bar.js';
 import {
   isEditorNode,
   measureBoxModel,
@@ -52,7 +61,8 @@ const OWN_IDS = new Set([CANVAS_ID, PROBE_ID, '__sve-design-overlay']);
 const isOwn = (node) => !!node && OWN_IDS.has(node.id);
 
 function isOwnRecord(record) {
-  if (isOwn(record.target)) {
+  // Build canvas's own layer — its + buttons and drop line — is not the page either.
+  if (isOwn(record.target) || record.target?.closest?.('#__sve-build-ui')) {
     return true;
   }
 
@@ -95,6 +105,8 @@ const live = {
   /** The element under the mouse in the preview, and the section it is in. */
   hoverEl: null,
   hoverSection: null,
+  /** The listener for Build's canvas coming and going, while X-ray is on. */
+  canvasWatch: null,
 };
 
 // --- The switch ------------------------------------------------------------
@@ -113,6 +125,8 @@ export function setXray(win, on) {
   if (on) {
     syncXrayToPreview(win);
   } else {
+    live.canvasWatch?.off();
+    live.canvasWatch = null;
     teardown();
   }
 
@@ -142,8 +156,9 @@ export function syncXrayToPreview(win) {
   }
 
   live.win = win;
+  watchCanvas(win);
 
-  const frame = previewFrame(win);
+  const frame = shownFrame(win);
   let doc = null;
 
   try {
@@ -164,6 +179,38 @@ export function syncXrayToPreview(win) {
 
   ensureBar(win);
   placeBar();
+}
+
+/** Build's canvas where it stands over the preview and has its styles; else the preview. */
+function shownFrame(win) {
+  const canvas = win.document.getElementById(BUILD_CANVAS_ID);
+
+  return canvas && !canvas.hasAttribute(BUILD_CANVAS_UNSTYLED_ATTR) ? canvas : previewFrame(win);
+}
+
+/** The canvas came to show or went (build-mode/canvas.js): draw on the page on screen now. */
+function watchCanvas(win) {
+  if (live.canvasWatch?.win === win) {
+    return;
+  }
+
+  live.canvasWatch?.off();
+
+  const follow = () => syncXrayToPreview(win);
+
+  win.addEventListener(BUILD_CANVAS_SHOWN_EVENT, follow);
+  live.canvasWatch = { win, off: () => win.removeEventListener(BUILD_CANVAS_SHOWN_EVENT, follow) };
+}
+
+/** The frame drawn on is gone (the canvas left, Live Preview closed): drop the drawing, then find the page on screen. */
+function frameGone() {
+  const win = live.win;
+
+  teardown();
+
+  if (win) {
+    win.setTimeout(() => syncXrayToPreview(win), 0);
+  }
 }
 
 // --- Into the preview and out again ----------------------------------------
@@ -248,7 +295,7 @@ function attach(win, frame, doc) {
   // when a dock opens or the breakpoint changes the frame's width.
   live.frameResize = new win.ResizeObserver(() => {
     if (!live.frame?.isConnected) {
-      teardown();
+      frameGone();
 
       return;
     }
@@ -274,12 +321,17 @@ function attach(win, frame, doc) {
   schedule(true);
 }
 
+/** Drawn over the frame from the Control Panel rather than in it: Build's canvas. */
+const over = () => live.frame?.id === BUILD_CANVAS_ID;
+
 function ensureCanvas() {
   const doc = live.doc;
-  let canvas = doc.getElementById(CANVAS_ID);
+  // Over Build's canvas the drawing is the Control Panel's: placeOver puts it in place each draw.
+  const home = over() ? live.frame.ownerDocument : doc;
+  let canvas = home.getElementById(CANVAS_ID);
 
   if (!canvas) {
-    canvas = doc.createElement('canvas');
+    canvas = home.createElement('canvas');
     canvas.id = CANVAS_ID;
     canvas.setAttribute('aria-hidden', 'true');
     // Over everything the site can stack, under nothing that takes a click:
@@ -290,7 +342,11 @@ function ensureCanvas() {
   }
 
   // A morph may rebuild <body>; the canvas goes back where it was.
-  if (canvas.parentNode !== doc.body) {
+  if (over()) {
+    canvas.style.position = 'absolute';
+    canvas.style.zIndex = '2';
+    placeOver(canvas, live.frame, 0, 0);
+  } else if (canvas.parentNode !== doc.body) {
     doc.body.appendChild(canvas);
   }
 
@@ -338,9 +394,9 @@ function schedule(rescan) {
   }
 }
 
-/** The section being edited: the one the editor marked active, else the one under the mouse. */
+/** The section being edited: the one the editor marked active (Build's canvas: the one it paints), else the one under the mouse. */
 function activeSection() {
-  const active = live.doc?.querySelector('[data-sid-active]');
+  const active = live.doc?.querySelector('[data-sid-active]') || live.doc?.querySelector('[data-sve-build-root]');
 
   return active ? outermostSid(active) : null;
 }
@@ -361,7 +417,7 @@ function tick() {
   live.raf = 0;
 
   if (!live.doc || !live.frame?.isConnected) {
-    teardown();
+    frameGone();
 
     return;
   }
@@ -402,6 +458,10 @@ function draw(prefs) {
     canvas.height = Math.round(h * dpr);
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
+  }
+
+  if (over()) {
+    placeOver(canvas, live.frame, w, h);
   }
 
   // Only what is on screen is measured: on a long page in "whole page" most
@@ -620,5 +680,10 @@ function paintBar(win) {
 function placeBar() {
   if (live.bar && live.frame) {
     placeBarOver(live.bar, live.frame, 'bottom');
+  }
+
+  // The drawing over Build's canvas moves with the frame as the bar does.
+  if (over()) {
+    schedule(false);
   }
 }

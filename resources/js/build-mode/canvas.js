@@ -57,8 +57,9 @@
  *
  * Not in the prototype:
  *   - Instant-JS is unchanged and still paints the real preview underneath.
- *   - `previewFrame` still names the real preview, so the class strip and
- *     X-ray do not show in Build.
+ *   - `previewFrame` still names the real preview, so the class strip does
+ *     not show in Build. X-ray reads the canvas itself (`BUILD_CANVAS_ID`,
+ *     and `BUILD_CANVAS_SHOWN_EVENT` when it comes to show or goes — xray.js).
  *   - Header and footer are a copy; Alpine and the site's JS do not run (what
  *     they show in the real preview does — see What runs).
  *   - An island whose own Antlers change (a loop's parameters) waits, empty,
@@ -75,6 +76,7 @@ import { dataGet, findPathByUid } from '../lib/values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
+import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
 import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
@@ -90,11 +92,13 @@ const morph = (() => {
   return holder.morph;
 })();
 
-const FRAME_ID = '__sve-build-canvas';
+const FRAME_ID = BUILD_CANVAS_ID;
 /** On the real preview's iframe while the canvas stands over it. */
 const HIDDEN_ATTR = 'data-sve-build-hidden';
 /** On the canvas until its stylesheets have loaded: until then the real preview is what shows. */
-const UNSTYLED_ATTR = 'data-sve-build-unstyled';
+const UNSTYLED_ATTR = BUILD_CANVAS_UNSTYLED_ATTR;
+/** The canvas came to show, or went: X-ray follows the page on screen (xray.js). */
+const shownChanged = (win) => win.dispatchEvent(new Event(BUILD_CANVAS_SHOWN_EVENT));
 const HOST_CSS_ID = '__sve-build-canvas-host';
 const OWN_CSS_ID = '__sve-build-canvas-css';
 const TW_ID = '__sve-build-canvas-tw';
@@ -403,6 +407,7 @@ export function startCanvas(win) {
       frame.contentWindow.scrollTo({ top: realWin?.scrollY || 0, behavior: 'instant' });
       frame.removeAttribute(UNSTYLED_ATTR);
       real.setAttribute(HIDDEN_ATTR, '');
+      shownChanged(win);
     });
   }
 
@@ -417,8 +422,15 @@ export function startCanvas(win) {
       real.removeAttribute(HIDDEN_ATTR);
     }
 
+    const shown = !!frame;
+
     frame?.remove();
     frame = null;
+
+    if (shown) {
+      shownChanged(win);
+    }
+
     twSheet = null;
     real = null;
     hovered = null;

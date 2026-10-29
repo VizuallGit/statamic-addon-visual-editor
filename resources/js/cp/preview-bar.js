@@ -14,7 +14,9 @@
  * Placed over the part of the frame that is on screen, clipped to the pane's
  * content box (the docks sit on its padding), and placed again whenever the
  * frame moves — see followFrame. Hidden while the breakpoint overview is open:
- * its frames are copies, the tools draw on the preview itself.
+ * its frames are copies, the tools draw on the preview itself. A drawing that
+ * cannot go inside the frame (X-ray on Build's canvas) is laid over it here
+ * too, under the bar — see placeOver.
  *
  * May import: lib/ids.js.
  */
@@ -58,15 +60,7 @@ export function placeBar(bar, frame, edge = 'bottom', gap = 12) {
     return;
   }
 
-  const fr = frame.getBoundingClientRect();
-  const contents = frame.closest('.live-preview-contents');
-  const pane = contents.getBoundingClientRect();
-  const cs = contents.ownerDocument.defaultView.getComputedStyle(contents);
-  const inset = (side) => (parseFloat(cs[`border${side}Width`]) || 0) + (parseFloat(cs[`padding${side}`]) || 0);
-  const left = Math.max(fr.left, pane.left + inset('Left'));
-  const right = Math.min(fr.right, pane.right - inset('Right'));
-  const top = Math.max(fr.top, pane.top + inset('Top'));
-  const bottom = Math.min(fr.bottom, pane.bottom - inset('Bottom'));
+  const { left, right, top, bottom } = visibleBox(frame);
 
   if (right - left < 1 || bottom - top < 1) {
     bar.hidden = true;
@@ -85,6 +79,66 @@ export function placeBar(bar, frame, edge = 'bottom', gap = 12) {
 
   bar.style.left = `${Math.round(x)}px`;
   bar.style.top = `${Math.round(y)}px`;
+}
+
+/** The part of the frame that is on screen: the frame's box, clipped to the pane's content box (the docks sit on its padding). */
+function visibleBox(frame) {
+  const fr = frame.getBoundingClientRect();
+  const contents = frame.closest('.live-preview-contents');
+  const pane = contents.getBoundingClientRect();
+  const cs = contents.ownerDocument.defaultView.getComputedStyle(contents);
+  const inset = (side) => (parseFloat(cs[`border${side}Width`]) || 0) + (parseFloat(cs[`padding${side}`]) || 0);
+
+  return {
+    fr,
+    left: Math.max(fr.left, pane.left + inset('Left')),
+    right: Math.min(fr.right, pane.right - inset('Right')),
+    top: Math.max(fr.top, pane.top + inset('Top')),
+    bottom: Math.min(fr.bottom, pane.bottom - inset('Bottom')),
+  };
+}
+
+/**
+ * Lay `layer` over the frame's page, where the bar's layer lives: its corner on
+ * the frame's, `width` × `height` page pixels at the frame's zoom, clipped to
+ * the part on screen. For a drawing that cannot go inside the frame — Build's
+ * canvas is sandboxed without scripts, and such a page shows no <canvas>.
+ * Hidden where the bar would be.
+ */
+export function placeOver(layer, frame, width, height) {
+  const host = barHost(frame);
+
+  if (!layer || !host || !frame.isConnected || frame.ownerDocument.getElementById(BP_OVERVIEW_ID)) {
+    if (layer) {
+      layer.hidden = true;
+    }
+
+    return;
+  }
+
+  if (layer.parentNode !== host) {
+    host.prepend(layer);
+  }
+
+  const { fr, left, right, top, bottom } = visibleBox(frame);
+  const scale = frame.offsetWidth ? fr.width / frame.offsetWidth : 1;
+  const w = width * scale;
+  const h = height * scale;
+
+  layer.hidden = right - left < 1 || bottom - top < 1;
+
+  if (layer.hidden) {
+    return;
+  }
+
+  const box = layer.offsetParent || host;
+  const at = box.getBoundingClientRect();
+
+  layer.style.left = `${Math.round(fr.left - at.left - box.clientLeft + box.scrollLeft)}px`;
+  layer.style.top = `${Math.round(fr.top - at.top - box.clientTop + box.scrollTop)}px`;
+  layer.style.width = `${w}px`;
+  layer.style.height = `${h}px`;
+  layer.style.clipPath = `inset(${Math.max(0, top - fr.top)}px ${Math.max(0, fr.left + w - right)}px ${Math.max(0, fr.top + h - bottom)}px ${Math.max(0, left - fr.left)}px)`;
 }
 
 /**
