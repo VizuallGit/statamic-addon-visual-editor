@@ -227,6 +227,8 @@ export function describeAt(source, path, options = {}) {
       tag: node.tag,
       label: node.label || '',
       src: node.src || '',
+      // An `{{ svg }}` whose file is a field's: its file is not Build's to swap.
+      dynamic: !!node.dynamic,
       kind: kindAt(html, roots, node),
       index: siblingIndex(roots, parent, node),
       classes: classesOf(html, node),

@@ -54,16 +54,40 @@ test('the tags keep their paths', () => {
   assert.deepEqual(tags(FILE), tags(without));
 });
 
-test('a file read from a field gets no row: it may draw nothing', () => {
-  const html = [
-    '<div>',
-    '    {{ svg src="/icons/{{ icon }}" class="h-600" }}<span>{{ headline }}</span>',
-    '    {{ svg :src="logo" class="w-auto" }}',
-    '    {{ svg src="socialmedia/{type}" }}',
-    '</div>',
-  ].join('\n');
+const FIELDS = [
+  '<div>',
+  '    {{ svg src="/icons/{{ icon }}" class="h-600" }}<span>{{ headline }}</span>',
+  '    {{ svg :src="logo" class="w-auto" }}',
+  '    {{ svg src="socialmedia/{type}" }}',
+  '    {{ svg src="arrow-bg" }}',
+  '    {{ svg class="x" }}',
+  '</div>',
+].join('\n');
 
-  assert.deepEqual(svgs(html), []);
+test('a file read from a field is a row too, marked dynamic', () => {
+  const roots = parseTemplateTree(FIELDS);
+  const found = svgs(FIELDS).map((row) => findByPath(roots, row.path));
+
+  assert.deepEqual(
+    found.map((node) => [node.label, node.src, node.dynamic]),
+    [
+      ['{{ icon }}', '/icons/{{ icon }}', true],
+      ['logo', 'logo', true],
+      ['{type}', 'socialmedia/{type}', true],
+      ['arrow-bg', 'arrow-bg', false],
+    ],
+    'a tag with no file at all draws nothing and gets no row'
+  );
+  assert.equal(describeAt(FIELDS, found[1].path).node.dynamic, true, 'Build knows the file is a field\'s');
+  assert.equal(describeAt(FIELDS, found[3].path).node.dynamic, false);
+});
+
+test('the pick tree leaves a field\'s svg out: the tags after it are stamped where they are', () => {
+  const div = serializePickTree(parseTemplateTree(FIELDS))[0];
+  const bg = svgs(FIELDS).find((row) => row.src === 'arrow-bg');
+
+  assert.deepEqual(div.children.map((node) => node.tag), ['span', 'svg']);
+  assert.equal(div.children[1].path, bg.path, 'the <svg> drawn for arrow-bg is arrow-bg\'s, not the icon\'s');
 });
 
 test('not in a comment, not inside an opening tag', () => {

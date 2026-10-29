@@ -85,6 +85,7 @@ return [
     'svg_search' => 'Search SVGs',
     'content_svg' => 'SVG',
     'content_svg_now' => 'Shows :src. Pick another to swap it; its classes stay.',
+    'content_svg_field' => 'The file comes from :src. It is chosen in Content mode; its classes are set in Style.',
     'size_all' => 'All',
     'size_hint' => 'Changes apply to :size. Same breakpoints as the Tailwind pane.',
     'size_hint_all' => 'all sizes',

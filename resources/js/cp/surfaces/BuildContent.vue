@@ -20,6 +20,7 @@
  *
  * An `{{ svg }}` gets the site's SVGs as pictures (BuildSvgPicker.vue): the
  * one picked swaps the file the tag draws (`port.setSvgAt`, build-mode/svg.js).
+ * One whose file is a field's (`dynamic`) says which field: chosen in Content mode.
  *
  * Everything is written by the element's path, not the pick's: what is still
  * on its way when another element is clicked lands where it was typed.
@@ -218,8 +219,11 @@ onBeforeUnmount(() => {
 
     <div v-if="svg" class="bm-text" data-sve-build-svg-content>
       <span class="fg-lab">{{ port.t('content_svg') }}</span>
-      <p class="bm-note is-top" v-html="port.t('content_svg_now', { src: `<code>${esc(node.src)}</code>` })"></p>
-      <BuildSvgPicker :current="node.src" @pick="(src) => port.setSvgAt(path, src)" />
+      <p v-if="node.dynamic" class="bm-note is-top" data-sve-build-svg-field v-html="port.t('content_svg_field', { src: `<code>${esc(node.src)}</code>` })"></p>
+      <template v-else>
+        <p class="bm-note is-top" v-html="port.t('content_svg_now', { src: `<code>${esc(node.src)}</code>` })"></p>
+        <BuildSvgPicker :current="node.src" @pick="(src) => port.setSvgAt(path, src)" />
+      </template>
     </div>
 
     <div v-if="nothing" class="bm-empty" data-sve-build-content-soon>

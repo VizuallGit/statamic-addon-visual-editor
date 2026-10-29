@@ -20,6 +20,12 @@ export function serializePickTree(nodes) {
       continue;
     }
 
+    // An `{{ svg }}` whose file is a field's draws no `<svg>` while the field
+    // is empty; matched by tag in order, its path would land on the next one.
+    if (node.kind === 'svg' && node.dynamic) {
+      continue;
+    }
+
     // A condition or loop renders no element of its own, so its children stand
     // where it stands — the tree sent over is tags only, exactly as before.
     if (node.kind === 'antlers') {

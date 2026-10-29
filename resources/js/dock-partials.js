@@ -63,6 +63,10 @@ export function hitPartial(html, pos) {
  * to style it. Found the way partials are, by where each starts, so the
  * Tailwind pane can read and write that parameter as it does a call's.
  *
+ * Statamic's `{{ svg }}` is one with or without a class yet: every parameter
+ * it does not know lands on the `<svg>` it draws, so the first class written
+ * adds `class`.
+ *
  * @returns {Array<{ from: number, to: number, src: string, tagCall: true }>}
  */
 export function findClassTags(html) {
@@ -70,7 +74,7 @@ export function findClassTags(html) {
 
   return antlersTags(text)
     .filter((tag) => tag.closed && !tag.comment && !tag.closer && tag.name && !/^(partial|if|elseif|else|unless|endif)$/.test(tag.name.split(':')[0]))
-    .filter((tag) => /(^|\s)class\s*=\s*(["'])[^"']*\2/.test(text.slice(tag.from, tag.to)))
+    .filter((tag) => tag.name.split(':')[0] === 'svg' || /(^|\s)class\s*=\s*(["'])[^"']*\2/.test(text.slice(tag.from, tag.to)))
     .map((tag) => ({ from: tag.from, to: tag.to, src: tag.name, tagCall: true }));
 }
 

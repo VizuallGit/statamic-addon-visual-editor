@@ -430,7 +430,7 @@ function addComponents(roots, source) {
   return roots;
 }
 
-const SVG_SRC = /(?:^|\s)src\s*=\s*(["'])([^"']*)\1/;
+const SVG_SRC = /(?:^|\s)(:?)src\s*=\s*(["'])([^"']*)\2/;
 
 /**
  * `{{ svg src="set-icons/hero" class="…" }}` and `{{ svg:hero }}`: Statamic's
@@ -439,14 +439,15 @@ const SVG_SRC = /(?:^|\s)src\s*=\s*(["'])([^"']*)\1/;
  * and the element the server draws for it is an `<svg>` in that place: the
  * pick alignment (html-pick-align.js) stamps it, so a click on it is the row.
  *
- * Only a file named in the tag gets a row. `src="/icons/{{ icon }}"` and
- * `:src="logo"` draw nothing when the field is empty, and the alignment
- * matches by tag in order: a row for an `<svg>` that is not there stamps the
- * next one with its path and leaves the tags after it unstamped.
+ * A file read from a field — `src="/icons/{{ icon }}"`, `:src="logo"` — is a
+ * row too, `dynamic`: picked in the tree and styled like any other. It draws
+ * nothing while the field is empty, and the alignment matches by tag in
+ * order, so it is left out of the alignment (html-pick-align.js): a row for
+ * an `<svg>` that is not there would stamp the next one with its path.
  *
- * Skipped as well: a tag inside an HTML comment (its tags are the comment's,
- * as a partial's are) and one inside an opening tag, where it is an
- * attribute's.
+ * Skipped: a tag with no file at all, one inside an HTML comment (its tags are
+ * the comment's, as a partial's are) and one inside an opening tag, where it
+ * is an attribute's.
  */
 function addSvgs(roots, source) {
   const masked = String(source || '').replace(/<!--[\s\S]*?(?:-->|$)/g, (chunk) => ' '.repeat(chunk.length));
@@ -456,15 +457,16 @@ function addSvgs(roots, source) {
       continue;
     }
 
-    const src = tag.name.startsWith('svg:') ? tag.name.slice(4) : SVG_SRC.exec(tag.body)?.[2].trim() || '';
+    const param = tag.name.startsWith('svg:') ? null : SVG_SRC.exec(tag.body);
+    const src = param ? param[3].trim() : tag.name.slice(4);
 
-    if (!src || src.includes('{')) {
+    if (!src) {
       continue;
     }
 
     const host = deepestHost(roots, tag.from, tag.to);
     const siblings = host ? host.children : roots;
-    const name = src.split('/').pop();
+    const name = src.split('/').pop() || src;
 
     const node = {
       id: `svg-${tag.from}`,
@@ -473,6 +475,7 @@ function addSvgs(roots, source) {
       // The file the tag draws, and the tag's own name (`svg`, `svg:hero`) — the Tailwind pane finds the call by it.
       src,
       call: tag.name,
+      dynamic: !!param?.[1] || src.includes('{'),
       klass: name,
       path: `${host ? `${host.path}/` : ''}i${tag.from}:svg`,
       label: name,

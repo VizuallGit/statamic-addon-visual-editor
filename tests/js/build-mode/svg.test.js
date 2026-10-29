@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { svgClassRow, svgMarkup, withSvgSrc } from '../../../resources/js/build-mode/svg.js';
 import { flattenHtmlTree, parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 import { findByPath } from '../../../resources/js/build-mode/place.js';
-import { findClassTags } from '../../../resources/js/dock-partials.js';
+import { findClassTags, hitClassTag } from '../../../resources/js/dock-partials.js';
+import { readCallParams, writeCallParam } from '../../../resources/js/component-props.js';
 import { addAt } from '../../../resources/js/build-mode/place.js';
 
 test('single quotes and spaces around = are the same src', () => {
@@ -83,4 +84,30 @@ test('Style\'s row is the call the Tailwind pane finds by where it starts and it
   }
 
   assert.equal(svgClassRow({ kind: 'component' }), null);
+});
+
+test('an svg with no class yet gets one: the first class Style writes adds it', () => {
+  const html = '<li>{{ svg src="arrow-down" }} {{ svg src="/icons/{{ icon }}" }} {{ svg:logo }} {{ iconify icon="x" }}</li>';
+
+  assert.deepEqual(findClassTags(html).map((tag) => tag.src), ['svg', 'svg', 'svg:logo'], 'every svg, not a call with no class');
+
+  const tags = findClassTags(html);
+
+  assert.equal(hitClassTag(html, html.indexOf('arrow-down')).from, tags[0].from, 'the dock\'s cursor on one is the call');
+  assert.equal(readCallParams(html.slice(tags[0].from, tags[0].to)).has('class'), false);
+
+  let next = writeCallParam(html, tags[0], 'class', 'size-400');
+  next = writeCallParam(next, findClassTags(next)[1], 'class', 'text-primary');
+  next = writeCallParam(next, findClassTags(next)[2], 'class', 'w-auto');
+
+  assert.equal(next, '<li>{{ svg src="arrow-down" class="size-400" }} {{ svg src="/icons/{{ icon }}" class="text-primary" }} {{ svg:logo class="w-auto" }} {{ iconify icon="x" }}</li>');
+});
+
+test('a file read from a field is not Content\'s to swap', () => {
+  const html = '<div>{{ svg src="/icons/{{ icon }}" class="" }}</div>';
+  const node = svgNode(html);
+
+  assert.equal(node.dynamic, true);
+  assert.equal(withSvgSrc(html, node, 'arrow'), html);
+  assert.ok(svgClassRow(node), 'its class is Style\'s all the same');
 });

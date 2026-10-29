@@ -75,6 +75,7 @@ return [
     'svg_search' => 'Søg i SVG’er',
     'content_svg' => 'SVG',
     'content_svg_now' => 'Viser :src. Vælg en anden for at skifte; klasserne bliver.',
+    'content_svg_field' => 'Filen kommer fra :src. Den vælges i Content-tilstand; klasserne sættes i Style.',
     'size_all' => 'Alle',
     'size_hint' => 'Ændringer gælder for :size. Samme breakpoints som Tailwind-ruden.',
     'size_hint_all' => 'alle størrelser',

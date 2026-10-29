@@ -31,12 +31,13 @@ export function svgMarkup(src) {
  * The file `node` draws, swapped for `src`; nothing else in the tag moves.
  * `{{ svg:hero }}` names its file in the tag, so the name goes and `src`
  * takes its place. The tag starts where it started, so its path stays.
+ * A file read from a field (`dynamic`) is the field's to choose: untouched.
  */
 export function withSvgSrc(html, node, src) {
   const source = String(html || '');
   const file = clean(src);
 
-  if (node?.kind !== 'svg' || !FILE.test(file)) {
+  if (node?.kind !== 'svg' || node.dynamic || !FILE.test(file)) {
     return source;
   }
 
