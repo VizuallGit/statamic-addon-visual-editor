@@ -195,7 +195,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     // Then write: a + that has not moved stays the same button, so a press on it is never lost to a redraw.
     const layer = ensureLayer(doc);
     const kept = new Map([...layer.querySelectorAll(`[${ADD}]`)].map((btn) => [btn.dataset.key, btn]));
-    const label = port()?.t('tab_add') || '+';
+    // HTML Build's port only shows and picks: it has no words, and the +s left from Visual Build are taken off below.
+    const label = port()?.t?.('tab_add') || '+';
 
     for (const spot of spots) {
       if (kept.has(spot.key)) {

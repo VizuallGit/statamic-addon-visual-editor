@@ -80,6 +80,8 @@ import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR }
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
 import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
+import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
+import { enterChromeAsked } from '../chrome-enter.js';
 import { canvasHold } from './canvas-hold.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
@@ -122,7 +124,8 @@ const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed 
 [${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
 ${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}
 video:not([controls])::-webkit-media-controls{display:none!important}
-${UI_CSS}`;
+${UI_CSS}
+${SECTION_BAR_CSS}`;
 
 /** The row in the form the dock's uid names: its values fill the section's fields. */
 function rowIn(values, uid, cache) {
@@ -297,6 +300,8 @@ export function startCanvas(win) {
   };
 
   const ui = canvasUi(win, { page: cdoc, frame: () => frame, port: () => port, hovered: () => hovered, schedule });
+  // The section's toolbar, as the bridge draws it in Content (canvas-section-bar.js): in both Builds.
+  const bar = sectionBar(win, { page: cdoc });
   // A menu's would-be classes on the canvas before they are picked, compiled beside the section's own (canvas-hold.js).
   const hold = canvasHold(win, {
     page: cdoc,
@@ -375,8 +380,13 @@ export function startCanvas(win) {
     page.addEventListener('mouseover', onHover);
     page.addEventListener('pointerdown', ui.grab, true);
     page.addEventListener('scroll', ui.draw, true);
+    page.addEventListener('scroll', bar.place, true);
     frame.contentWindow.addEventListener('resize', ui.draw);
-    page.documentElement.addEventListener('mouseleave', () => setHover(null));
+    frame.contentWindow.addEventListener('resize', bar.place);
+    page.documentElement.addEventListener('mouseleave', () => {
+      setHover(null);
+      bar.hide();
+    });
 
     const resize = new win.ResizeObserver(placeSoon);
     // The overview moves the fixed preview from inside its own frame callback
@@ -611,12 +621,37 @@ export function startCanvas(win) {
   }
 
   function currentSection() {
-    if (ask('dock:component-src') || ask('dock:chrome-kind')) {
+    if (ask('dock:component-src')) {
       return null;
     }
 
-    const uid = ask('dock:current-uid') || '';
     const html = ask('dock:html');
+    const chrome = String(ask('dock:chrome-kind') || '');
+
+    // The header or the footer: the real preview's drawing, stamped with the
+    // file's paths so picks, + and drags work on it (syncBody) — never painted,
+    // its fields are the global's and not this form's.
+    if (chrome) {
+      if (typeof html !== 'string' || !html) {
+        return null;
+      }
+
+      let plan;
+
+      return {
+        chrome,
+        uid: `chrome:${chrome}`,
+        ids: [],
+        html,
+        get plan() {
+          plan ??= planTemplate(html, fieldLookup({}, {}));
+
+          return plan;
+        },
+      };
+    }
+
+    const uid = ask('dock:current-uid') || '';
 
     if (!uid || typeof html !== 'string' || !html) {
       return null;
@@ -770,7 +805,7 @@ export function startCanvas(win) {
     const next = page.importNode(realDoc.body, true);
     const slot = realRoot && section?.plan ? counterpart(realRoot, realDoc.body, next) : null;
 
-    if (slot && alpineLive()) {
+    if (slot && (alpineLive() || section.chrome)) {
       // The real preview's drawing stays, stamped with the file's paths so picks, + and hover work on it.
       stampHtmlPickAll([slot], serializePickTree([section.plan.node]), page);
       slot.setAttribute(CANVAS_ROOT, '');
@@ -805,7 +840,11 @@ export function startCanvas(win) {
       forget();
     }
 
-    const realRoot = section?.plan ? sidElement(realDoc, section.uid, section.ids) : null;
+    const realRoot = !section?.plan
+      ? null
+      : section.chrome
+        ? realDoc.querySelector(`[data-sve-chrome="${CSS.escape(section.chrome)}"]`)
+        : sidElement(realDoc, section.uid, section.ids);
 
     if (realRoot) {
       learn(section.plan, realRoot);
@@ -890,8 +929,8 @@ export function startCanvas(win) {
       return;
     }
 
-    // The Alpine toggle is lit: the section is the real preview's, read again rather than painted.
-    if (section && alpineLive()) {
+    // The Alpine toggle is lit, or the header / footer is open: the real preview's drawing, read again rather than painted.
+    if (section && (alpineLive() || section.chrome)) {
       truth();
 
       return;
@@ -966,6 +1005,7 @@ export function startCanvas(win) {
     }
 
     ui.draw();
+    bar.place();
   }
 
   /** The section the dock opened, brought into view when it is off screen. */
@@ -1005,8 +1045,10 @@ export function startCanvas(win) {
   }
 
   function onHover(event) {
-    // On a +, the element it belongs to stays hovered.
-    if (ui.owns(event.target)) {
+    bar.hover(event.target);
+
+    // On a + or the section's toolbar, the element it belongs to stays hovered.
+    if (ui.owns(event.target) || bar.owns(event.target)) {
       return;
     }
 
@@ -1019,7 +1061,7 @@ export function startCanvas(win) {
     event.preventDefault();
     event.stopPropagation();
 
-    if (ui.click(event)) {
+    if (bar.click(event) || ui.click(event)) {
       return;
     }
 
@@ -1028,6 +1070,15 @@ export function startCanvas(win) {
 
     if (el && port) {
       port.select(el.getAttribute(CANVAS_PATH));
+
+      return;
+    }
+
+    // The header or the footer, not open: asked as the bridge asks in Content (chrome-enter.js).
+    const half = target?.closest('[data-sve-chrome]');
+
+    if (half && !target.closest('[data-sid-section-orderable], [data-sve-global-root]')) {
+      enterChromeAsked(win, half.getAttribute('data-sve-chrome'));
 
       return;
     }
@@ -1081,6 +1132,7 @@ export function startCanvas(win) {
     stop() {
       alive = false;
       ui.stop();
+      bar.stop();
       hold.stop();
       stopMarks?.();
       stopMarks = null;

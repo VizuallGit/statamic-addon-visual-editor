@@ -29,7 +29,8 @@ import { t } from './lib/i18n.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
-import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from './lib/build-canvas-ids.js';
+import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT } from './lib/build-canvas-ids.js';
+import { buildCanvasFrame } from './lib/build-canvas.js';
 import { paintLpActiveControl } from './lp-panel.js';
 import { XRAY_LAYERS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from './cp/xray/prefs.js';
 import { followFrame, mountBar, placeBar as placeBarOver, placeOver } from './cp/preview-bar.js';
@@ -183,9 +184,7 @@ export function syncXrayToPreview(win) {
 
 /** Build's canvas where it stands over the preview and has its styles; else the preview. */
 function shownFrame(win) {
-  const canvas = win.document.getElementById(BUILD_CANVAS_ID);
-
-  return canvas && !canvas.hasAttribute(BUILD_CANVAS_UNSTYLED_ATTR) ? canvas : previewFrame(win);
+  return buildCanvasFrame(win) || previewFrame(win);
 }
 
 /** The canvas came to show or went (build-mode/canvas.js): draw on the page on screen now. */
