@@ -97,6 +97,7 @@ import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
+import { readText, withText } from './text.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
@@ -457,6 +458,25 @@ export function createEditorPort(win, hooks = {}) {
 
       if (node) {
         port.write(withAttribute(html(), node, name, value), { select: node.path });
+      }
+    },
+    /** The picked element's text as Content shows it, or null when it holds none (text.js). */
+    text: () => {
+      rev.value;
+
+      const node = picked();
+
+      return node ? readText(html(), node) : null;
+    },
+    /**
+     * An element's text, by its path — not the pick's: a keystroke still on
+     * its way when another element is clicked lands where it was typed.
+     */
+    setText(path, value) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      if (node) {
+        port.write(withText(html(), node, value), { select: path });
       }
     },
     mountFields: hooks.mountFields || ((el) => unmounter(mountStatamicSurface(ComponentSidebar, el))),

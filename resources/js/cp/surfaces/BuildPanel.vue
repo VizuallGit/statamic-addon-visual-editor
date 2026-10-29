@@ -3,7 +3,8 @@
  * The left column in Visual Build, two sides as Bricks has them: Add (All |
  * Elements | Components and the tiles) when nothing is picked, and the picked
  * element (Content | Style) once it is clicked on the canvas or in the HTML
- * tree. Content is a component's fields, a loop's or condition's Settings.
+ * tree. Content is the element's text (BuildContent.vue), a component's
+ * fields, a loop's or condition's Settings.
  *
  * Which side shows is the port's (`port.panel`): a click on an element sets
  * it, a + or Escape puts Add back — the canvas's Escape reads it too, so the
@@ -25,6 +26,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue';
 import BuildAdd from './BuildAdd.vue';
+import BuildContent from './BuildContent.vue';
 import BuildStyle from './BuildStyle.vue';
 import { describeAt } from '../../build-mode/place.js';
 import { ic } from '../../build-mode/icons.js';
@@ -242,10 +244,7 @@ onBeforeUnmount(() => unmountHost?.());
           <div ref="host" class="bm-host"></div>
         </div>
 
-        <div v-else class="bm-empty" data-sve-build-content-soon>
-          <span v-html="ic('form')"></span>
-          <p>{{ port.t('content_soon') }}</p>
-        </div>
+        <BuildContent v-else :key="picked.path" :node="picked" />
       </div>
     </template>
   </div>
@@ -401,6 +400,14 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-gp h4:first-child { margin-top: 0; }
 .sve-build .bm-cells { display: flex; flex-direction: column; gap: 0.2rem; height: 2.25rem; }
 .sve-build .bm-cells .bm-bars { flex: 1; height: auto; min-height: 0; }
+
+/* Content: the element's text, in a box the colour of a field */
+.sve-build .bm-text { display: grid; gap: 0.4rem; }
+.sve-build .bm-text .fg-lab { margin: 0; }
+.sve-build .bm-text textarea { display: block; width: 100%; min-height: 3.25rem; max-height: 20rem; padding: 0.45rem 0.55rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; outline: 0; color: var(--bm-ink); font: 450 0.8125rem/1.45 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; resize: vertical; field-sizing: content; }
+.sve-build .bm-text textarea:hover { border-color: var(--bm-edge); }
+.sve-build .bm-text textarea:focus { border-color: var(--bm-accent); }
+.sve-build .bm-text textarea::placeholder { color: var(--bm-faint); }
 
 /* Style */
 .sve-build .bm-chip-tag { flex: none; font: 500 0.6875rem/1.3 var(--bm-mono); padding: 0.1rem 0.35rem; border-radius: 0.25rem; background: var(--bm-tag-bg); color: var(--bm-tag); }

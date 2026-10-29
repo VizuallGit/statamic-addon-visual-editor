@@ -51,7 +51,12 @@ return [
     'new_link' => 'Link',
     'new_item' => 'Punkt',
 
-    'content_soon' => 'Indhold til dette element kommer i næste trin.',
+    'content_text' => 'Tekst',
+    'content_text_placeholder' => 'Skriv teksten…',
+    'content_antlers' => 'Teksten kommer fra :tag. Værdien redigeres i Content-tilstand.',
+    'content_markup' => 'Elementet indeholder andre elementer. Klik på et af dem for at redigere dets tekst.',
+    'content_layout' => 'Et layout-element har ingen tekst selv: dets indhold er elementerne indeni.',
+    'content_soon' => 'Indhold til dette element kommer i et senere trin.',
     'size_all' => 'Alle',
     'size_hint' => 'Ændringer gælder for :size. Samme breakpoints som Tailwind-ruden.',
     'size_hint_all' => 'alle størrelser',

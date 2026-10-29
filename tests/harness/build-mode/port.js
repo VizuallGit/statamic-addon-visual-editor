@@ -15,6 +15,7 @@ import { flattenHtmlTree, parseTemplateTree } from '../../../resources/js/html-t
 import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.js';
 import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
+import { readText, withText } from '../../../resources/js/build-mode/text.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
 import { HTML_ICONS } from '../../../resources/js/html-tree-icons.js';
 import { addAt, findByPath } from '../../../resources/js/build-mode/place.js';
@@ -239,6 +240,20 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
 
       if (picked) {
         port.write(withAttribute(file.value, picked, name, val), { select: selected.value });
+      }
+    },
+    text() {
+      rev.value;
+
+      const picked = node();
+
+      return picked ? readText(file.value, picked) : null;
+    },
+    setText(path, val) {
+      const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
+
+      if (target) {
+        port.write(withText(file.value, target, val), { select: path });
       }
     },
 

@@ -61,7 +61,12 @@ return [
     'new_item' => 'List item',
 
     // Style
-    'content_soon' => 'Content for this element comes in the next step.',
+    'content_text' => 'Text',
+    'content_text_placeholder' => 'Write the text…',
+    'content_antlers' => 'This text comes from :tag. Its value is edited in Content mode.',
+    'content_markup' => 'This element holds other elements. Click one of them to edit its text.',
+    'content_layout' => 'A layout element has no text of its own: its content is the elements inside it.',
+    'content_soon' => 'Content for this element comes in a later step.',
     'size_all' => 'All',
     'size_hint' => 'Changes apply to :size. Same breakpoints as the Tailwind pane.',
     'size_hint_all' => 'all sizes',
