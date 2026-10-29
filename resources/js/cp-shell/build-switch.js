@@ -79,15 +79,19 @@ function ensureStyles(doc) {
     `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
 ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
 #${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
-#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .875rem;white-space:nowrap}
-#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:1rem;height:1rem}
-/* A little larger than the bar's other groups (2rem; this one 3.25rem) and from the same top — the
-   bar centres it as one of them, the margin gives the rest back below — so it hangs about 0.625rem
-   into the preview under the bar: rounded, opaque (the bar's own colour under the groups' grey,
-   --sve-switch-base) and lifted a little — the three modes stand out from the tools around them. */
-#${SWITCH_ID}{margin-bottom:calc(2rem - 3.25rem);position:relative;z-index:1}
-#${SWITCH_ID} > [role="group"]{height:auto!important;padding:.5625rem!important;border-radius:.75rem!important;background:linear-gradient(rgba(128,128,128,.16),rgba(128,128,128,.16)),var(--sve-switch-base,transparent)!important;box-shadow:0 .375rem 1rem rgba(0,0,0,.28)}
-#${SWITCH_ID} [data-sve-build-mode]{height:2.125rem!important;font-size:.8125rem!important;border-radius:.5rem!important}`
+#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .75rem;white-space:nowrap}
+#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.9375rem;height:.9375rem}
+/* The switch on a tab of the bar, as a canvas tool sits on one: the grey group a little larger than
+   the bar's others (2rem; this one 2.25rem) and from the same top (the margin gives the extra back
+   below, so the bar centres it as one of them); behind it a tab in the bar's own colour
+   (--sve-switch-base) with --sve-switch-pad of room round the group, hanging --sve-switch-drop under
+   the bar with rounded corners, the bar running into it in two small curves. --sve-switch-reach is
+   the distance from the group to the bar's bottom, measured where the switch is placed. */
+#${SWITCH_ID}{--sve-switch-drop:1rem;--sve-switch-pad:.375rem;--sve-switch-ear:.5rem;margin-bottom:calc(2rem - 2.25rem);position:relative;z-index:1}
+#${SWITCH_ID}::before{content:"";position:absolute;z-index:-1;left:calc(-1 * var(--sve-switch-pad));right:calc(-1 * var(--sve-switch-pad));top:calc(-1 * var(--sve-switch-pad));bottom:calc(-1 * (var(--sve-switch-reach, .40625rem) + var(--sve-switch-drop)));border-radius:0 0 .875rem .875rem;background:var(--sve-switch-base,transparent);pointer-events:none}
+#${SWITCH_ID}::after{content:"";position:absolute;z-index:-1;left:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));right:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));top:calc(100% + var(--sve-switch-reach, .40625rem));height:var(--sve-switch-ear);pointer-events:none;background:radial-gradient(circle at 0 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) left/var(--sve-switch-ear) 100% no-repeat,radial-gradient(circle at 100% 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) right/var(--sve-switch-ear) 100% no-repeat}
+#${SWITCH_ID} > [role="group"]{height:2.25rem!important;padding:.25rem!important;border-radius:.625rem!important}
+#${SWITCH_ID} [data-sve-build-mode]{height:1.75rem!important;font-size:.8125rem!important;border-radius:.4375rem!important}`
   );
 }
 
@@ -246,8 +250,10 @@ export function ensureBuildSwitch(win) {
     bar.after(holder);
   }
 
-  // The bar's colour, for the part of the switch that hangs over the preview (light or dark theme).
+  // The bar's colour, for the tab that hangs over the preview (light or dark theme), and how far
+  // the group stands above the bar's bottom, where the tab's part under the bar begins.
   holder.style.setProperty('--sve-switch-base', win.getComputedStyle(header).backgroundColor);
+  holder.style.setProperty('--sve-switch-reach', `${Math.max(0, header.getBoundingClientRect().bottom - holder.getBoundingClientRect().bottom)}px`);
 
   paint(holder);
 }
