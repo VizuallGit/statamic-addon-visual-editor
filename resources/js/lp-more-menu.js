@@ -322,7 +322,7 @@ function modeLabel(win) {
   const strings = win.Statamic?.$config?.get?.('sveBuildStrings') || {};
   const mode = toolbarMode();
 
-  return strings[`mode_${mode}`] || { build: 'Visual Build', html: 'HTML Build' }[mode] || 'Content';
+  return strings[`mode_${mode}`] || { build: 'Vizuall Build', html: 'HTML Build' }[mode] || 'Content';
 }
 
 function toolbarProps(win) {

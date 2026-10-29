@@ -13,7 +13,7 @@
 return [
     // The switch under the Live Preview top bar (`mode_build` is Visual Build)
     'mode_content' => 'Content',
-    'mode_build' => 'Visual Build',
+    'mode_build' => 'Vizuall Build',
     'mode_html' => 'HTML Build',
 
     // Tabs

@@ -57,7 +57,7 @@ const STYLE_ID = '__sve-build-switch-css';
 const MODES = ['content', 'visual', 'html'];
 /** Each mode's word in `sveBuildStrings` — Visual Build's is still `mode_build`. */
 const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', html: 'mode_html' };
-const FALLBACK = { content: 'Content', visual: 'Visual Build', html: 'HTML Build' };
+const FALLBACK = { content: 'Content', visual: 'Vizuall Build', html: 'HTML Build' };
 // Drawn like the toolbar's own icons (stroke 2, round): a pen writing the
 // content, and a page laid out in blocks. HTML Build wears the dock's own,
 // read when the switch is drawn — header-toolbar.js imports this file, so
@@ -79,8 +79,15 @@ function ensureStyles(doc) {
     `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
 ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
 #${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
-#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
-#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}`
+#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .875rem;white-space:nowrap}
+#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:1rem;height:1rem}
+/* A little larger than the bar's other groups (2rem; this one 3.25rem) and from the same top — the
+   bar centres it as one of them, the margin gives the rest back below — so it hangs about 0.625rem
+   into the preview under the bar: rounded, opaque (the bar's own colour under the groups' grey,
+   --sve-switch-base) and lifted a little — the three modes stand out from the tools around them. */
+#${SWITCH_ID}{margin-bottom:calc(2rem - 3.25rem);position:relative;z-index:1}
+#${SWITCH_ID} > [role="group"]{height:auto!important;padding:.5625rem!important;border-radius:.75rem!important;background:linear-gradient(rgba(128,128,128,.16),rgba(128,128,128,.16)),var(--sve-switch-base,transparent)!important;box-shadow:0 .375rem 1rem rgba(0,0,0,.28)}
+#${SWITCH_ID} [data-sve-build-mode]{height:2.125rem!important;font-size:.8125rem!important;border-radius:.5rem!important}`
   );
 }
 
@@ -238,6 +245,9 @@ export function ensureBuildSwitch(win) {
   if (holder.parentElement !== header || holder.previousElementSibling !== bar) {
     bar.after(holder);
   }
+
+  // The bar's colour, for the part of the switch that hangs over the preview (light or dark theme).
+  holder.style.setProperty('--sve-switch-base', win.getComputedStyle(header).backgroundColor);
 
   paint(holder);
 }
