@@ -20,10 +20,22 @@ import { maskAntlers } from '../html-tree-parse.js';
  * (element-fields.js).
  */
 export const ADDRESS = {
-  img: { attr: 'src', fieldtype: 'assets' },
+  img: { attr: 'src', fieldtype: 'assets', alt: true },
   video: { attr: 'src', fieldtype: 'assets' },
   a: { attr: 'href', fieldtype: 'link' },
 };
+
+/**
+ * An image's alt text is the asset's own — the one Statamic keeps on the file
+ * ("Set Alt"), so there is one alt text and it follows wherever it is
+ * changed. Read on the server as the site's image component reads it
+ * (`{{ asset :url="…" }}{{ alt }}{{ /asset }}`), escaped for the attribute.
+ */
+export function altFromAsset(url) {
+  const at = String(url || '').trim().replace(/'/g, '%27');
+
+  return at ? `{{ asset url='${at}' }}{{ alt | entities }}{{ /asset }}` : '';
+}
 
 function find(source, node, name) {
   const open = String(source || '').slice(node.from, node.openTo);

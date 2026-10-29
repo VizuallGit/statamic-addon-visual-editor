@@ -454,12 +454,18 @@ export function createEditorPort(win, hooks = {}) {
 
       return node ? readAttribute(html(), node, name) : null;
     },
-    /** An attribute of an element by its path (Content's src, alt, href) — as `setText`, where it was typed. */
-    setAttrAt(path, name, value) {
-      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+    /** Attributes of an element by its path (Content's src and alt, href), in one write — as `setText`, where it was typed. */
+    setAttrsAt(path, attrs) {
+      let next = html();
 
-      if (node) {
-        port.write(withAttribute(html(), node, name, value), { select: path });
+      for (const [name, value] of Object.entries(attrs || {})) {
+        const node = path ? findByPath(parseTemplateTree(next), path) : null;
+
+        next = node ? withAttribute(next, node, name, value) : next;
+      }
+
+      if (next !== html()) {
+        port.write(next, { select: path });
       }
     },
     /** The picked element's text as Content shows it, or null when it holds none (text.js). */

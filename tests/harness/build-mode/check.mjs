@@ -230,16 +230,12 @@ try {
   await typeInto('[data-sve-build-href]', '/cases');
   step('href writes the link\'s href', (await html()).includes('<a href="/cases" class="btn">'));
 
-  // An image's Content: its address and its alt text.
+  // An image's Content: its address, and the alt text is the asset's own (read on the server).
   await select(IMG);
   await sleep(200);
-  step('an image\'s Content is its address and its alt text, and no text box', await page.evaluate(() => !!document.querySelector('[data-sve-build-src]') && !!document.querySelector('[data-sve-build-alt]') && !document.querySelector('[data-sve-build-text]')));
+  step('an image\'s Content is its address and a note that the alt text is the image\'s own — no alt box, no text box', await page.evaluate(() => !!document.querySelector('[data-sve-build-src]') && !!document.querySelector('[data-sve-build-alt-note]') && !document.querySelector('[data-sve-build-alt]') && !document.querySelector('[data-sve-build-text]')));
   await typeInto('[data-sve-build-src]', '/assets/team.webp');
-  await page.evaluate(() => { const box = document.querySelector('[data-sve-build-alt]'); box.focus(); box.select(); });
-  await page.keyboard.type('Holdet på kontoret');
-  await page.keyboard.press('Tab');
-  await sleep(150);
-  step('…both written into the img', (await html()).includes('<img src="/assets/team.webp" alt="Holdet på kontoret" class="w-full aspect-video rounded-lg">'));
+  step('…the address written with an alt that reads the asset\'s own', (await html()).includes(`<img src="/assets/team.webp" alt="{{ asset url='/assets/team.webp' }}{{ alt | entities }}{{ /asset }}" class="w-full aspect-video rounded-lg">`));
   await click('[data-sve-build-tab="style"]');
   await sleep(150);
   await select(LINK);

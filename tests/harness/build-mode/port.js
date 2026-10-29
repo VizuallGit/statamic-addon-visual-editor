@@ -235,11 +235,17 @@ export function createHarnessPort({ html, lists, strings, components, sectionTag
 
       return picked ? readAttribute(file.value, picked, name) : null;
     },
-    setAttrAt(path, name, val) {
-      const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
+    setAttrsAt(path, attrs) {
+      let next = file.value;
 
-      if (target) {
-        port.write(withAttribute(file.value, target, name, val), { select: path });
+      for (const [name, val] of Object.entries(attrs || {})) {
+        const target = path ? findByPath(parseTemplateTree(next), path) : null;
+
+        next = target ? withAttribute(next, target, name, val) : next;
+      }
+
+      if (next !== file.value) {
+        port.write(next, { select: path });
       }
     },
     text() {
