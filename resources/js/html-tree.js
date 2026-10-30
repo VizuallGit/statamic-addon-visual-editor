@@ -4160,6 +4160,19 @@ function selectHtmlTreeByPath(win, path, { reveal = true } = {}) {
   // clicking its row does.
   htmlTreeShutStart = false;
 
+  // The row already picked, picked again — a write keeping its pick on the
+  // element it changed (boot.js write()), once per keystroke in a box. The
+  // way down to it is open and it is on screen, and the rows are drawn again
+  // from the new markup by the dock's own change (watchHtmlTreeDock): nothing
+  // to paint here, only the pick itself.
+  const picked = htmlTreeUi.rows.find((item) => item.current);
+
+  if (picked && picked.path === path) {
+    selectHtmlTreeRow(win, picked.id, htmlTreeUi.rows, { reveal });
+
+    return;
+  }
+
   // The path is answered once the dock holds the clicked section's file
   // (reportAwaitedPick) — which can be before this tree has painted that file.
   // Its first paint of a file seats it: every fold is cleared and the first
