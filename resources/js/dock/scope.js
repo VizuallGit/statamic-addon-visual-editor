@@ -16,6 +16,7 @@ import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { featureOn } from '../lib/config.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
+import { buildModeUi } from '../cp/build-mode/store.js';
 import { dockState } from '../dock/state.js';
 import { flushSave, onEditorInput } from './save.js';
 import { loadTemplate } from './dock-api.js';
@@ -1013,7 +1014,8 @@ export function syncHtmlTree(win, open) {
     return;
   }
 
-  if (!open) {
+  // The tree is part of Build: what is picked there is its pick.
+  if (!open && buildModeUi.mode === 'content') {
     if (htmlTreeOpen(win)) {
       closeHtmlTreePanel(win);
     }

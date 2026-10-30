@@ -9,6 +9,8 @@ return [
     'mode_content' => 'Rediger indhold',
     'mode_build' => 'Vizuall build',
     'mode_html' => 'HTML-build',
+    'build_dock' => 'HTML',
+    'build_fields' => 'Felter',
 
     'tab_add' => 'Tilføj',
     'tab_style' => 'Stil',

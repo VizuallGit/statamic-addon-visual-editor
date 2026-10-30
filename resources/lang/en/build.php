@@ -15,6 +15,8 @@ return [
     'mode_content' => 'Edit Content',
     'mode_build' => 'Vizuall Build',
     'mode_html' => 'HTML Build',
+    'build_dock' => 'HTML',
+    'build_fields' => 'Fields',
 
     // Tabs
     'tab_add' => 'Add',

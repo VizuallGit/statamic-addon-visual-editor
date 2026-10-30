@@ -45,15 +45,18 @@ import { buildModeUi } from './cp/build-mode/store.js';
 import { htmlTreeUi } from './cp/html-tree/store.js';
 import { enterBuild, enterBuildView, leaveBuild } from './lazy/build-mode.js';
 import { injectStyle } from './lib/style.js';
-import { CODE_DOCK_ID } from './lib/ids.js';
+import { CODE_DOCK_ID, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 
-export const EDITOR_MODES = ['content', 'visual', 'html'];
+export const EDITOR_MODES = ['content', 'visual', 'fields'];
 
 const HOST_ID = '__sve-build-panel';
 /** On the column while Build has it. Its own — never shared with the selection panel's or the component's. */
 const AWAY_ATTR = 'data-sve-build-away';
 /** On the Control Panel's root in either Build: the mode. Not there in Content. */
 const MODE_ATTR = 'data-sve-editor-mode';
+const DOCK_ATTR = 'data-sve-build-dock-shown';
+const DOCK_KEY = 'sve-build-dock';
 const STYLE_ID = '__sve-build-host-css';
 
 let hooksFor = null;
@@ -80,7 +83,7 @@ export function setEditorMode(win, mode, shell = {}) {
 
   if (was === 'visual') {
     giveBack(win);
-  } else if (was === 'html') {
+  } else if (was === 'fields') {
     leaveBuild();
   }
 
@@ -89,12 +92,14 @@ export function setEditorMode(win, mode, shell = {}) {
 
   if (next === 'content') {
     doc.documentElement.removeAttribute(MODE_ATTR);
+    doc.documentElement.removeAttribute(DOCK_ATTR);
 
     return;
   }
 
   ensureStyles(doc);
   doc.documentElement.setAttribute(MODE_ATTR, next);
+  doc.documentElement.toggleAttribute(DOCK_ATTR, buildDockShown(win));
   // The file both Builds work on is the dock's, and what they pick is the tree's.
   shell.openDock?.();
   hooksFor = editorHooks(win, shell);
@@ -104,6 +109,28 @@ export function setEditorMode(win, mode, shell = {}) {
   } else {
     void enterBuildView(win, hooksFor);
   }
+}
+
+/** Is the HTML dock on screen in Build? This user's own, kept between visits; off to begin with. */
+export function buildDockShown(win) {
+  return chromeGet(win, DOCK_KEY) === 'on';
+}
+
+/**
+ * Show or hide the dock, and nothing else. It stays open underneath either way:
+ * the file Build works on is the dock's, so hiding it never closes it, and the
+ * tree is left where it stands.
+ */
+export function setBuildDockShown(win, shown) {
+  if (shown) {
+    chromeSet(win, DOCK_KEY, 'on');
+  } else {
+    chromeRemove(win, DOCK_KEY);
+  }
+
+  win.document.documentElement.toggleAttribute(DOCK_ATTR, shown);
+  // The preview's room changed: the canvas follows it as it does a resized window.
+  win.dispatchEvent(new win.Event('resize'));
 }
 
 function column(doc) {
@@ -125,8 +152,11 @@ function ensureStyles(doc) {
 [${AWAY_ATTR}] > :not(#${HOST_ID}){position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #${HOST_ID}{display:flex;flex-direction:column;min-width:0;min-height:100%;flex:1 1 auto}
 .live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}
-:root[${MODE_ATTR}="visual"] #${CODE_DOCK_ID}{visibility:hidden!important;pointer-events:none!important}
-:root[${MODE_ATTR}="visual"] .live-preview-contents{padding-bottom:0!important}`
+:root[${MODE_ATTR}]:not([${DOCK_ATTR}]) #${CODE_DOCK_ID}{visibility:hidden!important;pointer-events:none!important}
+:root[${MODE_ATTR}]:not([${DOCK_ATTR}]) .live-preview-contents{padding-bottom:0!important}
+:root[${MODE_ATTR}] #${HTML_TREE_PANEL_ID} [data-sve-close],
+:root[${MODE_ATTR}] #${CODE_DOCK_ID} [data-sve-html-scope],
+:root[${MODE_ATTR}] #${HEADER_TOOLBAR_ID} [data-tab="html_tree"]{display:none!important}`
   );
 }
 
