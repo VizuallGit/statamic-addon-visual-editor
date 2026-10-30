@@ -92,10 +92,6 @@ const sizeHint = computed(() => {
 
 /* ---------------- the element ---------------- */
 
-const HEADINGS = ['h1', 'h2', 'h3', 'h4'];
-const TAGS = ['div', 'article', 'aside', 'nav', 'header', 'footer', 'figure', 'section'];
-const holdsTag = computed(() => ['div', 'tag', 'container', 'flex', 'grid', 'section'].includes(props.node.kind));
-
 /* ---------------- Layout ---------------- */
 
 const display = computed(() => eff('display'));
@@ -358,25 +354,6 @@ const chips = computed(() =>
         ></button>
       </div>
     </div>
-
-    <section v-if="node.kind === 'heading' || holdsTag" class="fg-sec is-open">
-      <div class="fg-sec__b">
-        <div v-if="node.kind === 'heading'" class="fg-row">
-          <span class="fg-rlab">tag</span>
-          <div class="fg-seg">
-            <button v-for="tag in HEADINGS" :key="tag" type="button" :aria-pressed="node.tag === tag" @click="port.setTag(tag)">{{ tag }}</button>
-          </div>
-        </div>
-        <div v-if="holdsTag" class="fg-row">
-          <span class="fg-rlab">tag</span>
-          <label class="fg-field">
-            <select class="fg-select" aria-label="tag" :value="node.tag" @change="port.setTag($event.target.value)">
-              <option v-for="tag in TAGS" :key="tag" :value="tag">{{ tag }}</option>
-            </select>
-          </label>
-        </div>
-      </div>
-    </section>
 
     <section
       v-for="group in groups"

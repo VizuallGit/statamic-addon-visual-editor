@@ -236,7 +236,11 @@ try {
   await sleep(150);
 
   // The heading's own tag.
-  await page.evaluate(() => [...document.querySelectorAll('.fg-sec .fg-seg button')].find((b) => b.textContent.trim() === 'h3').click());
+  await page.evaluate(() => { document.querySelector('[data-sve-build-tab="content"]')?.click(); });
+  await sleep(150);
+  await page.select('[data-sve-build-tag] select', 'h3');
+  await sleep(150);
+  await page.evaluate(() => { document.querySelector('[data-sve-build-tab="style"]')?.click(); });
   await sleep(200);
   step('tag h3 renames the heading in the file', /<h3 class="text-800[^"]*">Vi bygger brands, der kan mærkes<\/h3>/.test(await html()));
 

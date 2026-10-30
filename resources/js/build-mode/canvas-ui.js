@@ -37,6 +37,7 @@ import { injectStyle } from '../lib/style.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_EMPTY, CANVAS_PATH } from './canvas-paint.js';
 import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding } from './drop.js';
+import { holdsElements } from './catalog.js';
 import { columnsFor, findByPath } from './place.js';
 import { PLUS } from './columns-overlay.js';
 
@@ -142,7 +143,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       const path = el?.getAttribute(CANVAS_PATH);
       const node = path && !seen.has(el) ? findByPath(roots(), path) : null;
 
-      if (node && !node.locked && !node.lockedIn && !node.hidden) {
+      // Only what can hold others: a link, a heading or an image has the panel's + to add after it.
+      if (holdsElements(node)) {
         seen.add(el);
         out.push({ el, path, middle: middle || el.hasAttribute(CANVAS_EMPTY) });
       }
