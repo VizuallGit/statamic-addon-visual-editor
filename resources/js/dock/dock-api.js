@@ -58,7 +58,7 @@ import { mountEditor, paintHostWait } from './editor.js';
 import { paintStyleMode, syncTwTarget } from './style-modes.js';
 import { closeCssMenu, cssEditorText, paintCssToolState, readParts, sameParts, writeParts } from './css-tools.js';
 import { ensureTwCss, flushSave, isChromeTemplateType, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
-import { closeDataMenu, openDataVarsMenu } from './data-vars.js';
+import { closeDataMenu, dataVarsModelAt, openDataVarsMenu } from './data-vars.js';
 import { minimalChange } from '../lib/minimal-change.js';
 
 // ===== dock-api =====
@@ -1068,17 +1068,18 @@ register('dock:set-js', (js) => {
  * the template the caller is standing, so the loop around it can be read; left
  * out, the HTML pane's cursor answers that instead.
  */
-register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
+register('dock:data-menu', ({ anchor, onPick, at, types } = {}) => {
   if (!anchor || !dockState.lastWin) {
     return false;
   }
 
   closeDataMenu(dockState.lastWin.document);
   closeCssMenu(dockState.lastWin.document);
-  openDataVarsMenu(dockState.lastWin, anchor, onPick, at);
+  openDataVarsMenu(dockState.lastWin, anchor, onPick, at, types);
 
   return true;
 });
+register('dock:data-model', ({ at } = {}) => (dockState.lastWin ? dataVarsModelAt(dockState.lastWin, at) : Promise.resolve(null)));
 /**
  * The open file's declared fields, and a change to them.
  *

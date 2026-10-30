@@ -44,6 +44,11 @@ const port = createHarnessPort({
   states: data.states,
   prose: data.prose,
   colors: data.colors,
+  dataModel: {
+    section: [{ var: 'headline', type: 'text' }, { var: 'intro', type: 'textarea' }, { var: 'hero', type: 'assets' }],
+    page: [{ handle: 'this', items: [{ var: 'title', type: 'text' }] }],
+    site: [],
+  },
   onMenu: ({ anchor, names = null, tabs = null, none = '', active = '', pick, free = null, remove = null }) => {
     Object.assign(menu, { open: true, anchor, names, tabs, none, active, pick, free, remove });
   },

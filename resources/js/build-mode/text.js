@@ -6,10 +6,10 @@
  * May import: lib/tag-families.js, html-tree-edit.js, html-tree-parse.js, attrs.js. Pure.
  * Bus messages: none.
  *
- * Only an element whose body is plain text has text to edit here. A body with
- * other elements in it is theirs (a click picks one of them), and a body with
- * Antlers in it is read by the server — `{{ headline }}` is a field, edited in
- * Content mode; neither is ever rewritten from a text box.
+ * Only an element whose body is words and fields has text to edit here: a body
+ * with other elements in it is theirs (a click picks one of them), and is never
+ * rewritten from a text box. A field is written as the file says it —
+ * `Hej {{ headline }}` — and its value is edited in Content mode.
  *
  * The text is shown as it reads on the page: entities decoded, the file's
  * line breaks and indentation folded to single spaces. Written back, it is
@@ -49,7 +49,7 @@ function body(source, node) {
 /**
  * What Content can do with the element's text.
  *
- * @returns {null | { kind: 'text', text: string } | { kind: 'markup' } | { kind: 'antlers', tag: string }}
+ * @returns {null | { kind: 'text', text: string } | { kind: 'markup' }}
  *   null when the element is not one that holds text (a div, an image, a loop)
  */
 export function readText(source, node) {
@@ -69,20 +69,27 @@ export function readText(source, node) {
     return { kind: 'markup' };
   }
 
-  const antlers = /\{\{[\s\S]*?\}\}/.exec(inner.text);
-
-  if (antlers) {
-    return { kind: 'antlers', tag: antlers[0].replace(/\s+/g, ' ') };
-  }
-
   return { kind: 'text', text: decodeEntities(inner.text.trim().replace(/\s+/g, ' ')) };
 }
 
-/** The file with the element's text replaced — only an element `readText` calls text. */
+/** A tag still being typed: `{{ hea`. Written, it would stop the server rendering the section. */
+function halfTag(text) {
+  return String(text ?? '').replace(/\{\{[\s\S]*?\}\}/g, '').includes('{{');
+}
+
+/** Escaped as text, the tags left as Antlers reads them. */
+function escapeWords(text) {
+  return String(text ?? '')
+    .split(/(\{\{[\s\S]*?\}\})/)
+    .map((part, at) => (at % 2 ? part : part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')))
+    .join('');
+}
+
+/** The file with the element's text replaced — only an element `readText` calls text, and not while a tag is half typed. */
 export function withText(source, node, value) {
   const html = String(source || '');
 
-  if (readText(html, node)?.kind !== 'text') {
+  if (readText(html, node)?.kind !== 'text' || halfTag(value)) {
     return html;
   }
 
@@ -91,7 +98,6 @@ export function withText(source, node, value) {
   const layout = (space) => (inner.text.trim() && space.includes('\n') ? space : '');
   const lead = layout(/^\s*/.exec(inner.text)[0]);
   const trail = layout(/\s*$/.exec(inner.text)[0]);
-  const safe = String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  return html.slice(0, inner.from) + lead + safe + trail + html.slice(inner.to);
+  return html.slice(0, inner.from) + lead + escapeWords(value) + trail + html.slice(inner.to);
 }

@@ -16,6 +16,7 @@ import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.
 import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
 import { readText, withText } from '../../../resources/js/build-mode/text.js';
+import { onlyTypes, withoutFields, wrongFields } from '../../../resources/js/data-var-types.js';
 import { readRich, sameRich, withRich } from '../../../resources/js/build-mode/rich.js';
 import { withSvgSrc } from '../../../resources/js/build-mode/svg.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
@@ -103,7 +104,7 @@ export function propertyOf(name) {
  * The port
  * ------------------------------------------------------------------ */
 
-export function createHarnessPort({ html, lists, strings, components, svgs, sectionTag, states, prose, colors, onMenu }) {
+export function createHarnessPort({ html, lists, strings, components, svgs, sectionTag, states, prose, colors, dataModel = {}, onMenu }) {
   const file = ref(html);
   const selected = ref('');
   const plus = ref('');
@@ -284,9 +285,28 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
     setText(path, val) {
       const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
 
-      if (target) {
-        port.write(withText(file.value, target, val), { select: path });
+      const next = target ? withText(file.value, target, val) : file.value;
+
+      if (next !== file.value) {
+        port.write(next, { select: path });
       }
+    },
+    pickField(anchor, path, types, pick) {
+      const fits = onlyTypes(dataModel, types);
+      const names = [...fits.section, ...fits.page.flatMap((group) => group.items), ...fits.site.flatMap((group) => group.items)].map((row) => row.var);
+
+      onMenu?.({ anchor, title: 'data', names, active: '', pick: (name) => pick(`{{ ${name} }}`) });
+    },
+    refuseWrongFields(path, types) {
+      const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
+      const read = target ? readText(file.value, target) : null;
+      const wrong = read?.kind === 'text' ? wrongFields(read.text, dataModel, types) : [];
+
+      if (wrong.length) {
+        port.setText(path, withoutFields(read.text, wrong));
+      }
+
+      return Promise.resolve(wrong[0] || '');
     },
 
     /* Sizes and state — the Tailwind pane's list and its state menu */

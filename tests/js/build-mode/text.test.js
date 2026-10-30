@@ -63,11 +63,26 @@ test('an Antlers tag in the opening tag is not the text', () => {
   assert.equal(withText(html, first(html), 'Other'), '<h1 {{ visual_edit field="x" }}>Other</h1>');
 });
 
-test('a field in the body is the server\'s: named, never rewritten', () => {
+test('a field in the body is text as the file says it, and can be written over', () => {
   const html = '<h2>{{ headline }}</h2>';
 
-  assert.deepEqual(readText(html, first(html)), { kind: 'antlers', tag: '{{ headline }}' });
-  assert.equal(withText(html, first(html), 'x'), html);
+  assert.deepEqual(readText(html, first(html)), { kind: 'text', text: '{{ headline }}' });
+  assert.equal(withText(html, first(html), 'Our work'), '<h2>Our work</h2>');
+});
+
+test('a field is written as a tag, with words around it escaped and the tag left alone', () => {
+  const html = '<h2>Old</h2>';
+
+  assert.equal(withText(html, first(html), '{{ headline }}'), '<h2>{{ headline }}</h2>');
+  assert.equal(withText(html, first(html), 'A & B {{ title | upper }}'), '<h2>A &amp; B {{ title | upper }}</h2>');
+});
+
+test('a tag still being typed is not written', () => {
+  const html = '<h2>Old</h2>';
+
+  assert.equal(withText(html, first(html), 'Hej {{ hea'), html);
+  assert.equal(withText(html, first(html), '{{ a }} {{'), html);
+  assert.equal(withText(html, first(html), 'Hej { x'), '<h2>Hej { x</h2>');
 });
 
 test('other elements in the body are theirs: never rewritten', () => {

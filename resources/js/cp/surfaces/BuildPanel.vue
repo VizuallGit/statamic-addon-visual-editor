@@ -423,6 +423,11 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-text textarea:hover { border-color: var(--bm-edge); }
 .sve-build .bm-text textarea:focus { border-color: var(--bm-accent); }
 .sve-build .bm-text textarea::placeholder { color: var(--bm-faint); }
+.sve-build .bm-text-box { position: relative; }
+.sve-build .bm-text-box textarea { padding-right: 1.75rem; }
+.sve-build .bm-pick-field { position: absolute; top: 0.3rem; right: 0.3rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: var(--bm-muted); cursor: pointer; }
+.sve-build .bm-pick-field:hover { background: var(--bm-line); color: var(--bm-ink); }
+.sve-build .bm-pick-field .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 /* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */
 .sve-build .bm-field-host .sve-pv__label { font-size: 0.6875rem; font-weight: 450; color: var(--bm-muted); }
 

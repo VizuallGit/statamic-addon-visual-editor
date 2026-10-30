@@ -6,15 +6,17 @@
  * asset browser. A link is the page picker. None of that is drawn here — it is
  * the Control Panel's own, borrowed by the app this surface is mounted in.
  *
- * What *is* drawn here is the label, and the switch beside it. A field either
- * holds a value or reads one from the page, and that is Antlers' own
- * distinction — `headline="Hi"` against `:headline="title"`. The switch is how
- * you say which, the same way a condition or a loop does.
+ * What *is* drawn here is the label, and the data icon. A field either holds a
+ * value or reads one from the page, and that is Antlers' own distinction —
+ * `headline="Hi"` against `:headline="title"`. Typed into, it holds a value;
+ * the icon's pick makes it read one, shown as the tag it is (`{{ title }}`) in a
+ * box of its own. Empty that box and the field comes back.
  *
  * The store arrives as a prop rather than being imported: there are two of
  * these on screen at once, showing different things.
  */
 import { PublishContainer, PublishField, PublishFieldsProvider } from '@statamic/cms/ui';
+import { TEXT_FIELDS } from '../../data-var-types.js';
 
 const props = defineProps({
   store: { type: Object, required: true },
@@ -25,6 +27,15 @@ const DATA =
 
 function bound(handle) {
   return Object.prototype.hasOwnProperty.call(props.store.bindings || {}, handle);
+}
+
+/** A field whose own box has room for the icon. The others wear it beside the label. */
+function typedIn(field) {
+  return TEXT_FIELDS.includes(field.type);
+}
+
+function canPick(field) {
+  return props.store.canBind && !bound(field.handle);
 }
 </script>
 
@@ -45,26 +56,20 @@ function bound(handle) {
         :key="field.handle"
         class="sve-pv__row"
         :data-group="['replicator', 'grid', 'group'].includes(field.type) ? '' : undefined"
+        :data-typed="canPick(field) && typedIn(field) ? '' : undefined"
       >
         <div class="sve-pv__bar">
           <span class="sve-pv__label">{{ field.display }}</span>
-          <!--
-            A switch, not the data icon. The icon means "pick a variable" in
-            the box below and everywhere else in the editor; wearing it here as
-            well would make one of the two lie.
-          -->
           <button
-            v-if="props.store.canBind"
+            v-if="canPick(field) && !typedIn(field)"
             type="button"
-            class="sve-pv__toggle"
-            role="switch"
-            :data-on="bound(field.handle) ? '' : undefined"
+            class="sve-pv__data"
             :title="props.store.dataTitle"
             :aria-label="props.store.dataTitle"
-            :aria-checked="bound(field.handle)"
             :disabled="props.store.readOnly"
-            @click="props.store.onToggleBind?.(field.handle, !bound(field.handle))"
-          ><span></span></button>
+            @click="props.store.onPickData?.(field.handle, $event.currentTarget)"
+            v-html="DATA"
+          ></button>
         </div>
 
         <!--
@@ -75,11 +80,11 @@ function bound(handle) {
         <span v-if="bound(field.handle)" class="sve-pv__expr">
           <input
             type="text"
-            :value="props.store.bindings[field.handle]"
+            :value="`{{ ${props.store.bindings[field.handle]} }}`"
             :placeholder="props.store.exprPlaceholder"
             :disabled="props.store.readOnly"
             spellcheck="false"
-            @change="props.store.onExpr?.(field.handle, $event.target.value)"
+            @change="props.store.onBox?.(field.handle, $event.target.value)"
           />
           <button
             type="button"
@@ -91,6 +96,16 @@ function bound(handle) {
           ></button>
         </span>
         <PublishField v-else :config="field" />
+        <button
+          v-if="canPick(field) && typedIn(field)"
+          type="button"
+          class="sve-pv__data sve-pv__data--inside"
+          :title="props.store.dataTitle"
+          :aria-label="props.store.dataTitle"
+          :disabled="props.store.readOnly"
+          @click="props.store.onPickData?.(field.handle, $event.currentTarget)"
+          v-html="DATA"
+        ></button>
       </div>
     </PublishFieldsProvider>
   </PublishContainer>
@@ -133,44 +148,42 @@ function bound(handle) {
   font-size: .8125rem;
   font-weight: 500;
 }
-/* Smaller than a real switch: it marks a field rather than being one, and at
-   full size it was the loudest thing on the row. */
-.sve-pv__toggle {
+.sve-pv__data {
   all: unset;
-  box-sizing: border-box;
-  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  /* Its own size, not the row's. `all: unset` leaves the font to whatever the
-     panel it lands in happens to have, and the switch then changes size with
-     the surroundings instead of staying the mark it is. */
+  /* Its own size, not the row's: `all: unset` leaves the font to the panel it lands in. */
   font-size: .8125rem;
-  width: 1.3em;
-  height: .775em;
-  padding: .0625em;
-  border-radius: 1em;
-  background: rgba(128, 128, 128, .4);
-  transition: background .12s ease;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: .25rem;
+  cursor: pointer;
+  opacity: .55;
 }
-.sve-pv__toggle span {
-  display: block;
-  width: .625em;
-  height: .625em;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform .12s ease;
+.sve-pv__data:hover:not([disabled]) {
+  opacity: 1;
+  background: rgba(128, 128, 128, .22);
 }
-/* On: the field is reading from the page, and says so in the tree's own blue. */
-.sve-pv__toggle[data-on] {
-  background: #3858e9;
-}
-.sve-pv__toggle[data-on] span {
-  transform: translateX(.55em);
-}
-.sve-pv__toggle[disabled] {
+.sve-pv__data[disabled] {
   cursor: default;
-  opacity: .4;
+  opacity: .3;
+}
+/* A text field's icon stands in the field's own box, over its right end, as it
+   does in the box a field reading from the page gets. Statamic's field is left
+   as it is but for room at that end, and only in a row of ours. */
+.sve-pv__row[data-typed] {
+  position: relative;
+}
+.sve-pv__row[data-typed] :deep(input),
+.sve-pv__row[data-typed] :deep(textarea) {
+  padding-inline-end: 2em;
+}
+.sve-pv__data--inside {
+  position: absolute;
+  right: .3em;
+  bottom: .625rem;
 }
 .sve-pv__expr {
   position: relative;

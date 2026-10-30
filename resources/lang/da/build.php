@@ -52,6 +52,8 @@ return [
     'new_item' => 'Punkt',
 
     'content_text' => 'Tekst',
+    'content_field_pick' => 'Indsæt data',
+    'content_field_refused' => ':field er en anden slags felt og kan ikke bruges her.',
     'content_text_placeholder' => 'Skriv teksten…',
     'content_antlers' => 'Teksten kommer fra :tag. Værdien redigeres i Content-tilstand.',
     'content_markup' => 'Elementet indeholder andre elementer. Klik på et af dem for at redigere dets tekst.',

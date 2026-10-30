@@ -32,13 +32,11 @@ import { componentPropsUi } from './cp/component-props/store.js';
 import { componentBindPick } from './component-bind.js';
 import { openPageMenu } from './link-targets.js';
 import { createPropValues, propValuesReady } from './prop-values.js';
+import { fieldTypesFor, wholeTag } from './data-var-types.js';
 
 /** The values this place gives the component. One form, reused per selection. */
 const callValues = createPropValues('sve-call-values');
 
-/** Fields switched to data but not yet given an expression, for the open row. */
-const pendingBinds = new Set();
-let pendingBindRow = null;
 import {
   closingTagIndex,
   dropPlace,
@@ -3805,20 +3803,6 @@ function paintComponentValues(win, row) {
       }
     }
 
-    // A field switched to data but not yet given an expression has nothing in
-    // the call to remember it by. Held here until it gets one, or is switched
-    // back — writing an empty `:handle=""` to remember it would be litter.
-    if (pendingBindRow !== key) {
-      pendingBindRow = key;
-      pendingBinds.clear();
-    }
-
-    for (const handle of pendingBinds) {
-      if (!(handle in bindings)) {
-        bindings[handle] = '';
-      }
-    }
-
     // The left column, not the right pane. Every other set of input fields in
     // Live Preview is over there, and a component's values are no different —
     // it is the section's own fields that step aside while one is picked.
@@ -3830,8 +3814,7 @@ function paintComponentValues(win, row) {
     callValues.ui.canBind = true;
     callValues.ui.dataTitle = t(win, 'data_vars_title');
     callValues.ui.exprPlaceholder = t(win, 'component_props_expr');
-    callValues.ui.onToggleBind = (handle, on) => toggleComponentBinding(win, handle, on);
-    callValues.ui.onExpr = (handle, expr) => writeComponentBinding(win, handle, expr);
+    callValues.ui.onBox = (handle, text) => writeComponentBox(win, handle, text);
     // A component's values are written in the call, so the scope is the call's
     // own: a card inside `{{ collection:services }}` is handed a service's
     // fields, not the section's.
@@ -3839,6 +3822,7 @@ function paintComponentValues(win, row) {
       ask('dock:data-menu', {
         anchor,
         at: row.from,
+        types: fieldTypesFor(callValues.ui.fields.find((field) => field.handle === handle)?.type),
         onPick: (item) => writeComponentBinding(win, handle, String(item?.var || '').trim()),
       });
     callValues.load(win, {
@@ -3925,28 +3909,28 @@ function writeComponentValues(win, params, bindings = {}) {
   }
 }
 
-/**
- * A field switched between holding a value and reading one from the page.
- *
- * Both directions take the parameter out of the call: what is there now is
- * either a value the expression replaces, or an expression the field replaces,
- * and neither survives the switch.
- */
-function toggleComponentBinding(win, handle, on) {
-  if (on) {
-    pendingBinds.add(handle);
-  } else {
-    pendingBinds.delete(handle);
-  }
-
-  writeOneCallParam(win, handle, '', on);
+/** The expression a field reads from the page. */
+function writeComponentBinding(win, handle, expr) {
+  writeOneCallParam(win, handle, expr, true);
   renderHtmlTree(win);
 }
 
-/** The expression a bound field reads. Empty leaves the field waiting. */
-function writeComponentBinding(win, handle, expr) {
-  pendingBinds.add(handle);
-  writeOneCallParam(win, handle, expr, true);
+/**
+ * What the box of a field reading from the page now says. One tag still reads
+ * from the page; anything else is the field's own value, nothing takes it out of
+ * the call, and the form is read again so the field opens on what the call holds.
+ */
+function writeComponentBox(win, handle, text) {
+  const expr = wholeTag(text);
+
+  if (expr) {
+    writeComponentBinding(win, handle, expr);
+
+    return;
+  }
+
+  callValues.forget();
+  writeOneCallParam(win, handle, String(text ?? '').trim(), false);
   renderHtmlTree(win);
 }
 

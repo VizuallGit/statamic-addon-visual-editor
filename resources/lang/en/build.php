@@ -62,6 +62,8 @@ return [
 
     // Style
     'content_text' => 'Text',
+    'content_field_pick' => 'Insert data',
+    'content_field_refused' => ':field is another kind of field and cannot be used here.',
     'content_text_placeholder' => 'Write the text…',
     'content_antlers' => 'This text comes from :tag. Its value is edited in Content mode.',
     'content_markup' => 'This element holds other elements. Click one of them to edit its text.',

@@ -838,7 +838,8 @@ export function ensureStyle(doc) {
 }
 #${DATA_MENU_ID} {
   position: fixed;
-  z-index: 60;
+  /* Over the Tailwind pane's tag strip (tw-overlay.js) as well as the dock. */
+  z-index: 99999;
   width: 23rem;
 }
 [data-sve-data-menu] {

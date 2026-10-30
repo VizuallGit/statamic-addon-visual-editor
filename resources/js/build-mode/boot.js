@@ -10,8 +10,8 @@
  *   breakpoints.js, html-tree-icons.js, html-tree-parse.js, html-tree-edit.js,
  *   code-dock.js (constants only — Build writes the dock's file, so the dock
  *   is loaded in Build anyway), tw-classes.js, tw-tool.js, tw-families.js,
- *   logic-popup.js, build-mode/*, cp/surfaces/BuildPanel.vue.
- * Bus: asks `dock:html`, `dock:set-html`, `lp:set-device`; listens to
+ *   logic-popup.js, data-vars.js, data-var-types.js, build-mode/*, cp/surfaces/BuildPanel.vue.
+ * Bus: asks `dock:html`, `dock:set-html`, `dock:data-menu`, `dock:data-model`, `lp:set-device`; listens to
  *   `dock:html-changed`, `tw:changed`, `lp:device`. The canvas (canvas.js)
  *   asks and listens for itself.
  *
@@ -99,6 +99,8 @@ import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectio
 import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { readText, withText } from './text.js';
+import { dataVarSnippet } from '../data-vars.js';
+import { withoutFields, wrongFields } from '../data-var-types.js';
 import { readRich, sameRich, withRich } from './rich.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
@@ -526,9 +528,50 @@ export function createEditorPort(win, hooks = {}) {
     setText(path, value) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
-      if (node) {
-        port.write(withText(html(), node, value), { select: path });
+      const next = node ? withText(html(), node, value) : html();
+
+      if (next !== html()) {
+        port.write(next, { select: path });
       }
+    },
+    /** The Data button's list beside `anchor`, of the fields that fit (`types`): `pick` gets the tag to write. */
+    pickField(anchor, path, types, pick) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      ask('dock:data-menu', {
+        anchor,
+        at: node?.from,
+        types,
+        onPick: (row, group) => {
+          const tag = dataVarSnippet(row, group, { inline: true })?.text;
+
+          if (tag) {
+            pick(tag);
+          }
+        },
+      });
+    },
+    /**
+     * A name typed by hand that turns out to be a field of the wrong type comes
+     * out of the element's text again → the name, or '' when all is well.
+     */
+    refuseWrongFields(path, types) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const read = node ? readText(html(), node) : null;
+
+      if (read?.kind !== 'text' || !read.text.includes('{{')) {
+        return Promise.resolve('');
+      }
+
+      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => {
+        const wrong = wrongFields(read.text, model, types);
+
+        if (wrong.length) {
+          port.setText(path, withoutFields(read.text, wrong));
+        }
+
+        return wrong[0] || '';
+      });
     },
     /** An image's, a video's, a link's or rich text's content as the Control Panel's own field (element-fields.js) → unmount. */
     fieldReady: (kind) => elementFieldReady(kind),

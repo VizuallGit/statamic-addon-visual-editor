@@ -4,6 +4,7 @@
  */
 import CodeDockDataVars from '../cp/surfaces/CodeDockDataVars.vue';
 import { cachedDataVars, dataVarSnippet, dataVarsCollection, dataVarsKey, dataVarsScope, dataVarsSet, fetchDataVars, groupsWithValues, withValues } from '../data-vars.js';
+import { onlyTypes } from '../data-var-types.js';
 import { loopScopeAt } from '../antlers-blocks.js';
 import { mountSurface } from '../cp/mount.js';
 import { ANTLERS_SNIPPET_GROUPS, ANTLERS_SNIPPETS, antlersSnippet, expandAntlersSnippet, indentAntlersSnippet } from '../antlers-snippets.js';
@@ -163,6 +164,11 @@ function dataVarsModel(win, raw) {
   };
 }
 
+/** The catalogue the Data button shows for this place in the file — Build's check of a name typed by hand. */
+export function dataVarsModelAt(win, at) {
+  return fetchDataVars(win, dataVarsQuery(win, at)).then((raw) => dataVarsModel(win, raw));
+}
+
 /**
  * Whether the caret stands inside the value of a dynamic attribute — a
  * component's `:image="|"`, an `x-bind:` — where Antlers is already the
@@ -254,9 +260,11 @@ export function placeDataMenu(win, anchor, menu) {
 
 /**
  * The field picker. `onPick` lets somewhere other than the HTML pane use it —
- * the tree's condition and loop fields want the bare handle, not a tag.
+ * the tree's condition and loop fields want the bare handle, not a tag. `types`
+ * narrows it to the fieldtypes that fit there (data-var-types.js); a place that
+ * holds one field closes on the pick.
  */
-export function openDataVarsMenu(win, anchor, onPick, at) {
+export function openDataVarsMenu(win, anchor, onPick, at, types) {
   const doc = win.document;
 
   closeDataMenu(doc);
@@ -299,10 +307,16 @@ export function openDataVarsMenu(win, anchor, onPick, at) {
       noSectionText: t(win, 'data_vars_no_section'),
       loopText: t(win, 'data_vars_loop'),
       tabs: tabsFor(raw),
-      data: dataVarsModel(win, raw),
+      data: types ? onlyTypes(dataVarsModel(win, raw), types) : dataVarsModel(win, raw),
       // Left open on purpose: picking a headline and then its text should not
       // mean reopening the menu. Escape or a click outside closes it.
-      onPick: (row, group) => (onPick ? onPick(row, group) : insertDataVar(row, group)),
+      onPick: (row, group) => {
+        if (types) {
+          closeDataMenu(doc);
+        }
+
+        return onPick ? onPick(row, group) : insertDataVar(row, group);
+      },
     });
 
     // The list just changed height; where it opened has to follow.

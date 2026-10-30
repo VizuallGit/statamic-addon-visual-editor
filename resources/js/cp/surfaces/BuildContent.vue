@@ -25,15 +25,20 @@
  * Everything is written by the element's path, not the pick's: what is still
  * on its way when another element is clicked lands where it was typed.
  *
- * What is not the element's own says whose it is: a field (`{{ headline }}`,
- * edited in Content mode), the elements inside it, or — for a div or a
- * section — nothing, as a layout has no text of its own.
+ * The text box takes words and fields alike: the data icon offers the fields
+ * that fit (data-var-types.js) and writes `{{ headline }}` in place of what the
+ * box held; words around it are typed as any others. A field's value is edited
+ * in Content mode.
+ *
+ * What is not the element's own says whose it is: the elements inside it, or —
+ * for a div or a section — nothing, as a layout has no text of its own.
  */
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import BuildSvgPicker from './BuildSvgPicker.vue';
 import { tagFamily } from '../../lib/tag-families.js';
 import { ic } from '../../build-mode/icons.js';
 import { ADDRESS, altFromAsset } from '../../build-mode/attrs.js';
+import { TEXT_FIELDS } from '../../data-var-types.js';
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -102,6 +107,23 @@ const text = typed(
   (value) => port.setText(path, value)
 );
 const rows = computed(() => (/^h[1-6]$/.test(tag.value) ? 2 : 4));
+const refused = ref('');
+
+/** Picked from the list: the field stands in the box's place. */
+function pickField(anchor) {
+  port.pickField(anchor, path, TEXT_FIELDS, (expression) => {
+    text.done();
+    refused.value = '';
+    port.setText(path, expression);
+  });
+}
+
+function textDone() {
+  text.done();
+  port.refuseWrongFields(path, TEXT_FIELDS).then((name) => {
+    refused.value = name ? port.t('content_field_refused', { field: name }) : '';
+  });
+}
 
 /* ---------------- the address: src, href ---------------- */
 
@@ -165,19 +187,31 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="bm-content">
-    <label v-if="read?.kind === 'text'" class="bm-text">
-      <span class="fg-lab">{{ port.t('content_text') }}</span>
-      <textarea
-        v-model="text.value.value"
-        :rows="rows"
-        spellcheck="true"
-        :placeholder="port.t('content_text_placeholder')"
-        data-sve-build-text
-        @input="text.input"
-        @blur="text.done"
-      ></textarea>
-    </label>
-    <p v-else-if="read?.kind === 'antlers'" class="bm-note is-top" data-sve-build-text-antlers v-html="fromField(read.tag)"></p>
+    <div v-if="read?.kind === 'text'" class="bm-text">
+      <label class="fg-lab" :for="`sve-build-text-${path}`">{{ port.t('content_text') }}</label>
+      <div class="bm-text-box">
+        <textarea
+          :id="`sve-build-text-${path}`"
+          v-model="text.value.value"
+          :rows="rows"
+          spellcheck="true"
+          :placeholder="port.t('content_text_placeholder')"
+          data-sve-build-text
+          @input="text.input(); refused = ''"
+          @blur="textDone"
+        ></textarea>
+        <button
+          type="button"
+          class="bm-pick-field"
+          :title="port.t('content_field_pick')"
+          :aria-label="port.t('content_field_pick')"
+          data-sve-build-pick-field
+          @click="pickField($event.currentTarget)"
+          v-html="ic('data')"
+        ></button>
+      </div>
+      <p v-if="refused" class="bm-note is-top" data-sve-build-field-refused>{{ refused }}</p>
+    </div>
     <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{ port.t('content_markup') }}</p>
 
     <div v-if="address" class="bm-text" :data-sve-build-address="address.attr">

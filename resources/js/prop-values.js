@@ -41,13 +41,12 @@ export function createPropValues(name) {
     onChange: null,
     // A field can hold a value, or read one from the page. `bindings` holds the
     // Antlers expression for every field that is doing the second — the panel
-    // draws a box and the data picker for those instead of the field itself.
+    // draws a box holding the tag instead of the field itself.
     canBind: false,
     bindings: {},
     dataTitle: '',
     exprPlaceholder: '',
-    onToggleBind: null,
-    onExpr: null,
+    onBox: null,
     onPickData: null,
   });
 
