@@ -27,7 +27,7 @@ export function fieldTypesFor(type) {
 }
 
 function fits(row, types, single) {
-  return types.includes(row.type) && (!single || row.single);
+  return types.includes(row.type) && (!single || row.type !== 'assets' || row.single);
 }
 
 function fitting(rows, types, inLoop, single) {

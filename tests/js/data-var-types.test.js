@@ -89,6 +89,16 @@ test('one file only: a gallery is no image', () => {
   assert.deepEqual(wrongFields('{{ image }}', model, ['assets'], { single: true }), []);
 });
 
+test('one file only asks it of assets: an address can still print a text field', () => {
+  const model = { section: [{ var: 'slug', type: 'text' }, { var: 'image', type: 'assets', single: true }, { var: 'gallery', type: 'assets', loop: true }, { var: 'content', type: 'bard' }] };
+  const address = ['assets', ...TEXT_FIELDS];
+
+  assert.deepEqual(wrongFields('/img/{{ slug }}.png', model, address, { single: true }), []);
+  assert.deepEqual(wrongFields('{{ image }}', model, address, { single: true }), []);
+  assert.deepEqual(wrongFields('{{ gallery }}', model, address, { single: true }), ['gallery']);
+  assert.deepEqual(wrongFields('{{ content }}', model, address, { single: true }), ['content']);
+});
+
 test('only the named tags are taken out', () => {
   assert.equal(withoutFields('Hej {{ hero }} og {{ headline }}', ['hero']), 'Hej  og {{ headline }}');
   assert.equal(withoutFields('{{ hero | url }}', ['hero']), '');

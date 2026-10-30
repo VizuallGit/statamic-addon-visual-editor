@@ -177,6 +177,8 @@ const addressBox = typed(addressNow, writeAddress);
 const isLink = tag.value === 'a';
 const addressFields = isLink ? ['link'] : ['assets'];
 const addressOne = { single: !isLink };
+/* The list offers those; typed by hand an address is a string, so it prints a text field too: href="{{ url }}", href="mailto:{{ email }}". */
+const addressTakes = [...addressFields, ...TEXT_FIELDS];
 const fieldKey = ref(0);
 
 function pickAddress(anchor) {
@@ -199,7 +201,7 @@ function addressDone() {
   if (address) {
     const now = addressNow.value;
 
-    refuseWrong(now, addressFields, (wrong) => writeAddress(withoutFields(now, wrong)), addressOne);
+    refuseWrong(now, addressTakes, (wrong) => writeAddress(withoutFields(now, wrong)), addressOne);
   }
 }
 
