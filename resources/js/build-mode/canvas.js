@@ -1177,8 +1177,9 @@ export function startCanvas(win) {
     if (el && port) {
       const path = el.getAttribute(CANVAS_PATH);
 
-      // The element already picked: its words, where they stand.
-      if (path === port.selectedPath() && port.inlineTarget && edit.start(el, path, event)) {
+      // The element already picked and open in the panel: its words, where they
+      // stand. One just added is picked with Add still showing: a click opens it first.
+      if (path === port.selectedPath() && port.panel?.value === 'element' && port.inlineTarget && edit.start(el, path, event)) {
         return;
       }
 
