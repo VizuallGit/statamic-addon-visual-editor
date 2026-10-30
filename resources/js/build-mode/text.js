@@ -73,7 +73,8 @@ export function readText(source, node) {
     return null;
   }
 
-  if ((node.children || []).some((child) => child.kind || String(child.tag).toLowerCase() !== 'br')) {
+  // {{ /noparse }}: a pair the tree has no row for ({{ once }}, {{ foreach }}) is markup all the same.
+  if ((node.children || []).some((child) => child.kind || String(child.tag).toLowerCase() !== 'br') || /\{\{\s*\//.test(inner.text)) {
     return { kind: 'markup' };
   }
 

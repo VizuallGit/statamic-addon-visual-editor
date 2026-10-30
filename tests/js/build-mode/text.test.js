@@ -112,6 +112,13 @@ test('a tag still being typed is not written', () => {
   assert.equal(withText(html, first(html), 'Hej { x'), '<h2>Hej { x</h2>');
 });
 
+test('a pair the tree has no row for is no text: never rewritten', () => {
+  for (const html of ['<p>{{ noparse }}{{ x }}{{ /noparse }}</p>', '<p>{{ once }}Hi{{ /once }}</p>', '<p>{{ foreach:list }}{{ value }}{{ /foreach:list }}</p>']) {
+    assert.deepEqual(readText(html, first(html)), { kind: 'markup' });
+    assert.equal(withText(html, first(html), 'x'), html);
+  }
+});
+
 test('other elements in the body are theirs: never rewritten', () => {
   const html = '<p>Hi <strong>you</strong></p>';
 
