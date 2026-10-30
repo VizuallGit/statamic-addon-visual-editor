@@ -33,6 +33,8 @@ export const BUILD_ELEMENTS = {
   divider: { id: 'divider', tag: 'hr' },
   // A block of prose Content edits with Bard (rich.js): a div of paragraphs, nothing else on it.
   richtext: { id: 'richtext', tag: 'div', rich: true },
+  // Images in a Tailwind grid, by hand or from an assets field (gallery.js).
+  gallery: { id: 'gallery', tag: 'div', gallery: true },
   // Statamic's `{{ svg }}` for a file of the site's SVG folder, picked first (svg.js, BuildSvgPopup.vue).
   svg: { id: 'svg', tag: 'svg', svg: true },
   article: { id: 'article', tag: 'article' },
@@ -77,6 +79,7 @@ const ADD_BASIC = [
   { id: 'button', own: 'button' },
   { id: 'link', tool: 'a' },
   { id: 'image', tool: 'img' },
+  { id: 'gallery', own: 'gallery' },
   { id: 'svg', own: 'svg' },
   { id: 'video', tool: 'video' },
   { id: 'list', tool: 'ul' },
@@ -89,7 +92,7 @@ const ADD_LOGIC = [
 const ADD_TAGS = ['article', 'aside', 'nav', 'header', 'footer', 'figure'].map((id) => ({ id, own: id }));
 
 /** HTML toolbar buttons with no tile of that id: not an element to put somewhere, or Build's own tile writes it. */
-const NOT_ELEMENTS = new Set(['component', 'pagination', 'grid', 'richtext', 'button', 'svg', 'hr']);
+const NOT_ELEMENTS = new Set(['component', 'pagination', 'grid', 'richtext', 'gallery', 'button', 'svg', 'hr']);
 
 /**
  * Add's groups, resolved against the dock's lists. An entry whose dock

@@ -28,7 +28,7 @@ import { ADDRESS } from './attrs.js';
 
 /** The fieldtype a kind of content is edited with: an address's (attrs.js), or Bard for rich text (rich.js). */
 function fieldtypeOf(kind) {
-  return kind === 'rich' ? 'bard' : ADDRESS[kind]?.fieldtype || '';
+  return kind === 'rich' ? 'bard' : kind === 'gallery' ? 'assets' : ADDRESS[kind]?.fieldtype || '';
 }
 
 /** Whether the Control Panel can lend this kind's field — an older one gets a plain box instead. */

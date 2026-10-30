@@ -29,6 +29,7 @@ class ElementFieldsController
     public const FIELDS = [
         'img' => ['handle' => 'src', 'type' => 'media'],
         'video' => ['handle' => 'src', 'type' => 'media'],
+        'gallery' => ['handle' => 'images', 'type' => 'media', 'many' => true],
         'a' => ['handle' => 'href', 'type' => 'link'],
         'rich' => ['handle' => 'html', 'type' => 'bard'],
     ];

@@ -124,7 +124,8 @@ export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 
 // The placeholder first: a hover, a pick or a + target draws over its dashes.
 // A video without `controls` wears none: the browser shows its own wherever scripts are off, as on the canvas.
-const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
+const OWN_CSS = `img[src=""]{display:block!important;min-width:4rem;min-height:6rem!important;outline:1px dashed rgba(127,127,127,.6);outline-offset:-1px}
+[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
 [${CANVAS_EMPTY}="text"]{min-height:1.5em!important}
 [${CANVAS_ROOT}][${CANVAS_EMPTY}]{min-height:8rem!important}
 [${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}

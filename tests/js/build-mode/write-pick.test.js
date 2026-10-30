@@ -15,7 +15,7 @@ test('write() keeps the pick with reveal: false; a click (select, setPlus) revea
   const boot = read('build-mode/boot.js');
 
   assert.match(boot, /wrote = select;[\s\S]{0,400}hooks\.select\?\.\(select, \{ reveal: false \}\);/);
-  assert.ok(boot.includes("hooks.select?.(richOwner(html(), path) || path || '');"), 'a click on the canvas reveals');
+  assert.ok(boot.includes("hooks.select?.(wholeOwner(html(), path) || path || '');"), 'a click on the canvas reveals');
   assert.ok(boot.includes('hooks.select?.(path);'), 'a + target reveals');
 });
 

@@ -35,6 +35,7 @@ const P = {
   arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   arrowL: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   arrowU: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  gallery: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M13 19l2.5-3 2 2 1.5-1.5 2 2.5"/>',
   // The Spacing box's link: which sides move together.
   sidesApart: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
   sidesBlock: '<path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/>',

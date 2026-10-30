@@ -27,6 +27,7 @@
 import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue';
 import BuildAdd from './BuildAdd.vue';
 import BuildContent from './BuildContent.vue';
+import BuildGallery from './BuildGallery.vue';
 import BuildStyle from './BuildStyle.vue';
 import { describeAt } from '../../build-mode/place.js';
 import { ic } from '../../build-mode/icons.js';
@@ -53,11 +54,12 @@ const picked = computed(() => {
 const contentNode = computed(() => {
   port.rev.value;
 
-  const owner = picked.value ? port.richOwner?.(picked.value.path) : '';
+  const owner = picked.value ? port.wholeOwner?.(picked.value.path) : '';
 
   return owner ? describeAt(port.html(), owner).node : picked.value;
 });
 const isRich = computed(() => (port.rev.value, !!picked.value && port.isRichBlock()));
+const isGallery = computed(() => (port.rev.value, !!contentNode.value && !!port.isGallery?.(contentNode.value.path)));
 
 /** Add, or the element — the element only while there is one to show. */
 const side = computed(() => (port.panel.value === 'element' && picked.value ? 'element' : 'add'));
@@ -227,7 +229,7 @@ onBeforeUnmount(() => unmountHost?.());
     <template v-else>
       <div class="fg-head bm-el-head">
         <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
-        <b>{{ isRich ? port.t('content_rich') : nameOf(picked) }}</b>
+        <b>{{ isRich ? port.t('content_rich') : isGallery ? port.t('content_gallery') : nameOf(picked) }}</b>
         <span class="fg-head__acts">
           <button type="button" class="fg-ib" :title="port.t('tab_add')" :aria-label="port.t('tab_add')" data-sve-build-add @click="port.panel.value = 'add'" v-html="ic('plus')"></button>
           <template v-if="styled">
@@ -258,6 +260,7 @@ onBeforeUnmount(() => unmountHost?.());
           <div ref="host" class="bm-host"></div>
         </div>
 
+        <BuildGallery v-else-if="isGallery" :key="contentNode.path" :node="contentNode" />
         <BuildContent v-else :key="contentNode.path" :node="contentNode" />
       </div>
     </template>

@@ -104,7 +104,9 @@ import { readAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
-import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from './rich.js';
+import { isRichBlock, readRich, readRichField, sameRich, withRich, withRichField } from './rich.js';
+import { isGallery, readGallery, withGalleryField, withGalleryImages } from './gallery.js';
+import { wholeOwner } from './whole.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
@@ -338,7 +340,7 @@ export function createEditorPort(win, hooks = {}) {
     select(path) {
       clearPlus();
       // Rich text is one element: a click on what stands in it picks it.
-      hooks.select?.(richOwner(html(), path) || path || '');
+      hooks.select?.(wholeOwner(html(), path) || path || '');
       panel.value = 'element';
       bump();
     },
@@ -512,7 +514,32 @@ export function createEditorPort(win, hooks = {}) {
       return node ? readRich(html(), node) : null;
     },
     /** The Rich text element the element at `path` stands in, or ''. */
-    richOwner: (path) => richOwner(html(), path),
+    wholeOwner: (path) => wholeOwner(html(), path),
+    /** Is the element at `path` a gallery, what it holds, and writing it (gallery.js). */
+    isGallery: (path) => isGallery(html(), path ? findByPath(parseTemplateTree(html()), path) : null),
+    readGallery(path) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      return node ? readGallery(html(), node) : { field: null, urls: [] };
+    },
+    setGalleryImages(path, urls) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const next = node ? withGalleryImages(html(), node, urls) : html();
+
+      if (next !== html()) {
+        port.write(next, { select: path });
+      }
+    },
+    setGalleryField(path, expression) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const next = node ? withGalleryField(html(), node, expression) : html();
+
+      if (next !== html()) {
+        port.write(next, { select: path });
+      }
+
+      port.syncFieldEdit(path, expression, { types: ['assets'], inline: false });
+    },
     /** Whether the picked element is a Rich text element. */
     isRichBlock: () => (rev.value, isRichBlock(html(), picked())),
     /** The tag of the field standing in the picked rich text's place, or null (rich.js). */

@@ -52,6 +52,10 @@ export function markupFor(entry, opts = {}) {
         return '<hr>';
       }
 
+      if (def.gallery) {
+        return `<div class="grid grid-cols-3 gap-4">\n${INDENT}<img src="" alt="" class="w-full">\n</div>`;
+      }
+
       if (def.rich) {
         return `<div class="prose">\n${INDENT}<p>${esc(text.text)}</p>\n</div>`;
       }

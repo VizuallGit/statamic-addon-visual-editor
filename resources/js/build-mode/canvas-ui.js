@@ -38,6 +38,7 @@ import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_EMPTY, CANVAS_PATH } from './canvas-paint.js';
 import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding } from './drop.js';
 import { holdsElements } from './catalog.js';
+import { isWhole } from './whole.js';
 import { columnsFor, findByPath } from './place.js';
 import { PLUS } from './columns-overlay.js';
 
@@ -144,7 +145,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       const node = path && !seen.has(el) ? findByPath(roots(), path) : null;
 
       // Only what can hold others: a link, a heading or an image has the panel's + to add after it.
-      if (holdsElements(node)) {
+      if (holdsElements(node) && !isWhole(p.html(), node)) {
         seen.add(el);
         out.push({ el, path, middle: middle || el.hasAttribute(CANVAS_EMPTY) });
       }

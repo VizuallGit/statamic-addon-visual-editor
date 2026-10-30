@@ -12,6 +12,8 @@
  */
 import { ref } from 'vue';
 import { flattenHtmlTree, parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
+import { isGallery, readGallery, withGalleryField, withGalleryImages } from '../../../resources/js/build-mode/gallery.js';
+import { wholeOwner } from '../../../resources/js/build-mode/whole.js';
 import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.js';
 import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
@@ -162,7 +164,7 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
     selectedPath: () => selected.value,
     plusPath: () => plus.value,
     select(path) {
-      selected.value = richOwner(file.value, path) || path || '';
+      selected.value = wholeOwner(file.value, path) || path || '';
       plus.value = '';
       panel.value = 'element';
       bump();
@@ -267,7 +269,27 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
 
       return picked ? readRich(file.value, picked) : null;
     },
-    richOwner: (path) => richOwner(file.value, path),
+    wholeOwner: (path) => wholeOwner(file.value, path),
+    isGallery: (path) => isGallery(file.value, path ? findByPath(parseTemplateTree(file.value), path) : null),
+    readGallery(path) {
+      const at = path ? findByPath(parseTemplateTree(file.value), path) : null;
+
+      return at ? readGallery(file.value, at) : { field: null, urls: [] };
+    },
+    setGalleryImages(path, urls) {
+      const at = path ? findByPath(parseTemplateTree(file.value), path) : null;
+
+      if (at) {
+        port.write(withGalleryImages(file.value, at, urls), { select: path });
+      }
+    },
+    setGalleryField(path, expression) {
+      const at = path ? findByPath(parseTemplateTree(file.value), path) : null;
+
+      if (at) {
+        port.write(withGalleryField(file.value, at, expression), { select: path });
+      }
+    },
     isRichBlock: () => (rev.value, isRichBlock(file.value, node())),
     richField() {
       rev.value;

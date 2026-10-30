@@ -100,9 +100,9 @@ class PropFields
                 'type' => 'assets',
                 'display' => $label,
                 'hide_display' => true,
-                'max_files' => 1,
+                'max_files' => empty($prop['many']) ? 1 : null,
                 'mode' => 'grid',
-                'container' => self::container($default),
+                'container' => self::container(strtok($default, "\n") ?: ''),
             ],
             'link' => [
                 'type' => 'link',
@@ -222,7 +222,9 @@ class PropFields
         return match ((string) ($prop['type'] ?? 'text')) {
             // An asset is stored as its URL, because that is what an `src` needs.
             // The fieldtype works in container-relative paths, so it is looked up.
-            'media' => ($asset = Asset::findByUrl($value)) ? [$asset->path()] : null,
+            'media' => empty($prop['many'])
+                ? (($asset = Asset::findByUrl($value)) ? [$asset->path()] : null)
+                : collect(preg_split('/\R/', $value))->map(fn ($url) => Asset::findByUrl(trim($url))?->path())->filter()->values()->all(),
             // The one word the pair reads as on. Anything else in the call is
             // a hand-written value the switch has no position for.
             'boolean' => $value === 'true',
@@ -245,6 +247,13 @@ class PropFields
 
         if ($type === 'group') {
             return GroupFields::toParam($prop, $value);
+        }
+
+        if ($type === 'media' && ! empty($prop['many'])) {
+            return collect(is_array($value) ? $value : [])
+                ->map(fn ($path) => static::asset((string) $path, $prop)?->url())
+                ->filter()
+                ->implode("\n");
         }
 
         if ($type === 'media') {

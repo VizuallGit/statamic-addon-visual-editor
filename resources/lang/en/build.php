@@ -74,6 +74,9 @@ return [
     'content_markup' => 'This element holds other elements. Click one of them to edit its text.',
     'content_layout' => 'A layout element has no text of its own: its content is the elements inside it.',
     'content_soon' => 'Content for this element comes in a later step.',
+    'content_gallery' => 'Gallery',
+    'content_gallery_own' => 'Use my own images',
+    'el_gallery' => 'Gallery',
     'content_rich' => 'Rich text',
     // The Rich text tile (Add → Basic); its element is a div, named as one elsewhere.
     'el_richtext' => 'Rich text',
