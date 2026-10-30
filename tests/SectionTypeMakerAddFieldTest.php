@@ -2,9 +2,12 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker\AddField;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker\Names;
+use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Fieldset;
 use Statamic\Facades\YAML;
 
@@ -66,6 +69,8 @@ class SectionTypeMakerAddFieldTest extends TestCase
         foreach (['page_sections', 'common.settings', 'content.plain', 'content.grouped'] as $handle) {
             Fieldset::find($handle)?->delete();
         }
+
+        File::deleteDirectory(storage_path('framework/testing/disks/sve_test_assets'));
 
         parent::tearDown();
     }
@@ -136,6 +141,54 @@ class SectionTypeMakerAddFieldTest extends TestCase
 
         $this->assertNull(AddField::run('page_sections', 'content/prefixed', 'text', 'Heading', 'Hello'));
         $this->assertSame($before, file_get_contents(Names::fieldsetPath('content', 'plain')));
+    }
+
+    /** The fixture container `sve_previews` on a local disk served at `/assets`, with one file in it. */
+    protected function withAssets(): void
+    {
+        $root = storage_path('framework/testing/disks/sve_test_assets');
+
+        File::ensureDirectoryExists($root);
+        config(['filesystems.disks.sve_test_assets' => ['driver' => 'local', 'root' => $root, 'url' => '/assets']]);
+        $container = AssetContainer::make('sve_previews')->disk('sve_test_assets')->save();
+        Storage::disk('sve_test_assets')->put('team photo.jpg', 'x');
+        $container->makeAsset('team photo.jpg')->save();
+    }
+
+    public function test_an_image_that_is_an_asset_keeps_it_as_the_default_in_its_own_container(): void
+    {
+        $this->withAssets();
+
+        $this->assertSame('image', AddField::run('page_sections', 'content/plain', 'assets', 'Image', '/assets/team%20photo.jpg'));
+
+        $field = end($this->onDisk('content', 'plain')['fields'])['field'];
+
+        $this->assertSame(['type' => 'assets', 'display' => 'Image', 'container' => 'sve_previews', 'max_files' => 1, 'default' => 'team photo.jpg'], $field);
+    }
+
+    /**
+     * An image whose address is no asset's — a file under `public/`, a Glide
+     * URL — has no default to give: `{{ image }}` would print nothing on every
+     * page. Nothing is made. An image with no address has nothing to keep, and
+     * gets its field.
+     */
+    public function test_an_image_that_is_not_an_asset_gets_no_field(): void
+    {
+        $this->withAssets();
+
+        $before = file_get_contents(Names::fieldsetPath('content', 'plain'));
+
+        $this->assertNull(AddField::run('page_sections', 'content/plain', 'assets', 'Image', '/img/own-logo.png'));
+        $this->assertNull(AddField::run('page_sections', 'content/plain', 'assets', 'Image', '/assets/gone.jpg'));
+        $this->assertSame($before, file_get_contents(Names::fieldsetPath('content', 'plain')));
+
+        $this->assertSame('image', AddField::run('page_sections', 'content/plain', 'assets', 'Image', ''));
+
+        $field = end($this->onDisk('content', 'plain')['fields'])['field'];
+
+        $this->assertSame('assets', $field['type']);
+        $this->assertSame(1, $field['max_files']);
+        $this->assertArrayNotHasKey('default', $field);
     }
 
     public function test_a_set_declaring_its_fields_inline_has_no_fieldset_to_add_to(): void

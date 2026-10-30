@@ -38,10 +38,19 @@ class AddField
      * @param  string  $kind  one of KINDS
      * @param  string  $name  the name asked for; made into a handle
      * @param  string  $value  what the element holds: text, HTML or a URL
-     * @return ?string the field's handle; null when the section has no fieldset to add to
+     * @return ?string the field's handle; null when nothing was made — the section has
+     *                 no fieldset to add to, imports it with a prefix, or the value is
+     *                 no default (an image that is no asset)
      */
     public static function run(SectionList|string $list, string $set, string $kind, string $name, string $value): ?string
     {
+        $config = static::config($kind, $value);
+
+        // Before anything is written: a static section is given its fieldset below.
+        if ($config === null) {
+            return null;
+        }
+
         $type = SectionTypeMaker::addFields($list, $set);
         $imported = $type['fieldset'] ?? null;
         $folderAndName = is_string($imported) ? explode('.', $imported, 2) : [];
@@ -60,7 +69,7 @@ class AddField
 
         $contents = YAML::file($path)->parse();
         $handle = static::handle($name, FieldsetFields::flatten($contents));
-        $field = ['handle' => $handle, 'field' => static::config($kind, $handle, $value)];
+        $field = ['handle' => $handle, 'field' => ['type' => $kind, 'display' => Str::title(str_replace('_', ' ', $handle))] + $config];
 
         if (is_array($contents['sections'] ?? null) && $contents['sections'] !== []) {
             $last = array_key_last($contents['sections']);
@@ -98,12 +107,22 @@ class AddField
         return $handle;
     }
 
-    protected static function config(string $kind, string $handle, string $value): array
+    /**
+     * The field's settings after type and display, the value as its default.
+     * Null when the value cannot be one: an image whose address is no asset's
+     * (a file under `public/`, a Glide URL) has nothing a field could hold, and
+     * `{{ image }}` would print nothing on every page.
+     */
+    protected static function config(string $kind, string $value): ?array
     {
-        $config = ['type' => $kind, 'display' => Str::title(str_replace('_', ' ', $handle))];
+        $config = [];
 
         if ($kind === 'assets') {
             $asset = $value === '' ? null : Asset::findByUrl($value);
+
+            if ($value !== '' && $asset === null) {
+                return null;
+            }
 
             $config['container'] = $asset?->container()->handle() ?? AssetContainer::all()->first()?->handle();
             $config['max_files'] = 1;
