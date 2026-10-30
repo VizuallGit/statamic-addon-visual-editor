@@ -64,11 +64,13 @@ const fromField = (expr) => port.t('content_antlers', { tag: `<code>${esc(expr.r
 /**
  * A box typed into: the file's value until it is typed in, then the box's,
  * written once a frame — or, `live: false`, once typing is over (raw HTML,
- * where every keystroke on the way is half a tag).
+ * where every keystroke on the way is half a tag). `typing` says the box is
+ * being typed in: what is drawn from the file must not take the box away from
+ * under the caret while the file holds only a keystroke's worth of it.
  */
 function typed(fromFile, write, { live = true } = {}) {
   const value = ref(fromFile.value ?? '');
-  let typing = false;
+  const typing = ref(false);
   let frame = 0;
   const flush = () => {
     frame = 0;
@@ -76,15 +78,16 @@ function typed(fromFile, write, { live = true } = {}) {
   };
 
   watch(fromFile, (next) => {
-    if (!typing && next !== null) {
+    if (!typing.value && next !== null) {
       value.value = next;
     }
   });
 
   return {
     value,
+    typing,
     input() {
-      typing = true;
+      typing.value = true;
 
       if (live && !frame) {
         frame = window.requestAnimationFrame(flush);
@@ -95,11 +98,11 @@ function typed(fromFile, write, { live = true } = {}) {
       if (frame) {
         window.cancelAnimationFrame(frame);
         flush();
-      } else if (!live && typing) {
+      } else if (!live && typing.value) {
         flush();
       }
 
-      typing = false;
+      typing.value = false;
 
       if (fromFile.value !== null) {
         value.value = fromFile.value;
@@ -330,7 +333,8 @@ onBeforeUnmount(() => {
     <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{ port.t('content_markup') }}</p>
 
     <div v-if="address" class="bm-text" :data-sve-build-address="address.attr">
-      <template v-if="addressExpr || !statamic">
+      <!-- The box stays while it is typed in: a tag's first `{` is in the file before the tag is. -->
+      <template v-if="addressExpr || !statamic || addressBox.typing.value">
         <span class="fg-lab">{{ port.t(`content_${tag}`) }}</span>
         <div class="bm-text-box">
           <input
@@ -349,7 +353,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
       <div v-else :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
-      <button v-if="address.attr === 'src' && addressNow && !addressExpr" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
+      <button v-if="address.attr === 'src' && addressNow && !addressExpr && !addressBox.typing.value" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
         <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${tag}`) }}
       </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
