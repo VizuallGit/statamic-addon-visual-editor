@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 19) {
+    if (window.__sveDockInstantPreview === 20) {
         return;
     }
-    window.__sveDockInstantPreview = 19;
+    window.__sveDockInstantPreview = 20;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -60,6 +60,12 @@
     /** 'off' = a class shows only once it is picked; anything else = it shows while the list is on it. */
     var HOVER_KEY = 'sveInstantHover';
     var MODE_STYLE_ID = '__sve-instant-mode-style';
+    // Build's canvas (build-mode/canvas.js) stands over the preview in both
+    // Builds and paints the dock's text itself. The three literals are
+    // lib/build-canvas-ids.js — this script imports nothing.
+    var BUILD_CANVAS_ID = '__sve-build-canvas';
+    var BUILD_CANVAS_UNSTYLED_ATTR = 'data-sve-build-unstyled';
+    var BUILD_CANVAS_SHOWN_EVENT = 'sve:build-canvas-shown';
     var ANT = '\uE000';
     // A block's opener ({{ if … }}, {{ items }} with a {{ /items }} later) and
     // its closer keep their own marks: what stands between them is the
@@ -129,6 +135,19 @@
         }
 
         return 'astro';
+    }
+
+    /**
+     * Build's canvas is the page on screen: in the document and styled (the
+     * same reading as lib/build-canvas.js `buildCanvasFrame`). The preview is
+     * hidden under it, so a paint there is shown to nobody — and the site's
+     * scripts would run in the hidden document for every keystroke. Paint
+     * waits; when the canvas goes, one paint brings the preview up to the dock.
+     */
+    function buildCanvasUp() {
+        var frame = document.getElementById(BUILD_CANVAS_ID);
+
+        return !!frame && !frame.hasAttribute(BUILD_CANVAS_UNSTYLED_ATTR);
     }
 
     function hoverPreviewOn() {
@@ -4686,6 +4705,10 @@
             return;
         }
 
+        if (buildCanvasUp()) {
+            return;
+        }
+
         forgetOtherFile();
 
         var pane = paneText('html');
@@ -5984,6 +6007,13 @@
         watchDock();
         bindIframe();
         observeShell();
+        // The canvas came to show or went. Gone, the preview is the page on
+        // screen again and gets the dock's text in one paint.
+        window.addEventListener(BUILD_CANVAS_SHOWN_EVENT, function () {
+            if (!buildCanvasUp()) {
+                schedulePaint();
+            }
+        });
         window.setInterval(function () {
             observeShell();
             watchDock();
