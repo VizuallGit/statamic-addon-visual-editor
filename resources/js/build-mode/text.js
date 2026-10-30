@@ -85,10 +85,14 @@ export function halfTag(text) {
   return String(text ?? '').replace(/\{\{[\s\S]*?\}\}/g, '').includes('{{');
 }
 
-/** Escaped as text, the tags left as Antlers reads them and a line break as the element it is. */
+/**
+ * Escaped as text, the tags left as Antlers reads them and a line break as the
+ * element it is — with what it carries: `readText` lets a `<br>` through with
+ * any attributes, so `<br class="hidden md:block">` has to come back the same.
+ */
 function escapeWords(text) {
   return String(text ?? '')
-    .split(/(\{\{[\s\S]*?\}\}|<br\s*\/?>)/i)
+    .split(/(\{\{[\s\S]*?\}\}|<br\b[^<>]*>)/i)
     .map((part, at) => (at % 2 ? part : part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')))
     .join('');
 }

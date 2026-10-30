@@ -85,6 +85,15 @@ test('a line break belongs to the text: read and written as the element it is', 
   assert.equal(withText('<p></p>', first('<p></p>'), 'One<br/>Two'), '<p>One<br/>Two</p>');
 });
 
+test('a line break with a class — Tailwind\'s `<br class="hidden md:block">` — is read as text and written back as the element', () => {
+  const html = '<h2>One<br class="hidden md:block">Two</h2>';
+  const read = readText(html, first(html));
+
+  assert.deepEqual(read, { kind: 'text', text: 'One<br class="hidden md:block">Two' });
+  assert.equal(withText(html, first(html), read.text), html);
+  assert.equal(withText(html, first(html), 'A<br class="md:hidden" />B'), '<h2>A<br class="md:hidden" />B</h2>');
+});
+
 test('a heading and a link are one line; a paragraph and a list item are not', () => {
   for (const tag of ['h1', 'H6', 'a', 'button']) {
     assert.equal(isOneLine(tag), true, tag);
