@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionList;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker;
+use MarioHamann\StatamicVisualEditor\SectionTypeMaker\AddField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\SectionUsage;
 use MarioHamann\StatamicVisualEditor\SetPreviewImages;
@@ -212,6 +213,29 @@ class SectionTypesController
      * without. Same gate as making one: both edit the fieldset in the
      * repository.
      */
+    /** An element's text or image as a field of its section (SectionTypeMaker\AddField). */
+    public function addField(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $set = trim((string) $request->input('handle', ''));
+        $kind = (string) $request->input('kind', '');
+
+        abort_if($set === '' || ! in_array($kind, AddField::KINDS, true), 400);
+
+        $handle = AddField::run(
+            static::list($request),
+            $set,
+            $kind,
+            mb_substr(trim((string) $request->input('name', '')), 0, 60),
+            (string) $request->input('value', '')
+        );
+
+        return $handle === null
+            ? response()->json(['error' => 'no_fieldset'], 422)
+            : response()->json(['ok' => true, 'handle' => $handle]);
+    }
+
     public function update(Request $request)
     {
         abort_unless(User::current()?->can('configure fields'), 403);

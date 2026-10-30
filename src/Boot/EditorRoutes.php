@@ -111,6 +111,9 @@ final class EditorRoutes
                 ->name('sve.section-types.copy');
             // One set changed in place: hidden from the picker or shown, or
             // given the fieldset a static section was made without.
+            // One field more in its fieldset, from an element made editable in Vizuall Build.
+            Route::post('/!/sve/section-types/fields', [SectionTypesController::class, 'addField'])
+                ->name('sve.section-types.fields.store');
             Route::patch('/!/sve/section-types', [SectionTypesController::class, 'update'])
                 ->name('sve.section-types.update');
 

@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { altFromAsset, readAttribute, withAttribute, withFieldEdit } from '../../../resources/js/build-mode/attrs.js';
+import { altFromAsset, readAttribute, withAttribute, fieldEditOf, withFieldEdit } from '../../../resources/js/build-mode/attrs.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
@@ -98,4 +98,12 @@ test('an author\'s tag with no field is left alone when there is none to point a
 
   assert.equal(withFieldEdit(html, first(html), null), html);
   assert.equal(withFieldEdit(plain, first(plain), null), plain);
+});
+
+test('the field a visual_edit points at', () => {
+  const html = '<p {{ visual_edit field="a" inline_edit="true" }}>y</p>';
+  const plain = '<section {{ visual_edit outline_inside="true" }}>y</section>';
+
+  assert.equal(fieldEditOf(html, first(html)), 'a');
+  assert.equal(fieldEditOf(plain, first(plain)), '');
 });

@@ -89,6 +89,13 @@ export function readAttribute(source, node, name) {
  * parameters on the tag stay; a tag left with none goes. A tag without `field`
  * is the author's and is left alone when there is no field to point at.
  */
+/** The field the element's `{{ visual_edit }}` points at, or ''. */
+export function fieldEditOf(source, node) {
+  const open = node && !node.kind ? String(source || '').slice(node.from, node.openTo) : '';
+
+  return /\{\{\s*visual_edit\b[^}]*?\bfield="([^"]*)"/.exec(open)?.[1] || '';
+}
+
 export function withFieldEdit(source, node, field, { inline = true } = {}) {
   const text = String(source || '');
 

@@ -100,10 +100,13 @@ import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { rootFor, rootOf } from './classes.js';
-import { readAttribute, withAttribute, withFieldEdit } from './attrs.js';
+import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
+import { canEditFields, currentSetHandle, refreshFieldsForType } from '../section-fields.js';
+import { pageBuilderQuery } from '../lib/config.js';
+import { csrfToken } from '../lib/csrf.js';
 import { isRichBlock, readRich, readRichField, sameRich, withRich, withRichField } from './rich.js';
 import { isGallery, readGallery, withGalleryField, withGalleryImages } from './gallery.js';
 import { wholeOwner } from './whole.js';
@@ -207,6 +210,11 @@ function buildCanvas(win) {
 }
 
 /** The port, on the editor. Exported for the bench test. */
+/** Is the element at `path` inside a loop: an item of many, not one thing on the page? */
+function inLoop(nodes, path) {
+  return (nodes || []).some((row) => path.startsWith(`${row.path}/`) && ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children, path)));
+}
+
 export function createEditorPort(win, hooks = {}) {
   const contentAsked = ref(0);
   const rev = ref(0);
@@ -597,9 +605,8 @@ export function createEditorPort(win, hooks = {}) {
     inlineTarget(path) {
       const roots = parseTemplateTree(html());
       const node = path ? findByPath(roots, path) : null;
-      const inLoop = (nodes) => (nodes || []).some((row) => path.startsWith(`${row.path}/`) && ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children)));
 
-      if (!node || node.locked || node.lockedIn || node.hidden || inLoop(roots)) {
+      if (!node || node.locked || node.lockedIn || node.hidden || inLoop(roots, path)) {
         return null;
       }
 
@@ -625,6 +632,49 @@ export function createEditorPort(win, hooks = {}) {
         return rows.some((row) => row.var === field && !row.parent && TEXT_FIELDS.includes(row.type)) ? { oneLine: true, field } : null;
       });
     },
+    /**
+     * May this element's content become a field of its section? A section is
+     * open in the dock (not a component, not the header), the element is not an
+     * item of a loop, and the user may change fieldsets.
+     */
+    canMakeField(path) {
+      return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && !inLoop(parseTemplateTree(html()), path);
+    },
+    /** The fields of the open section, by name: what makes a tag in an element "its own". */
+    sectionFieldNames(path) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) => (model?.section || []).filter((row) => !row.parent).map((row) => row.var));
+    },
+    /**
+     * A new field in the open section's fieldset, holding `value` as its
+     * default, and the form told about it: the row on this page gets the value
+     * (refreshFieldsForType, as after Statamic's own Fieldsets screen).
+     *
+     * @returns {Promise<string|null>} the field's handle; null when it could not be made
+     */
+    async makeField(path, { kind, name, value }) {
+      const handle = currentSetHandle();
+      const res = await win
+        .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+          body: JSON.stringify({ handle, kind, name, value }),
+        })
+        .catch(() => null);
+      const made = res?.ok ? await res.json() : null;
+
+      if (!made?.handle) {
+        return null;
+      }
+
+      await refreshFieldsForType(win, handle);
+
+      return made.handle;
+    },
+    /** What the element shows right now, read off the canvas: its words, or an attribute, or (`html`) its markup. */
+    shownAt: (path, what) => canvas?.shownAt(path, what) ?? '',
     /** Content, on the picked element: what a click on the canvas cannot type into is typed there. */
     contentAsked,
     showContent() {
@@ -646,6 +696,16 @@ export function createEditorPort(win, hooks = {}) {
       return Promise.resolve(name ? ask('dock:data-model', { at: at.from }) : null).then((model) => {
         const own = (model?.section || []).some((row) => row.var === name && !row.parent && types.includes(row.type));
         const node = findByPath(parseTemplateTree(html()), path);
+        const now = fieldEditOf(html(), node);
+
+        // A link can hold two fields and its tag points at one: the tag stays on
+        // the field still held, the text's before the address's.
+        const held = (field) => [readText(html(), node)?.text, readRichField(html(), node), readAttribute(html(), node, 'href'), readAttribute(html(), node, 'src')].some((part) => wholeTag(part ?? '') === field);
+
+        if (now && now !== name && held(now) && (!own || !inline)) {
+          return;
+        }
+
         const next = node ? withFieldEdit(html(), node, own ? name : null, { inline }) : html();
 
         if (next !== html()) {

@@ -78,7 +78,7 @@ import morphPlugin from '@alpinejs/morph/dist/module.esm.js?build-canvas';
 import { ask, on } from '../cp/bus.js';
 import { panelValues } from '../cp/panel/store.js';
 import { containerContext } from '../lib/publish-containers.js';
-import { canvasEdit } from './canvas-edit.js';
+import { canvasEdit, editedText } from './canvas-edit.js';
 import { dataGet, findPathByUid } from '../lib/values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
@@ -1245,6 +1245,26 @@ export function startCanvas(win) {
     /** A tile from Add pressed: dragged onto the canvas (canvas-ui.js). */
     dragNew: (event, item) => ui.dragNew(event, item),
     /** An element's inside, painted ahead of the file: what Bard holds as it is typed. */
+    /** What an element shows: its words (`''`), an attribute, or `html`, its markup without the canvas's marks. */
+    shownAt(path, what = '') {
+      const el = cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`);
+
+      if (!el) {
+        return '';
+      }
+
+      if (what === 'html') {
+        const copy = el.cloneNode(true);
+
+        copy.querySelectorAll('*').forEach((kid) => {
+          [...kid.attributes].filter((attr) => attr.name.startsWith('data-sve-')).forEach((attr) => kid.removeAttribute(attr.name));
+        });
+
+        return copy.innerHTML.trim();
+      }
+
+      return what ? el.getAttribute(what) || '' : editedText(el);
+    },
     paintInner(path, markup) {
       const el = path ? cdoc()?.querySelector(`[${CANVAS_PATH}="${path}"]`) : null;
 

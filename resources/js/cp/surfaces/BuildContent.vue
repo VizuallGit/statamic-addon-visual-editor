@@ -46,11 +46,12 @@ import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import BuildSvgPicker from './BuildSvgPicker.vue';
 import { tagFamily } from '../../lib/tag-families.js';
 import BuildPickField from './BuildPickField.vue';
+import BuildEditable from './BuildEditable.vue';
 import { ic } from '../../build-mode/icons.js';
 import { ADDRESS, altFromAsset } from '../../build-mode/attrs.js';
 import { halfTag, isOneLine } from '../../build-mode/text.js';
 import { tagChoices } from '../../build-mode/tags.js';
-import { TEXT_FIELDS, withoutFields } from '../../data-var-types.js';
+import { TEXT_FIELDS, wholeTag, withoutFields } from '../../data-var-types.js';
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -294,6 +295,83 @@ watch(
   { flush: 'post' }
 );
 
+/* ---------------- editable in Edit Content ---------------- */
+
+const canMake = !!port.canMakeField?.(path);
+const ownFields = ref([]);
+const loadOwn = () => {
+  if (canMake) {
+    port.sectionFieldNames(path).then((names) => {
+      ownFields.value = names;
+    });
+  }
+};
+
+loadOwn();
+
+/** The field of this section a value is, whole; '' when it is the element's own, or something else's. */
+const ownOf = (value) => {
+  const name = wholeTag(value ?? '');
+
+  return name && ownFields.value.includes(name) ? name : '';
+};
+const isOwnText = (value) => !String(value ?? '').includes('{{');
+const SUGGEST = { img: 'image', video: 'video', a: 'link' };
+const textSuggest = computed(() => (/^h[1-6]$/.test(tag.value) ? 'heading' : tag.value === 'a' ? 'link_text' : 'text'));
+
+function textMade(handle) {
+  const tagText = `{{ ${handle} }}`;
+
+  loadOwn();
+  text.done();
+  port.setText(path, tagText);
+  port.syncFieldEdit(path, tagText, { types: TEXT_FIELDS });
+}
+
+function textOff() {
+  const words = port.shownAt(path);
+
+  text.done();
+  port.setText(path, words);
+  port.syncFieldEdit(path, words, { types: TEXT_FIELDS });
+}
+
+function addressMade(handle) {
+  const tagText = `{{ ${handle} }}`;
+
+  loadOwn();
+  addressBox.done();
+  writeAddress(tagText);
+  port.syncFieldEdit(path, tagText, { types: addressFields, inline: false });
+}
+
+function addressOff() {
+  const url = port.shownAt(path, address.attr);
+
+  addressBox.done();
+  writeAddress(url);
+  port.syncFieldEdit(path, url, { types: addressFields, inline: false });
+  fieldKey.value += 1;
+}
+
+function richMade(handle) {
+  const tagText = `{{ ${handle} }}`;
+
+  loadOwn();
+  richBox.done();
+  port.setRichField(path, tagText);
+  port.syncFieldEdit(path, tagText, { types: RICH_FIELDS });
+}
+
+function richOff() {
+  const markup = port.shownAt(path, 'html');
+
+  richFieldBox.done();
+  port.setRichField(path, '');
+  port.setRichAt(path, markup);
+  port.syncFieldEdit(path, '', { types: RICH_FIELDS });
+}
+
 const nothing = computed(() => !svg && !read.value && !address && !rich.value && richField.value === null);
 /* Rich text is a div by what it is, and a Grid's columns are divs for the Grid to stay one. */
 const tags = computed(() =>
@@ -353,6 +431,16 @@ onBeforeUnmount(() => {
         ></textarea>
         <BuildPickField @pick="pickText" />
       </div>
+      <BuildEditable
+        v-if="canMake && (isOwnText(read.text) || ownOf(read.text))"
+        :path="path"
+        :kind="oneLine ? 'text' : 'textarea'"
+        :suggest="textSuggest"
+        :value="read.text"
+        :own="ownOf(read.text)"
+        @made="textMade"
+        @off="textOff"
+      />
     </div>
     <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{ port.t('content_markup') }}</p>
 
@@ -381,6 +469,16 @@ onBeforeUnmount(() => {
         <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${tag}`) }}
       </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
+      <BuildEditable
+        v-if="canMake && (isOwnText(addressNow) || ownOf(addressNow))"
+        :path="path"
+        :kind="isLink ? 'link' : 'assets'"
+        :suggest="SUGGEST[tag]"
+        :value="addressNow || ''"
+        :own="ownOf(addressNow)"
+        @made="addressMade"
+        @off="addressOff"
+      />
       <div v-if="isLink" class="bm-link-more" data-sve-build-link-more>
         <div class="bm-link-row">
           <span>{{ port.t('content_new_tab') }}</span>
@@ -412,6 +510,14 @@ onBeforeUnmount(() => {
         />
         <BuildPickField @pick="pickRich" />
       </div>
+      <BuildEditable
+        v-if="canMake && ownOf(richField)"
+        :path="path"
+        kind="bard"
+        suggest="rich_text"
+        :own="ownOf(richField)"
+        @off="richOff"
+      />
     </div>
 
     <div v-if="rich" class="bm-text" data-sve-build-rich>
@@ -430,6 +536,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
       <div v-else ref="host" class="bm-field-host" data-sve-build-field></div>
+      <BuildEditable v-if="canMake" :path="path" kind="bard" suggest="rich_text" :value="richNow || ''" @made="richMade" />
     </div>
 
     <div v-if="svg" class="bm-text" data-sve-build-svg-content>

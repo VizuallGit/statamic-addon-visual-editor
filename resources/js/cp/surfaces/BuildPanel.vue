@@ -451,6 +451,10 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-remove-file:hover { background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .bm-remove-file span { display: grid; place-items: center; }
 .sve-build .bm-remove-file .bm-ic { width: 0.8125rem; height: 0.8125rem; }
+.sve-build .bm-editable { display: grid; gap: 0.5rem; margin-top: 0.625rem; }
+.sve-build .bm-editable-name { display: flex; gap: 0.375rem; align-items: stretch; }
+.sve-build .bm-editable-name .bm-inp { flex: 1; min-width: 0; }
+.sve-build .bm-editable-name .bm-remove-file { flex: none; margin: 0; width: auto; padding: 0 0.625rem; white-space: nowrap; }
 .sve-build .bm-link-more { display: grid; gap: 0.625rem; margin-top: 0.75rem; }
 .sve-build .bm-link-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.6875rem; color: var(--bm-muted); }
 .sve-build .bm-switch { flex: none; position: relative; width: 1.75rem; height: 1rem; padding: 0; border: 0; border-radius: 1rem; background: var(--bm-line); cursor: pointer; }
