@@ -634,11 +634,12 @@ export function createEditorPort(win, hooks = {}) {
     },
     /**
      * May this element's content become a field of its section? A section is
-     * open in the dock (not a component, not the header), the element is not an
-     * item of a loop, and the user may change fieldsets.
+     * open in the dock (not a component, not the header), its file is not
+     * locked, the element is not an item of a loop, and the user may change
+     * fieldsets.
      */
     canMakeField(path) {
-      return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && !inLoop(parseTemplateTree(html()), path);
+      return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && ask('dock:is-locked') !== true && !inLoop(parseTemplateTree(html()), path);
     },
     /** The fields of the open section, by name: what makes a tag in an element "its own". */
     sectionFieldNames(path) {
@@ -651,7 +652,9 @@ export function createEditorPort(win, hooks = {}) {
      * default, and the form told about it: the row on this page gets the value
      * (refreshFieldsForType, as after Statamic's own Fieldsets screen).
      *
-     * @returns {Promise<string|null>} the field's handle; null when it could not be made
+     * @returns {Promise<string|null>} the field's handle; null when it could not
+     *   be made, or the dock has moved to another section since: the file the
+     *   field was for is not the one open, and no tag may be written to that one.
      */
     async makeField(path, { kind, name, value }) {
       const handle = currentSetHandle();
@@ -671,7 +674,7 @@ export function createEditorPort(win, hooks = {}) {
 
       await refreshFieldsForType(win, handle);
 
-      return made.handle;
+      return currentSetHandle() === handle ? made.handle : null;
     },
     /** What the element shows right now, read off the canvas: its words, or an attribute, or (`html`) its markup; null when the canvas has nothing of its own to show yet. */
     shownAt: (path, what) => canvas?.shownAt(path, what) ?? null,

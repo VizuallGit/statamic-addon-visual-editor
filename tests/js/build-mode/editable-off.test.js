@@ -37,3 +37,17 @@ test('off writes nothing when there is nothing shown: text, address and rich tex
   assert.match(handler('addressOff'), /const url = port\.shownAt\(path, address\.attr\);\n\n\s+if \(url === null\) \{\n\s+return;\n\s+\}/);
   assert.match(handler('richOff'), /const markup = port\.shownAt\(path, 'html'\);\n\n\s+if \(markup === null\) \{\n\s+return;\n\s+\}/);
 });
+
+test('the canvas asks whether an attribute was rendered before it answers with it', () => {
+  const canvas = read('build-mode/canvas.js');
+  const fn = canvas.slice(canvas.indexOf('shownAt(path, what = \'\') {'), canvas.indexOf('paintInner(path, markup) {'));
+
+  assert.match(fn, /if \(what && what !== 'html' && !attrRendered\(currentSection\(\)\?\.plan, path, what, known\.rendered\)\) \{\n\s+return null;\n\s+\}/);
+});
+
+test('a field made while the dock moved to another section writes no tag; a locked file offers no switch', () => {
+  const boot = read('build-mode/boot.js');
+
+  assert.ok(boot.includes('return currentSetHandle() === handle ? made.handle : null;'));
+  assert.ok(boot.slice(boot.indexOf('canMakeField(path) {'), boot.indexOf('sectionFieldNames(path) {')).includes("ask('dock:is-locked') !== true"));
+});

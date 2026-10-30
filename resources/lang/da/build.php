@@ -70,7 +70,7 @@ return [
     'content_editable' => 'Kan redigeres i Rediger indhold',
     'content_editable_name' => 'Feltets navn',
     'content_editable_make' => 'Opret felt',
-    'content_editable_failed' => 'Feltet kunne ikke oprettes. Sektionen har intet fieldset at lægge det i.',
+    'content_editable_failed' => 'Elementet blev ikke til et felt. Filen er ikke ændret.',
     'content_rich' => 'Rich text',
     // The Rich text tile (Add → Basic); its element is a div, named as one elsewhere.
     'el_richtext' => 'Rich text',

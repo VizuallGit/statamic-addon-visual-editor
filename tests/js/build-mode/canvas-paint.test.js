@@ -8,6 +8,7 @@ import {
   CANVAS_PATH,
   CANVAS_ROOT,
   ISLAND_WAIT,
+  attrRendered,
   fieldLookup,
   inertAttr,
   learnTags,
@@ -266,4 +267,30 @@ test('an element the file leaves empty is stamped for the placeholder — by the
 test('a new, blank section is one placeholder; a locked empty element is none', () => {
   assert.equal(planTemplate('<section id="id-{{ id }}" class="[ {{ _class }} ]">\n</section>', field).root.empty, 'box');
   assert.equal(planTemplate('{{# sve-lock #}}\n<div>\n</div>', field).root.empty, '');
+});
+
+test('an attribute counts as rendered only when the real preview rendered its tag from the form value it has now', () => {
+  const plan = {
+    elements: [
+      {
+        path: '0',
+        attrs: [
+          { name: 'src', parts: [{ tag: '{{ image }}' }] },
+          { name: 'href', parts: [{ tag: '{{ link }}', value: 'entry::a' }] },
+          { name: 'alt', value: 'Own', parts: null },
+          { name: 'title', parts: [{ text: 'Plain' }] },
+        ],
+      },
+    ],
+  };
+
+  assert.equal(attrRendered(plan, '0', 'src', new Map()), false, 'an assets field paints empty until it is rendered');
+  assert.equal(attrRendered(plan, '0', 'src', new Map([['{{ image }}', undefined]])), true, 'rendered, and empty is then a value');
+  assert.equal(attrRendered(plan, '0', 'href', new Map()), false, 'a raw entry::id is not an address');
+  assert.equal(attrRendered(plan, '0', 'href', new Map([['{{ link }}', 'entry::a']])), true);
+  assert.equal(attrRendered(plan, '0', 'href', new Map([['{{ link }}', 'entry::old']])), false, 'the form has moved on since the render');
+  assert.equal(attrRendered(plan, '0', 'alt', new Map()), true, 'no tag, nothing to wait for');
+  assert.equal(attrRendered(plan, '0', 'title', new Map()), true);
+  assert.equal(attrRendered(plan, '0', 'data-x', new Map()), true);
+  assert.equal(attrRendered(null, '0', 'src', new Map()), true);
 });

@@ -85,7 +85,7 @@ import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
 import { canvasFocus } from './canvas-focus.js';
@@ -259,7 +259,7 @@ function whenStyled(page) {
  */
 export function startCanvas(win) {
   const doc = win.document;
-  const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map() };
+  const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map(), rendered: new Map() };
   const forget = () => Object.values(known).forEach((store) => store.clear());
   // rootKey: the open section's key in the real preview, which its painted root stands for (canvas-live.js).
   const painted = { uid: null, html: null, sheet: null, rootKey: '' };
@@ -770,6 +770,10 @@ export function startCanvas(win) {
         read.values.forEach((value, tag) => known.learned.set(tag, value));
 
         for (const part of attr.parts) {
+          if (part.tag !== undefined) {
+            known.rendered.set(part.tag, part.value);
+          }
+
           if (part.value !== undefined) {
             known.served[read.served ? 'add' : 'delete'](part.tag);
           }
@@ -1247,14 +1251,19 @@ export function startCanvas(win) {
     /**
      * What an element shows: its words (`''`), an attribute, or `html`, its
      * markup without the canvas's marks. Null when the canvas has nothing of
-     * the element's to show yet — it is not on the canvas, or an island inside
-     * it still waits for the real preview: the placeholder is the canvas's own,
-     * and read back into the file it would stand where the element's content was.
+     * the element's to show yet — it is not on the canvas, an island inside it
+     * still waits for the real preview, or the real preview has not rendered the
+     * attribute's tag: what the canvas holds then is its own, and read back into
+     * the file it would stand where the element's content was.
      */
     shownAt(path, what = '') {
       const el = cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`);
 
       if (!el || el.querySelector(ISLAND_WAIT)) {
+        return null;
+      }
+
+      if (what && what !== 'html' && !attrRendered(currentSection()?.plan, path, what, known.rendered)) {
         return null;
       }
 

@@ -383,6 +383,21 @@ function encodeAttr(value) {
 }
 
 /**
+ * Has the real preview rendered this attribute's tags, from the form's value as
+ * it is now? Until it has, the canvas paints nothing there (an assets field) or
+ * the form's raw value (`entry::id`); `''` from a tag it has rendered is a real
+ * empty value.
+ *
+ * @param {object|null} plan  planTemplate(...)
+ * @param {Map<string, string|undefined>} rendered  tag source → the form's value it was rendered from
+ */
+export function attrRendered(plan, path, name, rendered) {
+  const attr = plan?.elements.find((el) => el.path === path)?.attrs.find((row) => row.name.toLowerCase() === name.toLowerCase());
+
+  return !attr?.parts || attr.parts.every((part) => part.tag === undefined || (rendered.has(part.tag) && rendered.get(part.tag) === part.value));
+}
+
+/**
  * The section's HTML for the canvas.
  *
  * @param {object} plan      planTemplate(...)

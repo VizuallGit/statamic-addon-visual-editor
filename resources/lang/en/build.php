@@ -80,7 +80,7 @@ return [
     'content_editable' => 'Editable in Edit Content',
     'content_editable_name' => 'Field name',
     'content_editable_make' => 'Create field',
-    'content_editable_failed' => 'The field could not be created. This section has no fieldset to add it to.',
+    'content_editable_failed' => 'The element did not become a field. The file is unchanged.',
     'content_rich' => 'Rich text',
     // The Rich text tile (Add → Basic); its element is a div, named as one elsewhere.
     'el_richtext' => 'Rich text',
