@@ -195,13 +195,18 @@ export const HTML_DIVS = [
 export const HTML_TOOLS = [
   { id: 'section', title: 'section', tag: 'section' },
   { id: 'div', title: 'div', menu: 'div' },
+  { id: 'grid', title: 'grid', snippet: '<div class="grid grid-cols-2 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n</div>', caret: 59 },
   { id: 'heading', title: 'heading', menu: 'heading' },
   { id: 'text', title: 'text', menu: 'text' },
+  { id: 'richtext', title: 'rich text', snippet: '<div class="prose">\n    <p></p>\n</div>', caret: 27 },
   { id: 'a', title: 'link', tag: 'a' },
+  { id: 'button', title: 'button', snippet: '<a href="" class="btn">Button</a>', caret: 9 },
   { id: 'img', title: 'image', snippet: '<img src="" alt="">', caret: 10 },
+  { id: 'svg', title: 'svg', snippet: '{{ svg src="" class="" }}', caret: 12 },
   { id: 'video', title: 'video', snippet: '<video src="" controls playsinline></video>', caret: 12 },
   { id: 'ul', title: 'list', tag: 'ul' },
   { id: 'li', title: 'list item', tag: 'li' },
+  { id: 'hr', title: 'divider', snippet: '<hr>', caret: 4 },
   { id: 'component', title: 'component', menu: 'component' },
   // Antlers, not tags: what renders, and how often.
   //

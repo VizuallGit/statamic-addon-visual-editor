@@ -42,6 +42,8 @@ class ChromePrefsController
         'sve-listview-tab',
         'sve-toolbar-hidden-content',
         'sve-toolbar-hidden-build',
+        'sve-build-switch-tab',
+        'sve-build-dock',
         'sve-toolbar-hidden-html',
         'sve-toolbar-order',
         'sve-toolbar-groups',

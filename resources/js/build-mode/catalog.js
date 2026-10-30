@@ -88,8 +88,8 @@ const ADD_LOGIC = [
 ];
 const ADD_TAGS = ['article', 'aside', 'nav', 'header', 'footer', 'figure'].map((id) => ({ id, own: id }));
 
-/** HTML toolbar buttons that are not an element to put somewhere. */
-const NOT_ELEMENTS = new Set(['component', 'pagination']);
+/** HTML toolbar buttons with no tile of that id: not an element to put somewhere, or Build's own tile writes it. */
+const NOT_ELEMENTS = new Set(['component', 'pagination', 'grid', 'richtext', 'button', 'svg', 'hr']);
 
 /**
  * Add's groups, resolved against the dock's lists. An entry whose dock

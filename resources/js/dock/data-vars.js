@@ -5,6 +5,7 @@
 import CodeDockDataVars from '../cp/surfaces/CodeDockDataVars.vue';
 import { cachedDataVars, dataVarSnippet, dataVarsCollection, dataVarsKey, dataVarsScope, dataVarsSet, fetchDataVars, groupsWithValues, withValues } from '../data-vars.js';
 import { onlyTypes } from '../data-var-types.js';
+import { fieldEditAt } from './field-edit.js';
 import { loopScopeAt } from '../antlers-blocks.js';
 import { mountSurface } from '../cp/mount.js';
 import { ANTLERS_SNIPPET_GROUPS, ANTLERS_SNIPPETS, antlersSnippet, expandAntlersSnippet, indentAntlersSnippet } from '../antlers-snippets.js';
@@ -236,7 +237,33 @@ function insertDataVar(row, group) {
     changes: { from: range.from, to: range.to, insert: text },
     selection: { anchor: range.from + spec.cursor + (spec.text.includes('\n') ? indent.length : 0) },
   });
+
+  if (group?.tab === 'section' && !row.parent && !row.loop) {
+    giveFieldItsEdit(view, range.from, String(row.var));
+  }
+
   finishHtmlEdit();
+}
+
+/** The element the field was just written in gets its visual_edit; only what changes is dispatched, so the caret stays. */
+function giveFieldItsEdit(view, at, name) {
+  const doc = view.state.doc.toString();
+  const next = fieldEditAt(doc, at, name);
+
+  if (next !== doc) {
+    let from = 0;
+    let end = 0;
+
+    while (doc[from] === next[from]) {
+      from += 1;
+    }
+
+    while (end < doc.length - from && end < next.length - from && doc[doc.length - 1 - end] === next[next.length - 1 - end]) {
+      end += 1;
+    }
+
+    view.dispatch({ changes: { from, to: doc.length - end, insert: next.slice(from, next.length - end) } });
+  }
 }
 
 /**

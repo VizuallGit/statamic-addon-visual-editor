@@ -57,6 +57,7 @@ export const CHROME_KEYS = [
   'sve-shortcuts',
   'sve-lite-load-all',
   'sve-build-switch-tab',
+  'sve-build-dock',
 ];
 
 const MIGRATED_KEY = 'sve-chrome-legacy-migrated';
