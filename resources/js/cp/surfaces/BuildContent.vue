@@ -328,8 +328,17 @@ function textMade(handle) {
   port.syncFieldEdit(path, tagText, { types: TEXT_FIELDS });
 }
 
+/*
+ * Off writes what the canvas shows back as the element's own. Nothing shown
+ * yet (null: the canvas has not got it, or an island inside still waits for
+ * the real preview) writes nothing, and the switch stays on.
+ */
 function textOff() {
   const words = port.shownAt(path);
+
+  if (words === null) {
+    return;
+  }
 
   text.done();
   port.setText(path, words);
@@ -348,6 +357,10 @@ function addressMade(handle) {
 function addressOff() {
   const url = port.shownAt(path, address.attr);
 
+  if (url === null) {
+    return;
+  }
+
   addressBox.done();
   writeAddress(url);
   port.syncFieldEdit(path, url, { types: addressFields, inline: false });
@@ -365,6 +378,10 @@ function richMade(handle) {
 
 function richOff() {
   const markup = port.shownAt(path, 'html');
+
+  if (markup === null) {
+    return;
+  }
 
   richFieldBox.done();
   port.setRichField(path, '');

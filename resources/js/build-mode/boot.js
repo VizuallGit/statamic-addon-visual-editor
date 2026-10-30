@@ -673,8 +673,8 @@ export function createEditorPort(win, hooks = {}) {
 
       return made.handle;
     },
-    /** What the element shows right now, read off the canvas: its words, or an attribute, or (`html`) its markup. */
-    shownAt: (path, what) => canvas?.shownAt(path, what) ?? '',
+    /** What the element shows right now, read off the canvas: its words, or an attribute, or (`html`) its markup; null when the canvas has nothing of its own to show yet. */
+    shownAt: (path, what) => canvas?.shownAt(path, what) ?? null,
     /** Content, on the picked element: what a click on the canvas cannot type into is typed there. */
     contentAsked,
     showContent() {

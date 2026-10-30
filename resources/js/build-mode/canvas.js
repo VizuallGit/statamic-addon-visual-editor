@@ -1244,13 +1244,18 @@ export function startCanvas(win) {
     },
     /** A tile from Add pressed: dragged onto the canvas (canvas-ui.js). */
     dragNew: (event, item) => ui.dragNew(event, item),
-    /** An element's inside, painted ahead of the file: what Bard holds as it is typed. */
-    /** What an element shows: its words (`''`), an attribute, or `html`, its markup without the canvas's marks. */
+    /**
+     * What an element shows: its words (`''`), an attribute, or `html`, its
+     * markup without the canvas's marks. Null when the canvas has nothing of
+     * the element's to show yet — it is not on the canvas, or an island inside
+     * it still waits for the real preview: the placeholder is the canvas's own,
+     * and read back into the file it would stand where the element's content was.
+     */
     shownAt(path, what = '') {
       const el = cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`);
 
-      if (!el) {
-        return '';
+      if (!el || el.querySelector(ISLAND_WAIT)) {
+        return null;
       }
 
       if (what === 'html') {
@@ -1265,6 +1270,7 @@ export function startCanvas(win) {
 
       return what ? el.getAttribute(what) || '' : editedText(el);
     },
+    /** An element's inside, painted ahead of the file: what Bard holds as it is typed. */
     paintInner(path, markup) {
       const el = path ? cdoc()?.querySelector(`[${CANVAS_PATH}="${path}"]`) : null;
 
