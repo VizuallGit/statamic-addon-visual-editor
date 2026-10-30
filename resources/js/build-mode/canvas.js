@@ -6,7 +6,7 @@
  * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
  *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
- *   build-mode/canvas-hold.js,
+ *   build-mode/canvas-hold.js, build-mode/canvas-fields.js,
  *   build-mode/canvas-live.js, cp/html-tree/store.js,
  *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
@@ -25,10 +25,15 @@
  *                preview has rendered (`statamic:preview-updated`).
  *   The section  painted from `dock:html` on every `dock:html-changed` and
  *                `tw:changed` (canvas-paint.js), morphed into place, its
- *                classes compiled by Instant's kept Tailwind compiler.
+ *                classes compiled by Instant's kept Tailwind compiler — and
+ *                painted again the frame the form is typed in: `{{ name }}` in
+ *                text is the form's value, read when the plan is built, so the
+ *                plan is what is watched (see the watch at the end).
  *   The islands  what only the server renders — loops, conditions, components,
  *                tags — read out of a copy of the real preview's section by the
  *                paths html-pick-align.js stamps, each time it has rendered.
+ *                One that is a field's alone (a Bard document) is the form's
+ *                editor's while that is typed in (canvas-fields.js).
  *   Its own      an element the file leaves empty stands open, dashed, until
  *                something is put in it (`CANVAS_EMPTY`, stamped by the paint);
  *                the + and the drags are canvas-ui.js's.
@@ -68,7 +73,7 @@
  *     (a partial's parameter) shows the last render's value (`served`); in
  *     text, `{{ name }}` is always the form's — the row's, then the page's.
  */
-import { watch } from 'vue';
+import { shallowRef, watch } from 'vue';
 import morphPlugin from '@alpinejs/morph/dist/module.esm.js?build-canvas';
 import { ask, on } from '../cp/bus.js';
 import { panelValues } from '../cp/panel/store.js';
@@ -83,6 +88,7 @@ import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
 import { canvasFocus } from './canvas-focus.js';
 import { canvasHold } from './canvas-hold.js';
+import { canvasFields, fieldDomId } from './canvas-fields.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
 
@@ -254,6 +260,8 @@ export function startCanvas(win) {
   const forget = () => Object.values(known).forEach((store) => store.clear());
   // rootKey: the open section's key in the real preview, which its painted root stands for (canvas-live.js).
   const painted = { uid: null, html: null, sheet: null, rootKey: '' };
+  // The open section's uid as a ref, so the form watch follows the dock to its next section.
+  const current = shallowRef('');
   const rowCache = { uid: '', path: '' };
   const stats = { paints: 0, lastMs: 0, maxMs: 0, truths: 0, truthMs: 0, waiting: 0 };
   const queued = new Set();
@@ -309,6 +317,8 @@ export function startCanvas(win) {
     page: cdoc,
     compile: (classes) => sheet(classes ? `${painted.html || ''}<i class="${classes.replace(/"/g, '&quot;')}"></i>` : painted.html),
   });
+  // A field's island — a Bard document — from the form's own editor while it is typed in (canvas-fields.js).
+  const fields = canvasFields(win, { islands: known.islands, paint: () => schedule(redraw), read: () => schedule(truth) });
 
   /* The frame */
 
@@ -595,7 +605,8 @@ export function startCanvas(win) {
    * The dock names a section before it holds its file (`dock:load-settled`):
    * read in between, the uid is the new one and the HTML the old. Until the
    * file has landed nothing is read; then what was asked for in between runs
-   * once — the page read again if that was among it, else a paint.
+   * once — the page read again if that was among it, else a paint (of the
+   * form's fields, when only they were asked for).
    */
   let landing = null;
   const owed = new Set();
@@ -616,11 +627,11 @@ export function startCanvas(win) {
           return;
         }
 
-        const read = owed.has(truth);
+        const job = owed.has(truth) ? truth : owed.has(paint) ? paint : redraw;
 
         landing = null;
         owed.clear();
-        (read ? truth : paint)();
+        job();
       });
     }
 
@@ -678,6 +689,12 @@ export function startCanvas(win) {
         plan ??= planTemplate(html, fieldLookup(row || {}, values));
 
         return plan;
+      },
+      /** The id of a field's element in the form: the row's field when the row has it (as `fieldLookup` reads it), else the page's. */
+      fieldId(name) {
+        const own = !!row && rowCache.path && Object.hasOwn(row, name.split('.')[0]);
+
+        return fieldDomId(own ? `${rowCache.path}.${name}` : name);
       },
     };
   }
@@ -776,7 +793,12 @@ export function startCanvas(win) {
       found.push([run.key, kids.slice(from, to)]);
     }
 
-    found.forEach(([key, nodes]) => known.islands.set(key, islandHtml(nodes)));
+    // An island whose editor is typed in stays the editor's: this render is behind it.
+    found.forEach(([key, nodes]) => {
+      if (!fields.holds(key)) {
+        known.islands.set(key, islandHtml(nodes));
+      }
+    });
   }
 
   function syncHead() {
@@ -857,12 +879,14 @@ export function startCanvas(win) {
       learn(section.plan, realRoot);
     }
 
+    fields.follow(section?.chrome ? null : section?.plan, section?.fieldId);
     syncHead();
     syncBody(section, realRoot);
 
     const moved = uid !== painted.uid;
 
     painted.uid = uid;
+    current.value = uid;
     painted.html = section?.html ?? null;
     painted.rootKey = sectionKeyOf(realRoot);
     sheet(painted.html);
@@ -922,8 +946,18 @@ export function startCanvas(win) {
       .catch((error) => console.warn('[sve] Build canvas: no Tailwind compiler', error));
   }
 
+  /** The dock's file changed: the section painted from it, unless the canvas already shows this file. */
   function paint() {
-    if (!ensure() || !settled(paint)) {
+    draw(false);
+  }
+
+  /** The form changed: the same file, its fields read again — the classes are as they were. */
+  function redraw() {
+    draw(true);
+  }
+
+  function draw(form) {
+    if (!ensure() || !settled(form ? redraw : paint)) {
       return;
     }
 
@@ -938,12 +972,19 @@ export function startCanvas(win) {
 
     // The Alpine toggle is lit, or the header / footer is open: the real preview's drawing, read again rather than painted.
     if (section && (alpineLive() || section.chrome)) {
-      truth();
+      if (!form) {
+        truth();
+      }
 
       return;
     }
 
-    if (!section || section.html === painted.html || !section.plan) {
+    fields.follow(section?.plan, section?.fieldId);
+
+    // The file is new to the canvas, or the form is: else there is nothing to paint.
+    const file = !!section && section.html !== painted.html;
+
+    if (!section?.plan || !(file || form)) {
       marks();
 
       return;
@@ -967,7 +1008,11 @@ export function startCanvas(win) {
       stats.waiting = waiting.length;
     }
 
-    sheet(section.html);
+    // The classes are the file's: compiled when the file changed, not when a field did.
+    if (file) {
+      sheet(section.html);
+    }
+
     marks();
     rehover();
     follow();
@@ -1109,6 +1154,15 @@ export function startCanvas(win) {
   const unhooks = [
     on('dock:html-changed', paint),
     on('tw:changed', paint),
+    // The form typed in: the plan reads the fields the file names (`fieldLookup`
+    // — the row's, then the page's) and nothing else of the page's values, so
+    // the plan is the source. It is built again the frame one of those fields
+    // changes, and the section is painted from it the same frame. `current` is
+    // read first so the watch follows the dock to its next section.
+    watch(
+      () => (current.value, currentSection()?.plan),
+      () => schedule(redraw)
+    ),
     // The toggle lit or put out: the section is read from the real preview, or painted again.
     watch(alpineLive, () => {
       watchLive();
@@ -1154,6 +1208,7 @@ export function startCanvas(win) {
       bar.stop();
       focus.stop();
       hold.stop();
+      fields.stop();
       stopMarks?.();
       stopMarks = null;
       port = null;

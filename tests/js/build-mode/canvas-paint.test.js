@@ -145,6 +145,17 @@ test('a modifier or any other tag in text makes its run an island; a comment doe
   assert.equal(paintPlan(plan).html, `<p ${CANVAS_PATH}="0:p" ${CANVAS_ROOT}>A Hello B</p>`);
 });
 
+test('an island that is one field of the form — a Bard document — names the field; any other island does not', () => {
+  const island = (html) => planTemplate(html, field).islands[0];
+
+  assert.equal(island('<div class="prose">{{ list }}</div>').field, 'list');
+  assert.equal(island('<div class="prose">\n  {{ hero.list }}\n</div>').field, 'hero.list');
+  assert.equal(island('<div>{{ list }} {{ title | upper }}</div>').field, '');
+  assert.equal(island('<p>{{ site_settings:phone }}</p>').field, '');
+  assert.equal(island('<p>{{ title | upper }}</p>').field, '');
+  assert.equal(island(LOOP).field, '');
+});
+
 test('Alpine’s attributes stay off the canvas; void and self-closed elements have no inside', () => {
   const { html } = paintPlan(planTemplate('<div x-data="{}" @click="go()" :class="{ a: b }" data-x="1"><img src="a.png"><br><span /></div>', field));
 

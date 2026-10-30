@@ -221,11 +221,19 @@ function commentRanges(source) {
   return out;
 }
 
+/** A field's name alone in a tag — `bard_field`, `hero.body` — with nothing of a modifier's, a tag's or a parameter's. */
+const FIELD = /^[A-Za-z_]\w*(?:\.\w+)*$/;
+
 /**
  * One run of source between two child elements, with the rows standing in it
  * (loops, conditions, components, slots).
  *
- * @returns {{ dynamic: false, text: string } | { dynamic: true, sig: string }}
+ * An island that is one tag naming one field of the form — a value that is
+ * not text, a Bard document — says so (`field`): the canvas can read it off
+ * the form's own editor while that is typed in (canvas-fields.js). Any other
+ * island is the server's alone.
+ *
+ * @returns {{ dynamic: false, text: string } | { dynamic: true, sig: string, field: string }}
  */
 function runOf(source, from, to, members, field) {
   const text = source.slice(from, to);
@@ -236,8 +244,13 @@ function runOf(source, from, to, members, field) {
 
   if (members.length || loose.length) {
     const opens = members.map((row) => source.slice(row.from, row.openTo > row.from ? row.openTo : row.to));
+    const one = !members.length && loose.length === 1 && !loose[0].comment && loose[0].closed && !loose[0].closer ? loose[0].body : '';
 
-    return { dynamic: true, sig: [...opens, ...loose.map((tag) => text.slice(tag.from, tag.to))].join('\n') };
+    return {
+      dynamic: true,
+      sig: [...opens, ...loose.map((tag) => text.slice(tag.from, tag.to))].join('\n'),
+      field: FIELD.test(one) ? one : '',
+    };
   }
 
   const cuts = [
