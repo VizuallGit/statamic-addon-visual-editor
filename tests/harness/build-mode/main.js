@@ -45,7 +45,7 @@ const port = createHarnessPort({
   prose: data.prose,
   colors: data.colors,
   dataModel: {
-    section: [{ var: 'headline', type: 'text' }, { var: 'intro', type: 'textarea' }, { var: 'hero', type: 'assets' }, { var: 'content', type: 'bard' }, { var: 'cta', type: 'link' }],
+    section: [{ var: 'headline', type: 'text' }, { var: 'intro', type: 'textarea' }, { var: 'hero', type: 'assets', single: true }, { var: 'gallery', type: 'assets' }, { var: 'content', type: 'bard' }, { var: 'cta', type: 'link' }],
     page: [{ handle: 'this', items: [{ var: 'title', type: 'text' }] }],
     site: [],
   },

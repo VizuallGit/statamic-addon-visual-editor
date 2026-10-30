@@ -13,6 +13,7 @@
  */
 
 import { maskAntlers } from '../html-tree-parse.js';
+import { wholeTag } from '../data-var-types.js';
 
 /**
  * The tags with an address of their own — Content's image, video and link:
@@ -29,9 +30,16 @@ export const ADDRESS = {
  * An image's alt text is the asset's own — the one Statamic keeps on the file
  * ("Set Alt"), so there is one alt text and it follows wherever it is
  * changed. Read on the server as the site's image component reads it
- * (`{{ asset :url="…" }}{{ alt }}{{ /asset }}`), escaped for the attribute.
+ * (`{{ asset :url="…" }}{{ alt }}{{ /asset }}`), escaped for the attribute. An
+ * image reading a field has that field's asset to ask: `{{ image:alt | entities }}`.
  */
 export function altFromAsset(url) {
+  const field = wholeTag(url);
+
+  if (field !== null) {
+    return `{{ ${field}:alt | entities }}`;
+  }
+
   const at = String(url || '').trim().replace(/'/g, '%27');
 
   return at ? `{{ asset url='${at}' }}{{ alt | entities }}{{ /asset }}` : '';

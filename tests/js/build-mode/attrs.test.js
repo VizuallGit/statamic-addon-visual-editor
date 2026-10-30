@@ -59,6 +59,11 @@ test('an image\'s alt reads the asset\'s own on the server, and an empty address
   assert.equal(readAttribute(next, parseTemplateTree(next)[0], 'alt'), altFromAsset('/assets/team.webp'));
 });
 
+test('an image reading a field asks that field\'s asset for its alt', () => {
+  assert.equal(altFromAsset('{{ image }}'), '{{ image:alt | entities }}');
+  assert.equal(altFromAsset(''), '');
+});
+
 test('null takes an attribute out, and leaves the tag alone when it has none', () => {
   const html = '<a href="/x" target="_blank" class="y">Go</a>';
 

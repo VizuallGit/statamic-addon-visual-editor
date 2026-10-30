@@ -261,10 +261,10 @@ export function placeDataMenu(win, anchor, menu) {
 /**
  * The field picker. `onPick` lets somewhere other than the HTML pane use it —
  * the tree's condition and loop fields want the bare handle, not a tag. `types`
- * narrows it to the fieldtypes that fit there (data-var-types.js); a place that
- * holds one field closes on the pick.
+ * narrows it to the fieldtypes that fit there (data-var-types.js; `single`: one
+ * file only); a place that holds one field closes on the pick.
  */
-export function openDataVarsMenu(win, anchor, onPick, at, types) {
+export function openDataVarsMenu(win, anchor, onPick, at, types, single = false) {
   const doc = win.document;
 
   closeDataMenu(doc);
@@ -307,7 +307,7 @@ export function openDataVarsMenu(win, anchor, onPick, at, types) {
       noSectionText: t(win, 'data_vars_no_section'),
       loopText: t(win, 'data_vars_loop'),
       tabs: tabsFor(raw),
-      data: types ? onlyTypes(dataVarsModel(win, raw), types) : dataVarsModel(win, raw),
+      data: types ? onlyTypes(dataVarsModel(win, raw), types, { single }) : dataVarsModel(win, raw),
       // Left open on purpose: picking a headline and then its text should not
       // mean reopening the menu. Escape or a click outside closes it.
       onPick: (row, group) => {

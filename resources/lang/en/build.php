@@ -63,6 +63,8 @@ return [
     // Style
     'content_text' => 'Text',
     'content_new_tab' => 'Open in new tab',
+    'content_remove_img' => 'Remove image',
+    'content_remove_video' => 'Remove video',
     'content_field_pick' => 'Insert data',
     'content_field_refused' => ':field is another kind of field and cannot be used here.',
     'content_text_placeholder' => 'Write the text…',

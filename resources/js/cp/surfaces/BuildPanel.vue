@@ -440,6 +440,10 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-text-box .bm-inp:focus { border-color: var(--bm-accent); }
 .sve-build .bm-text-box textarea { min-height: 6.5rem; padding-block: 0.45rem; border-color: var(--bm-line); }
 .sve-build .bm-pick-field { position: absolute; top: 0.3125rem; right: 0.3rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: var(--bm-muted); cursor: pointer; }
+.sve-build .bm-remove-file { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; width: 100%; height: 1.875rem; border: 1px solid var(--bm-line); border-radius: 0.375rem; background: transparent; color: var(--bm-muted); font-size: 0.75rem; cursor: pointer; }
+.sve-build .bm-remove-file:hover { background: var(--bm-raise); color: var(--bm-ink); }
+.sve-build .bm-remove-file span { display: grid; place-items: center; }
+.sve-build .bm-remove-file .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 .sve-build .bm-link-more { display: grid; gap: 0.625rem; margin-top: 0.75rem; }
 .sve-build .bm-link-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.6875rem; color: var(--bm-muted); }
 .sve-build .bm-switch { flex: none; position: relative; width: 1.75rem; height: 1rem; padding: 0; border: 0; border-radius: 1rem; background: var(--bm-line); cursor: pointer; }

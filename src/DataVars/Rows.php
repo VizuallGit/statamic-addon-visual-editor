@@ -226,6 +226,11 @@ final class Rows
             $row['loop'] = true;
         }
 
+        // One file prints as one address; more print only in a loop.
+        if ($type === 'assets' && (int) ($field->config()['max_files'] ?? 0) === 1) {
+            $row['single'] = true;
+        }
+
         $preview = $value === null ? '' : static::preview($value);
 
         if ($preview !== '') {

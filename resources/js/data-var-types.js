@@ -26,31 +26,37 @@ export function fieldTypesFor(type) {
   return FITS[type] || null;
 }
 
-function fitting(rows, types, inLoop) {
+function fits(row, types, single) {
+  return types.includes(row.type) && (!single || row.single);
+}
+
+function fitting(rows, types, inLoop, single) {
   return (rows || [])
-    .filter((row) => types.includes(row.type) && (inLoop || !row.parent))
+    .filter((row) => fits(row, types, single) && (inLoop || !row.parent))
     // The list's LOOP mark says a pair is coming. Nothing here writes a pair.
     .map((row) => (row.loop ? { ...row, loop: false } : row));
 }
 
-function fittingGroups(groups, types, inLoop) {
+function fittingGroups(groups, types, inLoop, single) {
   return (groups || [])
     // A collection's fields print only inside its loop, which one tag cannot open.
     .filter((group) => inLoop || !group.loop)
-    .map((group) => ({ ...group, items: fitting(group.items, types, inLoop) }))
+    .map((group) => ({ ...group, items: fitting(group.items, types, inLoop, single) }))
     .filter((group) => group.items.length);
 }
 
 /**
  * The catalogue with only what fits. A row inside a grid or a replicator prints
  * only in its loop, so it stays only on the tab of the loop being stood in.
+ * `single`: an asset field of one file only — an image shows one, a gallery's
+ * many print only in a loop.
  */
-export function onlyTypes(model, types) {
+export function onlyTypes(model, types, { single = false } = {}) {
   return {
-    scope: fittingGroups(model?.scope, types, true),
-    section: fitting(model?.section, types, false),
-    page: fittingGroups(model?.page, types, false),
-    site: fittingGroups(model?.site, types, false),
+    scope: fittingGroups(model?.scope, types, true, single),
+    section: fitting(model?.section, types, false, single),
+    page: fittingGroups(model?.page, types, false, single),
+    site: fittingGroups(model?.site, types, false, single),
   };
 }
 
@@ -72,14 +78,14 @@ function everyRow(model) {
  * name the catalogue does not know is left to the author: it may be a modifier's
  * expression or a variable only the page has.
  */
-export function wrongFields(text, model, types) {
+export function wrongFields(text, model, types, { single = false } = {}) {
   const rows = everyRow(model);
   const names = [...String(text ?? '').matchAll(TAG)].map((match) => match[1]);
 
   return [...new Set(names)].filter((name) => {
     const known = rows.filter((row) => row.var === name);
 
-    return known.length > 0 && !known.some((row) => types.includes(row.type));
+    return known.length > 0 && !known.some((row) => fits(row, types, single));
   });
 }
 

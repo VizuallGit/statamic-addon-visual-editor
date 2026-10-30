@@ -31,10 +31,11 @@
  * in Content mode. A heading or a link is one line (an input); other text gets a
  * taller box, which grows with it, and Enter writes the `<br>` it means.
  *
- * Rich text and a link's address are the Control Panel's field until the data
- * icon beside its label picks a field of theirs: then a box shows the tag, and
- * emptying it brings the field back. A link also has its target, rel and
- * aria-label.
+ * Rich text and an image's, a video's or a link's address are the Control Panel's
+ * field until the data icon beside its label picks a field of theirs: then a box
+ * shows the tag, and emptying it brings the field back. An image or a video has
+ * a button to take its file away, as the asset field's own shows only on a hover.
+ * A link also has its target, rel and aria-label.
  *
  * What is not the element's own says whose it is: the elements inside it, or —
  * for a div or a section — nothing, as a layout has no text of its own.
@@ -118,8 +119,8 @@ const oneLine = isOneLine(tag.value);
 const refused = ref('');
 
 /** A field of the wrong type typed by hand comes out again (`clear`), and the panel says why. */
-function refuseWrong(value, types, clear) {
-  port.wrongFields(path, value, types).then((wrong) => {
+function refuseWrong(value, types, clear, options) {
+  port.wrongFields(path, value, types, options).then((wrong) => {
     refused.value = wrong.length ? port.t('content_field_refused', { field: wrong[0] }) : '';
 
     if (wrong.length) {
@@ -169,26 +170,41 @@ function writeAddress(value) {
 
 const addressBox = typed(addressNow, writeAddress);
 
-/* A link's address can be a link field's, and it has more to say than where it goes. */
-const LINK_FIELDS = ['link'];
+/* An address can be a field's: a link's a link field, an image's an asset field of one file. */
 const isLink = tag.value === 'a';
+const addressFields = isLink ? ['link'] : ['assets'];
+const addressOne = { single: !isLink };
+const fieldKey = ref(0);
 
-function pickLink(anchor) {
-  port.pickField(anchor, path, LINK_FIELDS, (expression) => {
-    addressBox.done();
-    refused.value = '';
-    writeAddress(expression);
-  });
+function pickAddress(anchor) {
+  port.pickField(
+    anchor,
+    path,
+    addressFields,
+    (expression) => {
+      addressBox.done();
+      refused.value = '';
+      writeAddress(expression);
+    },
+    addressOne
+  );
 }
 
 function addressDone() {
   addressBox.done();
 
-  if (isLink) {
+  if (address) {
     const now = addressNow.value;
 
-    refuseWrong(now, LINK_FIELDS, (wrong) => writeAddress(withoutFields(now, wrong)));
+    refuseWrong(now, addressFields, (wrong) => writeAddress(withoutFields(now, wrong)), addressOne);
   }
+}
+
+/** The image or video taken away; the field opens again, empty. */
+function removeFile() {
+  addressBox.done();
+  writeAddress('');
+  fieldKey.value += 1;
 }
 
 /** An attribute of a link, gone when it is empty. */
@@ -254,8 +270,9 @@ watch(
           value: (address ? addressNow.value : richNow.value) || '',
           display: port.t(`content_${kind}`),
           write: address ? writeAddress : writeRich,
-          pick: isLink ? pickLink : address ? null : pickRich,
+          pick: address ? pickAddress : pickRich,
           pickTitle: port.t('content_field_pick'),
+          paint: address ? null : (markup) => port.paintRich(path, markup),
         })
       : null;
   },
@@ -309,15 +326,13 @@ onBeforeUnmount(() => {
         ></textarea>
         <BuildPickField @pick="pickText" />
       </div>
-      <p v-if="refused" class="bm-note is-top" data-sve-build-field-refused>{{ refused }}</p>
     </div>
     <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{ port.t('content_markup') }}</p>
 
     <div v-if="address" class="bm-text" :data-sve-build-address="address.attr">
       <template v-if="addressExpr || !statamic">
         <span class="fg-lab">{{ port.t(`content_${tag}`) }}</span>
-        <p v-if="addressExpr && !isLink" class="bm-note is-top" v-html="fromField(addressExpr)"></p>
-        <div v-else class="bm-text-box">
+        <div class="bm-text-box">
           <input
             v-model="addressBox.value.value"
             class="bm-inp"
@@ -330,10 +345,13 @@ onBeforeUnmount(() => {
             @keydown.enter.prevent="addressDone"
             @blur="addressDone"
           />
-          <BuildPickField v-if="isLink" @pick="pickLink" />
+          <BuildPickField @pick="pickAddress" />
         </div>
       </template>
-      <div v-else ref="host" class="bm-field-host" data-sve-build-field></div>
+      <div v-else :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
+      <button v-if="address.attr === 'src' && addressNow && !addressExpr" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
+        <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${tag}`) }}
+      </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
       <div v-if="isLink" class="bm-link-more" data-sve-build-link-more>
         <div class="bm-link-row">
@@ -394,6 +412,8 @@ onBeforeUnmount(() => {
         <BuildSvgPicker :current="node.src" @pick="(src) => port.setSvgAt(path, src)" />
       </template>
     </div>
+
+    <p v-if="refused" class="bm-note is-top" data-sve-build-field-refused>{{ refused }}</p>
 
     <div v-if="nothing" class="bm-empty" data-sve-build-content-soon>
       <span v-html="ic('form')"></span>

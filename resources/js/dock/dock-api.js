@@ -1068,14 +1068,14 @@ register('dock:set-js', (js) => {
  * the template the caller is standing, so the loop around it can be read; left
  * out, the HTML pane's cursor answers that instead.
  */
-register('dock:data-menu', ({ anchor, onPick, at, types } = {}) => {
+register('dock:data-menu', ({ anchor, onPick, at, types, single } = {}) => {
   if (!anchor || !dockState.lastWin) {
     return false;
   }
 
   closeDataMenu(dockState.lastWin.document);
   closeCssMenu(dockState.lastWin.document);
-  openDataVarsMenu(dockState.lastWin, anchor, onPick, at, types);
+  openDataVarsMenu(dockState.lastWin, anchor, onPick, at, types, single);
 
   return true;
 });

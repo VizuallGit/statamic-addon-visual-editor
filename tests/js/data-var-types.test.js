@@ -80,6 +80,15 @@ test('a name with a fitting row somewhere is not wrong, whatever else shares it'
   assert.deepEqual(wrongFields('{{ image }}', both, TEXT_FIELDS), []);
 });
 
+test('one file only: a gallery is no image', () => {
+  const model = { section: [{ var: 'image', type: 'assets', single: true }, { var: 'gallery', type: 'assets', loop: true }] };
+
+  assert.deepEqual(onlyTypes(model, ['assets'], { single: true }).section.map((row) => row.var), ['image']);
+  assert.deepEqual(onlyTypes(model, ['assets']).section.map((row) => row.var), ['image', 'gallery']);
+  assert.deepEqual(wrongFields('{{ gallery }}', model, ['assets'], { single: true }), ['gallery']);
+  assert.deepEqual(wrongFields('{{ image }}', model, ['assets'], { single: true }), []);
+});
+
 test('only the named tags are taken out', () => {
   assert.equal(withoutFields('Hej {{ hero }} og {{ headline }}', ['hero']), 'Hej  og {{ headline }}');
   assert.equal(withoutFields('{{ hero | url }}', ['hero']), '');

@@ -557,13 +557,14 @@ export function createEditorPort(win, hooks = {}) {
       }
     },
     /** The Data button's list beside `anchor`, of the fields that fit (`types`): `pick` gets the tag to write. */
-    pickField(anchor, path, types, pick) {
+    pickField(anchor, path, types, pick, { single = false } = {}) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
       ask('dock:data-menu', {
         anchor,
         at: node?.from,
         types,
+        single,
         onPick: (row, group) => {
           const tag = dataVarSnippet(row, group, { inline: true })?.text;
 
@@ -574,15 +575,17 @@ export function createEditorPort(win, hooks = {}) {
       });
     },
     /** The fields named in `text`, at this place in the file, that are of the wrong type (data-var-types.js). */
-    wrongFields(path, text, types) {
+    wrongFields(path, text, types, options) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
       if (!node || !String(text ?? '').includes('{{')) {
         return Promise.resolve([]);
       }
 
-      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => wrongFields(text, model, types));
+      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => wrongFields(text, model, types, options));
     },
+    /** What Bard holds as it is typed, on the canvas; the server's HTML follows (element-fields.js). */
+    paintRich: (path, markup) => canvas?.paintInner(path, markup),
     /** An image's, a video's, a link's or rich text's content as the Control Panel's own field (element-fields.js) → unmount. */
     fieldReady: (kind) => elementFieldReady(kind),
     mountField: (el, options) => mountElementField(win, el, options),

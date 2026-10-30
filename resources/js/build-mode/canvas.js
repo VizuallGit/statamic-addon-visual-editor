@@ -1140,6 +1140,14 @@ export function startCanvas(win) {
     },
     /** A tile from Add pressed: dragged onto the canvas (canvas-ui.js). */
     dragNew: (event, item) => ui.dragNew(event, item),
+    /** An element's inside, painted ahead of the file: what Bard holds as it is typed. */
+    paintInner(path, markup) {
+      const el = path ? cdoc()?.querySelector(`[${CANVAS_PATH}="${path}"]`) : null;
+
+      if (el) {
+        el.innerHTML = markup;
+      }
+    },
     stop() {
       alive = false;
       ui.stop();

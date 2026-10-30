@@ -42,11 +42,12 @@ export function elementFieldReady(kind) {
  * The field for `kind` (a tag with an address, or `rich`), mounted into `el`,
  * opened on what the element holds (`value`). `write(value)` gets the new
  * value — a URL, HTML — once the field settles. With `pick(anchor)` the field
- * wears the data icon beside its label (`pickTitle` is what it says).
+ * wears the data icon beside its label (`pickTitle` is what it says). With
+ * `paint(html)`, rich text is handed over as it is typed, ahead of the server.
  *
  * @returns {() => void} unmount — a change still on its way is sent first
  */
-export function mountElementField(win, el, { kind, value, display, write, pick = null, pickTitle = '' }) {
+export function mountElementField(win, el, { kind, value, display, write, pick = null, pickTitle = '', paint = null }) {
   const ui = reactive({
     ready: false,
     name: `sve-build-${kind}`,
@@ -143,9 +144,11 @@ export function mountElementField(win, el, { kind, value, display, write, pick =
   }
 
   const app = mountStatamicSurface(PropValues, el, { store: ui });
+  const stopPaint = paint ? paintWhileTyping(win, el, paint) : null;
 
   return () => {
     gone = true;
+    stopPaint?.();
 
     if (timer) {
       win.clearTimeout(timer);
@@ -157,5 +160,43 @@ export function mountElementField(win, el, { kind, value, display, write, pick =
     } catch {
       /* already gone with its host */
     }
+  };
+}
+
+/**
+ * Bard's own HTML, from the moment it is used. ProseMirror's own helpers are left
+ * out; it is a paint, and the server's conversion is what lands in the file.
+ */
+function paintWhileTyping(win, el, paint) {
+  let frame = 0;
+  let used = false;
+  const flush = () => {
+    frame = 0;
+
+    const editor = el.querySelector('.ProseMirror');
+
+    if (editor) {
+      const copy = editor.cloneNode(true);
+
+      copy.querySelectorAll('.ProseMirror-trailingBreak, .ProseMirror-separator').forEach((node) => node.remove());
+      paint(copy.innerHTML);
+    }
+  };
+  const observer = new win.MutationObserver(() => {
+    if (used && !frame) {
+      frame = win.requestAnimationFrame(flush);
+    }
+  });
+  const onUse = () => {
+    used = true;
+  };
+
+  el.addEventListener('focusin', onUse);
+  observer.observe(el, { subtree: true, childList: true, characterData: true });
+
+  return () => {
+    observer.disconnect();
+    el.removeEventListener('focusin', onUse);
+    win.cancelAnimationFrame(frame);
   };
 }

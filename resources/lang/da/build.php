@@ -53,6 +53,8 @@ return [
 
     'content_text' => 'Tekst',
     'content_new_tab' => 'Åbn i ny fane',
+    'content_remove_img' => 'Fjern billede',
+    'content_remove_video' => 'Fjern video',
     'content_field_pick' => 'Indsæt data',
     'content_field_refused' => ':field er en anden slags felt og kan ikke bruges her.',
     'content_text_placeholder' => 'Skriv teksten…',

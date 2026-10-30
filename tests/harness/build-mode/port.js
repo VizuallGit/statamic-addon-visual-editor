@@ -308,13 +308,13 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
         port.write(next, { select: path });
       }
     },
-    pickField(anchor, path, types, pick) {
-      const fits = onlyTypes(dataModel, types);
+    pickField(anchor, path, types, pick, options) {
+      const fits = onlyTypes(dataModel, types, options);
       const names = [...fits.section, ...fits.page.flatMap((group) => group.items), ...fits.site.flatMap((group) => group.items)].map((row) => row.var);
 
       onMenu?.({ anchor, title: 'data', names, active: '', pick: (name) => pick(`{{ ${name} }}`) });
     },
-    wrongFields: (path, text, types) => Promise.resolve(wrongFields(text, dataModel, types)),
+    wrongFields: (path, text, types, options) => Promise.resolve(wrongFields(text, dataModel, types, options)),
 
     /* Sizes and state — the Tailwind pane's list and its state menu */
     sizes: rows,
