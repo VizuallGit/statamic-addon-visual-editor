@@ -28,8 +28,8 @@
  * The text box takes words and fields alike: the data icon offers the fields
  * that fit (data-var-types.js) and writes `{{ headline }}` in place of what the
  * box held; words around it are typed as any others. A field's value is edited
- * in Content mode. A heading or a link is one line (an input); other text grows
- * from one, and Enter writes the `<br>` it means.
+ * in Content mode. A heading or a link is one line (an input); other text gets a
+ * taller box, which grows with it, and Enter writes the `<br>` it means.
  *
  * Rich text and a link's address are the Control Panel's field until the data
  * icon beside its label picks a field of theirs: then a box shows the tag, and
@@ -299,7 +299,7 @@ onBeforeUnmount(() => {
           v-else
           :id="`sve-build-text-${path}`"
           v-model="text.value.value"
-          rows="1"
+          rows="4"
           spellcheck="true"
           :placeholder="port.t('content_text_placeholder')"
           data-sve-build-text

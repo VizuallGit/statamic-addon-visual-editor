@@ -433,12 +433,12 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-text textarea:hover { border-color: var(--bm-edge); }
 .sve-build .bm-text textarea:focus { border-color: var(--bm-accent); }
 .sve-build .bm-text textarea::placeholder { color: var(--bm-faint); }
-/* A box of one line's height, its words and its icon on the middle; a text box grows from there. */
+/* One line: a box of one line's height, its words and its icon on the middle. Text: a box that looks like room for text, the icon in its corner. */
 .sve-build .bm-text-box { position: relative; }
 .sve-build .bm-text-box .bm-inp, .sve-build .bm-text-box textarea { display: block; width: 100%; padding-right: 1.75rem; font: 450 0.8125rem/1.45 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .sve-build .bm-text-box .bm-inp { height: 1.875rem; outline: 0; }
 .sve-build .bm-text-box .bm-inp:focus { border-color: var(--bm-accent); }
-.sve-build .bm-text-box textarea { min-height: 1.875rem; padding-block: 0.28rem; border-color: var(--bm-line); }
+.sve-build .bm-text-box textarea { min-height: 6.5rem; padding-block: 0.45rem; border-color: var(--bm-line); }
 .sve-build .bm-pick-field { position: absolute; top: 0.3125rem; right: 0.3rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: var(--bm-muted); cursor: pointer; }
 .sve-build .bm-link-more { display: grid; gap: 0.625rem; margin-top: 0.75rem; }
 .sve-build .bm-link-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.6875rem; color: var(--bm-muted); }
