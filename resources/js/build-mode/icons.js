@@ -35,6 +35,11 @@ const P = {
   arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   arrowL: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   arrowU: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  // The Spacing box's link: which sides move together.
+  sidesApart: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
+  sidesBlock: '<path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/>',
+  sidesInline: '<path d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
+  sidesAll: '<path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
   linkic: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',

@@ -539,9 +539,9 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-spx .bm-sp-r { right: 1.5%; top: 50%; transform: translateY(-50%); width: 25%; }
 /* A side with a value of its own (BuildValueInput: not empty, not inherited) is tinted. */
 .sve-build .bm-spx:has(.bm-sp-t:not(.is-empty, .inh)) .bm-tz-t,
-.sve-build .bm-spx:has(.bm-sp-b:not(.is-empty, .inh)) .bm-tz-b,
+.sve-build .bm-spx:has(.bm-sp-b:not(.is-empty, .inh)) .bm-tz-b { background: rgba(56, 88, 233, 0.12); }
 .sve-build .bm-spx:has(.bm-sp-l:not(.is-empty, .inh)) .bm-tz-l,
-.sve-build .bm-spx:has(.bm-sp-r:not(.is-empty, .inh)) .bm-tz-r { background: rgba(56, 88, 233, 0.16); }
+.sve-build .bm-spx:has(.bm-sp-r:not(.is-empty, .inh)) .bm-tz-r { background: rgba(56, 88, 233, 0.22); }
 .sve-build .bm-spx:has(.bm-sp-t:hover, .bm-sp-t:focus) .bm-tz-t,
 .sve-build .bm-spx:has(.bm-sp-b:hover, .bm-sp-b:focus) .bm-tz-b,
 .sve-build .bm-spx:has(.bm-sp-l:hover, .bm-sp-l:focus) .bm-tz-l,

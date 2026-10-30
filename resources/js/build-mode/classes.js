@@ -203,6 +203,13 @@ export function rootFor(name, scale = []) {
  */
 export const SIDES = ['block-start', 'inline-end', 'block-end', 'inline-start'];
 
+/** The link button's next state: each side alone, top and bottom, left and right, all four, and round again. */
+const LINKS = ['', 'block', 'inline', 'all'];
+
+export function nextLink(link = '') {
+  return LINKS[(LINKS.indexOf(link) + 1) % LINKS.length];
+}
+
 export function sideTool(box, side, link = '') {
   const axis = side.startsWith('block') ? 'block' : 'inline';
 

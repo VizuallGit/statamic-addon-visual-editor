@@ -3,10 +3,12 @@
  * Padding or margin in one box, as the approved sketch drew it (Bricks), back
  * beside the Figma fields (BuildBoxFields.vue) — Spacing shows one of the two
  * (BuildStyle.vue). Padding | margin are tabs, so one box is shown at a time;
- * the link beside them writes all four sides at once. A trapezoid per side
- * holds its value where the side is; top and bottom sit one step lighter than
- * the sides, and a side with its own value is tinted (the input holds a value,
- * not a placeholder — the sketch's `:has()` rule, BuildPanel.vue `.bm-spx`).
+ * the button beside them goes round which sides move together: each alone,
+ * top and bottom, left and right, all four (`nextLink`). A trapezoid per side
+ * holds its value where the side is; top and bottom stay a step darker than the
+ * sides, tinted or not, and a side with its own value is tinted (the input
+ * holds a value, not a placeholder — the sketch's `:has()` rule, BuildPanel.vue
+ * `.bm-spx`).
  *
  * The sides are the dock's own box tools — CSS_TOOLS `padding` / `margin` and
  * their children (`padding-block-start`, `padding-all` …) — so a side here,
@@ -18,7 +20,7 @@
  */
 import { computed, inject, ref } from 'vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { SIDES, sideFallbackTools, sideTool } from '../../build-mode/classes.js';
+import { SIDES, nextLink, sideFallbackTools, sideTool } from '../../build-mode/classes.js';
 import { kidsById } from '../../build-mode/catalog.js';
 import { ic } from '../../build-mode/icons.js';
 
@@ -55,6 +57,13 @@ function setUnit(value) {
   }
 }
 
+const LINK_LOOK = {
+  '': { icon: 'sidesApart', title: 'link_title_off' },
+  block: { icon: 'sidesBlock', title: 'link_title_block' },
+  inline: { icon: 'sidesInline', title: 'link_title_inline' },
+  all: { icon: 'sidesAll', title: 'link_title_all' },
+};
+const linkLook = computed(() => LINK_LOOK[link.value]);
 const kids = computed(() => kidsById(props.tools[box.value]));
 const POS = { 'block-start': 't', 'inline-end': 'r', 'block-end': 'b', 'inline-start': 'l' };
 
@@ -99,13 +108,13 @@ const sides = computed(() =>
     <button
       type="button"
       class="bm-ib sm"
-      :class="{ 'is-on': link === 'all' }"
-      :title="port.t('link_title')"
-      :aria-label="port.t('link_title')"
-      :aria-pressed="link === 'all'"
-      data-sve-build-link="all"
-      @click="link = link === 'all' ? '' : 'all'"
-      v-html="ic('linkic')"
+      :class="{ 'is-on': !!link }"
+      :title="port.t(linkLook.title)"
+      :aria-label="port.t(linkLook.title)"
+      :aria-pressed="!!link"
+      :data-sve-build-link="link || 'off'"
+      @click="link = nextLink(link)"
+      v-html="ic(linkLook.icon)"
     ></button>
   </div>
 

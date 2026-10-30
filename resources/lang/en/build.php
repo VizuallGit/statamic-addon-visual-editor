@@ -12,7 +12,7 @@
 
 return [
     // The switch under the Live Preview top bar (`mode_build` is Visual Build)
-    'mode_content' => 'Content',
+    'mode_content' => 'Edit Content',
     'mode_build' => 'Vizuall Build',
     'mode_html' => 'HTML Build',
 
@@ -109,7 +109,10 @@ return [
     'link_block' => '↕ block',
     'link_inline' => '↔ inline',
     'link_each' => 'Each side on its own',
-    'link_title' => 'Link all four sides',
+    'link_title_off' => 'Each side on its own',
+    'link_title_block' => 'Top and bottom together',
+    'link_title_inline' => 'Left and right together',
+    'link_title_all' => 'All four sides together',
     'box_content' => 'content',
     'box_element' => 'element',
     'group_open' => 'Open :group',

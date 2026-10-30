@@ -11,6 +11,7 @@ import {
   rootFor,
   rootOf,
   sideFallbackTools,
+  nextLink,
   sideTool,
   toClass,
   typedClass,
@@ -147,4 +148,11 @@ test('what a size shows: its own class, else the nearest wider size, else the br
   // A media query beats the narrower property: max-md:py wins over a base pbs.
   assert.equal(effectiveClass('pbs-800 max-md:py-100', sides, chain, propertyOf).name, 'py-100');
   assert.equal(effectiveClass('[ {{ _class }} ] {{ cls }} wrapper', sides, chain, propertyOf), null);
+});
+
+test('the link button goes round: alone, block, inline, all, alone', () => {
+  assert.equal(nextLink(''), 'block');
+  assert.equal(nextLink('block'), 'inline');
+  assert.equal(nextLink('inline'), 'all');
+  assert.equal(nextLink('all'), '');
 });

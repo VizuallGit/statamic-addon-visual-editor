@@ -58,7 +58,7 @@ const STYLE_ID = '__sve-build-switch-css';
 const MODES = ['content', 'visual', 'html'];
 /** Each mode's word in `sveBuildStrings` — Visual Build's is still `mode_build`. */
 const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', html: 'mode_html' };
-const FALLBACK = { content: 'Content', visual: 'Vizuall Build', html: 'HTML Build' };
+const FALLBACK = { content: 'Edit Content', visual: 'Vizuall Build', html: 'HTML Build' };
 // Drawn like the toolbar's own icons (stroke 2, round): a pen writing the
 // content, and a page laid out in blocks. HTML Build wears the dock's own,
 // read when the switch is drawn — header-toolbar.js imports this file, so

@@ -6,7 +6,7 @@
  */
 
 return [
-    'mode_content' => 'Indhold',
+    'mode_content' => 'Rediger indhold',
     'mode_build' => 'Vizuall build',
     'mode_html' => 'HTML-build',
 
@@ -99,7 +99,10 @@ return [
     'link_block' => '↕ block',
     'link_inline' => '↔ inline',
     'link_each' => 'Hver side for sig',
-    'link_title' => 'Lås alle fire sider sammen',
+    'link_title_off' => 'Hver side for sig',
+    'link_title_block' => 'Top og bund sammen',
+    'link_title_inline' => 'Venstre og højre sammen',
+    'link_title_all' => 'Alle fire sider sammen',
     'box_content' => 'indhold',
     'box_element' => 'element',
     'group_open' => 'Åbn :group',
