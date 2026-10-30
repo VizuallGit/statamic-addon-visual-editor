@@ -42,10 +42,13 @@ class AddField
      */
     public static function run(SectionList|string $list, string $set, string $kind, string $name, string $value): ?string
     {
-        $imported = SectionTypeMaker::addFields($list, $set)['fieldset'] ?? null;
+        $type = SectionTypeMaker::addFields($list, $set);
+        $imported = $type['fieldset'] ?? null;
         $folderAndName = is_string($imported) ? explode('.', $imported, 2) : [];
 
-        if (count($folderAndName) !== 2) {
+        // A set importing with a prefix reads the fieldset's `heading` as
+        // `hero_heading`; `{{ heading }}` in the file would print nothing on every page.
+        if (count($folderAndName) !== 2 || ($type['prefix'] ?? '') !== '') {
             return null;
         }
 

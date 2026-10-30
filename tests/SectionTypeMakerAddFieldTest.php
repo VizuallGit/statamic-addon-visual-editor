@@ -125,6 +125,19 @@ class SectionTypeMakerAddFieldTest extends TestCase
         $this->assertSame(['text', 'heading_2'], $handles);
     }
 
+    /**
+     * A set importing its fieldset with a prefix reads `heading` as
+     * `hero_heading`; the file would say `{{ heading }}` and print nothing on
+     * every page. Nothing is made.
+     */
+    public function test_a_set_that_prefixes_its_import_gets_no_field(): void
+    {
+        $before = file_get_contents(Names::fieldsetPath('content', 'plain'));
+
+        $this->assertNull(AddField::run('page_sections', 'content/prefixed', 'text', 'Heading', 'Hello'));
+        $this->assertSame($before, file_get_contents(Names::fieldsetPath('content', 'plain')));
+    }
+
     public function test_a_set_declaring_its_fields_inline_has_no_fieldset_to_add_to(): void
     {
         $this->assertNull(AddField::run('page_sections', 'content/inline', 'text', 'Heading', 'Hello'));

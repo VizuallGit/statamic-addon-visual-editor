@@ -260,7 +260,7 @@ class SectionTypeMaker
      * `hide`, so the native picker and the library agree. Returns the set as
      * it is now, or null when there is no such set.
      *
-     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, prefix: string, static: bool, hidden: bool}|null
      */
     public static function setHidden(SectionList|string $list, string $handle, bool $hidden): ?array
     {
@@ -285,7 +285,7 @@ class SectionTypeMaker
      * already on disk under that name is imported, not written over: it is
      * somebody's fields.
      *
-     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, prefix: string, static: bool, hidden: bool}|null
      */
     public static function addFields(SectionList|string $list, string $handle): ?array
     {
@@ -343,7 +343,7 @@ class SectionTypeMaker
      * One set in the page-builder fieldset, rewritten by `$edit` and saved.
      *
      * @param  callable(array): array  $edit
-     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, prefix: string, static: bool, hidden: bool}|null
      */
     protected static function editSet(SectionList|string $list, string $handle, callable $edit, string $commit): ?array
     {
@@ -384,15 +384,18 @@ class SectionTypeMaker
     }
 
     /**
-     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, prefix: string, static: bool, hidden: bool}
      */
     public static function describe(string $handle, string $group, array $set): array
     {
         $fieldset = null;
+        // The import's `prefix`, when it has one: the fieldset's `heading` is the set's `hero_heading`.
+        $prefix = '';
 
         foreach (($set['fields'] ?? []) as $field) {
             if (is_array($field) && is_string($field['import'] ?? null) && $field['import'] !== '') {
                 $fieldset = $field['import'];
+                $prefix = (string) ($field['prefix'] ?? '');
 
                 break;
             }
@@ -403,6 +406,7 @@ class SectionTypeMaker
             'display' => (string) ($set['display'] ?? $handle),
             'group' => $group,
             'fieldset' => $fieldset,
+            'prefix' => $prefix,
             'static' => ($set['static'] ?? false) === true,
             'hidden' => ($set['hide'] ?? false) === true,
         ];
