@@ -16,8 +16,8 @@ import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.
 import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
 import { readText, withText } from '../../../resources/js/build-mode/text.js';
-import { onlyTypes, withoutFields, wrongFields } from '../../../resources/js/data-var-types.js';
-import { readRich, sameRich, withRich } from '../../../resources/js/build-mode/rich.js';
+import { onlyTypes, wrongFields } from '../../../resources/js/data-var-types.js';
+import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from '../../../resources/js/build-mode/rich.js';
 import { withSvgSrc } from '../../../resources/js/build-mode/svg.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
 import { HTML_ICONS } from '../../../resources/js/html-tree-icons.js';
@@ -162,7 +162,7 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
     selectedPath: () => selected.value,
     plusPath: () => plus.value,
     select(path) {
-      selected.value = path || '';
+      selected.value = richOwner(file.value, path) || path || '';
       plus.value = '';
       panel.value = 'element';
       bump();
@@ -267,6 +267,23 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
 
       return picked ? readRich(file.value, picked) : null;
     },
+    richOwner: (path) => richOwner(file.value, path),
+    isRichBlock: () => (rev.value, isRichBlock(file.value, node())),
+    richField() {
+      rev.value;
+
+      const picked = node();
+
+      return picked ? readRichField(file.value, picked) : null;
+    },
+    setRichField(path, text) {
+      const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
+      const next = target ? withRichField(file.value, target, text) : file.value;
+
+      if (next !== file.value) {
+        port.write(next, { select: path });
+      }
+    },
     setRichAt(path, val) {
       const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
       const now = target ? readRich(file.value, target) : null;
@@ -297,17 +314,7 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
 
       onMenu?.({ anchor, title: 'data', names, active: '', pick: (name) => pick(`{{ ${name} }}`) });
     },
-    refuseWrongFields(path, types) {
-      const target = path ? findByPath(parseTemplateTree(file.value), path) : null;
-      const read = target ? readText(file.value, target) : null;
-      const wrong = read?.kind === 'text' ? wrongFields(read.text, dataModel, types) : [];
-
-      if (wrong.length) {
-        port.setText(path, withoutFields(read.text, wrong));
-      }
-
-      return Promise.resolve(wrong[0] || '');
-    },
+    wrongFields: (path, text, types) => Promise.resolve(wrongFields(text, dataModel, types)),
 
     /* Sizes and state — the Tailwind pane's list and its state menu */
     sizes: rows,

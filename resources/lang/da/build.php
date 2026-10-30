@@ -52,6 +52,7 @@ return [
     'new_item' => 'Punkt',
 
     'content_text' => 'Tekst',
+    'content_new_tab' => 'Åbn i ny fane',
     'content_field_pick' => 'Indsæt data',
     'content_field_refused' => ':field er en anden slags felt og kan ikke bruges her.',
     'content_text_placeholder' => 'Skriv teksten…',

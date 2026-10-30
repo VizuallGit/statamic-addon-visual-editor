@@ -3,7 +3,8 @@
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: html-tree-parse.js, html-tree-edit.js, template-elements.js,
- *             lib/element-kind.js, build-mode/catalog.js, build-mode/markup.js.
+ *             lib/element-kind.js, build-mode/catalog.js, build-mode/markup.js,
+ *             build-mode/rich.js.
  * Pure: reads the file, returns the next one; writing it is the caller's
  * (`dock:set-html`, as tw-classes.js commits a class).
  * Bus messages: none.
@@ -32,6 +33,7 @@ import { closingTagIndex } from '../html-tree-edit.js';
 import { withTemplateMarkup } from '../template-elements.js';
 import { classesOf, elementKind, siblingIndex } from '../lib/element-kind.js';
 import { holdsElements } from './catalog.js';
+import { isRichBlock } from './rich.js';
 import { INDENT } from './markup.js';
 
 /** The row at a tree path (`0:section/1:div`), or null. */
@@ -92,7 +94,8 @@ export function placeFor(source, roots, path) {
     return null;
   }
 
-  if (!holdsElements(target)) {
+  // A Rich text element's inside is Bard's; what is added lands after it.
+  if (!holdsElements(target) || isRichBlock(source, target)) {
     return { mode: 'after', parent: parentOf(roots, target) || null, after: target };
   }
 

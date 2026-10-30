@@ -6,10 +6,11 @@
  * May import: lib/tag-families.js, html-tree-edit.js, html-tree-parse.js, attrs.js. Pure.
  * Bus messages: none.
  *
- * Only an element whose body is words and fields has text to edit here: a body
- * with other elements in it is theirs (a click picks one of them), and is never
- * rewritten from a text box. A field is written as the file says it —
- * `Hej {{ headline }}` — and its value is edited in Content mode.
+ * Only an element whose body is words, fields and line breaks has text to edit
+ * here: a body with other elements in it is theirs (a click picks one of them),
+ * and is never rewritten from a text box. A field is written as the file says
+ * it — `Hej {{ headline }}` — and its value is edited in Content mode; a line
+ * break as the `<br>` it is.
  *
  * The text is shown as it reads on the page: entities decoded, the file's
  * line breaks and indentation folded to single spaces. Written back, it is
@@ -28,6 +29,13 @@ const NOT_TEXT = new Set(['input', 'select', 'textarea', 'option', 'optgroup']);
 
 /** Layout-family tags that hold words of their own. */
 const ALSO_TEXT = new Set(['li', 'dt', 'dd', 'td', 'th', 'summary', 'legend', 'caption', 'figcaption', 'address']);
+
+/** Tags whose text is one line: a box for them takes no line break. */
+const ONE_LINE = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'label', 'summary', 'legend', 'caption']);
+
+export function isOneLine(tag) {
+  return ONE_LINE.has(String(tag || '').toLowerCase());
+}
 
 /** Whether an element of this tag holds text — a heading, a paragraph, a link, a list item. */
 export function holdsText(tag) {
@@ -65,7 +73,7 @@ export function readText(source, node) {
     return null;
   }
 
-  if ((node.children || []).length) {
+  if ((node.children || []).some((child) => child.kind || String(child.tag).toLowerCase() !== 'br')) {
     return { kind: 'markup' };
   }
 
@@ -73,14 +81,14 @@ export function readText(source, node) {
 }
 
 /** A tag still being typed: `{{ hea`. Written, it would stop the server rendering the section. */
-function halfTag(text) {
+export function halfTag(text) {
   return String(text ?? '').replace(/\{\{[\s\S]*?\}\}/g, '').includes('{{');
 }
 
-/** Escaped as text, the tags left as Antlers reads them. */
+/** Escaped as text, the tags left as Antlers reads them and a line break as the element it is. */
 function escapeWords(text) {
   return String(text ?? '')
-    .split(/(\{\{[\s\S]*?\}\})/)
+    .split(/(\{\{[\s\S]*?\}\}|<br\s*\/?>)/i)
     .map((part, at) => (at % 2 ? part : part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')))
     .join('');
 }

@@ -41,11 +41,12 @@ export function elementFieldReady(kind) {
 /**
  * The field for `kind` (a tag with an address, or `rich`), mounted into `el`,
  * opened on what the element holds (`value`). `write(value)` gets the new
- * value — a URL, HTML — once the field settles.
+ * value — a URL, HTML — once the field settles. With `pick(anchor)` the field
+ * wears the data icon beside its label (`pickTitle` is what it says).
  *
  * @returns {() => void} unmount — a change still on its way is sent first
  */
-export function mountElementField(win, el, { kind, value, display, write }) {
+export function mountElementField(win, el, { kind, value, display, write, pick = null, pickTitle = '' }) {
   const ui = reactive({
     ready: false,
     name: `sve-build-${kind}`,
@@ -55,8 +56,10 @@ export function mountElementField(win, el, { kind, value, display, write }) {
     meta: {},
     readOnly: false,
     onChange: null,
-    canBind: false,
+    canBind: !!pick,
     bindings: {},
+    dataTitle: pickTitle,
+    onPickData: (handle, anchor) => pick?.(anchor),
   });
   const post = (url, body) =>
     win

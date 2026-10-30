@@ -131,3 +131,11 @@ test('a loop renamed where it stands has a new path and the same start', () => {
   assert.equal(after.from, before.from);
   assert.equal(before.from, field.indexOf('{{ items }}'));
 });
+
+test('what is added with a Rich text element picked lands after it, not in it', () => {
+  const html = '<section>\n    <div class="prose">\n        <p>Words</p>\n    </div>\n</section>';
+  const rich = parseTemplateTree(html)[0].children[0];
+  const out = addAt(html, rich.path, '<a href="">Link</a>');
+
+  assert.equal(out.html, '<section>\n    <div class="prose">\n        <p>Words</p>\n    </div>\n    <a href="">Link</a>\n</section>');
+});

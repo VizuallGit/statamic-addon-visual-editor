@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { holdsText, readText, withText } from '../../../resources/js/build-mode/text.js';
+import { holdsText, isOneLine, readText, withText } from '../../../resources/js/build-mode/text.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
@@ -75,6 +75,24 @@ test('a field is written as a tag, with words around it escaped and the tag left
 
   assert.equal(withText(html, first(html), '{{ headline }}'), '<h2>{{ headline }}</h2>');
   assert.equal(withText(html, first(html), 'A & B {{ title | upper }}'), '<h2>A &amp; B {{ title | upper }}</h2>');
+});
+
+test('a line break belongs to the text: read and written as the element it is', () => {
+  const html = '<p>One<br>Two</p>';
+
+  assert.deepEqual(readText(html, first(html)), { kind: 'text', text: 'One<br>Two' });
+  assert.equal(withText(html, first(html), 'A & B<br>C <i>'), '<p>A &amp; B<br>C &lt;i&gt;</p>');
+  assert.equal(withText('<p></p>', first('<p></p>'), 'One<br/>Two'), '<p>One<br/>Two</p>');
+});
+
+test('a heading and a link are one line; a paragraph and a list item are not', () => {
+  for (const tag of ['h1', 'H6', 'a', 'button']) {
+    assert.equal(isOneLine(tag), true, tag);
+  }
+
+  for (const tag of ['p', 'li', 'span', 'blockquote']) {
+    assert.equal(isOneLine(tag), false, tag);
+  }
 });
 
 test('a tag still being typed is not written', () => {

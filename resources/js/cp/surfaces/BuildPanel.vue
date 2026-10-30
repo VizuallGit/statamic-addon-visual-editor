@@ -49,6 +49,16 @@ const picked = computed(() => {
   return port.plusPath() ? describeAt(port.html(), port.selectedPath()).node : here.value.node;
 });
 
+/** What Content is about: the picked element, or the rich text it stands in. */
+const contentNode = computed(() => {
+  port.rev.value;
+
+  const owner = picked.value ? port.richOwner?.(picked.value.path) : '';
+
+  return owner ? describeAt(port.html(), owner).node : picked.value;
+});
+const isRich = computed(() => (port.rev.value, !!picked.value && port.isRichBlock()));
+
 /** Add, or the element — the element only while there is one to show. */
 const side = computed(() => (port.panel.value === 'element' && picked.value ? 'element' : 'add'));
 
@@ -213,7 +223,7 @@ onBeforeUnmount(() => unmountHost?.());
     <template v-else>
       <div class="fg-head bm-el-head">
         <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
-        <b>{{ nameOf(picked) }}</b>
+        <b>{{ isRich ? port.t('content_rich') : nameOf(picked) }}</b>
         <span class="fg-head__acts">
           <button type="button" class="fg-ib" :title="port.t('tab_add')" :aria-label="port.t('tab_add')" data-sve-build-add @click="port.panel.value = 'add'" v-html="ic('plus')"></button>
           <template v-if="styled">
@@ -244,7 +254,7 @@ onBeforeUnmount(() => unmountHost?.());
           <div ref="host" class="bm-host"></div>
         </div>
 
-        <BuildContent v-else :key="picked.path" :node="picked" />
+        <BuildContent v-else :key="contentNode.path" :node="contentNode" />
       </div>
     </template>
   </div>
@@ -423,9 +433,19 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-text textarea:hover { border-color: var(--bm-edge); }
 .sve-build .bm-text textarea:focus { border-color: var(--bm-accent); }
 .sve-build .bm-text textarea::placeholder { color: var(--bm-faint); }
+/* A box of one line's height, its words and its icon on the middle; a text box grows from there. */
 .sve-build .bm-text-box { position: relative; }
-.sve-build .bm-text-box textarea { padding-right: 1.75rem; }
-.sve-build .bm-pick-field { position: absolute; top: 0.3rem; right: 0.3rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: var(--bm-muted); cursor: pointer; }
+.sve-build .bm-text-box .bm-inp, .sve-build .bm-text-box textarea { display: block; width: 100%; padding-right: 1.75rem; font: 450 0.8125rem/1.45 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.sve-build .bm-text-box .bm-inp { height: 1.875rem; outline: 0; }
+.sve-build .bm-text-box .bm-inp:focus { border-color: var(--bm-accent); }
+.sve-build .bm-text-box textarea { min-height: 1.875rem; padding-block: 0.28rem; border-color: var(--bm-line); }
+.sve-build .bm-pick-field { position: absolute; top: 0.3125rem; right: 0.3rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: var(--bm-muted); cursor: pointer; }
+.sve-build .bm-link-more { display: grid; gap: 0.625rem; margin-top: 0.75rem; }
+.sve-build .bm-link-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.6875rem; color: var(--bm-muted); }
+.sve-build .bm-switch { flex: none; position: relative; width: 1.75rem; height: 1rem; padding: 0; border: 0; border-radius: 1rem; background: var(--bm-line); cursor: pointer; }
+.sve-build .bm-switch::after { content: ''; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: #fff; transition: transform 0.12s ease; }
+.sve-build .bm-switch[aria-checked="true"] { background: var(--bm-accent); }
+.sve-build .bm-switch[aria-checked="true"]::after { transform: translateX(0.75rem); }
 .sve-build .bm-pick-field:hover { background: var(--bm-line); color: var(--bm-ink); }
 .sve-build .bm-pick-field .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 /* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */

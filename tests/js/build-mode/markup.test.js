@@ -41,7 +41,7 @@ test('elements that hold text start with a word to see and click', () => {
   assert.equal(write('button'), '<a href="" class="btn">Button</a>');
   assert.equal(write('list'), '<ul>\n    <li>Item</li>\n</ul>');
   assert.equal(write('divider'), '<hr>');
-  assert.equal(write('richtext'), '<div>\n    <p>Text</p>\n</div>');
+  assert.equal(write('richtext'), '<div class="prose">\n    <p>Text</p>\n</div>');
   assert.equal(write('article'), '<article></article>');
   assert.equal(markupFor(tile('heading'), { text: { heading: 'A <b> & c' } }), '<h2>A &lt;b&gt; &amp; c</h2>');
 });

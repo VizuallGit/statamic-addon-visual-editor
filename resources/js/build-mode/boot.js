@@ -100,8 +100,8 @@ import { rootFor, rootOf } from './classes.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
-import { withoutFields, wrongFields } from '../data-var-types.js';
-import { readRich, sameRich, withRich } from './rich.js';
+import { wrongFields } from '../data-var-types.js';
+import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from './rich.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
@@ -333,7 +333,8 @@ export function createEditorPort(win, hooks = {}) {
     plusPath: () => (hooks.plusPath ? hooks.plusPath() : plus.value),
     select(path) {
       clearPlus();
-      hooks.select?.(path || '');
+      // Rich text is one element: a click on what stands in it picks it.
+      hooks.select?.(richOwner(html(), path) || path || '');
       panel.value = 'element';
       bump();
     },
@@ -504,6 +505,27 @@ export function createEditorPort(win, hooks = {}) {
 
       return node ? readRich(html(), node) : null;
     },
+    /** The Rich text element the element at `path` stands in, or ''. */
+    richOwner: (path) => richOwner(html(), path),
+    /** Whether the picked element is a Rich text element. */
+    isRichBlock: () => (rev.value, isRichBlock(html(), picked())),
+    /** The tag of the field standing in the picked rich text's place, or null (rich.js). */
+    richField: () => {
+      rev.value;
+
+      const node = picked();
+
+      return node ? readRichField(html(), node) : null;
+    },
+    /** A field in the rich text's place, or back out of it: `text` is a tag, words, or nothing. */
+    setRichField(path, text) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const next = node ? withRichField(html(), node, text) : html();
+
+      if (next !== html()) {
+        port.write(next, { select: path });
+      }
+    },
     /** An element's rich text by its path; the same HTML laid out another way is no change. */
     setRichAt(path, value) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
@@ -551,27 +573,15 @@ export function createEditorPort(win, hooks = {}) {
         },
       });
     },
-    /**
-     * A name typed by hand that turns out to be a field of the wrong type comes
-     * out of the element's text again → the name, or '' when all is well.
-     */
-    refuseWrongFields(path, types) {
+    /** The fields named in `text`, at this place in the file, that are of the wrong type (data-var-types.js). */
+    wrongFields(path, text, types) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
-      const read = node ? readText(html(), node) : null;
 
-      if (read?.kind !== 'text' || !read.text.includes('{{')) {
-        return Promise.resolve('');
+      if (!node || !String(text ?? '').includes('{{')) {
+        return Promise.resolve([]);
       }
 
-      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => {
-        const wrong = wrongFields(read.text, model, types);
-
-        if (wrong.length) {
-          port.setText(path, withoutFields(read.text, wrong));
-        }
-
-        return wrong[0] || '';
-      });
+      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => wrongFields(text, model, types));
     },
     /** An image's, a video's, a link's or rich text's content as the Control Panel's own field (element-fields.js) → unmount. */
     fieldReady: (kind) => elementFieldReady(kind),

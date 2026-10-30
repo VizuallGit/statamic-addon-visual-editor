@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readRich, sameRich, withRich } from '../../../resources/js/build-mode/rich.js';
+import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from '../../../resources/js/build-mode/rich.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
@@ -64,4 +64,39 @@ test('what is not rich text is never rewritten', () => {
   const html = '<div><h2 class="x">T</h2></div>';
 
   assert.equal(withRich(html, first(html), '<p>New</p>'), html);
+});
+
+test('what stands in rich text belongs to it; other elements belong to none', () => {
+  const html = '<section><div class="prose"><p>One <strong>two</strong></p></div><div><h2>Three</h2><p>Four</p></div><div class="prose"><h2 class="x">Five</h2></div></section>';
+  const [rich, laidOut, classed] = parseTemplateTree(html)[0].children;
+  const p = rich.children[0];
+
+  assert.equal(isRichBlock(html, rich), true);
+  assert.equal(isRichBlock(html, laidOut), false);
+  assert.equal(isRichBlock(html, classed), false);
+  assert.equal(richOwner(html, p.path), rich.path);
+  assert.equal(richOwner(html, p.children[0].path), rich.path);
+  assert.equal(richOwner(html, laidOut.children[0].path), '');
+  assert.equal(richOwner(html, classed.children[0].path), '');
+  assert.equal(richOwner(html, rich.path), '');
+  assert.equal(richOwner(html, ''), '');
+});
+
+test('a field stands in rich text\'s place, and comes out again', () => {
+  const html = '<div>\n    <p>Words</p>\n</div>';
+  const bound = withRichField(html, parseTemplateTree(html)[0], '{{ content }}');
+
+  assert.equal(bound, '<div>\n    {{ content }}\n</div>');
+  assert.equal(readRichField(bound, parseTemplateTree(bound)[0]), '{{ content }}');
+  assert.equal(readRich(bound, parseTemplateTree(bound)[0]), null);
+  assert.equal(withRichField(bound, parseTemplateTree(bound)[0], ''), '<div>\n    <p></p>\n</div>');
+  assert.equal(withRichField(bound, parseTemplateTree(bound)[0], 'A & B'), '<div>\n    <p>A &amp; B</p>\n</div>');
+});
+
+test('a div of other things has no field to read, and is not rewritten', () => {
+  const html = '<div class="x"><h2 class="y">T</h2></div>';
+
+  assert.equal(readRichField(html, parseTemplateTree(html)[0]), null);
+  assert.equal(withRichField(html, parseTemplateTree(html)[0], '{{ content }}'), html);
+  assert.equal(readRichField('<div>Hi {{ a }}</div>', parseTemplateTree('<div>Hi {{ a }}</div>')[0]), null);
 });

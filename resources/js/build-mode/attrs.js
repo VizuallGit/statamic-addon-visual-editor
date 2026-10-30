@@ -49,7 +49,7 @@ function find(source, node, name) {
   const from = match.index + match[1].length + 1;
   const to = masked.indexOf(match[2], from);
 
-  return to === -1 ? null : { from: node.from + from, to: node.from + to, value: open.slice(from, to) };
+  return to === -1 ? null : { start: node.from + match.index, from: node.from + from, to: node.from + to, value: open.slice(from, to) };
 }
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
@@ -74,7 +74,7 @@ export function readAttribute(source, node, name) {
   return hit ? decodeEntities(hit.value) : null;
 }
 
-/** The file with the attribute set — added after the tag name when the tag has none. */
+/** The file with the attribute set — added after the tag name when the tag has none; null takes it out. */
 export function withAttribute(source, node, name, value) {
   const text = String(source || '');
 
@@ -84,6 +84,10 @@ export function withAttribute(source, node, name, value) {
 
   const safe = String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   const hit = find(text, node, name);
+
+  if (value === null) {
+    return hit ? text.slice(0, hit.start) + text.slice(hit.to + 1) : text;
+  }
 
   if (hit) {
     return text.slice(0, hit.from) + safe + text.slice(hit.to);

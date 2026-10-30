@@ -53,7 +53,7 @@ export function markupFor(entry, opts = {}) {
       }
 
       if (def.rich) {
-        return `<div>\n${INDENT}<p>${esc(text.text)}</p>\n</div>`;
+        return `<div class="prose">\n${INDENT}<p>${esc(text.text)}</p>\n</div>`;
       }
 
       return def.tag === 'a'
