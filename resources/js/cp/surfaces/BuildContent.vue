@@ -141,6 +141,7 @@ function pickText(anchor) {
     text.done();
     refused.value = '';
     port.setText(path, expression);
+    port.syncFieldEdit(path, expression, { types: TEXT_FIELDS });
   });
 }
 
@@ -150,6 +151,7 @@ function textDone() {
   const now = read.value?.text;
 
   refuseWrong(now, TEXT_FIELDS, (wrong) => port.setText(path, withoutFields(now, wrong)));
+  port.syncFieldEdit(path, now, { types: TEXT_FIELDS });
 }
 
 /** Enter in a text of several lines: the line break, as the element it is. */
@@ -193,6 +195,7 @@ function pickAddress(anchor) {
       addressBox.done();
       refused.value = '';
       writeAddress(expression);
+      port.syncFieldEdit(path, expression, { types: addressFields, inline: false });
     },
     addressOne
   );
@@ -205,6 +208,7 @@ function addressDone() {
     const now = addressNow.value;
 
     refuseWrong(now, addressTakes, (wrong) => writeAddress(withoutFields(now, wrong)), addressOne);
+    port.syncFieldEdit(path, now, { types: addressFields, inline: false });
   }
 }
 
@@ -212,6 +216,7 @@ function addressDone() {
 function removeFile() {
   addressBox.done();
   writeAddress('');
+  port.syncFieldEdit(path, '', { types: addressFields, inline: false });
   fieldKey.value += 1;
 }
 
@@ -241,6 +246,7 @@ function pickRich(anchor) {
     richBox.done();
     refused.value = '';
     port.setRichField(path, expression);
+    port.syncFieldEdit(path, expression, { types: RICH_FIELDS });
   });
 }
 
@@ -252,6 +258,7 @@ function richFieldDone() {
   const now = richField.value;
 
   refuseWrong(now, RICH_FIELDS, () => port.setRichField(path, ''));
+  port.syncFieldEdit(path, now, { types: RICH_FIELDS });
 }
 
 /** Bard's HTML, with the apostrophes it escapes for a partial's parameter back as they are typed. */

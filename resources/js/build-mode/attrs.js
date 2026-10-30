@@ -83,6 +83,41 @@ export function readAttribute(source, node, name) {
 }
 
 /** The file with the attribute set — added after the tag name when the tag has none; null takes it out. */
+/**
+ * The element's `{{ visual_edit }}` pointed at a field — what makes it editable
+ * in Edit Content's preview — or, `field` null, no longer pointed at one. Other
+ * parameters on the tag stay; a tag left with none goes. A tag without `field`
+ * is the author's and is left alone when there is no field to point at.
+ */
+export function withFieldEdit(source, node, field, { inline = true } = {}) {
+  const text = String(source || '');
+
+  if (!node || node.kind) {
+    return text;
+  }
+
+  const open = text.slice(node.from, node.openTo);
+  const hit = /\s*\{\{\s*visual_edit\b([\s\S]*?)\}\}/.exec(open);
+  const rest = (hit?.[1] || '').replace(/\s*(field|inline_edit|inline-edit)="[^"]*"/g, '').trim();
+  let tag = '';
+
+  if (field) {
+    tag = ` {{ visual_edit field="${field}"${inline ? ' inline_edit="true"' : ''}${rest ? ` ${rest}` : ''} }}`;
+  } else if (!hit || !/\bfield="/.test(hit[1])) {
+    return text;
+  } else if (rest) {
+    tag = ` {{ visual_edit ${rest} }}`;
+  }
+
+  if (hit) {
+    return text.slice(0, node.from + hit.index) + tag + text.slice(node.from + hit.index + hit[0].length);
+  }
+
+  const name = /^<[a-zA-Z][a-zA-Z0-9:-]*/.exec(open);
+
+  return name ? text.slice(0, node.from + name[0].length) + tag + text.slice(node.from + name[0].length) : text;
+}
+
 export function withAttribute(source, node, name, value) {
   const text = String(source || '');
 

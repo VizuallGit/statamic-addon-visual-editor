@@ -93,6 +93,10 @@ function readTab() {
 const chosen = ref(readTab());
 const tab = computed(() => (styled.value ? chosen.value : 'content'));
 
+watch(port.contentAsked, () => {
+  chosen.value = 'content';
+});
+
 function choose(value) {
   chosen.value = value;
 

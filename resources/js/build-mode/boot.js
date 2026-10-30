@@ -100,10 +100,10 @@ import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { rootFor, rootOf } from './classes.js';
-import { readAttribute, withAttribute } from './attrs.js';
-import { readText, withText } from './text.js';
+import { readAttribute, withAttribute, withFieldEdit } from './attrs.js';
+import { isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
-import { wrongFields } from '../data-var-types.js';
+import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
 import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from './rich.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
@@ -206,6 +206,7 @@ function buildCanvas(win) {
 
 /** The port, on the editor. Exported for the bench test. */
 export function createEditorPort(win, hooks = {}) {
+  const contentAsked = ref(0);
   const rev = ref(0);
   const plus = ref('');
   const pointed = ref(0);
@@ -560,6 +561,70 @@ export function createEditorPort(win, hooks = {}) {
       if (next !== html()) {
         port.write(next, { select: path });
       }
+    },
+    /**
+     * What a click on the canvas may type into: the file's own words, or a
+     * field of the section or the page alone in its element (a promise then,
+     * as the field's kind has to be looked up); null when it is neither.
+     */
+    inlineTarget(path) {
+      const roots = parseTemplateTree(html());
+      const node = path ? findByPath(roots, path) : null;
+      const inLoop = (nodes) => (nodes || []).some((row) => path.startsWith(`${row.path}/`) && ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children)));
+
+      if (!node || node.locked || node.lockedIn || node.hidden || inLoop(roots)) {
+        return null;
+      }
+
+      const read = readText(html(), node);
+
+      if (read?.kind !== 'text') {
+        return null;
+      }
+
+      if (!read.text.includes('{{')) {
+        return { oneLine: isOneLine(node.tag) };
+      }
+
+      const field = wholeTag(read.text);
+
+      if (!field || !/^[\w.]+$/.test(field)) {
+        return null;
+      }
+
+      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => {
+        const rows = [...(model?.section || []), ...(model?.page?.find((group) => group.handle === 'this')?.items || [])];
+
+        return rows.some((row) => row.var === field && !row.parent && TEXT_FIELDS.includes(row.type)) ? { oneLine: true, field } : null;
+      });
+    },
+    /** Content, on the picked element: what a click on the canvas cannot type into is typed there. */
+    contentAsked,
+    showContent() {
+      contentAsked.value += 1;
+    },
+    /**
+     * The element's `{{ visual_edit }}` follows the field it now holds, so it
+     * can be edited in Edit Content's preview too. Only a field of this section:
+     * the tag cannot write to the page's, the site's or a loop item's.
+     */
+    syncFieldEdit(path, expression, { types, inline = true } = {}) {
+      const name = wholeTag(expression);
+      const at = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      if (!at) {
+        return Promise.resolve();
+      }
+
+      return Promise.resolve(name ? ask('dock:data-model', { at: at.from }) : null).then((model) => {
+        const own = (model?.section || []).some((row) => row.var === name && !row.parent && types.includes(row.type));
+        const node = findByPath(parseTemplateTree(html()), path);
+        const next = node ? withFieldEdit(html(), node, own ? name : null, { inline }) : html();
+
+        if (next !== html()) {
+          port.write(next, { select: hooks.selectedPath?.() === path ? path : '' });
+        }
+      });
     },
     /** The Data button's list beside `anchor`, of the fields that fit (`types`): `pick` gets the tag to write. */
     pickField(anchor, path, types, pick, { single = false } = {}) {

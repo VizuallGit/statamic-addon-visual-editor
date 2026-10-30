@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { altFromAsset, readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
+import { altFromAsset, readAttribute, withAttribute, withFieldEdit } from '../../../resources/js/build-mode/attrs.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
@@ -69,4 +69,33 @@ test('null takes an attribute out, and leaves the tag alone when it has none', (
 
   assert.equal(withAttribute(html, parseTemplateTree(html)[0], 'target', null), '<a href="/x" class="y">Go</a>');
   assert.equal(withAttribute(html, parseTemplateTree(html)[0], 'rel', null), html);
+});
+
+test('a field chosen points the element\'s visual_edit at it, in the opening tag', () => {
+  const html = '<p class="x">{{ text }}</p>';
+
+  assert.equal(withFieldEdit(html, first(html), 'text'), '<p {{ visual_edit field="text" inline_edit="true" }} class="x">{{ text }}</p>');
+  assert.equal(withFieldEdit('<a href="">L</a>', first('<a href="">L</a>'), 'link', { inline: false }), '<a {{ visual_edit field="link" }} href="">L</a>');
+});
+
+test('another field repoints it; what else the tag says stays', () => {
+  const html = '<p {{ visual_edit field="a" inline_edit="true" orderable="true" }}>x</p>';
+
+  assert.equal(withFieldEdit(html, first(html), 'b'), '<p {{ visual_edit field="b" inline_edit="true" orderable="true" }}>x</p>');
+});
+
+test('no field any more: the tag goes, or keeps only what is not about the field', () => {
+  const one = '<p {{ visual_edit field="a" inline_edit="true" }} class="x">y</p>';
+  const more = '<p {{ visual_edit field="a" orderable="true" }}>y</p>';
+
+  assert.equal(withFieldEdit(one, first(one), null), '<p class="x">y</p>');
+  assert.equal(withFieldEdit(more, first(more), null), '<p {{ visual_edit orderable="true" }}>y</p>');
+});
+
+test('an author\'s tag with no field is left alone when there is none to point at', () => {
+  const html = '<section {{ visual_edit outline_inside="true" }}>y</section>';
+  const plain = '<p>y</p>';
+
+  assert.equal(withFieldEdit(html, first(html), null), html);
+  assert.equal(withFieldEdit(plain, first(plain), null), plain);
 });

@@ -15,7 +15,7 @@ import { flattenHtmlTree, parseTemplateTree } from '../../../resources/js/html-t
 import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.js';
 import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
-import { readText, withText } from '../../../resources/js/build-mode/text.js';
+import { isOneLine, readText, withText } from '../../../resources/js/build-mode/text.js';
 import { onlyTypes, wrongFields } from '../../../resources/js/data-var-types.js';
 import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from '../../../resources/js/build-mode/rich.js';
 import { withSvgSrc } from '../../../resources/js/build-mode/svg.js';
@@ -314,6 +314,17 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
 
       onMenu?.({ anchor, title: 'data', names, active: '', pick: (name) => pick(`{{ ${name} }}`) });
     },
+    inlineTarget(path) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const read = node ? readText(html(), node) : null;
+
+      return read?.kind === 'text' && !read.text.includes('{{') ? { oneLine: isOneLine(node.tag) } : null;
+    },
+    contentAsked: ref(0),
+    showContent() {
+      this.contentAsked.value += 1;
+    },
+    syncFieldEdit: () => Promise.resolve(),
     wrongFields: (path, text, types, options) => Promise.resolve(wrongFields(text, dataModel, types, options)),
 
     /* Sizes and state — the Tailwind pane's list and its state menu */

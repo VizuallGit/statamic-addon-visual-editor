@@ -77,6 +77,8 @@ import { shallowRef, watch } from 'vue';
 import morphPlugin from '@alpinejs/morph/dist/module.esm.js?build-canvas';
 import { ask, on } from '../cp/bus.js';
 import { panelValues } from '../cp/panel/store.js';
+import { containerContext } from '../lib/publish-containers.js';
+import { canvasEdit } from './canvas-edit.js';
 import { dataGet, findPathByUid } from '../lib/values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
@@ -313,6 +315,27 @@ export function startCanvas(win) {
   // Inside the header, the footer, a global section or a component, as in Content — through the bridge (canvas-focus.js).
   const focus = canvasFocus(win, { page: cdoc, onState: () => schedule(truth) });
   // A menu's would-be classes on the canvas before they are picked, compiled beside the section's own (canvas-hold.js).
+  const edit = canvasEdit({
+    port: () => port,
+    setField: (name, value) => {
+      const path = currentSection()?.fieldPath?.(name);
+
+      if (path) {
+        containerContext()?.setFieldValue(path, value);
+      }
+    },
+    paint: () => redraw(),
+    find: (path) => cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`) || null,
+  });
+  // Every morph of the canvas steps round the element being typed in.
+  const morphing = {
+    key: bySid,
+    updating(from, to, childrenOnly, skip) {
+      if (from === edit.editing()) {
+        skip();
+      }
+    },
+  };
   const hold = canvasHold(win, {
     page: cdoc,
     compile: (classes) => sheet(classes ? `${painted.html || ''}<i class="${classes.replace(/"/g, '&quot;')}"></i>` : painted.html),
@@ -390,7 +413,11 @@ export function startCanvas(win) {
     page.addEventListener('auxclick', (event) => event.preventDefault(), true);
     page.addEventListener('submit', (event) => event.preventDefault(), true);
     page.addEventListener('mouseover', onHover);
-    page.addEventListener('pointerdown', ui.grab, true);
+    page.addEventListener('pointerdown', (event) => {
+      if (!edit.holds(event.target)) {
+        ui.grab(event);
+      }
+    }, true);
     page.addEventListener('scroll', ui.draw, true);
     page.addEventListener('scroll', bar.place, true);
     page.addEventListener('scroll', focus.place, true);
@@ -696,6 +723,10 @@ export function startCanvas(win) {
 
         return fieldDomId(own ? `${rowCache.path}.${name}` : name);
       },
+      /** Where a field's value is in the form: the row's when the row has it or declares it, else the page's. */
+      fieldPath(name) {
+        return rowCache.path && !Object.hasOwn(values, name) ? `${rowCache.path}.${name}` : name;
+      },
     };
   }
 
@@ -852,7 +883,7 @@ export function startCanvas(win) {
 
     cleanTree(next);
     copyAttributes(realDoc.documentElement, page.documentElement);
-    morph(page.body, next, { key: bySid });
+    morph(page.body, next, morphing);
   }
 
   function truth() {
@@ -1002,7 +1033,7 @@ export function startCanvas(win) {
 
       if (next) {
         hold.forget();
-        morph(root, next, { key: bySid });
+        morph(root, next, morphing);
       }
 
       stats.waiting = waiting.length;
@@ -1112,6 +1143,10 @@ export function startCanvas(win) {
 
   /** Escape: Visual Build's panel lets go of the picked element first (`port.escape`), then the bridge's way out. */
   function onKey(event) {
+    if (edit.key(event)) {
+      return;
+    }
+
     if (event.key === 'Escape' && port?.escape?.()) {
       event.preventDefault();
       event.stopPropagation();
@@ -1126,6 +1161,12 @@ export function startCanvas(win) {
     event.preventDefault();
     event.stopPropagation();
 
+    if (edit.holds(event.target)) {
+      return;
+    }
+
+    edit.finish();
+
     if (bar.click(event) || focus.click(event) || ui.click(event)) {
       return;
     }
@@ -1134,7 +1175,14 @@ export function startCanvas(win) {
     const el = target?.closest(`[${CANVAS_PATH}]`);
 
     if (el && port) {
-      port.select(el.getAttribute(CANVAS_PATH));
+      const path = el.getAttribute(CANVAS_PATH);
+
+      // The element already picked: its words, where they stand.
+      if (path === port.selectedPath() && port.inlineTarget && edit.start(el, path, event)) {
+        return;
+      }
+
+      port.select(path);
 
       return;
     }
