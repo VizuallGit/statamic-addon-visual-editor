@@ -4061,7 +4061,14 @@ function insertPointFor(html, row) {
   return close;
 }
 
-function selectHtmlTreeRow(win, id, rows) {
+/**
+ * The row is picked: marked in the tree, its inspector drawn, the preview
+ * outlining it. A click also reveals it in the dock — the cursor goes to the
+ * tag and the editor takes focus. `reveal: false` is a write keeping its pick
+ * (Build's boxes write the file on every keystroke): the dock is not touched,
+ * so nothing is laid out or focused for a cursor nobody moved.
+ */
+function selectHtmlTreeRow(win, id, rows, { reveal = true } = {}) {
   if (htmlTreeSuppressClick) {
     return;
   }
@@ -4084,17 +4091,19 @@ function selectHtmlTreeRow(win, id, rows) {
     return;
   }
 
-  ask('dock:reveal-html', {
-    from: row.from,
-    to: row.to,
-    caret: insertPointFor(dockHtml(), row),
-  });
+  if (reveal) {
+    ask('dock:reveal-html', {
+      from: row.from,
+      to: row.to,
+      caret: insertPointFor(dockHtml(), row),
+    });
 
-  // The reveal has just put the cursor on this tag. The Tailwind pane cannot
-  // hear that for itself — the dock writes the pane with `applying` set, and
-  // nothing that follows the editor may run during those — so it is told here,
-  // once the reveal is done.
-  ask('dock:tw-follow');
+    // The reveal has just put the cursor on this tag. The Tailwind pane cannot
+    // hear that for itself — the dock writes the pane with `applying` set, and
+    // nothing that follows the editor may run during those — so it is told
+    // here, once the reveal is done.
+    ask('dock:tw-follow');
+  }
 
   // A tag is outlined by its stamped path. A component call has no stamp — it
   // is whatever its file rendered — so its src goes along, and the preview
@@ -4142,7 +4151,7 @@ function componentPathFor(path, src) {
   return (hits.find((hit) => hit.inside) || hits[0])?.path || '';
 }
 
-function selectHtmlTreeByPath(win, path) {
+function selectHtmlTreeByPath(win, path, { reveal = true } = {}) {
   if (!path || !htmlTreePanel(win.document)) {
     return;
   }
@@ -4168,7 +4177,7 @@ function selectHtmlTreeByPath(win, path) {
     return;
   }
 
-  selectHtmlTreeRow(win, row.id, htmlTreeUi.rows);
+  selectHtmlTreeRow(win, row.id, htmlTreeUi.rows, { reveal });
 
   // The row can be anywhere in a long tree — a click in the preview that marks
   // something off screen has marked nothing, as far as the reader can see.
@@ -4375,7 +4384,9 @@ register('html-tree:open-section', (uid) => {
   return { uid: section.uid, ids: section.ids };
 });
 
-register('html-tree:from-preview', ({ path, src, uid } = {}) => {
+// `reveal: false` is Build writing and keeping its pick (build-mode-host.js):
+// the row and the preview follow, the dock's cursor stays where it is.
+register('html-tree:from-preview', ({ path, src, uid, reveal = true } = {}) => {
   // A field waiting for something to point at gets the click first. Nothing is
   // armed the rest of the time, so the tree's own behaviour is untouched.
   if (componentBindPick(window, path)) {
@@ -4388,7 +4399,7 @@ register('html-tree:from-preview', ({ path, src, uid } = {}) => {
     return;
   }
 
-  selectHtmlTreeByPath(window, componentPathFor(path, src) || path);
+  selectHtmlTreeByPath(window, componentPathFor(path, src) || path, { reveal });
 });
 
 /**

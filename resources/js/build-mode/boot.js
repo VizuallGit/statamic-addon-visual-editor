@@ -32,9 +32,12 @@
  *   selectedPath()            the HTML tree's picked row (`path`)
  *   keepPickAt?(from)         after a write that renames the picked row (its
  *                             tag), stand on the element that starts at `from`
- *   select(path)              pick a row the way a click in the tree does —
+ *   select(path, { reveal })  pick a row the way a click in the tree does —
  *                             the tree, the preview, the dock's cursor and
- *                             tw-classes.js's picked tag all follow it
+ *                             tw-classes.js's picked tag all follow it.
+ *                             `reveal: false` (a write keeping its pick): the
+ *                             tree and the preview follow, the dock's cursor
+ *                             stays where it is
  *   onSelect(fn) → unhook     a pick made anywhere else
  *   setPlus? / plusPath?      a + target set from the preview
  *
@@ -360,8 +363,10 @@ export function createEditorPort(win, hooks = {}) {
       wrote = select;
       clearPlus();
 
+      // The pick follows the element that was written — the tree's pick, not
+      // the dock's cursor: a keystroke in a box is not a click on a row.
       if (select) {
-        hooks.select?.(select);
+        hooks.select?.(select, { reveal: false });
       }
 
       bump();

@@ -138,9 +138,12 @@ function pickedRow() {
 function editorHooks(win, shell) {
   return {
     selectedPath: () => pickedRow()?.path || '',
-    select(path) {
+    // `reveal: false` is a write keeping its pick: the row and the preview
+    // follow, the dock's cursor does not move (a click reveals; a keystroke
+    // in a box does not).
+    select(path, { reveal = true } = {}) {
       if (path) {
-        ask('html-tree:from-preview', { path });
+        ask('html-tree:from-preview', { path, reveal });
       }
     },
     onSelect: (fn) => watch(() => pickedRow()?.path || '', () => fn()),
