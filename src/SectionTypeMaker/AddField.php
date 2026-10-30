@@ -10,6 +10,7 @@ use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Fieldset;
 use Statamic\Facades\YAML;
+use Statamic\Fields\Fields;
 
 /**
  * One field added to a section's fieldset: what makes an element's own text or
@@ -70,12 +71,21 @@ class AddField
         return $handle;
     }
 
-    /** The name as a handle, numbered when it is taken. */
+    /**
+     * The name as a handle, numbered when it is taken.
+     *
+     * Taken is every handle the section's form will have — Statamic's own
+     * reading of the fields, so an `import` and a `field:` reference count
+     * with their handles. Statamic keys a section's fields by handle and the
+     * later wins (`Fields::setItems`): a new field named after an imported one
+     * would stand in for it, and every page's value in it would be read
+     * through the new type.
+     */
     protected static function handle(string $name, array $fields): string
     {
         $base = Str::snake(preg_replace('/[^\pL\pN]+/u', ' ', Str::ascii($name)) ?: 'field');
         $base = preg_match('/^[a-z]/', $base) ? $base : 'field_'.$base;
-        $taken = array_merge(self::RESERVED, array_column($fields, 'handle'));
+        $taken = array_merge(self::RESERVED, (new Fields($fields))->all()->keys()->all());
         $handle = $base;
 
         for ($number = 2; in_array($handle, $taken, true); $number++) {
