@@ -8,7 +8,7 @@
 return [
     'mode_content' => 'Rediger indhold',
     'mode_build' => 'Vizuall build',
-    'mode_html' => 'HTML-build',
+    'mode_html' => 'Vizuall Build + HTML',
     'build_dock' => 'HTML',
     'build_fields' => 'Felter',
 
@@ -60,7 +60,7 @@ return [
     'content_field_pick' => 'Indsæt data',
     'content_field_refused' => ':field er en anden slags felt og kan ikke bruges her.',
     'content_text_placeholder' => 'Skriv teksten…',
-    'content_antlers' => 'Teksten kommer fra :tag. Værdien redigeres i Content-tilstand.',
+    'content_antlers' => 'Teksten kommer fra :tag. Værdien redigeres i Rediger indhold.',
     'content_markup' => 'Elementet indeholder andre elementer. Klik på et af dem for at redigere dets tekst.',
     'content_layout' => 'Et layout-element har ingen tekst selv: dets indhold er elementerne indeni.',
     'content_soon' => 'Indhold til dette element kommer i et senere trin.',
@@ -85,7 +85,7 @@ return [
     'svg_search' => 'Søg i SVG’er',
     'content_svg' => 'SVG',
     'content_svg_now' => 'Viser :src. Vælg en anden for at skifte; klasserne bliver.',
-    'content_svg_field' => 'Filen kommer fra :src. Den vælges i Content-tilstand; klasserne sættes i Style.',
+    'content_svg_field' => 'Filen kommer fra :src. Den vælges i Rediger indhold; klasserne sættes i Style.',
     'size_all' => 'Alle',
     'size_hint' => 'Ændringer gælder for :size. Samme breakpoints som Tailwind-ruden.',
     'size_hint_all' => 'alle størrelser',

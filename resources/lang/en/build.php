@@ -14,7 +14,7 @@ return [
     // The switch under the Live Preview top bar (`mode_build` is Visual Build)
     'mode_content' => 'Edit Content',
     'mode_build' => 'Vizuall Build',
-    'mode_html' => 'HTML Build',
+    'mode_html' => 'Vizuall Build + HTML',
     'build_dock' => 'HTML',
     'build_fields' => 'Fields',
 
@@ -70,7 +70,7 @@ return [
     'content_field_pick' => 'Insert data',
     'content_field_refused' => ':field is another kind of field and cannot be used here.',
     'content_text_placeholder' => 'Write the text…',
-    'content_antlers' => 'This text comes from :tag. Its value is edited in Content mode.',
+    'content_antlers' => 'This text comes from :tag. Its value is edited in Edit Content.',
     'content_markup' => 'This element holds other elements. Click one of them to edit its text.',
     'content_layout' => 'A layout element has no text of its own: its content is the elements inside it.',
     'content_soon' => 'Content for this element comes in a later step.',
@@ -95,7 +95,7 @@ return [
     'svg_search' => 'Search SVGs',
     'content_svg' => 'SVG',
     'content_svg_now' => 'Shows :src. Pick another to swap it; its classes stay.',
-    'content_svg_field' => 'The file comes from :src. It is chosen in Content mode; its classes are set in Style.',
+    'content_svg_field' => 'The file comes from :src. It is chosen in Edit Content; its classes are set in Style.',
     'size_all' => 'All',
     'size_hint' => 'Changes apply to :size. Same breakpoints as the Tailwind pane.',
     'size_hint_all' => 'all sizes',
