@@ -24,8 +24,10 @@ import BuildBoxFields from './BuildBoxFields.vue';
 import BuildSpacingBox from './BuildSpacingBox.vue';
 import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
+import BuildFields from './BuildFields.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { BUILD_KIDS, STRUCTURES, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import TwClassList from './TwClassList.vue';
+import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, fieldHas, kidsById, styleGroups } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
 
@@ -68,21 +70,18 @@ function ensure(property, name) {
 const sizes = computed(() => {
   port.rev.value;
 
-  const rows = port.sizes();
-  const base = rows.find((row) => row.base) || rows[0];
-
-  return [{ handle: null, label: port.t('size_all'), icon: base?.icon || 'desktop' }, ...rows.filter((row) => !row.base)];
+  return [{ handle: null, label: port.t('size_all'), icon: 'all' }, ...port.sizes()];
 });
 const sizeNow = computed(() => (port.rev.value, port.size()));
 const stateNow = computed(() => (port.rev.value, port.state()));
-const deviceIcon = (name) => port.lists.deviceIcons?.[name] || '';
+const deviceIcon = (name) => (name === 'all' ? ic('sidesAll') : port.lists.deviceIcons?.[name] || '');
 
 const sizeHint = computed(() => {
   const rows = port.sizes();
   const row = rows.find((item) => item.handle === sizeNow.value);
   const where = !row
     ? port.t('size_hint_all')
-    : row === rows[rows.length - 1] || row === rows[0]
+    : !row.base && (row === rows[rows.length - 1] || row === rows[0])
       ? row.label
       : port.t(row.direction === 'mobile' ? 'size_hint_up' : 'size_hint_down', { size: row.label });
   const what = stateNow.value ? port.t('size_hint_state', { size: where, state: stateNow.value }) : where;
@@ -97,7 +96,8 @@ const sizeHint = computed(() => {
 const display = computed(() => eff('display'));
 const disp = computed(() => display.value?.name || 'block');
 const isColumn = computed(() => /^flex-col/.test(eff('flex-direction')?.name || ''));
-const flow = computed(() => (disp.value === 'flex' ? (isColumn.value ? 'col' : 'row') : disp.value === 'grid' ? 'grid' : 'block'));
+const FLOW_OF = { grid: 'grid', block: 'block', hidden: 'none', inline: 'inline' };
+const flow = computed(() => (disp.value === 'flex' ? (isColumn.value ? 'col' : 'row') : FLOW_OF[disp.value] || 'other'));
 
 function setFlow(next) {
   if (next === 'block') {
@@ -118,8 +118,8 @@ function setFlow(next) {
     return;
   }
 
-  if (next === 'grid') {
-    ensure('display', 'grid');
+  if (next === 'grid' || next === 'none' || next === 'inline') {
+    ensure('display', next === 'none' ? 'hidden' : next);
 
     return;
   }
@@ -135,11 +135,25 @@ function setFlow(next) {
 }
 
 const FLOWS = [
+  ['none', 'x', 'display: none'],
   ['block', 'flowBlock', 'display: block'],
   ['row', 'flowRow', 'display: flex · flex-direction: row'],
   ['col', 'flowCol', 'display: flex · flex-direction: column'],
   ['grid', 'flowGrid', 'display: grid'],
+  ['inline', 'flowInline', 'display: inline'],
 ];
+
+/** Every other display (inline-block, inline-flex, contents …): the pane's menu for the property. */
+function openDisplay(event) {
+  const now = display.value;
+
+  port.openValueMenu(event.currentTarget, {
+    property: 'display',
+    title: 'display',
+    own: now && !now.inherited ? { raw: now.raw, name: now.name } : null,
+  });
+}
+
 const wrapOn = computed(() => eff('flex-wrap')?.name === 'flex-wrap');
 const displayKids = computed(() => tool('display')?.kids || []);
 const distributeKids = computed(() => [
@@ -149,7 +163,8 @@ const distributeKids = computed(() => [
 const crossKids = computed(() => [...displayKids.value.filter((kid) => kid.css === 'align-items'), ...BUILD_KIDS.cross]);
 const gapKid = (id) => kidsById(tool('tw-gap')).get(id);
 const cols = computed(() => eff('grid-template-columns'));
-const structureRow = computed(() => props.node.kind === 'columns' && !sizeNow.value && !stateNow.value);
+const atBase = computed(() => !sizeNow.value || !!port.sizes().find((row) => row.handle === sizeNow.value)?.base);
+const structureRow = computed(() => props.node.kind === 'columns' && atBase.value && !stateNow.value);
 const clip = computed(() => eff('overflow')?.name === 'overflow-hidden');
 
 /* ---------------- Size ---------------- */
@@ -180,9 +195,11 @@ function setSizeMode(property, mode) {
 
 /* ---------------- the rest ---------------- */
 
-const ALIGNS = [['text-start', 'alL', 'start'], ['text-center', 'alC', 'center'], ['text-end', 'alR', 'end']];
+const ALIGNS = [['text-start', 'alL', 'start'], ['text-center', 'alC', 'center'], ['text-end', 'alR', 'end'], ['text-justify', 'alJ', 'justify']];
 /** Named values only: the site's scale for the property, nothing typed. */
 const POSITION = { css: 'position' };
+const MIN_H = { css: 'min-height' };
+const MAX_H = { css: 'max-height' };
 const WEIGHT = { css: 'font-weight' };
 const OVERFLOW = { css: 'overflow' };
 
@@ -190,6 +207,10 @@ const borderNames = computed(() => ['border-0', ...(kidsById(tool('tw-border')).
 const radiusKid = computed(() => kidsById(tool('tw-radius')).get('rd-all') || tool('tw-radius'));
 const cornerKids = computed(() => (tool('tw-radius')?.kids || []).filter((kid) => kid.id !== 'rd-all'));
 const corners = ref(false);
+/* A border side by side, the dock's own width and colour tools. */
+const widthKids = computed(() => (tool('tw-border')?.kids || []).filter((kid) => kid.id !== 'bw-all'));
+const colorKids = computed(() => (tool('tw-border-color')?.kids || []).filter((kid) => kid.id !== 'bd-all'));
+const borderSides = ref(false);
 const borderColor = computed(() => kidsById(tool('tw-border-color')).get('bd-all') || { css: 'border-color', tw: 'border-color' });
 
 const shadowNames = computed(() => tool('tw-shadow')?.twGroup || []);
@@ -223,10 +244,20 @@ function choices(item) {
 const OPEN = new Set(['layout', 'spacing', 'typography']);
 const toggled = ref({});
 
+/** A family's STYLE_FIELDS field, at the size and state picked. */
+function effField(field) {
+  if (field.css) {
+    return eff(field.css);
+  }
+
+  return effectiveClass(classes.value.join(' '), ['field'], chain.value, (name) => (fieldHas(field, name, port.utilityRoot) ? 'field' : ''));
+}
+
+const fieldsOf = (group) => STYLE_FIELDS[group.id] || [];
 const groupSet = (group) => {
   port.rev.value;
 
-  return group.tools.some((item) => {
+  return fieldsOf(group).some((field) => !!effField(field)) || group.tools.some((item) => {
     if (item.twGroup) {
       return !!effGroup(item.twGroup);
     }
@@ -263,6 +294,8 @@ function groupOwn(group) {
       [...new Set([one.css, one.tw].filter(Boolean))].forEach((property) => take(eff(property)));
     }
   }
+
+  fieldsOf(group).forEach((field) => take(effField(field)));
 
   return [...names];
 }
@@ -319,16 +352,18 @@ onBeforeUnmount(() => {
 
 function jump(group) {
   toggled.value = { ...toggled.value, [group.id]: true };
-  requestAnimationFrame(() => root.value?.querySelector(`[data-sve-build-group="${group.id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  // The panel's own scroll, by hand: scrollIntoView also moves the boxes around it when a family near the end cannot rise far enough, and the panel's top slides away.
+  requestAnimationFrame(() => {
+    const section = root.value?.querySelector(`[data-sve-build-group="${group.id}"]`);
+    const scroller = root.value?.parentElement;
+
+    if (section && scroller) {
+      const top = section.getBoundingClientRect().top - scroller.getBoundingClientRect().top - scroller.clientTop + scroller.scrollTop - bar.value.offsetHeight;
+
+      scroller.scrollTo({ top, behavior: 'smooth' });
+    }
+  });
 }
-
-const chips = computed(() =>
-  classes.value.map((raw) => {
-    const at = raw.lastIndexOf(':', raw.includes('[') ? raw.indexOf('[') : raw.length);
-
-    return at > 0 ? { variant: raw.slice(0, at + 1), name: raw.slice(at + 1), raw } : { variant: '', name: raw, raw };
-  })
-);
 </script>
 
 <template>
@@ -339,18 +374,19 @@ const chips = computed(() =>
         <button type="button" disabled><span v-html="ic('plus')"></span>{{ port.t('own_class') }} <i class="bm-soon">{{ port.t('later') }}</i></button>
       </div>
 
+      <div class="fg-seg fg-sizes" data-sve-build-sizes>
+        <button
+          v-for="row in sizes"
+          :key="row.handle || 'all'"
+          type="button"
+          :aria-pressed="sizeNow === row.handle"
+          :title="row.label"
+          :data-sve-build-size="row.handle || 'all'"
+          @click="port.setSize(row.handle)"
+        ><span v-html="deviceIcon(row.icon)"></span><span>{{ row.label }}</span></button>
+      </div>
       <div class="fg-line">
-        <div class="fg-seg fg-sizes" data-sve-build-sizes>
-          <button
-            v-for="row in sizes"
-            :key="row.handle || 'all'"
-            type="button"
-            :aria-pressed="sizeNow === row.handle"
-            :title="row.label"
-            :data-sve-build-size="row.handle || 'all'"
-            @click="port.setSize(row.handle)"
-          ><span v-html="deviceIcon(row.icon)"></span><span>{{ row.label }}</span></button>
-        </div>
+        <p class="fg-hint" v-html="sizeHint"></p>
         <button
           ref="stateBtn"
           type="button"
@@ -361,7 +397,6 @@ const chips = computed(() =>
           @click="port.openStateMenu(stateBtn)"
         ><span>{{ stateNow || port.t('state_normal') }}</span><span v-html="ic('chev')"></span></button>
       </div>
-      <p class="fg-hint" v-html="sizeHint"></p>
 
       <div class="fg-jump">
         <button
@@ -390,7 +425,6 @@ const chips = computed(() =>
           <span class="fg-sec__icon" v-html="groupIcon(group, port.lists.toolIcons)"></span>
           <span>{{ port.t(`group_${group.id}`) }}</span>
         </button>
-        <i v-if="group.id === 'transform'" class="bm-soon">{{ port.t('later') }}</i>
         <!-- Set on the element itself: the dot; pressed, the family's own classes come off -->
         <button
           v-if="groupOwn(group).length"
@@ -446,6 +480,16 @@ const chips = computed(() =>
                 v-html="ic(glyph)"
               ></button>
             </div>
+            <button
+              type="button"
+              class="fg-ib"
+              :aria-pressed="flow === 'other'"
+              :title="flow === 'other' ? `display: ${disp}` : port.t('display_more')"
+              :aria-label="port.t('display_more')"
+              data-sve-build-display-more
+              @click="openDisplay"
+              v-html="ic('more')"
+            ></button>
             <button
               type="button"
               class="fg-ib"
@@ -523,7 +567,7 @@ const chips = computed(() =>
             <span class="fg-pre" v-html="groupIcon(group, port.lists.toolIcons)"></span>
             <BuildValueInput :tool="POSITION" label="position" :typed="false" />
           </label>
-          <p class="fg-hint">{{ port.t('position_hint') }}</p>
+          <BuildFields family="position" />
         </template>
 
         <!-- Size -->
@@ -549,14 +593,21 @@ const chips = computed(() =>
                 </select>
               </template>
             </BuildField>
-            <BuildField v-if="tool('tw-minw')" letter="Min" title="min-width">
+            <BuildField v-if="tool('tw-minw')" letter="Min W" title="min-width">
               <BuildValueInput :tool="tool('tw-minw')" label="min-width" compact />
             </BuildField>
-            <BuildField v-if="tool('tw-maxw')" letter="Max" title="max-width">
+            <BuildField v-if="tool('tw-maxw')" letter="Max W" title="max-width">
               <BuildValueInput :tool="tool('tw-maxw')" label="max-width" compact />
+            </BuildField>
+            <BuildField letter="Min H" title="min-height">
+              <BuildValueInput :tool="MIN_H" label="min-height" compact />
+            </BuildField>
+            <BuildField letter="Max H" title="max-height">
+              <BuildValueInput :tool="MAX_H" label="max-height" compact />
             </BuildField>
           </div>
           <p class="fg-hint">{{ port.t('size_more') }}</p>
+          <BuildFields family="size" />
         </template>
 
         <!-- Spacing -->
@@ -613,12 +664,13 @@ const chips = computed(() =>
             <BuildAlign v-if="item.kids?.length" :kids="item.kids" :align="false" />
             <BuildField v-else :title="item.css"><BuildValueInput :tool="item" compact /></BuildField>
           </template>
+          <BuildFields family="typography" />
         </template>
 
         <!-- Background -->
         <template v-else-if="group.id === 'background'">
           <BuildColorField v-if="tool('bg')" :tool="tool('bg')" />
-          <p class="fg-hint">{{ port.t('bg_hint') }}</p>
+          <BuildFields family="background" :path="node.path" />
         </template>
 
         <!-- Border -->
@@ -647,6 +699,16 @@ const chips = computed(() =>
           <BuildAlign v-if="corners" :kids="cornerKids" :align="false" />
           <div class="fg-lab">border-color</div>
           <BuildColorField :tool="borderColor" />
+          <button type="button" class="fg-more" :aria-pressed="borderSides" data-sve-build-border-sides @click="borderSides = !borderSides">
+            <span v-html="ic('sides')"></span>{{ port.t('border_sides') }}
+          </button>
+          <template v-if="borderSides">
+            <div class="fg-lab">border-width</div>
+            <BuildAlign :kids="widthKids" :align="false" />
+            <div class="fg-lab">border-color</div>
+            <BuildAlign :kids="colorKids" :align="false" />
+          </template>
+          <BuildFields family="border" />
         </template>
 
         <!-- Effects -->
@@ -674,10 +736,11 @@ const chips = computed(() =>
             <span class="fg-pre" v-html="ic('sides')"></span>
             <BuildValueInput :tool="OVERFLOW" label="overflow" :typed="false" />
           </label>
+          <BuildFields family="effects" />
         </template>
 
         <!-- Transform & transition -->
-        <p v-else-if="group.id === 'transform'" class="fg-hint">{{ port.t('transform_hint') }}</p>
+        <BuildFields v-else-if="group.id === 'transform'" family="transform" />
 
         <!-- A family this layout does not have: every tool from its shape -->
         <template v-else>
@@ -693,13 +756,16 @@ const chips = computed(() =>
       </div>
     </section>
 
-    <section class="fg-sec is-open">
-      <header class="fg-sec__h"><span>{{ port.t('classes') }}</span></header>
+    <section class="fg-sec is-open fg-classes" data-sve-build-classes>
+      <header class="fg-sec__h">
+        <span class="fg-sec__name">{{ port.t('classes') }}</span>
+        <span class="fg-sec__acts">
+          <button type="button" class="fg-ib" :title="port.t('classes_sort')" :aria-label="port.t('classes_sort')" data-sve-build-classes-sort @click="port.sortClasses()" v-html="ic('list')"></button>
+          <button type="button" class="fg-ib" :title="port.t('classes_add')" :aria-label="port.t('classes_add')" data-sve-build-classes-add @click="port.openAddMenu($event.currentTarget)" v-html="ic('plus')"></button>
+        </span>
+      </header>
       <div class="fg-sec__b">
-        <div class="bm-cls-list">
-          <code v-for="chip in chips" :key="chip.raw" class="bm-cls"><em v-if="chip.variant">{{ chip.variant }}</em>{{ chip.name }}</code>
-          <span v-if="!chips.length" class="bm-muted">{{ port.t('classes_none') }}</span>
-        </div>
+        <TwClassList />
         <p class="fg-hint">{{ port.t('classes_note') }}</p>
         <p class="bm-legend"><i class="bm-soon">{{ port.t('later') }}</i> {{ port.t('legend') }}</p>
       </div>

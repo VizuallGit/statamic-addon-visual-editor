@@ -131,7 +131,7 @@ try {
   step('…and a second Escape is not the panel\'s', !(await page.evaluate(() => window.__sveBuildHarness.escape())));
   await select(H2);
   await sleep(150);
-  step('sizes wear the top bar\'s device icons: All, Tablet, Mobile', await page.evaluate(() => ['all', 'tablet', 'mobile'].every((h) => document.querySelector(`[data-sve-build-size="${h}"] svg`))));
+  step('sizes wear the top bar\'s device icons: All, Desktop, Tablet, Mobile', await page.evaluate(() => ['all', 'laptop', 'tablet', 'mobile'].every((h) => document.querySelector(`[data-sve-build-size="${h}"] svg`))));
   await shot('1-style');
 
   // Padding as Figma draws it: open the four sides; block-start opens the scale's menu.

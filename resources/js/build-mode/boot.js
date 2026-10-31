@@ -87,11 +87,14 @@ import {
   renderTwClasses,
   twActiveClass,
   twColorOf,
+  twOpenAddMenu,
   twOpenValueMenu,
   twPickedClasses,
   twSetClass,
   twSetFieldClass,
   twSetTag,
+  twSizePicked,
+  twSortClasses,
   twVariant,
 } from '../tw-classes.js';
 import { runTwTool, twToolActive } from '../tw-tool.js';
@@ -779,7 +782,12 @@ export function createEditorPort(win, hooks = {}) {
 
       const variant = twVariant().split(':').find((part) => rows().some((row) => row.tw && row.tw === part)) || '';
 
-      return variant ? rows().find((row) => row.tw === variant)?.handle || null : null;
+      if (variant) {
+        return rows().find((row) => row.tw === variant)?.handle || null;
+      }
+
+      // No variant is the base size or All; the pane's own row knows which.
+      return twSizePicked() ? rows().find((row) => row.base)?.handle || null : null;
     },
     /** The pane's state (`hover`, `prose-p`): the variant tw-classes.js writes, less its size. */
     state() {
@@ -803,7 +811,7 @@ export function createEditorPort(win, hooks = {}) {
       } else {
         const row = rows().find((item) => item.handle === handle);
 
-        ask('lp:set-device', { win, key: row && !row.base ? row.device : 'Responsive' });
+        ask('lp:set-device', { win, key: row ? row.device : 'Responsive' });
       }
 
       bump();
@@ -835,6 +843,20 @@ export function createEditorPort(win, hooks = {}) {
 
       return familyFor(name, model)?.label || byRoot.get(rootFor(name)) || '';
     },
+    /** The utility a class belongs to: the catalog's answer, for a field that is one utility (`blur`, `rotate`). */
+    utilityRoot: (name) => model?.catalog.root(name) || '',
+    /** A utility's classes, for its field's menu. `only` keeps the rows that set that (`text-shadow:`, not its colours). */
+    utilityNames(roots, only = '') {
+      if (!model) {
+        wantModel();
+
+        return [];
+      }
+
+      const names = roots.flatMap((root) => model.catalog.byRoot.get(root) || []);
+
+      return only ? names.filter((name) => model.catalog.css(name).startsWith(only)) : names;
+    },
     /** The colour a class paints with — the dot the Tailwind pane's menu draws beside it. */
     colorOf: (name) => (rev.value, twColorOf(win, name)),
     pickedClasses: () => (rev.value, twPickedClasses()?.raws || []),
@@ -844,6 +866,9 @@ export function createEditorPort(win, hooks = {}) {
     setFieldClass: (name, own) => twSetFieldClass(win, name, own),
     /** A value field's menu — a scale, or a group named by hand: the pane's popover, search and preview, written as the field writes. */
     openValueMenu: (anchor, options) => twOpenValueMenu(win, anchor, options),
+    /** The Tailwind pane's + (every class Tailwind has, and the site's own) and its sort, on the same list. */
+    openAddMenu: (anchor) => twOpenAddMenu(win, anchor),
+    sortClasses: () => twSortClasses(win),
     run: (item, anchor) => runTwTool(win, item, anchor),
     active: (item) => (rev.value, twToolActive(item)),
 

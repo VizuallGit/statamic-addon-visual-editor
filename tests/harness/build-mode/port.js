@@ -24,7 +24,7 @@ import { withSvgSrc } from '../../../resources/js/build-mode/svg.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
 import { HTML_ICONS } from '../../../resources/js/html-tree-icons.js';
 import { addAt, findByPath } from '../../../resources/js/build-mode/place.js';
-import { isColorValue, rootOf } from '../../../resources/js/build-mode/classes.js';
+import { isColorValue, rootFor, rootOf } from '../../../resources/js/build-mode/classes.js';
 
 /* ------------------------------------------------------------------ *
  * A small catalog: this site's scale names, by the property they set
@@ -375,6 +375,10 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
 
     /* Classes — tw-classes.js's rules, on the catalog above */
     propertyOf,
+    utilityRoot: (name) => rootFor(name),
+    utilityNames: () => [],
+    openAddMenu() {},
+    sortClasses() {},
     scale: (property) => SCALES[property] || [],
     colorOf(name) {
       const m = /^(?:text|bg|border)-(.+)$/.exec(name || '');

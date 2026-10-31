@@ -192,6 +192,126 @@ export const STYLE_GROUPS = [
   { id: 'transform', tools: [] },
 ];
 
+/* A choice among fixed classes, drawn as buttons: [class, what the button shows, its title]. */
+const seg = (label, options, extra = {}) => ({ label, seg: options, names: options.map((option) => option[0]), ...extra });
+const value = (css, extra = {}) => ({ label: css, css, ...extra });
+const named = (css, extra = {}) => ({ label: css, css, named: true, ...extra });
+const color = (css, extra = {}) => ({ label: css, css, color: true, ...extra });
+/* A utility of its own under a property several share (`blur` and `contrast` are both `filter`): `only` is what its rows set. */
+const utility = (label, roots, extra = {}) => ({ label, roots: [].concat(roots), ...extra });
+
+/**
+ * The fields beyond the ones BuildStyle.vue draws by hand, by family. Every one
+ * writes a Tailwind class through the pane's own functions, so a value set here
+ * and one added with the dock's + are the same class in the same place.
+ *
+ * `css` is a field on the scale Tailwind publishes for that property; `roots`
+ * one for a utility, because the property alone says too little; `names` a
+ * list named here, because Tailwind has no scale for it (a width that also
+ * sets a style, `break-normal`). Anything not listed is still in the + menu.
+ */
+export const STYLE_FIELDS = {
+  position: [
+    value('z-index'),
+    value('inset'),
+    value('top'),
+    value('right'),
+    value('bottom'),
+    value('left'),
+  ],
+  size: [
+    value('aspect-ratio'),
+    named('object-fit'),
+    named('object-position', { wide: true }),
+  ],
+  typography: [
+    seg('text-decoration', [['no-underline', 'x', 'none'], ['line-through', 'strike', 'line-through'], ['underline', 'underline', 'underline'], ['overline', 'overline', 'overline']], { wide: true }),
+    color('text-decoration-color', { wide: true }),
+    value('text-decoration-thickness'),
+    value('text-underline-offset'),
+    seg('font-style', [['not-italic', 'x', 'normal'], ['italic', 'italic', 'italic']]),
+    seg('direction', [['[direction:ltr]', 'arrowR', 'ltr'], ['[direction:rtl]', 'arrowL', 'rtl']]),
+    seg('text-transform', [['normal-case', 'x', 'none'], ['uppercase', '#AB', 'uppercase'], ['capitalize', '#Ab', 'capitalize'], ['lowercase', '#ab', 'lowercase']], { wide: true }),
+    named('white-space'),
+    named('text-wrap'),
+    named('overflow-wrap'),
+    utility('word-break', [], { names: ['break-normal', 'break-all', 'break-keep'] }),
+    value('letter-spacing'),
+    value('text-indent'),
+    value('columns'),
+    value('column-gap'),
+    named('vertical-align', { wide: true }),
+  ],
+  background: [
+    utility('background-image', [], { match: /^bg-\[url\(/, image: true, wide: true }),
+    named('background-size'),
+    named('background-position'),
+    named('background-repeat'),
+    named('background-clip'),
+    utility('gradient', [], { names: ['bg-linear-to-t', 'bg-linear-to-tr', 'bg-linear-to-r', 'bg-linear-to-br', 'bg-linear-to-b', 'bg-linear-to-bl', 'bg-linear-to-l', 'bg-linear-to-tl', 'bg-none'], wide: true }),
+    utility('from', 'from', { only: '--tw-gradient-from:', swatch: true }),
+    utility('via', 'via', { only: '--tw-gradient-via:', swatch: true }),
+    utility('to', 'to', { only: '--tw-gradient-to:', swatch: true, wide: true }),
+  ],
+  border: [
+    named('border-style', { wide: true }),
+    utility('outline-width', [], { names: ['outline', 'outline-0', 'outline-1', 'outline-2', 'outline-4', 'outline-8'] }),
+    named('outline-style'),
+    color('outline-color', { wide: true }),
+    value('outline-offset', { wide: true }),
+  ],
+  effects: [
+    named('cursor'),
+    named('mix-blend-mode'),
+    named('backface-visibility'),
+    utility('text-shadow', 'text-shadow', { only: 'text-shadow:' }),
+    utility('blur', 'blur'),
+    utility('brightness', 'brightness'),
+    utility('contrast', 'contrast'),
+    utility('drop-shadow', 'drop-shadow', { only: 'filter:' }),
+    utility('grayscale', 'grayscale'),
+    utility('hue-rotate', ['hue-rotate', '-hue-rotate']),
+    utility('invert', 'invert'),
+    utility('saturate', 'saturate'),
+    utility('sepia', 'sepia'),
+    utility('backdrop-blur', 'backdrop-blur'),
+  ],
+  transform: [
+    utility('rotate', ['rotate', '-rotate']),
+    utility('scale', ['scale', '-scale']),
+    utility('scale-x', ['scale-x', '-scale-x']),
+    utility('scale-y', ['scale-y', '-scale-y']),
+    utility('skew-x', ['skew-x', '-skew-x']),
+    utility('skew-y', ['skew-y', '-skew-y']),
+    utility('translate-x', ['translate-x', '-translate-x']),
+    utility('translate-y', ['translate-y', '-translate-y']),
+    named('transform-origin', { wide: true }),
+    utility('transition', [], { names: ['transition', 'transition-all', 'transition-colors', 'transition-opacity', 'transition-shadow', 'transition-transform', 'transition-none'], wide: true }),
+    value('transition-duration'),
+    value('transition-delay'),
+    named('transition-timing-function'),
+    utility('animation', 'animate'),
+  ],
+};
+
+/**
+ * Whether a class is a field's own. `rootOfClass` is the catalog's answer for
+ * what utility a class belongs to; passed in, as `propertyOf` is to
+ * effectiveClass. Never asked for a field on `css`, which the catalog sorts by
+ * the property it sets.
+ */
+export function fieldHas(field, name, rootOfClass) {
+  if (field.names) {
+    return field.names.includes(name);
+  }
+
+  if (field.match) {
+    return field.match.test(name);
+  }
+
+  return (field.roots || []).includes(rootOfClass(name));
+}
+
 /**
  * Style's groups, resolved against CSS_TOOLS (+ BUILD_TOOLS). A CSS_TOOLS
  * entry no group names goes under Other.

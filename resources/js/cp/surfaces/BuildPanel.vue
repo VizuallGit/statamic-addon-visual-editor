@@ -698,6 +698,7 @@ onBeforeUnmount(() => {
 .sve-build .fg-target button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; box-shadow: none; }
 .sve-build .fg-line { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
 .sve-build .fg-line > :first-child { flex: 1; min-width: 0; }
+.sve-build .fg-sizes button { padding: 0 0.2rem; font-size: 0.6875rem; }
 .sve-build .fg-sizes button span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .sve-build .fg-sizes button span:first-child { display: inline-flex; flex: none; }
 .sve-build .fg-sizes svg { width: 0.75rem; height: 0.75rem; }
@@ -740,6 +741,16 @@ onBeforeUnmount(() => {
 .sve-build .fg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .sve-build .fg-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; align-items: start; }
 .sve-build .fg-cols > div { display: grid; gap: 0.5rem; align-content: start; }
+.sve-build .fg-cell { display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
+.sve-build .fg-cell.is-wide { grid-column: 1 / -1; }
+.sve-build .fg-seg span { display: inline-flex; font-size: 0.6875rem; }
+.sve-build .fg-more { display: flex; align-items: center; gap: 0.35rem; width: fit-content; padding: 0.2rem 0.35rem 0.2rem 0.15rem; border-radius: 0.3rem; color: var(--bm-muted); font-size: 0.6875rem; }
+.sve-build .fg-more:hover { color: var(--bm-ink); }
+.sve-build .fg-more[aria-pressed='true'] { color: var(--bm-accent-text); }
+.sve-build .fg-more .bm-ic { width: 0.875rem; height: 0.875rem; }
+/* The Tailwind pane's own class list, in the panel: its tag, sizes and state are the panel's sticky top. */
+.sve-build .fg-classes .sve-tw { padding: 0; }
+.sve-build .fg-classes .sve-tw-head { display: none; }
 .sve-build .fg-field { position: relative; display: flex; align-items: center; gap: 0.35rem; min-width: 0; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; }
 .sve-build .fg-field:hover { border-color: var(--bm-edge); }
 .sve-build .fg-field:focus-within { border-color: var(--bm-accent); }

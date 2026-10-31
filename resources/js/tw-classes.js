@@ -839,6 +839,21 @@ function propertyOf(name) {
 }
 
 /**
+ * What a class takes the place of. Usually its property: `p-400` replaces
+ * `p-800`. But `blur-sm` and `contrast-50` both print `filter`, and
+ * `translate-x-4` and `translate-y-4` both print `translate`, while each only
+ * sets its own part of it. Those two stand together, so their slot is the
+ * utility as well as the property.
+ */
+const STACKED = new Set(['filter', 'backdrop-filter', 'transform', 'translate', 'scale']);
+
+function slotOf(name) {
+  const property = propertyOf(name);
+
+  return STACKED.has(property) ? `${property} ${model?.catalog?.root(name) || name}` : property;
+}
+
+/**
  * The picked tag's classes as the file has them, for a utility made of them
  * (dock/tw-utility.js). `{{ … }}` classes and the `[ … ]` scope are left out:
  * neither is a utility. Null without a pick, or while the file is locked.
@@ -929,9 +944,9 @@ function variantChips(value) {
  * `p-800` — and the class already there is toggled off.
  */
 function setClassValueWith(value, name) {
-  const property = propertyOf(name);
+  const slot = slotOf(name);
   const existing = variantChips(value).find(
-    (chip) => chip.name === name || (property && propertyOf(chip.name) === property)
+    (chip) => chip.name === name || (slot && slotOf(chip.name) === slot)
   );
 
   if (existing?.name === name) {
@@ -1000,11 +1015,11 @@ function classValueWith(value, typed) {
   }
 
   const { variants, base } = splitClass(raw);
-  const property = propertyOf(splitUtility(base).name);
+  const slot = slotOf(splitUtility(base).name);
   const key = variants.join(':');
-  const existing = property
+  const existing = slot
     ? chips.find(
-      (chip) => !chip.dynamic && chip.variants.join(':') === key && propertyOf(chip.name) === property
+      (chip) => !chip.dynamic && chip.variants.join(':') === key && slotOf(chip.name) === slot
     )
     : null;
 
@@ -1273,6 +1288,11 @@ export function twHasNode() {
 
 export function twVariant() {
   return variantKey();
+}
+
+/** A size picked, not All: the base size writes no variant, so `twVariant` cannot tell Desktop from All. */
+export function twSizePicked() {
+  return filterBySize();
 }
 
 /**
