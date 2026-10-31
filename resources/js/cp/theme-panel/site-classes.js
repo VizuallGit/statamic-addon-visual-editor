@@ -198,7 +198,7 @@ export function snippetRows(snippets, folder = 'snippets') {
 }
 
 /** The chips over the list. */
-export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'snippet', 'ambient', 'unused'];
+export const CLASS_CHIPS = ['utility', 'class', 'variable', 'snippet', 'ambient', 'unused'];
 
 /**
  * The chips that always show, empty or not: each one is also how you reach
@@ -206,7 +206,7 @@ export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'snippet', 'a
  * never be made. The rest — ambient, unused — only ever filter, and a chip
  * that says `0` is noise.
  */
-export const CLASS_CHIPS_ALWAYS = ['all', 'utility', 'class', 'variable', 'snippet'];
+export const CLASS_CHIPS_ALWAYS = ['utility', 'class', 'variable', 'snippet'];
 
 /** Whether a chip keeps a row. */
 export function chipKeeps(chip, row) {
@@ -221,7 +221,7 @@ export function chipKeeps(chip, row) {
   // A variable has no usage and no selector, so it sits out of the rest.
   // A snippet is nothing on the site until it is copied in: the same.
   if (row.kind === 'variable' || row.kind === 'snippet') {
-    return chip === 'all';
+    return false;
   }
 
   if (chip === 'unused') {
@@ -245,7 +245,7 @@ export function chipKeeps(chip, row) {
 }
 
 /** The rows a chip and a search box leave, in the list's own order. */
-export function filterRows(rows, { chip = 'all', query = '' } = {}) {
+export function filterRows(rows, { chip = CLASS_CHIPS[0], query = '' } = {}) {
   const q = String(query || '').trim().toLowerCase().replace(/^\./, '');
 
   return (rows || []).filter((row) => {

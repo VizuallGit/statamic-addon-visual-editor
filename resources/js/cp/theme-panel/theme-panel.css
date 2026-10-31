@@ -190,6 +190,12 @@
   font-size: 0.6875rem;
   opacity: 0.55;
 }
+.sve-theme__none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
 .sve-theme__section {
   display: flex;
   flex-direction: column;
@@ -1663,6 +1669,8 @@
    filter it; a row says where the class lives, not what it looks like. */
 /* One line that scrolls sideways, like the tab bar. */
 .sve-theme__filters {
+  /* `flex: none`: a scroller has no minimum height, and the panel's column would squeeze the row to nothing under a long list. */
+  flex: none;
   display: flex;
   flex-wrap: nowrap;
   gap: 0.25rem;

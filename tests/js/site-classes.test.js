@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CLASS_CHIPS,
   CLASS_CHIPS_ALWAYS,
   applyUsage,
   variableRows,
@@ -80,17 +81,21 @@ test('the chips split the list without dropping or doubling a row', () => {
     { name: 'case-card', file: 'base.css', selector: '.case-card h2', css: 'color: red;', kind: 'class' },
   ]);
 
-  assert.equal(filterRows(rows, { chip: 'all' }).length, 3);
   assert.equal(filterRows(rows, { chip: 'utility' }).length, 1);
   assert.equal(filterRows(rows, { chip: 'class' }).length, 1);
   assert.equal(filterRows(rows, { chip: 'ambient' }).length, 1);
 
-  // Every row lands in exactly one of the three chips beside 'all'.
+  // Every row lands in exactly one of the three chips.
   for (const row of rows) {
     const hits = ['utility', 'class', 'ambient'].filter((chip) => chipKeeps(chip, row));
 
     assert.equal(hits.length, 1, `${row.name} landed in ${hits.length} chips`);
   }
+});
+
+test('there is no All: Utilities comes first', () => {
+  assert.deepEqual(CLASS_CHIPS.slice(0, 4), ['utility', 'class', 'variable', 'snippet']);
+  assert.ok(!CLASS_CHIPS.includes('all'));
 });
 
 test('search looks at the name, the file and the properties', () => {
@@ -101,7 +106,7 @@ test('search looks at the name, the file and the properties', () => {
 
   assert.deepEqual(filterRows(rows, { query: 'wrap' }).map((r) => r.name), ['wrapper']);
   assert.deepEqual(filterRows(rows, { query: '.wrap' }).map((r) => r.name), ['wrapper'], 'a typed dot is not a miss');
-  assert.deepEqual(filterRows(rows, { query: 'classes.css' }).map((r) => r.name), ['btn']);
+  assert.deepEqual(filterRows(rows, { chip: 'class', query: 'classes.css' }).map((r) => r.name), ['btn']);
   assert.deepEqual(filterRows(rows, { query: 'padding' }).map((r) => r.name), ['wrapper']);
 });
 
@@ -183,7 +188,6 @@ test('a variable sits in the same list, but only under All and Variables', () =>
 
   assert.equal(v.name, '--gutter');
   assert.equal(v.value, 'var(--size-700)');
-  assert.equal(chipKeeps('all', v), true);
   assert.equal(chipKeeps('variable', v), true);
 
   for (const chip of ['utility', 'class', 'ambient', 'unused']) {

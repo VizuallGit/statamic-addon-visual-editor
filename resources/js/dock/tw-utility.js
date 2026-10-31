@@ -24,11 +24,10 @@ import NamePrompt from '../cp/surfaces/NamePrompt.vue';
 import { openCpOverlay } from '../cp/open-overlay.js';
 import { classTokens, paintUtilities, swapSiteCss } from '../cp/theme-panel/utility-paint.js';
 import { compilerCss, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
-import { BUILD_CANVAS_ID } from '../lib/build-canvas-ids.js';
 import { featureSaidOn } from '../lib/config.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
-import { previewCopies, previewDocument } from '../lib/preview-frame.js';
+import { pageDocuments } from '../lib/preview-frame.js';
 import { twPickedClasses, twReplaceClasses } from '../tw-classes.js';
 
 /** site.css, relative to the site's CSS root — the file the Utilities tab writes. */
@@ -65,12 +64,7 @@ export async function postSiteCss(win, css) {
   return res.json();
 }
 
-/** The documents that show the page: the preview, the breakpoint overview's frames, and Build's canvas. */
-export function pageDocuments(win) {
-  const canvas = win.document.getElementById(BUILD_CANVAS_ID)?.contentDocument;
-
-  return [previewDocument(win), ...previewCopies(win).map((w) => w.document), canvas].filter(Boolean);
-}
+export { pageDocuments };
 
 /**
  * The classes among `raws` that Tailwind builds a rule for, against the

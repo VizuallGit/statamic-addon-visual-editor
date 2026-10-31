@@ -14,7 +14,7 @@ import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
-import { previewCopies, previewDocument } from './lib/preview-frame.js';
+import { pageDocuments, previewDocument } from './lib/preview-frame.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import { closeRightPanels } from './section-library.js';
 import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
@@ -41,6 +41,7 @@ export { PANEL_ID };
 const ENTRY = 'site.css';
 const VARS = 'var.css';
 const CLASSES = 'custom-classes.css';
+const CLASS_DRAFT_ID = '__sve-theme-class-draft';
 
 const TABS = ['colors', 'spacing', 'fonts', 'type', 'styles', 'button', 'forms'];
 
@@ -285,6 +286,37 @@ async function drawUtilities(win) {
   }
 }
 
+/**
+ * The classes being edited, drawn over the built stylesheet until it is built
+ * again: `custom-classes.css` sits in `@layer base` of the site's CSS, so a
+ * later rule in that layer takes the same place. Beside `<head>`, where no morph
+ * or head sync meets it. An edited class's rules replace nothing yet: a line
+ * taken out stays until the build.
+ */
+function drawClasses(win) {
+  const css = ui.classes
+    .filter((c) => c.name && !c.problem && (ui.savedClasses[c.name] ?? null) !== dedent(c.body))
+    .map((c) => `.${c.name} {\n${c.body}\n}`)
+    .join('\n');
+
+  for (const doc of pageDocuments(win)) {
+    let sheet = doc.getElementById(CLASS_DRAFT_ID);
+
+    if (!css) {
+      sheet?.remove();
+      continue;
+    }
+
+    if (!sheet) {
+      sheet = doc.createElement('style');
+      sheet.id = CLASS_DRAFT_ID;
+      doc.documentElement.append(sheet);
+    }
+
+    sheet.textContent = `@layer base {\n${css}\n}`;
+  }
+}
+
 function utilityChanged(win) {
   ui.dirty = true;
   ui.status = '';
@@ -310,6 +342,7 @@ async function buildSiteCss(win) {
       ui.buildNote = '';
       // Once the new sheet is in, anything typed during the build is drawn on it.
       pageDocuments(win).forEach((doc) => swapSiteCss(doc, data.css, () => void drawUtilities(win)));
+      drawClasses(win);
 
       return;
     }
@@ -430,11 +463,6 @@ function tokenChanges() {
   }
 
   return changes;
-}
-
-/** The documents that show the page: the preview, and the breakpoint overview's frames. */
-function pageDocuments(win) {
-  return [previewDocument(win), ...previewCopies(win).map((w) => w.document)].filter(Boolean);
 }
 
 /** The custom properties `{{ theme_tokens }}` would write for this state: colors (plus short names) and the rest. */
@@ -1024,6 +1052,7 @@ const handlers = (win) => ({
       }
 
       ui.dirty = true;
+      drawClasses(win);
     }
   },
   onClassBody: (key, body) => {
@@ -1032,6 +1061,7 @@ const handlers = (win) => ({
     if (c) {
       c.body = String(body);
       ui.dirty = true;
+      drawClasses(win);
     }
   },
   onRemoveClass: (key) => {
@@ -1053,7 +1083,7 @@ const handlers = (win) => ({
     ui.classQuery = String(query || '');
   },
   onClassChip: (chip) => {
-    ui.classChip = CLASS_CHIPS.includes(chip) ? chip : 'all';
+    ui.classChip = CLASS_CHIPS.includes(chip) ? chip : CLASS_CHIPS[0];
   },
   onOpenClass: (name) => {
     ui.openClass = ui.openClass === name ? '' : name;
@@ -1329,6 +1359,7 @@ function teardown(win, { keep = false } = {}) {
     }));
     win.clearTimeout(utilityTimer);
     void drawUtilities(win);
+    pageDocuments(win).forEach((doc) => doc.getElementById(CLASS_DRAFT_ID)?.remove());
   }
 
   if (onFrameLoad) {

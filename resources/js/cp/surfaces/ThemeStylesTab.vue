@@ -30,7 +30,12 @@
     </button>
   </nav>
 
-  <p v-if="!shown.length" class="sve-theme__empty">{{ ui.labels.classes_empty || fallback.empty }}</p>
+  <!-- A chip with nothing in it says so and offers the first one; a search that finds nothing says that. -->
+  <div v-if="!shown.length && creates" class="sve-theme__none" data-sve-class-none>
+    <p class="sve-theme__empty">{{ ui.labels[`classes_none_${ui.classChip}`] }}</p>
+    <button type="button" class="sve-theme__add" data-sve-class-create @click="creates">{{ ui.labels.classes_create }}</button>
+  </div>
+  <p v-else-if="!shown.length" class="sve-theme__empty">{{ ui.labels.classes_empty || fallback.empty }}</p>
 
   <section
     v-for="row in shown"
@@ -202,7 +207,7 @@ const fallback = {
   snippetRemove: 'Slet snippet',
   historyWarn: 'Intet bruger den i dag, men dockens historik gør. Sletter du den, mister en fortrydelse sin styling.',
   chipsUnused: 'Ubrugte',
-  chips: { all: 'Alle', utility: 'Utilities', class: 'Klasser', variable: 'Variabler', snippet: 'Snippets', ambient: 'Afledte', unused: 'Ubrugte' },
+  chips: { utility: 'Utilities', class: 'Klasser', variable: 'Variabler', snippet: 'Snippets', ambient: 'Afledte', unused: 'Ubrugte' },
 };
 
 const labels = computed(() => ({
@@ -223,6 +228,13 @@ function usage(row) {
 const allRows = computed(() => [...ui.classRows, ...variableRows(ui.props, ui.varsFile || 'var.css'), ...snippetRows(ui.snippets)]);
 
 const shown = computed(() => filterRows(allRows.value, { chip: ui.classChip, query: ui.classQuery }));
+
+/** What the chip in hand makes, when the list is empty because it has none — not because a search left none. */
+const creates = computed(() =>
+  ui.classQuery || count(ui.classChip)
+    ? null
+    : { utility: h.onAddUtilityFromClasses, class: h.onAddClass, variable: h.onAddProp, snippet: h.onAddSnippet }[ui.classChip] || null
+);
 
 /**
  * A chip that only filters is noise when empty — `Ambient 0` says no more than

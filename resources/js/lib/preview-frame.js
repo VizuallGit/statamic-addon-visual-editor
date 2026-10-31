@@ -13,8 +13,9 @@
  * Every function accepts a Window or a Document. Cross-origin frames are
  * skipped silently: Live Preview is same-origin, anything else is not ours.
  *
- * `pageDocuments` is the preview's document and the copies' documents, the
- * list a stylesheet swap runs over.
+ * `pageDocuments` is the preview's document, the copies' documents and Build's
+ * canvas: every document that shows the page, the list a paint or a stylesheet
+ * swap runs over.
  *
  * `previewCopies` is the one list of the preview's copies — the breakpoint
  * overview's frames, which show the page but are not the preview. It reads the
@@ -24,6 +25,7 @@
  * May import: lib/ids.js.
  */
 import { BP_OVERVIEW_ID } from './ids.js';
+import { BUILD_CANVAS_ID } from './build-canvas-ids.js';
 function documentOf(winOrDoc) {
   return winOrDoc?.document || winOrDoc || null;
 }
@@ -95,10 +97,14 @@ export function previewCopies(winOrDoc) {
 }
 
 /**
- * Every document that shows the page: the preview's, and the breakpoint
- * overview's copies while it is open. What a change to the site's stylesheet
- * is swapped into.
+ * Every document that shows the page: the preview's, the breakpoint overview's
+ * copies while it is open, and Build's canvas, which stands over the preview
+ * and is the one on screen in Build. What a theme value is painted on and a
+ * change to the site's stylesheet is swapped into.
  */
 export function pageDocuments(winOrDoc) {
-  return [previewDocument(winOrDoc), ...previewCopies(winOrDoc).map((w) => w.document)].filter(Boolean);
+  const doc = winOrDoc?.document || winOrDoc;
+  const canvas = doc?.getElementById?.(BUILD_CANVAS_ID)?.contentDocument;
+
+  return [previewDocument(winOrDoc), ...previewCopies(winOrDoc).map((w) => w.document), canvas].filter(Boolean);
 }

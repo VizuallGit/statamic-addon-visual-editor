@@ -54,8 +54,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.utilities_add }}
       </button>
-      <!-- One button, and the chip says which: with All in hand there is no
-           one thing "new" would mean, so there is no button. -->
+      <!-- One button, and the chip says which. -->
       <template v-else-if="ui.tab === 'styles'">
         <button v-if="ui.classChip === 'utility'" type="button" class="sve-theme__add" data-sve-class-add-utility @click="onAddUtilityFromClasses">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>

@@ -84,7 +84,6 @@ test('snippet rows sit under their own chip and All, not under classes or unused
   assert.deepEqual(row.props, ['padding']);
   assert.ok(CLASS_CHIPS.includes('snippet'));
   assert.equal(chipKeeps('snippet', row), true);
-  assert.equal(chipKeeps('all', row), true);
   assert.equal(chipKeeps('class', row), false);
   assert.equal(chipKeeps('unused', row), false);
   assert.equal(chipKeeps('snippet', { kind: 'class', name: 'card', uses: 0 }), false);
