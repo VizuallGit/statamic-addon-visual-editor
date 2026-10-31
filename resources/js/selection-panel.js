@@ -51,6 +51,7 @@ import { h, nextTick, watch } from 'vue';
 import { clearSelection, currentSelection, onSelection, select } from './lib/selection.js';
 import { containerContextName, onContainerContext, whenContainerContext } from './lib/publish-containers.js';
 import { SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
+import { browseButton } from './lib/browse-button.js';
 import { livePreviewEditorEl } from './lib/live-preview.js';
 import { injectStyle } from './lib/style.js';
 import { previewFrame } from './lib/preview-frame.js';
@@ -74,6 +75,14 @@ const STYLE_ID = '__sve-selection-panel-style';
 let app = null;
 let host = null;
 let started = false;
+
+/**
+ * `{ uid, field }` while a click in the preview on the box an image or a video
+ * with no file shows (`emptyMedia` on the click message) waits for its field
+ * to be drawn: the field's own Browse is pressed then, once. Every preview
+ * click sets it anew, so an older ask never rides on a later click.
+ */
+let browseAsked = null;
 
 /** True when the panel is the thing in the left column right now. */
 export function selectionPanelShowing() {
@@ -103,6 +112,9 @@ export function selectionPanelTakes(win, uid) {
  */
 export function selectFromPreview(win, data) {
   const uid = data?.scope || data?.uid || null;
+  const field = fieldHandle(data?.field);
+
+  browseAsked = uid && field && data?.emptyMedia === true ? { uid, field } : null;
 
   if (!uid) {
     return false;
@@ -115,7 +127,7 @@ export function selectFromPreview(win, data) {
     activateSectionsTab(win);
     whenContainerContext('base', 2000, win).then((ctx) => {
       if (ctx && selectionPanelTakes(win, uid)) {
-        select({ uid, field: fieldHandle(data?.field), source: 'preview' });
+        select({ uid, field, source: 'preview' });
       }
     });
 
@@ -126,7 +138,16 @@ export function selectFromPreview(win, data) {
     return false;
   }
 
-  select({ uid, field: fieldHandle(data?.field), source: 'preview' });
+  const before = currentSelection();
+
+  select({ uid, field, source: 'preview' });
+
+  // The very same field again — the box clicked once more after the browser
+  // was closed without a file: nothing changed for the panel to paint, so the
+  // ask is answered from here.
+  if (browseAsked && currentSelection() === before) {
+    revealField(win);
+  }
 
   return true;
 }
@@ -447,6 +468,12 @@ function paint(win, selection, previous) {
     syncCodeDock(win, doc, row.uid);
   }
 
+  // The row already on show, another field of it clicked: the panel paints
+  // nothing new and says no `painted`, so the field is revealed from here.
+  if (previous && previous.uid && previous.uid === selection.uid && selection.field) {
+    revealField(win);
+  }
+
   // The panel's own back arrow is the one source that has not told the others.
   if (selection.source === 'panel' && row.uid) {
     listViewSyncTo(win, row.uid);
@@ -460,7 +487,14 @@ function paint(win, selection, previous) {
 /**
  * The field the click landed on, into view and marked, once the fields are
  * drawn. Statamic ids a field `field_<path with underscores>`; the panel's
- * path plus the handle is that id.
+ * path plus the handle is that id. The field's label carries it as `for` for
+ * every fieldtype; the input carries it as `id` only where the fieldtype
+ * puts it on one (text does, assets does not).
+ *
+ * A click on an empty image or video (`browseAsked`) goes on to the field's
+ * own Browse button, pressed once the field stands. No button drawn — an
+ * asset field whose container is still loading, or not an asset field — and
+ * nothing more happens; the field is open, as for any other click.
  */
 function revealField(win) {
   const selection = currentSelection();
@@ -472,7 +506,7 @@ function revealField(win) {
 
   nextTick(() => {
     const id = `field_${`${row.path}.${selection.field}`.replaceAll('.', '_')}`;
-    const el = host.querySelector(`#${CSS.escape(id)}`)?.closest('.form-group') || null;
+    const el = host.querySelector(`[for="${id}"], #${CSS.escape(id)}`)?.closest('.form-group') || null;
 
     host.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((node) => node.removeAttribute(ACTIVE_ATTR));
 
@@ -482,5 +516,13 @@ function revealField(win) {
 
     el.setAttribute(ACTIVE_ATTR, '');
     el.scrollIntoView({ block: 'nearest' });
+
+    const asked = browseAsked;
+
+    browseAsked = null;
+
+    if (asked && asked.uid === selection.uid && asked.field === selection.field) {
+      browseButton(el)?.click();
+    }
   });
 }

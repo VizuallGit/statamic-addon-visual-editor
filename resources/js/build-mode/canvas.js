@@ -429,7 +429,8 @@ export function startCanvas(win) {
     // After the body, so a morph of the body never meets them and they come
     // last in the cascade — after the page's sheets, as Instant's do.
     const own = page.createElement('style');
-    const strings = win.Statamic?.$config?.get?.('sveBuildStrings') || {};
+    // The editor's words (messages.php): Live Preview's bridge shows the same box.
+    const strings = win.Statamic?.$config?.get?.('sveStrings') || {};
     const media = mediaPlaceholderCss({
       image: strings.canvas_empty_image,
       video: strings.canvas_empty_video,

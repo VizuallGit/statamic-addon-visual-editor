@@ -2,7 +2,8 @@
  * bridge.js — region "messages", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel bridge.js for what the shell exports.
  */
-import { EDITING_ATTR, STYLES_ID } from '../bridge.js';
+import { EDITING_ATTR, STYLES_ID, t } from '../bridge.js';
+import { mediaPlaceholderCss } from '../lib/media-placeholder.js';
 
 // ===== messages =====
 /** How far outside a marked replaced element (img, video, iframe, svg, canvas)
@@ -43,6 +44,20 @@ export function injectCpVariables(doc, win) {
 
 // The `__sve-` prefix keeps preview.js's head-style sync from removing it.
 const BASE_STYLES_ID = '__sve-bridge-base';
+// An <img> or a <video> with no file: the same box Vizuall Build's canvas
+// shows (lib/media-placeholder.js). Two sheets — the size, in a layer of its
+// own ahead of the page's; the look, after the page's — same prefix, same sync.
+const MEDIA_BASE_ID = '__sve-media-base';
+const MEDIA_OWN_ID = '__sve-media-own';
+
+/** The box's words, in the Control Panel user's language (window.__sveStrings). */
+function mediaPlaceholder() {
+  return mediaPlaceholderCss({
+    image: t('canvas_empty_image'),
+    video: t('canvas_empty_video'),
+    hint: t('canvas_empty_hint'),
+  });
+}
 
 /**
  * Rules the site must always be able to override. They sit in a cascade layer
@@ -52,6 +67,19 @@ const BASE_STYLES_ID = '__sve-bridge-base';
  * header into the flow of the page.
  */
 function injectBaseStyles(doc) {
+  // First in <head>, ahead of the bridge's own base and of every sheet the
+  // page carries: its first statement names where its layer stands among
+  // Tailwind's (`theme, base, sve-media-base, components, utilities`), and
+  // only the first statement about those layers counts. So the box's size is
+  // above the reset's `height: auto` and below `h-64` or `w-20`.
+  if (!doc.getElementById(MEDIA_BASE_ID)) {
+    const style = doc.createElement('style');
+
+    style.id = MEDIA_BASE_ID;
+    style.textContent = mediaPlaceholder().base;
+    doc.head.prepend(style);
+  }
+
   if (doc.getElementById(BASE_STYLES_ID)) {
     return;
   }
@@ -69,11 +97,26 @@ function injectBaseStyles(doc) {
         }
     `;
 
-  doc.head.prepend(style);
+  // Right after the media base, which stays first.
+  doc.getElementById(MEDIA_BASE_ID).after(style);
+}
+
+/** The box's look — unlayered, with the bridge's own sheet, after the page's. */
+function injectMediaStyles(doc) {
+  if (doc.getElementById(MEDIA_OWN_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = MEDIA_OWN_ID;
+  style.textContent = mediaPlaceholder().own;
+  doc.head.appendChild(style);
 }
 
 export function injectStyles(doc) {
   injectBaseStyles(doc);
+  injectMediaStyles(doc);
 
   if (doc.getElementById(STYLES_ID)) {
     return;

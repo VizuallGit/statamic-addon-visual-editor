@@ -18,6 +18,7 @@ import { hideMoveControl } from './row-caps-move.js';
 import { applyOutlineTone } from './drag.js';
 import { COMPONENT_SRC, holdPick } from './component-pick.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
+import { isEmptyMedia } from '../lib/media-placeholder.js';
 
 // ===== sid-targets =====
 /**
@@ -484,6 +485,11 @@ export function createClickHandler(win) {
     // scope = the _visual_id of the surrounding set, so the CP can disambiguate a
     // bare handle (e.g. "text") that repeats across many sections/rows.
     if (target.hasAttribute(SID_FIELD_ATTR)) {
+      // The click landed on the box an image or a video with no file shows
+      // (lib/media-placeholder.js): the CP presses the field's own Browse once
+      // the field is drawn. The one test the box's CSS uses.
+      const emptyMedia = isEmptyMedia(event.target);
+
       win.parent.postMessage(
         {
           source: SOURCE,
@@ -491,6 +497,7 @@ export function createClickHandler(win) {
           field: target.getAttribute(SID_FIELD_ATTR),
           scope: target.getAttribute('data-sid-field-uid') || undefined,
           label: target.getAttribute('data-sid-label') || undefined,
+          emptyMedia: emptyMedia || undefined,
           // The starting values this template declared for the block —
           // `controls="tag:h2|font_size:text-600"`. The toolbar has always used
           // them to draw itself; sending them on means the side panel can agree,
@@ -518,6 +525,12 @@ export function createClickHandler(win) {
       // level up: every flagged element falls back to that classic behaviour,
       // and the click message above has already focused the field.
       if (featureOn('inline_edit') && target.hasAttribute('data-sid-inline-edit')) {
+        // An empty image or video has already asked for the browser on the
+        // click message above; asking again below would open it twice.
+        if (emptyMedia) {
+          return;
+        }
+
         // Media click: the CP opens the field's asset browser instead of a
         // text-edit session. Triggered when the click lands on an image/video,
         // or anywhere in a wrapper whose only content is media (no text).

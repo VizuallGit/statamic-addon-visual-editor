@@ -1864,4 +1864,9 @@ return [
     'live_reload_error' => 'Live reload: :reason',
     'live_reload_signedout' => 'Live reload: signed out — sign in again, then it picks up by itself.',
     'live_reload_offline' => 'Live reload is not connected.',
+    // The box an image or a video with no file shows — in Live Preview and on
+    // Vizuall Build's canvas alike (lib/media-placeholder.js).
+    'canvas_empty_image' => 'Image',
+    'canvas_empty_video' => 'Video',
+    'canvas_empty_hint' => 'Click to choose',
 ];

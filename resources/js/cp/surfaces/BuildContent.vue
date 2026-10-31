@@ -45,7 +45,7 @@
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import BuildSvgPicker from './BuildSvgPicker.vue';
 import { tagFamily } from '../../lib/tag-families.js';
-import { statamicTranslate } from '../../lib/i18n.js';
+import { browseButton } from '../../lib/browse-button.js';
 import BuildPickField from './BuildPickField.vue';
 import BuildEditable from './BuildEditable.vue';
 import { ic } from '../../build-mode/icons.js';
@@ -299,15 +299,8 @@ watch(
 
 /*
  * The canvas asked for this element's file (port.askBrowse): the field's own
- * Browse button, once the field has drawn it. Statamic prints the words through
- * its translator, and two buttons of which one shows at the field's width.
+ * Browse button (lib/browse-button.js), once the field has drawn it.
  */
-function browseButton(el) {
-  const words = [statamicTranslate('Browse Assets'), statamicTranslate('Browse')];
-
-  return [...el.querySelectorAll('button')].find((button) => button.offsetParent && words.includes(button.textContent.trim()));
-}
-
 watch(
   [host, () => port.browse?.value],
   ([el, wanted]) => {

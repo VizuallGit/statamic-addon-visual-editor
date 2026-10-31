@@ -1852,4 +1852,7 @@ return [
     'live_reload_error' => 'Live reload: :reason',
     'live_reload_signedout' => 'Live reload: logget ud — log ind igen, så fortsætter det af sig selv.',
     'live_reload_offline' => 'Live reload har ingen forbindelse.',
+    'canvas_empty_image' => 'Billede',
+    'canvas_empty_video' => 'Video',
+    'canvas_empty_hint' => 'Klik for at vælge',
 ];
