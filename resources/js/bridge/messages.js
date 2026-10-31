@@ -67,27 +67,11 @@ function mediaPlaceholder() {
  * header into the flow of the page.
  */
 function injectBaseStyles(doc) {
-  // First in <head>, ahead of the bridge's own base and of every sheet the
-  // page carries: its first statement names where its layer stands among
-  // Tailwind's (`theme, base, sve-media-base, components, utilities`), and
-  // only the first statement about those layers counts. So the box's size is
-  // above the reset's `height: auto` and below `h-64` or `w-20`.
-  if (!doc.getElementById(MEDIA_BASE_ID)) {
+  if (!doc.getElementById(BASE_STYLES_ID)) {
     const style = doc.createElement('style');
 
-    style.id = MEDIA_BASE_ID;
-    style.textContent = mediaPlaceholder().base;
-    doc.head.prepend(style);
-  }
-
-  if (doc.getElementById(BASE_STYLES_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = BASE_STYLES_ID;
-  style.textContent = `
+    style.id = BASE_STYLES_ID;
+    style.textContent = `
         @layer sve-base {
             /* Anchors the Header/Footer label (::before). A half the site
                positions itself — absolute, fixed, sticky — anchors it too. */
@@ -97,8 +81,21 @@ function injectBaseStyles(doc) {
         }
     `;
 
-  // Right after the media base, which stays first.
-  doc.getElementById(MEDIA_BASE_ID).after(style);
+    doc.head.prepend(style);
+  }
+
+  // Right after it, ahead of every sheet the page carries. The bridge's base
+  // stays first so `sve-base` remains the lowest layer of all. This sheet's
+  // first statement then names where its own layer stands among Tailwind's
+  // (`theme, base, sve-media-base, components, utilities`): the box's size is
+  // above the reset's `height: auto` and below `h-64` or `w-20`.
+  if (!doc.getElementById(MEDIA_BASE_ID)) {
+    const style = doc.createElement('style');
+
+    style.id = MEDIA_BASE_ID;
+    style.textContent = mediaPlaceholder().base;
+    doc.getElementById(BASE_STYLES_ID).after(style);
+  }
 }
 
 /** The box's look — unlayered, with the bridge's own sheet, after the page's. */
