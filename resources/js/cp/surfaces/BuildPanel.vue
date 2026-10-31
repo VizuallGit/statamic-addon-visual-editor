@@ -23,8 +23,13 @@
  * Fields and Settings are not drawn here: a component's fields are the props
  * panel's, a loop's or condition's settings the HTML tree inspector's. The
  * port mounts those into the host this panel gives them.
+ *
+ * A component's own file open in the dock keeps its props on top of the panel,
+ * whatever is picked inside it: the dock takes the declaration out of the text,
+ * so this is the one place they can be seen and changed.
  */
 import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue';
+import { componentPropsUi } from '../component-props/store.js';
 import BuildAdd from './BuildAdd.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
@@ -204,10 +209,23 @@ function remount() {
 
 watch([host, side, tab, () => picked.value?.path], remount);
 onBeforeUnmount(() => unmountHost?.());
+
+/* The open component's props. A component's call picked inside it has its values in the host above. */
+const propsHost = ref(null);
+const propsShown = computed(() => componentPropsUi.open && !(side.value === 'element' && content.value === 'fields'));
+let unmountProps = null;
+
+watch(propsHost, (el) => {
+  unmountProps?.();
+  unmountProps = el ? port.mountFields(el) || null : null;
+});
+onBeforeUnmount(() => unmountProps?.());
 </script>
 
 <template>
   <div class="sve-build" data-sve-build-root :data-sve-build-side="side">
+    <div v-if="propsShown" ref="propsHost" class="bm-cprops" data-sve-build-cprops></div>
+
     <template v-if="side === 'add'">
       <div class="bm-tabs" role="tablist">
         <button
@@ -324,6 +342,9 @@ onBeforeUnmount(() => unmountHost?.());
 .sve-build .bm-ib:hover { background: var(--bm-hover); color: var(--bm-ink); }
 .sve-build .bm-ib.is-on, .sve-build .bm-ib[aria-pressed='true'] { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-ib.sm { width: 1.375rem; height: 1.375rem; }
+
+/* The open component's props: at most half the column, scrolling on their own, so the element under them stays in reach. */
+.sve-build .bm-cprops { flex: 0 1 auto; min-height: 0; max-height: 50%; overflow: auto; padding: 0 0.75rem; border-bottom: 1px solid var(--bm-line); }
 
 /* Tabs and scroll */
 /* Add | Style: a light grey track, the open tab in the blue of Style's "This element" (`.fg-target`). */

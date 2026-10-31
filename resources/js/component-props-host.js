@@ -124,9 +124,10 @@ export function syncComponentPropsHost(win) {
 
   const host = doc.getElementById(HOST_ID);
 
-  // Build has the column (build-mode-host.js): a component's values are drawn
-  // in Build's own Fields tab, so neither here nor in the tree's pane — and
-  // the column is not borrowed twice. Content gives it back (followBuild).
+  // Build has the column (build-mode-host.js): a component's props and values
+  // are drawn in Build's own panel (BuildPanel.vue), so neither here nor in the
+  // tree's pane — and the column is not borrowed twice. Content gives it back
+  // (followBuild).
   if (buildModeUi.on) {
     stopWatching();
 
