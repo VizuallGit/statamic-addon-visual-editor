@@ -48,12 +48,12 @@ import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
-import { HEADER_TOOLBAR_ID, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
+import { HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
 import { EDITOR_MODES, buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
 import { isCodeDockArmed } from '../code-dock-state.js';
-import { openHtmlTreePanel } from '../lazy/html-tree.js';
+import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
 import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
 import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
@@ -228,6 +228,11 @@ function choose(win, holder, mode) {
 
   if (mode === 'content') {
     restoreColumn(win);
+
+    // Parked by a tool in the sidebar, and only Build brings it back.
+    if (win.document.getElementById(HTML_TREE_PANEL_ID)?.hidden) {
+      closeHtmlTreePanel(win);
+    }
   }
 
   paint(holder);

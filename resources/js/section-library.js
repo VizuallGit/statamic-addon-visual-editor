@@ -1896,7 +1896,9 @@ export function showGlobalsPanel(win) {
 export function closeRightPanels(win, keep = null) {
   const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
   const extra = keepIds.length && RIGHT_DOCK_PIN_STACK ? pinnedKeepIds(win) : [];
-  const allKeep = [...new Set([...keepIds, ...extra])];
+  // A tool taking the sidebar in a Build: the tree stays, parked (showInRightShell). Build picks through it.
+  const tree = keep != null && buildModeUi.mode !== 'content' && win.document.getElementById(HTML_TREE_PANEL_ID) ? [HTML_TREE_PANEL_ID] : [];
+  const allKeep = [...new Set([...keepIds, ...extra, ...tree])];
 
   beginRightShellSwap();
 

@@ -24,6 +24,8 @@ import dockCss from '../css/right-dock.css?inline';
 import { injectStyle } from './lib/style.js';
 import { t } from './lib/i18n.js';
 import { attachDock, dockParent } from './lib/dock-host.js';
+import { HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { buildModeUi } from './cp/build-mode/store.js';
 import { beginOverlayDrag } from './lib/drag.js';
 import { closeSectionPicker } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
@@ -1083,6 +1085,11 @@ function fillPanel(panel) {
   panel.style.cssText = RIGHT_PANEL_FILL;
 }
 
+/** A Build picks through the tree, so another tool in the sidebar parks it, and it comes back when that tool goes. */
+function buildParksTree(el) {
+  return el?.id === HTML_TREE_PANEL_ID && buildModeUi.mode !== 'content';
+}
+
 function hideKeepChild(el) {
   el.hidden = true;
   el.setAttribute('data-sve-chrome-hidden', '1');
@@ -1130,7 +1137,7 @@ export function showInRightShell(win, panel, { keep = false } = {}) {
       continue;
     }
 
-    if (child.hasAttribute('data-sve-right-keep')) {
+    if (child.hasAttribute('data-sve-right-keep') || buildParksTree(child)) {
       hideKeepChild(child);
     } else {
       child.remove();
@@ -1206,9 +1213,15 @@ export function releaseRightShellIfEmpty(win) {
   }
 
   if (!visibleRightShellChild(win)) {
-    hideRightDock(win);
+    const tree = win.document.getElementById(HTML_TREE_PANEL_ID);
 
-    return;
+    if (!buildParksTree(tree)) {
+      hideRightDock(win);
+
+      return;
+    }
+
+    showKeepChild(tree);
   }
 
   layoutStack(win, dock);
