@@ -3,7 +3,8 @@
  * What Style writes on: this element, or a class it carries. A class is a
  * Tailwind utility in site.css (build-mode/class-target.js), the same as the
  * dock's Utility button makes, so a change reaches every element with it.
- * `+ Class` finds one of the site's, or names a new one.
+ * `+ Class` finds one of the site's, or names a new one. A locked class goes
+ * on and off the element, and Style goes on writing on the element.
  */
 import { computed, inject, nextTick, ref, watch } from 'vue';
 import { ic } from '../../build-mode/icons.js';
@@ -12,6 +13,8 @@ const port = inject('sveBuild');
 const open = ref(false);
 const typed = ref('');
 const input = ref(null);
+// The locked class last clicked, so the panel can say why it does not open.
+const lockedTold = ref('');
 
 const classes = computed(() => (port.rev.value, port.classes.onTag()));
 const target = computed(() => (port.rev.value, port.classes.target()));
@@ -42,7 +45,25 @@ function toggle() {
 
 function pick(name) {
   port.classes.add(name);
+  lockedTold.value = port.classes.locked(name) ? name : '';
   open.value = false;
+}
+
+function choose(name) {
+  if (port.classes.locked(name)) {
+    port.classes.edit('');
+    lockedTold.value = name;
+
+    return;
+  }
+
+  lockedTold.value = '';
+  port.classes.edit(target.value === name ? '' : name);
+}
+
+function takeOff(name) {
+  lockedTold.value = '';
+  port.classes.remove(name);
 }
 
 async function create() {
@@ -73,16 +94,18 @@ watch(classes, (now) => {
 <template>
   <div class="fg-seg fg-target" data-sve-build-target>
     <button type="button" :aria-pressed="!target" data-sve-build-target-element @click="port.classes.edit('')"><span v-html="ic('cursor')"></span>{{ port.t('this_element') }}</button>
-    <button
-      v-for="name in classes"
-      :key="name"
-      type="button"
-      class="fg-target__class"
-      :aria-pressed="target === name"
-      :title="name"
-      :data-sve-build-target-class="name"
-      @click="port.classes.edit(target === name ? '' : name)"
-    ><span>{{ name }}</span></button>
+    <span v-for="name in classes" :key="name" class="fg-target__item">
+      <button
+        type="button"
+        class="fg-target__class"
+        :aria-pressed="target === name"
+        :title="port.classes.locked(name) ? port.t('class_locked_title', { name }) : name"
+        :data-sve-build-target-class="name"
+        :data-sve-build-class-locked="port.classes.locked(name) ? '' : undefined"
+        @click="choose(name)"
+      ><span v-if="port.classes.locked(name)" class="fg-target__lock" v-html="ic('lock')"></span><span>{{ name }}</span></button>
+      <button type="button" class="fg-target__off" :title="port.t('class_take_off', { name })" :aria-label="port.t('class_take_off', { name })" :data-sve-build-class-off="name" @click="takeOff(name)">−</button>
+    </span>
     <button type="button" :aria-expanded="open" :disabled="!port.classes.enabled()" :title="port.classes.enabled() ? port.t('own_class') : port.t('tw_utility_no_site_css')" data-sve-build-class-add @click="toggle"><span v-html="ic('plus')"></span>{{ port.t('own_class') }}</button>
   </div>
 
@@ -93,13 +116,16 @@ watch(classes, (now) => {
     </button>
     <p v-if="problem" class="fg-hint">{{ port.t(`class_${problem}`) }}</p>
     <div v-if="rows.length" class="fg-classpick__rows">
-      <button v-for="name in rows" :key="name" type="button" :data-sve-build-class-row="name" @click="pick(name)">{{ name }}</button>
+      <button v-for="name in rows" :key="name" type="button" :data-sve-build-class-row="name" @click="pick(name)"><span v-if="port.classes.locked(name)" class="fg-target__lock" v-html="ic('lock')"></span>{{ name }}</button>
     </div>
     <p v-else-if="!query" class="fg-hint">{{ port.t('class_none') }}</p>
   </div>
 
   <p v-if="target" class="fg-hint fg-target__note" data-sve-build-class-note>
-    {{ port.classes.empty() ? port.t('class_empty', { name: target }) : port.t('class_editing', { name: target }) }}
+    {{ port.classes.empty() && !port.classes.ownCss() ? port.t('class_empty', { name: target }) : port.t('class_editing', { name: target }) }}
     <template v-if="port.classes.ownCss()"><br />{{ port.t('class_own_css', { name: target }) }}</template>
+  </p>
+  <p v-else-if="lockedTold && classes.includes(lockedTold)" class="fg-hint" data-sve-build-class-locked-note>
+    {{ port.t('class_locked', { name: lockedTold }) }}
   </p>
 </template>

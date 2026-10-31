@@ -710,7 +710,13 @@ onBeforeUnmount(() => {
 .sve-build .fg-seg .bm-ic, .sve-build .fg-seg svg { width: 0.9375rem; height: 0.9375rem; }
 .sve-build .fg-target button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; box-shadow: none; }
 .sve-build .fg-target { flex-wrap: wrap; }
-.sve-build .fg-target button { flex: 1 1 30%; }
+.sve-build .fg-target > button { flex: 1 1 30%; }
+.sve-build .fg-target__item { display: flex; flex: 1 1 30%; min-width: 0; }
+.sve-build .fg-target__item .fg-target__class { flex: 1 1 auto; min-width: 0; }
+.sve-build .fg-target__off { flex: 0 0 1.25rem; padding: 0; color: var(--bm-ink-3, inherit); }
+.sve-build .fg-target__off:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .fg-target__lock { display: inline-flex; flex: none; margin-inline-end: 0.25rem; vertical-align: middle; }
+.sve-build .fg-target__lock .bm-ic { width: 0.75rem; height: 0.75rem; }
 .sve-build .fg-target__class span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--bm-mono); font-size: 0.6875rem; }
 .sve-build .fg-target__note { color: var(--bm-accent-text); }
 .sve-build .fg-classpick { display: grid; gap: 0.35rem; padding: 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); }

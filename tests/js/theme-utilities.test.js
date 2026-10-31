@@ -6,7 +6,9 @@ import {
   bodyWithClasses,
   bodyProperties,
   compilerCss,
+  lockedUtilities,
   readUtilities,
+  setUtilityLock,
   utilityBodies,
   utilityNameProblem,
   writeUtilities,
@@ -156,4 +158,54 @@ test('bodyWithClasses: one @apply, everything else stays', () => {
   assert.equal(bodyWithClasses('color: red;', 'p-8'), '@apply p-8;\ncolor: red;');
   assert.equal(bodyWithClasses('&:hover { @apply underline; }', 'p-8'), '@apply p-8;\n&:hover { @apply underline; }');
   assert.equal(bodyWithClasses('@apply p-4;\ncolor: red;', ''), 'color: red;');
+});
+
+const LOCK_CSS = `@utility wrapper {
+    padding: 1rem;
+}
+
+/* locked */
+@utility card {
+    padding: 2rem;
+}
+
+/* a note about grids */
+@utility auto-grid {
+  display: grid;
+}
+`;
+
+test('a utility is locked by the comment on the line above it, and by nothing else', () => {
+  assert.deepEqual([...lockedUtilities(LOCK_CSS)], ['card']);
+  assert.deepEqual([...lockedUtilities('/* locked */\n\n@utility a { color: red; }')], []);
+  assert.deepEqual([...lockedUtilities('/*locked*/\n  @utility a { color: red; }')], ['a']);
+  assert.deepEqual([...lockedUtilities('')], []);
+});
+
+test('locking and unlocking change the marker line and nothing else', () => {
+  const on = setUtilityLock(LOCK_CSS, 'wrapper', true);
+
+  assert.ok(on.startsWith('/* locked */\n@utility wrapper {'));
+  assert.deepEqual([...lockedUtilities(on)], ['wrapper', 'card']);
+  assert.equal(setUtilityLock(on, 'wrapper', false), LOCK_CSS);
+  assert.equal(setUtilityLock(LOCK_CSS, 'card', true), LOCK_CSS);
+  assert.equal(setUtilityLock(LOCK_CSS, 'wrapper', false), LOCK_CSS);
+  assert.equal(setUtilityLock(LOCK_CSS, 'nope', true), LOCK_CSS);
+});
+
+test('a lock survives a write of its body, and a deleted utility takes its lock along', () => {
+  const edited = writeUtilities(LOCK_CSS, { card: 'padding: 3rem;' });
+
+  assert.deepEqual([...lockedUtilities(edited)], ['card']);
+
+  const gone = writeUtilities(LOCK_CSS, { card: null });
+
+  assert.ok(!gone.includes('locked'));
+  assert.deepEqual([...lockedUtilities(gone)], []);
+  assert.ok(gone.includes('/* a note about grids */'));
+});
+
+test('the last class out of @apply leaves a utility\'s own CSS, and an empty body when it had none', () => {
+  assert.equal(bodyWithClasses('@apply card;\npadding: 1rem;', ''), 'padding: 1rem;');
+  assert.equal(bodyWithClasses('@apply card;', ''), '');
 });

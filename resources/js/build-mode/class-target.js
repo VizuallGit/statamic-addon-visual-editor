@@ -15,22 +15,27 @@
  * class Tailwind cannot build is taken back, because the next build of site.css
  * would fail on it. A utility with nothing in it cannot exist in Tailwind, so
  * a new, empty class reaches site.css with its first style.
+ *
+ * The file is read again before every save, and again when another tool saved
+ * it: a copy kept from the first read would put back what was taken out since.
+ * A locked class (`lockedUtilities`) goes on and off elements, but stays as it is.
  */
 
 import { ref } from 'vue';
-import { applyClasses, bodyWithClasses, compilerCss, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
+import { applyClasses, bodyWithClasses, compilerCss, lockedUtilities, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from '../cp/theme-panel/utility-paint.js';
 import { pageDocuments, postSiteCss, readSiteCss, storeUtility, toast } from '../dock/tw-utility.js';
 import { featureSaidOn } from '../lib/config.js';
 import { t as i18n } from '../lib/i18n.js';
 import { tokenizeClassValue } from '../tw-parse.js';
-import { twAddClass, twPickedClasses, twSetClassTarget } from '../tw-classes.js';
+import { twAddClass, twDropClass, twPickedClasses, twSetClassTarget } from '../tw-classes.js';
 
 /** How long the clicks must stop before site.css is saved. */
 const SAVE_AFTER = 700;
 
 export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   const bodies = ref(new Map());
+  const lockedNames = ref(new Set());
   const target = ref('');
   const empty = ref(false);
   const ownCss = ref(false);
@@ -41,8 +46,15 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   let saved = '';
   let queue = Promise.resolve();
   let drawn = 0;
+  let savingHere = false;
 
   const enabled = () => featureSaidOn(win, 'site_css');
+
+  function remember(css) {
+    siteCss = css;
+    bodies.value = utilityBodies(css);
+    lockedNames.value = lockedUtilities(css);
+  }
 
   function load() {
     if (loading || !enabled()) {
@@ -51,8 +63,7 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
 
     loading = readSiteCss(win)
       .then((css) => {
-        siteCss = css;
-        bodies.value = utilityBodies(css);
+        remember(css);
         changed();
       })
       .catch(() => {
@@ -82,15 +93,17 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   async function draw(name, value) {
     const turn = ++drawn;
     const docs = pageDocuments(win);
+    const body = bodyWithClasses(bodies.value.get(name), value);
 
-    if (!value) {
+    // Nothing left in it. A class with CSS of its own keeps that, below.
+    if (!body) {
       paintUtilities(docs, [name], '');
 
       return true;
     }
 
     const { compileDraft } = await import('../tw-compile.js');
-    const next = writeUtilities(siteCss, { [name]: bodyWithClasses(bodies.value.get(name), value) });
+    const next = writeUtilities(siteCss, { [name]: body });
     const css = await compileDraft(win, compilerCss(next), utilityCandidates(docs, [name]));
 
     if (turn === drawn) {
@@ -103,20 +116,39 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   /** site.css with the utility as it stands now. Queued: two saves never pass each other. */
   function save(name, value) {
     queue = queue.then(async () => {
-      if (!value || value === saved) {
+      if (value === saved) {
         return;
       }
 
-      const body = bodyWithClasses(bodies.value.get(name), value);
-      const next = writeUtilities(siteCss, { [name]: body });
-
       try {
+        const css = await readSiteCss(win);
+
+        if (lockedUtilities(css).has(name)) {
+          remember(css);
+          toast(win, 'error', 'tw_utility_locked', { name });
+          edit('');
+
+          return;
+        }
+
+        const body = bodyWithClasses(utilityBodies(css).get(name), value);
+        // Nothing left in it: Tailwind has no empty utility, so the block goes.
+        const next = writeUtilities(css, { [name]: body || null });
+
+        if (next === css) {
+          saved = value;
+
+          return;
+        }
+
         const data = await postSiteCss(win, next);
 
-        siteCss = next;
+        remember(next);
         saved = value;
         bodies.value = new Map(bodies.value).set(name, body);
+        savingHere = true;
         win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: 'site.css' } }));
+        savingHere = false;
 
         const build = data?.build;
 
@@ -149,9 +181,9 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     return queue;
   }
 
-  /** Work on `name`; '' is the tag again. What was still waiting to be saved is saved first. */
+  /** Work on `name`; '' is the tag again. What was still waiting to be saved is saved first. A locked class stays closed. */
   function edit(name) {
-    if (name === target.value) {
+    if (name === target.value || (name && lockedNames.value.has(name))) {
       return;
     }
 
@@ -206,14 +238,43 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     changed();
   }
 
-  /** An existing utility onto the element, and on to edit it. */
+  /** An existing utility onto the element, and on to edit it. The tag first: with a class open, an add would land in that class. */
   function add(name) {
+    edit('');
+
     if (!tagTokens().includes(name)) {
       twAddClass(win, name);
     }
 
     edit(name);
   }
+
+  /** A class off the element. The class itself stays in site.css. */
+  function remove(name) {
+    edit('');
+    twDropClass(win, name);
+  }
+
+  // Another tool saved site.css: what is open here follows the file.
+  win.addEventListener('sve:site-css-saved', async () => {
+    if (savingHere || !siteCss) {
+      return;
+    }
+
+    const name = target.value;
+
+    edit('');
+    await flush();
+
+    try {
+      remember(await readSiteCss(win));
+    } catch {
+      toast(win, 'error', 'tw_utility_failed');
+    }
+
+    edit(name);
+    changed();
+  });
 
   /**
    * A new class. An element with classes hands them over, as the dock's Utility
@@ -251,8 +312,10 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     target: () => target.value,
     empty: () => empty.value,
     ownCss: () => ownCss.value,
+    locked: (name) => lockedNames.value.has(name),
     edit,
     add,
+    remove,
     create,
     /** Why `name` cannot be a new class: `bad_name`, `taken`, or '' when it can. */
     problem(name) {

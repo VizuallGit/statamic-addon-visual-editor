@@ -81,6 +81,7 @@ final class ControlPanelScript
                 // carrying `data-sve-chrome` (ScriptChrome::templates).
                 'sveChromeTemplates' => ScriptChrome::templates(),
                 'sveUserId' => User::current()?->id(),
+                'sveUserSuper' => (bool) User::current()?->isSuper(),
                 'sveChromePrefs' => is_array($chrome = User::current()?->getPreference('sve_chrome')) ? $chrome : [],
                 'sveHiddenGlobalsTabs' => ScriptChrome::hiddenGlobalsTabs(),
                 // Whether the editor runs here at all, and which of its tools this

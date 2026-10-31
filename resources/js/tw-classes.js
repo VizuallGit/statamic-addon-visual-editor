@@ -894,6 +894,19 @@ export function twPickedClasses() {
  * a utility was made of, swapped for the utility. Everything else on the tag
  * stays where it is.
  */
+export function twDropClass(win, raw) {
+  if (locked()) {
+    return;
+  }
+
+  const current = currentValue();
+  const chip = current && currentChips(current.value).find((one) => !one.dynamic && one.raw === raw);
+
+  if (chip) {
+    commit(win, current.html, replaceToken(current.value, chip, ''));
+  }
+}
+
 export function twReplaceClasses(win, raws, name) {
   if (locked() || !name) {
     return;

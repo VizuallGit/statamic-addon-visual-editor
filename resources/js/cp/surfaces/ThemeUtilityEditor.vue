@@ -22,6 +22,7 @@ const props = defineProps({
   onChange: { type: Function, required: true },
   onSave: { type: Function, required: true },
   tokens: { type: Array, default: () => [] },
+  readOnly: { type: Boolean, default: false },
 });
 
 const host = ref(null);
@@ -45,6 +46,7 @@ onMounted(async () => {
     state: cm.state.EditorState.create({
       doc: props.value,
       extensions: [
+        cm.state.EditorState.readOnly.of(props.readOnly),
         history(),
         cm.langCss.css(),
         closeBrackets(),
@@ -83,7 +85,9 @@ onMounted(async () => {
     }),
   });
 
-  view.focus();
+  if (!props.readOnly) {
+    view.focus();
+  }
 });
 
 // A save or a discard puts a new body in: the editor takes it, unless it is what it has.

@@ -60,6 +60,43 @@ export function utilityBodies(css) {
 }
 
 /**
+ * A locked utility: this comment on the line above its `@utility`. It lives in
+ * site.css so it travels with the class, through git, a starter kit and a
+ * server. Tailwind never sees it.
+ */
+const LOCK = '/* locked */';
+const LOCK_ABOVE = /\/\*\s*locked\s*\*\/[ \t]*\r?\n[ \t]*$/;
+
+function lockAbove(text, start) {
+  return text.slice(0, start).match(LOCK_ABOVE);
+}
+
+/** The names of the locked utilities. */
+export function lockedUtilities(css) {
+  const text = String(css || '');
+
+  return new Set(readUtilities(text).filter((u) => lockAbove(text, u.start)).map((u) => u.name));
+}
+
+/** site.css with `name` locked or not; every other byte stays as it is. */
+export function setUtilityLock(css, name, locked) {
+  const text = String(css || '');
+  const block = readUtilities(text).find((u) => u.name === name);
+
+  if (!block) {
+    return text;
+  }
+
+  const above = lockAbove(text, block.start);
+
+  if (!locked) {
+    return above ? text.slice(0, above.index) + text.slice(above.index + above[0].length) : text;
+  }
+
+  return above ? text : `${text.slice(0, block.start)}${LOCK}\n${text.slice(block.start)}`;
+}
+
+/**
  * site.css with `changes` applied: `{ name: body }` sets a utility's body,
  * `{ name: null }` removes the block. An existing block keeps its place and
  * indent; a new one goes after the last `@utility` (or at the end of the file).
@@ -348,6 +385,9 @@ function skipString(text, i) {
 function removeBlock(text, block) {
   let from = block.start;
   let to = block.end;
+
+  // Its lock goes with it, or the next block would inherit it.
+  from = lockAbove(text, from)?.index ?? from;
 
   while (from > 0 && /[ \t]/.test(text[from - 1])) {
     from--;

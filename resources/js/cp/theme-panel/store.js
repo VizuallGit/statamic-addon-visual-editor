@@ -77,6 +77,8 @@ export const themePanelUi = reactive({
   fontsStatus: '',
   utilities: [],
   savedUtilities: {},
+  /** A super admin: may lock and unlock a utility. */
+  canLock: false,
   openUtility: '',
   classRows: [],
   classSources: { entry: 'site.css', classes: 'custom-classes.css' },

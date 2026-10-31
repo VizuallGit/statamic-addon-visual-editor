@@ -23,7 +23,7 @@
 import NamePrompt from '../cp/surfaces/NamePrompt.vue';
 import { openCpOverlay } from '../cp/open-overlay.js';
 import { classTokens, paintUtilities, swapSiteCss } from '../cp/theme-panel/utility-paint.js';
-import { compilerCss, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
+import { compilerCss, lockedUtilities, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
 import { featureSaidOn } from '../lib/config.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
@@ -96,6 +96,12 @@ export async function storeUtility(win, name, raws) {
     siteCss = await readSiteCss(win);
   } catch {
     toast(win, 'error', 'tw_utility_failed');
+
+    return false;
+  }
+
+  if (lockedUtilities(siteCss).has(name)) {
+    toast(win, 'error', 'tw_utility_locked', { name });
 
     return false;
   }

@@ -213,6 +213,7 @@ const props = defineProps({
   onOpenUtility: { type: Function, required: true },
   onUtilityName: { type: Function, required: true },
   onUtilityBody: { type: Function, required: true },
+  onLockUtility: { type: Function, required: true },
   onRemoveUtility: { type: Function, required: true },
   onAddProp: { type: Function, required: true },
   onOpenProp: { type: Function, required: true },

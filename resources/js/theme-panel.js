@@ -27,7 +27,7 @@ import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from 
 import { BUTTON_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from './cp/theme-panel/highlights.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
-import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
+import { bodyProblem, compilerCss, dedent, lockedUtilities, setUtilityLock, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
 import { classNameProblem, readClasses, writeClasses } from './cp/theme-panel/custom-classes.js';
 import { CLASS_CHIPS, applyUsage, classRows, ownedRules } from './cp/theme-panel/site-classes.js';
@@ -150,14 +150,16 @@ function remember(css) {
   // A utility keeps its key over a save, so its open editor stays as it is.
   const keys = new Map(ui.utilities.map((u) => [u.name, u.key]));
 
+  const locks = lockedUtilities(css);
+
   savedUtilities = utilityBodies(css);
   ui.savedUtilities = Object.fromEntries(savedUtilities);
-  ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body, keys.get(name)));
+  ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body, keys.get(name), locks.has(name)));
   ui.dirty = false;
 }
 
-function utilityUi(name, body, key = `utility-${++keySeq}`) {
-  return { key, name, body, fresh: false, problem: null };
+function utilityUi(name, body, key = `utility-${++keySeq}`, locked = false) {
+  return { key, name, body, fresh: false, problem: null, locked };
 }
 
 const findUtility = (key) => ui.utilities.find((u) => u.key === key) || null;
@@ -1106,6 +1108,32 @@ const handlers = (win) => ({
       utilityChanged(win);
     }
   },
+  // The lock is saved at once, on the file as it is now. A super admin's switch.
+  onLockUtility: async (key) => {
+    const u = findUtility(key);
+
+    if (!u || u.fresh || !ui.canLock || savedUtilities.get(u.name) !== dedent(u.body)) {
+      return;
+    }
+
+    const locked = !u.locked;
+
+    u.locked = locked;
+
+    try {
+      const css = setUtilityLock(await readFile(win), u.name, locked);
+
+      await request(win, '/!/sve/site-css', {
+        method: 'POST',
+        body: JSON.stringify({ path: ENTRY, css }),
+      });
+      ui.saved = css;
+      win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: ENTRY } }));
+    } catch {
+      u.locked = !locked;
+      ui.status = t(win, 'theme_panel_error');
+    }
+  },
   onRemoveUtility: (key) => {
     const u = findUtility(key);
     const remove = () => {
@@ -1349,7 +1377,9 @@ function teardown(win, { keep = false } = {}) {
     paint(win, propertiesFor(readColors(ui.saved), Object.fromEntries(readTokens(ui.saved))));
     // Utilities as saved: what was only typed leaves the preview; what was
     // saved but not built yet stays drawn.
-    ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body));
+    const locks = new Map(ui.utilities.map((u) => [u.name, u.locked]));
+
+    ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body, undefined, locks.get(name)));
     ui.props = Object.entries(ui.savedProps).map(([name, value]) => ({
       key: `prop-${++keySeq}`,
       name,
@@ -1457,6 +1487,7 @@ function openThemePanel(win) {
   panel.id = PANEL_ID;
   panel.style.cssText = RIGHT_PANEL_FILL;
   ui.labels = labels(win);
+  ui.canLock = win.Statamic?.$config?.get?.('sveUserSuper') === true;
   app = mountSurface(ThemePanelPane, panel, handlers(win));
   // Tells the shell (sve-right-dock-change): the top-bar icon lights, the preview moves over.
   showInRightShell(win, panel);

@@ -48,7 +48,7 @@
       <!-- A utility wears braces, a class its dot; a snippet the `&` its nested rules hang off — a body with no selector of its own. -->
       <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'utility' ? '{}' : row.kind === 'snippet' ? '&' : '.' }}</span>
       <span class="sve-theme__row-text">
-        <span class="sve-theme__token">{{ row.name || '…' }}</span>
+        <span class="sve-theme__token">{{ row.name || '…' }}<svg v-if="isLocked(row)" class="sve-theme__locked" data-sve-utility-locked viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></span>
         <span class="sve-theme__meta">{{ row.kind === 'variable' ? (row.value || '…') : rowSummary(row, labels) }}</span>
       </span>
       <span v-if="row.ambient" class="sve-theme__badge">{{ ui.labels.classes_ambient || fallback.ambient }}</span>
@@ -154,14 +154,28 @@
         </label>
 
         <ThemeUtilityEditor
+          :key="isLocked(row) ? 'locked' : 'open'"
           :value="edit(row).entry.body"
           :label="`${ui.labels.utilities_css || 'CSS'} .${row.name || ''}`"
           :on-change="(body) => change(row, body)"
           :on-save="h.onSave"
           :tokens="tokens"
+          :read-only="isLocked(row)"
         />
 
-        <button type="button" class="sve-theme__remove" @click="remove(row)">
+        <p v-if="isLocked(row)" class="sve-theme__hint" data-sve-utility-locked-hint>
+          {{ ui.canLock ? ui.labels.utilities_locked_hint : ui.labels.utilities_locked_hint_ask }}
+        </p>
+        <button
+          v-if="canSwitchLock(row)"
+          type="button"
+          class="sve-theme__remove"
+          data-sve-utility-lock
+          :disabled="utilityUnsaved(row)"
+          :title="utilityUnsaved(row) ? ui.labels.utilities_lock_save_first : undefined"
+          @click="h.onLockUtility(edit(row).entry.key)"
+        >{{ isLocked(row) ? ui.labels.utilities_unlock : ui.labels.utilities_lock }}</button>
+        <button v-if="!isLocked(row)" type="button" class="sve-theme__remove" @click="remove(row)">
           {{ ui.labels.classes_remove || fallback.remove }}
         </button>
       </template>
@@ -188,6 +202,7 @@ import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, filterRows, rowSummary, snippetRows, usageLabel, variableRows } from '../theme-panel/site-classes.js';
 import { snippetDirty } from '../theme-panel/snippet-rows.js';
+import { dedent } from '../theme-panel/utilities.js';
 import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
 
 const { h } = defineProps({ h: { type: Object, required: true } });
@@ -279,6 +294,18 @@ function edit(row) {
   const entry = (from || []).find((e) => (row.key ? e.key === row.key : e.name === row.name));
 
   return entry ? { kind: row.kind === 'utility' ? 'utility' : 'class', entry } : null;
+}
+
+function isLocked(row) {
+  return row.kind === 'utility' && !!edit(row)?.entry.locked;
+}
+
+function canSwitchLock(row) {
+  return ui.canLock && row.kind === 'utility' && !!edit(row) && !edit(row).entry.fresh;
+}
+
+function utilityUnsaved(row) {
+  return ui.savedUtilities?.[row.name] !== dedent(edit(row).entry.body);
 }
 
 /** A fresh row has no name yet, so it is held open by its key. */
