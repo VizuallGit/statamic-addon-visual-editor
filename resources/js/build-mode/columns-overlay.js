@@ -9,7 +9,7 @@
  * the browser resolved (cp/xray/measure.js, X-ray's own arithmetic).
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: vue, lib/preview-frame.js, lib/style.js, html-pick-align.js, build-mode/place.js,
+ * May import: vue, lib/build-canvas-ids.js, lib/preview-frame.js, lib/style.js, html-pick-align.js, build-mode/place.js,
  *   cp/xray/measure.js. Drawn from the Control Panel over the frame, the way
  *   tw-overlay.js draws the class strip: the frame is same origin, so the
  *   boxes are read straight out of it by the paths stamped on its elements —
@@ -27,13 +27,14 @@
  * element again.
  */
 import { watch } from 'vue';
+import { BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { columnsFor, selfAndParent } from './place.js';
 import { parseGap, parseTracks, trackOffsets } from '../cp/xray/measure.js';
 
-const LAYER_ID = '__sve-build-columns';
+const LAYER_ID = BUILD_COLUMNS_LAYER_ID;
 const STYLE_ID = '__sve-build-columns-css';
 export const PLUS =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
