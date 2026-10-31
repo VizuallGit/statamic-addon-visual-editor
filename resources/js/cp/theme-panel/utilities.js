@@ -191,6 +191,63 @@ export function compilerCss(css) {
   return [...themes, ...utilities].join('\n\n');
 }
 
+/**
+ * The `@apply` statements at the top level of a utility's body, with their
+ * offsets: one inside a `&:hover { … }` is that block's, not the utility's.
+ */
+function topLevelApplies(body) {
+  const text = String(body || '');
+  const out = [];
+  let depth = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      depth++;
+    } else if (text[i] === '}') {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0 && text.startsWith('@apply', i)) {
+      const end = text.indexOf(';', i);
+
+      if (end === -1) {
+        break;
+      }
+
+      out.push({ start: i, end: end + 1, value: text.slice(i + 6, end).trim() });
+      i = end;
+    }
+  }
+
+  return out;
+}
+
+/** The classes a utility is made of: what its `@apply` names, in order. */
+export function applyClasses(body) {
+  return topLevelApplies(body).map((apply) => apply.value).filter(Boolean).join(' ').replace(/\s+/g, ' ');
+}
+
+/** The body with `@apply` naming `classes`; everything else in it stays as it is. */
+export function bodyWithClasses(body, classes) {
+  const text = String(body || '');
+  const value = String(classes || '').trim().replace(/\s+/g, ' ');
+  const line = value ? `@apply ${value};` : '';
+  const applies = topLevelApplies(text);
+
+  if (!applies.length) {
+    return [line, text.trim()].filter(Boolean).join('\n');
+  }
+
+  let next = text;
+
+  // Back to front: the first one becomes the line, the others go.
+  applies.slice().reverse().forEach((apply, index) => {
+    const last = index === applies.length - 1;
+
+    next = next.slice(0, apply.start) + (last ? line : '') + next.slice(apply.end);
+  });
+
+  return next.split('\n').filter((row) => row.trim()).join('\n');
+}
+
 /** A body as the tab shows it: no blank edge lines, the common indent gone. */
 export function dedent(raw) {
   const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');

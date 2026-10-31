@@ -24,6 +24,7 @@ import NamePrompt from '../cp/surfaces/NamePrompt.vue';
 import { openCpOverlay } from '../cp/open-overlay.js';
 import { classTokens, paintUtilities, swapSiteCss } from '../cp/theme-panel/utility-paint.js';
 import { compilerCss, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
+import { BUILD_CANVAS_ID } from '../lib/build-canvas-ids.js';
 import { featureSaidOn } from '../lib/config.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
@@ -35,7 +36,7 @@ const ENTRY = 'site.css';
 
 const HEADERS = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
 
-async function readSiteCss(win) {
+export async function readSiteCss(win) {
   const res = await win.fetch(`/!/sve/site-css/file?path=${encodeURIComponent(ENTRY)}&kind=css`, {
     credentials: 'same-origin',
     headers: HEADERS,
@@ -49,7 +50,7 @@ async function readSiteCss(win) {
 }
 
 /** Save site.css. The answer carries `build` when the server built the site's CSS. */
-async function postSiteCss(win, css) {
+export async function postSiteCss(win, css) {
   const res = await win.fetch('/!/sve/site-css?kind=css', {
     method: 'POST',
     credentials: 'same-origin',
@@ -64,9 +65,11 @@ async function postSiteCss(win, css) {
   return res.json();
 }
 
-/** The documents that show the page: the preview, and the breakpoint overview's frames. */
-function pageDocuments(win) {
-  return [previewDocument(win), ...previewCopies(win).map((w) => w.document)].filter(Boolean);
+/** The documents that show the page: the preview, the breakpoint overview's frames, and Build's canvas. */
+export function pageDocuments(win) {
+  const canvas = win.document.getElementById(BUILD_CANVAS_ID)?.contentDocument;
+
+  return [previewDocument(win), ...previewCopies(win).map((w) => w.document), canvas].filter(Boolean);
 }
 
 /**
@@ -81,15 +84,16 @@ async function knownClasses(win, compileDraft, base, raws) {
   return raws.filter((raw) => found.has(raw));
 }
 
-function toast(win, kind, key, replacements) {
+export function toast(win, kind, key, replacements) {
   win.Statamic?.$toast?.[kind]?.(t(win, key, replacements));
 }
 
-async function store(win, name, raws) {
+/** `raws` as the utility `name` in site.css, and on the tag in their place. True when it was written. */
+export async function storeUtility(win, name, raws) {
   if (utilityNameProblem(name)) {
     toast(win, 'error', 'tw_utility_bad_name');
 
-    return;
+    return false;
   }
 
   let siteCss;
@@ -99,11 +103,11 @@ async function store(win, name, raws) {
   } catch {
     toast(win, 'error', 'tw_utility_failed');
 
-    return;
+    return false;
   }
 
   if (utilityBodies(siteCss).has(name) && !win.confirm(t(win, 'tw_utility_replace', { name }))) {
-    return;
+    return false;
   }
 
   const { compileDraft } = await import('../tw-compile.js');
@@ -112,7 +116,7 @@ async function store(win, name, raws) {
   if (!known.length) {
     toast(win, 'error', 'tw_utility_no_classes');
 
-    return;
+    return false;
   }
 
   const left = raws.filter((raw) => !known.includes(raw));
@@ -124,13 +128,13 @@ async function store(win, name, raws) {
   } catch (err) {
     toast(win, 'error', 'tw_utility_wont_compile', { reason: err?.message || String(err) });
 
-    return;
+    return false;
   }
 
   if (!compiled.trim()) {
     toast(win, 'error', 'tw_utility_wont_compile', { reason: t(win, 'tw_utility_reason_empty') });
 
-    return;
+    return false;
   }
 
   // The rule in the preview now; the build takes seconds.
@@ -146,7 +150,7 @@ async function store(win, name, raws) {
     paintUtilities(docs, [], '');
     toast(win, 'error', 'tw_utility_failed');
 
-    return;
+    return false;
   }
 
   // The dock's Tailwind forgets the theme it kept, before the tag changes: the
@@ -171,6 +175,8 @@ async function store(win, name, raws) {
     left.length ? 'tw_utility_saved_left' : 'tw_utility_saved',
     { name, names: left.join(' ') }
   );
+
+  return true;
 }
 
 /** The CSS pane's Utility button, in Tailwind mode: the tag's classes, named. */
@@ -204,7 +210,7 @@ export function saveTwUtility(win) {
     saveLabel: t(win, 'tw_utility_create'),
     onOk: (name) => {
       overlay.dismiss();
-      void store(win, String(name || '').trim(), picked.raws);
+      void storeUtility(win, String(name || '').trim(), picked.raws);
     },
   });
 }

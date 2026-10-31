@@ -21,6 +21,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
+import BuildClassTarget from './BuildClassTarget.vue';
 import BuildSpacingBox from './BuildSpacingBox.vue';
 import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
@@ -346,6 +347,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  port.classes.edit('');
   barSize.disconnect();
   root.value.parentElement.style.scrollPaddingTop = '';
 });
@@ -369,10 +371,7 @@ function jump(group) {
 <template>
   <div ref="root" class="fg-style">
     <div ref="bar" class="fg-top">
-      <div class="fg-seg fg-target">
-        <button type="button" aria-pressed="true"><span v-html="ic('cursor')"></span>{{ port.t('this_element') }}</button>
-        <button type="button" disabled><span v-html="ic('plus')"></span>{{ port.t('own_class') }} <i class="bm-soon">{{ port.t('later') }}</i></button>
-      </div>
+      <BuildClassTarget />
 
       <div class="fg-seg fg-sizes" data-sve-build-sizes>
         <button
@@ -767,7 +766,6 @@ function jump(group) {
       <div class="fg-sec__b">
         <TwClassList />
         <p class="fg-hint">{{ port.t('classes_note') }}</p>
-        <p class="bm-legend"><i class="bm-soon">{{ port.t('later') }}</i> {{ port.t('legend') }}</p>
       </div>
     </section>
   </div>

@@ -90,6 +90,7 @@ import {
   twOpenAddMenu,
   twOpenValueMenu,
   twPickedClasses,
+  twRefresh,
   twSetClass,
   twSetFieldClass,
   twSetTag,
@@ -100,10 +101,12 @@ import {
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
+import { readClassAttr } from '../tw-parse.js';
 import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { rootFor, rootOf } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
+import { createClassTarget } from './class-target.js';
 import { isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
@@ -280,7 +283,11 @@ export function createEditorPort(win, hooks = {}) {
   const unhooks = [
     on('dock:html-changed', bump),
     on('tw:changed', bump),
-    on('lp:device', bump),
+    // The pane's list follows the size even with the dock out of sight: it is what Style's Classes shows.
+    on('lp:device', () => {
+      twRefresh(win);
+      bump();
+    }),
     hooks.onSelect?.(follow),
     listen(win.document, 'click', (event) => {
       // A row of the HTML tree clicked: the element, as a click on the canvas.
@@ -317,6 +324,26 @@ export function createEditorPort(win, hooks = {}) {
   };
   const rows = () => breakpoints(win);
   const strings = () => win.Statamic?.$config?.get?.('sveBuildStrings') || {};
+  // The class value in the file, whatever the pane is working on (a utility, with `Class`).
+  const tagClasses = () => {
+    const node = picked();
+    const attr = node && !node.kind ? readClassAttr(html(), node.from, node.openTo) : null;
+
+    return attr ? attr.value : '';
+  };
+  const classes = createClassTarget(win, {
+    tagClasses,
+    changed: bump,
+    isTailwind(name) {
+      if (!model) {
+        wantModel();
+
+        return false;
+      }
+
+      return model.catalog.has(name) || !!model.catalog.resolve(name);
+    },
+  });
 
   const port = {
     rev,
@@ -866,6 +893,8 @@ export function createEditorPort(win, hooks = {}) {
     setFieldClass: (name, own) => twSetFieldClass(win, name, own),
     /** A value field's menu — a scale, or a group named by hand: the pane's popover, search and preview, written as the field writes. */
     openValueMenu: (anchor, options) => twOpenValueMenu(win, anchor, options),
+    /* Class: a utility in site.css, on the element, edited here (class-target.js) */
+    classes,
     /** The Tailwind pane's + (every class Tailwind has, and the site's own) and its sort, on the same list. */
     openAddMenu: (anchor) => twOpenAddMenu(win, anchor),
     sortClasses: () => twSortClasses(win),

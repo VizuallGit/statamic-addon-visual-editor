@@ -375,6 +375,19 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
 
     /* Classes — tw-classes.js's rules, on the catalog above */
     propertyOf,
+    classes: {
+      enabled: () => false,
+      names: () => [],
+      onTag: () => [],
+      target: () => '',
+      edit() {},
+      add() {},
+      create: () => Promise.resolve(false),
+      problem: () => '',
+      picked: () => 0,
+      empty: () => false,
+      ownCss: () => false,
+    },
     utilityRoot: (name) => rootFor(name),
     utilityNames: () => [],
     openAddMenu() {},

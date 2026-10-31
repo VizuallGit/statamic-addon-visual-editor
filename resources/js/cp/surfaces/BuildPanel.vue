@@ -696,6 +696,18 @@ onBeforeUnmount(() => {
 .sve-build .fg-seg button:disabled { cursor: default; }
 .sve-build .fg-seg .bm-ic, .sve-build .fg-seg svg { width: 0.9375rem; height: 0.9375rem; }
 .sve-build .fg-target button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; box-shadow: none; }
+.sve-build .fg-target { flex-wrap: wrap; }
+.sve-build .fg-target button { flex: 1 1 30%; }
+.sve-build .fg-target__class span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--bm-mono); font-size: 0.6875rem; }
+.sve-build .fg-target__note { color: var(--bm-accent-text); }
+.sve-build .fg-classpick { display: grid; gap: 0.35rem; padding: 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); }
+.sve-build .fg-classpick input { width: 100%; height: 1.75rem; padding: 0 0.45rem; border-radius: 0.25rem; background: var(--bm-bg); border: 1px solid var(--bm-line); color: var(--bm-ink); font: 450 0.75rem var(--bm-mono); outline: 0; }
+.sve-build .fg-classpick input:focus { border-color: var(--bm-accent); }
+.sve-build .fg-classpick__new { display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.35rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.6875rem; font-weight: 600; text-align: start; }
+.sve-build .fg-classpick__new .bm-ic { width: 0.875rem; height: 0.875rem; }
+.sve-build .fg-classpick__rows { display: grid; max-height: 10rem; overflow-y: auto; }
+.sve-build .fg-classpick__rows button { padding: 0.25rem 0.35rem; border-radius: 0.25rem; color: var(--bm-ink); font: 450 0.6875rem var(--bm-mono); text-align: start; }
+.sve-build .fg-classpick__rows button:hover { background: var(--bm-hover); }
 .sve-build .fg-line { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
 .sve-build .fg-line > :first-child { flex: 1; min-width: 0; }
 .sve-build .fg-sizes button { padding: 0 0.2rem; font-size: 0.6875rem; }
@@ -741,6 +753,8 @@ onBeforeUnmount(() => {
 .sve-build .fg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .sve-build .fg-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; align-items: start; }
 .sve-build .fg-cols > div { display: grid; gap: 0.5rem; align-content: start; }
+/* The asset field arrives from the server: its room is kept, so what is below it does not jump and a family jumped to lands where it should. */
+.sve-build [data-sve-build-bg-image] { min-height: 5rem; }
 .sve-build .fg-cell { display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
 .sve-build .fg-cell.is-wide { grid-column: 1 / -1; }
 .sve-build .fg-seg span { display: inline-flex; font-size: 0.6875rem; }

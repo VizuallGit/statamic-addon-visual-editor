@@ -691,6 +691,10 @@ function resolveComponentParam(win) {
 
 /** The class attribute as it stands right now — `''` when the tag has none. */
 function currentValue() {
+  if (classTarget && node) {
+    return { html: '', value: classTarget.value };
+  }
+
   const html = ask('dock:html');
 
   if (!node || typeof html !== 'string') {
@@ -738,6 +742,14 @@ function resyncNode(html) {
 }
 
 function commit(win, html, nextValue) {
+  if (classTarget) {
+    classTarget.value = nextValue;
+    classTarget.write(nextValue);
+    render(win);
+
+    return;
+  }
+
   const call = node.component ? componentCall(html) : null;
   const next = node.component
     ? call ? writeCallParam(html, call, node.param, nextValue) : html
@@ -1082,6 +1094,12 @@ function keepPreview(win) {
 }
 
 function sendPreview(win, detail) {
+  if (classTarget && typeof detail?.value === 'string') {
+    win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail: { ...detail, value: classTarget.preview(detail.value) } }));
+
+    return;
+  }
+
   // A call's classes land on whatever its component renders, which the HTML
   // caret — in the tag around the call — does not point at. The paint script
   // finds those elements from the call itself (dock-instant-preview.js
@@ -1288,6 +1306,26 @@ export function twHasNode() {
 
 export function twVariant() {
   return variantKey();
+}
+
+/**
+ * What the pane reads and writes instead of the tag's class attribute: Build's
+ * `Class` (build-mode/class-target.js), the classes a utility is made of. The
+ * pane's reading and writing all pass `currentValue` and `commit`, so every
+ * menu, chip and tool works on it unchanged. `{ value, write(value),
+ * preview(value) }`, or null for the tag again.
+ */
+let classTarget = null;
+
+/** The pane's list drawn again: for a reader with no host of its own (Build's Style). */
+export function twRefresh(win) {
+  render(win);
+}
+
+export function twSetClassTarget(win, target) {
+  classTarget = target;
+  closeTwMenu(win);
+  render(win);
 }
 
 /** A size picked, not All: the base size writes no variant, so `twVariant` cannot tell Desktop from All. */

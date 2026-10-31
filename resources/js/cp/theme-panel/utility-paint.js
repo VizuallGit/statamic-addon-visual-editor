@@ -94,9 +94,11 @@ const kind = (rule) => rule?.constructor?.name || '';
 export function siteLinks(doc) {
   return [...doc.querySelectorAll('link[rel~="stylesheet"][href]')].filter((link) => {
     try {
-      const url = new URL(link.getAttribute('href'), doc.baseURI);
+      const base = new URL(doc.baseURI);
+      const url = new URL(link.getAttribute('href'), base);
 
-      return url.origin === doc.defaultView.location.origin && /^\/build\/assets\/[^/]+\.css$/.test(url.pathname);
+      // The base, not `location`: Build's canvas is a srcdoc frame, whose location has no origin to compare.
+      return url.origin === base.origin && /^\/build\/assets\/[^/]+\.css$/.test(url.pathname);
     } catch {
       return false;
     }

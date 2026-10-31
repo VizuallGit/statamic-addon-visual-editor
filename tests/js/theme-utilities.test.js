@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyClasses,
   bodyProblem,
+  bodyWithClasses,
   bodyProperties,
   compilerCss,
   readUtilities,
@@ -139,4 +141,19 @@ test('paint: the class a built rule is for, and the utility it is made of', asyn
   assert.ok(!belongsTo('card-title', 'card'));
   assert.ok(belongsTo('md:tab-4', 'tab-*'));
   assert.ok(!belongsTo('tab-', 'tab-*'));
+});
+
+test('applyClasses: what the utility applies, top level only', () => {
+  assert.equal(applyClasses('@apply p-4 bg-white;\n@apply underline;'), 'p-4 bg-white underline');
+  assert.equal(applyClasses('color: red;\n&:hover { @apply underline; }'), '');
+  assert.equal(applyClasses(''), '');
+});
+
+test('bodyWithClasses: one @apply, everything else stays', () => {
+  assert.equal(bodyWithClasses('', 'p-4'), '@apply p-4;');
+  assert.equal(bodyWithClasses('@apply p-4;', 'p-8  italic'), '@apply p-8 italic;');
+  assert.equal(bodyWithClasses('@apply p-4;\ncolor: red;\n@apply underline;', 'p-8'), '@apply p-8;\ncolor: red;');
+  assert.equal(bodyWithClasses('color: red;', 'p-8'), '@apply p-8;\ncolor: red;');
+  assert.equal(bodyWithClasses('&:hover { @apply underline; }', 'p-8'), '@apply p-8;\n&:hover { @apply underline; }');
+  assert.equal(bodyWithClasses('@apply p-4;\ncolor: red;', ''), 'color: red;');
 });
