@@ -37,6 +37,7 @@ import {
   splitUtility,
   writeClassValue,
 } from './tw-parse.js';
+import { coveredBy } from './tw-covered.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
@@ -968,6 +969,27 @@ function variantChips(value) {
  * What `twSetClass` would write: same family, same slot — `p-400` replaces
  * `p-800` — and the class already there is toggled off.
  */
+/**
+ * `value` without the padding, margin and gap classes `name`, just written,
+ * leaves with nothing to do: at the size and state being edited, as the rest of
+ * a write is. A class marked `!` wins by itself, so it neither goes nor counts.
+ */
+function withoutCovered(value, name) {
+  const base = splitClass(name).base;
+  const chips = variantChips(value).filter((chip) => !chip.important);
+  const gone = new Set(chips.some((chip) => chip.name === base) ? coveredBy(chips.map((chip) => chip.name), base) : []);
+  let next = value;
+
+  chips
+    .filter((chip) => gone.has(chip.name))
+    .sort((a, b) => b.from - a.from)
+    .forEach((chip) => {
+      next = replaceToken(next, chip, '');
+    });
+
+  return next;
+}
+
 function setClassValueWith(value, name) {
   const slot = slotOf(name);
   const existing = variantChips(value).find(
@@ -979,15 +1001,15 @@ function setClassValueWith(value, name) {
   }
 
   if (existing) {
-    return replaceToken(value, existing, buildClass({
+    return withoutCovered(replaceToken(value, existing, buildClass({
       variants: existing.variants,
       name,
       modifier: existing.modifier,
       important: existing.important,
-    }));
+    })), name);
   }
 
-  return appendToken(value, buildClass({ variants: variantList(), name, modifier: '', important: '' }));
+  return withoutCovered(appendToken(value, buildClass({ variants: variantList(), name, modifier: '', important: '' })), name);
 }
 
 export function twSetClass(win, name) {
@@ -1577,7 +1599,7 @@ function fieldValueWith(value, name, own) {
     .sort((a, b) => b.from - a.from);
 
   if (!hits.length) {
-    return name ? classValueWith(value, name).value : value;
+    return name ? withoutCovered(classValueWith(value, name).value, name) : value;
   }
 
   const prefix = variantKey();
@@ -1588,7 +1610,7 @@ function fieldValueWith(value, name, own) {
     next = replaceToken(next, chip, index === hits.length - 1 ? raw : '');
   });
 
-  return next;
+  return name ? withoutCovered(next, name) : next;
 }
 
 /** A value field's class written straight — a drag on Spacing's box — in the place of `own` (a raw), as its menu's pick is. */

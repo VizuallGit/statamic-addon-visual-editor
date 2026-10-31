@@ -22,6 +22,7 @@ import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
 import BuildClassTarget from './BuildClassTarget.vue';
+import { useFitRow } from './fit-row.js';
 import BuildSpacingBox from './BuildSpacingBox.vue';
 import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
@@ -74,6 +75,12 @@ const sizes = computed(() => {
   return [{ handle: null, label: port.t('size_all'), icon: 'all' }, ...port.sizes()];
 });
 const sizeNow = computed(() => (port.rev.value, port.size()));
+// The row is one line: the sizes it has no room for are under its ⋯.
+const sizeRow = ref(null);
+const sizeMoreBtn = ref(null);
+const sizeMorePanel = ref(null);
+const sizeFit = useFitRow(sizeRow, sizeMoreBtn, sizeMorePanel);
+const sizesOut = computed(() => (sizeFit.hidden.value ? sizes.value.slice(-sizeFit.hidden.value) : []));
 const stateNow = computed(() => (port.rev.value, port.state()));
 const deviceIcon = (name) => (name === 'all' ? ic('sidesAll') : port.lists.deviceIcons?.[name] || '');
 
@@ -374,15 +381,41 @@ function jump(group) {
       <BuildClassTarget />
 
       <div class="fg-seg fg-sizes" data-sve-build-sizes>
+        <div ref="sizeRow" class="fg-fit">
+          <button
+            v-for="row in sizes"
+            :key="row.handle || 'all'"
+            type="button"
+            :aria-pressed="sizeNow === row.handle"
+            :title="row.label"
+            :data-sve-build-size="row.handle || 'all'"
+            @click="port.setSize(row.handle)"
+          ><span v-if="row.handle" v-html="deviceIcon(row.icon)"></span><span>{{ row.label }}</span></button>
+        </div>
         <button
-          v-for="row in sizes"
-          :key="row.handle || 'all'"
+          ref="sizeMoreBtn"
           type="button"
-          :aria-pressed="sizeNow === row.handle"
-          :title="row.label"
-          :data-sve-build-size="row.handle || 'all'"
-          @click="port.setSize(row.handle)"
-        ><span v-html="deviceIcon(row.icon)"></span><span>{{ row.label }}</span></button>
+          class="fg-more"
+          style="display: none"
+          :aria-expanded="sizeFit.open.value"
+          :aria-pressed="sizesOut.some((row) => row.handle === sizeNow)"
+          :aria-label="port.t('sizes_more')"
+          :title="port.t('sizes_more')"
+          data-sve-build-sizes-more
+          @click="sizeFit.toggle"
+        >⋯</button>
+      </div>
+      <div v-if="sizeFit.open.value" ref="sizeMorePanel" class="fg-classpick" data-sve-build-sizes-list>
+        <div class="fg-classpick__rows">
+          <button
+            v-for="row in sizesOut"
+            :key="row.handle"
+            type="button"
+            :aria-pressed="sizeNow === row.handle"
+            :data-sve-build-size="row.handle"
+            @click="port.setSize(row.handle); sizeFit.toggle()"
+          ><span class="fg-more__icon" v-html="deviceIcon(row.icon)"></span>{{ row.label }}</button>
+        </div>
       </div>
       <div class="fg-line">
         <p class="fg-hint" v-html="sizeHint"></p>

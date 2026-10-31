@@ -446,7 +446,7 @@ onBeforeUnmount(() => {
 .sve-build .bm-cats button[aria-pressed='true'] { background: var(--bm-comp-bg); color: var(--bm-comp); }
 
 /* Tabs and scroll */
-/* Add | Style: a light grey track, the open tab in the blue of Style's "This element" (`.fg-target`). */
+/* Add | Style: a light grey track, the open tab in the blue of a class open in Style (`.fg-target`). */
 .sve-build .bm-tabs { display: flex; flex: none; gap: 0.1875rem; margin: 0.625rem 0.75rem 0; padding: 0.15rem; border-radius: 0.375rem; background: var(--bm-raise); }
 .sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.375rem 0; border-radius: 0.28rem; color: var(--bm-muted); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
 .sve-build .bm-tabs .bm-ic, .sve-build .bm-tabs svg { width: 0.875rem; height: 0.875rem; }
@@ -709,12 +709,23 @@ onBeforeUnmount(() => {
 .sve-build .fg-seg button:disabled { cursor: default; }
 .sve-build .fg-seg .bm-ic, .sve-build .fg-seg svg { width: 0.9375rem; height: 0.9375rem; }
 .sve-build .fg-target button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; box-shadow: none; }
-.sve-build .fg-target { flex-wrap: wrap; }
-.sve-build .fg-target > button { flex: 1 1 30%; }
-.sve-build .fg-target__item { display: flex; flex: 1 1 30%; min-width: 0; }
-.sve-build .fg-target__item .fg-target__class { flex: 1 1 auto; min-width: 0; }
+.sve-build .fg-target { align-items: center; }
+.sve-build .fg-target__label { flex: none; padding-inline: 0.35rem; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 500; }
+.sve-build .fg-target__item { display: flex; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.sve-build .fg-target__item .fg-target__class { flex: 0 1 auto; min-width: 0; font-family: var(--bm-mono); }
 .sve-build .fg-target__off { flex: 0 0 1.25rem; padding: 0; color: var(--bm-ink-3, inherit); }
 .sve-build .fg-target__off:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .fg-target__done { flex: none; margin-inline-start: auto; padding-inline: 0.6rem; color: var(--bm-ink); }
+.sve-build .fg-seg > .fg-target__add { flex: 0 0 1.5rem; padding: 0; }
+.sve-build .fg-seg > .fg-more { flex: 0 0 1.5rem; padding: 0; white-space: nowrap; }
+.sve-build .fg-target > .fg-more { flex: 0 0 auto; padding-inline: 0.35rem; }
+.sve-build .fg-fit { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 0.125rem; min-width: 0; height: 1.5rem; overflow: hidden; }
+.sve-build .fg-more__icon { display: inline-flex; flex: none; margin-inline-end: 0.35rem; vertical-align: middle; }
+.sve-build .fg-more__icon svg { width: 0.75rem; height: 0.75rem; }
+.sve-build .fg-classpick__rows button { display: flex; align-items: center; }
+.sve-build .fg-classpick__rows button[aria-pressed='true'] { color: var(--bm-accent-text); }
+.sve-build .fg-classpick__item { display: flex; align-items: center; }
+.sve-build .fg-classpick__item > button:first-child { flex: 1 1 auto; min-width: 0; }
 .sve-build .fg-target__lock { display: inline-flex; flex: none; margin-inline-end: 0.25rem; vertical-align: middle; }
 .sve-build .fg-target__lock .bm-ic { width: 0.75rem; height: 0.75rem; }
 .sve-build .fg-target__class span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--bm-mono); font-size: 0.6875rem; }
@@ -729,7 +740,7 @@ onBeforeUnmount(() => {
 .sve-build .fg-classpick__rows button:hover { background: var(--bm-hover); }
 .sve-build .fg-line { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
 .sve-build .fg-line > :first-child { flex: 1; min-width: 0; }
-.sve-build .fg-sizes button { padding: 0 0.2rem; font-size: 0.6875rem; }
+.sve-build .fg-sizes .fg-fit button { flex: 1 0 auto; padding-inline: 0.625rem; font-size: 0.6875rem; }
 .sve-build .fg-sizes button span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .sve-build .fg-sizes button span:first-child { display: inline-flex; flex: none; }
 .sve-build .fg-sizes svg { width: 0.75rem; height: 0.75rem; }

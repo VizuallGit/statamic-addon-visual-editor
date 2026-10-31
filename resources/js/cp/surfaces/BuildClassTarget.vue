@@ -1,13 +1,16 @@
 <script setup>
 /**
- * What Style writes on: this element, or a class it carries. A class is a
- * Tailwind utility in site.css (build-mode/class-target.js), the same as the
- * dock's Utility button makes, so a change reaches every element with it.
- * `+ Class` finds one of the site's, or names a new one. A locked class goes
- * on and off the element, and Style goes on writing on the element.
+ * The site's classes on the element, on one line. A class is a Tailwind utility
+ * in site.css (build-mode/class-target.js), the same as the dock's Utility
+ * button makes. Style writes Tailwind classes on the element, unless a class is
+ * open here: then it writes in that class, so a change reaches every element
+ * with it, until Done. `+` finds one of the site's, or names a new one. A locked
+ * class goes on and off the element, and never opens. What the line has no room
+ * for is under its ⋯.
  */
 import { computed, inject, nextTick, ref, watch } from 'vue';
 import { ic } from '../../build-mode/icons.js';
+import { useFitRow } from './fit-row.js';
 
 const port = inject('sveBuild');
 const open = ref(false);
@@ -15,10 +18,15 @@ const typed = ref('');
 const input = ref(null);
 // The locked class last clicked, so the panel can say why it does not open.
 const lockedTold = ref('');
+const row = ref(null);
+const moreBtn = ref(null);
+const morePanel = ref(null);
+const fit = useFitRow(row, moreBtn, morePanel);
 
 const classes = computed(() => (port.rev.value, port.classes.onTag()));
 const target = computed(() => (port.rev.value, port.classes.target()));
 const query = computed(() => typed.value.trim());
+const classesOut = computed(() => (fit.hidden.value ? classes.value.slice(-fit.hidden.value) : []));
 
 const rows = computed(() => {
   port.rev.value;
@@ -50,20 +58,25 @@ function pick(name) {
 }
 
 function choose(name) {
+  fit.open.value = false;
+
   if (port.classes.locked(name)) {
-    port.classes.edit('');
     lockedTold.value = name;
 
     return;
   }
 
   lockedTold.value = '';
-  port.classes.edit(target.value === name ? '' : name);
+  port.classes.edit(name);
 }
 
 function takeOff(name) {
   lockedTold.value = '';
   port.classes.remove(name);
+}
+
+function done() {
+  port.classes.edit('');
 }
 
 async function create() {
@@ -92,21 +105,47 @@ watch(classes, (now) => {
 </script>
 
 <template>
-  <div class="fg-seg fg-target" data-sve-build-target>
-    <button type="button" :aria-pressed="!target" data-sve-build-target-element @click="port.classes.edit('')"><span v-html="ic('cursor')"></span>{{ port.t('this_element') }}</button>
-    <span v-for="name in classes" :key="name" class="fg-target__item">
-      <button
-        type="button"
-        class="fg-target__class"
-        :aria-pressed="target === name"
-        :title="port.classes.locked(name) ? port.t('class_locked_title', { name }) : name"
-        :data-sve-build-target-class="name"
-        :data-sve-build-class-locked="port.classes.locked(name) ? '' : undefined"
-        @click="choose(name)"
-      ><span v-if="port.classes.locked(name)" class="fg-target__lock" v-html="ic('lock')"></span><span>{{ name }}</span></button>
-      <button type="button" class="fg-target__off" :title="port.t('class_take_off', { name })" :aria-label="port.t('class_take_off', { name })" :data-sve-build-class-off="name" @click="takeOff(name)">−</button>
-    </span>
-    <button type="button" :aria-expanded="open" :disabled="!port.classes.enabled()" :title="port.classes.enabled() ? port.t('own_class') : port.t('tw_utility_no_site_css')" data-sve-build-class-add @click="toggle"><span v-html="ic('plus')"></span>{{ port.t('own_class') }}</button>
+  <div v-if="target" class="fg-seg fg-target" data-sve-build-target>
+    <button type="button" class="fg-target__class" aria-pressed="true" :title="target" :data-sve-build-target-class="target" @click="done"><span>{{ target }}</span></button>
+    <button type="button" class="fg-target__done" data-sve-build-class-done @click="done">{{ port.t('class_done') }}</button>
+  </div>
+
+  <div v-else class="fg-seg fg-target" data-sve-build-target>
+    <span class="fg-target__label">{{ port.t('class_row') }}</span>
+    <div ref="row" class="fg-fit">
+      <span v-for="name in classes" :key="name" class="fg-target__item">
+        <button
+          type="button"
+          class="fg-target__class"
+          :title="port.classes.locked(name) ? port.t('class_locked_title', { name }) : name"
+          :data-sve-build-target-class="name"
+          :data-sve-build-class-locked="port.classes.locked(name) ? '' : undefined"
+          @click="choose(name)"
+        ><span v-if="port.classes.locked(name)" class="fg-target__lock" v-html="ic('lock')"></span><span>{{ name }}</span></button>
+        <button type="button" class="fg-target__off" :title="port.t('class_take_off', { name })" :aria-label="port.t('class_take_off', { name })" :data-sve-build-class-off="name" @click="takeOff(name)">−</button>
+      </span>
+    </div>
+    <button
+      ref="moreBtn"
+      type="button"
+      class="fg-more"
+      style="display: none"
+      :aria-expanded="fit.open.value"
+      :aria-label="port.t('class_more')"
+      :title="port.t('class_more')"
+      data-sve-build-class-more
+      @click="fit.toggle"
+    >⋯ {{ fit.hidden.value }}</button>
+    <button type="button" class="fg-target__add" :aria-expanded="open" :disabled="!port.classes.enabled()" :title="port.classes.enabled() ? port.t('class_add') : port.t('tw_utility_no_site_css')" :aria-label="port.t('class_add')" data-sve-build-class-add @click="toggle"><span v-html="ic('plus')"></span></button>
+  </div>
+
+  <div v-if="fit.open.value && !target" ref="morePanel" class="fg-classpick" data-sve-build-class-more-list>
+    <div class="fg-classpick__rows">
+      <span v-for="name in classesOut" :key="name" class="fg-classpick__item">
+        <button type="button" :title="port.classes.locked(name) ? port.t('class_locked_title', { name }) : name" :data-sve-build-more-class="name" @click="choose(name)"><span v-if="port.classes.locked(name)" class="fg-target__lock" v-html="ic('lock')"></span>{{ name }}</button>
+        <button type="button" class="fg-target__off" :title="port.t('class_take_off', { name })" :aria-label="port.t('class_take_off', { name })" :data-sve-build-more-off="name" @click="takeOff(name)">−</button>
+      </span>
+    </div>
   </div>
 
   <div v-if="open" class="fg-classpick" data-sve-build-class-pick>
