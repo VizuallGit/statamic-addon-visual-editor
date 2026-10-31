@@ -145,7 +145,7 @@
  * `__sveBand` that nothing has written since 5 Oct 2026, and without one by
  * the real viewport, as in one preview — idle.
  */
-import { ask, emit } from './cp/bus.js';
+import { ask, emit, on } from './cp/bus.js';
 import { bpForDevice, bpFromWidth, breakpoints } from './breakpoints.js';
 import { chromeGet } from './chrome-prefs.js';
 import { sveState } from './cp-state.js';
@@ -1172,6 +1172,8 @@ function bindMain(main) {
     }
   };
   const onScroll = () => onMemberScroll(mainWin, overviewState.mainScroll);
+  // In Build the canvas takes a card's drag and no ext-drag-start comes here.
+  const stopLifted = on('build-canvas:card-lifted', revealActive);
 
   overviewState.mainScroll.expectTop = null;
   doc.addEventListener('wheel', onPreviewWheel, { passive: false });
@@ -1182,6 +1184,8 @@ function bindMain(main) {
   mainWin.addEventListener('sve:inline-edit-end', onInlineEditEnd);
 
   overviewState.unbindMain = () => {
+    stopLifted();
+
     try {
       doc.removeEventListener('wheel', onPreviewWheel, { passive: false });
       mainWin.removeEventListener('message', onMessage);

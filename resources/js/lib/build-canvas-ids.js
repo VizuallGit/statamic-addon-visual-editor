@@ -12,3 +12,5 @@
 export const BUILD_CANVAS_ID = '__sve-build-canvas';
 export const BUILD_CANVAS_UNSTYLED_ATTR = 'data-sve-build-unstyled';
 export const BUILD_CANVAS_SHOWN_EVENT = 'sve:build-canvas-shown';
+/** The columns Build draws over the canvas, in the Control Panel (columns-overlay.js). */
+export const BUILD_COLUMNS_LAYER_ID = '__sve-build-columns';
