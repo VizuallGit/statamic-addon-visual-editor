@@ -107,6 +107,9 @@ import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectio
 import { rootFor, rootOf } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { createClassTarget } from './class-target.js';
+import { previewFrame } from '../lib/preview-frame.js';
+import { armElementPick, cancelComponentBind, disarmComponentBind } from '../component-bind.js';
+import { htmlTreeUi } from '../cp/html-tree/store.js';
 import { isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
@@ -424,6 +427,10 @@ export function createEditorPort(win, hooks = {}) {
     /** Which side of the panel shows; Escape lets go of the element when it is the one shown. */
     panel,
     escape() {
+      if (cancelComponentBind(win)) {
+        return true;
+      }
+
       if (panel.value !== 'element' || !picked()) {
         return false;
       }
@@ -893,6 +900,68 @@ export function createEditorPort(win, hooks = {}) {
     setFieldClass: (name, own) => twSetFieldClass(win, name, own),
     /** A value field's menu — a scale, or a group named by hand: the pane's popover, search and preview, written as the field writes. */
     openValueMenu: (anchor, options) => twOpenValueMenu(win, anchor, options),
+    /**
+     * A write that also changes tags before the picked element, so it starts
+     * somewhere else: the tree stands on what starts there (`keepPickAt`), and
+     * the Tailwind pane's offsets move with it.
+     */
+    writeMoved(next, path) {
+      const roots = parseTemplateTree(next);
+      const node = findByPath(roots, path);
+
+      if (node) {
+        hooks.keepPickAt?.(node.from);
+      }
+
+      const written = port.write(next, { select: path });
+
+      if (written !== false) {
+        renderTwClasses(win, flattenHtmlTree(parseHtmlTree(next), new Set()).find((item) => item.path === path) || null);
+      }
+
+      return written;
+    },
+    /**
+     * The next time the real preview has rendered, Alpine starts over on the
+     * components holding `name`. A switch and what follows it arrive in one
+     * morph, and Alpine reads the x-show before the x-data above it is running:
+     * `open` is then `window.open`, and the toggle has nothing to move. On a
+     * page that had no Alpine when it loaded there is nothing to start.
+     */
+    startAlpine(name) {
+      const real = previewFrame(win)?.contentWindow;
+
+      real?.addEventListener(
+        'statamic:preview-updated',
+        () => {
+          const alpine = real.Alpine;
+
+          if (!alpine) {
+            port.toast('info', 'action_reload');
+
+            return;
+          }
+
+          [...real.document.querySelectorAll('[x-data]')]
+            .filter((el) => (el.getAttribute('x-data') || '').includes(name))
+            .forEach((el) => {
+              alpine.destroyTree(el);
+              alpine.initTree(el);
+            });
+          bump();
+        },
+        { once: true }
+      );
+    },
+    /* Action: an element pointed at, as a prop's target is; the tree's rows with a switch, and their toggle */
+    pickElement: (onPath, onCancel) => armElementPick(win, onPath, onCancel),
+    cancelElementPick: () => disarmComponentBind(win),
+    alpineRows: (paths) => htmlTreeUi.rows.filter((row) => row.alpineNth >= 0 && paths.includes(row.path)),
+    flipAlpine: (event, id) => htmlTreeUi.onAlpineState?.(event, id),
+    toast(kind, key) {
+      win.Statamic?.$toast?.[kind]?.(port.t(key));
+    },
+
     /* Class: a utility in site.css, on the element, edited here (class-target.js) */
     classes,
     /** The Tailwind pane's + (every class Tailwind has, and the site's own) and its sort, on the same list. */

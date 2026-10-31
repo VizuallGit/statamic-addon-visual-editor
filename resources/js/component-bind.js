@@ -41,14 +41,27 @@ function watchEscape(win) {
       return;
     }
 
-    const done = armed.onChange;
-
-    disarmComponentBind(win);
-    done?.();
+    // The Escape is the target's: it does not also let go of the element picked.
+    event.stopPropagation();
+    cancelComponentBind(win);
   };
 
   win.document.addEventListener('keydown', onKey, true);
   unkey = () => win.document.removeEventListener('keydown', onKey, true);
+}
+
+/** The target put away, as Escape does; true when there was one. Build's canvas has its own keys and asks here first. */
+export function cancelComponentBind(win) {
+  if (!armed) {
+    return false;
+  }
+
+  const done = armed.onChange;
+
+  disarmComponentBind(win);
+  done?.();
+
+  return true;
 }
 
 /**
@@ -81,6 +94,24 @@ export function armComponentBind(win, prop, onChange) {
     .catch(() => {});
 }
 
+/**
+ * Point at an element for something that is not a prop: Build's Action picking
+ * what follows a click. The same click, Escape and tree row as a prop's target.
+ * `onPath(path)` answers false to stay armed; `onCancel` is Escape.
+ */
+export function armElementPick(win, onPath, onCancel) {
+  disarmComponentBind(win);
+  armed = { handle: '@element', onPath, onChange: onCancel };
+  watchEscape(win);
+  void import('./html-tree.js')
+    .then(() => {
+      if (armed?.onPath === onPath) {
+        ask('html-tree:arm-pick', true);
+      }
+    })
+    .catch(() => {});
+}
+
 export function disarmComponentBind(win) {
   if (!armed) {
     return;
@@ -105,6 +136,14 @@ export function disarmComponentBind(win) {
 export function componentBindPick(win, path) {
   if (!armed || !path) {
     return false;
+  }
+
+  if (armed.onPath) {
+    if (armed.onPath(path) !== false) {
+      disarmComponentBind(win);
+    }
+
+    return true;
   }
 
   const prop = armed;

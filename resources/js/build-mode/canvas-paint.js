@@ -43,6 +43,9 @@ export const ISLAND_WAIT = 'sve-island';
 /** On an element the file leaves empty: `box` when it holds others, `text` for a block of text. */
 export const CANVAS_EMPTY = 'data-sve-build-empty';
 
+/** An element `x-cloak` holds back. Its own name: `x-cloak` itself is Alpine's (`inertAttr`), and the canvas runs none. */
+export const CANVAS_CLOAK = 'data-sve-build-cloak';
+
 /** Blocks of text: emptied, they stand on the page with no height of their own. */
 const TEXT_BLOCKS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote', 'figcaption']);
 
@@ -445,6 +448,11 @@ export function paintPlan(plan, { learned = new Map(), served = new Set(), extra
     }
 
     attrs.push(`${CANVAS_PATH}="${el.path}"`);
+
+    // Hidden until Alpine runs, as in the real preview: its Alpine toggle is how it is seen.
+    if (el.attrs.some((attr) => attr.name === 'x-cloak')) {
+      attrs.push(`${CANVAS_CLOAK}=""`);
+    }
 
     if (el.empty) {
       attrs.push(`${CANVAS_EMPTY}="${el.empty}"`);

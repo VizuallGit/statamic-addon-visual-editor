@@ -35,6 +35,7 @@ import { bindTips, hideTip } from '../tip.js';
 import { componentPropsUi } from '../component-props/store.js';
 import BuildAdd from './BuildAdd.vue';
 import BuildComponentInfo from './BuildComponentInfo.vue';
+import BuildAction from './BuildAction.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
 import BuildStyle from './BuildStyle.vue';
@@ -95,7 +96,9 @@ const TAB_KEY = 'sve-build-element-tab';
 
 function readTab() {
   try {
-    return window.localStorage.getItem(TAB_KEY) === 'content' ? 'content' : 'style';
+    const saved = window.localStorage.getItem(TAB_KEY);
+
+    return saved === 'content' || saved === 'action' ? saved : 'style';
   } catch {
     return 'style';
   }
@@ -124,6 +127,7 @@ const TABS = computed(() => {
     return [
       ['content', 'form', 'tab_content'],
       ['style', 'sliders', 'tab_style'],
+      ['action', 'zap', 'tab_action'],
     ];
   }
 
@@ -351,6 +355,7 @@ onBeforeUnmount(() => {
 
       <div ref="scroller" class="bm-scroll">
         <BuildStyle v-if="tab === 'style'" :key="picked.path" :node="picked" />
+        <BuildAction v-else-if="tab === 'action'" :key="`action-${picked.path}`" :node="picked" />
 
         <div v-else-if="!styled" class="bm-content">
           <p v-if="content === 'fields'" class="bm-note is-top" v-html="port.t('fields_note', { path: `<code>partials/components/${picked.label}.antlers.html</code>` })"></p>
@@ -755,6 +760,36 @@ onBeforeUnmount(() => {
 .sve-build .fg-cols > div { display: grid; gap: 0.5rem; align-content: start; }
 /* The asset field arrives from the server: its room is kept, so what is below it does not jump and a family jumped to lands where it should. */
 .sve-build [data-sve-build-bg-image] { min-height: 5rem; }
+.sve-build .fg-action { display: grid; gap: 0.5rem; }
+.sve-build .fg-action code { font-family: var(--bm-mono); font-size: 0.6875rem; color: var(--bm-accent-text); }
+.sve-build .fg-action__list { display: grid; gap: 0.3rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--bm-line); }
+.sve-build .fg-action__row { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.sve-build .fg-action__attr { flex: 1; min-width: 0; display: flex; gap: 0.4rem; padding: 0.3rem 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); text-align: start; }
+.sve-build .fg-action__attr:hover { background: var(--bm-hover); }
+.sve-build .fg-action__attr span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--bm-mono); font-size: 0.6875rem; color: var(--bm-muted); }
+.sve-build .fg-action__row input, .sve-build .fg-action__input { flex: 1; min-width: 0; width: 100%; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid var(--bm-line); color: var(--bm-ink); font: 450 0.75rem var(--bm-mono); outline: 0; }
+.sve-build .fg-action__row input:focus, .sve-build .fg-action__input:focus { border-color: var(--bm-accent); }
+.sve-build .fg-action__state { display: flex; align-items: baseline; gap: 0.4rem; }
+.sve-build .fg-action__on { font-size: 0.6875rem; color: var(--bm-faint); }
+.sve-build .fg-action__when { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; }
+.sve-build .fg-action__when button { display: flex; align-items: center; gap: 0.4rem; min-height: 1.875rem; padding: 0.25rem 0.45rem; border-radius: 0.3rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.6875rem; text-align: start; }
+.sve-build .fg-action__when button:hover { color: var(--bm-ink); }
+.sve-build .fg-action__when button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; }
+.sve-build .fg-action__when .bm-ic { width: 0.9375rem; height: 0.9375rem; }
+.sve-build .fg-action__pick { display: flex; align-items: center; gap: 0.4rem; min-height: 1.875rem; padding: 0 0.5rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px dashed var(--bm-edge); color: var(--bm-muted); font-size: 0.6875rem; text-align: start; }
+.sve-build .fg-action__pick.is-picking { border-color: var(--bm-accent); color: var(--bm-accent-text); }
+.sve-build .fg-action__pick.is-set { border-style: solid; color: var(--bm-ink); font-family: var(--bm-mono); }
+.sve-build .fg-action__pick .bm-ic { width: 0.875rem; height: 0.875rem; }
+.sve-build .fg-action__rows { display: grid; gap: 0.125rem; }
+.sve-build .fg-action__rows button { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; padding: 0.3rem 0.45rem; border-radius: 0.3rem; color: var(--bm-ink); font-size: 0.6875rem; text-align: start; }
+.sve-build .fg-action__rows button:hover { background: var(--bm-hover); }
+.sve-build .fg-action__rows button[aria-pressed='true'] { background: var(--bm-accent-soft); }
+.sve-build .fg-action__rows code { flex: none; color: var(--bm-faint); font-size: 0.625rem; }
+.sve-build .fg-action__names { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.sve-build .fg-action__names button { padding: 0.12rem 0.4rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-muted); font: 450 0.6875rem var(--bm-mono); }
+.sve-build .fg-action__names button[aria-pressed='true'] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+.sve-build .fg-action__add { height: 2rem; border-radius: 0.3rem; background: var(--bm-accent); color: #fff; font-size: 0.75rem; font-weight: 600; }
+.sve-build .fg-action__add:disabled { opacity: 0.4; cursor: default; }
 .sve-build .fg-cell { display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
 .sve-build .fg-cell.is-wide { grid-column: 1 / -1; }
 .sve-build .fg-seg span { display: inline-flex; font-size: 0.6875rem; }

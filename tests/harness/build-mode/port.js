@@ -388,6 +388,15 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
       empty: () => false,
       ownCss: () => false,
     },
+    writeMoved(next, path) {
+      return this.write(next, { select: path });
+    },
+    startAlpine() {},
+    pickElement() {},
+    cancelElementPick() {},
+    alpineRows: () => [],
+    flipAlpine() {},
+    toast() {},
     utilityRoot: (name) => rootFor(name),
     utilityNames: () => [],
     openAddMenu() {},

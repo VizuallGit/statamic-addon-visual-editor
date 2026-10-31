@@ -87,7 +87,7 @@ import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { CANVAS_CLOAK, CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
 import { canvasFocus } from './canvas-focus.js';
@@ -138,6 +138,7 @@ const OWN_CSS = `img[src=""]{display:block!important;min-width:4rem;min-height:6
 [${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
 ${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}
 video:not([controls])::-webkit-media-controls{display:none!important}
+[${CANVAS_CLOAK}]{display:none!important}
 ${UI_CSS}
 ${SECTION_BAR_CSS}`;
 
