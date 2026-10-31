@@ -29,3 +29,14 @@ test('the test asks the same selector the sheet is written with', () => {
   assert.ok(css.base.includes(asked));
   assert.equal(isEmptyMedia(null), false);
 });
+
+test('an image with a file from elsewhere is no empty one', () => {
+  for (const other of ['[srcset]:not([srcset=""])', '[data-src]', '[data-srcset]', 'picture:has(source[srcset]']) {
+    assert.ok(css.base.includes(other), other);
+  }
+});
+
+test('the dashes leave the outline to the editor\'s hover and pick', () => {
+  assert.match(css.own, /border:1px dashed/);
+  assert.doesNotMatch(css.own, /outline/);
+});

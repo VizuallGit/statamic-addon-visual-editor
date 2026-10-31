@@ -135,6 +135,8 @@ export function selectFromPreview(win, data) {
   }
 
   if (!selectionPanelTakes(win, uid)) {
+    browseAsked = null;
+
     return false;
   }
 

@@ -8,10 +8,13 @@
  * own, above Tailwind's reset and below its utilities, so `w-20` or `h-64` win
  * and the reset's `height: auto` does not; `own` is the look, on top. A sheet with
  * `base` must come ahead of the page's, for that order to be the one that counts.
+ * The dashes are a border: the outline is the editor's hover and pick, which draw
+ * over the box.
  *
  * May import: nothing.
  */
-const EMPTY_IMAGE = 'img[src=""],img:not([src])';
+// Not one with a file to come from elsewhere: a srcset, a <picture>'s source, a lazy loader's data-src.
+const EMPTY_IMAGE = 'img:not([src]:not([src=""]),[srcset]:not([srcset=""]),[data-src],[data-srcset],picture:has(source[srcset]:not([srcset=""]),source[data-srcset])>img)';
 const EMPTY_VIDEO = 'video[src=""],video:not([src],:has(source))';
 const EMPTY = `${EMPTY_IMAGE},${EMPTY_VIDEO}`;
 
@@ -41,7 +44,7 @@ export function isEmptyMedia(el) {
 /** The two sheets, in the editor's language: `{ image, video, hint }`. */
 export function mediaPlaceholderCss({ image, video, hint }) {
   const look = (selector, bg) =>
-    `:is(${selector}){background:rgba(56,88,233,.08) ${bg} center/min(100%,13rem) auto no-repeat;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px;color:transparent}`;
+    `:is(${selector}){background:rgba(56,88,233,.08) ${bg} center/min(100%,13rem) auto no-repeat;border:1px dashed rgba(56,88,233,.6);color:transparent}`;
 
   return {
     base: `@layer theme,base,sve-media-base,components,utilities;@layer sve-media-base{:is(${EMPTY}){display:block;width:100%}:is(${EMPTY}):not([class*="aspect-"]){height:10rem}}`,
