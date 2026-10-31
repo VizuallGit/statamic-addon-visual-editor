@@ -12,6 +12,8 @@ const props = defineProps({
   // [{ key, display }] in the order the page-builder fieldset lists them, so
   // the picker reads the way the section library does.
   groups: { type: Array, required: true },
+  // The group selected to start with: the first when not given.
+  startGroup: { type: String, default: '' },
   // A yes/no under the name, when the dialog has one to ask: shown with its
   // label, on to start with. Handed to onOk as the third argument.
   toggleLabel: { type: String, default: '' },
@@ -31,7 +33,7 @@ const props = defineProps({
 
 const name = ref(props.value);
 const groupList = ref([...props.groups]);
-const group = ref(props.groups[0]?.key ?? '');
+const group = ref(props.startGroup || props.groups[0]?.key || '');
 const addingGroup = ref(false);
 const groupName = ref('');
 const groupInput = ref(null);
@@ -104,8 +106,7 @@ onMounted(() =>
 function submit() {
   const value = name.value.trim();
 
-  // A group only where there are groups to choose from — a static section
-  // has none, it is in no library.
+  // A group only where there are groups to choose from.
   if (!value || (groupList.value.length && !group.value) || busy.value) {
     input.value?.focus();
     return;

@@ -96,6 +96,7 @@ import { canvasHold } from './canvas-hold.js';
 import { canvasFields, fieldDomId } from './canvas-fields.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
+import { isEmptyMedia, mediaPlaceholderCss } from '../lib/media-placeholder.js';
 
 const morph = (() => {
   const holder = {};
@@ -127,10 +128,8 @@ const CARD_DROP = 'build-canvas:card-drop';
 /** On the canvas's window after each paint, for what draws over the canvas. */
 export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 
-// The placeholder first: a hover, a pick or a + target draws over its dashes.
 // A video without `controls` wears none: the browser shows its own wherever scripts are off, as on the canvas.
-const OWN_CSS = `img[src=""]{display:block!important;min-width:4rem;min-height:6rem!important;outline:1px dashed rgba(127,127,127,.6);outline-offset:-1px}
-[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
+const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
 [${CANVAS_EMPTY}="text"]{min-height:1.5em!important}
 [${CANVAS_ROOT}][${CANVAS_EMPTY}]{min-height:8rem!important}
 [${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}
@@ -430,9 +429,20 @@ export function startCanvas(win) {
     // After the body, so a morph of the body never meets them and they come
     // last in the cascade — after the page's sheets, as Instant's do.
     const own = page.createElement('style');
+    const strings = win.Statamic?.$config?.get?.('sveBuildStrings') || {};
+    const media = mediaPlaceholderCss({
+      image: strings.canvas_empty_image,
+      video: strings.canvas_empty_video,
+      hint: strings.canvas_empty_hint,
+    });
+    // Ahead of everything: it says where its layer stands among the page's.
+    const mediaBase = page.createElement('style');
 
+    mediaBase.textContent = media.base;
+    page.documentElement.prepend(mediaBase);
     own.id = OWN_CSS_ID;
-    own.textContent = OWN_CSS;
+    // The placeholder first: a hover, a pick or a + target draws over its dashes.
+    own.textContent = `${media.own}\n${OWN_CSS}`;
     twSheet = page.createElement('style');
     twSheet.id = TW_ID;
     page.documentElement.append(twSheet, own);
@@ -1216,6 +1226,8 @@ export function startCanvas(win) {
       }
 
       port.select(path);
+      // An image or a video with no file: the click is for choosing one.
+      port.askBrowse?.(isEmptyMedia(el) ? path : '');
 
       return;
     }

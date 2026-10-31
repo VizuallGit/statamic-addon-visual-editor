@@ -92,8 +92,8 @@ class SectionTypeMaker
      * is not registered and nobody sees it. Registration is last because it is
      * the one step that edits a file the whole site already depends on.
      *
-     * Static: no fieldset, `static: true` on the set, and its group is made
-     * if it is not there yet. `hidden` writes Statamic's own `hide` — the set
+     * Static: no fieldset, `static: true` on the set, in any group; the
+     * static group is made if it is not there yet. `hidden` writes Statamic's own `hide` — the set
      * is kept out of the picker, so an editor cannot insert it; a super admin
      * still can, from the library.
      *
@@ -119,7 +119,7 @@ class SectionTypeMaker
         }
 
         if (! isset($groups[$group])) {
-            if (! $static) {
+            if (! $static || $group !== static::STATIC_GROUP) {
                 return null;
             }
 

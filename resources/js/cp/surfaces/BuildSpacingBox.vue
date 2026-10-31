@@ -4,7 +4,8 @@
  * beside the Figma fields (BuildBoxFields.vue) — Spacing shows one of the two
  * (BuildStyle.vue). Padding | margin are tabs, so one box is shown at a time;
  * the button beside them goes round which sides move together: each alone,
- * top and bottom, left and right, all four (`nextLink`). A trapezoid per side
+ * top and bottom, left and right, all four (`nextLink`). Its icon is the four
+ * sides, the ones moving together lit (`.bm-sp-sides`). A trapezoid per side
  * holds its value where the side is; top and bottom stay a step darker than the
  * sides, tinted or not, and a side with its own value is tinted (the input
  * holds a value, not a placeholder — the sketch's `:has()` rule, BuildPanel.vue
@@ -22,7 +23,6 @@ import { computed, inject, ref } from 'vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { SIDES, nextLink, sideFallbackTools, sideTool } from '../../build-mode/classes.js';
 import { kidsById } from '../../build-mode/catalog.js';
-import { ic } from '../../build-mode/icons.js';
 
 const props = defineProps({
   tools: { type: Object, required: true }, // { padding, margin } CSS_TOOLS entries
@@ -57,13 +57,8 @@ function setUnit(value) {
   }
 }
 
-const LINK_LOOK = {
-  '': { icon: 'sidesApart', title: 'link_title_off' },
-  block: { icon: 'sidesBlock', title: 'link_title_block' },
-  inline: { icon: 'sidesInline', title: 'link_title_inline' },
-  all: { icon: 'sidesAll', title: 'link_title_all' },
-};
-const linkLook = computed(() => LINK_LOOK[link.value]);
+const LINK_TITLE = { '': 'link_title_off', block: 'link_title_block', inline: 'link_title_inline', all: 'link_title_all' };
+const linkTitle = computed(() => LINK_TITLE[link.value]);
 const kids = computed(() => kidsById(props.tools[box.value]));
 const POS = { 'block-start': 't', 'inline-end': 'r', 'block-end': 'b', 'inline-start': 'l' };
 
@@ -105,17 +100,20 @@ const sides = computed(() =>
         @click="setUnit(item)"
       >{{ item }}</button>
     </div>
-    <button
-      type="button"
-      class="bm-ib sm"
-      :class="{ 'is-on': !!link }"
-      :title="port.t(linkLook.title)"
-      :aria-label="port.t(linkLook.title)"
-      :aria-pressed="!!link"
-      :data-sve-build-link="link || 'off'"
-      @click="link = nextLink(link)"
-      v-html="ic(linkLook.icon)"
-    ></button>
+    <div class="bm-seg bm-sp-sides">
+      <button
+        type="button"
+        :title="port.t(linkTitle)"
+        :aria-label="port.t(linkTitle)"
+        :data-sve-build-link="link || 'off'"
+        @click="link = nextLink(link)"
+      >
+        <svg class="bm-ic" viewBox="0 0 24 24" aria-hidden="true">
+          <path :class="{ 'is-lit': link === 'block' || link === 'all' }" d="M8 4h8M8 20h8" />
+          <path :class="{ 'is-lit': link === 'inline' || link === 'all' }" d="M4 8v8M20 8v8" />
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div class="bm-spx" :data-mode="box === 'padding' ? 'p' : 'm'" data-sve-build-spacing-box>

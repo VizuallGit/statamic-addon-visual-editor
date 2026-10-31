@@ -497,76 +497,98 @@ export function libraryStale(win) {
     ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
 }
 
+/** What both dialogs ask of a group: the list, and the plus that adds to it (a new tab in the fieldset, selected at once). */
+function groupPrompt(win, groups) {
+  return {
+    groupLabel: t(win, 'section_new_group'),
+    groups,
+    addGroupLabel: t(win, 'section_new_group_add'),
+    addGroupNameLabel: t(win, 'section_new_group_name'),
+    addGroupPlaceholder: t(win, 'section_new_group_placeholder'),
+    onAddGroup: async (name) => {
+      try {
+        const made = await createGroup(win, name);
+
+        win.Statamic?.$toast?.success(t(win, 'section_group_created', { name: made.display }));
+
+        return made;
+      } catch (err) {
+        win.Statamic?.$toast?.error(t(win, err?.message === 'bad_name' ? 'section_new_bad_name' : 'section_group_failed'));
+
+        return null;
+      }
+    },
+  };
+}
+
+/** The groups a dialog offers; nothing, and a message, when they cannot be had. */
+async function groupsOrFail(win, onError, add = (groups) => groups) {
+  try {
+    const groups = add(await fetchGroups(win));
+
+    if (groups.length) {
+      return groups;
+    }
+
+    onError?.(new Error('no groups'));
+  } catch (err) {
+    onError?.(err);
+  }
+
+  win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
+
+  return null;
+}
+
 /**
- * A static section: the name, and whether editors may insert it. No group —
- * the server keeps them together in one.
+ * A static section: the name, its group, and whether editors may insert it.
+ * The static group, where they gather, is offered last and selected to start
+ * with, there or not yet: the server makes it the first time it is chosen.
  *
  * `template` ({ html, css, js }, as `importedTemplate` makes it) is the file
  * the section starts as instead of the empty scaffold — Build's tile that
  * lands outside every section (build-mode/new-section.js). Both dialogs take it.
  */
 export function openStaticSectionDialog(win, { afterUid = null, template = null, onDone, onError, onClose } = {}) {
-  const overlay = openCpOverlay(win.document, NewSectionPrompt, {
-    heading: t(win, 'static_section_new'),
-    groupLabel: '',
-    nameLabel: t(win, 'section_new_name'),
-    placeholder: t(win, 'section_new_placeholder'),
-    note: t(win, 'static_section_note'),
-    groups: [],
-    toggleLabel: t(win, 'static_section_insertable'),
-    cancelLabel: t(win, 'cancel'),
-    saveLabel: t(win, 'section_new_create'),
-    onClose,
-    onOk: (display, group, insertable) => {
-      void makeSection(win, overlay, { display, static: true, hidden: !insertable }, { afterUid, onDone, onError, template });
-    },
-  });
+  void (async () => {
+    const groups = await groupsOrFail(win, onError, (list) => [...list, { key: STATIC_GROUP, display: t(win, 'static_sections_group') }]);
+
+    if (!groups) {
+      return;
+    }
+
+    const overlay = openCpOverlay(win.document, NewSectionPrompt, {
+      heading: t(win, 'static_section_new'),
+      nameLabel: t(win, 'section_new_name'),
+      placeholder: t(win, 'section_new_placeholder'),
+      note: t(win, 'static_section_note'),
+      ...groupPrompt(win, groups),
+      startGroup: STATIC_GROUP,
+      toggleLabel: t(win, 'static_section_insertable'),
+      cancelLabel: t(win, 'cancel'),
+      saveLabel: t(win, 'section_new_create'),
+      onClose,
+      onOk: (display, group, insertable) => {
+        void makeSection(win, overlay, { display, group, static: true, hidden: !insertable }, { afterUid, onDone, onError, template });
+      },
+    });
+  })();
 }
 
 export function openNewSectionDialog(win, { afterUid = null, template = null, onDone, onError, onClose } = {}) {
   void (async () => {
-    let groups = [];
+    const groups = await groupsOrFail(win, onError);
 
-    try {
-      groups = await fetchGroups(win);
-    } catch (err) {
-      onError?.(err);
-      win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
-
-      return;
-    }
-
-    if (!groups.length) {
-      onError?.(new Error('no groups'));
-      win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
-
+    if (!groups) {
       return;
     }
 
     const overlay = openCpOverlay(win.document, NewSectionPrompt, {
       heading: t(win, 'section_new'),
-      groupLabel: t(win, 'section_new_group'),
       nameLabel: t(win, 'section_new_name'),
       placeholder: t(win, 'section_new_placeholder'),
       note: t(win, 'section_new_note'),
-      groups,
-      addGroupLabel: t(win, 'section_new_group_add'),
-      addGroupNameLabel: t(win, 'section_new_group_name'),
-      addGroupPlaceholder: t(win, 'section_new_group_placeholder'),
-      // The plus beside the group: a new tab in the fieldset, selected at once.
-      onAddGroup: async (name) => {
-        try {
-          const made = await createGroup(win, name);
-
-          win.Statamic?.$toast?.success(t(win, 'section_group_created', { name: made.display }));
-
-          return made;
-        } catch (err) {
-          win.Statamic?.$toast?.error(t(win, err?.message === 'bad_name' ? 'section_new_bad_name' : 'section_group_failed'));
-
-          return null;
-        }
-      },
+      ...groupPrompt(win, groups),
       cancelLabel: t(win, 'cancel'),
       saveLabel: t(win, 'section_new_create'),
       // Cancel, Escape and a click on the backdrop close without creating.

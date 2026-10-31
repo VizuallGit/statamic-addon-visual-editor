@@ -277,7 +277,7 @@ return [
     'section_copy_failed' => 'The section could not be copied.',
     'section_duplicate_failed' => 'The section could not be duplicated. Reload the page and try again.',
     'static_section_new' => 'New static section',
-    'static_section_note' => 'Creates a section with no fieldset, in the Static sections group. Fields can be added later from the section\'s menu.',
+    'static_section_note' => 'Creates a section with no fieldset. Fields can be added later from the section\'s menu.',
     'section_update_failed' => 'The section could not be changed.',
     'section_fields_added' => ':name now has fields',
     'section_add_fields' => 'Add fields',

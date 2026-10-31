@@ -227,6 +227,7 @@ function inLoop(nodes, path) {
 
 export function createEditorPort(win, hooks = {}) {
   const contentAsked = ref(0);
+  const browse = ref('');
   const rev = ref(0);
   const plus = ref('');
   const pointed = ref(0);
@@ -735,6 +736,15 @@ export function createEditorPort(win, hooks = {}) {
     shownAt: (path, what) => canvas?.shownAt(path, what) ?? null,
     /** Content, on the picked element: what a click on the canvas cannot type into is typed there. */
     contentAsked,
+    // The element whose asset browser Content should open ('' = none): a click on an empty image or video.
+    browse,
+    askBrowse(path) {
+      browse.value = path;
+
+      if (path) {
+        contentAsked.value += 1;
+      }
+    },
     showContent() {
       contentAsked.value += 1;
     },

@@ -28,8 +28,10 @@
  * framed controls in it, the picked one painted as every picked control in the
  * bar is (paintLpActiveControl).
  *
- * The state lives in memory for this Live Preview (build-mode-host.js); every
- * Live Preview opens in Content, because closing one sets it back (lp-width.js).
+ * The state lives in memory for this Live Preview (build-mode-host.js), and
+ * closing one sets it back to Content (lp-width.js). What the user last pressed
+ * is kept for them (MODE_KEY): the next Live Preview, on this page or another,
+ * goes back to it when its switch is drawn.
  *
  * The top bar's icons follow the mode (toolbar-visibility.js): each mode has
  * the ones the site gave it, so a switch closes what the new mode may not
@@ -42,13 +44,14 @@
  * (lp-width.js); Build sets that aside too, and hands it back.
  */
 import { sveState } from '../cp-state.js';
+import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
 import { HEADER_TOOLBAR_ID, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
-import { buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
+import { EDITOR_MODES, buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
 import { isCodeDockArmed } from '../code-dock-state.js';
 import { openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
@@ -60,6 +63,8 @@ import { LP_DEVICE_ICONS } from './preview-chrome.js';
 const SWITCH_ID = '__sve-build-switch';
 const STYLE_ID = '__sve-build-switch-css';
 const MODES = ['content', 'visual'];
+/** The mode this user last pressed. Content writes nothing: it is where a Live Preview starts. */
+const MODE_KEY = 'sve-editor-mode';
 /** Each mode's word in `sveBuildStrings` — Vizuall Build's is still `mode_build`. */
 const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', dock: 'build_dock', fields: 'build_fields' };
 const FALLBACK = { content: 'Edit Content', visual: 'Vizuall Build', dock: 'HTML', fields: 'Fields' };
@@ -197,6 +202,12 @@ function choose(win, holder, mode) {
     return;
   }
 
+  if (mode === 'content') {
+    chromeRemove(win, MODE_KEY);
+  } else {
+    chromeSet(win, MODE_KEY, mode);
+  }
+
   if (was === 'content') {
     openColumn(win);
   }
@@ -249,6 +260,7 @@ export function ensureBuildSwitch(win) {
   }
 
   let holder = doc.getElementById(SWITCH_ID);
+  let drawn = false;
 
   if (!holder) {
     ensureStyles(doc);
@@ -293,6 +305,7 @@ export function ensureBuildSwitch(win) {
     });
 
     holder.appendChild(group);
+    drawn = true;
   }
 
   // Right after the icon row, as the bar's other placements anchor theirs:
@@ -311,4 +324,12 @@ export function ensureBuildSwitch(win) {
   holder.style.setProperty('--sve-switch-reach', `${Math.max(0, header.getBoundingClientRect().bottom - (holder.getBoundingClientRect().bottom + parseFloat(holderCss.marginBottom)))}px`);
 
   paint(holder);
+
+  if (drawn && editorMode() === 'content') {
+    const kept = chromeGet(win, MODE_KEY);
+
+    if (EDITOR_MODES.includes(kept)) {
+      choose(win, holder, kept);
+    }
+  }
 }

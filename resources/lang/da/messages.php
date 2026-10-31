@@ -274,7 +274,7 @@ return [
     'section_copy_failed' => 'Sektionen kunne ikke kopieres.',
     'section_duplicate_failed' => 'Sektionen kunne ikke duplikeres. Genindlæs siden og prøv igen.',
     'static_section_new' => 'Ny statisk sektion',
-    'static_section_note' => 'Opretter en sektion uden fieldset i gruppen Statiske sektioner. Felter kan tilføjes senere fra sektionens menu.',
+    'static_section_note' => 'Opretter en sektion uden fieldset. Felter kan tilføjes senere fra sektionens menu.',
     'section_update_failed' => 'Sektionen kunne ikke ændres.',
     'section_fields_added' => ':name har nu felter',
     'section_add_fields' => 'Tilføj felter',

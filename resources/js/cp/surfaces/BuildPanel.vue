@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="side === 'add'">
-      <div class="bm-tabs" role="tablist">
+      <div class="bm-tabs bm-tabs-fit" role="tablist">
         <button
           v-for="[value, word] in SUBS"
           :key="value"
@@ -451,6 +451,8 @@ onBeforeUnmount(() => {
 .sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.375rem 0; border-radius: 0.28rem; color: var(--bm-muted); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
 .sve-build .bm-tabs .bm-ic, .sve-build .bm-tabs svg { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
+/* All | Elements | Components: words of different lengths, each with the same room at its sides; more room is shared out. */
+.sve-build .bm-tabs-fit button { flex: 1 1 auto; padding-inline: 0.8em; }
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 /* The picked element's name and its +, duplicate and delete, above Content | Style, on the tabs' side gutter. */
 .sve-build .bm-el-head { flex: none; margin: 0.625rem 0.75rem 0; }
@@ -640,12 +642,18 @@ onBeforeUnmount(() => {
 .sve-build .bm-st-el { margin-top: 0.4rem; }
 
 /* Margin and padding, one box */
-.sve-build .bm-sp-top { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0.5rem; }
+.sve-build .bm-sp-top { display: flex; align-items: stretch; gap: 0.4rem; margin: 0.4rem 0 0.5rem; }
 .sve-build .bm-sp-mode { flex: 1; }
 .sve-build .bm-sp-mode button { font-family: var(--bm-mono); font-size: 0.6875rem; }
 /* The unit a side is dragged in, beside padding | margin. */
 .sve-build .bm-sp-unit { flex: none; }
 .sve-build .bm-sp-unit button { flex: none; padding: 0.32rem 0.35rem; font-family: var(--bm-mono); font-size: 0.625rem; }
+/* Which sides move together: the sides in the group are lit, the others faint. */
+.sve-build .bm-sp-sides { flex: none; }
+.sve-build .bm-sp-sides button { padding: 0 0.3rem; color: var(--bm-ink); }
+.sve-build .bm-sp-sides svg { width: 1rem; height: 1rem; }
+.sve-build .bm-sp-sides path { opacity: 0.35; }
+.sve-build .bm-sp-sides path.is-lit { opacity: 1; }
 /* A side that drags: up and down, and the value it is on while it moves. */
 .sve-build .bm-spx .bm-vin.is-scrub { cursor: ns-resize; touch-action: none; }
 .sve-build .bm-spx .bm-vin.is-live { color: #fff; background: var(--bm-bg); border-color: var(--bm-accent); }

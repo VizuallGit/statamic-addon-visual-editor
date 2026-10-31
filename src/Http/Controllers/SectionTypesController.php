@@ -146,9 +146,13 @@ class SectionTypesController
         $display = trim((string) $request->input('display', ''));
         $static = $request->boolean('static');
 
-        // A static section has no group to choose: they share one, made the
-        // first time one is.
-        $group = $static ? SectionTypeMaker::STATIC_GROUP : trim((string) $request->input('group', ''));
+        $group = trim((string) $request->input('group', ''));
+
+        // A static section told no group goes where they gather, made the first
+        // time one does.
+        if ($static && $group === '') {
+            $group = SectionTypeMaker::STATIC_GROUP;
+        }
 
         abort_if($display === '' || $group === '', 400);
 
