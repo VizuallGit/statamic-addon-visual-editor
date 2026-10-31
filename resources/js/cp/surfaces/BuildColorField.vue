@@ -22,10 +22,15 @@ const property = computed(() => props.tool.css || props.tool.tw);
 const color = computed(() => {
   port.rev.value;
 
+  port.painted?.value;
+
   const hit = effectiveClass(port.pickedClasses().join(' '), [property.value], variantChain(port.sizes(), port.size(), port.state()), port.propertyOf);
 
+  // No class: the colour the element shows, as the field's text says it.
   if (!hit) {
-    return '';
+    const seen = port.seen?.(property.value, property.value);
+
+    return seen?.grey ? seen.raw : '';
   }
 
   const typed = fromClass(hit.name, hit.name.split('-')[0]);

@@ -395,8 +395,8 @@ onBeforeUnmount(() => {
   --bm-accent: #3858e9;
   --bm-accent-soft: rgba(56, 88, 233, 0.28);
   --bm-accent-text: #b4c1ff;
-  --bm-inh: #a9b8ff;
-  --bm-inh-line: rgba(56, 88, 233, 0.55);
+  --bm-inh: #9d9d9e;
+  --bm-inh-line: rgba(255, 255, 255, 0.16);
   --bm-zone-side: #252528;
   --bm-zone-end: #2b2b2e;
   --bm-bar: #4a4a4e;
@@ -710,31 +710,19 @@ onBeforeUnmount(() => {
 .sve-build .fg-seg .bm-ic, .sve-build .fg-seg svg { width: 0.9375rem; height: 0.9375rem; }
 .sve-build .fg-target button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; box-shadow: none; }
 .sve-build .fg-target { align-items: center; }
-.sve-build .fg-target__label { flex: none; padding-inline: 0.35rem; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 500; }
-.sve-build .fg-target__item { display: flex; flex: 0 1 auto; min-width: 0; max-width: 100%; }
-.sve-build .fg-target__item .fg-target__class { flex: 0 1 auto; min-width: 0; font-family: var(--bm-mono); }
-.sve-build .fg-target__off { flex: 0 0 1.25rem; padding: 0; color: var(--bm-ink-3, inherit); }
-.sve-build .fg-target__off:hover { background: var(--bm-hover); color: var(--bm-ink); }
 .sve-build .fg-target__done { flex: none; margin-inline-start: auto; padding-inline: 0.6rem; color: var(--bm-ink); }
-.sve-build .fg-seg > .fg-target__add { flex: 0 0 1.5rem; padding: 0; }
 .sve-build .fg-seg > .fg-more { flex: 0 0 1.5rem; padding: 0; white-space: nowrap; }
-.sve-build .fg-target > .fg-more { flex: 0 0 auto; padding-inline: 0.35rem; }
 .sve-build .fg-fit { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 0.125rem; min-width: 0; height: 1.5rem; overflow: hidden; }
 .sve-build .fg-more__icon { display: inline-flex; flex: none; margin-inline-end: 0.35rem; vertical-align: middle; }
 .sve-build .fg-more__icon svg { width: 0.75rem; height: 0.75rem; }
 .sve-build .fg-classpick__rows button { display: flex; align-items: center; }
 .sve-build .fg-classpick__rows button[aria-pressed='true'] { color: var(--bm-accent-text); }
-.sve-build .fg-classpick__item { display: flex; align-items: center; }
-.sve-build .fg-classpick__item > button:first-child { flex: 1 1 auto; min-width: 0; }
-.sve-build .fg-target__lock { display: inline-flex; flex: none; margin-inline-end: 0.25rem; vertical-align: middle; }
-.sve-build .fg-target__lock .bm-ic { width: 0.75rem; height: 0.75rem; }
 .sve-build .fg-target__class span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--bm-mono); font-size: 0.6875rem; }
 .sve-build .fg-target__note { color: var(--bm-accent-text); }
 .sve-build .fg-classpick { display: grid; gap: 0.35rem; padding: 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); }
 .sve-build .fg-classpick input { width: 100%; height: 1.75rem; padding: 0 0.45rem; border-radius: 0.25rem; background: var(--bm-bg); border: 1px solid var(--bm-line); color: var(--bm-ink); font: 450 0.75rem var(--bm-mono); outline: 0; }
 .sve-build .fg-classpick input:focus { border-color: var(--bm-accent); }
 .sve-build .fg-classpick__new { display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.35rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.6875rem; font-weight: 600; text-align: start; }
-.sve-build .fg-classpick__new .bm-ic { width: 0.875rem; height: 0.875rem; }
 .sve-build .fg-classpick__rows { display: grid; max-height: 10rem; overflow-y: auto; }
 .sve-build .fg-classpick__rows button { padding: 0.25rem 0.35rem; border-radius: 0.25rem; color: var(--bm-ink); font: 450 0.6875rem var(--bm-mono); text-align: start; }
 .sve-build .fg-classpick__rows button:hover { background: var(--bm-hover); }
@@ -825,6 +813,14 @@ onBeforeUnmount(() => {
 /* The Tailwind pane's own class list, in the panel: its tag, sizes and state are the panel's sticky top. */
 .sve-build .fg-classes .sve-tw { padding: 0; }
 .sve-build .fg-classes .sve-tw-head { display: none; }
+.sve-build .fg-classes .fg-sec__acts { align-items: center; }
+.sve-build .fg-classes__new { flex: none; height: 1.5rem; padding-inline: 0.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 500; }
+.sve-build .fg-classes__new:hover { background: var(--bm-hover); }
+.sve-build .fg-classes.is-class { box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
+.sve-build .fg-classes__outside code { color: var(--bm-ink); }
+.sve-build .fg-classpick__acts { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.sve-build .fg-classpick__new:disabled { background: var(--bm-hover); color: var(--bm-faint); cursor: default; }
+.sve-build .fg-classpick__cancel { padding: 0.3rem 0.5rem; border-radius: 0.25rem; background: var(--bm-hover); font-size: 0.6875rem; }
 .sve-build .fg-field { position: relative; display: flex; align-items: center; gap: 0.35rem; min-width: 0; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; }
 .sve-build .fg-field:hover { border-color: var(--bm-edge); }
 .sve-build .fg-field:focus-within { border-color: var(--bm-accent); }

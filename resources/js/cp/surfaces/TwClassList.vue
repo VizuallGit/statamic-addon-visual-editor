@@ -12,6 +12,15 @@ function chipBind(chip) {
     bind['data-open'] = '';
   }
 
+  // The site's own classes, where a reader of the list says which (`twSetChipHost`).
+  if (chip.site) {
+    bind['data-sve-tw-site'] = '';
+  }
+
+  if (ui.picking) {
+    bind['aria-pressed'] = chip.chosen ? 'true' : 'false';
+  }
+
   return bind;
 }
 </script>
@@ -75,11 +84,12 @@ function chipBind(chip) {
             :title="chip.title"
             @click.prevent.stop="ui.onChip?.($event, chip.id)"
           >
+            <svg v-if="chip.closed" class="sve-tw-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
             <span v-if="chip.color" class="sve-tw-dot" :style="{ background: chip.color }"></span>
             {{ chip.raw }}
           </button>
           <button
-            v-if="!chip.locked"
+            v-if="!chip.locked && !ui.picking"
             type="button"
             class="sve-tw-drop"
             :title="ui.dropTitle"
@@ -236,6 +246,11 @@ function chipBind(chip) {
 [data-sve-tw-chip]:hover { background: rgba(128, 128, 128, .28); }
 [data-sve-tw-chip]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
 [data-sve-tw-chip][data-open] { background: #3858e9; color: #fff; }
+[data-sve-tw-chip][data-sve-tw-site] { background: rgba(56, 88, 233, .28); color: #b4c1ff; }
+[data-sve-tw-chip][data-sve-tw-site]:hover { background: rgba(56, 88, 233, .45); }
+[data-sve-tw-chip][aria-pressed='true'] { background: #3858e9; color: #fff; }
+[data-sve-tw-chip][aria-pressed][data-sve-tw-site] { opacity: .45; cursor: default; }
+.sve-tw-lock { flex: none; width: 1em; height: 1em; }
 [data-sve-tw-chip][data-sve-tw-locked] { cursor: default; opacity: .55; }
 [data-sve-tw-chip][data-sve-tw-locked]:hover { background: rgba(128, 128, 128, .16); }
 /* The wrap is what the badge is positioned against — the chip keeps its own

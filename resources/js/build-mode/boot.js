@@ -91,6 +91,7 @@ import {
   twOpenValueMenu,
   twPickedClasses,
   twRefresh,
+  twSetChipHost,
   twSetClass,
   twSetFieldClass,
   twSetTag,
@@ -101,12 +102,14 @@ import {
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
-import { readClassAttr } from '../tw-parse.js';
+import { readClassAttr, tokenizeClassValue } from '../tw-parse.js';
+import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
-import { rootFor, rootOf } from './classes.js';
+import { fromClass, rootFor, rootOf } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { createClassTarget } from './class-target.js';
+import { createComputedValues, hoverText, inherits } from './computed-values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { armElementPick, cancelComponentBind, disarmComponentBind } from '../component-bind.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
@@ -140,10 +143,16 @@ export function mountBuildPanel(win, host, hooks = {}) {
   const app = mountSurface(BuildPanel, host, { port });
   const page = buildModeUi.on ? buildCanvas(win) : null;
   const detach = page?.attach(port);
+  const countPaint = () => {
+    port.painted.value += 1;
+  };
+
+  page?.frame()?.contentWindow?.addEventListener(CANVAS_PAINTED, countPaint);
   // Columns drawn over the canvas for the pick (columns-overlay.js).
   const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false } : {});
 
   return () => {
+    page?.frame()?.contentWindow?.removeEventListener(CANVAS_PAINTED, countPaint);
     stopColumns();
     detach?.();
     port.dispose();
@@ -284,8 +293,32 @@ export function createEditorPort(win, hooks = {}) {
     bump();
   };
 
+  /*
+   * The file changed, so where the picked tag starts may have too. Style and its
+   * list read the file through those offsets (tw-classes.js), so they are found
+   * again after every change, wherever it came from. Typed in the dock, the tag
+   * under the caret is the one being worked on, and the pick goes there, so what
+   * is typed shows in Style as it is typed.
+   */
+  const dockEdited = () => {
+    const typed = win.document.activeElement?.closest?.('.cm-editor') ? htmlTargetFromCursor(win) : null;
+
+    if (!typed) {
+      follow();
+
+      return;
+    }
+
+    if (typed.path !== hooks.selectedPath?.()) {
+      hooks.keepPickAt?.(typed.from);
+    }
+
+    renderTwClasses(win, typed);
+    bump();
+  };
+
   const unhooks = [
-    on('dock:html-changed', bump),
+    on('dock:html-changed', dockEdited),
     on('tw:changed', bump),
     // The pane's list follows the size even with the dock out of sight: it is what Style's Classes shows.
     on('lp:device', () => {
@@ -348,6 +381,21 @@ export function createEditorPort(win, hooks = {}) {
       return model.catalog.has(name) || !!model.catalog.resolve(name);
     },
   });
+
+  twSetChipHost(win, classes.chipHost);
+
+  const shown = createComputedValues({
+    element() {
+      const path = hooks.selectedPath?.() || '';
+
+      return path ? canvas?.elementAt(path) || null : null;
+    },
+    scale: (property) => port.scale(property),
+    css: (name) => model?.catalog.css(name) || '',
+  });
+  // Counts the canvas's paints: what an element shows changes with them, and a paint is no write.
+  const painted = ref(0);
+  const stopForgetting = listen(win, 'sve:site-css-saved', () => shown.forget());
 
   const port = {
     rev,
@@ -901,6 +949,37 @@ export function createEditorPort(win, hooks = {}) {
 
       return only ? names.filter((name) => model.catalog.css(name).startsWith(only)) : names;
     },
+    painted,
+    /**
+     * What the picked element shows for a field's property, and the field's
+     * hover. `own` is the text of a class the field has; without one, `grey` is
+     * the value to show in its place, and `raw` the value as the browser has it.
+     */
+    seen(property, scaleProperty, own = '') {
+      const read = shown.read(property, scaleProperty || property, (name) => fromClass(name, rootFor(name, port.scale(scaleProperty || property))));
+
+      if (!read) {
+        return null;
+      }
+
+      const source = () => {
+        // `p-500` sets padding-top too: a class counts for the property it sets and the sides under it.
+        const sets = (one) => !!one && (one === property || one === scaleProperty || property.startsWith(`${one}-`) || String(scaleProperty).startsWith(`${one}-`));
+        const from = port.classes.sourceOf((classes) => tokenizeClassValue(classes).some((tok) => sets(port.propertyOf(tok.text))));
+
+        if (from) {
+          return port.t('value_seen_class', { name: from });
+        }
+
+        return port.t(!inherits(property) ? 'value_seen_css' : read.token ? 'value_seen_theme' : 'value_seen_inherited');
+      };
+
+      return {
+        grey: own ? '' : read.words,
+        raw: read.value,
+        tip: own || read.words ? hoverText(property, own || read.words, read.value, { rootPx: read.rootPx, source: own ? '' : source() }) : '',
+      };
+    },
     /** The colour a class paints with — the dot the Tailwind pane's menu draws beside it. */
     colorOf: (name) => (rev.value, twColorOf(win, name)),
     pickedClasses: () => (rev.value, twPickedClasses()?.raws || []),
@@ -981,6 +1060,8 @@ export function createEditorPort(win, hooks = {}) {
     active: (item) => (rev.value, twToolActive(item)),
 
     dispose() {
+      twSetChipHost(win, null);
+      stopForgetting();
       unhooks.forEach((unhook) => unhook());
     },
   };

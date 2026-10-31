@@ -82,8 +82,12 @@ export function toast(win, kind, key, replacements) {
   win.Statamic?.$toast?.[kind]?.(t(win, key, replacements));
 }
 
-/** `raws` as the utility `name` in site.css, and on the tag in their place. True when it was written. */
-export async function storeUtility(win, name, raws) {
+/**
+ * `raws` as the utility `name` in site.css, and on the tag in their place. True
+ * when it was written. `quiet`: the caller shows it was done, so no toast says
+ * so, unless a class was left behind.
+ */
+export async function storeUtility(win, name, raws, { quiet = false } = {}) {
   if (utilityNameProblem(name)) {
     toast(win, 'error', 'tw_utility_bad_name');
 
@@ -169,12 +173,14 @@ export async function storeUtility(win, name, raws) {
     });
   }
 
-  toast(
-    win,
-    'success',
-    left.length ? 'tw_utility_saved_left' : 'tw_utility_saved',
-    { name, names: left.join(' ') }
-  );
+  if (!quiet || left.length) {
+    toast(
+      win,
+      'success',
+      left.length ? 'tw_utility_saved_left' : 'tw_utility_saved',
+      { name, names: left.join(' ') }
+    );
+  }
 
   return true;
 }

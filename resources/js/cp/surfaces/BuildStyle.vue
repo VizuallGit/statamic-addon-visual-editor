@@ -21,6 +21,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
+import BuildClassList from './BuildClassList.vue';
 import BuildClassTarget from './BuildClassTarget.vue';
 import { useFitRow } from './fit-row.js';
 import BuildSpacingBox from './BuildSpacingBox.vue';
@@ -28,7 +29,6 @@ import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
 import BuildFields from './BuildFields.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import TwClassList from './TwClassList.vue';
 import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, fieldHas, kidsById, styleGroups } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
@@ -788,18 +788,6 @@ function jump(group) {
       </div>
     </section>
 
-    <section class="fg-sec is-open fg-classes" data-sve-build-classes>
-      <header class="fg-sec__h">
-        <span class="fg-sec__name">{{ port.t('classes') }}</span>
-        <span class="fg-sec__acts">
-          <button type="button" class="fg-ib" :title="port.t('classes_sort')" :aria-label="port.t('classes_sort')" data-sve-build-classes-sort @click="port.sortClasses()" v-html="ic('list')"></button>
-          <button type="button" class="fg-ib" :title="port.t('classes_add')" :aria-label="port.t('classes_add')" data-sve-build-classes-add @click="port.openAddMenu($event.currentTarget)" v-html="ic('plus')"></button>
-        </span>
-      </header>
-      <div class="fg-sec__b">
-        <TwClassList />
-        <p class="fg-hint">{{ port.t('classes_note') }}</p>
-      </div>
-    </section>
+    <BuildClassList />
   </div>
 </template>

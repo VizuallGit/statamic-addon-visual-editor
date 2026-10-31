@@ -8,6 +8,7 @@ export const twUi = reactive({
   baseLabel: '',
   groups: [],
   canEdit: false,
+  picking: false,
   onChip: null,
   variant: '',
   breakpoints: [],

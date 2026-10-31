@@ -16,10 +16,13 @@
  * unless `typed` is off: a list of named values (position, font-weight) takes
  * its rows only.
  *
- * Light text is a value that comes from a wider size, the plain state, or a
+ * Grey text is a value that comes from a wider size, the plain state, or a
  * broader property (all four sides, the axis): a pick writes the field's own
- * class. A physical class the file already had for this side (`pt-800` under
- * padding-block-start) is the field's own, and a pick takes its place.
+ * class. With no class at all it is what the element shows (`port.seen`,
+ * computed-values.js), from the theme, a parent or a class of the site's; the
+ * hover says what that is in rem and px, and where it comes from. A physical
+ * class the file already had for this side (`pt-800` under padding-block-start)
+ * is the field's own, and a pick takes its place.
  *
  * `scrub` (a unit: px, rem, em, %) lets the field be dragged as well as
  * clicked — Spacing's box (BuildSpacingBox.vue). Up is more, down is less,
@@ -99,7 +102,15 @@ const shown = computed(() => (current.value ? fromClass(current.value.name, root
 const isToken = computed(() => !!current.value && !/[[(]/.test(current.value.name));
 
 const display = (value) => (props.compact ? value.replace(/^var\((--[\w-]+)\)$/, '$1') : value);
-const text = computed(() => (current.value ? display(shown.value) : props.empty));
+const seen = computed(() => {
+  port.rev.value;
+  port.painted?.value;
+
+  return port.seen?.(property.value, scaleProperty.value, current.value ? display(shown.value) : '') || null;
+});
+const grey = computed(() => (current.value ? '' : seen.value?.grey || ''));
+const text = computed(() => (current.value ? display(shown.value) : grey.value || props.empty));
+const tip = computed(() => seen.value?.tip || props.label || property.value);
 /** While dragged: the value the drag is on, shown instead of `text`. */
 const live = ref(null);
 const showing = computed(() => (live.value !== null ? live.value : text.value));
@@ -274,6 +285,7 @@ defineExpose({ open });
     v-if="chip && isToken"
     class="fg-chip"
     :class="{ inh: current.inherited }"
+    :title="tip"
     @click.prevent="open()"
   >{{ display(shown) }}</span>
   <button
@@ -281,8 +293,8 @@ defineExpose({ open });
     ref="trigger"
     type="button"
     class="bm-vin"
-    :class="{ inh: live === null && current && current.inherited, 'is-empty': live === null && !current, 'has-chip': chip && isToken, 'is-scrub': !!scrub, 'is-live': live !== null }"
-    :title="label || property"
+    :class="{ inh: live === null && (grey || (current && current.inherited)), 'is-empty': live === null && !current && !grey, 'has-chip': chip && isToken, 'is-scrub': !!scrub, 'is-live': live !== null }"
+    :title="tip"
     :aria-label="label || property"
     aria-haspopup="listbox"
     :data-sve-build-value="label || property"

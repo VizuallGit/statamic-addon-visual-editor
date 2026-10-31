@@ -1288,6 +1288,8 @@ export function startCanvas(win) {
     },
     /** A tile from Add pressed: dragged onto the canvas (canvas-ui.js). */
     dragNew: (event, item) => ui.dragNew(event, item),
+    /** The element at `path`, as the canvas draws it. */
+    elementAt: (path) => cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`) || null,
     /**
      * What an element shows: its words (`''`), an attribute, or `html`, its
      * markup without the canvas's marks. Null when the canvas has nothing of

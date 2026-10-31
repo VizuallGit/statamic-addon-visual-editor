@@ -1363,6 +1363,19 @@ export function twSetClassTarget(win, target) {
   render(win);
 }
 
+/**
+ * A reader of the list that knows more about a class than the pane does: Build's
+ * Style (build-mode/class-target.js). `mark(raw)` says `{ site, closed, chosen }`,
+ * `picking()` says a click chooses, and `take(raw, event)` is true when it took
+ * the click, so the pane's menu stays shut. Null for the pane alone.
+ */
+let chipHost = null;
+
+export function twSetChipHost(win, host) {
+  chipHost = host;
+  render(win);
+}
+
 /** A size picked, not All: the base size writes no variant, so `twVariant` cannot tell Desktop from All. */
 export function twSizePicked() {
   return filterBySize();
@@ -1869,6 +1882,12 @@ function onChip(win, event, id) {
     return;
   }
 
+  if (chipHost?.take(chip.raw, event)) {
+    closeTwMenu(win);
+
+    return;
+  }
+
   if (openChipId === id) {
     closeTwMenu(win);
     paint();
@@ -1968,6 +1987,7 @@ function render(win) {
   twUi.state = variantState;
   twUi.stateLabel = variantState || t(win, 'tw_state');
   twUi.canEdit = !locked();
+  twUi.picking = !!chipHost?.picking();
   twUi.onChip = (event, id) => onChip(win, event, id);
   // A component's name is not a tag to change.
   twUi.onTag = node?.component ? null : (event) => twOpenTagMenu(win, event.currentTarget);
@@ -2003,6 +2023,7 @@ function render(win) {
     chips: group.items.map((item, index) => {
       const chip = {
         ...item,
+        ...(item.dynamic ? null : chipHost?.mark(item.raw)),
         id: `${group.key}-${index}-${item.from}`,
         locked: item.dynamic || !twUi.canEdit,
         open: false,

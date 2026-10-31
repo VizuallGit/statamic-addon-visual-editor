@@ -39,7 +39,11 @@ function tipElement(doc) {
 
 function putTitleBack() {
   if (stashed) {
-    stashed.el.setAttribute('title', stashed.title);
+    // A title that changed while it was away is newer than the one kept.
+    if (!stashed.el.getAttribute('title')) {
+      stashed.el.setAttribute('title', stashed.title);
+    }
+
     stashed.el.removeAttribute('data-tip');
     stashed = null;
   }
