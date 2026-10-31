@@ -1,7 +1,8 @@
 /**
- * A component's props stay in Vizuall Build. The host steps aside while Build
- * has the column, and the dock takes the declaration out of the text, so the
- * Build panel is the one place left that can show them.
+ * A component's head in Vizuall Build. The props host stands aside while Build
+ * has the column and the dock takes the declaration out of the text, so the
+ * Build panel is the one place left that can show the props: they must always
+ * be one button away, and the panel must open on them.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,20 +12,27 @@ import { fileURLToPath } from 'node:url';
 
 const JS = join(dirname(fileURLToPath(import.meta.url)), '../../../resources/js');
 const panel = readFileSync(join(JS, 'cp/surfaces/BuildPanel.vue'), 'utf8');
+const boot = readFileSync(join(JS, 'build-mode/boot.js'), 'utf8');
 
-test('the panel shows the props while a component file is open, on both sides', () => {
-  assert.ok(panel.includes("from '../component-props/store.js'"));
-  assert.ok(panel.includes("componentPropsUi.open && !(side.value === 'element' && content.value === 'fields')"));
+test('the head stands while a component file is open, above Add and the element', () => {
+  const template = panel.slice(panel.indexOf('<template>'));
+
+  assert.ok(template.includes('v-if="componentPropsUi.open" class="fg-head bm-chead"'));
+  assert.ok(template.indexOf('data-sve-build-chead') < template.indexOf("v-else-if=\"side === 'add'\""));
+});
+
+test('the panel opens on the props, and they replace Add or Content | Style', () => {
+  assert.ok(panel.includes("const componentView = ref(componentPropsUi.open ? 'props' : '');"));
+  assert.ok(panel.includes("componentView.value = open ? 'props' : '';"));
 
   const template = panel.slice(panel.indexOf('<template>'));
 
-  assert.ok(
-    template.indexOf('data-sve-build-cprops') < template.indexOf("v-if=\"side === 'add'\""),
-    'above the two sides, so neither Add nor an element can hide it'
-  );
+  assert.ok(template.includes(`v-if="componentView === 'props'" ref="propsHost"`));
+  assert.ok(template.includes(`v-else-if="componentView === 'info'"`));
 });
 
 test('the props are the props panel itself, through the port, and leave with the panel', () => {
-  assert.ok(panel.includes('unmountProps = el ? port.mountFields(el) || null : null;'));
+  assert.ok(boot.includes('mountProps: (el) => unmounter(mountStatamicSurface(ComponentPropsPane, el)),'));
+  assert.ok(panel.includes('unmountProps = el ? port.mountProps(el) || null : null;'));
   assert.ok(panel.includes('onBeforeUnmount(() => unmountProps?.());'));
 });

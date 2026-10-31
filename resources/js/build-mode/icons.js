@@ -28,6 +28,7 @@ const P = {
   // A vector path between its two anchors.
   svg: '<path d="M5 19C9 18 9 6 19 5"/><rect x="2.5" y="17.5" width="4" height="4" rx="1"/><rect x="17.5" y="2.5" width="4" height="4" rx="1"/>',
   cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5h.01"/>',
   search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
   chev: '<path d="M6 9l6 6 6-6"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',

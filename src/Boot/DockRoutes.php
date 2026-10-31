@@ -71,6 +71,8 @@ final class DockRoutes
                 // whitespace rule applies to it.
                 Route::post('/!/sve/component', [ComponentController::class, 'store'])
                     ->name('sve.component.store');
+                Route::post('/!/sve/component/meta', [ComponentController::class, 'meta'])
+                    ->name('sve.component.meta');
                 // A snippet is template text as well: the same whitespace rule.
                 Route::post('/!/sve/snippet', [SnippetController::class, 'store'])
                     ->name('sve.snippet.store');

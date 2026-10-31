@@ -87,7 +87,16 @@ watch(
   { immediate: true }
 );
 
-const shownComponents = computed(() => (components.value || []).filter((item) => !q.value || item.name.toLowerCase().includes(q.value)));
+/** The categories in use, and the one chosen: '' is all. A search reads the name, the category and the description. */
+const category = ref('');
+const categories = computed(() => [...new Set((components.value || []).map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)));
+const shownComponents = computed(() =>
+  (components.value || []).filter(
+    (item) =>
+      (!category.value || item.category === category.value) &&
+      (!q.value || [item.name, item.category, item.description].some((text) => String(text || '').toLowerCase().includes(q.value)))
+  )
+);
 
 /** A search hides a part with nothing to show; without one, Components says it is loading or empty. */
 const componentsPart = computed(() => withComponents.value && (!q.value || components.value === null || shownComponents.value.length > 0));
@@ -279,14 +288,18 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
       <h4>{{ port.t('components') }}</h4>
       <p v-if="components === null" class="bm-muted">{{ port.t('components_loading') }}</p>
       <p v-else-if="!components.length" class="bm-muted">{{ port.t('components_none') }}</p>
-      <div v-else class="bm-tiles" :class="{ 'is-list': view === 'list' }">
+      <div v-if="categories.length" class="bm-cats" data-sve-build-cats>
+        <button type="button" :aria-pressed="!category" @click="category = ''">{{ port.t('component_category_all') }}</button>
+        <button v-for="name in categories" :key="name" type="button" :aria-pressed="category === name" @click="category = name">{{ name }}</button>
+      </div>
+      <div v-if="components && components.length" class="bm-tiles" :class="{ 'is-list': view === 'list' }">
         <button
           v-for="item in shownComponents"
           :key="item.name"
           type="button"
           class="bm-tile is-comp"
           :disabled="target.locked || target.nowhere"
-          :title="item.name"
+          :title="item.description || item.name"
           :data-sve-build-component="item.name"
           @pointerdown="grab($event, humanize(item.name), () => item.tag)"
           @click="write(item.tag)"

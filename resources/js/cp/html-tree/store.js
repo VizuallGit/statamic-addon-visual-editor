@@ -45,6 +45,8 @@ export function setHtmlTreeLayers(win, on) {
 }
 
 export const htmlTreeUi = reactive({
+  // Counts a click on a row itself: one on the row already picked changes no path.
+  rowClicks: 0,
   // 'tags' or 'classic' — see readHtmlTreeLook. The list wears it as
   // data-sve-ht-look, and every rule of the tags look hangs off that.
   look: 'tags',

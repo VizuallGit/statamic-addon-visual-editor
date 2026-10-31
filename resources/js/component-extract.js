@@ -132,6 +132,19 @@ export function extractComponent(win, node, { onDone, onError } = {}) {
     return;
   }
 
+  void categoriesInUse(win).then((categories) => openPrompt(win, node, html, parts, categories, { onDone, onError }));
+}
+
+/** The categories the site's components already have, for the dialog to offer. */
+function categoriesInUse(win) {
+  return win
+    .fetch('/!/sve/components', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } })
+    .then((res) => (res.ok ? res.json() : { items: [] }))
+    .then((data) => [...new Set((data.items || []).map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
+    .catch(() => []);
+}
+
+function openPrompt(win, node, html, parts, categories, { onDone, onError }) {
   const overlay = openCpOverlay(win.document, NamePrompt, {
     heading: t(win, 'component_new'),
     nameLabel: t(win, 'component_name'),
@@ -139,7 +152,11 @@ export function extractComponent(win, node, { onDone, onError } = {}) {
     value: node.klass || node.tag || '',
     cancelLabel: t(win, 'cancel'),
     saveLabel: t(win, 'component_create'),
-    onOk: (name) => {
+    extras: [
+      { key: 'category', label: t(win, 'component_category'), placeholder: t(win, 'component_category_placeholder'), options: categories },
+      { key: 'description', label: t(win, 'component_description'), placeholder: t(win, 'component_description_placeholder'), rows: 3 },
+    ],
+    onOk: (name, { category = '', description = '' } = {}) => {
       overlay.dismiss();
 
       void (async () => {
@@ -160,6 +177,8 @@ export function extractComponent(win, node, { onDone, onError } = {}) {
             css: fresh.css,
             js: '',
             tw,
+            category,
+            description,
           });
 
           const source = ask('dock:html');

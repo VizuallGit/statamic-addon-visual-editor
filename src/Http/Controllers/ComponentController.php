@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Component;
+use MarioHamann\StatamicVisualEditor\ComponentMeta;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\TailwindCompile;
 
@@ -51,7 +52,24 @@ class ComponentController
 
         abort_unless($made, 422);
 
+        ComponentMeta::save($name, (string) $request->input('category', ''), (string) $request->input('description', ''));
+
         return response()->json(['ok' => true, ...$made]);
+    }
+
+    /** A component's category and description, from the top of the Build panel. */
+    public function meta(Request $request)
+    {
+        $this->authorize();
+
+        $name = Component::normalizeName((string) $request->input('name', ''));
+
+        abort_unless($name !== null && Component::exists($name), 404);
+
+        return response()->json([
+            'ok' => true,
+            ...ComponentMeta::save($name, (string) $request->input('category', ''), (string) $request->input('description', '')),
+        ]);
     }
 
     protected function authorize(): void

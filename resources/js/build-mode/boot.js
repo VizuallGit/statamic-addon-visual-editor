@@ -116,6 +116,7 @@ import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
+import ComponentPropsPane from '../cp/surfaces/ComponentPropsPane.vue';
 import ComponentSidebar from '../cp/surfaces/ComponentSidebar.vue';
 import HtmlTreeInspector from '../cp/surfaces/HtmlTreeInspector.vue';
 import { mountStatamicSurface } from '../cp/mount-statamic.js';
@@ -220,6 +221,8 @@ export function createEditorPort(win, hooks = {}) {
   const rev = ref(0);
   const plus = ref('');
   const pointed = ref(0);
+  // Counts clicks on the canvas: one on the element already picked changes no path.
+  const clicks = ref(0);
   const panel = ref('add');
   let wrote = '';
   let model = null;
@@ -350,6 +353,7 @@ export function createEditorPort(win, hooks = {}) {
       // Rich text is one element: a click on what stands in it picks it.
       hooks.select?.(wholeOwner(html(), path) || path || '');
       panel.value = 'element';
+      clicks.value += 1;
       bump();
     },
     setPlus(path) {
@@ -399,6 +403,8 @@ export function createEditorPort(win, hooks = {}) {
     },
     /** A + on the canvas: Add takes its place, and the panel shows it took it. */
     pointed,
+    clicks,
+    treeClicks: () => hooks.treeClicks?.() ?? 0,
     openPlus(path) {
       port.setPlus(path);
       pointed.value += 1;
@@ -435,6 +441,17 @@ export function createEditorPort(win, hooks = {}) {
         })
         .then((res) => (res.ok ? res.json() : { items: [] }))
         .then((data) => (Array.isArray(data.items) ? data.items : []));
+    },
+    /** A component's category and description → what was saved, or null. */
+    saveComponentMeta(name, meta) {
+      return win
+        .fetch('/!/sve/component/meta', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(win) },
+          body: JSON.stringify({ name, ...meta }),
+        })
+        .then((res) => (res.ok ? res.json() : null), () => null);
     },
     /** The site's SVGs — the folder set under Visual Editor → SVG folder: `{ root, icons: [{ src, name, folder, svg }] }`. */
     svgs() {
@@ -750,6 +767,8 @@ export function createEditorPort(win, hooks = {}) {
     fieldReady: (kind) => elementFieldReady(kind),
     mountField: (el, options) => mountElementField(win, el, options),
     mountFields: hooks.mountFields || ((el) => unmounter(mountStatamicSurface(ComponentSidebar, el))),
+    /** The open component's own props: the panel without its head, which is the Build panel's here. */
+    mountProps: (el) => unmounter(mountStatamicSurface(ComponentPropsPane, el)),
     mountSettings: hooks.mountSettings || ((el) => unmounter(mountStatamicSurface(HtmlTreeInspector, el))),
 
     /* Sizes — the Tailwind pane's list, and its door */

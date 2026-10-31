@@ -1822,6 +1822,10 @@ export function renderHtmlTree(win) {
       return;
     }
 
+    if (at) {
+      htmlTreeUi.rowClicks += 1;
+    }
+
     // With help on, a loop or a condition opens its settings beside the tree.
     // Not on the release of a drag: that click is suppressed, nothing is picked.
     const opens = !!at && row?.kind === 'antlers' && !htmlTreeSuppressClick && helpOn(win);

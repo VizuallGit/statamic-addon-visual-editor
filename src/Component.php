@@ -61,7 +61,7 @@ class Component
     /**
      * Every component on this site, by name.
      *
-     * @return list<array{name: string, view: string, type: string, tag: string}>
+     * @return list<array{name: string, view: string, type: string, tag: string, category: string, description: string}>
      */
     public static function all(): array
     {
@@ -72,6 +72,7 @@ class Component
         }
 
         $out = [];
+        $meta = ComponentMeta::all();
 
         foreach (scandir($dir) ?: [] as $file) {
             if (! str_ends_with($file, '.antlers.html')) {
@@ -92,6 +93,8 @@ class Component
                 'view' => static::view($name),
                 'type' => CollectionViewFile::PREFIX.static::view($name),
                 'tag' => static::tag($name),
+                'category' => $meta[$name]['category'] ?? '',
+                'description' => $meta[$name]['description'] ?? '',
             ];
         }
 

@@ -24,14 +24,17 @@
  * panel's, a loop's or condition's settings the HTML tree inspector's. The
  * port mounts those into the host this panel gives them.
  *
- * A component's own file open in the dock keeps its props on top of the panel,
- * whatever is picked inside it: the dock takes the declaration out of the text,
- * so this is the one place they can be seen and changed.
+ * A component's own file open in the dock puts its head on top of the panel,
+ * as Bricks has it: its props and its description and category, each a button
+ * there, shown in place of Add or Content | Style. It opens on the props: the
+ * dock takes their declaration out of the text, so this is the one place they
+ * can be seen and changed. A pick on the canvas or in the tree shows the element.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { bindTips, hideTip } from '../tip.js';
 import { componentPropsUi } from '../component-props/store.js';
 import BuildAdd from './BuildAdd.vue';
+import BuildComponentInfo from './BuildComponentInfo.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
 import BuildStyle from './BuildStyle.vue';
@@ -211,14 +214,32 @@ function remount() {
 watch([host, side, tab, () => picked.value?.path], remount);
 onBeforeUnmount(() => unmountHost?.());
 
-/* The open component's props. A component's call picked inside it has its values in the host above. */
+/* The open component's head: 'props', 'info', or '' for Add or the element under it. */
+const componentView = ref(componentPropsUi.open ? 'props' : '');
+
+watch(() => componentPropsUi.open, (open) => {
+  componentView.value = open ? 'props' : '';
+});
+// Only a click lets go of it: the tree picks a row by itself when the file opens.
+watch([port.clicks, port.treeClicks, () => port.pointed?.value], () => {
+  componentView.value = '';
+});
+watch(() => port.plusPath(), (plus) => {
+  if (plus) {
+    componentView.value = '';
+  }
+});
+
+function showComponentView(view) {
+  componentView.value = componentView.value === view ? '' : view;
+}
+
 const propsHost = ref(null);
-const propsShown = computed(() => componentPropsUi.open && !(side.value === 'element' && content.value === 'fields'));
 let unmountProps = null;
 
 watch(propsHost, (el) => {
   unmountProps?.();
-  unmountProps = el ? port.mountFields(el) || null : null;
+  unmountProps = el ? port.mountProps(el) || null : null;
 });
 onBeforeUnmount(() => unmountProps?.());
 
@@ -237,9 +258,48 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="sve-build" data-sve-build-root :data-sve-build-side="side">
-    <div v-if="propsShown" ref="propsHost" class="bm-cprops" data-sve-build-cprops></div>
+    <div v-if="componentPropsUi.open" class="fg-head bm-chead" data-sve-build-chead>
+      <span class="bm-chip-tag bm-chip-comp">{{ port.t('el_component') }}</span>
+      <b :title="componentPropsUi.name">{{ componentPropsUi.name }}</b>
+      <span class="fg-head__acts">
+        <button
+          type="button"
+          class="fg-ib"
+          :title="port.t('component_info')"
+          :aria-label="port.t('component_info')"
+          :aria-pressed="componentView === 'info'"
+          data-sve-build-cview="info"
+          @click="showComponentView('info')"
+          v-html="ic('info')"
+        ></button>
+        <button
+          type="button"
+          class="fg-ib"
+          :title="port.t('component_props_tip', { n: componentPropsUi.rows.length })"
+          :aria-label="port.t('component_props_tip', { n: componentPropsUi.rows.length })"
+          :aria-pressed="componentView === 'props'"
+          data-sve-build-cview="props"
+          @click="showComponentView('props')"
+          v-html="ic('cube')"
+        ></button>
+      </span>
+      <button
+        v-if="componentPropsUi.exitOpen"
+        type="button"
+        class="bm-chead__exit"
+        :title="componentPropsUi.exitTitle"
+        data-sve-build-cexit
+        @click="componentPropsUi.onExit?.()"
+      >{{ componentPropsUi.exitLabel }}</button>
+    </div>
 
-    <template v-if="side === 'add'">
+    <div v-if="componentView === 'props'" ref="propsHost" class="bm-scroll" data-sve-build-cprops></div>
+
+    <div v-else-if="componentView === 'info'" class="bm-scroll" data-sve-build-cinfo>
+      <BuildComponentInfo :key="componentPropsUi.name" :name="componentPropsUi.name" :locked="componentPropsUi.locked" />
+    </div>
+
+    <template v-else-if="side === 'add'">
       <div class="bm-tabs" role="tablist">
         <button
           v-for="[value, word] in SUBS"
@@ -356,8 +416,22 @@ onBeforeUnmount(() => {
 .sve-build .bm-ib.is-on, .sve-build .bm-ib[aria-pressed='true'] { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-ib.sm { width: 1.375rem; height: 1.375rem; }
 
-/* The open component's props: at most half the column, scrolling on their own, so the element under them stays in reach. */
-.sve-build .bm-cprops { flex: 0 1 auto; min-height: 0; max-height: 50%; overflow: auto; padding: 0 0.75rem; border-bottom: 1px solid var(--bm-line); }
+/* The open component's head, in the components' green, and its description and category. */
+.sve-build .bm-chead { flex: none; padding: 0.5rem 0.75rem; background: var(--bm-comp-bg); }
+.sve-build .bm-chead .fg-ib { color: var(--bm-comp); }
+.sve-build .bm-chead .fg-ib[aria-pressed='true'] { background: var(--bm-comp); color: var(--bm-comp-bg); }
+.sve-build .bm-chead button.fg-ib[aria-pressed='true']:hover { background: var(--bm-comp); color: var(--bm-comp-bg); }
+.sve-build .bm-chead__exit { flex: none; padding: 0.25rem 0.55rem; border-radius: 0.3rem; border: 1px solid var(--bm-comp); color: var(--bm-comp); font-size: 0.6875rem; font-weight: 600; }
+.sve-build .bm-chead__exit:hover { background: var(--bm-comp); color: var(--bm-comp-bg); }
+.sve-build .bm-cinfo { display: grid; gap: 0.875rem; }
+.sve-build .bm-cinfo label { display: grid; gap: 0.375rem; font-size: 0.6875rem; font-weight: 600; color: var(--bm-muted); }
+.sve-build .bm-cinfo :is(input, textarea) { width: 100%; padding: 0.45rem 0.55rem; border: 1px solid transparent; border-radius: 0.3rem; background: var(--bm-raise); color: var(--bm-ink); font-weight: 450; font-size: 0.75rem; line-height: 1.45; }
+.sve-build .bm-cinfo textarea { min-height: 7.5rem; resize: vertical; }
+.sve-build .bm-cinfo :is(input, textarea):focus { outline: 0; border-color: var(--bm-accent); }
+.sve-build .bm-cats { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; }
+.sve-build .bm-cats button { padding: 0.2rem 0.5rem; border-radius: 1rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.6875rem; }
+.sve-build .bm-cats button:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .bm-cats button[aria-pressed='true'] { background: var(--bm-comp-bg); color: var(--bm-comp); }
 
 /* Tabs and scroll */
 /* Add | Style: a light grey track, the open tab in the blue of Style's "This element" (`.fg-target`). */
