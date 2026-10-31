@@ -17,7 +17,7 @@
  * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
  * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
-import { computed, inject, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
@@ -295,6 +295,28 @@ function flipSpacingView() {
   }
 }
 
+/*
+ * The sizes and the family icons stay on top of the panel's scroll (`.fg-top`).
+ * What scrolls into view — a family jumped to, a field tabbed to — stops under
+ * them, however high they are (the hint can wrap in a narrow panel).
+ */
+const bar = ref(null);
+let barSize = null;
+
+onMounted(() => {
+  const scroller = root.value.parentElement;
+
+  barSize = new ResizeObserver(() => {
+    scroller.style.scrollPaddingTop = `${bar.value.offsetHeight}px`;
+  });
+  barSize.observe(bar.value);
+});
+
+onBeforeUnmount(() => {
+  barSize.disconnect();
+  root.value.parentElement.style.scrollPaddingTop = '';
+});
+
 function jump(group) {
   toggled.value = { ...toggled.value, [group.id]: true };
   requestAnimationFrame(() => root.value?.querySelector(`[data-sve-build-group="${group.id}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
@@ -311,7 +333,7 @@ const chips = computed(() =>
 
 <template>
   <div ref="root" class="fg-style">
-    <div class="fg-top">
+    <div ref="bar" class="fg-top">
       <div class="fg-seg fg-target">
         <button type="button" aria-pressed="true"><span v-html="ic('cursor')"></span>{{ port.t('this_element') }}</button>
         <button type="button" disabled><span v-html="ic('plus')"></span>{{ port.t('own_class') }} <i class="bm-soon">{{ port.t('later') }}</i></button>

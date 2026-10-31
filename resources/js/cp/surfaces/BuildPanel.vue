@@ -561,7 +561,8 @@ onBeforeUnmount(() => unmountHost?.());
  * prefix inside, two to a row, Figma's alignment box
  * ------------------------------------------------------------------ */
 .sve-build .bm-ic [fill='currentColor'] { fill: currentColor; }
-.sve-build .fg-top { padding: 0.75rem 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
+/* Stays on top while the families scroll under it: above the spacing box's fields (z-index 2), on the panel's own colour. */
+.sve-build .fg-top { position: sticky; top: 0; z-index: 3; background: var(--bm-panel); padding: 0.75rem 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
 .sve-build .fg-head { display: flex; align-items: center; gap: 0.5rem; }
 .sve-build .fg-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; font-weight: 600; }
 .sve-build .fg-head__acts { display: flex; gap: 0.125rem; }

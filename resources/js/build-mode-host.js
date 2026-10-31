@@ -150,7 +150,7 @@ function ensureStyles(doc) {
     STYLE_ID,
     `[${AWAY_ATTR}]{position:relative}
 [${AWAY_ATTR}] > :not(#${HOST_ID}){position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-#${HOST_ID}{display:flex;flex-direction:column;min-width:0;min-height:100%;flex:1 1 auto}
+#${HOST_ID}{display:flex;flex-direction:column;min-width:0;height:100%;flex:1 1 auto}
 .live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}
 :root[${MODE_ATTR}]:not([${DOCK_ATTR}]) #${CODE_DOCK_ID}{visibility:hidden!important;pointer-events:none!important}
 :root[${MODE_ATTR}]:not([${DOCK_ATTR}]) .live-preview-contents{padding-bottom:0!important}
