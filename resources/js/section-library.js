@@ -1530,7 +1530,7 @@ export async function insertSection(win, doc, afterUid, kind, item) {
   // sends could name a row in some other replicator. Nothing written, nothing
   // asked (a template would otherwise put its replace-or-add question first).
   if (!formHasSectionField(win)) {
-    return;
+    return false;
   }
 
   if (kind === 'template') {
@@ -1543,10 +1543,12 @@ export async function insertSection(win, doc, afterUid, kind, item) {
   const row = buildSectionRow(win, kind, item, meta?.defaults, newId);
 
   insertSectionAfter(win, doc, afterUid, row, hydrateExistingMeta(row, meta?.new || {}, meta?.defaults));
+
+  return true;
 }
 
 /**
- * Drops a whole template onto the page.
+ * Drops a whole template onto the page. Answers whether rows are on their way.
  *
  * Every section in it is copied — a template is a stencil, never a reference —
  * and each one is laid over its type's current defaults, so a template saved
@@ -1562,13 +1564,13 @@ export async function insertTemplate(win, doc, afterUid, item) {
   if (!sections.length) {
     win.Statamic?.$toast?.error(t(win, 'template_empty'));
 
-    return;
+    return false;
   }
 
   const mode = await askTemplateMode(win, item);
 
   if (!mode) {
-    return; // cancelled
+    return false; // cancelled
   }
 
   const rows = [];
@@ -1591,6 +1593,8 @@ export async function insertTemplate(win, doc, afterUid, item) {
   }
 
   insertSectionsAfter(win, doc, afterUid, rows, metas, mode === 'replace');
+
+  return true;
 }
 
 /**
@@ -3398,6 +3402,10 @@ export function pointerOverLivePreview(win, frame, event) {
  * spot between sections: the layout's header, footer or sections. The preview
  * is not asked where — it is outlined while the pointer is over it, and a
  * release there calls `onDrop`.
+ *
+ * Build's canvas hides the preview, so there the canvas takes the drag
+ * (build-mode/canvas-card-drop.js): the bus answers with its door, and the
+ * drop inserts here, as the bridge's ext-drop does in Content.
  */
 export function beginCardDrag(win, cardEl, kind, item, drop = null) {
   cardEl.addEventListener('pointerdown', (event) => {
@@ -3425,6 +3433,7 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
     let ghost = null;
     let moved = false;
     let outline = null;
+    let onCanvas = null;
 
     // In the page's own pixels: the frame may be drawn scaled — a device
     // preset, or the overview's row — and the bridge measures its sections
@@ -3495,7 +3504,11 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
           'font:600 0.8125rem/1.3 ui-sans-serif,system-ui,sans-serif;color:var(--theme-color-primary,#4f46e5);';
         doc.body.appendChild(outline);
       } else {
-        frame.contentWindow.postMessage({ source: SOURCE, type: MSG.EXT_DRAG_START }, win.location.origin);
+        onCanvas = ask('build-canvas:card-drop') || null;
+
+        if (!onCanvas) {
+          frame.contentWindow.postMessage({ source: SOURCE, type: MSG.EXT_DRAG_START }, win.location.origin);
+        }
       }
 
       ghost = cardEl.cloneNode(true);
@@ -3554,10 +3567,14 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
       } else {
         const p = toPreview(e);
 
-        frame.contentWindow.postMessage(
-          { source: SOURCE, type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y },
-          win.location.origin
-        );
+        if (onCanvas) {
+          onCanvas.move(p.x, p.y);
+        } else {
+          frame.contentWindow.postMessage(
+            { source: SOURCE, type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y },
+            win.location.origin
+          );
+        }
       }
 
       if (ghost) {
@@ -3594,6 +3611,18 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
 
         if (landed) {
           drop.onDrop();
+        }
+
+        return;
+      }
+
+      if (onCanvas) {
+        const afterUid = onCanvas.end(!overPreview);
+
+        frame.style.pointerEvents = '';
+
+        if (overPreview) {
+          insertSection(win, doc, afterUid, kind, item).then(onCanvas.landed, () => onCanvas.landed(false));
         }
 
         return;

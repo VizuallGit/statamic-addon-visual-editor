@@ -6,13 +6,15 @@
  * May import: vue, cp/bus.js, cp/panel/store.js, lib/values.js,
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
  *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
- *   build-mode/canvas-hold.js, build-mode/canvas-fields.js,
+ *   build-mode/canvas-hold.js, build-mode/canvas-fields.js, build-mode/canvas-card-drop.js,
  *   build-mode/canvas-live.js, cp/html-tree/store.js,
  *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
  *   `dock:chrome-kind`, `html-tree:open-section`; listens to
  *   `dock:html-changed`, `tw:changed`.
- *
+
+ *   Registers `build-canvas:card-drop` (a card from Patterns, canvas-card-drop.js)
+ *   and emits `build-canvas:card-lifted` for the breakpoint overview. *
  * A frame of Build's own stands exactly over the real Live Preview. The real
  * one stays mounted and keeps rendering underneath, only invisible
  * (`visibility: hidden` — never `display: none`, never removed), and is read
@@ -75,7 +77,7 @@
  */
 import { shallowRef, watch } from 'vue';
 import morphPlugin from '@alpinejs/morph/dist/module.esm.js?build-canvas';
-import { ask, on } from '../cp/bus.js';
+import { ask, emit, on, register } from '../cp/bus.js';
 import { panelValues } from '../cp/panel/store.js';
 import { containerContext } from '../lib/publish-containers.js';
 import { canvasEdit, editedText } from './canvas-edit.js';
@@ -89,6 +91,7 @@ import { CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fiel
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
 import { canvasFocus } from './canvas-focus.js';
+import { canvasCardDrop } from './canvas-card-drop.js';
 import { canvasHold } from './canvas-hold.js';
 import { canvasFields, fieldDomId } from './canvas-fields.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
@@ -119,6 +122,8 @@ const TARGET = 'data-sve-build-plus';
 const PAGE_STYLES = new Set(['__sve-theme-scale', '__sve-dock-css-live']);
 /** Left off the canvas: what runs there (scripts and their preloads — the canvas runs none) and what the editor puts on the page. */
 const LEFT_OFF = 'script, noscript, link[rel~="modulepreload"], link[as="script"], [id^="__sve"], [data-sve-menu]';
+/** The bus's door for a card dragged from Patterns: answered while the canvas is the page on screen, so unanswered in Content. */
+const CARD_DROP = 'build-canvas:card-drop';
 /** On the canvas's window after each paint, for what draws over the canvas. */
 export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 
@@ -315,6 +320,27 @@ export function startCanvas(win) {
   const bar = sectionBar(win, { page: cdoc, frame: () => frame });
   // Inside the header, the footer, a global section or a component, as in Content — through the bridge (canvas-focus.js).
   const focus = canvasFocus(win, { page: cdoc, onState: () => schedule(truth) });
+  // A card from Patterns: the zoom, the line and the landing on the canvas, where they show (canvas-card-drop.js).
+  const cardDrop = canvasCardDrop(win, {
+    page: cdoc,
+    frame: () => frame,
+    done() {
+      ui.draw();
+      bar.place();
+      focus.place();
+      frame?.contentWindow?.dispatchEvent(new Event(CANVAS_PAINTED));
+    },
+  });
+
+  register(CARD_DROP, () => {
+    if (!frame || frame.hasAttribute(UNSTYLED_ATTR)) {
+      return null;
+    }
+
+    emit('build-canvas:card-lifted');
+
+    return cardDrop.begin();
+  });
   // A menu's would-be classes on the canvas before they are picked, compiled beside the section's own (canvas-hold.js).
   const edit = canvasEdit({
     port: () => port,
@@ -1289,6 +1315,8 @@ export function startCanvas(win) {
     },
     stop() {
       alive = false;
+      register(CARD_DROP, null);
+      cardDrop.stop();
       ui.stop();
       bar.stop();
       focus.stop();
