@@ -9,6 +9,9 @@
  * Reads `data-tip`, or `title` when that is all a button has. A `title` is
  * lifted off while the label is up, or the browser would draw its own on top
  * of it, and put back when the pointer leaves.
+ *
+ * A root inside a frame (`frame`, Build's canvas) keeps its label on the
+ * Control Panel's body, where the frame's edge cannot clip it.
  */
 const TIP_ID = '__sve-tip';
 
@@ -52,17 +55,46 @@ export function hideTip(doc) {
   putTitleBack();
 }
 
-export function bindTips(win, root) {
+/** The target's box in the Control Panel window, through its frame when it has one. */
+function boxOnScreen(target, frame) {
+  const rect = target.getBoundingClientRect();
+
+  if (!frame) {
+    return rect;
+  }
+
+  const box = frame.getBoundingClientRect();
+  const scale = frame.clientWidth ? box.width / frame.clientWidth : 1;
+
+  return {
+    top: box.top + rect.top * scale,
+    bottom: box.top + rect.bottom * scale,
+    left: box.left + rect.left * scale,
+    width: rect.width * scale,
+  };
+}
+
+/**
+ * @param {Window} win        the window the label is drawn in
+ * @param {Element} root      everything under it gets labels
+ * @param {object} [on]
+ * @param {() => HTMLIFrameElement|null} [on.frame]  the frame `root` is inside, when it is
+ * @param {string} [on.only]  which titled things get one: the tree's buttons, and not its rows, which the pointer crosses all the time
+ * @returns {() => void}      takes the window's listeners off, for a root that goes away
+ */
+export function bindTips(win, root, { frame = null, only = '[data-tip], [title]' } = {}) {
   if (!root || root._sveTipsBound) {
-    return;
+    return () => {};
   }
 
   root._sveTipsBound = true;
 
   const doc = win.document;
+  const rootWin = root.ownerDocument.defaultView;
+  const onScroll = () => hideTip(doc);
 
   root.addEventListener('mouseover', (event) => {
-    const target = event.target?.closest?.('[data-tip], [title]');
+    const target = event.target?.closest?.(only);
     const text = target ? target.getAttribute('data-tip') || target.getAttribute('title') || '' : '';
 
     if (!text) {
@@ -75,13 +107,15 @@ export function bindTips(win, root) {
       putTitleBack();
     }
 
-    if (target.hasAttribute('title')) {
+    if (target.getAttribute('title')) {
       // The text moves to `data-tip` as it goes: taking the title away is what
       // stops the browser drawing its own, but it also stopped this lookup
       // from finding the button again the moment the pointer moved inside it.
+      // Emptied, not removed: with none at all the browser would show the
+      // title of the row the button stands in.
       stashed = { el: target, title: target.getAttribute('title') };
       target.setAttribute('data-tip', stashed.title);
-      target.removeAttribute('title');
+      target.setAttribute('title', '');
     }
 
     const el = tipElement(doc);
@@ -89,7 +123,7 @@ export function bindTips(win, root) {
     el.textContent = text;
     el.hidden = false;
 
-    const rect = target.getBoundingClientRect();
+    const rect = boxOnScreen(target, frame?.());
     const box = el.getBoundingClientRect();
     const pad = 8;
     const below = rect.bottom + 6;
@@ -104,5 +138,11 @@ export function bindTips(win, root) {
 
   root.addEventListener('mouseleave', () => hideTip(doc));
   root.addEventListener('pointerdown', () => hideTip(doc), true);
-  win.addEventListener('scroll', () => hideTip(doc), true);
+  win.addEventListener('scroll', onScroll, true);
+  rootWin.addEventListener('scroll', onScroll, true);
+
+  return () => {
+    win.removeEventListener('scroll', onScroll, true);
+    rootWin?.removeEventListener('scroll', onScroll, true);
+  };
 }

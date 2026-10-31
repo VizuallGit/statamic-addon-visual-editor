@@ -44,6 +44,7 @@
 import { sveState } from '../cp-state.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
+import { bindTips } from '../cp/tip.js';
 import { HEADER_TOOLBAR_ID, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
@@ -254,6 +255,7 @@ export function ensureBuildSwitch(win) {
     holder = doc.createElement('div');
     holder.id = SWITCH_ID;
     holder.dataset.sveBuildSwitch = '';
+    bindTips(win, holder);
 
     const group = doc.createElement('div');
 

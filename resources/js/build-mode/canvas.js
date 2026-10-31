@@ -312,7 +312,7 @@ export function startCanvas(win) {
 
   const ui = canvasUi(win, { page: cdoc, frame: () => frame, port: () => port, hovered: () => hovered, schedule });
   // The section's toolbar, as the bridge draws it in Content (canvas-section-bar.js): in both Builds.
-  const bar = sectionBar(win, { page: cdoc });
+  const bar = sectionBar(win, { page: cdoc, frame: () => frame });
   // Inside the header, the footer, a global section or a component, as in Content — through the bridge (canvas-focus.js).
   const focus = canvasFocus(win, { page: cdoc, onState: () => schedule(truth) });
   // A menu's would-be classes on the canvas before they are picked, compiled beside the section's own (canvas-hold.js).

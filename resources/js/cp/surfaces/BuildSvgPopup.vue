@@ -10,6 +10,7 @@
  */
 import { inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import BuildSvgPicker from './BuildSvgPicker.vue';
+import { bindTips, hideTip } from '../tip.js';
 import { besideSpot } from '../../lib/beside.js';
 import { ic } from '../../build-mode/icons.js';
 
@@ -25,6 +26,7 @@ const port = inject('sveBuild');
 const el = ref(null);
 const spot = ref({ left: 0, top: 0 });
 let observer = null;
+let stopTips = null;
 
 function place() {
   if (!el.value) {
@@ -59,12 +61,15 @@ onMounted(() => {
   observer = new ResizeObserver(place);
   observer.observe(el.value);
   place();
+  stopTips = bindTips(window, el.value);
   document.addEventListener('pointerdown', onDown, true);
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', place);
 });
 
 onBeforeUnmount(() => {
+  stopTips?.();
+  hideTip(document);
   observer?.disconnect();
   document.removeEventListener('pointerdown', onDown, true);
   window.removeEventListener('keydown', onKey, true);

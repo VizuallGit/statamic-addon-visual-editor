@@ -28,7 +28,8 @@
  * whatever is picked inside it: the dock takes the declaration out of the text,
  * so this is the one place they can be seen and changed.
  */
-import { computed, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
+import { bindTips, hideTip } from '../tip.js';
 import { componentPropsUi } from '../component-props/store.js';
 import BuildAdd from './BuildAdd.vue';
 import BuildContent from './BuildContent.vue';
@@ -220,10 +221,22 @@ watch(propsHost, (el) => {
   unmountProps = el ? port.mountFields(el) || null : null;
 });
 onBeforeUnmount(() => unmountProps?.());
+
+/* Every title in the panel shows at once, in the top bar's label. */
+const root = ref(null);
+let stopTips = null;
+
+onMounted(() => {
+  stopTips = bindTips(window, root.value);
+});
+onBeforeUnmount(() => {
+  stopTips?.();
+  hideTip(document);
+});
 </script>
 
 <template>
-  <div class="sve-build" data-sve-build-root :data-sve-build-side="side">
+  <div ref="root" class="sve-build" data-sve-build-root :data-sve-build-side="side">
     <div v-if="propsShown" ref="propsHost" class="bm-cprops" data-sve-build-cprops></div>
 
     <template v-if="side === 'add'">
@@ -355,7 +368,8 @@ onBeforeUnmount(() => unmountProps?.());
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 /* The picked element's name and its +, duplicate and delete, above Content | Style, on the tabs' side gutter. */
 .sve-build .bm-el-head { flex: none; margin: 0.625rem 0.75rem 0; }
-.sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0.75rem; }
+/* The room under the tabs is a border, not padding: padding scrolls away and the tiles would run up against the tabs. */
+.sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 0.75rem 0.75rem; border-top: 0.75rem solid transparent; }
 /* Style: the panel's own side gutter and none of the families' — their lines end where their fields do. */
 .sve-build .bm-scroll:has(> .fg-style) { padding: 0 0.75rem; }
 
@@ -403,10 +417,10 @@ onBeforeUnmount(() => unmountProps?.());
 .sve-build .bm-tiles.is-list .bm-tile > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sve-build .bm-tiles.is-list .bm-tile > code { display: block; }
 /* A + pressed on the canvas: one blue outline round the whole of Add, fading as the tiles' flash did (BuildPanel `nudged`). */
-.sve-build .bm-scroll.is-nudged { animation: sve-bm-nudge 0.9s ease-out; }
+.sve-build .bm-scroll.is-nudged { outline: 0.125rem solid transparent; outline-offset: -0.125rem; animation: sve-bm-nudge 0.9s ease-out; }
 @keyframes sve-bm-nudge {
-  0%, 35% { box-shadow: inset 0 0 0 0.125rem var(--bm-accent); }
-  100% { box-shadow: inset 0 0 0 0.125rem transparent; }
+  0%, 35% { outline-color: var(--bm-accent); }
+  100% { outline-color: transparent; }
 }
 .sve-build .bm-note { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--bm-line); font-size: 0.6875rem; line-height: 1.55; color: var(--bm-faint); }
 .sve-build .bm-note + .bm-note { margin-top: 0.5rem; padding-top: 0; border-top: 0; }
@@ -583,7 +597,7 @@ onBeforeUnmount(() => unmountProps?.());
  * ------------------------------------------------------------------ */
 .sve-build .bm-ic [fill='currentColor'] { fill: currentColor; }
 /* Stays on top while the families scroll under it: above the spacing box's fields (z-index 2), on the panel's own colour. */
-.sve-build .fg-top { position: sticky; top: 0; z-index: 3; background: var(--bm-panel); padding: 0.75rem 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
+.sve-build .fg-top { position: sticky; top: 0; z-index: 3; background: var(--bm-panel); padding: 0 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
 .sve-build .fg-head { display: flex; align-items: center; gap: 0.5rem; }
 .sve-build .fg-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; font-weight: 600; }
 .sve-build .fg-head__acts { display: flex; gap: 0.125rem; }

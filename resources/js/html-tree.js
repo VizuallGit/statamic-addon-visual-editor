@@ -79,6 +79,7 @@ import { currentCollection, currentEntryId } from './lib/live-preview.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
 import { openCollections } from './lp-collections.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE, CHROME_CONTAINER } from './lib/ids.js';
+import { bindTips } from './cp/tip.js';
 import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { setMeta } from './lib/row-meta.js';
@@ -4306,12 +4307,16 @@ export function closeHtmlTreePanel(win) {
   syncPreviewInset(win);
 }
 
+/** The tree's icons show their names at once; its rows keep the browser's, or every pass over the list would flash one. */
+const TREE_TIPS = 'button[title], button[data-tip], label[title]';
+
 export function fillHtmlTreePane(win, pane) {
   if (pane.querySelector('[data-sve-html-tree-list]')) {
     return;
   }
 
   pane.id = HTML_TREE_PANEL_ID;
+  bindTips(win, pane, { only: TREE_TIPS });
   mountPane(pane, HtmlTreePane, {
     title: t(win, 'html_tree'),
   });
@@ -4350,6 +4355,7 @@ export function openHtmlTreePanel(win) {
   const panel = doc.createElement('div');
 
   panel.id = HTML_TREE_PANEL_ID;
+  bindTips(win, panel, { only: TREE_TIPS });
   panel.style.cssText = RIGHT_PANEL_FILL;
   mountPane(panel, HtmlTreePane, {
     title: t(win, 'html_tree'),

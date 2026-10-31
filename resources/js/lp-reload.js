@@ -24,6 +24,7 @@
  * stand. The publish form's values are not touched.
  */
 import { t } from './lib/i18n.js';
+import { bindTips } from './cp/tip.js';
 import { ask } from './cp/bus.js';
 import { LP_ICON_BTN_STYLE } from './cp.js';
 import { injectStyle } from './lib/style.js';
@@ -420,6 +421,7 @@ export function ensureLpReloadButton(win) {
     pill.id = LP_RELOAD_ID;
     pill.type = 'button';
     pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
+    bindTips(win, pill);
     pill.addEventListener('click', (event) => onReloadClick(win, pill, event));
   }
 

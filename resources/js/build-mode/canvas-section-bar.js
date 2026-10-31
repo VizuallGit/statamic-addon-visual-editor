@@ -4,7 +4,7 @@
  * a template, a section below, duplicate, remove.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: lib/i18n.js, lib/protocol.js, lib/publish-containers.js, lib/debug.js.
+ * May import: lib/i18n.js, lib/protocol.js, lib/publish-containers.js, lib/debug.js, cp/tip.js.
  * Bus: none. Every button is the message the bridge's button sends, posted to
  * the Control Panel's own window (add-section.js `isPreviewMessageSource` takes
  * `event.source === win`, as the HTML tree's section drag does): MSG.MOVE with
@@ -25,6 +25,7 @@ import { t } from '../lib/i18n.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { pageSectionRows } from '../lib/publish-containers.js';
 import { note } from '../lib/debug.js';
+import { bindTips } from '../cp/tip.js';
 
 const BAR_ID = '__sve-build-secbar';
 const LINE_ID = '__sve-build-secbar-line';
@@ -82,12 +83,13 @@ function boxOf(el) {
 
 /**
  * @param {Window} win  the Control Panel window
- * @param {{ page: () => Document|null }} canvas
+ * @param {{ page: () => Document|null, frame: () => HTMLIFrameElement|null }} canvas
  * @returns {{ hover(node), owns(node), click(event), place(), hide(), stop() }}
  */
-export function sectionBar(win, { page }) {
+export function sectionBar(win, { page, frame }) {
   let current = null;
   let drag = null;
+  let stopTips = null;
 
   const post = (type, extra = {}) => {
     if (current) {
@@ -106,6 +108,8 @@ export function sectionBar(win, { page }) {
       bar.setAttribute('data-sve-ui', '');
       bar.hidden = true;
       doc.documentElement.append(bar);
+      stopTips?.();
+      stopTips = bindTips(win, bar, { frame });
     }
 
     return bar;
@@ -434,6 +438,7 @@ export function sectionBar(win, { page }) {
     place,
     hide,
     stop() {
+      stopTips?.();
       endDrag(false);
       bound?.removeEventListener('pointerdown', onPress, true);
       bound = null;

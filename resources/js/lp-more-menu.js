@@ -5,6 +5,7 @@
  * (Content or Build — toolbar-visibility.js). Does not import the kernel.
  */
 import { t } from './lib/i18n.js';
+import { bindTips } from './cp/tip.js';
 import { sveState } from './cp-state.js';
 import { LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, ensureRightTool, resetEditorLayout } from './cp.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
@@ -508,6 +509,7 @@ export function ensureLpMoreButton(win) {
     pill.id = LP_MORE_ID;
     pill.type = 'button';
     pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
+    bindTips(win, pill);
     pill.setAttribute('aria-haspopup', 'menu');
     pill.addEventListener('click', (event) => {
       event.preventDefault();

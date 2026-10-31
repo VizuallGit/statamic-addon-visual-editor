@@ -3,7 +3,7 @@
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: lib/style.js, html-tree-parse.js, build-mode/canvas-paint.js,
- *   build-mode/drop.js, build-mode/place.js, build-mode/columns-overlay.js.
+ *   build-mode/drop.js, build-mode/place.js, build-mode/columns-overlay.js, cp/tip.js.
  * Bus: none. The file is written through the port (`write`, `openPlus`), as
  *   Add writes it.
  *
@@ -41,6 +41,7 @@ import { holdsElements } from './catalog.js';
 import { isWhole } from './whole.js';
 import { columnsFor, findByPath } from './place.js';
 import { PLUS } from './columns-overlay.js';
+import { bindTips } from '../cp/tip.js';
 
 const UI_ID = '__sve-build-ui';
 const ADD = 'data-sve-build-add';
@@ -93,6 +94,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
   let drag = null;
   let swallow = false;
   let cancel = null;
+  let stopTips = null;
 
   /** The file's rows, parsed once for each file. */
   const roots = () => {
@@ -123,6 +125,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       drop.hidden = true;
       layer.append(drop);
       doc.documentElement.append(layer);
+      stopTips?.();
+      stopTips = bindTips(win, layer, { frame });
     }
 
     return layer;
@@ -602,6 +606,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     grab,
     dragNew,
     stop() {
+      stopTips?.();
       cancel?.();
       tree.html = null;
       tree.roots = [];

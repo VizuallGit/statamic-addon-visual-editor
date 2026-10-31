@@ -26,6 +26,7 @@
  * Must not import: preview.js, overlay-host.js, bridge.js.
  */
 import { t } from './lib/i18n.js';
+import { bindTips } from './cp/tip.js';
 import { cpRoot } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { injectStyle } from './lib/style.js';
@@ -620,6 +621,7 @@ export function ensureLpStaticPublishButton(win) {
     pill.id = LP_PUBLISH_ID;
     pill.type = 'button';
     pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
+    bindTips(win, pill);
     pill.addEventListener('click', (event) => onPublishClick(win, event));
   }
 

@@ -4,6 +4,7 @@
  */
 import { dismissLpMoreMenu } from '../lp-more-menu.js';
 import { t } from '../lib/i18n.js';
+import { bindTips } from '../cp/tip.js';
 import { sveState } from '../cp-state.js';
 import { closeCodeDock, relayoutCodeDock, setCodeDockArmed } from '../code-dock-lazy.js';
 import { relayoutAiPanel } from '../ai-panel-lazy.js';
@@ -904,6 +905,7 @@ export function ensureLpBackButton(win) {
     pill.id = LP_BACK_ID;
     pill.type = 'button';
     pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
+    bindTips(win, pill);
 
     pill.addEventListener('click', (event) => {
       event.preventDefault();

@@ -42,7 +42,9 @@ function ensureStyles(doc) {
   injectStyle(
     doc,
     STYLE_ID,
+    // Above the canvas, so above Statamic's stacks too, which stand on z-index 2: gone while one is open.
     `#${LAYER_ID}{position:fixed;inset:0;pointer-events:none;z-index:99990}
+:root:has(.stack-content) #${LAYER_ID}{display:none}
 #${LAYER_ID} [data-col]{position:fixed;box-sizing:border-box;border:1px dashed rgba(56,88,233,.85);border-radius:2px;display:flex;align-items:center;justify-content:center}
 #${LAYER_ID} [data-col][data-target]{background:rgba(56,88,233,.08);border-style:solid}
 #${LAYER_ID} button{all:unset;pointer-events:auto;box-sizing:border-box;width:1.5rem;height:1.5rem;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:#3858e9;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}

@@ -15,6 +15,7 @@ import { twUi } from './cp/tailwind/store.js';
 import { twOpenAddMenu, twReorder } from './tw-classes.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { bindTips } from './cp/tip.js';
 
 const PREF = 'sve-tw-strip';
 
@@ -51,6 +52,8 @@ function ensureStyles(doc) {
       gap: 0.3rem;
       font-size: 0.6875rem;
     }
+    /* Above the preview, so above Statamic's stacks too, which stand on z-index 2: gone while one is open. */
+    :root:has(.stack-content) #${STRIP_ID} { display: none; }
     #${STRIP_ID} [data-group] {
       display: flex;
       align-items: center;
@@ -416,6 +419,7 @@ export function paintTwOverlay(win, path) {
     strip = doc.createElement('div');
     strip.id = STRIP_ID;
     doc.body.appendChild(strip);
+    bindTips(win, strip);
   }
 
   // The groups are built once and kept. Rebuilding them threw away the plus,
