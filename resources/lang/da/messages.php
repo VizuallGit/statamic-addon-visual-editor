@@ -340,6 +340,8 @@ return [
     'asset_picker_title' => 'Vælg et billede',
     'asset_picker_empty' => 'Ingen billeder i denne mappe.',
     'asset_picker_close' => 'Luk',
+    'component_props_bind_void' => 'Elementet har ingen tekst, et felt kan udfylde. Peg på et element med tekst.',
+    'component_props_bind_computed' => 'Billedets adresse beregnes i filen, så et felt kan ikke erstatte den. Brug feltet dér, hvor filen beregner den.',
     'component_props_bind_hint' => 'Klik på det element feltet skal udfylde — i previewet eller i HTML-træet.',
     'component_props_values' => 'Felter',
     'component_props_values_none' => 'Denne komponent har ingen felter.',

@@ -29,7 +29,7 @@ import {
 } from './component-props.js';
 import { syncComponentProps, syncComponentPropsHost } from './component-props-host.js';
 import { componentPropsUi } from './cp/component-props/store.js';
-import { componentBindPick } from './component-bind.js';
+import { componentBindHandle, componentBindPick } from './component-bind.js';
 import { openPageMenu } from './link-targets.js';
 import { createPropValues, propValuesReady } from './prop-values.js';
 import { fieldTypesFor, wholeTag } from './data-var-types.js';
@@ -53,6 +53,7 @@ import { familyCssVars, tagFamily } from './lib/tag-families.js';
 import { elementNames } from './lib/element-kind.js';
 import { applyFamilyColors } from './family-colors.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
+import { firstPickNode } from './html-pick-first.js';
 import { serializePickTree } from './html-pick-align.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
@@ -1822,7 +1823,8 @@ export function renderHtmlTree(win) {
       return;
     }
 
-    if (at) {
+    // Refused by a field still waiting: the click was its, not a pick.
+    if (at && !componentBindHandle()) {
       htmlTreeUi.rowClicks += 1;
     }
 
@@ -2524,7 +2526,7 @@ function publishHtmlPick(win, roots) {
  * not the only one.
  */
 function sendPick(win, roots) {
-  const first = roots[0];
+  const first = firstPickNode(roots);
 
   // Inside a component the dock's uid still names the *section* it was opened
   // from, and lining the file up against that element cannot work: a component

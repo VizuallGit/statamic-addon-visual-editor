@@ -343,6 +343,8 @@ return [
     'asset_picker_title' => 'Choose an image',
     'asset_picker_empty' => 'No images in this folder.',
     'asset_picker_close' => 'Close',
+    'component_props_bind_void' => 'This has no text a field can fill. Point at an element with words in it.',
+    'component_props_bind_computed' => 'This image\'s address is worked out in the file, so a field cannot replace it. Use the field where the file works it out.',
     'component_props_bind_hint' => 'Click the element this field should fill — in the preview, or in the HTML tree.',
     'component_props_values' => 'Fields',
     'component_props_values_none' => 'This component declares no fields.',

@@ -36,3 +36,9 @@ test('the props are the props panel itself, through the port, and leave with the
   assert.ok(panel.includes('unmountProps = el ? port.mountProps(el) || null : null;'));
   assert.ok(panel.includes('onBeforeUnmount(() => unmountProps?.());'));
 });
+
+test('a click with a prop\'s target armed is the target\'s: the props stay', () => {
+  assert.ok(panel.includes('if (!componentPropsUi.bindingHandle) {'));
+  assert.ok(panel.includes("{ flush: 'sync' }"));
+  assert.ok(boot.indexOf('clicks.value += 1;') < boot.indexOf("hooks.select?.(wholeOwner(html(), path) || path || '');"), 'counted before the pick disarms it');
+});

@@ -14,6 +14,7 @@
  */
 
 import { ask } from './cp/bus.js';
+import { t } from './lib/i18n.js';
 import { closingTagIndex } from './html-tree-edit.js';
 import { isVoidTag, parseTemplateTree } from './html-tree-parse.js';
 
@@ -125,7 +126,23 @@ export function componentBindPick(win, path) {
     return false;
   }
 
-  const written = prop.type === 'media' && wantsSrc(node) ? bindToSrc(html, node, prop) : bindToBody(html, node, prop);
+  const media = prop.type === 'media' && wantsSrc(node);
+
+  // No words of its own to hand over. Still armed: the next one might have.
+  if (!media && isVoidTag(node.tag)) {
+    win.Statamic?.$toast?.error(t(win, 'component_props_bind_void'));
+
+    return false;
+  }
+
+  const written = media ? bindToSrc(html, node, prop) : bindToBody(html, node, prop);
+
+  // Still armed, and the file as it was.
+  if (written?.computed) {
+    win.Statamic?.$toast?.error(t(win, 'component_props_bind_computed'));
+
+    return false;
+  }
 
   if (written) {
     ask('dock:set-html', written.html);
@@ -170,19 +187,94 @@ function bindToBody(html, node, prop) {
   };
 }
 
-/** An image points somewhere, so the field is what it points at. */
-function bindToSrc(html, node, prop) {
+/** Where a quoted value ends, past any `{{ … }}` in it: a tag may hold quotes of its own. */
+function valueEnd(open, at) {
+  const quote = open[at];
+
+  for (let i = at + 1; i < open.length; i += 1) {
+    if (open.startsWith('{{', i)) {
+      const end = open.indexOf('}}', i);
+
+      if (end < 0) {
+        return -1;
+      }
+
+      i = end + 1;
+    } else if (open[i] === quote) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+/** Every `src` an opening tag writes, each with where its value stands. */
+function srcValues(open) {
+  const out = [];
+  let i = open.search(/\s/);
+
+  while (i >= 0 && i < open.length) {
+    if (open.startsWith('{{', i)) {
+      const end = open.indexOf('}}', i);
+
+      if (end < 0) {
+        break;
+      }
+
+      i = end + 2;
+      continue;
+    }
+
+    const attr = /^([^\s=>"'{}]+)\s*=\s*["']/.exec(open.slice(i));
+
+    if (!attr) {
+      i += 1;
+      continue;
+    }
+
+    const from = i + attr[0].length - 1;
+    const end = valueEnd(open, from);
+
+    if (end < 0) {
+      break;
+    }
+
+    if (attr[1].toLowerCase() === 'src') {
+      out.push({ from, to: end + 1, value: open.slice(from + 1, end) });
+    }
+
+    i = end + 1;
+  }
+
+  return out;
+}
+
+/**
+ * An image points somewhere, so the field is what it points at.
+ *
+ * An address the file works out — a `{{ glide }}`, a `src` for each branch of a
+ * condition — is left alone and answered `{ computed: true }`: a field written
+ * over it would take the file's own work away, as in components/image.
+ */
+export function bindToSrc(html, node, prop) {
   const open = html.slice(node.from, node.openTo);
   const tag = `{{ props_${prop.handle} }}`;
-  const match = /(\ssrc\s*=\s*)(["'])([\s\S]*?)\2/i.exec(open);
+  const values = srcValues(open);
 
-  if (match) {
-    const from = node.from + match.index + match[1].length;
-    const to = from + match[2].length * 2 + match[3].length;
+  if (values.length === 1 && values[0].value.trim() === tag) {
+    return null;
+  }
+
+  if (values.length > 1 || values[0]?.value.includes('{{')) {
+    return { computed: true };
+  }
+
+  if (values.length) {
+    const from = node.from + values[0].from;
 
     return {
-      html: html.slice(0, from) + `"${tag}"` + html.slice(to),
-      was: match[3],
+      html: html.slice(0, from) + `"${tag}"` + html.slice(node.from + values[0].to),
+      was: values[0].value,
     };
   }
 

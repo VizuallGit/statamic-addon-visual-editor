@@ -221,7 +221,14 @@ watch(() => componentPropsUi.open, (open) => {
   componentView.value = open ? 'props' : '';
 });
 // Only a click lets go of it: the tree picks a row by itself when the file opens.
-watch([port.clicks, port.treeClicks, () => port.pointed?.value], () => {
+// One made with a prop's target armed is the target's, and the props stay. Sync,
+// to read that before the click has disarmed it.
+watch(port.clicks, () => {
+  if (!componentPropsUi.bindingHandle) {
+    componentView.value = '';
+  }
+}, { flush: 'sync' });
+watch([port.treeClicks, () => port.pointed?.value], () => {
   componentView.value = '';
 });
 watch(() => port.plusPath(), (plus) => {

@@ -4,7 +4,7 @@
  * does it there too.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: cp/open-overlay.js, cp/surfaces/ChoiceDialog.vue.
+ * May import: cp/open-overlay.js, cp/surfaces/ChoiceDialog.vue, html-pick-align.js.
  * Bus: none.
  *
  * The real preview keeps running under the canvas, hidden, and its bridge
@@ -37,6 +37,7 @@
 
 import { openCpOverlay } from '../cp/open-overlay.js';
 import ChoiceDialog from '../cp/surfaces/ChoiceDialog.vue';
+import { HT_PATH_ATTR } from '../html-pick-align.js';
 
 const BRIDGE_STYLES_ID = '__sve-bridge-styles';
 const CONFIRM_ID = '__sve-preview-confirm';
@@ -411,6 +412,10 @@ export function canvasFocus(win, { page, onState }) {
 
         if (record.type === 'attributes' && STATE_ATTRS.includes(record.attributeName)) {
           state = true;
+        } else if (record.attributeName === HT_PATH_ATTR) {
+          // Inside a component the canvas paints nothing of the file's: its
+          // elements can be pointed at only with the real page's stamps.
+          state = state || inside() === 'component';
         } else if (target === real.documentElement || target?.closest?.(`[${FRAME_ATTR}], #${CONFIRM_ID}`)) {
           frame = true;
         }
@@ -429,7 +434,7 @@ export function canvasFocus(win, { page, onState }) {
       childList: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['class', 'style', ...STATE_ATTRS],
+      attributeFilter: ['class', 'style', HT_PATH_ATTR, ...STATE_ATTRS],
     });
     css();
     sync();

@@ -350,10 +350,11 @@ export function createEditorPort(win, hooks = {}) {
     plusPath: () => (hooks.plusPath ? hooks.plusPath() : plus.value),
     select(path) {
       clearPlus();
+      // Before the pick: a prop's target takes the click in it, and goes.
+      clicks.value += 1;
       // Rich text is one element: a click on what stands in it picks it.
       hooks.select?.(wholeOwner(html(), path) || path || '');
       panel.value = 'element';
-      clicks.value += 1;
       bump();
     },
     setPlus(path) {
