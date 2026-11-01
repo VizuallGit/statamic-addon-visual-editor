@@ -697,6 +697,12 @@ onBeforeUnmount(() => {
 .sve-build .fg-head__acts { display: flex; gap: 0.125rem; }
 .sve-build .fg-ib { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; flex: none; border-radius: 0.3rem; color: var(--bm-muted); }
 .sve-build .fg-ib .bm-ic, .sve-build .fg-ib svg { width: 0.9375rem; height: 0.9375rem; }
+/* Flow's two at the end of the row: on the same light grey as the row, with an edge. */
+.sve-build .fg-flow-more { background: var(--bm-raise); border: 1px solid var(--bm-edge); }
+.sve-build .fg-flow-more .bm-ic, .sve-build .fg-flow-more svg { width: 1rem; height: 1rem; }
+.sve-build button.fg-flow-more:hover:not(:disabled) { background: var(--bm-hover); }
+/* The dots themselves, a pixel wider than the icon draws them. */
+.sve-build [data-sve-build-display-more] svg path { stroke-width: 3.75; }
 .sve-build button.fg-ib:hover:not(:disabled) { background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .fg-ib[aria-pressed='true'] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
 .sve-build .fg-ib:disabled { opacity: 0.35; cursor: default; }
@@ -813,10 +819,18 @@ onBeforeUnmount(() => {
 /* The Tailwind pane's own class list, in the panel: its tag, sizes and state are the panel's sticky top. */
 .sve-build .fg-classes .sve-tw { padding: 0; }
 .sve-build .fg-classes .sve-tw-head { display: none; }
-.sve-build .fg-classes .fg-sec__acts { align-items: center; }
+.sve-build .fg-classes { display: grid; gap: 0.4rem; min-width: 0; }
+.sve-build .fg-classes__h { display: flex; align-items: center; gap: 0.4rem; min-height: 1.75rem; min-width: 0; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); }
+.sve-build .fg-classes__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve-build .fg-classes__count { flex: none; padding-inline: 0.35rem; border-radius: 1rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.625rem; font-weight: 500; line-height: 1.5; }
+.sve-build .fg-classes .fg-sec__acts { flex: none; }
+.sve-build .fg-classes .bm-switch { margin-inline-start: 0.25rem; background: var(--bm-edge); }
+.sve-build .fg-classes .bm-switch[aria-checked='true'] { background: var(--bm-accent); }
+/* The pane's list can be long, and this stands in the sticky top. Room above and beside for its minus. */
+.sve-build .fg-classes .sve-tw { max-height: 8rem; overflow-y: auto; padding-block-start: 0.5em; padding-inline-end: 0.5em; }
 .sve-build .fg-classes__new { flex: none; height: 1.5rem; padding-inline: 0.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 500; }
 .sve-build .fg-classes__new:hover { background: var(--bm-hover); }
-.sve-build .fg-classes.is-class { box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
+.sve-build .fg-classes.is-class { padding: 0.4rem; box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
 .sve-build .fg-classes__outside code { color: var(--bm-ink); }
 .sve-build .fg-classpick__acts { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .sve-build .fg-classpick__new:disabled { background: var(--bm-hover); color: var(--bm-faint); cursor: default; }

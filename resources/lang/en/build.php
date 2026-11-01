@@ -16,7 +16,6 @@ return [
     'mode_build' => 'Vizuall Build',
     'mode_html' => 'Vizuall Build + HTML',
     'build_dock' => 'HTML',
-    'build_fields' => 'Fields',
 
     // Tabs
     'tab_add' => 'Add',
@@ -160,7 +159,7 @@ return [
     'spacing_box' => 'Show spacing as a box',
     'spacing_fields' => 'Show spacing as fields',
     'value_hint' => 'Type a token (<code>500</code>), a value (<code>10px</code>, <code>4rem</code>, <code>calc(…)</code>) or a custom property (<code>--gutter</code>). Grey text is inherited: hover it to see where it comes from.',
-    'classes' => 'Classes on the element',
+    'classes' => 'Classes',
     'classes_none' => 'None yet',
     'classes_note' => 'Click a Tailwind class to change it, or a blue class to open it. The minus takes it off.',
     'display_more' => 'More display values',
@@ -171,6 +170,7 @@ return [
     'delete' => 'Delete',
     'own_class' => 'Class',
     'class_done' => 'Done',
+    'classes_switch' => 'Show or hide the classes',
     'class_new' => 'New class',
     'class_cancel' => 'Cancel',
     'class_pick_hint' => 'Click the Tailwind classes that should go in it.',
@@ -180,7 +180,6 @@ return [
     'class_create_many' => 'Create with :n classes',
     'class_name_used' => 'The site already has a class with this name.',
     'class_inside' => 'Inside :name',
-    'class_inside_note' => 'Every choice in Style lands here. Click a class to change it, or the minus to take it out.',
     'class_outside' => 'Also on this element, outside the class:',
     'value_seen_class' => 'from :name',
     'value_seen_theme' => 'from the theme',

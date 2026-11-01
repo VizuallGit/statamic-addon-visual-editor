@@ -58,6 +58,7 @@ export const CHROME_KEYS = [
   'sve-lite-load-all',
   'sve-build-switch-tab',
   'sve-build-dock',
+  'sve-build-classes',
   'sve-editor-mode',
 ];
 

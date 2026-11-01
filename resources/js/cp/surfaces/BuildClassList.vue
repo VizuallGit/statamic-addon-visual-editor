@@ -1,7 +1,8 @@
 <script setup>
 /**
- * The classes at the foot of Style: the Tailwind pane's own list, with the
- * site's classes marked (build-mode/class-target.js). A click on a Tailwind
+ * The classes at the top of Style, shown or hidden with the switch on its line
+ * (it starts as Live Preview settings say, build-classes-pref.js): the Tailwind
+ * pane's own list, with the site's classes marked (build-mode/class-target.js). A click on a Tailwind
  * class changes it; a click on one of the site's opens it, and the list then
  * shows what is in that class. `New class` turns a click into a choice: the
  * classes chosen go into a class with the name given, and it opens. None
@@ -15,6 +16,8 @@ const port = inject('sveBuild');
 const name = ref('');
 const input = ref(null);
 
+const shown = port.classesShown;
+const total = computed(() => (port.rev.value, port.pickedClasses().length));
 const target = computed(() => (port.rev.value, port.classes.target()));
 const picking = computed(() => (port.rev.value, port.classes.picking()));
 const count = computed(() => (port.rev.value, port.classes.chosen().length));
@@ -48,6 +51,11 @@ function cancel() {
   port.classes.stopPicking();
 }
 
+function toggle() {
+  cancel();
+  shown.value = !shown.value;
+}
+
 async function create() {
   if (canCreate.value) {
     await port.classes.create(typed.value);
@@ -60,16 +68,21 @@ onBeforeUnmount(cancel);
 </script>
 
 <template>
-  <section class="fg-sec is-open fg-classes" :class="{ 'is-class': target || picking }" data-sve-build-classes>
-    <header class="fg-sec__h">
-      <span class="fg-sec__name" :data-sve-build-classes-title="target || undefined">{{ target ? port.t('class_inside', { name: target }) : picking ? port.t('class_new') : port.t('classes') }}</span>
-      <span v-if="!picking" class="fg-sec__acts">
-        <button v-if="!target && port.classes.enabled()" type="button" class="fg-classes__new" data-sve-build-class-new @click="start">{{ port.t('class_new') }}</button>
-        <button type="button" class="fg-ib" :title="port.t('classes_sort')" :aria-label="port.t('classes_sort')" data-sve-build-classes-sort @click="port.sortClasses()" v-html="ic('list')"></button>
-        <button type="button" class="fg-ib" :title="port.t('classes_add')" :aria-label="port.t('classes_add')" data-sve-build-classes-add @click="port.openAddMenu($event.currentTarget)" v-html="ic('plus')"></button>
+  <section class="fg-classes" :class="{ 'is-class': shown && (target || picking) }" data-sve-build-classes>
+    <header class="fg-classes__h">
+      <span class="fg-classes__name" :title="port.t('classes_note')" :data-sve-build-classes-title="target || undefined">{{ target && shown ? port.t('class_inside', { name: target }) : picking ? port.t('class_new') : port.t('classes') }}</span>
+      <span v-if="!shown" class="fg-classes__count" data-sve-build-classes-count>{{ total }}</span>
+      <span class="fg-sec__acts">
+        <template v-if="shown && !picking">
+          <button v-if="!target && port.classes.enabled()" type="button" class="fg-classes__new" data-sve-build-class-new @click="start">{{ port.t('class_new') }}</button>
+          <button type="button" class="fg-ib" :title="port.t('classes_sort')" :aria-label="port.t('classes_sort')" data-sve-build-classes-sort @click="port.sortClasses()" v-html="ic('list')"></button>
+          <button type="button" class="fg-ib" :title="port.t('classes_add')" :aria-label="port.t('classes_add')" data-sve-build-classes-add @click="port.openAddMenu($event.currentTarget)" v-html="ic('plus')"></button>
+        </template>
+        <button type="button" class="bm-switch" role="switch" :aria-checked="shown" :title="port.t('classes_switch')" :aria-label="port.t('classes_switch')" data-sve-build-classes-switch @click="toggle"></button>
       </span>
     </header>
-    <div class="fg-sec__b">
+
+    <template v-if="shown">
       <p v-if="picking" class="fg-hint">{{ port.t('class_pick_hint') }}</p>
       <TwClassList />
 
@@ -82,11 +95,8 @@ onBeforeUnmount(cancel);
         </div>
       </div>
 
-      <p v-else-if="target" class="fg-hint">{{ port.t('class_inside_note') }}</p>
       <p v-else-if="lockedTold" class="fg-hint" data-sve-build-class-locked-note>{{ port.t('class_locked', { name: lockedTold }) }}</p>
-      <p v-else class="fg-hint">{{ port.t('classes_note') }}</p>
-
       <p v-if="outside.length" class="fg-hint fg-classes__outside" data-sve-build-class-outside>{{ port.t('class_outside') }} <code>{{ outside.join(' ') }}</code></p>
-    </div>
+    </template>
   </section>
 </template>

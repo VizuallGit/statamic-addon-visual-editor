@@ -3,7 +3,7 @@
  * The class open in Style, in the panel's sticky top: while it stands here,
  * Style writes in that class (build-mode/class-target.js), so a change reaches
  * every element with it, until Done. Nothing is open: nothing stands here.
- * Classes are made, opened and taken off in the list at the foot of Style
+ * Classes are made, opened and taken off in the list under it
  * (BuildClassList.vue).
  */
 import { computed, inject, watch } from 'vue';

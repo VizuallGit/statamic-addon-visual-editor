@@ -37,6 +37,8 @@ const props = defineProps({
   nameMax: { type: Number, required: true },
   // { show, on, label }: the mode switch on a tab of the bar (build-switch-tab.js).
   switchTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
+  // { on, label }: Style's class list, shown when a Build starts (build-classes-pref.js).
+  classesDefault: { type: Object, default: () => ({ on: false, label: '' }) },
   on: { type: Object, required: true },
 });
 
@@ -45,6 +47,13 @@ const switchTabOn = ref(props.switchTab.on);
 function setSwitchTab(value) {
   switchTabOn.value = value;
   props.on.switchTab(value);
+}
+
+const classesDefaultOn = ref(props.classesDefault.on);
+
+function setClassesDefault(value) {
+  classesDefaultOn.value = value;
+  props.on.classesDefault(value);
 }
 
 const groups = ref([]);
@@ -327,6 +336,10 @@ function nudgeGroup(id, step) {
     <label v-if="switchTab.show" class="sve-lp-settings__row" data-sve-switch-tab-setting>
       <input type="checkbox" :checked="switchTabOn" @change="setSwitchTab($event.target.checked)">
       <span :title="switchTab.label">{{ switchTab.label }}</span>
+    </label>
+    <label class="sve-lp-settings__row" data-sve-classes-default-setting>
+      <input type="checkbox" :checked="classesDefaultOn" @change="setClassesDefault($event.target.checked)">
+      <span :title="classesDefault.label">{{ classesDefault.label }}</span>
     </label>
     <div class="sve-lp-settings__line">
       <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{ modeLabel ? `${label} · ${modeLabel}` : label }}</span>

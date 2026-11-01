@@ -1,6 +1,6 @@
 /**
  * The Edit Content | Vizuall Build switch in the middle of the Live Preview
- * top bar, and in Build the two icons beside it.
+ * top bar, and in Build the HTML icon among the bar's other icons.
  *
  * Owner: Build mode. Drawn by ensureHeaderToolbar on every pass, and only when
  * `build_mode` is on for this user (Features::visible — it also needs the
@@ -9,7 +9,6 @@
  *   Edit Content   the editor as it is: the form, the real preview, no dock.
  *   Vizuall Build  the Build panel, the canvas, the HTML tree (build-mode-host.js).
  *   HTML icon      Build's dock on or off, kept for this user. The tree stays.
- *   Fields icon    Build's left column shows the form instead of the panel.
  *
  * The top bar's icons are the ones the site gave Build; with the dock showing,
  * all of them (`html` in lib/toolbar-modes.js), as a developer wants.
@@ -48,14 +47,14 @@ import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
-import { HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
+import { HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
 import { EDITOR_MODES, buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
 import { isCodeDockArmed } from '../code-dock-state.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
-import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
+import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, LP_TOOLBAR_ICON_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
 import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
 import { SWITCH_TAB_ATTR, buildSwitchTabOn } from '../build-switch-tab.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
@@ -66,8 +65,8 @@ const MODES = ['content', 'visual'];
 /** The mode this user last pressed. Content writes nothing: it is where a Live Preview starts. */
 const MODE_KEY = 'sve-editor-mode';
 /** Each mode's word in `sveBuildStrings` — Vizuall Build's is still `mode_build`. */
-const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', dock: 'build_dock', fields: 'build_fields' };
-const FALLBACK = { content: 'Edit Content', visual: 'Vizuall Build', dock: 'HTML', fields: 'Fields' };
+const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', dock: 'build_dock' };
+const FALLBACK = { content: 'Edit Content', visual: 'Vizuall Build', dock: 'HTML' };
 // Drawn like the toolbar's own icons (stroke 2, round): a pen writing the
 // content, a page laid out in blocks, and a form's rows. The HTML icon is the
 // dock's own, read when the switch is drawn — header-toolbar.js imports this
@@ -78,8 +77,6 @@ const ICONS = {
   visual:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="10" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
 };
-const FIELDS_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>';
 
 function ensureStyles(doc) {
   const bar = `.live-preview-header:has(> #${SWITCH_ID})`;
@@ -91,9 +88,9 @@ function ensureStyles(doc) {
     `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
 ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
 #${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
-#${SWITCH_ID} [data-sve-build-tool][hidden]{display:none!important}
-#${SWITCH_ID} :is([data-sve-build-mode],[data-sve-build-tool]){display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
-#${SWITCH_ID} :is([data-sve-build-mode],[data-sve-build-tool]) svg{display:block;flex:none;width:.875rem;height:.875rem}
+#${HEADER_TOOLBAR_ID} [data-sve-build-tool][hidden]{display:none!important}
+#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
+#${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}
 /* Everything below is the tab (SWITCH_TAB_ATTR, Live Preview settings → Top bar); without it the
    switch is the group above, like the bar's others.
    The switch on a tab of the bar, as a canvas tool sits on one: no group box, the three buttons
@@ -106,8 +103,8 @@ ${tab}{--sve-switch-h:2.5rem;--sve-switch-pad:.375rem;--sve-switch-drop:1rem;--s
 ${tab}::before{content:"";position:absolute;z-index:-1;inset:calc(-1 * var(--sve-switch-pad));border-radius:0 0 .625rem .625rem;background:var(--sve-switch-base,transparent);pointer-events:none}
 ${tab}::after{content:"";position:absolute;z-index:-1;left:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));right:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));top:calc(100% + var(--sve-switch-pad) - var(--sve-switch-drop));height:var(--sve-switch-ear);pointer-events:none;background:radial-gradient(circle at 0 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) left/var(--sve-switch-ear) 100% no-repeat,radial-gradient(circle at 100% 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) right/var(--sve-switch-ear) 100% no-repeat}
 ${tab} > [role="group"]{height:auto!important;padding:0!important;background:transparent!important;border-radius:0!important}
-${tab} :is([data-sve-build-mode],[data-sve-build-tool]){height:var(--sve-switch-h)!important;padding:0 .75rem;font-size:.8125rem!important;border-radius:.375rem!important}
-${tab} :is([data-sve-build-mode],[data-sve-build-tool]) svg{width:.9375rem;height:.9375rem}`
+${tab} [data-sve-build-mode]{height:var(--sve-switch-h)!important;padding:0 .75rem;font-size:.8125rem!important;border-radius:.375rem!important}
+${tab} [data-sve-build-mode] svg{width:.9375rem;height:.9375rem}`
   );
 }
 
@@ -172,14 +169,15 @@ function paint(holder) {
   holder.querySelectorAll('[data-sve-build-mode]').forEach((btn) => {
     paintLpActiveControl(btn, btn.dataset.sveBuildMode === 'visual' ? inBuild : !inBuild);
   });
-  holder.querySelectorAll('[data-sve-build-tool]').forEach((btn) => {
-    btn.hidden = !inBuild;
+  const dock = holder.ownerDocument.querySelector('[data-sve-build-tool="dock"]');
 
-    const on = btn.dataset.sveBuildTool === 'dock' ? inBuild && buildDockShown(win) : mode === 'fields';
+  if (dock) {
+    const on = inBuild && buildDockShown(win);
 
-    paintLpActiveControl(btn, on);
-    btn.setAttribute('aria-pressed', String(on));
-  });
+    dock.hidden = !inBuild;
+    paintLpActiveControl(dock, on);
+    dock.setAttribute('aria-pressed', String(on));
+  }
 }
 
 /** The bar's icons as the mode has them: all of them while the dock shows. */
@@ -293,24 +291,30 @@ export function ensureBuildSwitch(win) {
       group.appendChild(btn);
     });
 
-    [
-      ['dock', TOOLBAR_ICONS.code, () => toggleDock(win, holder)],
-      ['fields', FIELDS_ICON, () => choose(win, holder, editorMode() === 'fields' ? 'visual' : 'fields')],
-    ].forEach(([tool, icon, press]) => {
-      const btn = doc.createElement('button');
-
-      btn.type = 'button';
-      btn.dataset.sveBuildTool = tool;
-      btn.title = label(win, tool);
-      btn.setAttribute('aria-label', label(win, tool));
-      btn.innerHTML = icon;
-      btn.style.cssText = FRAMED_CONTROL_STYLE;
-      btn.addEventListener('click', press);
-      group.appendChild(btn);
-    });
-
     holder.appendChild(group);
     drawn = true;
+  }
+
+  // The dock's icon among the bar's: at the end of its last group, before the group's +.
+  let dock = doc.querySelector('[data-sve-build-tool="dock"]');
+
+  if (!dock) {
+    dock = doc.createElement('button');
+    dock.type = 'button';
+    dock.dataset.sveBuildTool = 'dock';
+    dock.title = label(win, 'dock');
+    dock.setAttribute('aria-label', label(win, 'dock'));
+    dock.innerHTML = TOOLBAR_ICONS.code;
+    dock.style.cssText = LP_TOOLBAR_ICON_STYLE;
+    dock.querySelector('svg')?.setAttribute('width', '15');
+    dock.querySelector('svg')?.setAttribute('height', '15');
+    dock.addEventListener('click', () => toggleDock(win, holder));
+  }
+
+  const lastGroup = [...bar.querySelectorAll(`:scope > [${TOOLBAR_GROUP_ATTR}]`)].pop() || bar;
+
+  if (dock.parentElement !== lastGroup) {
+    lastGroup.insertBefore(dock, lastGroup.querySelector(`:scope > [${TOOLBAR_ADD_ATTR}]`));
   }
 
   // Right after the icon row, as the bar's other placements anchor theirs:
@@ -333,8 +337,9 @@ export function ensureBuildSwitch(win) {
   if (drawn && editorMode() === 'content') {
     const kept = chromeGet(win, MODE_KEY);
 
+    // Fields had a mode of its own, with its icon: whoever left it there is in Build.
     if (EDITOR_MODES.includes(kept)) {
-      choose(win, holder, kept);
+      choose(win, holder, kept === 'fields' ? 'visual' : kept);
     }
   }
 }

@@ -379,6 +379,7 @@ function jump(group) {
   <div ref="root" class="fg-style">
     <div ref="bar" class="fg-top">
       <BuildClassTarget />
+      <BuildClassList />
 
       <div class="fg-seg fg-sizes" data-sve-build-sizes>
         <div ref="sizeRow" class="fg-fit">
@@ -514,7 +515,7 @@ function jump(group) {
             </div>
             <button
               type="button"
-              class="fg-ib"
+              class="fg-ib fg-flow-more"
               :aria-pressed="flow === 'other'"
               :title="flow === 'other' ? `display: ${disp}` : port.t('display_more')"
               :aria-label="port.t('display_more')"
@@ -524,7 +525,7 @@ function jump(group) {
             ></button>
             <button
               type="button"
-              class="fg-ib"
+              class="fg-ib fg-flow-more"
               :aria-pressed="wrapOn"
               title="flex-wrap: wrap"
               aria-label="flex-wrap: wrap"
@@ -788,6 +789,5 @@ function jump(group) {
       </div>
     </section>
 
-    <BuildClassList />
   </div>
 </template>

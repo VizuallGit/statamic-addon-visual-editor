@@ -104,6 +104,7 @@ import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { readClassAttr, tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
+import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf } from './classes.js';
@@ -396,6 +397,11 @@ export function createEditorPort(win, hooks = {}) {
   // Counts the canvas's paints: what an element shows changes with them, and a paint is no write.
   const painted = ref(0);
   const stopForgetting = listen(win, 'sve:site-css-saved', () => shown.forget());
+  // Style's class list: from the setting, then the switch on the list.
+  const classesShown = ref(buildClassesShownByDefault(win));
+  const stopClassesDefault = listen(win, CLASSES_DEFAULT_EVENT, () => {
+    classesShown.value = buildClassesShownByDefault(win);
+  });
 
   const port = {
     rev,
@@ -950,6 +956,7 @@ export function createEditorPort(win, hooks = {}) {
       return only ? names.filter((name) => model.catalog.css(name).startsWith(only)) : names;
     },
     painted,
+    classesShown,
     /**
      * What the picked element shows for a field's property, and the field's
      * hover. `own` is the text of a class the field has; without one, `grey` is
@@ -1062,6 +1069,7 @@ export function createEditorPort(win, hooks = {}) {
     dispose() {
       twSetChipHost(win, null);
       stopForgetting();
+      stopClassesDefault();
       unhooks.forEach((unhook) => unhook());
     },
   };
