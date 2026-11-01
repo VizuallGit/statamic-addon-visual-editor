@@ -8,6 +8,10 @@
 return [
     'mode_content' => 'Rediger indhold',
     'mode_build' => 'Vizuall build',
+    'undo_content' => 'Fortryd den seneste ændring af indholdet',
+    'undo_build' => 'Fortryd den seneste ændring af HTML',
+    'redo_content' => 'Gentag ændringen af indholdet',
+    'redo_build' => 'Gentag ændringen af HTML',
     'mode_html' => 'Vizuall Build + HTML',
     'build_dock' => 'HTML',
 
@@ -165,6 +169,10 @@ return [
     'delete' => 'Slet',
     'own_class' => 'Klasse',
     'class_done' => 'Færdig',
+    'class_choose_all' => 'Vælg alle',
+    'class_take_all' => 'Flyt alle ind',
+    'class_take_one' => 'Flyt :name ind i :target',
+    'class_stays' => 'Denne klasse bliver på elementet: den er sitets egen, eller ikke en Tailwind bygger',
     'classes_switch' => 'Vis eller skjul klasserne',
     'class_new' => 'Ny klasse',
     'class_cancel' => 'Annullér',

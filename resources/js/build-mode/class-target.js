@@ -32,7 +32,7 @@ import { pageDocuments, postSiteCss, readSiteCss, storeUtility, toast } from '..
 import { featureSaidOn } from '../lib/config.js';
 import { t as i18n } from '../lib/i18n.js';
 import { tokenizeClassValue } from '../tw-parse.js';
-import { twAddClass, twPickedClasses, twRefresh, twSetClassTarget } from '../tw-classes.js';
+import { twAddClass, twDropClass, twPickedClasses, twRefresh, twSetClassTarget } from '../tw-classes.js';
 
 /** How long the clicks must stop before site.css is saved. */
 const SAVE_AFTER = 700;
@@ -56,6 +56,9 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   let queue = Promise.resolve();
   let drawn = 0;
   let savingHere = false;
+  let openPane = null;
+  // The pane's last write, drawn or refused.
+  let written = Promise.resolve(true);
 
   const enabled = () => featureSaidOn(win, 'site_css');
 
@@ -220,7 +223,7 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
         const asked = value;
 
         empty.value = !value.trim();
-        draw(name, value)
+        written = draw(name, value)
           .then((built) => {
             if (!built && value) {
               throw new Error('it compiles to nothing');
@@ -233,18 +236,23 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
               timer = 0;
               save(name, good);
             }, SAVE_AFTER);
+
+            return true;
           })
           .catch((err) => {
             toast(win, 'error', 'tw_utility_wont_compile', { reason: err?.message || String(err) });
             pane.value = good;
             twSetClassTarget(win, pane);
             void draw(name, good).catch(() => {});
+
+            return false;
           });
       },
       /** What the element would look like: the tag's own classes, with this class's in its place. */
       preview: (value) => tagTokens().map((token) => (token === name ? value : token)).join(' '),
     };
 
+    openPane = pane;
     twSetClassTarget(win, pane);
     changed();
   }
@@ -266,6 +274,42 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   }
 
   const isSite = (raw) => bodies.value.has(raw) && !raw.endsWith('-*');
+  // What can go in a class: a class Tailwind builds. The site's own stay, and `@apply` of an unknown name would fail the build.
+  const canJoin = (raw) => !isSite(raw) && raw !== '[' && raw !== ']' && isTailwind(raw);
+
+  /**
+   * Classes on the element into the open class: in its `@apply` first, the way a
+   * click in Style writes there, so the element never stands without them. One
+   * Tailwind would not build stays on the element.
+   */
+  async function takeIn(raws) {
+    const name = target.value;
+    const moved = [];
+
+    if (!name) {
+      return;
+    }
+
+    for (const raw of raws.filter(canJoin)) {
+      twAddClass(win, raw);
+
+      if (await written) {
+        moved.push(raw);
+      }
+    }
+
+    // Off the tag with the class still open: what it is saving stays as it is.
+    twSetClassTarget(win, null);
+    moved.forEach((raw) => twDropClass(win, raw));
+    twSetClassTarget(win, openPane);
+  }
+
+  function chooseAll() {
+    const all = tagTokens().filter(canJoin);
+
+    chosen.value = all.every((raw) => chosen.value.includes(raw)) ? [] : all;
+    twRefresh(win);
+  }
 
   /** What the list asks about a class, and the click on one in Style's list (not in the dock's). */
   const chipHost = {
@@ -367,8 +411,16 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     startPicking,
     stopPicking,
     chipHost,
-    /** What the element carries besides the open class. */
-    outside: () => tagTokens().filter((token) => token !== target.value),
+    /** What the element carries besides the open class: `joinable` can go in it. */
+    outside: () => tagTokens().filter((token) => token !== target.value && token !== '[' && token !== ']').map((name) => ({ name, joinable: canJoin(name) })),
+    takeIn,
+    chooseAll,
+    allChosen: () => {
+      const all = tagTokens().filter(canJoin);
+
+      return !!all.length && all.every((raw) => chosen.value.includes(raw));
+    },
+    canChoose: () => tagTokens().some(canJoin),
     /** The first class on the element whose `@apply` holds what `has(applyClasses)` looks for. */
     sourceOf(has) {
       return tagTokens().find((token) => isSite(token) && token !== target.value && has(applyClasses(bodies.value.get(token) || ''))) || '';

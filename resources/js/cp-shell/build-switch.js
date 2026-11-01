@@ -23,9 +23,9 @@
  * own margin is set aside while the switch is there, so the middle is exact.
  * Plain flex: nothing is measured.
  *
- * In the top bar's look: one group box like the sizes' (HEADER_GROUP_STYLE),
- * framed controls in it, the picked one painted as every picked control in the
- * bar is (paintLpActiveControl).
+ * In the top bar's look: back and forward (undo-redo.js), then the two modes,
+ * each on the grey of the bar's groups, the picked one painted as every picked
+ * control in the bar is (paintLpActiveControl).
  *
  * The state lives in memory for this Live Preview (build-mode-host.js), and
  * closing one sets it back to Content (lp-width.js). What the user last pressed
@@ -47,17 +47,18 @@ import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { featureSaidOn } from '../lib/config.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
-import { HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
+import { HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
 import { EDITOR_MODES, buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
 import { isCodeDockArmed } from '../code-dock-state.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
-import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, LP_TOOLBAR_ICON_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
+import { FRAMED_CONTROL_STYLE, LP_TOOLBAR_ICON_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
 import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
 import { SWITCH_TAB_ATTR, buildSwitchTabOn } from '../build-switch-tab.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
+import { startUndoRedo } from './undo-redo.js';
 
 const SWITCH_ID = '__sve-build-switch';
 const STYLE_ID = '__sve-build-switch-css';
@@ -65,8 +66,8 @@ const MODES = ['content', 'visual'];
 /** The mode this user last pressed. Content writes nothing: it is where a Live Preview starts. */
 const MODE_KEY = 'sve-editor-mode';
 /** Each mode's word in `sveBuildStrings` — Vizuall Build's is still `mode_build`. */
-const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', dock: 'build_dock' };
-const FALLBACK = { content: 'Edit Content', visual: 'Vizuall Build', dock: 'HTML' };
+const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', dock: 'build_dock', undo_content: 'undo_content', undo_build: 'undo_build', redo_content: 'redo_content', redo_build: 'redo_build' };
+const FALLBACK = { content: 'Edit content', visual: 'Vizuall build', dock: 'HTML', undo_content: 'Undo', undo_build: 'Undo', redo_content: 'Redo', redo_build: 'Redo' };
 // Drawn like the toolbar's own icons (stroke 2, round): a pen writing the
 // content, a page laid out in blocks, and a form's rows. The HTML icon is the
 // dock's own, read when the switch is drawn — header-toolbar.js imports this
@@ -75,7 +76,11 @@ const ICONS = {
   content:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
   visual:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="10" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3h5a4 4 0 0 1 4 4v3"/><path d="M3 12v5a4 4 0 0 0 4 4h4"/><path d="M6.5 2 7.6 5.4 11 6.5 7.6 7.6 6.5 11 5.4 7.6 2 6.5 5.4 5.4Z"/><path d="m14 21 .6-2.9 4.7-4.7a1.5 1.5 0 0 1 2.1 2.1l-4.7 4.7Z"/><circle cx="12.5" cy="11" r=".6"/></svg>',
+  undo:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
+  redo:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>',
 };
 
 function ensureStyles(doc) {
@@ -88,8 +93,18 @@ function ensureStyles(doc) {
     `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
 ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
 #${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
+/* Back and forward, then the two modes, each on the grey of the bar's groups; the same in the bar and on the tab. */
+#${SWITCH_ID} > [role="group"]{display:inline-flex;align-items:center;gap:.625rem;flex:none;background:transparent;padding:0}
+#${SWITCH_ID} [data-sve-undo-group]{display:inline-flex;gap:.1875rem}
+#${SWITCH_ID} [data-sve-undo]{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:1.75rem;height:1.75rem;padding:0;border:none;border-radius:.375rem;background:${HEADER_SURFACE};color:currentColor;cursor:pointer}
+#${SWITCH_ID} [data-sve-undo]:hover:not(:disabled){background:rgba(128,128,128,.28)}
+#${SWITCH_ID} [data-sve-undo]:disabled{cursor:default}
+#${SWITCH_ID} [data-sve-undo]:disabled svg{opacity:.4}
+#${SWITCH_ID} [data-sve-undo] svg{display:block;width:.875rem;height:.875rem}
+#${SWITCH_ID} [data-sve-build-mode][aria-pressed="false"]{background:${HEADER_SURFACE}!important;opacity:1!important}
+#${SWITCH_ID} [data-sve-build-mode][aria-pressed="false"]:hover{background:rgba(128,128,128,.28)!important}
 #${HEADER_TOOLBAR_ID} [data-sve-build-tool][hidden]{display:none!important}
-#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;padding:0 .625rem;white-space:nowrap}
+#${SWITCH_ID} [data-sve-build-mode]{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;height:1.75rem!important;padding:0 .625rem;font-size:.8125rem!important;white-space:nowrap}
 #${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}
 /* Everything below is the tab (SWITCH_TAB_ATTR, Live Preview settings → Top bar); without it the
    switch is the group above, like the bar's others.
@@ -99,11 +114,12 @@ ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
    into it in two small curves, so the buttons stand that much lower than the bar's other groups.
    The margins keep the switch a 2rem box to the bar, which centres it as one of them;
    --sve-switch-reach is that box's distance to the bar's bottom, measured where the switch is placed. */
-${tab}{--sve-switch-h:2.5rem;--sve-switch-pad:.375rem;--sve-switch-drop:1rem;--sve-switch-ear:.5rem;--sve-switch-down:calc(var(--sve-switch-reach, .625rem) + 2rem - var(--sve-switch-h) + var(--sve-switch-drop) - var(--sve-switch-pad));margin-top:var(--sve-switch-down);margin-bottom:calc(2rem - var(--sve-switch-h) - var(--sve-switch-down));position:relative;z-index:1}
+${tab}{--sve-switch-h:1.875rem;--sve-switch-pad:.625rem;--sve-switch-drop:2.5rem;--sve-switch-ear:.5rem;--sve-switch-down:calc(var(--sve-switch-reach, .625rem) + 2rem - var(--sve-switch-h) + var(--sve-switch-drop) - var(--sve-switch-pad));margin-top:var(--sve-switch-down);margin-bottom:calc(2rem - var(--sve-switch-h) - var(--sve-switch-down));position:relative;z-index:1}
 ${tab}::before{content:"";position:absolute;z-index:-1;inset:calc(-1 * var(--sve-switch-pad));border-radius:0 0 .625rem .625rem;background:var(--sve-switch-base,transparent);pointer-events:none}
 ${tab}::after{content:"";position:absolute;z-index:-1;left:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));right:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));top:calc(100% + var(--sve-switch-pad) - var(--sve-switch-drop));height:var(--sve-switch-ear);pointer-events:none;background:radial-gradient(circle at 0 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) left/var(--sve-switch-ear) 100% no-repeat,radial-gradient(circle at 100% 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) right/var(--sve-switch-ear) 100% no-repeat}
 ${tab} > [role="group"]{height:auto!important;padding:0!important;background:transparent!important;border-radius:0!important}
 ${tab} [data-sve-build-mode]{height:var(--sve-switch-h)!important;padding:0 .75rem;font-size:.8125rem!important;border-radius:.375rem!important}
+${tab} [data-sve-undo]{width:var(--sve-switch-h);height:var(--sve-switch-h)}
 ${tab} [data-sve-build-mode] svg{width:.9375rem;height:.9375rem}`
   );
 }
@@ -161,14 +177,40 @@ function restoreColumn(win) {
   }
 }
 
+/** Back and forward as this mode has them: what they go through is the mode's. */
+let history = null;
+
+function paintUndo(holder) {
+  const win = holder.ownerDocument.defaultView;
+  const word = editorMode() === 'content' ? 'content' : 'build';
+
+  [['undo', history?.canUndo()], ['redo', history?.canRedo()]].forEach(([name, can]) => {
+    const btn = holder.querySelector(`[data-sve-undo="${name}"]`);
+    const title = label(win, `${name}_${word}`);
+
+    if (btn) {
+      btn.disabled = !can;
+
+      if (btn.getAttribute('aria-label') !== title) {
+        btn.title = title;
+        btn.setAttribute('aria-label', title);
+      }
+    }
+  });
+}
+
 function paint(holder) {
   const mode = editorMode();
   const win = holder.ownerDocument.defaultView;
   const inBuild = mode !== 'content';
 
   holder.querySelectorAll('[data-sve-build-mode]').forEach((btn) => {
-    paintLpActiveControl(btn, btn.dataset.sveBuildMode === 'visual' ? inBuild : !inBuild);
+    const picked = btn.dataset.sveBuildMode === 'visual' ? inBuild : !inBuild;
+
+    paintLpActiveControl(btn, picked);
+    btn.setAttribute('aria-pressed', String(picked));
   });
+  paintUndo(holder);
   const dock = holder.ownerDocument.querySelector('[data-sve-build-tool="dock"]');
 
   if (dock) {
@@ -233,6 +275,7 @@ function choose(win, holder, mode) {
     }
   }
 
+  history?.sync();
   paint(holder);
   // What the new mode may not have shuts once the switch has painted — on the
   // way to Content that is the dock too, ~50 ms of its own; the tree goes with it.
@@ -275,7 +318,24 @@ export function ensureBuildSwitch(win) {
     const group = doc.createElement('div');
 
     group.setAttribute('role', 'group');
-    group.style.cssText = `${HEADER_GROUP_STYLE}gap:4px;flex:none;`;
+
+    const steps = doc.createElement('div');
+
+    steps.dataset.sveUndoGroup = '';
+    history?.stop();
+    history = startUndoRedo(win, () => paintUndo(holder));
+
+    ['undo', 'redo'].forEach((name) => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.dataset.sveUndo = name;
+      btn.innerHTML = ICONS[name];
+      btn.disabled = true;
+      btn.addEventListener('click', () => history?.[name]());
+      steps.appendChild(btn);
+    });
+    group.appendChild(steps);
 
     MODES.forEach((mode) => {
       const btn = doc.createElement('button');
@@ -332,6 +392,7 @@ export function ensureBuildSwitch(win) {
   holder.style.setProperty('--sve-switch-base', win.getComputedStyle(header).backgroundColor);
   holder.style.setProperty('--sve-switch-reach', `${Math.max(0, header.getBoundingClientRect().bottom - (holder.getBoundingClientRect().bottom + parseFloat(holderCss.marginBottom)))}px`);
 
+  history?.sync();
   paint(holder);
 
   if (drawn && editorMode() === 'content') {

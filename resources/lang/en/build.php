@@ -12,8 +12,12 @@
 
 return [
     // The switch under the Live Preview top bar (`mode_build` is Visual Build)
-    'mode_content' => 'Edit Content',
-    'mode_build' => 'Vizuall Build',
+    'mode_content' => 'Edit content',
+    'mode_build' => 'Vizuall build',
+    'undo_content' => 'Undo the last change to the content',
+    'undo_build' => 'Undo the last change to the HTML',
+    'redo_content' => 'Redo the change to the content',
+    'redo_build' => 'Redo the change to the HTML',
     'mode_html' => 'Vizuall Build + HTML',
     'build_dock' => 'HTML',
 
@@ -175,6 +179,10 @@ return [
     'delete' => 'Delete',
     'own_class' => 'Class',
     'class_done' => 'Done',
+    'class_choose_all' => 'Select all',
+    'class_take_all' => 'Move all in',
+    'class_take_one' => 'Move :name into :target',
+    'class_stays' => 'This class stays on the element: it is the site’s own, or not one Tailwind builds',
     'classes_switch' => 'Show or hide the classes',
     'class_new' => 'New class',
     'class_cancel' => 'Cancel',

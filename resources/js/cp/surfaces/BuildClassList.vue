@@ -6,7 +6,8 @@
  * class changes it; a click on one of the site's opens it, and the list then
  * shows what is in that class. `New class` turns a click into a choice: the
  * classes chosen go into a class with the name given, and it opens. None
- * chosen is a class to fill from Style.
+ * chosen is a class to fill from Style. With a class open, what the element has
+ * besides it can be moved in, one by one or all at once.
  */
 import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import TwClassList from './TwClassList.vue';
@@ -22,6 +23,8 @@ const target = computed(() => (port.rev.value, port.classes.target()));
 const picking = computed(() => (port.rev.value, port.classes.picking()));
 const count = computed(() => (port.rev.value, port.classes.chosen().length));
 const outside = computed(() => (port.rev.value, target.value ? port.classes.outside() : []));
+const joinable = computed(() => outside.value.filter((one) => one.joinable).map((one) => one.name));
+const allChosen = computed(() => (port.rev.value, port.classes.allChosen()));
 const lockedTold = computed(() => {
   port.rev.value;
 
@@ -81,7 +84,10 @@ onBeforeUnmount(cancel);
     </header>
 
     <template v-if="shown">
-      <p v-if="picking" class="fg-hint">{{ port.t('class_pick_hint') }}</p>
+      <div v-if="picking" class="fg-classes__line">
+        <p class="fg-hint">{{ port.t('class_pick_hint') }}</p>
+        <button v-if="port.classes.canChoose()" type="button" class="fg-classes__small" :aria-pressed="allChosen" data-sve-build-class-choose-all @click="port.classes.chooseAll()">{{ port.t('class_choose_all') }}</button>
+      </div>
       <TwClassList />
 
       <div v-if="picking" class="fg-classpick" data-sve-build-class-pick>
@@ -94,7 +100,18 @@ onBeforeUnmount(cancel);
       </div>
 
       <p v-else-if="lockedTold" class="fg-hint" data-sve-build-class-locked-note>{{ port.t('class_locked', { name: lockedTold }) }}</p>
-      <p v-if="outside.length" class="fg-hint fg-classes__outside" data-sve-build-class-outside>{{ port.t('class_outside') }} <code>{{ outside.join(' ') }}</code></p>
+      <div v-if="outside.length" class="fg-classes__outside" data-sve-build-class-outside>
+        <div class="fg-classes__line">
+          <p class="fg-hint">{{ port.t('class_outside') }}</p>
+          <button v-if="joinable.length" type="button" class="fg-classes__small" data-sve-build-class-take-all @click="port.classes.takeIn(joinable)">{{ port.t('class_take_all') }}</button>
+        </div>
+        <div class="fg-classes__rest">
+          <template v-for="one in outside" :key="one.name">
+            <button v-if="one.joinable" type="button" class="fg-classes__take" :title="port.t('class_take_one', { name: one.name, target })" :data-sve-build-class-take="one.name" @click="port.classes.takeIn([one.name])">{{ one.name }}</button>
+            <code v-else :title="port.t('class_stays', { name: one.name })">{{ one.name }}</code>
+          </template>
+        </div>
+      </div>
     </template>
   </section>
 </template>
