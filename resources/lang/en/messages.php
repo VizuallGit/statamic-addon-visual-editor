@@ -374,7 +374,8 @@ return [
     // A CSS snippet is the inside of one rule, with no class name (snippet-css.js).
     'snippet_css_one_rule' => 'Select one whole rule, or declarations only — a CSS recipe is the inside of one rule',
     'snippet_css_unbalanced' => 'The CSS does not close all its braces',
-    'snippet_css_pick' => 'Pick an element in the HTML pane first — the recipe is written into its class',
+    'snippet_css_pick' => 'Select one element first: turn off All and pick it in the HTML tree. The recipe is written into its class.',
+    'snippet_css_no_class' => 'This element has no class yet. Name one and the recipe goes into it.',
     'snippet_css_class_name' => 'Class for the recipe',
     // A class from the picked tag's classes, written as one @utility into site.css (dock/tw-utility.js).
     'tw_utility_no_site_css' => 'Editing the site\'s CSS is off for this site (feature site_css)',

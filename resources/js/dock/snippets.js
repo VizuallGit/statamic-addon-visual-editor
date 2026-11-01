@@ -203,10 +203,10 @@ function writeSnippetIntoRule(win, root, body) {
 }
 
 /**
- * The picked element has no class to write into: ask for one, put it in the
- * tag's `[ ]` with its empty rule (the same write a rename does), then write
- * the snippet into that rule. The prompt is the pane's own class prompt, by
- * the CSS pane's Snippet button.
+ * The picked element has no class to write into: say so and ask for one, put
+ * it in the tag's `[ ]` with its empty rule (the same write a rename does), then
+ * write the snippet into that rule. The prompt is the pane's own class prompt,
+ * by the CSS pane's Snippet button.
  */
 function openSnippetClassPrompt(win, body) {
   const doc = win.document;
@@ -226,6 +226,7 @@ function openSnippetClassPrompt(win, body) {
   placeCssMenu(win, anchor, menu);
   menu._sveApp = mountSurface(CodeDockAddClass, menu, {
     label: t(win, 'snippet_css_class_name'),
+    note: t(win, 'snippet_css_no_class'),
     placeholder: t(win, 'code_dock_css_class_placeholder'),
     onClose: () => closeCssMenu(doc),
     onAdd: (value) => {
@@ -240,13 +241,18 @@ function openSnippetClassPrompt(win, body) {
       // The name and its empty rule save like a typed edit; the body follows
       // as the pane's next change.
       onEditorInput(win);
-      writeSnippetIntoRule(win, cssPaneRoot(), body);
+
+      if (!writeSnippetIntoRule(win, cssPaneRoot(), body)) {
+        win.Statamic?.$toast?.error(t(win, 'snippet_failed'));
+      }
     },
   });
 }
 
 function insertCssSnippet(win, body) {
   if (!editors.css || editors.css.state.readOnly || dockState.lastLocked) {
+    win.Statamic?.$toast?.error(t(win, 'code_dock_locked'));
+
     return;
   }
 

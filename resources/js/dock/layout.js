@@ -1201,6 +1201,13 @@ export function ensureStyle(doc) {
 }
 /* The "+" menu's search: the site's classes to pick from, a red word when the
    typed name is taken, and the one button that makes a new one. */
+#${CSS_MENU_ID} [data-sve-css-add-note] {
+  width: 14rem;
+  margin: 0 0 0.5em;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  opacity: .8;
+}
 #${CSS_MENU_ID} [data-sve-css-add-hint] {
   margin-top: 6px;
   font-size: 11px;

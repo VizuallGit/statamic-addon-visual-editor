@@ -2,7 +2,7 @@
  * code-dock.js — region "scope", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */
-import { ask } from '../cp/bus.js';
+import { ask, emit } from '../cp/bus.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel } from '../lazy-panels.js';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
@@ -451,6 +451,8 @@ export function addClassToPickedTag(raw) {
   applyBracketCssSync(prev, dockState.lastBracketNames);
   applyCssScope();
   rememberCssSelectors();
+  // `writeHtmlEditor` writes without announcing it, and the tree picks by offsets it read before this.
+  emit('dock:html-changed');
 
   return true;
 }

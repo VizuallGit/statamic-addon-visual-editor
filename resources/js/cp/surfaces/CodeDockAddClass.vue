@@ -10,6 +10,8 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 const props = defineProps({
   label: { type: String, required: true },
   placeholder: { type: String, default: '' },
+  // A line under the label: why the name is being asked for.
+  note: { type: String, default: '' },
   initial: { type: String, default: '' },
   onAdd: { type: Function, required: true },
   // The site's classes: [{ name, detail }], detail = where it is defined.
@@ -77,6 +79,7 @@ function submit() {
 
 <template>
   <label data-sve-css-add-label>{{ label }}</label>
+  <p v-if="note" data-sve-css-add-note>{{ note }}</p>
   <input
     ref="input"
     data-sve-css-add-input

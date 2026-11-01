@@ -371,7 +371,8 @@ return [
     // Et CSS-snippet er indholdet af én regel uden klassenavn (snippet-css.js).
     'snippet_css_one_rule' => 'Markér én hel regel eller kun egenskaber — en CSS-opskrift er indholdet af én regel',
     'snippet_css_unbalanced' => 'CSS\'en lukker ikke alle sine klammer',
-    'snippet_css_pick' => 'Vælg et element i HTML-ruden først — opskriften skrives ind i dets klasse',
+    'snippet_css_pick' => 'Vælg ét element først: slå All fra, og vælg det i HTML-træet. Opskriften skrives ind i dets klasse.',
+    'snippet_css_no_class' => 'Dette element har ingen klasse endnu. Giv det en, så skrives opskriften ind i den.',
     'snippet_css_class_name' => 'Klasse til opskriften',
     // A class from the picked tag's classes, written as one @utility into site.css (dock/tw-utility.js).
     'tw_utility_no_site_css' => 'Redigering af sitets CSS er slået fra på dette site (feature site_css)',
