@@ -574,7 +574,7 @@ html.dark:root[${ZONES_ATTR}] {
   position: absolute;
   inset-inline: 0;
   bottom: 100%;
-  height: 1.25rem;
+  height: 1.75rem;
   pointer-events: none;
   background: linear-gradient(to bottom, transparent, var(--sve-zone-surface));
 }
