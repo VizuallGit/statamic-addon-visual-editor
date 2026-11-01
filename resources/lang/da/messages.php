@@ -392,7 +392,7 @@ return [
     'class_take_all' => 'Flyt alle ind',
     'class_take_one' => 'Flyt :name ind i :target',
     'class_stays' => 'Denne klasse bliver på elementet: den er sitets egen, eller ikke en Tailwind bygger',
-    'class_new' => 'Ny klasse',
+    'class_new' => 'Ny klassegruppe',
     'class_cancel' => 'Annullér',
     'class_pick_hint' => 'Klik på de Tailwind-klasser, der skal med.',
     'class_name_placeholder' => 'Giv den et navn, fx card-style-1',

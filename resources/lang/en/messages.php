@@ -395,7 +395,7 @@ return [
     'class_take_all' => 'Move all in',
     'class_take_one' => 'Move :name into :target',
     'class_stays' => 'This class stays on the element: it is the site’s own, or not one Tailwind builds',
-    'class_new' => 'New class',
+    'class_new' => 'New class group',
     'class_cancel' => 'Cancel',
     'class_pick_hint' => 'Click the Tailwind classes that should go in it.',
     'class_name_placeholder' => 'Name it, e.g. card-style-1',
