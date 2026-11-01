@@ -61,6 +61,8 @@ export const FAMILY_COLORS_KEY = 'sve-fam-colors';
 export const HTML_TREE_LOOK_KEY = 'sve-html-tree-look';
 /** The layers look on trial over the tags look: '1' = on, unset = off. Switched in the tree's top bar. */
 export const HTML_TREE_LAYERS_KEY = 'sve-html-tree-layers';
+/** On the Control Panel's <html> while page sections wear their toolbar in Live Preview (section-toolbar-pref.js). The bridge reads the name as written, it does not import this file. */
+export const SECTION_TOOLBAR_ATTR = 'data-sve-section-toolbar';
 export const LISTVIEW_PANEL_ID = '__sve-listview-panel';
 export const PERF_PANEL_ID = '__sve-perf-panel';
 

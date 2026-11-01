@@ -6,13 +6,31 @@ const props = defineProps({
   x: { type: Number, required: true },
   y: { type: Number, required: true },
   onClose: { type: Function, required: true },
+  // The button that opened it, when it opens from a button rather than at the
+  // pointer: it hangs under the button, and lives as long as the pointer is on
+  // the one or the other.
+  anchor: { type: Object, default: null },
 });
+
+/** Long enough to cross the gap between the button and the list without it closing. */
+const LEAVE_MS = 220;
 
 const menu = ref(null);
 const pos = ref({ left: `${props.x}px`, top: `${props.y}px` });
 
+let leaveTimer = null;
+
+function stay() {
+  window.clearTimeout(leaveTimer);
+}
+
+function leave() {
+  stay();
+  leaveTimer = window.setTimeout(() => props.onClose(), LEAVE_MS);
+}
+
 function onDown(event) {
-  if (!menu.value?.contains(event.target)) {
+  if (!menu.value?.contains(event.target) && !props.anchor?.contains(event.target)) {
     props.onClose();
   }
 }
@@ -37,8 +55,9 @@ onMounted(() => {
   const rect = menu.value?.getBoundingClientRect();
 
   if (rect) {
-    const left = Math.min(props.x, window.innerWidth - rect.width - 8);
-    const top = Math.min(props.y, window.innerHeight - rect.height - 8);
+    const box = props.anchor?.getBoundingClientRect();
+    const left = Math.min(box ? box.right - rect.width : props.x, window.innerWidth - rect.width - 8);
+    const top = Math.min(box ? box.bottom + 2 : props.y, window.innerHeight - rect.height - 8);
 
     pos.value = { left: `${Math.max(8, left)}px`, top: `${Math.max(8, top)}px` };
   }
@@ -46,9 +65,14 @@ onMounted(() => {
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('keydown', onKey, true);
   window.addEventListener('scroll', onScroll, true);
+  props.anchor?.addEventListener('pointerenter', stay);
+  props.anchor?.addEventListener('pointerleave', leave);
 });
 
 onUnmounted(() => {
+  stay();
+  props.anchor?.removeEventListener('pointerenter', stay);
+  props.anchor?.removeEventListener('pointerleave', leave);
   document.removeEventListener('pointerdown', onDown, true);
   document.removeEventListener('keydown', onKey, true);
   window.removeEventListener('scroll', onScroll, true);
@@ -56,7 +80,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="menu" class="sve-ht-menu" :style="pos">
+  <div ref="menu" class="sve-ht-menu" :style="pos" @pointerenter="stay" @pointerleave="anchor && leave()">
     <button
       v-for="item in items"
       :key="item.label"

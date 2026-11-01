@@ -3,12 +3,13 @@
  * A section hidden with the tree's eye, then shown again — in one preview and
  * in the breakpoint overview.
  *
- * The eye wraps the section's file in an Antlers comment; the render then has
- * no such section, and the preview drops it. The eye pressed again unwraps the
- * file, and the render has the section back — but the preview's document does
- * not, so a morph scoped to that section had nothing to morph onto and the
- * section stayed away until a reload (25 Sep 2026). applyUpdate now fetches
- * the whole page when its own document lacks the section, and morphs the body.
+ * The eye switches the section off on this page (its `enabled`, as Statamic's
+ * own set switch does); the render then has no such section, and the preview
+ * drops it. The eye pressed again switches it on, and the render has the section
+ * back — but the preview's document does not, so a morph scoped to that section
+ * had nothing to morph onto and the section stayed away until a reload (25 Sep
+ * 2026, when the eye still commented the file out). applyUpdate fetches the whole
+ * page when its own document lacks the section, and morphs the body.
  *
  * Proves: the eye hides the section from the preview and from every copy in
  * the overview; the eye again brings it back within a few seconds, in the

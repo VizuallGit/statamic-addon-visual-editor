@@ -50,6 +50,7 @@ class ChromePrefsController
         'sve-toolbar-groups',
         'sve-shortcuts',
         'sve-lite-load-all',
+        'sve-section-toolbar',
         'sve-previews-auto',
     ];
 

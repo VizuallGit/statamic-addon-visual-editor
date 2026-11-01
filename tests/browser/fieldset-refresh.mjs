@@ -196,13 +196,15 @@ try {
   const before = await paneFacts(cp);
   step('the panel shows the new section, without the field yet', before.sets.some((s) => s.textContent.includes(made.display)) && !shows(before));
 
-  // Unlock the file in the dock (the fields icon is locked with it).
+  // Unlock the file in the dock (Fieldset is locked with it).
   step('clicked the dock lock', await clickIn(cp, '#__sve-code-dock [data-sve-code-lock]'));
   await sleep(800);
   await cp.evaluate(() => { [...document.querySelectorAll('button')].filter((el) => el.getBoundingClientRect().width > 0).find((el) => /^(lås op|unlock)$/i.test((el.textContent || '').trim()))?.click(); });
   await sleep(1500);
-  step('fields icon enabled', await cp.evaluate(() => { const b = document.querySelector('[data-sve-ht-fields]'); return !!b && !b.disabled; }));
-  step('clicked the fields icon', await clickIn(cp, '[data-sve-ht-fields]'));
+  await cp.evaluate(() => document.querySelector('[data-sve-ht-row][data-sve-ht-current] [data-sve-ht-more]')?.click());
+  await sleep(200);
+  step('Fieldset in the three dots enabled', await cp.evaluate(() => { const b = [...document.querySelectorAll('.sve-ht-menu button')].find((e) => /fieldset/i.test(e.textContent)); return !!b && !b.disabled; }));
+  step('clicked Fieldset', await cp.evaluate(() => { const b = [...document.querySelectorAll('.sve-ht-menu button')].find((e) => /fieldset/i.test(e.textContent)); b?.click(); return !!b; }));
   step('fieldset overlay opened', await waitIn(cp, '.sve-fs-overlay iframe', 10000));
   await sleep(5000);
 

@@ -4080,7 +4080,8 @@ export async function handleDuplicateRow(data, doc, win) {
 
 /**
  * Hide a replicator/Bard set (`enabled: false`) — same as the CP's blue toggle.
- * The set disappears from the preview; re-enable it from the sidebar.
+ * The set disappears from the preview; re-enable it from the sidebar, or with
+ * `data.show` (the HTML tree's eye on a section row).
  * No-ops on grid rows that have no `type` (they're not toggleable sets).
  */
 export function handleHideRow(data, doc, win) {
@@ -4105,14 +4106,15 @@ export function handleHideRow(data, doc, win) {
     }
 
     const next = JSON.parse(JSON.stringify(rows));
+    const enabled = data.show === true;
 
     if (kind === 'bard-set' && row.type === 'set') {
       next[index] = {
         ...next[index],
-        attrs: { ...(next[index].attrs || {}), enabled: false },
+        attrs: { ...(next[index].attrs || {}), enabled },
       };
     } else if ('type' in row) {
-      next[index] = { ...next[index], enabled: false };
+      next[index] = { ...next[index], enabled };
     } else {
       return;
     }

@@ -5,7 +5,8 @@
  */
 import { t } from './lib/i18n.js';
 import { canCreateSections, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
-import { openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.js';
+import { canEditFields, openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.js';
+import { blueprintAllowed, openEntryBlueprint } from './lp-blueprint.js';
 import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
@@ -447,9 +448,16 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-row]:hover [data-sve-ht-actions],
     [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-actions],
     [data-sve-ht-row][data-sve-ht-hidden] [data-sve-ht-actions],
-    [data-sve-ht-row][data-sve-ht-locked] [data-sve-ht-actions] {
+    [data-sve-ht-row][data-sve-ht-locked] [data-sve-ht-actions],
+    [data-sve-ht-row][data-sve-ht-special] [data-sve-ht-actions],
+    [data-sve-ht-row][data-sve-ht-more-open] [data-sve-ht-actions] {
       display: inline-flex;
     }
+    /* A video or an Alpine state shows on its own; the rest waits for the pointer. */
+    [data-sve-ht-row][data-sve-ht-special]:not(:hover, [data-sve-ht-current], [data-sve-ht-hidden], [data-sve-ht-locked], [data-sve-ht-more-open]) [data-sve-ht-actions] > :not([data-sve-ht-video], [data-sve-ht-alpine]) {
+      display: none;
+    }
+    [data-sve-ht-more],
     [data-sve-ht-lock],
     [data-sve-ht-video],
     [data-sve-ht-alpine],
@@ -476,6 +484,7 @@ export function ensureHtmlTreeStyles(doc) {
     /* Locked: the padlock shut and lit, on the row that holds the lock. */
     [data-sve-ht-lock][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
     [data-sve-ht-lock][disabled] { cursor: default; }
+    [data-sve-ht-more]:hover,
     [data-sve-ht-lock]:not([disabled]):hover,
     [data-sve-ht-video]:hover,
     [data-sve-ht-alpine]:hover,
@@ -752,6 +761,7 @@ export function ensureHtmlTreeStyles(doc) {
       opacity: .95;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-name] { opacity: 1; }
+    [data-sve-ht-look="tags"] [data-sve-ht-more]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-video]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-alpine]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-eye]:hover,
@@ -822,6 +832,7 @@ export function ensureHtmlTreeStyles(doc) {
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.75rem; height: 0.75rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.625rem; height: 0.625rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-more] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-eye] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-fields] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
@@ -1799,6 +1810,9 @@ export function renderHtmlTree(win) {
   htmlTreeUi.tagTitle = t(win, 'tw_tag');
   htmlTreeUi.hideTitle = t(win, 'html_tree_hide');
   htmlTreeUi.showTitle = t(win, 'html_tree_show');
+  htmlTreeUi.sectionHideTitle = t(win, 'html_tree_section_hide');
+  htmlTreeUi.sectionShowTitle = t(win, 'html_tree_section_show');
+  htmlTreeUi.moreTitle = t(win, 'html_tree_more');
   htmlTreeUi.duplicateTitle = t(win, 'html_tree_duplicate');
   htmlTreeUi.deleteTitle = t(win, 'html_tree_delete');
   htmlTreeUi.videoHoldTitle = t(win, 'html_tree_video_hold');
@@ -1865,6 +1879,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onRenameCancel = () => finishHtmlTreeRename(win, false);
   htmlTreeUi.onHide = (id) => hideHtmlTreeRow(win, id);
   htmlTreeUi.onLock = (id) => toggleHtmlTreeLock(win, id);
+  htmlTreeUi.onMore = (button, id) => openHtmlTreeRowMore(win, button, id);
   htmlTreeUi.canUnlock = mayUnlock(win);
   htmlTreeUi.lockTitle = t(win, 'html_tree_lock');
   htmlTreeUi.unlockTitle = t(win, 'html_tree_unlock');
@@ -2099,7 +2114,8 @@ export function renderHtmlTree(win) {
       // The fields icon: on a section's root, where there is a fieldset to
       // open. A template's fields are its blueprint, opened from the top bar;
       // a static section has none — its menu offers to add them.
-      fieldsIcon: !!(isRoot && openSection && !openSection.static),
+      // The section's own switch, on this page. `hidden` is the file's.
+      sectionOff: !!(isRoot && openSection && !openSection.enabled),
       videoNth,
       videoHeld: videoNth >= 0 && held.has(videoNth),
       alpineNth: alpineKeys.length ? xData.nth : -1,
@@ -2909,8 +2925,38 @@ function isFixedHtmlTreeRow(id) {
   return !!htmlTreeUi.rows.find((item) => item.id === id)?.fixed;
 }
 
+/** The section a row stands for: shut, a row of its own in `sections`; open, the first of the file's tag rows. */
+function sectionOfHtmlTreeRow(id) {
+  const shut = htmlTreeUi.sections?.find((item) => item.row?.id === id);
+
+  if (shut) {
+    return shut;
+  }
+
+  const uid = htmlTreeUi.rows.find((item) => item.id === id)?.sectionRoot;
+
+  return uid ? htmlTreeUi.sections?.find((item) => item.uid === uid) || null : null;
+}
+
 function hideHtmlTreeRow(win, id) {
   if (isFixedHtmlTreeRow(id)) {
+    return;
+  }
+
+  const section = sectionOfHtmlTreeRow(id);
+  const row = htmlTreeUi.rows.find((item) => item.id === id);
+
+  // A section hides on this page, as Statamic's own set switch does. A root
+  // already commented out in the file is the exception: this eye is the way
+  // back, or it would stay out on every page with nothing to press.
+  if (section && !(row?.hidden && row.wrapFrom != null)) {
+    win.postMessage(
+      { source: SOURCE, type: MSG.HIDE_ROW, uid: section.uid, show: !section.enabled },
+      win.location.origin
+    );
+    // The values change on the next task; the rows are read from them.
+    win.setTimeout(() => renderHtmlTree(win), 60);
+
     return;
   }
 
@@ -2922,10 +2968,10 @@ function duplicateHtmlTreeRow(win, id) {
     return;
   }
 
-  // The open section's root: a copy of the section on the page, the way the
-  // hover bar makes one — not a second copy of the markup in the file. The
-  // file's lock does not apply; the file is not touched.
-  const uid = htmlTreeUi.rows.find((item) => item.id === id)?.sectionRoot;
+  // A section, shut or open: a copy of it on the page, the way the hover bar
+  // makes one — not a second copy of the markup in the file. The file's lock
+  // does not apply; the file is not touched.
+  const uid = sectionOfHtmlTreeRow(id)?.uid;
 
   if (uid) {
     win.postMessage({ source: SOURCE, type: MSG.DUPLICATE_ROW, uid }, win.location.origin);
@@ -3077,9 +3123,18 @@ function applyHtmlEdit(win, id, fn, { lockAction = false, unlock = false } = {})
   }
 }
 
+/** The three dots holding a menu open: their row keeps its icons while the pointer is on the list. */
+let htmlTreeMoreButton = null;
+
+function releaseHtmlTreeMore() {
+  htmlTreeMoreButton?.closest('[data-sve-ht-row]')?.removeAttribute('data-sve-ht-more-open');
+  htmlTreeMoreButton = null;
+}
+
 export function closeHtmlTreeMenu() {
   htmlTreeMenu?.dismiss();
   htmlTreeMenu = null;
+  releaseHtmlTreeMore();
 }
 
 /**
@@ -3096,6 +3151,123 @@ const TOGGLE_ON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/></svg>';
 const TOGGLE_OFF =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>';
+
+const MENU_ICON = (body) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const MORE_ICONS = {
+  up: MENU_ICON('<path d="M12 19V5M6 11l6-6 6 6"/>'),
+  down: MENU_ICON('<path d="M12 5v14M6 13l6 6 6-6"/>'),
+  save: MENU_ICON('<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/>'),
+  add: MENU_ICON('<path d="M12 5v14M5 12h14"/>'),
+  blueprint: MENU_ICON('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>'),
+  fieldset: MENU_ICON('<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/>'),
+  lock: MENU_ICON('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  unlock: MENU_ICON('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-.9"/>'),
+};
+
+/**
+ * What the three dots hold on a section's row: every one the message or the
+ * opener the hover bar and the top bar already use, so it does what they do.
+ */
+function sectionMoreItems(win, section) {
+  const sections = htmlTreeUi.sections || [];
+  const at = sections.findIndex((item) => item.uid === section.uid);
+  const post = (type, extra = {}) => () => {
+    closeHtmlTreeMenu();
+    win.postMessage({ source: SOURCE, type, uid: section.uid, ...extra }, win.location.origin);
+    // A move changes the values on the next task; the rows are read from them.
+    win.setTimeout(() => renderHtmlTree(win), 60);
+  };
+  const items = [
+    { label: t(win, 'move_up'), icon: MORE_ICONS.up, onPick: at > 0 ? post(MSG.MOVE, { direction: -1 }) : null },
+    { label: t(win, 'move_down'), icon: MORE_ICONS.down, onPick: at >= 0 && at < sections.length - 1 ? post(MSG.MOVE, { direction: 1 }) : null },
+    { label: t(win, 'html_tree_save_section'), icon: MORE_ICONS.save, onPick: post(MSG.SAVE_SECTION) },
+    { label: t(win, 'add_section_below'), icon: MORE_ICONS.add, onPick: post(MSG.ADD_SET) },
+  ];
+
+  if (blueprintAllowed(win)) {
+    items.push({
+      label: t(win, 'blueprint'),
+      icon: MORE_ICONS.blueprint,
+      onPick: () => {
+        closeHtmlTreeMenu();
+        openEntryBlueprint(win);
+      },
+    });
+  }
+
+  // A static section has no fieldset: its right-click menu offers to add one.
+  if (canEditFields(win) && section.type && !section.static) {
+    // Held with the file when it is the file on show: changing what fields a
+    // section has while the template that renders them is locked is the
+    // half-made edit the lock exists to stop.
+    const held = section.current && !htmlTreeUi.canEdit;
+
+    items.push({
+      label: t(win, 'html_tree_fieldset'),
+      icon: MORE_ICONS.fieldset,
+      onPick: held
+        ? null
+        : () => {
+            closeHtmlTreeMenu();
+            openFieldsetOverlay(win, section.type);
+          },
+    });
+  }
+
+  return items;
+}
+
+/** The padlock, on any row of the file that can stand on its own. Shut and lit in the row while it holds. */
+function lockMoreItem(win, row) {
+  const open = htmlTreeUi.canEdit && (!row.locked || htmlTreeUi.canUnlock);
+
+  return {
+    label: row.locked ? (htmlTreeUi.canUnlock ? htmlTreeUi.unlockTitle : htmlTreeUi.lockedByTitle) : htmlTreeUi.lockTitle,
+    icon: row.locked ? MORE_ICONS.unlock : MORE_ICONS.lock,
+    onPick: open
+      ? () => {
+          closeHtmlTreeMenu();
+          toggleHtmlTreeLock(win, row.id);
+        }
+      : null,
+  };
+}
+
+/**
+ * The three dots on a row, opened by resting on them or pressing them. A section
+ * offers what acts on the section; any other row its padlock and what a
+ * right-click offers. Resting on the dots picks nothing.
+ */
+function openHtmlTreeRowMore(win, button, id) {
+  if (!button.isConnected || (htmlTreeMenu && htmlTreeMoreButton === button)) {
+    return;
+  }
+
+  const section = sectionOfHtmlTreeRow(id);
+  const row = htmlTreeUi.rows.find((item) => item.id === id);
+
+  if (!section) {
+    openHtmlTreeMenu(win, null, id, { anchor: button, lead: row ? [lockMoreItem(win, row)] : [] });
+
+    return;
+  }
+
+  closeHtmlTreeMenu();
+
+  htmlTreeMoreButton = button;
+  button.closest('[data-sve-ht-row]')?.setAttribute('data-sve-ht-more-open', '');
+  htmlTreeMenu = openCpOverlay(win.document, HtmlTreeMenu, {
+    items: [...sectionMoreItems(win, section), ...(row ? [lockMoreItem(win, row)] : [])],
+    x: 0,
+    y: 0,
+    anchor: button,
+    onClose: () => {
+      htmlTreeMenu = null;
+      releaseHtmlTreeMore();
+    },
+  });
+}
 
 /**
  * What the section's menu adds for whoever may configure fields: whether
@@ -3190,7 +3362,12 @@ function openHtmlTreeSectionMenu(win, event, section) {
   });
 }
 
-function openHtmlTreeMenu(win, event, id) {
+/**
+ * The menu on a row. From a right-click it opens at the pointer; from the three
+ * dots (`anchor`) under them, with `lead` above what the row offers, and the row
+ * is picked only when an item is chosen: resting on the dots changes nothing.
+ */
+function openHtmlTreeMenu(win, event, id, { anchor = null, lead = [] } = {}) {
   closeHtmlTreeMenu();
 
   // A shut section is drawn by the same row component as every tag, but it does
@@ -3210,21 +3387,46 @@ function openHtmlTreeMenu(win, event, id) {
     return;
   }
 
-  selectHtmlTreeRow(win, id, htmlTreeUi.rows);
+  if (!anchor) {
+    selectHtmlTreeRow(win, id, htmlTreeUi.rows);
+  }
 
-  const at = { x: event.clientX, y: event.clientY };
-  const show = (items) => {
+  const at = anchor ? { x: 0, y: 0 } : { x: event.clientX, y: event.clientY };
+  const show = (rowItems) => {
+    const items = [
+      ...lead,
+      ...rowItems.map((item) =>
+        anchor && item.onPick
+          ? {
+              ...item,
+              onPick: () => {
+                selectHtmlTreeRow(win, id, htmlTreeUi.rows);
+                item.onPick();
+              },
+            }
+          : item
+      ),
+    ];
+
     if (!items.length) {
       return;
     }
 
     htmlTreeMenu?.dismiss();
+
+    if (anchor) {
+      htmlTreeMoreButton = anchor;
+      anchor.closest('[data-sve-ht-row]')?.setAttribute('data-sve-ht-more-open', '');
+    }
+
     htmlTreeMenu = openCpOverlay(win.document, HtmlTreeMenu, {
       items,
       x: at.x,
       y: at.y,
+      anchor,
       onClose: () => {
         htmlTreeMenu = null;
+        releaseHtmlTreeMore();
       },
     });
   };
@@ -3263,10 +3465,14 @@ function openHtmlTreeMenu(win, event, id) {
   // sections loop: made a component, it would carry every page's sections
   // off into another file. Nor to an `{{ svg }}`: it is a call, not markup.
   if (row.kind === 'slot' || row.kind === 'sections' || row.kind === 'svg' || row.locked || row.lockedIn) {
+    show([]);
+
     return;
   }
 
   if (!htmlTreeUi.canEdit) {
+    show([]);
+
     return;
   }
 
@@ -3274,6 +3480,8 @@ function openHtmlTreeMenu(win, event, id) {
   // again would wrap the file in a copy of itself. The tags under it may
   // still become components of their own.
   if (row.componentRoot) {
+    show([]);
+
     return;
   }
 

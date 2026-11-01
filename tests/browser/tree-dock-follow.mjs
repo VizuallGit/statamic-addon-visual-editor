@@ -207,12 +207,15 @@ try {
     step(`tree click ${sec.type}: panel shows it`, !!last.panel, `panel="${last.panel}"`);
   }
 
-  // The fields icon on the open section's row opens that section's fieldset.
+  // Fieldset in the three dots on the open section's row opens that section's fieldset.
   const lastSec = order[order.length - 1];
   const iconOpened = await cp.evaluate(() => {
-    const btn = [...document.querySelectorAll('[data-sve-ht-fields]')].find((b) => b.getClientRects().length) || document.querySelector('[data-sve-ht-fields]');
-    if (!btn) return 'no icon';
-    btn.click();
+    const more = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-current] [data-sve-ht-more]')][0];
+    if (!more) return 'no three dots';
+    more.click();
+    const item = [...document.querySelectorAll('.sve-ht-menu button')].find((b) => /fieldset/i.test(b.textContent));
+    if (!item) return 'no Fieldset in the menu';
+    item.click();
     return 'clicked';
   });
   await sleep(5000);

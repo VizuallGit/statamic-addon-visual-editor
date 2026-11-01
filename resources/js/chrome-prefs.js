@@ -59,6 +59,7 @@ export const CHROME_KEYS = [
   'sve-build-switch-tab',
   'sve-build-dock',
   'sve-build-classes',
+  'sve-section-toolbar',
   'sve-editor-mode',
 ];
 
