@@ -153,6 +153,7 @@ function ensureStyles(doc) {
     doc,
     STYLE_ID,
     `[${AWAY_ATTR}]{position:relative}
+[${AWAY_ATTR}]:has(> #${LEFT_ZONE_ID}){padding:0!important}
 [${AWAY_ATTR}] > :not(#${HOST_ID}):not(#${LEFT_ZONE_ID}){position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #${HOST_ID}{display:flex;flex-direction:column;min-width:0;height:100%;flex:1 1 auto}
 .live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]):not(#${LEFT_ZONE_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}

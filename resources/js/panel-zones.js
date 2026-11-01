@@ -542,25 +542,12 @@ export function zoneCss() {
 [data-sve-code-slot] {
   padding: 0 !important;
 }
-#${BUILD_PANEL_ID}[data-sve-right-pane] {
-  padding-inline: 0;
-}
-#${BUILD_PANEL_ID} > [data-sve-build-wrap] > [data-sve-pane-bar] {
-  padding: 0.1875rem 0.625rem !important;
-}
-#${BUILD_PANEL_ID} > [data-sve-build-wrap] > [data-sve-pane-bar] [data-sve-right-title] {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  opacity: .6;
-}
 #${BUILD_PANEL_ID} > [data-sve-build-wrap] > [data-sve-build-body] {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding-inline: 0 !important;
-  margin-inline: 0 !important;
 }
 [${DROP_ATTR}] {
   position: fixed;
