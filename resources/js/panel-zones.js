@@ -533,9 +533,9 @@ export function zoneCss() {
   border-top: 1px solid rgba(128,128,128,.28);
 }
 #${BOTTOM_ZONE_ID} > [data-sve-right-resize] {
-  flex: 0 0 0.75rem;
+  flex: 0 0 1rem;
   width: auto;
-  height: 0.75rem;
+  height: 1rem;
   cursor: ns-resize;
   background-size: 1.0625rem 0.4375rem;
   background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 7'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='10' rx='1'/><rect width='2' height='2' x='15' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='10' y='5' rx='1'/><rect width='2' height='2' x='15' y='5' rx='1'/></g></svg>");
@@ -558,13 +558,25 @@ export function zoneCss() {
   margin-inline: calc(-1 * var(--sve-right-gutter));
   padding-inline: var(--sve-right-gutter) !important;
 }
-/* A grip has an edge on both sides: the next panel's header draws the far one, or this rule where there is none. */
-:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID}) [data-sve-right-split] {
-  box-sizing: border-box;
-  border-top: 1px solid rgba(128,128,128,.22);
+/* The grip between two panes: 2px more air on each side, and what scrolls in the pane above it fades into the panel's own colour. */
+:root[${ZONES_ATTR}] {
+  --sve-zone-surface: var(--theme-color-content-bg, #fff);
 }
-:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID}) [data-sve-right-split]:has(+ [data-sve-code-slot]) {
-  border-bottom: 1px solid rgba(128,128,128,.22);
+html.dark:root[${ZONES_ATTR}] {
+  --sve-zone-surface: #1E1E21;
+}
+:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID}) [data-sve-right-split] {
+  position: relative;
+  flex: 0 0 1rem;
+}
+:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID}) [data-sve-right-split]::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 100%;
+  height: 1.25rem;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--sve-zone-surface));
 }
 :root[${ZONES_ATTR}] #${BOTTOM_ZONE_ID} [data-sve-right-split] {
   box-sizing: border-box;
