@@ -13,6 +13,7 @@ import {
   rowSummary,
   usageLabel,
 } from '../../resources/js/cp/theme-panel/site-classes.js';
+import { firstUsedClasses } from '../../resources/js/cp/theme-panel/utility-paint.js';
 
 test('a selector you can put on an element is not ambient', () => {
   assert.equal(isAmbient('@utility wrapper'), false);
@@ -74,28 +75,50 @@ test('a section naming its own class in the dock is a class, not a place', () =>
   assert.equal(rows[0].ambient, false, 'a [ name ] goes on an element like any other class');
 });
 
-test('the chips split the list without dropping or doubling a row', () => {
+test('a class is one chip, whichever file it is written in', () => {
   const rows = classRows([
     { name: 'wrapper', file: 'site.css', selector: '@utility wrapper', css: 'padding: 1rem;', kind: 'utility' },
     { name: 'btn', file: 'classes.css', selector: '.btn', css: 'gap: 1em;', kind: 'class' },
     { name: 'case-card', file: 'base.css', selector: '.case-card h2', css: 'color: red;', kind: 'class' },
   ]);
 
-  assert.equal(filterRows(rows, { chip: 'utility' }).length, 1);
-  assert.equal(filterRows(rows, { chip: 'class' }).length, 1);
-  assert.equal(filterRows(rows, { chip: 'ambient' }).length, 1);
+  assert.deepEqual(filterRows(rows, { chip: 'class' }).map((r) => r.name), ['btn', 'wrapper']);
+  assert.deepEqual(filterRows(rows, { chip: 'ambient' }).map((r) => r.name), ['case-card']);
 
-  // Every row lands in exactly one of the three chips.
+  // Every row lands in exactly one of the two chips.
   for (const row of rows) {
-    const hits = ['utility', 'class', 'ambient'].filter((chip) => chipKeeps(chip, row));
+    const hits = ['class', 'ambient'].filter((chip) => chipKeeps(chip, row));
 
     assert.equal(hits.length, 1, `${row.name} landed in ${hits.length} chips`);
   }
 });
 
-test('there is no All: Utilities comes first', () => {
-  assert.deepEqual(CLASS_CHIPS.slice(0, 4), ['utility', 'class', 'variable', 'snippet']);
+test('there is no All and no Utilities: Classes comes first', () => {
+  assert.deepEqual(CLASS_CHIPS.slice(0, 3), ['class', 'variable', 'snippet']);
   assert.ok(!CLASS_CHIPS.includes('all'));
+  assert.ok(!CLASS_CHIPS.includes('utility'));
+});
+
+test('a class made only of @apply is not empty', () => {
+  const [row] = classRows([
+    { name: 'card', file: 'site.css', selector: '@utility card', css: '@apply relative font-heading;', kind: 'utility' },
+  ]);
+  const labels = { tw_one: 'Tailwind class', tw_many: 'Tailwind classes', no_props: 'empty' };
+
+  assert.deepEqual(row.classes, ['relative', 'font-heading']);
+  assert.equal(rowSummary(row, labels), 'site.css · 2 Tailwind classes');
+  assert.deepEqual(filterRows([row], { chip: 'class', query: 'font-heading' }).map((r) => r.name), ['card']);
+});
+
+test('a class with both says both, and one with neither says empty', () => {
+  const [both] = classRows([
+    { name: 'card', file: 'site.css', selector: '@utility card', css: '@apply relative;\ncolor: red;', kind: 'utility' },
+  ]);
+  const [none] = classRows([{ name: 'gone', file: 'site.css', selector: '@utility gone', css: '', kind: 'utility' }]);
+  const labels = { prop_one: 'property', tw_one: 'Tailwind class', no_props: 'empty' };
+
+  assert.equal(rowSummary(both, labels), 'site.css · 1 Tailwind class · 1 property');
+  assert.equal(rowSummary(none, labels), 'site.css · empty');
 });
 
 test('search looks at the name, the file and the properties', () => {
@@ -190,17 +213,25 @@ test('a variable sits in the same list, but only under All and Variables', () =>
   assert.equal(v.value, 'var(--size-700)');
   assert.equal(chipKeeps('variable', v), true);
 
-  for (const chip of ['utility', 'class', 'ambient', 'unused']) {
+  for (const chip of ['class', 'ambient', 'unused']) {
     assert.equal(chipKeeps(chip, v), false, `a variable has no ${chip}`);
   }
 });
 
 test('every chip you can create in stays, so the first one can be made', () => {
-  for (const chip of ['utility', 'class', 'variable']) {
+  for (const chip of ['class', 'variable', 'snippet']) {
     assert.ok(CLASS_CHIPS_ALWAYS.includes(chip), `${chip} is how you reach its New button`);
   }
 
   for (const chip of ['ambient', 'unused']) {
     assert.ok(!CLASS_CHIPS_ALWAYS.includes(chip), `${chip} only filters, so it may hide when empty`);
   }
+});
+
+test('a class first used is a site utility the built sheet lacks, with or without a variant', () => {
+  const utilities = new Set(['card', 'wrapper']);
+  const built = new Set(['wrapper', 'pt-500']);
+
+  assert.deepEqual(firstUsedClasses(['card', 'md:card', 'wrapper', 'pt-500', 'hero-own'], utilities, built), ['card', 'md:card']);
+  assert.deepEqual(firstUsedClasses(['wrapper'], utilities, built), []);
 });

@@ -1,28 +1,20 @@
 <script setup>
 /**
  * The class open in Style, in the panel's sticky top: while it stands here,
- * Style writes in that class (build-mode/class-target.js), so a change reaches
+ * Style writes in that class (dock/class-target.js), so a change reaches
  * every element with it, until Done. Nothing is open: nothing stands here.
  * Classes are made, opened and taken off in the list under it
  * (BuildClassList.vue).
  */
-import { computed, inject, watch } from 'vue';
+import { computed, inject } from 'vue';
 
 const port = inject('sveBuild');
 
-const classes = computed(() => (port.rev.value, port.classes.onTag()));
 const target = computed(() => (port.rev.value, port.classes.target()));
 
 function done() {
   port.classes.edit('');
 }
-
-// The class came off the element: back to the element.
-watch(classes, (now) => {
-  if (target.value && !now.includes(target.value)) {
-    port.classes.edit('');
-  }
-});
 </script>
 
 <template>

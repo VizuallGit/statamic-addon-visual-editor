@@ -29,12 +29,14 @@
  * inside, loose declarations go as they are, anything else is refused
  * (`snippetBodyFrom`).
  *
+ * The screen calls these recipes (Opskrifter); the code and the folder keep
+ * `snippet`.
+ *
  * The CSS pane's button has a second face. In Tailwind mode the pane shows
  * the picked tag's classes, not CSS, and there is nothing to copy — so the
- * button reads Utility and hands the tag's classes to tw-utility.js, which
- * writes them as one `@utility` into site.css. Which face shows follows the
- * dock's `data-sve-style`, painted by style-modes.js; the click reads the
- * same state.
+ * button reads New class and starts the same form Style has (tw-class-parts.js).
+ * Which face shows follows the dock's `data-sve-style`, painted by
+ * style-modes.js; the click reads the same state.
  *
  * Its own surface: this module, CodeDockSnippets.vue, snippet-css.js and PHP
  * that only reads and writes the folder. The pane is written like a typed
@@ -65,7 +67,7 @@ import { insertAiSnippet } from './dock-api.js';
 import { onEditorInput } from './save.js';
 import { addClassToPickedTag, cssPaneRoot, flushCssScope } from './scope.js';
 import { dockState } from './state.js';
-import { saveTwUtility } from './tw-utility.js';
+import { toggleNewClass } from './tw-class-parts.js';
 
 const LIST_API = '/!/sve/snippets';
 const ONE_API = '/!/sve/snippet';
@@ -74,9 +76,9 @@ const ONE_API = '/!/sve/snippet';
 const SNIPPET_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
 
-/** A pair of braces: one rule in site.css — the mark the Utilities tab wears. */
-const UTILITY_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>';
+/** A plus: a new class, in the Tailwind pane. */
+const NEW_CLASS_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 const HEADERS = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
 
@@ -547,10 +549,10 @@ function bindPane(win, dock, selector, pane) {
   // The word is visible, so it is the name; a tooltip would say it twice.
   btn.removeAttribute('title');
   btn.removeAttribute('aria-label');
-  btn.replaceChildren(face(doc, SNIPPET_ICON, t(win, 'snippet_button'), pane === 'css' ? 'css' : 'html'));
+  btn.replaceChildren(face(doc, SNIPPET_ICON, t(win, pane === 'css' ? 'snippet_button_css' : 'snippet_button'), pane === 'css' ? 'css' : 'html'));
 
   if (pane === 'css') {
-    btn.appendChild(face(doc, UTILITY_ICON, t(win, 'tw_utility_button'), 'tw'));
+    btn.appendChild(face(doc, NEW_CLASS_ICON, t(win, 'class_new'), 'tw'));
   }
 
   btn.addEventListener('click', (event) => {
@@ -559,7 +561,7 @@ function bindPane(win, dock, selector, pane) {
 
     if (pane === 'css' && dockState.styleMode === 'tw') {
       closeDataMenu(doc);
-      saveTwUtility(win);
+      toggleNewClass(win);
 
       return;
     }

@@ -23,6 +23,7 @@ import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './dat
 import { bindHelpToggle } from './help-toggle.js';
 import { bindGhostToggle } from './ghost-toggle.js';
 import { bindSnippets } from './snippets.js';
+import { bindTwClassParts } from './tw-class-parts.js';
 
 /** Windows whose size-tab row already follows the breakpoint list — bound once each. */
 const sizeTabsBound = new WeakSet();
@@ -367,4 +368,5 @@ export function bindHtmlTools(win, dock) {
   bindGhostToggle(win, dock);
   bindDataVars(win, dock);
   bindSnippets(win, dock);
+  bindTwClassParts(win, dock);
 }

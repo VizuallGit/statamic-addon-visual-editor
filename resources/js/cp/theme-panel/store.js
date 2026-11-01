@@ -88,7 +88,7 @@ export const themePanelUi = reactive({
   openClassKey: '',
   removedClasses: [],
   classQuery: '',
-  classChip: 'utility',
+  classChip: 'class',
   openClass: '',
   props: [],
   savedProps: {},

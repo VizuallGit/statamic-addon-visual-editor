@@ -696,6 +696,11 @@ function currentValue() {
     return { html: '', value: classTarget.value };
   }
 
+  return tagValue();
+}
+
+/** The picked tag's own value in the file, whatever the pane is working on. */
+function tagValue() {
   const html = ask('dock:html');
 
   if (!node || typeof html !== 'string') {
@@ -864,6 +869,47 @@ function slotOf(name) {
   const property = propertyOf(name);
 
   return STACKED.has(property) ? `${property} ${model?.catalog?.root(name) || name}` : property;
+}
+
+/**
+ * The picked tag's class value in the file, with a class open or not: what
+ * dock/class-target.js reads to know what the element carries. A read may come
+ * between a change of the file and the render after it, so a stale pick is found
+ * again by its path first.
+ */
+export function twTagClasses() {
+  const html = ask('dock:html');
+
+  if (node && !node.component && typeof html === 'string' && html[node.from] !== '<') {
+    resyncNode(html);
+  }
+
+  return tagValue()?.value || '';
+}
+
+/** The picked tag's class value back as it was: a class that could not be saved. */
+export function twRestoreTag(win, value) {
+  const current = locked() ? null : tagValue();
+
+  if (current && current.value !== value) {
+    commit(win, current.html, value);
+  }
+}
+
+/** Where the picked tag is in the file's tree, '' with none. */
+export function twPickedPath() {
+  return node?.path || '';
+}
+
+/** Whether Tailwind builds `name`, as far as the catalog has come. It is asked for here, and a render follows it. */
+export function twIsTailwindClass(win, name) {
+  if (!model) {
+    wantModel(win);
+
+    return false;
+  }
+
+  return model.catalog.has(name) || !!model.catalog.resolve(name);
 }
 
 /**
@@ -1344,15 +1390,15 @@ export function twVariant() {
 }
 
 /**
- * What the pane reads and writes instead of the tag's class attribute: Build's
- * `Class` (build-mode/class-target.js), the classes a utility is made of. The
+ * What the pane reads and writes instead of the tag's class attribute: an open
+ * class (dock/class-target.js), the classes a utility is made of. The
  * pane's reading and writing all pass `currentValue` and `commit`, so every
  * menu, chip and tool works on it unchanged. `{ value, write(value),
  * preview(value) }`, or null for the tag again.
  */
 let classTarget = null;
 
-/** The pane's list drawn again: for a reader with no host of its own (Build's Style). */
+/** The pane's list drawn again: for a reader with no host of its own (Build's Style), and for class-target.js. */
 export function twRefresh(win) {
   render(win);
 }
@@ -1364,10 +1410,9 @@ export function twSetClassTarget(win, target) {
 }
 
 /**
- * A reader of the list that knows more about a class than the pane does: Build's
- * Style (build-mode/class-target.js). `mark(raw)` says `{ site, closed, chosen }`,
- * `picking()` says a click chooses, and `take(raw, event)` is true when it took
- * the click, so the pane's menu stays shut. Null for the pane alone.
+ * What knows more about a class than the pane does: dock/class-target.js.
+ * `mark(raw)` says `{ site, closed, chosen }`, `picking()` says a click chooses,
+ * and `take(raw)` is true when it took the click, so the pane's menu stays shut.
  */
 let chipHost = null;
 
@@ -1882,7 +1927,7 @@ function onChip(win, event, id) {
     return;
   }
 
-  if (chipHost?.take(chip.raw, event)) {
+  if (chipHost?.take(chip.raw)) {
     closeTwMenu(win);
 
     return;

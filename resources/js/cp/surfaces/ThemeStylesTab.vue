@@ -1,11 +1,11 @@
 <template>
-  <p class="sve-theme__hint">{{ ui.labels.classes_hint || fallback.hint }}</p>
+  <p class="sve-theme__hint">{{ ui.labels.classes_hint }}</p>
 
   <label class="sve-theme__search">
     <input
         type="search"
         :value="ui.classQuery"
-        :placeholder="ui.labels.classes_search || fallback.search"
+        :placeholder="ui.labels.classes_search"
         spellcheck="false"
         autocomplete="off"
         data-sve-class-search
@@ -25,7 +25,7 @@
       :data-sve-class-chip="chip"
       @click="h.onClassChip(chip)"
     >
-      {{ ui.labels[`classes_chip_${chip}`] || fallback.chips[chip] }}
+      {{ ui.labels[`classes_chip_${chip}`] }}
       <span class="sve-theme__filter-count">{{ count(chip) }}</span>
     </button>
   </nav>
@@ -35,7 +35,7 @@
     <p class="sve-theme__empty">{{ ui.labels[`classes_none_${ui.classChip}`] }}</p>
     <button type="button" class="sve-theme__add" data-sve-class-create @click="creates">{{ ui.labels.classes_create }}</button>
   </div>
-  <p v-else-if="!shown.length" class="sve-theme__empty">{{ ui.labels.classes_empty || fallback.empty }}</p>
+  <p v-else-if="!shown.length" class="sve-theme__empty">{{ ui.labels.classes_empty }}</p>
 
   <section
     v-for="row in shown"
@@ -45,13 +45,13 @@
     :data-sve-class="row.name"
   >
     <button type="button" class="sve-theme__row" :aria-expanded="isOpen(row)" @click="open(row)">
-      <!-- A utility wears braces, a class its dot; a snippet the `&` its nested rules hang off — a body with no selector of its own. -->
-      <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'utility' ? '{}' : row.kind === 'snippet' ? '&' : '.' }}</span>
+      <!-- A class wears its dot; a recipe the `&` its nested rules hang off — a body with no selector of its own. -->
+      <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'snippet' ? '&' : '.' }}</span>
       <span class="sve-theme__row-text">
         <span class="sve-theme__token">{{ row.name || '…' }}<svg v-if="isLocked(row)" class="sve-theme__locked" data-sve-utility-locked viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></span>
         <span class="sve-theme__meta">{{ row.kind === 'variable' ? (row.value || '…') : rowSummary(row, labels) }}</span>
       </span>
-      <span v-if="row.ambient" class="sve-theme__badge">{{ ui.labels.classes_ambient || fallback.ambient }}</span>
+      <span v-if="row.ambient" class="sve-theme__badge">{{ ui.labels.classes_ambient }}</span>
       <span v-if="usage(row)" class="sve-theme__usage" :class="{ 'is-unused': row.now === 0 }">{{ usage(row) }}</span>
     </button>
 
@@ -89,17 +89,17 @@
         <button type="button" class="sve-theme__remove" @click="h.onRemoveProp(row.key)">{{ ui.labels.props_remove }}</button>
       </template>
 
-      <p v-if="row.ambient" class="sve-theme__hint">{{ ui.labels.classes_ambient_why || fallback.ambientWhy }}</p>
+      <p v-if="row.ambient" class="sve-theme__hint">{{ ui.labels.classes_ambient_why }}</p>
 
       <!-- A CSS snippet is a file of its own (resources/snippets/name.css):
            the body of one rule, no class name. The same editor, but its own
            Save — written at once through the snippet endpoint, not with
            site.css — and a Delete that asks first. -->
       <template v-else-if="row.kind === 'snippet'">
-        <p class="sve-theme__hint">{{ ui.labels.classes_snippet_hint || fallback.snippetHint }}</p>
+        <p class="sve-theme__hint">{{ ui.labels.classes_snippet_hint }}</p>
 
         <label class="sve-theme__field">
-          <span class="sve-theme__label">{{ ui.labels.classes_snippet_name || fallback.name }}</span>
+          <span class="sve-theme__label">{{ ui.labels.classes_snippet_name }}</span>
           <span class="sve-theme__input" :class="{ 'is-bad': snippet(row).problem && snippet(row).problem !== 'braces' }">
             <input
               type="text"
@@ -111,6 +111,8 @@
             >
           </span>
         </label>
+
+        <p v-if="/@apply\b/.test(snippet(row).body)" class="sve-theme__hint" data-sve-snippet-apply>{{ ui.labels.classes_snippet_apply }}</p>
 
         <ThemeUtilityEditor
           :value="snippet(row).body"
@@ -127,19 +129,19 @@
             data-sve-snippet-save
             :disabled="!snippetDirty(snippet(row)) || !!snippet(row).problem || snippet(row).saving"
             @click="h.onSaveSnippet(row.key)"
-          >{{ ui.labels.classes_snippet_save || fallback.snippetSave }}</button>
+          >{{ ui.labels.classes_snippet_save }}</button>
           <button type="button" class="sve-theme__remove" data-sve-snippet-remove @click="h.onRemoveSnippet(row.key)">
-            {{ ui.labels.classes_snippet_remove || fallback.snippetRemove }}
+            {{ ui.labels.classes_snippet_remove }}
           </button>
         </div>
       </template>
 
-      <!-- Both files the tab owns are written here: a utility through the
-           Utilities tab's own handlers, a class through the classes file's.
-           Same editor, same Save. -->
+      <!-- Both files the chip owns are written here: a new class and any
+           `@utility` through the utility handlers, a rule already in the
+           classes file through that file's. Same editor, same Save. -->
       <template v-else-if="edit(row)">
         <label v-if="edit(row).entry.fresh" class="sve-theme__field">
-          <span class="sve-theme__label">{{ ui.labels.classes_name || fallback.name }}</span>
+          <span class="sve-theme__label">{{ ui.labels.classes_name }}</span>
           <span class="sve-theme__input" :class="{ 'is-bad': edit(row).entry.problem }">
             <span class="sve-theme__dashes">.</span>
             <input
@@ -163,6 +165,7 @@
           :read-only="isLocked(row)"
         />
 
+        <p v-if="edit(row).kind === 'class'" class="sve-theme__hint" data-sve-class-no-variants>{{ ui.labels.classes_no_variants }}</p>
         <p v-if="isLocked(row)" class="sve-theme__hint" data-sve-utility-locked-hint>
           {{ ui.canLock ? ui.labels.utilities_locked_hint : ui.labels.utilities_locked_hint_ask }}
         </p>
@@ -176,12 +179,12 @@
           @click="h.onLockUtility(edit(row).entry.key)"
         >{{ isLocked(row) ? ui.labels.utilities_unlock : ui.labels.utilities_lock }}</button>
         <button v-if="!isLocked(row)" type="button" class="sve-theme__remove" @click="remove(row)">
-          {{ ui.labels.classes_remove || fallback.remove }}
+          {{ ui.labels.classes_remove }}
         </button>
       </template>
       <template v-else>
         <pre v-for="sel in row.selectors" :key="sel" class="sve-theme__selector">{{ sel }}</pre>
-        <p class="sve-theme__hint">{{ ui.labels.classes_read_only || fallback.readOnly }}</p>
+        <p class="sve-theme__hint">{{ ui.labels.classes_read_only }}</p>
       </template>
 
       <p class="sve-theme__hint">{{ row.files.join(', ') }}</p>
@@ -189,7 +192,7 @@
       <!-- Where it is written today, and what a delete would cost. -->
       <template v-if="row.counted">
         <p v-if="row.now === 0 && row.history > 0" class="sve-theme__hint">
-          {{ ui.labels.classes_history_warn || fallback.historyWarn }}
+          {{ ui.labels.classes_history_warn }}
         </p>
         <p v-for="f in row.where" :key="f" class="sve-theme__hint sve-theme__where">{{ f }}</p>
       </template>
@@ -207,28 +210,12 @@ import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
 
 const { h } = defineProps({ h: { type: Object, required: true } });
 
-/** Until the lang file carries them — a raw key on screen reads as a bug. */
-const fallback = {
-  hint: 'Sitets egne klasser: utilities fra site.css og klasserne i din egen CSS-fil. En sektions regler hører til sektionen og følger med, når den eksporteres — derfor står de ikke her.',
-  search: 'Søg…',
-  empty: 'Ingen klasser matcher.',
-  ambient: 'AFLEDT',
-  ambientWhy: 'Denne regel rammer noget inde i noget andet — den kan ikke sættes på et element alene.',
-  readOnly: 'Denne regel bor i en anden fil end site.css og rettes i Stylesheets-panelet.',
-  name: 'Navn',
-  remove: 'Slet klasse',
-  snippetHint: 'Et snippet er indholdet af én regel uden klassenavn. Docken kopierer det ind i den klasse, du vælger. Retter du det her, ændres kun biblioteket.',
-  snippetSave: 'Gem snippet',
-  snippetRemove: 'Slet snippet',
-  historyWarn: 'Intet bruger den i dag, men dockens historik gør. Sletter du den, mister en fortrydelse sin styling.',
-  chipsUnused: 'Ubrugte',
-  chips: { utility: 'Utilities', class: 'Klasser', variable: 'Variabler', snippet: 'Snippets', ambient: 'Afledte', unused: 'Ubrugte' },
-};
-
 const labels = computed(() => ({
   prop_one: ui.labels.classes_prop_one,
   prop_many: ui.labels.classes_prop_many,
   no_props: ui.labels.classes_no_props,
+  tw_one: ui.labels.classes_tw_one,
+  tw_many: ui.labels.classes_tw_many,
 }));
 
 function usage(row) {
@@ -248,7 +235,7 @@ const shown = computed(() => filterRows(allRows.value, { chip: ui.classChip, que
 const creates = computed(() =>
   ui.classQuery || count(ui.classChip)
     ? null
-    : { utility: h.onAddUtilityFromClasses, class: h.onAddClass, variable: h.onAddProp, snippet: h.onAddSnippet }[ui.classChip] || null
+    : { class: h.onAddUtilityFromClasses, variable: h.onAddProp, snippet: h.onAddSnippet }[ui.classChip] || null
 );
 
 /**

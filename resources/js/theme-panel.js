@@ -1031,15 +1031,6 @@ const handlers = (win) => ({
     ui.openClassKey = u.key;
     ui.dirty = true;
   },
-  onAddClass: () => {
-    const c = { key: `class-${++keySeq}`, name: '', body: '', fresh: true, problem: 'empty' };
-
-    ui.classes.unshift(c);
-    ui.classRows = [{ name: '', kind: 'rule', files: [ui.classSources.classes], selectors: [], props: [], ambient: false, fresh: true, key: c.key }, ...ui.classRows];
-    ui.openClass = '';
-    ui.openClassKey = c.key;
-    ui.dirty = true;
-  },
   onClassName: (key, name) => {
     const c = ui.classes.find((o) => o.key === key);
 

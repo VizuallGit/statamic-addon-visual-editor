@@ -1,12 +1,14 @@
 /**
- * Build's `Class`: a utility in site.css, on the element, and edited from the
- * panel. A click in Style then writes into the utility's `@apply` instead of
- * onto the tag, so every element with that class follows. The dock's Utility
- * button is the same thing made once; this is it kept open.
+ * A class: a utility in site.css, on the element, and edited from Style or from
+ * the dock's Tailwind pane. They are two faces of this one module, and there is
+ * one of it per window (`classTargetFor`), because the pane behind them has one
+ * target and one list (tw-classes.js). A click in either then writes into the
+ * utility's `@apply` instead of onto the tag, so every element with that class
+ * follows.
  *
- * Owner: Build mode (resources/js/build-mode/).
+ * Owner: the dock (resources/js/dock/). Build's Style reads it through its port.
  * May import: dock/tw-utility.js, tw-classes.js, tw-compile.js, cp/theme-panel/*.
- * Bus messages: none of its own.
+ * Bus messages: reads `tw:changed` and `dock:html-changed`, says `tw:changed`.
  *
  * Two speeds, as the Utilities tab has them: the rule is drawn in the page the
  * moment it changes, compiled by the dock's Tailwind; site.css is saved when
@@ -20,24 +22,51 @@
  * it: a copy kept from the first read would put back what was taken out since.
  * A locked class (`lockedUtilities`) goes on and off elements, but stays as it is.
  *
- * The list at the foot of Style is the Tailwind pane's (TwClassList.vue). This
- * tells it which of its classes are the site's, and takes the clicks on them
- * (`chipHost`, tw-classes.js `twSetChipHost`); the dock's list keeps its menu.
+ * The list in Style and the list in the dock are the Tailwind pane's
+ * (TwClassList.vue). This tells them which of its classes are the site's, and
+ * takes the clicks on them (`chipHost`, tw-classes.js `twSetChipHost`).
  */
 
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { emit, on } from '../cp/bus.js';
 import { applyClasses, bodyWithClasses, compilerCss, lockedUtilities, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from '../cp/theme-panel/utility-paint.js';
-import { pageDocuments, postSiteCss, readSiteCss, storeUtility, toast } from '../dock/tw-utility.js';
+import { watchClassesFirstUsed } from './class-first-use.js';
+import { pageDocuments, postSiteCss, readSiteCss, storeUtility, toast } from './tw-utility.js';
 import { featureSaidOn } from '../lib/config.js';
 import { t as i18n } from '../lib/i18n.js';
 import { tokenizeClassValue } from '../tw-parse.js';
-import { twAddClass, twDropClass, twPickedClasses, twRefresh, twSetClassTarget } from '../tw-classes.js';
+import {
+  twAddClass,
+  twDropClass,
+  twIsTailwindClass,
+  twPickedClasses,
+  twPickedPath,
+  twRefresh,
+  twSetChipHost,
+  twSetClassTarget,
+  twTagClasses,
+} from '../tw-classes.js';
 
 /** How long the clicks must stop before site.css is saved. */
 const SAVE_AFTER = 700;
 
-export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
+const targets = new WeakMap();
+
+/** The one for this window. Made the first time Style or the dock asks. */
+export function classTargetFor(win) {
+  if (!targets.has(win)) {
+    const target = createClassTarget(win);
+
+    targets.set(win, target);
+    twSetChipHost(win, target.chipHost);
+    watchClassesFirstUsed(win);
+  }
+
+  return targets.get(win);
+}
+
+function createClassTarget(win) {
   const bodies = ref(new Map());
   const lockedNames = ref(new Set());
   const target = ref('');
@@ -46,6 +75,11 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   // `New class`: a click on a class in the list chooses it for the new one.
   const picking = ref(false);
   const chosen = ref([]);
+  // The name being typed, and who asked: both faces show the one form, and that one takes the caret.
+  const draft = ref('');
+  const askedBy = ref('');
+  // Moves with the file and the pane, which Vue cannot see into.
+  const rev = ref(0);
   // The locked class last clicked, so the panel can say why it does not open.
   const lockedTold = ref('');
   let siteCss = null;
@@ -61,6 +95,7 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   let written = Promise.resolve(true);
 
   const enabled = () => featureSaidOn(win, 'site_css');
+  const changed = () => emit('tw:changed');
 
   function remember(css) {
     siteCss = css;
@@ -86,7 +121,7 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     return loading;
   }
 
-  const tagTokens = () => tokenizeClassValue(tagClasses()).filter((tok) => !tok.dynamic).map((tok) => tok.text);
+  const tagTokens = () => tokenizeClassValue(twTagClasses()).filter((tok) => !tok.dynamic).map((tok) => tok.text);
 
   /** The utilities in site.css, plain names: `tab-*` is a family of classes, not one to put on an element. */
   function names() {
@@ -257,10 +292,12 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     changed();
   }
 
-  function startPicking() {
+  function startPicking(who = '') {
     edit('');
     lockedTold.value = '';
     chosen.value = [];
+    draft.value = '';
+    askedBy.value = who;
     picking.value = true;
     twRefresh(win);
   }
@@ -275,7 +312,7 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
 
   const isSite = (raw) => bodies.value.has(raw) && !raw.endsWith('-*');
   // What can go in a class: a class Tailwind builds. The site's own stay, and `@apply` of an unknown name would fail the build.
-  const canJoin = (raw) => !isSite(raw) && raw !== '[' && raw !== ']' && isTailwind(raw);
+  const canJoin = (raw) => !isSite(raw) && raw !== '[' && raw !== ']' && twIsTailwindClass(win, raw);
 
   /**
    * Classes on the element into the open class: in its `@apply` first, the way a
@@ -311,15 +348,15 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     twRefresh(win);
   }
 
-  /** What the list asks about a class, and the click on one in Style's list (not in the dock's). */
+  /** What the two lists ask about a class, and the click on one. The list drawing is what first needs site.css. */
   const chipHost = {
     picking: () => picking.value,
-    mark: (raw) => ({ site: isSite(raw), closed: lockedNames.value.has(raw), chosen: chosen.value.includes(raw) }),
-    take(raw, event) {
-      if (!event?.currentTarget?.closest?.('[data-sve-build-classes]')) {
-        return false;
-      }
+    mark(raw) {
+      load();
 
+      return { site: isSite(raw), closed: lockedNames.value.has(raw), chosen: chosen.value.includes(raw) };
+    },
+    take(raw) {
       if (picking.value) {
         if (!isSite(raw)) {
           chosen.value = chosen.value.includes(raw) ? chosen.value.filter((one) => one !== raw) : [...chosen.value, raw];
@@ -362,11 +399,27 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     twRefresh(win);
   });
 
+  const bump = () => {
+    rev.value += 1;
+  };
+
+  on('tw:changed', bump);
+  on('dock:html-changed', bump);
+
+  // The class came off the element: back to the element.
+  watch(() => (rev.value, !!target.value && !tagTokens().includes(target.value)), (off) => {
+    if (off) {
+      edit('');
+    }
+  });
+
+  // Another element picked: what was chosen belonged to the one before.
+  watch(() => (rev.value, twPickedPath()), stopPicking);
+
   /**
-   * A new class. The classes chosen in the list are handed over, as the dock's
-   * Utility does: they go into the utility, and the tag carries the name in
-   * their place. With none chosen the tag gets the name now, and the utility
-   * comes with its first style.
+   * A new class. The classes chosen in the list go into the utility, and the tag
+   * carries the name in their place. With none chosen the tag gets the name now,
+   * and the utility comes with its first style.
    */
   async function create(name) {
     edit('');
@@ -396,6 +449,9 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
   }
 
   return {
+    rev,
+    draft,
+    askedBy: () => askedBy.value,
     enabled,
     names,
     onTag,
@@ -427,7 +483,7 @@ export function createClassTarget(win, { tagClasses, changed, isTailwind }) {
     },
     /** Why `name` cannot be a new class: `bad_name`, `taken`, or '' when it can. */
     problem(name) {
-      return utilityNameProblem(name) ? 'bad_name' : isTailwind(name) ? 'taken' : '';
+      return utilityNameProblem(name) ? 'bad_name' : twIsTailwindClass(win, name) ? 'taken' : '';
     },
   };
 }

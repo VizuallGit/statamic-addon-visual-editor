@@ -749,7 +749,6 @@ onBeforeUnmount(() => {
 .sve-build .fg-classpick { display: grid; gap: 0.35rem; padding: 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); }
 .sve-build .fg-classpick input { width: 100%; height: 1.75rem; padding: 0 0.45rem; border-radius: 0.25rem; background: var(--bm-bg); border: 1px solid var(--bm-line); color: var(--bm-ink); font: 450 0.75rem var(--bm-mono); outline: 0; }
 .sve-build .fg-classpick input:focus { border-color: var(--bm-accent); }
-.sve-build .fg-classpick__new { display: flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.35rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.6875rem; font-weight: 600; text-align: start; }
 .sve-build .fg-classpick__rows { display: grid; max-height: 10rem; overflow-y: auto; }
 .sve-build .fg-classpick__rows button { padding: 0.25rem 0.35rem; border-radius: 0.25rem; color: var(--bm-ink); font: 450 0.6875rem var(--bm-mono); text-align: start; }
 .sve-build .fg-classpick__rows button:hover { background: var(--bm-hover); }
@@ -860,19 +859,6 @@ onBeforeUnmount(() => {
 .sve-build .fg-classes__new { flex: none; height: 1.5rem; padding-inline: 0.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 500; }
 .sve-build .fg-classes__new:hover { background: var(--bm-hover); }
 .sve-build .fg-classes.is-class { padding: 0.4rem; box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
-.sve-build .fg-classes__outside { display: grid; gap: 0.3rem; min-width: 0; }
-.sve-build .fg-classes__line { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
-.sve-build .fg-classes__line .fg-hint { flex: 1; min-width: 0; }
-.sve-build .fg-classes__small { flex: none; padding: 0.15rem 0.4rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.625rem; font-weight: 500; }
-.sve-build .fg-classes__small:hover { background: var(--bm-hover); }
-.sve-build .fg-classes__small[aria-pressed='true'] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
-.sve-build .fg-classes__rest { display: flex; flex-wrap: wrap; gap: 0.25rem; min-width: 0; }
-.sve-build .fg-classes__rest code { padding: 0.15rem 0.35rem; color: var(--bm-muted); font-size: 0.625rem; }
-.sve-build .fg-classes__take { padding: 0.15rem 0.35rem; border-radius: 0.25rem; border: 1px dashed var(--bm-edge); color: var(--bm-ink); font: 500 0.625rem var(--bm-mono); text-align: start; overflow-wrap: anywhere; }
-.sve-build .fg-classes__take:hover { background: var(--bm-accent-soft); border-color: var(--bm-accent); color: var(--bm-accent-text); }
-.sve-build .fg-classpick__acts { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.sve-build .fg-classpick__new:disabled { background: var(--bm-hover); color: var(--bm-faint); cursor: default; }
-.sve-build .fg-classpick__cancel { padding: 0.3rem 0.5rem; border-radius: 0.25rem; background: var(--bm-hover); font-size: 0.6875rem; }
 .sve-build .fg-field { position: relative; display: flex; align-items: center; gap: 0.35rem; min-width: 0; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; }
 .sve-build .fg-field:hover { border-color: var(--bm-edge); }
 .sve-build .fg-field:focus-within { border-color: var(--bm-accent); }

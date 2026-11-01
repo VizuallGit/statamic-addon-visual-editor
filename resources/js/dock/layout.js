@@ -361,10 +361,25 @@ export function ensureStyle(doc) {
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-code-pane="css"] [data-sve-code-host] {
   display: none;
 }
+#${DOCK_ID} [data-sve-tw-class-bar],
+#${DOCK_ID} [data-sve-tw-class-foot] {
+  display: none;
+}
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-tw-class-bar],
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-tw-class-foot] {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+/* A class open or a new one being made stands around the list, and in a low
+   dock the pane scrolls before the list is squeezed away. */
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-code-pane="css"] {
+  overflow-y: auto;
+}
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-tw-host] {
   display: block;
   flex: 1 1 0;
-  min-height: 0;
+  min-height: 5.5rem;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -418,6 +433,8 @@ export function ensureStyle(doc) {
 #${DOCK_ID}[data-sve-code-locked] [data-sve-antlers-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-visual-edit-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-snippet-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-tw-class-bar],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-tw-class-foot],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-snippet-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-add-class] {
   pointer-events: none;

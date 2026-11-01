@@ -136,6 +136,24 @@ function snapshotsOf(doc) {
   return siteLinks(doc).map((link) => link.sheet && snapshot(link.sheet)).filter(Boolean);
 }
 
+/** Every class the built stylesheets have rules for, as built; null with no built sheet to read (a dev server). */
+export function builtClasses(docs) {
+  for (const doc of docs) {
+    const snaps = snapshotsOf(doc);
+
+    if (snaps.length) {
+      return new Set(snaps.flatMap((snap) => snap.base.map((rule) => rule.owner).filter(Boolean)));
+    }
+  }
+
+  return null;
+}
+
+/** The classes among `candidates` that are one of the site's utilities (`md:card` is `card`) and not built yet. */
+export function firstUsedClasses(candidates, utilities, built) {
+  return candidates.filter((name) => utilities.has(utilityOf(name)) && !built.has(name));
+}
+
 /**
  * The classes to compile for `names`: every class of theirs the build has
  * (as built, before any paint), plus each plain name — a utility no page used

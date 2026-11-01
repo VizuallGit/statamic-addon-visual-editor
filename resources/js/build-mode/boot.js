@@ -91,7 +91,6 @@ import {
   twOpenValueMenu,
   twPickedClasses,
   twRefresh,
-  twSetChipHost,
   twSetClass,
   twSetFieldClass,
   twSetTag,
@@ -102,14 +101,14 @@ import {
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
-import { readClassAttr, tokenizeClassValue } from '../tw-parse.js';
+import { tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath } from './place.js';
 import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
-import { createClassTarget } from './class-target.js';
+import { classTargetFor } from '../dock/class-target.js';
 import { createComputedValues, hoverText, inherits } from './computed-values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { armElementPick, cancelComponentBind, disarmComponentBind } from '../component-bind.js';
@@ -362,28 +361,7 @@ export function createEditorPort(win, hooks = {}) {
   };
   const rows = () => breakpoints(win);
   const strings = () => win.Statamic?.$config?.get?.('sveBuildStrings') || {};
-  // The class value in the file, whatever the pane is working on (a utility, with `Class`).
-  const tagClasses = () => {
-    const node = picked();
-    const attr = node && !node.kind ? readClassAttr(html(), node.from, node.openTo) : null;
-
-    return attr ? attr.value : '';
-  };
-  const classes = createClassTarget(win, {
-    tagClasses,
-    changed: bump,
-    isTailwind(name) {
-      if (!model) {
-        wantModel();
-
-        return false;
-      }
-
-      return model.catalog.has(name) || !!model.catalog.resolve(name);
-    },
-  });
-
-  twSetChipHost(win, classes.chipHost);
+  const classes = classTargetFor(win);
 
   const shown = createComputedValues({
     element() {
@@ -1058,7 +1036,7 @@ export function createEditorPort(win, hooks = {}) {
       win.Statamic?.$toast?.[kind]?.(port.t(key));
     },
 
-    /* Class: a utility in site.css, on the element, edited here (class-target.js) */
+    /* Class: a utility in site.css, on the element, edited here or in the dock (dock/class-target.js) */
     classes,
     /** The Tailwind pane's + (every class Tailwind has, and the site's own) and its sort, on the same list. */
     openAddMenu: (anchor) => twOpenAddMenu(win, anchor),
@@ -1067,7 +1045,6 @@ export function createEditorPort(win, hooks = {}) {
     active: (item) => (rev.value, twToolActive(item)),
 
     dispose() {
-      twSetChipHost(win, null);
       stopForgetting();
       stopClassesDefault();
       unhooks.forEach((unhook) => unhook());

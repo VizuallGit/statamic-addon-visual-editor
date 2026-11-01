@@ -1,5 +1,5 @@
 /**
- * Every class the site's CSS defines, in one list — the Classes tab reads this.
+ * Every class the site's CSS defines, in one list — Theme → Styles reads this.
  *
  * The server (`/!/sve/site-css/defined`) hands over one row per leaf rule:
  * `{ name, file, selector, css, kind }`. A name written in several files, or
@@ -9,7 +9,7 @@
  * Pure functions, no DOM and no fetch, so the tab can be tested without a CP.
  */
 
-import { bodyProperties } from './utilities.js';
+import { applyClasses, bodyProperties } from './utilities.js';
 
 /**
  * A selector you can answer "put this class on that element" with: exactly one
@@ -36,10 +36,10 @@ export function isAmbient(selector) {
 }
 
 /**
- * The rules the Classes tab owns, out of everything the site defines.
+ * The rules the Classes chip owns, out of everything the site defines.
  *
- * Two files, and only two: site.css's `@utility` blocks, and the one
- * stylesheet the site keeps its own classes in. Everything else belongs to
+ * Two files, and only two: site.css's `@utility` blocks, where a new class goes,
+ * and the one stylesheet the site may already keep classes in. Everything else belongs to
  * whoever wrote it — a section's rules travel with the section when it is
  * exported, base.css and type.css style elements rather than offer classes,
  * and the CP's own stylesheet is not even loaded on the site. Listing those
@@ -76,7 +76,8 @@ function rowName(row) {
 }
 
 /**
- * One row per class name: `{ name, kind, files, selectors, props, ambient }`.
+ * One row per class name: `{ name, kind, files, selectors, props, classes, ambient }`.
+ * `props` are the CSS properties it sets, `classes` the Tailwind classes it `@apply`s.
  *
  * `kind` is 'utility' when any rule defines it with `@utility` — that is the
  * form that answers to `md:` and `hover:`, so it wins over a plain rule of the
@@ -99,6 +100,7 @@ export function classRows(defined) {
       files: [],
       selectors: [],
       props: [],
+      classes: [],
       ambient: true,
     };
 
@@ -123,6 +125,12 @@ export function classRows(defined) {
     for (const prop of bodyProperties(row.css)) {
       if (!seen.props.includes(prop)) {
         seen.props.push(prop);
+      }
+    }
+
+    for (const raw of applyClasses(row.css).split(' ').filter(Boolean)) {
+      if (!seen.classes.includes(raw)) {
+        seen.classes.push(raw);
       }
     }
 
@@ -192,13 +200,14 @@ export function snippetRows(snippets, folder = 'snippets') {
     files: [`${folder}/${s.savedName || s.name || '…'}.css`],
     selectors: [],
     props: bodyProperties(s.body),
+    classes: applyClasses(s.body).split(' ').filter(Boolean),
     ambient: false,
     fresh: !!s.fresh,
   }));
 }
 
 /** The chips over the list. */
-export const CLASS_CHIPS = ['utility', 'class', 'variable', 'snippet', 'ambient', 'unused'];
+export const CLASS_CHIPS = ['class', 'variable', 'snippet', 'ambient', 'unused'];
 
 /**
  * The chips that always show, empty or not: each one is also how you reach
@@ -206,7 +215,7 @@ export const CLASS_CHIPS = ['utility', 'class', 'variable', 'snippet', 'ambient'
  * never be made. The rest — ambient, unused — only ever filter, and a chip
  * that says `0` is noise.
  */
-export const CLASS_CHIPS_ALWAYS = ['utility', 'class', 'variable', 'snippet'];
+export const CLASS_CHIPS_ALWAYS = ['class', 'variable', 'snippet'];
 
 /** Whether a chip keeps a row. */
 export function chipKeeps(chip, row) {
@@ -229,12 +238,9 @@ export function chipKeeps(chip, row) {
     return !!row.counted && row.now === 0;
   }
 
-  if (chip === 'utility') {
-    return row.kind === 'utility';
-  }
-
+  // A class is a class, whichever file it is written in.
   if (chip === 'class') {
-    return row.kind !== 'utility' && !row.ambient;
+    return !row.ambient;
   }
 
   if (chip === 'ambient') {
@@ -259,7 +265,8 @@ export function filterRows(rows, { chip = CLASS_CHIPS[0], query = '' } = {}) {
 
     return row.name.toLowerCase().includes(q)
       || row.files.some((f) => f.toLowerCase().includes(q))
-      || row.props.some((p) => p.toLowerCase().includes(q));
+      || row.props.some((p) => p.toLowerCase().includes(q))
+      || (row.classes || []).some((c) => c.toLowerCase().includes(q));
   });
 }
 
@@ -284,11 +291,13 @@ export function usageLabel(row, labels = {}) {
   return labels.unused || 'Ubrugt';
 }
 
-/** `wrapper — site.css · 4 properties`, the line under a row's name. */
+/** `site.css · 2 Tailwind classes · 4 properties`, the line under a row's name. */
 export function rowSummary(row, labels = {}) {
-  const props = row.props.length
-    ? `${row.props.length} ${row.props.length === 1 ? labels.prop_one || 'egenskab' : labels.prop_many || 'egenskaber'}`
-    : labels.no_props || 'tom';
+  const inside = (row.classes || []).length;
+  const parts = [
+    inside ? `${inside} ${inside === 1 ? labels.tw_one || 'Tailwind-klasse' : labels.tw_many || 'Tailwind-klasser'}` : '',
+    row.props.length ? `${row.props.length} ${row.props.length === 1 ? labels.prop_one || 'egenskab' : labels.prop_many || 'egenskaber'}` : '',
+  ].filter(Boolean);
 
-  return [row.files.join(', '), props].filter(Boolean).join(' · ');
+  return [row.files.join(', '), ...(parts.length ? parts : [labels.no_props || 'tom'])].filter(Boolean).join(' · ');
 }

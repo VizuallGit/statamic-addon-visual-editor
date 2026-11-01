@@ -56,11 +56,8 @@
       </button>
       <!-- One button, and the chip says which. -->
       <template v-else-if="ui.tab === 'styles'">
-        <button v-if="ui.classChip === 'utility'" type="button" class="sve-theme__add" data-sve-class-add-utility @click="onAddUtilityFromClasses">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.classes_add_utility }}
-        </button>
-        <button v-else-if="ui.classChip === 'class'" type="button" class="sve-theme__add" data-sve-class-add @click="onAddClass">
+        <!-- Not while saving: the save reads the list in again, and a row made now would be left with nothing behind it. -->
+        <button v-if="ui.classChip === 'class'" type="button" class="sve-theme__add" :disabled="ui.saving" data-sve-class-add @click="onAddUtilityFromClasses">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           {{ ui.labels.classes_add }}
         </button>
@@ -70,7 +67,7 @@
         </button>
         <button v-else-if="ui.classChip === 'snippet'" type="button" class="sve-theme__add" data-sve-snippet-add @click="onAddSnippet">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.classes_add_snippet || 'Nyt snippet' }}
+          {{ ui.labels.classes_add_snippet }}
         </button>
       </template>
       <span class="sve-theme__status">{{ ui.status }}</span>
@@ -201,7 +198,6 @@ const props = defineProps({
   onClassQuery: { type: Function, required: true },
   onClassChip: { type: Function, required: true },
   onOpenClass: { type: Function, required: true },
-  onAddClass: { type: Function, required: true },
   onClassName: { type: Function, required: true },
   onClassBody: { type: Function, required: true },
   onRemoveClass: { type: Function, required: true },

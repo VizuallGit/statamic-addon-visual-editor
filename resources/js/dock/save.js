@@ -3,6 +3,7 @@
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */
 import { replayLivePreview, topLevelSectionIds } from '../cp.js';
+import { emit } from '../cp/bus.js';
 import { twCandidates } from '../tw-candidates.js';
 import { tailwindDockOn } from '../tailwind-complete.js';
 import { componentPropsOn } from '../component-props.js';
@@ -142,6 +143,7 @@ function postSave(win, type, parts) {
       }
 
       refreshPreview(win);
+      emit('dock:saved', { html: parts.html });
       win.document
         .getElementById('__sve-section-picker')
         ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));

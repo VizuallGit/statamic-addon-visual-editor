@@ -79,7 +79,10 @@ defineProps({
         </div>
         <div data-sve-css-head></div>
         <div data-sve-code-host></div>
+        <!-- A class open, and the form for a new one (dock/tw-class-parts.js): around the list, out of its scroll. -->
+        <div data-sve-tw-class-bar></div>
         <div data-sve-tw-host></div>
+        <div data-sve-tw-class-foot></div>
       </div>
       <div data-sve-code-split data-sve-code-split-after="css"></div>
       <!--

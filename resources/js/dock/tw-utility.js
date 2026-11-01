@@ -1,9 +1,8 @@
 /**
- * A utility from the picked tag's Tailwind classes.
+ * A class from the picked tag's Tailwind classes (dock/class-target.js).
  *
- * The CSS pane in Tailwind mode shows the tag's classes; Utility takes them
- * all and writes one `@utility name { @apply …; }` into site.css, down the
- * same path the Theme panel's Utilities tab writes: the file is saved, the
+ * The classes chosen are written as one `@utility name { @apply …; }` into
+ * site.css, down the same path Theme → Styles writes: the file is saved, the
  * server builds the site's CSS (SiteBuild::afterSave), the new sheet is
  * swapped into the preview. Then the tag carries the utility instead of the
  * classes. That is `@apply` as it was: one name for many classes, in the one
@@ -20,18 +19,18 @@
  * Its own surface: this module and two reads of tw-classes.js. Nothing here
  * reaches preview, overlay or bridge.
  */
-import NamePrompt from '../cp/surfaces/NamePrompt.vue';
-import { openCpOverlay } from '../cp/open-overlay.js';
+import { ask } from '../cp/bus.js';
 import { classTokens, paintUtilities, swapSiteCss } from '../cp/theme-panel/utility-paint.js';
 import { compilerCss, lockedUtilities, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
-import { featureSaidOn } from '../lib/config.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
 import { pageDocuments } from '../lib/preview-frame.js';
-import { twPickedClasses, twReplaceClasses } from '../tw-classes.js';
+import { twRestoreTag, twReplaceClasses, twTagClasses } from '../tw-classes.js';
 
 /** site.css, relative to the site's CSS root — the file the Utilities tab writes. */
 const ENTRY = 'site.css';
+
+let posting = 0;
 
 const HEADERS = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
 
@@ -48,8 +47,30 @@ export async function readSiteCss(win) {
   return String((await res.json()).css || '');
 }
 
-/** Save site.css. The answer carries `build` when the server built the site's CSS. */
+/**
+ * Save site.css. The answer carries `build` when the server built the site's CSS.
+ *
+ * The dock's file goes first. Tailwind writes a utility only when a file it scans
+ * uses it, so a build that runs before the tag has reached the disk leaves a new
+ * class out of the site's CSS, on the public site too.
+ */
 export async function postSiteCss(win, css) {
+  posting += 1;
+
+  try {
+    ask('dock:save-now');
+    await ask('dock:save-settled');
+
+    return await sendSiteCss(win, css);
+  } finally {
+    posting -= 1;
+  }
+}
+
+/** A save on its way: the build it ends in may already see the file. */
+export const siteCssPosting = () => posting > 0;
+
+async function sendSiteCss(win, css) {
   const res = await win.fetch('/!/sve/site-css?kind=css', {
     method: 'POST',
     credentials: 'same-origin',
@@ -146,21 +167,26 @@ export async function storeUtility(win, name, raws, { quiet = false } = {}) {
 
   paintUtilities(docs, [name], compiled);
 
+  // On the tag before the save: postSiteCss sends the file first, for the build.
+  const before = twTagClasses();
+
+  twReplaceClasses(win, known, name);
+
   let data;
 
   try {
     data = await postSiteCss(win, next);
   } catch {
     paintUtilities(docs, [], '');
+    twRestoreTag(win, before);
     toast(win, 'error', 'tw_utility_failed');
 
     return false;
   }
 
-  // The dock's Tailwind forgets the theme it kept, before the tag changes: the
-  // new utility is a class it knows — and leaves to site.css — from now on.
+  // The dock's Tailwind forgets the theme it kept: the new utility is a class it
+  // knows — and leaves to site.css — from now on.
   win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: ENTRY } }));
-  twReplaceClasses(win, known, name);
 
   const build = data?.build;
 
@@ -183,40 +209,4 @@ export async function storeUtility(win, name, raws, { quiet = false } = {}) {
   }
 
   return true;
-}
-
-/** The CSS pane's Utility button, in Tailwind mode: the tag's classes, named. */
-export function saveTwUtility(win) {
-  if (!featureSaidOn(win, 'site_css')) {
-    toast(win, 'error', 'tw_utility_no_site_css');
-
-    return;
-  }
-
-  const picked = twPickedClasses();
-
-  if (!picked) {
-    toast(win, 'error', 'tw_utility_no_tag');
-
-    return;
-  }
-
-  if (!picked.raws.length) {
-    toast(win, 'error', 'tw_utility_no_classes');
-
-    return;
-  }
-
-  const overlay = openCpOverlay(win.document, NamePrompt, {
-    heading: t(win, 'tw_utility_new'),
-    nameLabel: t(win, 'snippet_name'),
-    placeholder: t(win, 'tw_utility_name_placeholder'),
-    value: '',
-    cancelLabel: t(win, 'cancel'),
-    saveLabel: t(win, 'tw_utility_create'),
-    onOk: (name) => {
-      overlay.dismiss();
-      void storeUtility(win, String(name || '').trim(), picked.raws);
-    },
-  });
 }
