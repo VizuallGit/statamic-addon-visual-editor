@@ -13,7 +13,7 @@
  * twSetTag), on the same CSS_TOOLS tools. A dock tool this layout never drew
  * is drawn in its family from its shape.
  *
- * Spacing is drawn one of two ways, switched in its own row and kept in this
+ * Spacing is drawn one of two ways, switched beside its note and kept in this
  * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
  * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
@@ -638,16 +638,17 @@ function jump(group) {
           <BuildSpacingBox
             v-if="spacingView === 'box' && tool('padding') && tool('margin')"
             :tools="{ padding: tool('padding'), margin: tool('margin') }"
-          >
-            <template #view><BuildSpacingView :view="spacingView" @flip="flipSpacingView" /></template>
-          </BuildSpacingBox>
+          />
           <template v-else>
-            <div class="fg-lab fg-lab--view">padding<BuildSpacingView :view="spacingView" @flip="flipSpacingView" /></div>
+            <div class="fg-lab">padding</div>
             <BuildBoxFields v-if="tool('padding')" :tool="tool('padding')" />
             <div class="fg-lab">margin</div>
             <BuildBoxFields v-if="tool('margin')" :tool="tool('margin')" />
           </template>
-          <p class="fg-hint" v-html="port.t('value_hint')"></p>
+          <div class="bm-sp-foot">
+            <BuildSpacingView :view="spacingView" @flip="flipSpacingView" />
+            <p class="fg-hint" v-html="port.t('value_hint')"></p>
+          </div>
         </template>
 
         <!-- Typography -->

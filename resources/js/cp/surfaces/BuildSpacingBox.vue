@@ -35,7 +35,7 @@ const port = inject('sveBuild');
 const box = ref('padding');
 const link = ref('');
 
-const COMMON = ['px', 'rem', 'em', '%'];
+const COMMON = ['rem', 'em', '%'];
 const UNIT_GROUPS = [
   ['spacing_units_absolute', ['px', 'pt', 'cm', 'mm', 'in']],
   ['spacing_units_relative', ['rem', 'em', '%', 'ch', 'ex', 'lh', 'rlh']],
@@ -122,7 +122,6 @@ const sides = computed(() =>
       ></button>
     </div>
     <BuildLinkSides v-model:link="link" />
-    <slot name="view"></slot>
   </div>
 
   <div v-if="moreUnits" class="fg-classpick bm-sp-units" data-sve-build-unit-list>

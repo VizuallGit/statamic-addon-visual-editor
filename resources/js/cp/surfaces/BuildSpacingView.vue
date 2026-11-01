@@ -1,5 +1,5 @@
 <script setup>
-/** Spacing as the box or as fields: small and plain, it says how the rest is drawn and nothing more. */
+/** Spacing as the box or as fields: an icon on the grey beside the note under it, its hover says what it does. */
 import { inject } from 'vue';
 import { ic } from '../../build-mode/icons.js';
 

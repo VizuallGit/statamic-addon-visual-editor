@@ -646,11 +646,12 @@ onBeforeUnmount(() => {
 .sve-build :is(.bm-tabs, .fg-jump, .bm-sp-top) { min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--bm-edge) transparent; }
 .sve-build .bm-sp-top { display: flex; align-items: stretch; gap: 0.25rem; margin: 0.4rem 0 0.5rem; }
 .sve-build .bm-sp-mode { flex: 1 0 auto; }
-.sve-build .bm-sp-mode button { padding-inline: 0.3rem; font-family: var(--bm-mono); font-size: 0.625rem; }
+.sve-build .bm-sp-mode button { padding-inline: 0.2rem; font-family: var(--bm-mono); font-size: 0.625rem; }
 /* The unit a side is dragged in, beside padding | margin. */
-.sve-build .bm-sp-unit { flex: none; }
-.sve-build .bm-sp-unit button { flex: none; padding: 0.32rem 0.25rem; font-family: var(--bm-mono); font-size: 0.625rem; }
-.sve-build .bm-sp-unit button.bm-sp-unit-more { padding-inline: 0; width: 0.875rem; }
+/* A wider panel's room goes to both groups, not to padding | margin alone. */
+.sve-build .bm-sp-unit { flex: 1 0 auto; }
+.sve-build .bm-sp-unit button { flex: 1 0 auto; padding: 0.32rem 0.25rem; font-family: var(--bm-mono); font-size: 0.625rem; }
+.sve-build .bm-sp-unit button.bm-sp-unit-more { flex: none; padding-inline: 0; width: 0.875rem; }
 .sve-build .bm-sp-unit-more svg { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-sp-unit-more[aria-expanded='true'] { color: var(--bm-ink); }
 .sve-build .bm-sp-units { margin-block-end: 0.5rem; }
@@ -660,11 +661,12 @@ onBeforeUnmount(() => {
 .sve-build .bm-sp-units__row button { min-width: 1.75rem; padding: 0.2rem 0.3rem; border-radius: 0.25rem; color: var(--bm-ink); font: 450 0.625rem var(--bm-mono); }
 .sve-build .bm-sp-units__row button:hover { background: var(--bm-hover); }
 .sve-build .bm-sp-units__row button[aria-pressed='true'] { background: var(--bm-panel); box-shadow: inset 0 0 0 1px var(--bm-edge); }
-/* Box or fields: plain, on its own. A background only on hover. */
-.sve-build .bm-sp-view { flex: none; align-self: center; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; color: var(--bm-faint); }
-.sve-build .bm-sp-view:hover { background: var(--bm-raise); color: var(--bm-ink); }
-.sve-build .bm-sp-view svg { width: 0.75rem; height: 0.75rem; }
-.sve-build .fg-lab--view { display: flex; align-items: center; justify-content: space-between; }
+/* Box or fields: an icon on the grey, beside the note under Spacing. */
+.sve-build .bm-sp-foot { display: flex; align-items: flex-start; gap: 0.5rem; min-width: 0; }
+.sve-build .bm-sp-foot .fg-hint { flex: 1; min-width: 0; }
+.sve-build .bm-sp-view { flex: none; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-muted); }
+.sve-build .bm-sp-view:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .bm-sp-view svg { width: 0.875rem; height: 0.875rem; }
 /* Which sides move together: the sides in the group are lit, the others faint. */
 .sve-build .bm-sp-sides { flex: none; }
 .sve-build .bm-sp-sides button { padding: 0 0.3rem; color: var(--bm-ink); }
