@@ -24,7 +24,7 @@
  * class the file already had for this side (`pt-800` under padding-block-start)
  * is the field's own, and a pick takes its place.
  *
- * `scrub` (a unit: px, rem, em, %) lets the field be dragged as well as
+ * `scrub` (a unit: px, rem, cqw …) lets the field be dragged as well as
  * clicked — Spacing's box (BuildSpacingBox.vue). Up is more, down is less,
  * one step per few pixels, ten with Shift; the value is written as the pick of
  * a typed value would write it (`pt-[5rem]`), through the pane's own set, at
@@ -120,7 +120,7 @@ const trigger = ref(null);
 /* ---------------- dragged (scrub) ---------------- */
 
 /** One step of each unit, and the pixels of pointer travel it takes. */
-const STEP = { px: 1, rem: 0.25, em: 0.25, '%': 1 };
+const STEP = { px: 1, rem: 0.25, em: 0.25, lh: 0.25, rlh: 0.25, cm: 0.25, in: 0.25, '%': 1 };
 const PIXELS_PER_STEP = 3;
 /** Moved this far, a press is a drag and not a click. */
 const SLOP = 3;

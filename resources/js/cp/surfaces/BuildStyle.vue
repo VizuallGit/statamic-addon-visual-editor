@@ -13,7 +13,7 @@
  * twSetTag), on the same CSS_TOOLS tools. A dock tool this layout never drew
  * is drawn in its family from its shape.
  *
- * Spacing is drawn one of two ways, switched in its header and kept in this
+ * Spacing is drawn one of two ways, switched in its own row and kept in this
  * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
  * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
@@ -25,6 +25,7 @@ import BuildClassList from './BuildClassList.vue';
 import BuildClassTarget from './BuildClassTarget.vue';
 import { useFitRow } from './fit-row.js';
 import BuildSpacingBox from './BuildSpacingBox.vue';
+import BuildSpacingView from './BuildSpacingView.vue';
 import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
 import BuildFields from './BuildFields.vue';
@@ -469,17 +470,6 @@ function jump(group) {
           @click="resetGroup(group)"
         ><i></i><span v-html="ic('reset')"></span></button>
         <span class="fg-sec__acts">
-          <button
-            v-if="group.id === 'spacing' && isOpen(group)"
-            type="button"
-            class="fg-ib"
-            :aria-pressed="spacingView === 'box'"
-            :title="port.t(spacingView === 'box' ? 'spacing_fields' : 'spacing_box')"
-            :aria-label="port.t(spacingView === 'box' ? 'spacing_fields' : 'spacing_box')"
-            data-sve-build-spacing-view
-            @click="flipSpacingView"
-            v-html="ic('container')"
-          ></button>
           <!-- Labelled "collapse", never "close": the shell takes a Live Preview button called close for Statamic's × and hides it (cp-shell/grid-rows.js) -->
           <button
             type="button"
@@ -648,9 +638,11 @@ function jump(group) {
           <BuildSpacingBox
             v-if="spacingView === 'box' && tool('padding') && tool('margin')"
             :tools="{ padding: tool('padding'), margin: tool('margin') }"
-          />
+          >
+            <template #view><BuildSpacingView :view="spacingView" @flip="flipSpacingView" /></template>
+          </BuildSpacingBox>
           <template v-else>
-            <div class="fg-lab">padding</div>
+            <div class="fg-lab fg-lab--view">padding<BuildSpacingView :view="spacingView" @flip="flipSpacingView" /></div>
             <BuildBoxFields v-if="tool('padding')" :tool="tool('padding')" />
             <div class="fg-lab">margin</div>
             <BuildBoxFields v-if="tool('margin')" :tool="tool('margin')" />

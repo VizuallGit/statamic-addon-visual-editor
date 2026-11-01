@@ -135,7 +135,6 @@ try {
   await shot('1-style');
 
   // Padding as Figma draws it: open the four sides; block-start opens the scale's menu.
-  await click('[data-sve-build-sides="padding"]');
   await sleep(150);
   await click('[data-sve-build-value="padding-block-start"]');
   await sleep(150);
@@ -153,7 +152,7 @@ try {
   step('…and the compiler paints it in the preview', painted === '10px', `padding-block-start ${painted}`);
 
   // Back to two fields: down, a custom property.
-  await click('[data-sve-build-sides="padding"]');
+  await click('[data-sve-build-link-box="padding"]');
   await sleep(150);
   await menuWrite('[data-sve-build-value="padding-block"]', '--gutter');
   step('the vertical padding field with --gutter writes py-(--gutter)', /(^| )py-\(--gutter\)/.test(await classesOf(H2)), await classesOf(H2));

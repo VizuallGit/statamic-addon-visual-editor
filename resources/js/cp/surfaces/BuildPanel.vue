@@ -448,7 +448,7 @@ onBeforeUnmount(() => {
 /* Tabs and scroll */
 /* Add | Style: a light grey track, the open tab in the blue of a class open in Style (`.fg-target`). */
 .sve-build .bm-tabs { display: flex; flex: none; gap: 0.1875rem; margin: 0.625rem 0.75rem 0; padding: 0.15rem; border-radius: 0.375rem; background: var(--bm-raise); }
-.sve-build .bm-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.375rem 0; border-radius: 0.28rem; color: var(--bm-muted); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
+.sve-build .bm-tabs button { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.375rem 0; border-radius: 0.28rem; color: var(--bm-muted); font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s, color 0.12s; }
 .sve-build .bm-tabs .bm-ic, .sve-build .bm-tabs svg { width: 0.875rem; height: 0.875rem; }
 .sve-build .bm-tabs button:hover { color: var(--bm-ink); background: var(--bm-hover); }
 /* All | Elements | Components: words of different lengths, each with the same room at its sides; more room is shared out. */
@@ -642,12 +642,29 @@ onBeforeUnmount(() => {
 .sve-build .bm-st-el { margin-top: 0.4rem; }
 
 /* Margin and padding, one box */
-.sve-build .bm-sp-top { display: flex; align-items: stretch; gap: 0.4rem; margin: 0.4rem 0 0.5rem; }
-.sve-build .bm-sp-mode { flex: 1; }
-.sve-build .bm-sp-mode button { font-family: var(--bm-mono); font-size: 0.6875rem; }
+/* A row that does not fit a narrow panel scrolls sideways; the sizes have their ⋯ (fit-row.js). */
+.sve-build :is(.bm-tabs, .fg-jump, .bm-sp-top) { min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--bm-edge) transparent; }
+.sve-build .bm-sp-top { display: flex; align-items: stretch; gap: 0.25rem; margin: 0.4rem 0 0.5rem; }
+.sve-build .bm-sp-mode { flex: 1 0 auto; }
+.sve-build .bm-sp-mode button { padding-inline: 0.3rem; font-family: var(--bm-mono); font-size: 0.625rem; }
 /* The unit a side is dragged in, beside padding | margin. */
 .sve-build .bm-sp-unit { flex: none; }
-.sve-build .bm-sp-unit button { flex: none; padding: 0.32rem 0.35rem; font-family: var(--bm-mono); font-size: 0.625rem; }
+.sve-build .bm-sp-unit button { flex: none; padding: 0.32rem 0.25rem; font-family: var(--bm-mono); font-size: 0.625rem; }
+.sve-build .bm-sp-unit button.bm-sp-unit-more { padding-inline: 0; width: 0.875rem; }
+.sve-build .bm-sp-unit-more svg { width: 0.875rem; height: 0.875rem; }
+.sve-build .bm-sp-unit-more[aria-expanded='true'] { color: var(--bm-ink); }
+.sve-build .bm-sp-units { margin-block-end: 0.5rem; }
+.sve-build .bm-sp-units__group { display: grid; gap: 0.2rem; }
+.sve-build .bm-sp-units__title { color: var(--bm-muted); font-size: 0.625rem; }
+.sve-build .bm-sp-units__row { display: flex; flex-wrap: wrap; gap: 0.15rem; }
+.sve-build .bm-sp-units__row button { min-width: 1.75rem; padding: 0.2rem 0.3rem; border-radius: 0.25rem; color: var(--bm-ink); font: 450 0.625rem var(--bm-mono); }
+.sve-build .bm-sp-units__row button:hover { background: var(--bm-hover); }
+.sve-build .bm-sp-units__row button[aria-pressed='true'] { background: var(--bm-panel); box-shadow: inset 0 0 0 1px var(--bm-edge); }
+/* Box or fields: plain, on its own. A background only on hover. */
+.sve-build .bm-sp-view { flex: none; align-self: center; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; color: var(--bm-faint); }
+.sve-build .bm-sp-view:hover { background: var(--bm-raise); color: var(--bm-ink); }
+.sve-build .bm-sp-view svg { width: 0.75rem; height: 0.75rem; }
+.sve-build .fg-lab--view { display: flex; align-items: center; justify-content: space-between; }
 /* Which sides move together: the sides in the group are lit, the others faint. */
 .sve-build .bm-sp-sides { flex: none; }
 .sve-build .bm-sp-sides button { padding: 0 0.3rem; color: var(--bm-ink); }
@@ -691,7 +708,7 @@ onBeforeUnmount(() => {
  * ------------------------------------------------------------------ */
 .sve-build .bm-ic [fill='currentColor'] { fill: currentColor; }
 /* Stays on top while the families scroll under it: above the spacing box's fields (z-index 2), on the panel's own colour. */
-.sve-build .fg-top { position: sticky; top: 0; z-index: 3; background: var(--bm-panel); padding: 0 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; gap: 0.5rem; }
+.sve-build .fg-top { position: sticky; top: 0; z-index: 3; background: var(--bm-panel); padding: 0 0 0.6rem; border-bottom: 1px solid var(--bm-line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .sve-build .fg-head { display: flex; align-items: center; gap: 0.5rem; }
 .sve-build .fg-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; font-weight: 600; }
 .sve-build .fg-head__acts { display: flex; gap: 0.125rem; }
@@ -748,6 +765,7 @@ onBeforeUnmount(() => {
 .sve-build .fg-hint b { color: var(--bm-ink); font-weight: 600; }
 .sve-build .fg-hint code { color: var(--bm-muted); }
 .sve-build .fg-jump { display: flex; justify-content: space-between; }
+.sve-build .fg-jump > * { flex: none; }
 .sve-build .fg-sec { border-bottom: 1px solid var(--bm-line); }
 .sve-build .fg-sec__h { display: flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.25rem 0; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); user-select: none; }
 .sve-build .fg-sec:not(.is-open) .fg-sec__h { color: var(--bm-muted); }
@@ -771,7 +789,7 @@ onBeforeUnmount(() => {
 .sve-build .fg-set:is(:hover, :focus-visible) > span { display: inline-flex; }
 .sve-build .fg-sec__icon { display: inline-flex; color: var(--bm-muted); }
 .sve-build .fg-sec__icon svg { width: 0.9375rem; height: 0.9375rem; }
-.sve-build .fg-sec__b { display: grid; gap: 0.5rem; padding: 0.15rem 0 1rem; }
+.sve-build .fg-sec__b { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; padding: 0.15rem 0 1rem; }
 .sve-build .fg-sec:not(:has(.fg-sec__h)) .fg-sec__b { padding-top: 0.75rem; }
 .sve-build .fg-row { display: grid; grid-template-columns: 5.25rem minmax(0, 1fr); align-items: center; gap: 0.5rem; }
 .sve-build .fg-rlab { font: 500 0.6875rem var(--bm-mono); color: var(--bm-muted); }
@@ -827,6 +845,7 @@ onBeforeUnmount(() => {
 /* The same box as a section's + (`.fg-sec__tog`), wider when the number is. */
 .sve-build .fg-classes__count { flex: none; display: grid; place-items: center; min-width: 1.05rem; height: 1.05rem; padding-inline: 0.2rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.625rem; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
 .sve-build .fg-classes .fg-sec__acts { flex: none; }
+.sve-build .fg-classes .fg-ib { width: 1.5rem; }
 .sve-build .fg-classes .bm-switch { width: 1.625rem; height: 1.05rem; background: var(--bm-edge); }
 .sve-build .fg-classes .bm-switch::after { top: 0.15rem; left: 0.15rem; width: 0.75rem; height: 0.75rem; }
 .sve-build .fg-classes .bm-switch[aria-checked='true']::after { transform: translateX(0.575rem); }
@@ -878,7 +897,7 @@ onBeforeUnmount(() => {
 .sve-build .fg-matrix.is-col button[aria-pressed='true'] i:nth-child(3) { height: 0.5rem; }
 .sve-build .fg-box { display: flex; align-items: flex-start; gap: 0.375rem; }
 .sve-build .fg-box > .fg-grid { flex: 1; min-width: 0; }
-.sve-build .fg-box > .fg-ib { margin-top: 0.06rem; }
+.sve-build .fg-box > .bm-sp-sides { height: 1.875rem; }
 .sve-build .fg-colsn button { flex-direction: column; gap: 0.15rem; height: auto; padding: 0.3rem 0.1rem; }
 .sve-build .fg-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; cursor: pointer; }
 .sve-build .fg-check input { appearance: none; -webkit-appearance: none; width: 0.875rem; height: 0.875rem; margin: 0; display: grid; place-content: center; border-radius: 0.2rem; border: 1px solid var(--bm-edge); background: var(--bm-raise); cursor: pointer; }

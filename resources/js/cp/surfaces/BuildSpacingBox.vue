@@ -15,14 +15,17 @@
  * their children (`padding-block-start`, `padding-all` …) — so a side here,
  * a field in the Figma view and a side in the Tailwind pane are one tool.
  *
- * The unit beside the tabs (px, rem, em, %; kept in this browser) is what a
- * side is dragged in: up and down on a side writes `pt-[5rem]`
- * (BuildValueInput.vue `scrub`); a click on it still opens the menu.
+ * The unit beside the tabs (kept in this browser) is what a side is dragged in:
+ * up and down on a side writes `pt-[5rem]` (BuildValueInput.vue `scrub`); a
+ * click on it still opens the menu. The most used stand in the row, and ⋮ has
+ * every unit CSS has for a length; one chosen there takes the row's last place.
  */
 import { computed, inject, ref } from 'vue';
+import BuildLinkSides from './BuildLinkSides.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { SIDES, nextLink, sideFallbackTools, sideTool } from '../../build-mode/classes.js';
+import { SIDES, sideFallbackTools, sideTool } from '../../build-mode/classes.js';
 import { kidsById } from '../../build-mode/catalog.js';
+import { ic } from '../../build-mode/icons.js';
 
 const props = defineProps({
   tools: { type: Object, required: true }, // { padding, margin } CSS_TOOLS entries
@@ -32,7 +35,14 @@ const port = inject('sveBuild');
 const box = ref('padding');
 const link = ref('');
 
-const UNITS = ['px', 'rem', 'em', '%'];
+const COMMON = ['px', 'rem', 'em', '%'];
+const UNIT_GROUPS = [
+  ['spacing_units_absolute', ['px', 'pt', 'cm', 'mm', 'in']],
+  ['spacing_units_relative', ['rem', 'em', '%', 'ch', 'ex', 'lh', 'rlh']],
+  ['spacing_units_viewport', ['vw', 'vh', 'vmin', 'vmax', 'svw', 'svh', 'lvw', 'lvh', 'dvw', 'dvh']],
+  ['spacing_units_container', ['cqw', 'cqh', 'cqi', 'cqb', 'cqmin', 'cqmax']],
+];
+const UNITS = UNIT_GROUPS.flatMap(([, units]) => units);
 const UNIT_KEY = 'sve-build-spacing-unit';
 
 function readUnit() {
@@ -46,9 +56,12 @@ function readUnit() {
 }
 
 const unit = ref(readUnit());
+const moreUnits = ref(false);
+const rowUnits = computed(() => (COMMON.includes(unit.value) ? COMMON : [...COMMON.slice(0, -1), unit.value]));
 
 function setUnit(value) {
   unit.value = value;
+  moreUnits.value = false;
 
   try {
     window.localStorage.setItem(UNIT_KEY, value);
@@ -57,8 +70,6 @@ function setUnit(value) {
   }
 }
 
-const LINK_TITLE = { '': 'link_title_off', block: 'link_title_block', inline: 'link_title_inline', all: 'link_title_all' };
-const linkTitle = computed(() => LINK_TITLE[link.value]);
 const kids = computed(() => kidsById(props.tools[box.value]));
 const POS = { 'block-start': 't', 'inline-end': 'r', 'block-end': 'b', 'inline-start': 'l' };
 
@@ -92,27 +103,41 @@ const sides = computed(() =>
     </div>
     <div class="bm-seg bm-sp-unit" :title="port.t('spacing_unit')" :aria-label="port.t('spacing_unit')">
       <button
-        v-for="item in UNITS"
+        v-for="item in rowUnits"
         :key="item"
         type="button"
         :aria-pressed="unit === item"
         :data-sve-build-unit="item"
         @click="setUnit(item)"
       >{{ item }}</button>
-    </div>
-    <div class="bm-seg bm-sp-sides">
       <button
         type="button"
-        :title="port.t(linkTitle)"
-        :aria-label="port.t(linkTitle)"
-        :data-sve-build-link="link || 'off'"
-        @click="link = nextLink(link)"
-      >
-        <svg class="bm-ic" viewBox="0 0 24 24" aria-hidden="true">
-          <path :class="{ 'is-lit': link === 'block' || link === 'all' }" d="M8 4h8M8 20h8" />
-          <path :class="{ 'is-lit': link === 'inline' || link === 'all' }" d="M4 8v8M20 8v8" />
-        </svg>
-      </button>
+        class="bm-sp-unit-more"
+        :aria-expanded="moreUnits"
+        :title="port.t('spacing_units_more')"
+        :aria-label="port.t('spacing_units_more')"
+        data-sve-build-unit-more
+        @click="moreUnits = !moreUnits"
+        v-html="ic('more')"
+      ></button>
+    </div>
+    <BuildLinkSides v-model:link="link" />
+    <slot name="view"></slot>
+  </div>
+
+  <div v-if="moreUnits" class="fg-classpick bm-sp-units" data-sve-build-unit-list>
+    <div v-for="[title, units] in UNIT_GROUPS" :key="title" class="bm-sp-units__group">
+      <span class="bm-sp-units__title">{{ port.t(title) }}</span>
+      <div class="bm-sp-units__row">
+        <button
+          v-for="item in units"
+          :key="item"
+          type="button"
+          :aria-pressed="unit === item"
+          :data-sve-build-unit-pick="item"
+          @click="setUnit(item)"
+        >{{ item }}</button>
+      </div>
     </div>
   </div>
 
