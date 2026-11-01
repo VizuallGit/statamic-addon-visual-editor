@@ -13,7 +13,8 @@
  * The top bar's icons are the ones the site gave Build; with the dock showing,
  * all of them (`html` in lib/toolbar-modes.js), as a developer wants.
  *
- * Where it stands: in the bar's flow, between the icon row and the right-hand
+ * On a tab it hangs under the bar and takes no room in it (placeTab). Otherwise
+ * it stands in the bar's flow, between the icon row and the right-hand
  * cluster (the box round Save that holds the sizes, syncLpRightBarGaps). The
  * two sides share the room equally (`flex: 1 1 0`, the cluster's contents
  * pushed to its right edge), so the switch stands dead in the middle of the
@@ -45,6 +46,7 @@
 import { sveState } from '../cp-state.js';
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { featureSaidOn } from '../lib/config.js';
+import { remToPx } from '../lib/dom.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
 import { HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
@@ -58,6 +60,7 @@ import { FRAMED_CONTROL_STYLE, LP_TOOLBAR_ICON_STYLE, TOOLBAR_ICONS, toggleCodeD
 import { followToolbarMode, leaveToolbarToolsOutsideMode } from '../toolbar-visibility.js';
 import { SWITCH_TAB_ATTR, buildSwitchTabOn } from '../build-switch-tab.js';
 import { LP_DEVICE_ICONS } from './preview-chrome.js';
+import { tabCentre } from './tab-place.js';
 import { startUndoRedo } from './undo-redo.js';
 
 const SWITCH_ID = '__sve-build-switch';
@@ -84,15 +87,17 @@ const ICONS = {
 };
 
 function ensureStyles(doc) {
-  const bar = `.live-preview-header:has(> #${SWITCH_ID})`;
+  const inFlow = `.live-preview-header:has(> #${SWITCH_ID}:not([${SWITCH_TAB_ATTR}]))`;
   const tab = `#${SWITCH_ID}[${SWITCH_TAB_ATTR}]`;
 
   injectStyle(
     doc,
     STYLE_ID,
-    `${bar} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
-${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
+    `${inFlow} > #${HEADER_TOOLBAR_ID}{flex:1 1 0;margin-right:0!important}
+${inFlow} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
+.live-preview-header:has(> ${tab}){position:relative}
 #${SWITCH_ID}{display:flex;flex:none;margin-inline:.5rem}
+#${SWITCH_ID}:not([${SWITCH_TAB_ATTR}]){left:auto!important;transform:none!important}
 /* Back and forward, then the two modes, each on the grey of the bar's groups; the same in the bar and on the tab. */
 #${SWITCH_ID} > [role="group"]{display:inline-flex;align-items:center;gap:.625rem;flex:none;background:transparent;padding:0}
 #${SWITCH_ID} [data-sve-undo-group]{display:inline-flex;gap:.1875rem}
@@ -108,13 +113,11 @@ ${bar} > :has(> #${LP_PREVIEW_CHROME_ID}){flex:1 1 0;justify-content:flex-end}
 #${SWITCH_ID} [data-sve-build-mode] svg{display:block;flex:none;width:.875rem;height:.875rem}
 /* Everything below is the tab (SWITCH_TAB_ATTR, Live Preview settings → Top bar); without it the
    switch is the group above, like the bar's others.
-   The switch on a tab of the bar, as a canvas tool sits on one: no group box, the three buttons
-   (--sve-switch-h tall) stand on a tab in the bar's own colour (--sve-switch-base) with
-   --sve-switch-pad of tab round them. The tab ends --sve-switch-drop under the bar, the bar running
-   into it in two small curves, so the buttons stand that much lower than the bar's other groups.
-   The margins keep the switch a 2rem box to the bar, which centres it as one of them;
-   --sve-switch-reach is that box's distance to the bar's bottom, measured where the switch is placed. */
-${tab}{--sve-switch-h:1.875rem;--sve-switch-pad:.625rem;--sve-switch-drop:2.5rem;--sve-switch-ear:.5rem;--sve-switch-down:calc(var(--sve-switch-reach, .625rem) + 2rem - var(--sve-switch-h) + var(--sve-switch-drop) - var(--sve-switch-pad));margin-top:var(--sve-switch-down);margin-bottom:calc(2rem - var(--sve-switch-h) - var(--sve-switch-down));position:relative;z-index:1}
+   The switch on a tab of the bar, as a canvas tool sits on one: taken out of the bar's row, so
+   the row has all its room, it hangs under the bar. No group box: the buttons (--sve-switch-h
+   tall) stand on a tab in the bar's own colour (--sve-switch-base) with --sve-switch-pad of tab
+   round them, the bar running into it in two small curves. placeTab says where along the bar. */
+${tab}{--sve-switch-h:1.875rem;--sve-switch-pad:.625rem;--sve-switch-drop:2.5rem;--sve-switch-ear:.5rem;position:absolute;top:100%;margin:0;transform:translateX(-50%);z-index:1}
 ${tab}::before{content:"";position:absolute;z-index:-1;inset:calc(-1 * var(--sve-switch-pad));border-radius:0 0 .625rem .625rem;background:var(--sve-switch-base,transparent);pointer-events:none}
 ${tab}::after{content:"";position:absolute;z-index:-1;left:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));right:calc(-1 * (var(--sve-switch-pad) + var(--sve-switch-ear)));top:calc(100% + var(--sve-switch-pad) - var(--sve-switch-drop));height:var(--sve-switch-ear);pointer-events:none;background:radial-gradient(circle at 0 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) left/var(--sve-switch-ear) 100% no-repeat,radial-gradient(circle at 100% 100%,transparent var(--sve-switch-ear),var(--sve-switch-base,transparent) calc(var(--sve-switch-ear) + .5px)) right/var(--sve-switch-ear) 100% no-repeat}
 ${tab} > [role="group"]{height:auto!important;padding:0!important;background:transparent!important;border-radius:0!important}
@@ -175,6 +178,51 @@ function restoreColumn(win) {
   if (was.collapsed) {
     setLpCollapsed(win, true);
   }
+}
+
+/** The tab along the bar: a pass, and whenever the room round it moves. */
+function placeTab(win, holder, header) {
+  const contents = win.document.querySelector('.live-preview-contents');
+
+  if (!contents || !holder.hasAttribute(SWITCH_TAB_ATTR)) {
+    return;
+  }
+
+  const bar = header.getBoundingClientRect();
+  const box = contents.getBoundingClientRect();
+  const left = box.left + (parseFloat(contents.style.paddingLeft) || 0);
+  const right = box.right - (parseFloat(contents.style.paddingRight) || 0);
+  const centre = tabCentre({
+    whole: bar.left + bar.width / 2,
+    left,
+    right,
+    // The tab and its ears reach this far past the buttons (--sve-switch-pad + --sve-switch-ear).
+    width: holder.offsetWidth + remToPx(win, 2.25),
+    gap: remToPx(win, 0.5),
+  });
+  const at = `${Math.round(centre - bar.left)}px`;
+
+  if (holder.style.left !== at) {
+    holder.style.left = at;
+  }
+}
+
+let roomWatch = null;
+
+function followRoom(win, holder, header) {
+  const contents = win.document.querySelector('.live-preview-contents');
+
+  if (!contents || roomWatch?.contents === contents) {
+    return;
+  }
+
+  roomWatch?.observer.disconnect();
+
+  const observer = new win.ResizeObserver(() => placeTab(win, holder, header));
+
+  observer.observe(contents);
+  observer.observe(header);
+  roomWatch = { contents, observer };
 }
 
 /** Back and forward as this mode has them: what they go through is the mode's. */
@@ -383,15 +431,11 @@ export function ensureBuildSwitch(win) {
     bar.after(holder);
   }
 
-  // The bar's colour, for the tab that hangs over the preview (light or dark theme), and how far
-  // the switch's 2rem box (its margin box, which the bar centres) stands above the bar's bottom.
+  // The bar's colour, for the tab that hangs over the preview (light or dark theme).
   holder.toggleAttribute(SWITCH_TAB_ATTR, buildSwitchTabOn(win));
-
-  const holderCss = win.getComputedStyle(holder);
-
   holder.style.setProperty('--sve-switch-base', win.getComputedStyle(header).backgroundColor);
-  holder.style.setProperty('--sve-switch-reach', `${Math.max(0, header.getBoundingClientRect().bottom - (holder.getBoundingClientRect().bottom + parseFloat(holderCss.marginBottom)))}px`);
-
+  followRoom(win, holder, header);
+  placeTab(win, holder, header);
   history?.sync();
   paint(holder);
 

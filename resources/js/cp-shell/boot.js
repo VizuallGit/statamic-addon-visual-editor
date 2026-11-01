@@ -2,6 +2,7 @@
  * cp.js — region "boot", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel cp.js for what the shell exports.
  */
+import { bindPreviewRoom } from './preview-room.js';
 import { sveState } from '../cp-state.js';
 import { ACTIVE_ATTR, SELECTORS } from '../cp-selectors.js';
 import { stampGridRows } from '../cp-section-groups.js';
@@ -228,6 +229,7 @@ export function initCp(win = window) {
 
   injectStyle(win.document, '__sve-cp-styles', CP_STYLES);
 
+  bindPreviewRoom(win);
   win.addEventListener('resize', () => {
     relayoutCodeDock(win);
     relayoutAiPanel(win);

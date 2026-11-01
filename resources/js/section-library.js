@@ -2151,7 +2151,8 @@ export function dockedPanelWidth(doc, ids) {
       !panel ||
       panel.style.display === 'none' ||
       panel.hasAttribute('data-sve-chrome-hidden') ||
-      panel.hasAttribute('data-sve-right-closed')
+      // The dock closed takes what stands in it with it.
+      panel.closest('[data-sve-right-closed]')
     ) {
       continue;
     }

@@ -38,6 +38,8 @@ export const LP_COLLAPSED_KEY = 'sve-lp-collapsed';
 export const LP_DOCKED_KEY = 'sve-lp-docked';
 export const LP_WIDTH_KEY = 'statamic.live-preview.editor-width';
 export const LP_SIDE_MIN_REM = 16;
+/** The narrowest the preview goes: below it the window's shrinking closes the sidebars (cp-shell/preview-room.js). */
+export const LP_PREVIEW_MIN_REM = 30;
 export const LP_SIDE_MAX_REM = 50;
 export const LP_SIDE_DEFAULT_REM = 22;
 /** Idle icon opacity — same for toolbar + device chrome. */
