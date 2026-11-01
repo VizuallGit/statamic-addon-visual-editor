@@ -59,6 +59,8 @@ const BAND_MIN = 120;
 /** How wide a zone with nothing in it is to drop on, in rem. */
 const EMPTY_ZONE_REM = 12;
 const BELOW_ATTR = 'data-sve-zone-bottom';
+/** On the Control Panel's root while Build holds the column through a zone. */
+const ZONES_ATTR = 'data-sve-zones';
 const DROP_ATTR = 'data-sve-zone-drop';
 
 let bandWatch = null;
@@ -114,6 +116,13 @@ export function placeLeftZone(win, column) {
   if (leftKept.parentElement !== column) {
     column.appendChild(leftKept);
   }
+
+  // Statamic's resize grip lies over the column's right edge. The zone stops where it starts,
+  // at the width Statamic gives it, so nothing stands under it.
+  const grip = win.document.querySelector('.live-preview-resizer')?.offsetWidth || 0;
+
+  leftKept.style.width = grip ? `calc(100% - ${grip}px)` : '';
+  win.document.documentElement.setAttribute(ZONES_ATTR, '');
 
   return leftKept;
 }
@@ -350,6 +359,7 @@ export function leaveZones(win) {
   bandWatch?.disconnect();
   bandWatch = null;
   doc.documentElement.removeAttribute(BELOW_ATTR);
+  doc.documentElement.removeAttribute(ZONES_ATTR);
   padBelow(doc, 0);
   bottom?.remove();
   leftKept?.remove();
@@ -541,6 +551,28 @@ export function zoneCss() {
 }
 [data-sve-code-slot] {
   padding: 0 !important;
+}
+/* While the zones stand: a panel's header runs edge to edge, its air inside it, and its rule with it. */
+:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID},#${BOTTOM_ZONE_ID}) [data-sve-pane-bar] {
+  width: calc(100% + 2 * var(--sve-right-gutter));
+  margin-inline: calc(-1 * var(--sve-right-gutter));
+  padding-inline: var(--sve-right-gutter) !important;
+}
+/* A grip has an edge on both sides: the next panel's header draws the far one, or this rule where there is none. */
+:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID}) [data-sve-right-split] {
+  box-sizing: border-box;
+  border-top: 1px solid rgba(128,128,128,.22);
+}
+:root[${ZONES_ATTR}] :is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID}) [data-sve-right-split]:has(+ [data-sve-code-slot]) {
+  border-bottom: 1px solid rgba(128,128,128,.22);
+}
+:root[${ZONES_ATTR}] #${BOTTOM_ZONE_ID} [data-sve-right-split] {
+  box-sizing: border-box;
+  border-inline: 1px solid rgba(128,128,128,.22);
+}
+:root[${ZONES_ATTR}] #${BOTTOM_ZONE_ID} > [data-sve-right-resize] {
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(128,128,128,.22);
 }
 #${BUILD_PANEL_ID} > [data-sve-build-wrap] > [data-sve-build-body] {
   flex: 1 1 auto;
