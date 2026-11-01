@@ -697,10 +697,12 @@ onBeforeUnmount(() => {
 .sve-build .fg-head__acts { display: flex; gap: 0.125rem; }
 .sve-build .fg-ib { width: 1.75rem; height: 1.75rem; display: grid; place-items: center; flex: none; border-radius: 0.3rem; color: var(--bm-muted); }
 .sve-build .fg-ib .bm-ic, .sve-build .fg-ib svg { width: 0.9375rem; height: 0.9375rem; }
-/* Flow's two at the end of the row: on the same light grey as the row, with an edge. */
-.sve-build .fg-flow-more { background: var(--bm-raise); border: 1px solid var(--bm-edge); }
+/* Flow's two at the end of the row: the same edge, a background only on hover. Switched off, only the icon fades. */
+.sve-build .fg-flow-more { background: transparent; border: 1px solid var(--bm-edge); }
+.sve-build button.fg-flow-more:disabled { opacity: 1; }
+.sve-build button.fg-flow-more:disabled svg { opacity: 0.35; }
 .sve-build .fg-flow-more .bm-ic, .sve-build .fg-flow-more svg { width: 1rem; height: 1rem; }
-.sve-build button.fg-flow-more:hover:not(:disabled) { background: var(--bm-hover); }
+.sve-build button.fg-flow-more:hover:not(:disabled) { background: var(--bm-raise); }
 /* The dots themselves, a pixel wider than the icon draws them. */
 .sve-build [data-sve-build-display-more] svg path { stroke-width: 3.75; }
 .sve-build button.fg-ib:hover:not(:disabled) { background: var(--bm-raise); color: var(--bm-ink); }
@@ -822,9 +824,12 @@ onBeforeUnmount(() => {
 .sve-build .fg-classes { display: grid; gap: 0.4rem; min-width: 0; }
 .sve-build .fg-classes__h { display: flex; align-items: center; gap: 0.4rem; min-height: 1.75rem; min-width: 0; font-size: 0.75rem; font-weight: 600; color: var(--bm-ink); }
 .sve-build .fg-classes__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sve-build .fg-classes__count { flex: none; padding-inline: 0.35rem; border-radius: 1rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.625rem; font-weight: 500; line-height: 1.5; }
+/* The same box as a section's + (`.fg-sec__tog`), wider when the number is. */
+.sve-build .fg-classes__count { flex: none; display: grid; place-items: center; min-width: 1.05rem; height: 1.05rem; padding-inline: 0.2rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.625rem; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
 .sve-build .fg-classes .fg-sec__acts { flex: none; }
-.sve-build .fg-classes .bm-switch { margin-inline-start: 0.25rem; background: var(--bm-edge); }
+.sve-build .fg-classes .bm-switch { width: 1.625rem; height: 1.05rem; background: var(--bm-edge); }
+.sve-build .fg-classes .bm-switch::after { top: 0.15rem; left: 0.15rem; width: 0.75rem; height: 0.75rem; }
+.sve-build .fg-classes .bm-switch[aria-checked='true']::after { transform: translateX(0.575rem); }
 .sve-build .fg-classes .bm-switch[aria-checked='true'] { background: var(--bm-accent); }
 /* The pane's list can be long, and this stands in the sticky top. Room above and beside for its minus. */
 .sve-build .fg-classes .sve-tw { max-height: 8rem; overflow-y: auto; padding-block-start: 0.5em; padding-inline-end: 0.5em; }
