@@ -53,6 +53,14 @@ export const SECTION_PICKER_ID = '__sve-section-picker';
 export const COMMENTS_PANEL_ID = '__sve-comments-pane';
 export const OUTLINE_PANEL_ID = '__sve-outline-panel';
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
+export const RIGHT_DOCK_ID = '__sve-right-dock';
+/** The Build panel's host in a zone. */
+export const BUILD_PANEL_ID = '__sve-build-panel';
+/** Panel zones (panel-zones.js): the two shells beside the right sidebar, the attribute both wear, a dock pane's slot. */
+export const LEFT_ZONE_ID = '__sve-left-dock';
+export const BOTTOM_ZONE_ID = '__sve-bottom-dock';
+export const ZONE_SHELL_ATTR = 'data-sve-zone-shell';
+export const CODE_SLOT_ID = (handle) => `__sve-code-slot-${handle}`;
 /** The template dock's root element (code-dock.js re-exports it as DOCK_ID). */
 export const CODE_DOCK_ID = '__sve-code-dock';
 /** Per-user colours for the tag families, JSON {family: hex}; unset = lib/tag-families.js defaults. */

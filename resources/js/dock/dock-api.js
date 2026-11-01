@@ -12,6 +12,7 @@ register('dock:save-now', () => {
  * code-dock.js — region "dock-api", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */
+import { removeDockSlots } from './placement.js';
 import { SUNDAY_AUG30 } from '../sunday-aug30.js';
 import { topLevelSectionUid } from '../cp.js';
 import { isCodeDockArmed, templateDockAllowed } from '../code-dock-state.js';
@@ -631,6 +632,7 @@ export function closeCodeDock(doc) {
   }
 
   doc?.getElementById(DOCK_ID)?.remove();
+  removeDockSlots(doc);
   stopObservingDockLayout();
 
   if (doc) {

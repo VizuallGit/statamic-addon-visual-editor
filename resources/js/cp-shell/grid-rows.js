@@ -609,6 +609,7 @@ export function isOurLpChromeButton(button) {
     !!button.closest?.(`#${LP_MODE_ID}`) ||
     !!button.closest?.('[data-sve-build-switch]') ||
     !!button.closest?.(`#${RIGHT_DOCK_ID}`) ||
+    !!button.closest?.('[data-sve-zone-shell]') ||
     button.hasAttribute?.('data-sve-close')
   );
 }

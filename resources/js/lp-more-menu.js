@@ -2,7 +2,8 @@
  * Overflow menu to the right of Close: Live Preview defaults + reset in four
  * tabs (sidebars, HTML tree, top bar icons, keyboard shortcuts). Sidebars,
  * Top bar and Shortcuts list what the mode Live Preview is in may have
- * (Content or Build — toolbar-visibility.js). Does not import the kernel.
+ * (Content or Build — toolbar-visibility.js). Does not import { applyZones } from './panel-zones.js';
+import the kernel.
  */
 import { t } from './lib/i18n.js';
 import { bindTips } from './cp/tip.js';
@@ -460,6 +461,7 @@ function bindSettingHandlers(win) {
       dismissLpMoreMenu();
       // Every layout key goes, the icons of both modes and their groups with them.
       resetEditorLayout(win);
+      applyZones(win);
       syncToolbarLayout(win);
       // The reset took this user's own shortcuts with the rest of the layout;
       // said here, so the preview hears the site's apply again.

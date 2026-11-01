@@ -75,6 +75,16 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: panel_zones
+            field:
+              type: toggle
+              display: 'Move panels in Vizuall Build'
+              instructions: 'Drag a panel or a pane of the HTML dock by its grip to the left, right or bottom in Vizuall Build; each user''s layout is kept for them, and Reset in the Live Preview menu puts it back. Off: the sidebars and the dock stand and behave as they did before this existed.'
+              default: true
+              if:
+                enabled: 'equals true'
+                build_mode: 'equals true'
+          -
             handle: build_mode_access
             field:
               type: toolbar_access

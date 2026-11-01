@@ -32,6 +32,9 @@ import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeHtmlTreePanel } from './lazy/html-tree.js';
 import { closeOutlinePanel } from './lazy/outline.js';
 import { closeThemePanel } from './theme-panel-lazy.js';
+import { CODE_KEYS, isFixedPane } from './cp/panel-zones/layout.js';
+import { BOTTOM_ZONE_ID, BUILD_PANEL_ID, CODE_SLOT_ID, LEFT_ZONE_ID, RIGHT_DOCK_ID } from './lib/ids.js';
+import { beginPaneDrag, revealZone, settleZones, zoneCss, zoneGripTitle, zoneShellFor, zoneShells, zonesOn } from './panel-zones.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -50,7 +53,7 @@ export const TOOL_PLACEMENT = {
 /** Right-dock tools that also keep an icon in the top bar. */
 export const TOOLBAR_SHORTCUTS = [];
 
-export const RIGHT_DOCK_ID = '__sve-right-dock';
+export { RIGHT_DOCK_ID };
 
 const STYLE_ID = '__sve-right-dock-style';
 const OPEN_KEY = 'sve-right-dock-open';
@@ -90,6 +93,11 @@ const PANE_BY_ID = {
   '__sve-ai-panel': 'ai',
   '__sve-perf-panel': 'performance',
   '__sve-theme': 'theme',
+  [BUILD_PANEL_ID]: 'build',
+  [CODE_SLOT_ID('html')]: 'code_html',
+  [CODE_SLOT_ID('css')]: 'code_css',
+  [CODE_SLOT_ID('alpine')]: 'code_alpine',
+  [CODE_SLOT_ID('js')]: 'code_js',
 };
 
 const PIN_OFF =
@@ -238,7 +246,7 @@ export function rightDockWidth(win) {
   return storedWidth(win);
 }
 
-function paneKeyOf(el) {
+export function paneKeyOf(el) {
   return el?.getAttribute?.('data-sve-right-pane') || PANE_BY_ID[el?.id] || '';
 }
 
@@ -304,7 +312,7 @@ function storeHeights(win, heights) {
   chromeSet(win, HEIGHTS_KEY, JSON.stringify(heights));
 }
 
-function storedOrder(win) {
+export function storedOrder(win) {
   try {
     const raw = JSON.parse(chromeGet(win, ORDER_KEY) || 'null');
 
@@ -318,7 +326,7 @@ function storedOrder(win) {
   return [];
 }
 
-function storeOrder(win, order) {
+export function storeOrder(win, order) {
   chromeSet(win, ORDER_KEY, JSON.stringify(order));
 }
 
@@ -337,9 +345,7 @@ function storedOpenPanes(win) {
 }
 
 export function visiblePaneKeys(win) {
-  const slot = slotEl(dockEl(win.document));
-
-  return [...(slot?.children || [])].filter(isVisibleChild).map(paneKeyOf).filter(Boolean);
+  return zoneShells(win.document).flatMap(shellPanes).map(paneKeyOf).filter((key) => key && !isFixedPane(key));
 }
 
 export function persistVisibleRightPanes(win, keys = null) {
@@ -396,7 +402,8 @@ function persistStackOrder(win, slot) {
   const order = [...slot.children].filter(isVisibleChild).map(paneKeyOf).filter(Boolean);
 
   if (order.length) {
-    storeOrder(win, order);
+    // The other shells' panes keep their places in the list.
+    storeOrder(win, [...order, ...storedOrder(win).filter((key) => !order.includes(key))]);
   }
 }
 
@@ -418,7 +425,15 @@ function orderedKids(win, slot) {
 }
 
 function isPinned(win, key) {
-  return RIGHT_DOCK_PIN_STACK && !!key && storedPinned(win)[key] === true;
+  return RIGHT_DOCK_PIN_STACK && !!key && (isFixedPane(key) || storedPinned(win)[key] === true);
+}
+
+/** Keep `key` open, as its pin does. */
+export function pinPane(win, key) {
+  const pinned = storedPinned(win);
+
+  pinned[key] = true;
+  storePinned(win, pinned);
 }
 
 /** Panel ids that stay when another top-bar tool opens. Empty if the experiment is off. */
@@ -434,9 +449,12 @@ export function pinnedKeepIds(win) {
     .map(([id]) => id);
 }
 
+/** The left and bottom zones are this same shell: every rule reaches them, at the id's weight. */
 function ensureStyle(doc) {
-  injectStyle(doc, STYLE_ID, dockCss);
+  injectStyle(doc, STYLE_ID, dockCss.replaceAll(`#${RIGHT_DOCK_ID}`, `:is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID},#${BOTTOM_ZONE_ID})`) + zoneCss());
 }
+
+export const ensureShellStyle = ensureStyle;
 
 function dockEl(doc) {
   return doc.getElementById(RIGHT_DOCK_ID);
@@ -444,6 +462,13 @@ function dockEl(doc) {
 
 function slotEl(dock) {
   return dock?.querySelector('[data-sve-right-slot]') || null;
+}
+
+export const shellSlot = slotEl;
+
+/** What stands open in a shell, parked panes not counted. */
+export function shellPanes(shell) {
+  return [...(slotEl(shell)?.children || [])].filter(isVisibleChild);
 }
 
 function isVisibleChild(el) {
@@ -544,6 +569,10 @@ function paneHeader(panel) {
 }
 
 function ensurePinButton(win, panel) {
+  if (isFixedPane(paneKeyOf(panel))) {
+    return;
+  }
+
   if (!RIGHT_DOCK_PIN_STACK) {
     panel.querySelector('[data-sve-right-pin]')?.remove();
 
@@ -613,6 +642,10 @@ function closeDockPane(win, panel) {
 }
 
 function ensureCloseButton(win, panel) {
+  if (isFixedPane(paneKeyOf(panel))) {
+    return;
+  }
+
   const header = paneHeader(panel);
   const pin = panel.querySelector('[data-sve-right-pin]');
   let close = panel.querySelector('[data-sve-close]');
@@ -655,7 +688,8 @@ function ensureReorderGrip(win, panel, stacked) {
 
   let grip = header.querySelector('[data-sve-right-reorder]');
 
-  if (!stacked) {
+  // In a zone it is also how a panel gets to another zone, so it is there alone too.
+  if (!stacked && !zonesOn(win)) {
     grip?.remove();
 
     return;
@@ -665,7 +699,7 @@ function ensureReorderGrip(win, panel, stacked) {
     grip = win.document.createElement('button');
     grip.type = 'button';
     grip.setAttribute('data-sve-right-reorder', '');
-    grip.title = t(win, 'right_dock_reorder');
+    grip.title = zonesOn(win) ? zoneGripTitle(win) : t(win, 'right_dock_reorder');
     grip.innerHTML = GRIP_6;
     header.insertBefore(grip, header.firstChild);
   } else if (header.firstElementChild !== grip) {
@@ -719,11 +753,12 @@ function toggleFold(win, panel) {
 
   folded[key] = !folded[key];
   storeFolded(win, folded);
-  layoutStack(win, dockEl(win.document));
+  layoutStack(win, panel.closest('[data-sve-right-slot]')?.parentElement || dockEl(win.document));
 }
 
 function layoutStack(win, dock) {
   const slot = slotEl(dock);
+  const row = dock?.id === BOTTOM_ZONE_ID;
 
   if (!slot) {
     return;
@@ -755,7 +790,10 @@ function layoutStack(win, dock) {
     dock.removeAttribute('data-sve-right-stack');
   }
 
-  kids.forEach((el) => {
+  // A slot of the dock's is empty: what it shows is the pane laid over it, which has its own grip.
+  const tools = kids.filter((el) => !CODE_KEYS.includes(paneKeyOf(el)));
+
+  tools.forEach((el) => {
     ensureReorderGrip(win, el, stacked);
     ensureFoldButton(win, el, stacked);
     ensurePinButton(win, el);
@@ -766,7 +804,8 @@ function layoutStack(win, dock) {
     kids.forEach((el) => {
       fillPanel(el);
       el.removeAttribute('data-sve-right-folded');
-      el.style.flex = '';
+      // A slot is empty, so only its flex gives it the shell's height.
+      el.style.flex = CODE_KEYS.includes(paneKeyOf(el)) ? '1 1 0' : '';
       el.style.minHeight = '';
     });
 
@@ -775,6 +814,9 @@ function layoutStack(win, dock) {
 
   const heights = storedHeights(win);
   const folded = storedFolded(win);
+  // A pane new to the stack gets a fair share of panes whose heights are dragged pixels, not 1 of 800.
+  const dragged = kids.map((el) => heights[paneKeyOf(el)]).filter(Number.isFinite);
+  const fair = dragged.length ? dragged.reduce((sum, n) => sum + n, 0) / dragged.length : 1;
 
   kids.forEach((el) => {
     const key = paneKeyOf(el);
@@ -787,13 +829,15 @@ function layoutStack(win, dock) {
       el.style.minHeight = '0';
     } else {
       el.removeAttribute('data-sve-right-folded');
-      const grow = key && Number.isFinite(heights[key]) ? heights[key] : 1;
+      const grow = key && Number.isFinite(heights[key]) ? heights[key] : fair;
 
       el.style.flex = `${Math.max(0.4, grow)} 1 0`;
-      el.style.minHeight = `${MIN_PANE}px`;
+      el.style[row ? 'minWidth' : 'minHeight'] = `${MIN_PANE}px`;
     }
 
-    ensureFoldButton(win, el, true);
+    if (tools.includes(el)) {
+      ensureFoldButton(win, el, true);
+    }
   });
 
   for (let i = 0; i < kids.length - 1; i += 1) {
@@ -867,6 +911,10 @@ function beginStackReorder(win, dock, panel) {
   win.document.addEventListener('mouseup', up);
 }
 
+export function layoutShell(win, shell) {
+  layoutStack(win, shell);
+}
+
 function bindPinStack(win, dock) {
   if (!RIGHT_DOCK_PIN_STACK || dock._sveRightPinBound) {
     return;
@@ -930,7 +978,12 @@ function bindPinStack(win, dock) {
     if (panel) {
       event.preventDefault();
       event.stopPropagation();
-      beginStackReorder(win, dock, panel);
+
+      if (zonesOn(win)) {
+        beginPaneDrag(win, paneKeyOf(panel), paneTitle(panel));
+      } else {
+        beginStackReorder(win, dock, panel);
+      }
 
       return;
     }
@@ -951,9 +1004,13 @@ function bindPinStack(win, dock) {
       return;
     }
 
-    const startY = event.clientY;
-    const aboveH = above.getBoundingClientRect().height;
-    const belowH = below.getBoundingClientRect().height;
+    // Below the preview the panes stand in a row, and the same grip moves their edge sideways.
+    const row = dock.id === BOTTOM_ZONE_ID;
+    const axis = row ? 'clientX' : 'clientY';
+    const side = row ? 'width' : 'height';
+    const startY = event[axis];
+    const aboveH = above.getBoundingClientRect()[side];
+    const belowH = below.getBoundingClientRect()[side];
     const total = aboveH + belowH;
     const aboveKey = paneKeyOf(above);
     const belowKey = paneKeyOf(below);
@@ -964,7 +1021,7 @@ function bindPinStack(win, dock) {
     });
 
     const move = (e) => {
-      const dy = e.clientY - startY;
+      const dy = e[axis] - startY;
       let nextA = Math.max(MIN_PANE, Math.min(total - MIN_PANE, aboveH + dy));
       let nextB = total - nextA;
 
@@ -1003,6 +1060,13 @@ function bindPinStack(win, dock) {
     win.document.addEventListener('mouseup', up);
   });
 }
+
+/** A panel's name, for the chip under the cursor as it is dragged. */
+function paneTitle(panel) {
+  return panel.querySelector('[data-sve-right-title]')?.textContent.trim() || paneKeyOf(panel);
+}
+
+export const bindShellStack = bindPinStack;
 
 function dockTop(win) {
   const header = win.document.querySelector('.live-preview-header');
@@ -1108,7 +1172,9 @@ function showKeepChild(el) {
  * and — when pin stack is on — panels the user has pinned.
  */
 export function showInRightShell(win, panel, { keep = false } = {}) {
-  const dock = ensureRightDock(win);
+  // In Build it goes where the user put it. Everything below is the same there.
+  const zone = zoneShellFor(win, paneKeyOf(panel));
+  const dock = zone || ensureRightDock(win);
   const slot = slotEl(dock);
 
   if (!slot || !panel) {
@@ -1155,9 +1221,16 @@ export function showInRightShell(win, panel, { keep = false } = {}) {
   showKeepChild(panel);
   ensurePinButton(win, panel);
   layoutStack(win, dock);
-  dock.removeAttribute('data-sve-right-closed');
-  storeOpen(win, true);
-  placeRightDock(win);
+
+  if (zone) {
+    revealZone(win, zone);
+    settleZones(win);
+  } else {
+    dock.removeAttribute('data-sve-right-closed');
+    storeOpen(win, true);
+    placeRightDock(win);
+  }
+
   notify(win);
   win.dispatchEvent(new Event('resize'));
 
@@ -1206,6 +1279,11 @@ export function releaseRightShellIfEmpty(win) {
     return;
   }
 
+  // A panel gone from the left or the bottom: the shell it stood in closes up.
+  if (zonesOn(win)) {
+    settleZones(win);
+  }
+
   const dock = dockEl(win.document);
 
   if (!dock) {
@@ -1215,7 +1293,7 @@ export function releaseRightShellIfEmpty(win) {
   if (!visibleRightShellChild(win)) {
     const tree = win.document.getElementById(HTML_TREE_PANEL_ID);
 
-    if (!buildParksTree(tree)) {
+    if (!buildParksTree(tree) || tree.closest('[data-sve-right-slot]') !== slotEl(dock)) {
       hideRightDock(win);
 
       return;
@@ -1266,6 +1344,10 @@ export function closeRightDock(win) {
   const slot = slotEl(dock);
 
   for (const child of [...(slot?.children || [])]) {
+    if (isFixedPane(paneKeyOf(child))) {
+      continue;
+    }
+
     if (child.hasAttribute('data-sve-right-keep')) {
       hideKeepChild(child);
     } else {
@@ -1273,7 +1355,7 @@ export function closeRightDock(win) {
     }
   }
 
-  if (slot?.querySelector('[data-sve-right-keep]')) {
+  if (slot?.querySelector(`[data-sve-right-keep], #${BUILD_PANEL_ID}, [data-sve-code-slot]`)) {
     hideRightDock(win);
 
     return;
@@ -1327,11 +1409,11 @@ export function relayoutRightDock(win) {
 }
 
 export function isRightPaneOn(win, key) {
-  if (!isRightDockOpen(win)) {
+  const pane = win.document.querySelector(`[data-sve-right-pane="${key}"]`);
+
+  if (!pane || pane.closest('[data-sve-right-closed]')) {
     return false;
   }
 
-  const pane = win.document.querySelector(`[data-sve-right-pane="${key}"]`);
-
-  return !!pane && isVisibleChild(pane);
+  return isVisibleChild(pane);
 }

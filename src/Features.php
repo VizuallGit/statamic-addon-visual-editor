@@ -64,6 +64,10 @@ class Features
         // with it (TOGETHER). Off until the owner says on; off, nothing of it
         // is drawn or loaded.
         'build_mode',
+        // Panels and the HTML dock's panes dragged to the left, right or bottom in
+        // Vizuall Build, kept per user. On unless the settings or config say
+        // false; off, the sidebars and the dock stand and behave as before.
+        'panel_zones',
         'pages',
         'globals',
         'sections',

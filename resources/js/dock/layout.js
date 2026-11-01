@@ -17,6 +17,7 @@ import { BACK_ICON, CSS_MENU_ID, DEFAULT_HEIGHT, DOCK_ID, HANDLES, HEIGHT_KEY, M
 import { DATA_MENU_ID } from './data-vars.js';
 import { relayoutCodeDock } from './dock-api.js';
 import { goBackTemplate } from './scope.js';
+import { SPLIT_ATTR, isSplit, placeDockPanes } from './placement.js';
 
 // ===== layout =====
 export function languageOf(handle) {
@@ -155,6 +156,54 @@ export function ensureStyle(doc) {
   /* No shadow: the sidebars sit flat against the page and this is the same
      kind of panel. The border is what marks the edge. */
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+#${DOCK_ID}[${SPLIT_ATTR}],
+#${DOCK_ID}[${SPLIT_ATTR}] > .sve-code-dock,
+#${DOCK_ID}[${SPLIT_ATTR}] [data-sve-code-panes] {
+  display: contents !important;
+}
+#${DOCK_ID}[${SPLIT_ATTR}] [data-sve-code-grip],
+#${DOCK_ID}[${SPLIT_ATTR}] [data-sve-code-split] {
+  display: none !important;
+}
+#${DOCK_ID}[${SPLIT_ATTR}] [data-sve-code-pane] {
+  position: fixed;
+  z-index: var(--z-index-above, 1);
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #1E1E21;
+}
+#${DOCK_ID}[${SPLIT_ATTR}] [data-sve-code-pane][data-sve-zone-off] {
+  display: none !important;
+}
+#${DOCK_ID}[${SPLIT_ATTR}] [data-sve-code-bar] {
+  flex-wrap: wrap;
+  height: auto;
+  row-gap: 0.25rem;
+}
+#${DOCK_ID} [data-sve-zone-grip] {
+  all: unset;
+  pointer-events: auto;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1.25rem;
+  margin-inline-end: 0.25rem;
+  border-radius: 0.25rem;
+  color: currentColor;
+  opacity: .55;
+  cursor: grab;
+}
+#${DOCK_ID} [data-sve-zone-grip]:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.08);
+}
+#${DOCK_ID} [data-sve-zone-grip] svg {
+  display: block;
+  pointer-events: none;
 }
 #${DOCK_ID} [data-sve-code-bar] {
   flex: 0 0 auto;
@@ -1680,8 +1729,10 @@ function sizeEditorHosts(dock) {
     : 0;
   const panesH = Math.max(64, dockH - (bar?.offsetHeight || 0) - bannerH);
   const panes = dock.querySelector('[data-sve-code-panes]');
+  // Apart, each pane has the height of the slot it stands over, and the row of switches is in its chrome.
+  const apart = isSplit(dock);
 
-  if (panes) {
+  if (panes && !apart) {
     panes.style.height = `${panesH}px`;
     panes.style.minHeight = '0';
     panes.style.overflow = 'hidden';
@@ -1704,7 +1755,7 @@ function sizeEditorHosts(dock) {
       chrome += child.offsetHeight;
     }
 
-    const h = Math.max(64, panesH - chrome);
+    const h = Math.max(64, (apart ? pane.clientHeight : panesH) - chrome);
 
     host.style.height = `${h}px`;
     host.style.maxHeight = `${h}px`;
@@ -1829,6 +1880,16 @@ export function placeDock(win, dock) {
 
   const doc = win.document;
   attachDock(doc, dock);
+
+  if (placeDockPanes(win, dock, () => {
+    sizeEditorHosts(dock);
+    measureEditors();
+  })) {
+    sizeEditorHosts(dock);
+
+    return;
+  }
+
   const height = storedHeight(win);
   const left = editorRight(doc);
   const right = rightInset(doc);
@@ -1870,6 +1931,10 @@ export function bindResize(win, dock) {
   dock._sveResizeBound = true;
 
   const startResize = (event) => {
+    if (isSplit(dock)) {
+      return;
+    }
+
     // Anything you can operate is not a place to grab the dock by. This used to
     // be a hand-kept list of every button in the bar, and the cost of missing
     // one is invisible and total: pressing it starts a drag, the drag shield
@@ -2002,6 +2067,7 @@ export function bindPaneToggles(win, dock) {
 
       storePanes(win, next);
       paintPaneButtons(dock, next);
+      placeDock(win, dock);
     });
   });
 }

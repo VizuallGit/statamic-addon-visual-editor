@@ -941,6 +941,9 @@ return [
     'right_dock_pin' => 'Keep this open',
     'right_dock_unpin' => 'Do not keep open',
     'right_dock_reorder' => 'Drag to reorder',
+    'panel_zone_drag' => 'Drag to move: left, right or bottom',
+    'panel_zone_build' => 'Build',
+    'panel_zone_dock' => 'HTML dock',
     'comments_pane' => 'Comments',
     'pages' => 'Pages',
 

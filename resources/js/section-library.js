@@ -52,7 +52,7 @@ import {
 } from './right-dock.js';
 import { csrfToken } from './lib/csrf.js';
 import { checkPreviews, paintPreviewButtons, previewsAuto, setPreviewsAuto } from './previews-watch.js';
-import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { ZONE_SHELL_ATTR, CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
 import { dataGet, findPathByUid, firstEntryId, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
@@ -2152,7 +2152,9 @@ export function dockedPanelWidth(doc, ids) {
       panel.style.display === 'none' ||
       panel.hasAttribute('data-sve-chrome-hidden') ||
       // The dock closed takes what stands in it with it.
-      panel.closest('[data-sve-right-closed]')
+      panel.closest('[data-sve-right-closed]') ||
+      // Left or below the preview: its room is not at the preview's right.
+      panel.closest(`[${ZONE_SHELL_ATTR}]`)
     ) {
       continue;
     }
@@ -3392,7 +3394,7 @@ export function pointerOverLivePreview(win, frame, event) {
   // the preview shell underneath — that still counts. Only a panel covering
   // the iframe (dock, toolbar) cancels. `.live-preview-editor` is the canvas.
   return !hit.closest(
-    '#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-header, #__sve-toolbar'
+    `#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-header, #__sve-toolbar, [${ZONE_SHELL_ATTR}]`
   );
 }
 

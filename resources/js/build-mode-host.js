@@ -5,7 +5,7 @@
  * (cp-shell/build-switch.js), and set back to Content by lp-width.js as Live
  * Preview closes.
  * May import: cp/bus.js, cp/build-mode/store.js, cp/html-tree/store.js,
- *   lazy/build-mode.js, lib/style.js, lib/ids.js. Not cp-shell/, not the
+ *   lazy/build-mode.js, lib/, panel-zones.js, right-dock-tabs.js. Not cp-shell/, not the
  *   kernel, and nothing of Build itself — that is the lazy chunk.
  * Bus: asks `html-tree:from-preview` to pick a row by its path — the same door
  *   a pick in the preview goes through.
@@ -45,12 +45,15 @@ import { buildModeUi } from './cp/build-mode/store.js';
 import { htmlTreeUi } from './cp/html-tree/store.js';
 import { enterBuild, enterBuildView, leaveBuild } from './lazy/build-mode.js';
 import { injectStyle } from './lib/style.js';
-import { CODE_DOCK_ID, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { BUILD_PANEL_ID, CODE_DOCK_ID, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LEFT_ZONE_ID } from './lib/ids.js';
+import { t } from './lib/i18n.js';
+import { applyZones, leaveZones, placeLeftZone, zonesWanted } from './panel-zones.js';
+import { showInRightShell } from './right-dock-tabs.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 
 export const EDITOR_MODES = ['content', 'visual', 'fields'];
 
-const HOST_ID = '__sve-build-panel';
+const HOST_ID = BUILD_PANEL_ID;
 /** On the column while Build has it. Its own — never shared with the selection panel's or the component's. */
 const AWAY_ATTR = 'data-sve-build-away';
 /** On the Control Panel's root in either Build: the mode. Not there in Content. */
@@ -129,6 +132,7 @@ export function setBuildDockShown(win, shown) {
   }
 
   win.document.documentElement.toggleAttribute(DOCK_ATTR, shown);
+  applyZones(win);
   // The preview's room changed: the canvas follows it as it does a resized window.
   win.dispatchEvent(new win.Event('resize'));
 }
@@ -149,11 +153,11 @@ function ensureStyles(doc) {
     doc,
     STYLE_ID,
     `[${AWAY_ATTR}]{position:relative}
-[${AWAY_ATTR}] > :not(#${HOST_ID}){position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+[${AWAY_ATTR}] > :not(#${HOST_ID}):not(#${LEFT_ZONE_ID}){position:absolute!important;inset:0!important;overflow:hidden!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #${HOST_ID}{display:flex;flex-direction:column;min-width:0;height:100%;flex:1 1 auto}
-.live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}
+.live-preview-editor:has([${AWAY_ATTR}]) [role="tablist"]:not(#${HOST_ID} [role="tablist"]):not(#${LEFT_ZONE_ID} [role="tablist"]){height:0!important;min-height:0!important;overflow:hidden!important;visibility:hidden!important;margin:0!important;padding:0!important;border:0!important}
 :root[${MODE_ATTR}]:not([${DOCK_ATTR}]) #${CODE_DOCK_ID}{visibility:hidden!important;pointer-events:none!important}
-:root[${MODE_ATTR}]:not([${DOCK_ATTR}]) .live-preview-contents{padding-bottom:0!important}
+:root[${MODE_ATTR}]:not([${DOCK_ATTR}]):not([data-sve-zone-bottom]) .live-preview-contents{padding-bottom:0!important}
 :root[${MODE_ATTR}] #${HTML_TREE_PANEL_ID} [data-sve-close],
 :root[${MODE_ATTR}] #${CODE_DOCK_ID} [data-sve-html-scope],
 :root[${MODE_ATTR}] #${HEADER_TOOLBAR_ID} [data-tab="html_tree"]{display:none!important}`
@@ -200,11 +204,52 @@ function take(win) {
 
   buildModeUi.on = true;
   mount(win, col);
+  applyZones(win);
   watchColumn(win);
+}
+
+/**
+ * The Build panel as a pane in its zone, named and movable like the others. The
+ * zone's shell stands in the column; a column Statamic rebuilt gets the same one
+ * back, so the panel in it never remounts.
+ */
+function mountInZone(win, col) {
+  const doc = win.document;
+
+  placeLeftZone(win, col);
+  col.setAttribute(AWAY_ATTR, '');
+
+  if (doc.getElementById(HOST_ID)) {
+    return;
+  }
+
+  const host = doc.createElement('div');
+  const wrap = doc.createElement('div');
+  const bar = doc.createElement('div');
+  const title = doc.createElement('span');
+  const body = doc.createElement('div');
+
+  host.id = HOST_ID;
+  wrap.setAttribute('data-sve-build-wrap', '');
+  bar.setAttribute('data-sve-pane-bar', '');
+  title.setAttribute('data-sve-right-title', '');
+  title.textContent = t(win, 'panel_zone_build');
+  body.setAttribute('data-sve-build-body', '');
+  bar.appendChild(title);
+  wrap.append(bar, body);
+  host.appendChild(wrap);
+  showInRightShell(win, host);
+  void enterBuild(win, body, hooksFor);
 }
 
 function mount(win, col) {
   const doc = win.document;
+
+  if (zonesWanted(win)) {
+    mountInZone(win, col);
+
+    return;
+  }
 
   doc.getElementById(HOST_ID)?.remove();
 
@@ -224,6 +269,7 @@ function giveBack(win) {
   leaveBuild();
   stopWatching();
   doc.getElementById(HOST_ID)?.remove();
+  leaveZones(win);
   doc.querySelectorAll(`[${AWAY_ATTR}]`).forEach((el) => el.removeAttribute(AWAY_ATTR));
   hooksFor = null;
 }
@@ -255,7 +301,9 @@ function watchColumn(win) {
       const col = column(win.document);
       const host = win.document.getElementById(HOST_ID);
 
-      if (col && (!host || host.parentElement !== col || !col.hasAttribute(AWAY_ATTR))) {
+      const zoned = zonesWanted(win) ? win.document.getElementById(LEFT_ZONE_ID) : host;
+
+      if (col && (!host || !zoned || zoned.parentElement !== col || !col.hasAttribute(AWAY_ATTR))) {
         mount(win, col);
       }
     });

@@ -2203,7 +2203,7 @@ export const CP_STYLES = `
 }
 /* Statamic Live Preview × — always gone; our header close replaces it. */
 .live-preview-header button[data-sve-statamic-lp-close],
-[data-sve-statamic-lp-close]:not([data-sve-close]):not(#__sve-right-dock *) {
+[data-sve-statamic-lp-close]:not([data-sve-close]):not(#__sve-right-dock *):not([data-sve-zone-shell] *) {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
