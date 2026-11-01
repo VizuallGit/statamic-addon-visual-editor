@@ -38,7 +38,7 @@ import BuildComponentInfo from './BuildComponentInfo.vue';
 import BuildAction from './BuildAction.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
-import BuildStyle from './BuildStyle.vue';
+import BuildStyleMode from './BuildStyleMode.vue';
 import { describeAt } from '../../build-mode/place.js';
 import { ic } from '../../build-mode/icons.js';
 
@@ -354,7 +354,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div ref="scroller" class="bm-scroll">
-        <BuildStyle v-if="tab === 'style'" :key="picked.path" :node="picked" />
+        <BuildStyleMode v-if="tab === 'style'" :key="picked.path" :node="picked" />
         <BuildAction v-else-if="tab === 'action'" :key="`action-${picked.path}`" :node="picked" />
 
         <div v-else-if="!styled" class="bm-content">
