@@ -25,7 +25,7 @@ import { activeContainers } from '../lib/publish-containers.js';
 import { unwrapRef } from '../lib/values.js';
 import { createUndoStack } from './undo-stack.js';
 
-/** Between the file and its CSS in a step, while the CSS mode demo is on (`css-mode:on`, css-mode/flag.js). Off, a step is the file, as ever. */
+/** Between the file and its CSS in a step once Build's CSS mode has loaded (`css-mode:on`, css-mode/flag.js). Before that, a step is the file, as ever. */
 const CSS_SPLIT = '\u0000';
 
 /** How long a change has to stop before it is a step. */

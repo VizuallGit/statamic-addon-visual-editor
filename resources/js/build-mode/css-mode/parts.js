@@ -3,7 +3,7 @@
  * blur and a contrast, `translate` an x and a y, `background-image` a gradient's
  * direction and stops. Read and written here as parts of the one value.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: css-mode/rules.js. Pure: strings and plain objects in and out.
  * Bus messages: none.
  *

@@ -1,7 +1,7 @@
 <script setup>
 /**
  * Style's `Tailwind | CSS`, with the icons and the words of the dock's own switch
- * (dock/style-modes.js). Part of the CSS mode demo: only loaded with the demo on.
+ * (dock/style-modes.js). Part of the CSS mode, loaded with Style.
  */
 import { inject, onMounted } from 'vue';
 import { CSS_MODE_ICON, TW_MODE_ICON } from '../../build-mode/css-mode/icons.js';

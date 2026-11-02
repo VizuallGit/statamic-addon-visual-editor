@@ -2,7 +2,7 @@
  * One selector's rules in the dock's CSS, read and written by selector and
  * size instead of by where a caret stands: Style has no caret.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: css-sizes.js. Pure: strings and plain objects in and out.
  * Bus messages: none.
  *

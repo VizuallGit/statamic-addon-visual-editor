@@ -6,7 +6,7 @@
  * compiles to. The arrows step it; a value from a wider size is shown, and typing
  * writes the field's own.
  *
- * Drawn while the CSS mode demo is on (BuildStyleMode.vue provides it), in either
+ * Drawn by Style (BuildStyleMode.vue provides it), in either
  * mode. Its looks are css-mode/panel-look.js's.
  */
 import { computed, inject, ref, watch } from 'vue';

@@ -2,7 +2,7 @@
  * What the CSS mode has written, on Build's canvas in the frame it is written:
  * a style sheet of its own, read from the dock's CSS each time.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: lib/build-canvas.js, lib/preview-frame.js, build-mode/canvas-contrast.js, build-mode/css-mode/rules.js.
  * Bus messages: none. The port tells it when the CSS changed.
  *

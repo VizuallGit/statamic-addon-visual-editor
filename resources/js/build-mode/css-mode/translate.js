@@ -3,7 +3,7 @@
  * declarations (`padding-top: 5rem`). This goes between the two, so the fields
  * stay as they are and no class ever reaches the file.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: build-mode/classes.js, css-mode/parts.js. Pure: what Tailwind
  * compiles a class to is handed in (`ruleOf`, the site's catalog), so nothing here
  * is a table of values of its own.

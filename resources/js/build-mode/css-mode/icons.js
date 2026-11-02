@@ -1,7 +1,7 @@
 /**
  * The dock's own icons for Tailwind and CSS, for Style's switch.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: code-dock.js, the constants only.
  */
 

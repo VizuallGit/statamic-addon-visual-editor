@@ -2,7 +2,7 @@
  * Style's port with the writing turned toward CSS: the same fields, handed this
  * instead of the Tailwind pane's functions.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: vue, cp/bus.js, cp/mount.js, the read-only parts of css-scope.js,
  *   tw-families.js, tw-parse.js, html-tree-parse.js and build-mode/; never a
  *   function of tw-classes.js. Nothing here writes a class or says `tw:changed`.

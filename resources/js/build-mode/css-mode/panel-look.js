@@ -2,7 +2,7 @@
  * What Style has in either mode: the looks of a field's dot (BuildFieldReset.vue),
  * and a fade under the panel's sticky top once something has scrolled under it.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
  * May import: nothing. Bus messages: none.
  *
  * A sheet of its own rather than a component's: a lazy chunk's CSS file is fetched
