@@ -40,7 +40,7 @@ import { currentSectionValues } from '../../dock/scope.js';
 import { CSS_STATES } from '../../dock/style-modes.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { loadFamilies } from '../../tw-families.js';
-import { splitClass } from '../../tw-parse.js';
+import { splitClass, splitUtility } from '../../tw-parse.js';
 import { readAttribute, withAttribute } from '../attrs.js';
 import { BUILD_CANVAS_SHOWN_EVENT } from '../../lib/build-canvas-ids.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
@@ -543,7 +543,9 @@ function createCssPort(win, port) {
       return;
     }
 
-    const plan = planOfClass(name);
+    // The family's dot names a class without its alpha (`bg-primary-300`): what stands here is `bg-primary-300/50`.
+    const standing = dressed.value.map((raw) => splitClass(raw)).find((one) => one.variants.join(':') === keyNow() && splitUtility(one.base).modifier && splitUtility(one.base).name === baseOf(name));
+    const plan = planOfClass(standing?.base || name);
 
     if (!plan) {
       return;

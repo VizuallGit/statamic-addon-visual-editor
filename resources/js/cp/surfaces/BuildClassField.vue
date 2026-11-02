@@ -12,6 +12,7 @@
 import { computed, inject, ref } from 'vue';
 import { fieldHas } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, kindOf, rootFor, typedClass, variantChain } from '../../build-mode/classes.js';
+import BuildFieldAlpha from './BuildFieldAlpha.vue';
 import BuildFieldReset from './BuildFieldReset.vue';
 
 const props = defineProps({
@@ -95,7 +96,8 @@ function open() {
       @click="open"
       @keydown.down.prevent="open"
     >{{ text }}</button>
-    <component :is="port.bindIcon" v-if="port.bindIcon && (field.image || port.bindsUtility(field))" :property="field.label" :label="field.label" />
     <BuildFieldReset :hit="current && !current.inherited ? current : null" :label="field.label" />
+    <component :is="port.bindIcon" v-if="port.bindIcon && (field.image || port.bindsUtility(field))" :property="field.label" :label="field.label" />
+    <BuildFieldAlpha v-if="field.swatch" :hit="current" />
   </label>
 </template>

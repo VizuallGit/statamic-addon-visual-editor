@@ -8,6 +8,7 @@
  * for a theme variable such as `--color-primary-500`.
  */
 import { computed, inject, ref } from 'vue';
+import BuildFieldAlpha from './BuildFieldAlpha.vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { effectiveClass, fromClass, isColorValue, variantChain } from '../../build-mode/classes.js';
 
@@ -19,12 +20,18 @@ const port = inject('sveBuild');
 const value = ref(null);
 const property = computed(() => props.tool.css || props.tool.tw);
 
+const held = computed(() => {
+  port.rev.value;
+
+  return effectiveClass(port.pickedClasses().join(' '), [property.value], variantChain(port.sizes(), port.size(), port.state()), port.propertyOf);
+});
+
 const color = computed(() => {
   port.rev.value;
 
   port.painted?.value;
 
-  const hit = effectiveClass(port.pickedClasses().join(' '), [property.value], variantChain(port.sizes(), port.size(), port.state()), port.propertyOf);
+  const hit = held.value;
 
   // No class: the colour the element shows, as the field's text says it.
   if (!hit) {
@@ -52,5 +59,6 @@ const color = computed(() => {
       @click="value?.open()"
     ></button>
     <BuildValueInput ref="value" :tool="tool" :label="property" chip />
+    <BuildFieldAlpha :hit="held" />
   </div>
 </template>

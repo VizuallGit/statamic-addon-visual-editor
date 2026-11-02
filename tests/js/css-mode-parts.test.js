@@ -438,6 +438,14 @@ test('a size inside a nested state is read and written there', () => {
   assert.deepEqual(readBound(next, '.a:hover', ROWS), []);
 });
 
+test('a colour with an alpha reads as the colour\'s class with it', () => {
+  const css = set('', 'from-primary/50');
+
+  assert.equal(value(css, 'background-image'), 'linear-gradient(to bottom, color-mix(in oklab, var(--color-primary) 50%, transparent), transparent)');
+  assert.deepEqual(translator.namesForParts('background-image', readPlaces(css, '.a', 'background-image', ROWS)[0].own).filter((name) => name.startsWith('from')), ['from-primary/50']);
+  assert.equal(createTranslator({ ruleOf, themeValue, scale: (prop) => (prop === 'color' ? ['text-primary'] : []) }).nameFor('color', 'color-mix(in oklab, var(--color-primary) 50%, transparent)'), 'text-primary/50');
+});
+
 test('a data icon\'s fields fit the property', () => {
   assert.deepEqual(fieldsFor('color').types, ['theme_color_picker', 'color']);
   assert.deepEqual(fieldsFor('border-color').types, ['theme_color_picker', 'color']);

@@ -242,6 +242,7 @@ export function planOf(rule, themeValue = () => undefined) {
 }
 
 const same = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const MIX = /^color-mix\(in oklab, (.+) (\d+(?:\.\d+)?)%, transparent\)$/;
 const hardOf = (plan) => plan.decls.filter((decl) => !decl.soft);
 const partsKey = (prop, list) => `${prop}|${list.map(([key, value]) => `${key}=${same(value)}`).sort().join('&')}`;
 
@@ -343,6 +344,14 @@ export function createTranslator({ ruleOf, themeValue = () => undefined, scale, 
    * (`[inset:0]`). A candidate that does not compile back to it is not used.
    */
   function nameFor(prop, value) {
+    // A colour with an alpha is the colour's class with that alpha, as Tailwind compiles it.
+    const mix = MIX.exec(String(value).trim());
+    const mixed = mix ? `${nameFor(prop, mix[1])}/${mix[2]}` : '';
+
+    if (mixed && !mixed.startsWith('[') && says(mixed, prop, value)) {
+      return mixed;
+    }
+
     const names = scale(prop) || [];
     const row = names.find((name) => !name.includes('/') && says(name, prop, value)) || (namedSorted().byProp.get(prop) || []).find((name) => says(name, prop, value));
 
@@ -368,6 +377,14 @@ export function createTranslator({ ruleOf, themeValue = () => undefined, scale, 
     }
 
     return list.flatMap(([key, value]) => {
+      const mix = MIX.exec(String(value).trim());
+      const mixed = mix ? `${namesForParts(prop, new Map([[key, mix[1]]]))[0] || ''}/${mix[2]}` : '';
+      const mixedPlan = mixed.length > 1 && !mixed.startsWith('/') ? planFor(mixed)?.parts : null;
+
+      if (mixedPlan?.length === 1 && mixedPlan[0].key === key && same(mixedPlan[0].value) === same(value)) {
+        return [mixed];
+      }
+
       const one = byParts.get(partsKey(prop, [[key, value]]));
       const root = typedRoot(prop, key);
       const words = ['filter', 'backdrop-filter', 'transform'].includes(prop) ? innerOf(value) : value;

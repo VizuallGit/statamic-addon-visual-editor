@@ -107,16 +107,17 @@
 .bm-spx .sve-css-bind { position: absolute; z-index: 3; opacity: 0; }
 .bm-spx:hover .sve-css-bind, .bm-spx .sve-css-bind:focus-visible { opacity: 0.8; }
 .bm-spx .sve-css-bind.is-bound { opacity: 1; }
-.bm-spx .bm-vin:hover + .sve-css-bind, .bm-spx .sve-css-bind:hover { opacity: 1; }
+.bm-spx .bm-vin:hover ~ .sve-css-bind, .bm-spx .sve-css-bind:hover { opacity: 1; }
 /* The side's class comes along to say where: Spacing's own rule for it is about the field, so all of it is said again. */
 .sve-build [data-sve-style-css] .bm-spx .sve-css-bind { width: 1.125rem; height: 1.125rem; transform: none; }
 .sve-build [data-sve-style-css] .bm-spx .sve-css-bind.bm-sp-t { top: calc(7% + 0.1875rem); bottom: auto; right: auto; left: calc(50% + 2.375rem - 1.3125rem); }
 .sve-build [data-sve-style-css] .bm-spx .sve-css-bind.bm-sp-b { top: auto; bottom: calc(7% + 0.1875rem); right: auto; left: calc(50% + 2.375rem - 1.3125rem); }
 .sve-build [data-sve-style-css] .bm-spx .sve-css-bind.bm-sp-l { top: calc(50% - 0.5625rem); bottom: auto; right: auto; left: calc(26.5% - 1.3125rem); }
 .sve-build [data-sve-style-css] .bm-spx .sve-css-bind.bm-sp-r { top: calc(50% - 0.5625rem); bottom: auto; left: auto; right: calc(1.5% + 0.1875rem); }
-[data-sve-style-css] .bm-spx .bm-vin:has(+ .sve-css-bind) { box-sizing: border-box; padding-inline: 1.375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-sve-style-css] .bm-spx .bm-vin:has(~ .sve-css-bind) { box-sizing: border-box; padding-inline: 1.375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The reset can stand between a field and its icon. */
 /* The field stays lit while the pointer is on its icon. */
-.sve-build .bm-spx .bm-vin:has(+ .sve-css-bind:hover) { background: var(--bm-bg); border-color: var(--bm-accent); }
+.sve-build .bm-spx .bm-vin:has(~ .sve-css-bind:hover) { background: var(--bm-bg); border-color: var(--bm-accent); }
 
 /* Tailwind's own class list and class target have no place here: the row above the fields says what is edited. */
 [data-sve-style-css] [data-sve-build-classes],

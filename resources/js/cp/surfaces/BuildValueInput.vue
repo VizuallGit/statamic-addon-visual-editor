@@ -306,6 +306,6 @@ defineExpose({ open });
     @click="clicked"
     @keydown.down.prevent="open()"
   >{{ showing }}</button>
-  <component :is="port.bindIcon" v-if="port.bindIcon" :class="$attrs.class" :property="property" :twin="twin" :label="label" />
   <BuildFieldReset :class="$attrs.class" :hit="own" :label="label || property" />
+  <component :is="port.bindIcon" v-if="port.bindIcon" :class="$attrs.class" :property="property" :twin="twin" :label="label" />
 </template>
