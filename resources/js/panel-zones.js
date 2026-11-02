@@ -36,16 +36,16 @@ import { BOTTOM_ZONE_ID, BUILD_PANEL_ID, LEFT_ZONE_ID, ZONE_SHELL_ATTR } from '.
 import { setLpCollapsed } from './lp-panel.js';
 import {
   RIGHT_DOCK_ID,
-  bindShellStack,
+  bindPinStack,
   ensureRightDock,
-  ensureShellStyle,
+  ensureStyle,
   hideRightDock,
-  layoutShell,
+  layoutStack,
   openRightDock,
   paneKeyOf,
   pinPane,
   shellPanes,
-  shellSlot,
+  slotEl,
   storeOrder,
   storedOrder,
 } from './right-dock-tabs.js';
@@ -84,23 +84,19 @@ export function paneZone(win, key) {
   return zoneOf(storedZones(win), key);
 }
 
-function shells(doc) {
-  return [doc.getElementById(LEFT_ZONE_ID), doc.getElementById(RIGHT_DOCK_ID), doc.getElementById(BOTTOM_ZONE_ID)].filter(Boolean);
-}
-
 export function zoneShells(doc) {
-  return shells(doc);
+  return [doc.getElementById(LEFT_ZONE_ID), doc.getElementById(RIGHT_DOCK_ID), doc.getElementById(BOTTOM_ZONE_ID)].filter(Boolean);
 }
 
 function newShell(win, id, zone) {
   const doc = win.document;
   const shell = doc.createElement('div');
 
-  ensureShellStyle(doc);
+  ensureStyle(doc);
   shell.id = id;
   shell.setAttribute(ZONE_SHELL_ATTR, zone);
   mountPane(shell, RightDockShell, { chrome: zone });
-  bindShellStack(win, shell);
+  bindPinStack(win, shell);
 
   return shell;
 }
@@ -267,7 +263,7 @@ function syncBand(win) {
 export function settleZones(win) {
   const doc = win.document;
 
-  shells(doc).forEach((shell) => layoutShell(win, shell));
+  zoneShells(doc).forEach((shell) => layoutStack(win, shell));
   syncBand(win);
 
   const right = doc.getElementById(RIGHT_DOCK_ID);
@@ -314,8 +310,8 @@ export function applyZones(win) {
   const zones = storedZones(win);
   const moved = new Set();
 
-  for (const shell of shells(doc)) {
-    for (const pane of [...(shellSlot(shell)?.children || [])]) {
+  for (const shell of zoneShells(doc)) {
+    for (const pane of [...(slotEl(shell)?.children || [])]) {
       const key = paneKeyOf(pane);
 
       if (!key) {
@@ -325,8 +321,8 @@ export function applyZones(win) {
       const zone = zoneOf(zones, key);
       const target = zone === 'left' ? leftKept : zone === 'bottom' ? ensureBottomZone(win) : ensureRightDock(win);
 
-      if (pane.parentElement !== shellSlot(target)) {
-        shellSlot(target).appendChild(pane);
+      if (pane.parentElement !== slotEl(target)) {
+        slotEl(target).appendChild(pane);
         moved.add(target);
       }
     }
@@ -344,7 +340,7 @@ export function applyZones(win) {
 export function leaveZones(win) {
   const doc = win.document;
   const bottom = doc.getElementById(BOTTOM_ZONE_ID);
-  const tools = [leftKept, bottom].flatMap((shell) => [...(shellSlot(shell)?.children || [])]).filter((pane) => {
+  const tools = [leftKept, bottom].flatMap((shell) => [...(slotEl(shell)?.children || [])]).filter((pane) => {
     const key = paneKeyOf(pane);
 
     return key && !isFixedPane(key);
@@ -353,7 +349,7 @@ export function leaveZones(win) {
   if (tools.length) {
     const right = ensureRightDock(win);
 
-    tools.forEach((pane) => shellSlot(right).appendChild(pane));
+    tools.forEach((pane) => slotEl(right).appendChild(pane));
   }
 
   bandWatch?.disconnect();
@@ -369,7 +365,7 @@ export function leaveZones(win) {
   const right = doc.getElementById(RIGHT_DOCK_ID);
 
   if (right) {
-    layoutShell(win, right);
+    layoutStack(win, right);
 
     if (tools.length && right.hasAttribute('data-sve-right-closed')) {
       openRightDock(win);
@@ -395,8 +391,8 @@ export function addToZone(win, pane, key) {
   const zone = paneZone(win, key);
   const shell = zone === 'left' ? leftKept : zone === 'bottom' ? ensureBottomZone(win) : ensureRightDock(win);
 
-  if (shell && pane.parentElement !== shellSlot(shell)) {
-    shellSlot(shell).appendChild(pane);
+  if (shell && pane.parentElement !== slotEl(shell)) {
+    slotEl(shell).appendChild(pane);
     revealZone(win, shell);
   }
 }

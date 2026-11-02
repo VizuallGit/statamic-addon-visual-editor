@@ -450,21 +450,19 @@ export function pinnedKeepIds(win) {
 }
 
 /** The left and bottom zones are this same shell: every rule reaches them, at the id's weight. */
-function ensureStyle(doc) {
+export function ensureStyle(doc) {
   injectStyle(doc, STYLE_ID, dockCss.replaceAll(`#${RIGHT_DOCK_ID}`, `:is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID},#${BOTTOM_ZONE_ID})`) + zoneCss());
 }
 
-export const ensureShellStyle = ensureStyle;
 
 function dockEl(doc) {
   return doc.getElementById(RIGHT_DOCK_ID);
 }
 
-function slotEl(dock) {
+export function slotEl(dock) {
   return dock?.querySelector('[data-sve-right-slot]') || null;
 }
 
-export const shellSlot = slotEl;
 
 /** What stands open in a shell, parked panes not counted. */
 export function shellPanes(shell) {
@@ -756,7 +754,7 @@ function toggleFold(win, panel) {
   layoutStack(win, panel.closest('[data-sve-right-slot]')?.parentElement || dockEl(win.document));
 }
 
-function layoutStack(win, dock) {
+export function layoutStack(win, dock) {
   const slot = slotEl(dock);
   const row = dock?.id === BOTTOM_ZONE_ID;
 
@@ -911,11 +909,7 @@ function beginStackReorder(win, dock, panel) {
   win.document.addEventListener('mouseup', up);
 }
 
-export function layoutShell(win, shell) {
-  layoutStack(win, shell);
-}
-
-function bindPinStack(win, dock) {
+export function bindPinStack(win, dock) {
   if (!RIGHT_DOCK_PIN_STACK || dock._sveRightPinBound) {
     return;
   }
@@ -1066,7 +1060,6 @@ function paneTitle(panel) {
   return panel.querySelector('[data-sve-right-title]')?.textContent.trim() || paneKeyOf(panel);
 }
 
-export const bindShellStack = bindPinStack;
 
 function dockTop(win) {
   const header = win.document.querySelector('.live-preview-header');
