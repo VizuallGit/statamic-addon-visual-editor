@@ -232,5 +232,6 @@ return [
     'css_mode_add_section_id' => 'Brug sektionens ID',
     'css_mode_field_bind' => 'Hent værdien fra et felt',
     'css_mode_field_bound' => 'Fra feltet :name. Vælg et andet her, eller fjern det i værdiens menu.',
+    'css_mode_field_value' => 'Værdien kommer fra et felt.',
     'css_mode_menu_search' => 'Søg eller skriv en værdi',
 ];

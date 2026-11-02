@@ -7,7 +7,8 @@
  *   tw-families.js, tw-parse.js, html-tree-parse.js and build-mode/; never a
  *   function of tw-classes.js. Nothing here writes a class or says `tw:changed`.
  * Bus: asks `dock:css`, `dock:set-css`, `dock:is-locked`, `dock:current-uid`;
- *   listens to `dock:saved`.
+ *   says `css-mode:changed` (a step for the top bar's history); listens to
+ *   `dock:saved` and `css-mode:restored` (a step put back).
  *
  * A field asks the port for the picked element's classes and hands it a class to
  * set. So the port answers with the declarations of the rule being edited,
@@ -26,7 +27,7 @@
  */
 
 import { computed, ref, watch } from 'vue';
-import { ask, on } from '../../cp/bus.js';
+import { ask, emit, on } from '../../cp/bus.js';
 import { mountSurface } from '../../cp/mount.js';
 import TwClassMenu from '../../cp/surfaces/TwClassMenu.vue';
 import { panelValues } from '../../cp/panel/store.js';
@@ -53,6 +54,23 @@ const KIND_KEY = 'sve-style-css-target';
 const UNIT_KEY = 'sve-build-spacing-unit';
 const SECTION_ID = /^id-\{\{\s*id\s*\}\}$/;
 const DYNAMIC_ID = /^([a-zA-Z_][\w-]*)-\{\{\s*id\s*\}\}$/;
+
+/**
+ * A value from a field, dressed as a class like the rest: a name the fields can
+ * hold, so the family's dot and the sizes treat it as any value. It has no CSS of
+ * its own; the port knows it by name, and the Style field shows the field instead.
+ * An image's has the shape the image field looks for.
+ */
+const BOUND = 'sve-bound';
+const boundName = (prop) => (prop === 'background-image' ? `bg-[url(${BOUND})]` : `${BOUND}-[${prop}]`);
+
+function propOfBound(name) {
+  if (name === boundName('background-image')) {
+    return 'background-image';
+  }
+
+  return new RegExp(`^${BOUND}-\\[(.+)\\]$`).exec(name || '')?.[1] || '';
+}
 
 const ports = new WeakMap();
 
@@ -202,21 +220,24 @@ function createCssPort(win, port) {
       return [];
     }
 
-    return declared.value.map((decl) => {
-      const name = cssToClass(decl.prop, decl.value, catalog);
-      const variant = decl.size ? rows().find((row) => row.handle === decl.size)?.tw : '';
+    const variantOf = (decl) => (decl.size ? rows().find((row) => row.handle === decl.size)?.tw : '');
+    const named = (decl, name) => (variantOf(decl) ? `${variantOf(decl)}:${name}` : name);
 
-      return variant ? `${variant}:${name}` : name;
-    });
+    return [
+      ...declared.value.map((decl) => named(decl, cssToClass(decl.prop, decl.value, catalog))),
+      ...boundNow().map((decl) => named(decl, boundName(decl.prop))),
+    ];
   });
 
   const sizeNow = () => sizeKey(rows(), port.size());
   const variantNow = () => (sizeNow() ? rows().find((row) => row.handle === sizeNow())?.tw || '' : '');
 
+  const propertyOf = (name) => propOfBound(name) || port.propertyOf(name);
+
   function activeClass(property) {
     rev.value;
 
-    return effectiveClass(dressed.value.join(' '), [property], [variantNow()], port.propertyOf)?.name || '';
+    return effectiveClass(dressed.value.join(' '), [property], [variantNow()], propertyOf)?.name || '';
   }
 
   /* ---------------- writing ---------------- */
@@ -287,6 +308,7 @@ function createCssPort(win, port) {
     hold();
     paint.sync(next, rows());
     own.value += 1;
+    emit('css-mode:changed');
   }
 
   const baseOf = (raw) => splitUtility(splitClass(raw).base).name || splitClass(raw).base;
@@ -301,6 +323,13 @@ function createCssPort(win, port) {
     return decls;
   }
 
+  /** What a class on the element stands for: its declarations, or the one a field gives. */
+  function declarationsOfRaw(raw) {
+    const prop = propOfBound(baseOf(raw));
+
+    return prop ? [{ prop, value: '' }] : classToCss(baseOf(raw), cssOf) || [];
+  }
+
   /** The updates that put `name` in the place of `raw`: what it alone set comes out. */
   function updatesFor(name, raw) {
     const decls = name ? declarationsOfClass(name) : [];
@@ -309,7 +338,7 @@ function createCssPort(win, port) {
       return null;
     }
 
-    const gone = raw ? classToCss(baseOf(raw), cssOf) || [] : [];
+    const gone = raw ? declarationsOfRaw(raw) : [];
 
     return [
       ...gone.filter((old) => !decls.some((decl) => decl.prop === old.prop)).map((old) => ({ prop: old.prop, value: null })),
@@ -319,6 +348,13 @@ function createCssPort(win, port) {
 
   /** As the pane's own click: set, or taken off when it is what stands here already. */
   function setClass(name) {
+    // The family's dot on a value from a field: the field lets go.
+    if (propOfBound(baseOf(name))) {
+      write([{ prop: propOfBound(baseOf(name)), value: null }]);
+
+      return;
+    }
+
     const decls = declarationsOfClass(name);
 
     if (!decls) {
@@ -427,7 +463,7 @@ function createCssPort(win, port) {
         closeMenu();
 
         if (mine?.raw) {
-          write((classToCss(baseOf(mine.raw), cssOf) || []).map((decl) => ({ prop: decl.prop, value: null })));
+          write(declarationsOfRaw(mine.raw).map((decl) => ({ prop: decl.prop, value: null })));
         } else {
           // Nothing by hand here: Remove lets go of the field, if one gives this value.
           const names = [property, title].filter(Boolean);
@@ -495,11 +531,13 @@ function createCssPort(win, port) {
 
     if (want && !stopListening) {
       const stopSaved = on('dock:saved', refresh);
+      const stopRestored = on('css-mode:restored', refresh);
       const stopForm = watch(formNow, () => paint.sync(fullCss(), rows()));
 
       win.addEventListener(BUILD_CANVAS_SHOWN_EVENT, onCanvas);
       stopListening = () => {
         stopSaved();
+        stopRestored();
         stopForm();
         win.removeEventListener(BUILD_CANVAS_SHOWN_EVENT, onCanvas);
         stopListening = null;
@@ -548,6 +586,12 @@ function createCssPort(win, port) {
 
     const chain = variantChain(rows(), port.size(), '');
     const keyOf = (size) => (size ? rows().find((row) => row.handle === size)?.tw || '' : '');
+
+    // All four sides from one field: the side shows through to it, as to a value.
+    if (current && propOfBound(current.name) && ![property, twin].includes(propOfBound(current.name))) {
+      return boundLabel(decls.find((decl) => decl.prop === propOfBound(current.name) && keyOf(decl.size) === current.key)?.value);
+    }
+
     const at = chain.findIndex((key) => decls.some((decl) => keyOf(decl.size) === key && [property, twin].includes(decl.prop)));
 
     if (at === -1 || (current && chain.indexOf(current.key) !== -1 && chain.indexOf(current.key) < at)) {
@@ -747,6 +791,7 @@ function createCssPort(win, port) {
       notice.value = '';
       own.value += 1;
       paint.sync(fullCss(), rows());
+      emit('css-mode:changed');
 
       return true;
     },
@@ -763,6 +808,24 @@ function createCssPort(win, port) {
     boundOf,
     pickFieldFor,
     pickedClasses: () => (rev.value, dressed.value),
+    propertyOf,
+    colorOf(name) {
+      const prop = propOfBound(name);
+
+      return prop ? port.seen?.(prop, prop)?.raw || '' : port.colorOf(name);
+    },
+    /** A value from a field: its hover says so, what the element shows is still read. */
+    seen(property, scaleProperty, shown = '') {
+      if (boundOf(property, scaleProperty === property ? '' : scaleProperty)) {
+        return { grey: '', raw: port.seen(property, scaleProperty)?.raw || '', tip: port.t('css_mode_field_value') };
+      }
+
+      return port.seen(property, scaleProperty, shown);
+    },
+    /** The image field opens empty on a value from a field: it holds no file of its own. */
+    mountField(el, options) {
+      return port.mountField(el, { ...options, value: String(options?.value || '') === BOUND ? '' : options?.value });
+    },
     activeClass,
     setClass,
     setFieldClass,

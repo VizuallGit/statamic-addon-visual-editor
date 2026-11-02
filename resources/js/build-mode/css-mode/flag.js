@@ -3,13 +3,15 @@
  * with it off Style is what it was, and nothing else of css-mode/ is loaded.
  *
  * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
- * May import: vue. No editor, no bus.
+ * May import: vue, cp/bus.js. No editor.
+ * Bus: registers `css-mode:on` while the demo is on (the top bar's history asks).
  *
  * `?sve-css-demo=1` on the Control Panel's address turns it on in this browser,
  * `?sve-css-demo=0` off again.
  */
 
 import { ref } from 'vue';
+import { register } from '../../cp/bus.js';
 
 const FLAG_KEY = 'sve-css-demo';
 const MODE_KEY = 'sve-style-mode';
@@ -53,7 +55,11 @@ export function cssDemoOn() {
     keep(FLAG_KEY, said);
   }
 
-  return (said || stored(FLAG_KEY)) === '1';
+  const on = (said || stored(FLAG_KEY)) === '1';
+
+  register('css-mode:on', () => on);
+
+  return on;
 }
 
 /** `tw` or `css`, this browser's choice. */

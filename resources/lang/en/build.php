@@ -242,5 +242,6 @@ return [
     'css_mode_add_section_id' => 'Use the section\'s ID',
     'css_mode_field_bind' => 'Take this value from a field',
     'css_mode_field_bound' => 'From the field :name. Choose another here, or remove it in the value\'s menu.',
+    'css_mode_field_value' => 'This value comes from a field.',
     'css_mode_menu_search' => 'Search or type a value',
 ];

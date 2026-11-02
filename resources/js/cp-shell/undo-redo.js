@@ -17,13 +17,16 @@
  * overlay or bridge: a value written reaches them the way a typed one does.
  */
 import { watch } from 'vue';
-import { ask, on } from '../cp/bus.js';
+import { ask, emit, on } from '../cp/bus.js';
 import { editorMode } from '../build-mode-host.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { unwrapRef } from '../lib/values.js';
 import { createUndoStack } from './undo-stack.js';
+
+/** Between the file and its CSS in a step, while the CSS mode demo is on (`css-mode:on`, css-mode/flag.js). Off, a step is the file, as ever. */
+const CSS_SPLIT = '\u0000';
 
 /** How long a change has to stop before it is a step. */
 const SETTLE = 350;
@@ -62,14 +65,24 @@ export function startUndoRedo(win, changed) {
         read() {
           const html = ask('dock:html');
 
-          return typeof html === 'string' && html !== '' ? html : null;
+          if (typeof html !== 'string' || html === '') {
+            return null;
+          }
+
+          return ask('css-mode:on') ? `${html}${CSS_SPLIT}${ask('dock:css') ?? ''}` : html;
         },
-        write(html) {
+        write(state) {
+          const [html, css] = state.split(CSS_SPLIT);
           // Offsets move with the file: the tree stands on the picked element by where it starts now.
           const path = htmlTreeUi.rows.find((row) => row.current)?.path;
 
           if (ask('dock:set-html', html) === false) {
             return false;
+          }
+
+          if (css !== undefined) {
+            ask('dock:set-css', css);
+            emit('css-mode:restored');
           }
 
           const row = path ? flattenHtmlTree(parseHtmlTree(html), new Set()).find((one) => one.path === path) : null;
@@ -183,6 +196,7 @@ export function startUndoRedo(win, changed) {
   }
 
   const stopDock = on('dock:html-changed', settle);
+  const stopCss = on('css-mode:changed', settle);
 
   return {
     undo: () => go('undo'),
@@ -201,6 +215,7 @@ export function startUndoRedo(win, changed) {
       win.clearTimeout(timer);
       stopForm?.();
       stopDock();
+      stopCss();
     },
   };
 }
