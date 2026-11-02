@@ -48,12 +48,12 @@ const LOOK = `
 .sve-build .bm-spx .sve-field-reset.bm-sp-r { top: calc(50% - 0.5625rem); bottom: auto; left: auto; right: calc(1.5% + 4.75rem - 1.3125rem); }
 .bm-spx .bm-vin:has(~ .sve-field-reset) { box-sizing: border-box; padding-inline: 1.375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The fields fade out under the sticky top, once there is something under it. */
+/* The fields fade out under the sticky top, once there is something under it: below its line, which stays. */
 .sve-build .fg-top::after {
   content: "";
   position: absolute;
   inset-inline: 0;
-  top: 100%;
+  top: calc(100% + 1px);
   height: 1.5rem;
   background: linear-gradient(var(--bm-panel), transparent);
   opacity: 0;
