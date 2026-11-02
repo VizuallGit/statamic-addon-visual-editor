@@ -13,7 +13,7 @@ import {
 test('one pasted element becomes the section root, keeping its own tag', () => {
   const out = rootSection('<section class="bg-white py-24">\n  <h2>Hi</h2>\n</section>', 'tailwind');
 
-  assert.match(out, /^<section id="id-\{\{ id \}\}" class="\[ \{\{ _class \}\} \] bg-white py-24" \{\{ visual_edit outline_inside="true" section_orderable="true" \}\}>/);
+  assert.match(out, /^<section id="id-\{\{ id \}\}" class="bg-white py-24" \{\{ visual_edit outline_inside="true" section_orderable="true" \}\}>/);
   assert.match(out, /<h2>Hi<\/h2>/);
   assert.equal(out.match(/<section/g).length, 1);
 });
@@ -21,7 +21,7 @@ test('one pasted element becomes the section root, keeping its own tag', () => {
 test('two elements side by side get a section wrapped around them', () => {
   const out = rootSection('<div>a</div>\n<div>b</div>', 'tailwind');
 
-  assert.match(out, /^<section id="id-\{\{ id \}\}" class="\[ \{\{ _class \}\} \]" \{\{ visual_edit/);
+  assert.match(out, /^<section id="id-\{\{ id \}\}" class="" \{\{ visual_edit/);
   assert.match(out, /\n {4}<div>a<\/div>\n {4}<div>b<\/div>\n<\/section>$/);
 });
 
@@ -58,16 +58,16 @@ test('brackets that are already there are left alone', () => {
   assert.equal(bracketClasses(html), html);
 });
 
-test('the plain-CSS root holds _class and the element\'s own names together', () => {
+test('the plain-CSS root holds the element\'s own names, and no dynamic class', () => {
   const out = rootSection('<section class="hero hero--dark">x</section>', 'css');
 
-  assert.match(out, /class="\[ \{\{ _class \}\} hero hero--dark \]"/);
+  assert.match(out, /class="\[ hero hero--dark \]"/);
 });
 
 test('the Tailwind root keeps utilities outside the brackets', () => {
   const out = rootSection('<section class="bg-white py-24">x</section>', 'tailwind');
 
-  assert.match(out, /class="\[ \{\{ _class \}\} \] bg-white py-24"/);
+  assert.match(out, /class="bg-white py-24"/);
 });
 
 test('inline style and script move to the panes that own them', () => {
@@ -111,7 +111,7 @@ test('pasted braces are escaped so Antlers renders them instead of running them'
 });
 
 test('pasted CSS is scoped to the section in plain-CSS mode only', () => {
-  assert.match(scopeCss('.card { color: red }', 'css'), /^@scope\(\.\{\{ _class \}\}\) \{\n {2}\.card \{ color: red \}\n\}$/);
+  assert.match(scopeCss('.card { color: red }', 'css'), /^@scope\(#id-\{\{ id \}\}\) \{\n {2}\.card \{ color: red \}\n\}$/);
   assert.equal(scopeCss('.card { color: red }', 'tailwind'), '.card { color: red }');
   assert.equal(scopeCss('', 'css'), '');
 });
@@ -126,7 +126,7 @@ test('a Tailwind UI paste comes out as a section with its utilities intact', () 
   const pasted = '<div className="bg-white py-24 sm:py-32">\n  <h2 className="text-3xl">Deploy faster</h2>\n</div>';
   const out = importedTemplate(pasted, { mode: 'tailwind' });
 
-  assert.match(out.html, /^<div id="id-\{\{ id \}\}" class="\[ \{\{ _class \}\} \] bg-white py-24 sm:py-32" \{\{ visual_edit/);
+  assert.match(out.html, /^<div id="id-\{\{ id \}\}" class="bg-white py-24 sm:py-32" \{\{ visual_edit/);
   assert.match(out.html, /<h2 class="text-3xl">Deploy faster<\/h2>/);
   assert.equal(out.css, '');
 });
@@ -135,9 +135,9 @@ test('a plain-CSS paste comes out bracketed, with its stylesheet scoped', () => 
   const pasted = '<section class="hero">\n  <p class="lead">x</p>\n</section>';
   const out = importedTemplate(pasted, { mode: 'css', css: '.hero { padding: 4rem }\n.lead { font-size: 1.25rem }' });
 
-  assert.match(out.html, /class="\[ \{\{ _class \}\} hero \]"/);
+  assert.match(out.html, /class="\[ hero \]"/);
   assert.match(out.html, /<p class="\[ lead \]">/);
-  assert.match(out.css, /^@scope\(\.\{\{ _class \}\}\) \{/);
+  assert.match(out.css, /^@scope\(#id-\{\{ id \}\}\) \{/);
   assert.match(out.css, /\.lead \{ font-size: 1\.25rem \}/);
 });
 
@@ -159,7 +159,7 @@ test('what comes out of the import is always one root with visual_edit on it', (
 
     assert.equal(html.match(/visual_edit/g).length, 1, pasted);
     assert.match(html, /id="id-\{\{ id \}\}"/, pasted);
-    assert.match(html, /\{\{ _class \}\}/, pasted);
+    assert.doesNotMatch(html, /_class/, pasted);
   }
 });
 

@@ -23,8 +23,8 @@
  * What it makes is the tree's (section-create.js): chooseSectionKind, then
  * the static or the fields dialog, and the row on the page. Section brings
  * no markup — the server's scaffold is the plus's. Any other tile is the
- * section's root: the import's rootSection gives it the id, the `_class` and
- * the visual_edit every section's root wears.
+ * section's root: the import's rootSection gives it the id and the visual_edit
+ * every section's root wears.
  *
  * A page not built from sections (a template) has none of this: every tile
  * goes into the file, as before.

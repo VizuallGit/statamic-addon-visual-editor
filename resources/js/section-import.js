@@ -10,8 +10,8 @@
  * Two things have to be true of the result and neither is true of what was
  * pasted:
  *
- *   - The outermost element is the section's root, so it carries `id-{{ id }}`,
- *     `_class` and `visual_edit`. Without them the section is invisible to the
+ *   - The outermost element is the section's root, so it carries `id-{{ id }}`
+ *     and `visual_edit`. Without them the section is invisible to the
  *     editor — no outline row, nothing to drag, nothing to click.
  *   - Class names the site styles itself sit inside the brackets
  *     (`class="[ card ] flex"`), because the brackets are how the dock's CSS
@@ -257,24 +257,19 @@ function splitClasses(existing) {
 
 /**
  * What the section's root class attribute reads, given what the element
- * already had.
- *
- * `_class` is the page loop's class for this section and is always first —
- * it is what `@scope(.{{ _class }})` in the CSS pane hangs on, so a rule
- * written later has something to attach to. In plain-CSS mode the element's
- * own names join it inside the brackets; in Tailwind mode they stay outside,
- * as utilities do.
+ * already had: its own classes and nothing else. A new section carries no
+ * dynamic class. What differs per section stands on its ID (`#id-{{ id }}`). In
+ * plain-CSS mode the element's own names stand in the brackets; in Tailwind mode
+ * they stay outside, as utilities do.
  */
 function rootClass(existing, mode) {
   const { ours, rest } = splitClasses(existing);
 
   if (mode !== 'css') {
-    const all = [...ours, ...rest];
-
-    return `[ {{ _class }} ]${all.length ? ` ${all.join(' ')}` : ''}`;
+    return [...ours, ...rest].join(' ');
   }
 
-  return `[ {{ _class }}${ours.length ? ` ${ours.join(' ')}` : ''} ]${rest.length ? ` ${rest.join(' ')}` : ''}`;
+  return [ours.length ? `[ ${ours.join(' ')} ]` : '', ...rest].filter(Boolean).join(' ');
 }
 
 /** Elements at the top of the markup — what decides whether it needs wrapping. */
@@ -333,8 +328,8 @@ export function rootSection(html, mode) {
 /**
  * The pasted stylesheet, kept inside the section.
  *
- * `@scope(.{{ _class }})` is the site's own pattern (see any section partial):
- * the rules only apply within this section, so a `.card` or a `.button` from
+ * `@scope(#id-{{ id }})`: the rules only apply within this section, on its own
+ * ID as a new section has no class to hang them on, so a `.card` or a `.button` from
  * a downloaded template cannot reach the rest of the page. Rules that are
  * already scoped, and at-rules that cannot be nested, are left as they were.
  */
@@ -350,7 +345,7 @@ export function scopeCss(css, mode) {
     .map((line) => (line.trim() ? `  ${line}` : line))
     .join('\n');
 
-  return `@scope(.{{ _class }}) {\n${body}\n}`;
+  return `@scope(#id-{{ id }}) {\n${body}\n}`;
 }
 
 /**
@@ -386,8 +381,7 @@ export function importNotes(source) {
  * `mode` is 'tailwind' or 'css'. `css` and `js` are what the author typed in
  * the dialog's other two fields, joined with whatever was peeled out.
  *
- * `root` is false on a template, which is not a section: it has no `id`, no
- * `_class` and nothing to put on the page's outline, so the paste goes in as
+ * `root` is false on a template, which is not a section: it has no `id` and nothing to put on the page's outline, so the paste goes in as
  * the markup it is. The class and asset handling is the same either way.
  */
 export function importedTemplate(source, { mode = 'tailwind', css = '', js = '', root = true } = {}) {

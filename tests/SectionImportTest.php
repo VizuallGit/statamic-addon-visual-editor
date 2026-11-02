@@ -74,10 +74,9 @@ class SectionImportTest extends TestCase
         // changes what a root wears, this is what says so before a section is
         // imported without it.
         //
-        // `{{ _class }}` is the import's own, not the scaffold's: a new blank
-        // section starts with `class=""` — the classes are the author's to
-        // write (d1c91b80) — while an imported section gets `[ {{ _class }} ]`
-        // because its CSS pane is scoped with `@scope(.{{ _class }})`.
+        // Neither the scaffold nor the import writes `{{ _class }}`: a new section
+        // starts with the author's own classes, and what differs per section
+        // stands on its ID.
         $scaffold = SectionTypeMaker::staticScaffold();
 
         $this->assertStringContainsString('id="id-{{ id }}"', $scaffold);
