@@ -234,4 +234,5 @@ return [
     'css_mode_field_bound' => 'Fra feltet :name. Vælg et andet her, eller fjern det i værdiens menu.',
     'css_mode_field_value' => 'Værdien kommer fra et felt.',
     'css_mode_menu_search' => 'Søg eller skriv en værdi',
+    'css_mode_state' => 'Reglens tilstand: :hover, :focus og så videre',
 ];

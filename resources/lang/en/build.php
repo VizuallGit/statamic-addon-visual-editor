@@ -244,4 +244,5 @@ return [
     'css_mode_field_bound' => 'From the field :name. Choose another here, or remove it in the value\'s menu.',
     'css_mode_field_value' => 'This value comes from a field.',
     'css_mode_menu_search' => 'Search or type a value',
+    'css_mode_state' => 'State of the rule: :hover, :focus and so on',
 ];

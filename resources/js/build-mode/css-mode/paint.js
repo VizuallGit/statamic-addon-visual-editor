@@ -23,7 +23,7 @@ import { liveSheet } from './rules.js';
 
 const SHEET_ID = '__sve-build-css-mode';
 
-export function createCssPaint(win, fill) {
+export function createCssPaint(win, fill, suffixes = []) {
   const targets = new Map();
 
   function documentOf() {
@@ -48,7 +48,7 @@ export function createCssPaint(win, fill) {
       return;
     }
 
-    const text = liveSheet(css, [...targets.values()].map((one) => ({ selector: one.selector, real: realSelector(page, one) })), rows, fill);
+    const text = liveSheet(css, [...targets.values()].map((one) => ({ selector: one.selector, real: realSelector(page, one) })), rows, fill, suffixes);
     let sheet = page.getElementById(SHEET_ID);
 
     if (!sheet) {

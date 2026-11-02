@@ -39,6 +39,7 @@ export const sizeKey = (rows, handle) => {
 /** Every place the selector has declarations, in file order: `{ node, size, media }`. */
 function hitsOf(tree, selector, rows) {
   const want = masked(selector);
+  const state = /^(.*?)(::?[a-z-]+)$/.exec(want);
   const out = [];
 
   const walk = (nodes, size, media, inScope) => {
@@ -62,6 +63,13 @@ function hitsOf(tree, selector, rows) {
 
           if (own && !size) {
             out.push({ node: child, size: own, media: child, nested: true });
+          }
+        }
+      } else if (state && node.prelude === state[1]) {
+        // The dock writes a state inside its rule: `.a { &:hover { … } }` is `.a:hover`.
+        for (const child of node.children) {
+          if (child.prelude === `&${state[2]}`) {
+            out.push({ node: child, size, media });
           }
         }
       }
@@ -170,6 +178,9 @@ function allDeclarations(css, selector, rows) {
 export function readRule(css, selector, rows) {
   return allDeclarations(css, selector, rows).filter((decl) => !hasTag(decl.value));
 }
+
+/** All the selector declares, a field's value and a hand's alike. */
+export const declarationsAt = allDeclarations;
 
 /** What the selector takes from a field, per size: `[{ size, prop, value }]`, the value as written (`{{ gap }}rem`). */
 export function readBound(css, selector, rows) {
@@ -286,8 +297,10 @@ function createRule(css, where, prop, value) {
   const place = (text) => (box ? appendInBlock(css, box, text) : appendAtEnd(css, text));
 
   if (!size) {
-    // Before the selector's own size rules: after them it would beat them all.
-    const sized = hits.find((hit) => hit.size && !hit.nested);
+    // Before the selector's own size rules: after them it would beat them all. A
+    // state goes before the plain rule's too, so its sizes can share their blocks.
+    const plain = /^(.*?)::?[a-z-]+$/.exec(masked(selector))?.[1];
+    const sized = [...hits, ...(plain ? hitsOf(tree, plain, rows) : [])].find((hit) => hit.size && !hit.nested);
     const text = ruleText(selector, sized ? indentAt(css, sized.media.from) : indent, prop, value);
 
     return sized ? insertBefore(css, sized.media, text) : place(text);
@@ -384,27 +397,36 @@ export function renameSelector(css, from, to) {
  * (`#id-{{ id }}` is `#id-abc` there). `fill` turns a value holding a field into
  * what the field holds now; a value it cannot fill is left to the server's page.
  */
-export function liveSheet(css, targets, rows, fill = () => '') {
+export function liveSheet(css, targets, rows, fill = () => '', suffixes = []) {
   const order = cascadeOrder(rows);
   const parts = [];
+  let moving = false;
 
   for (const { selector, real } of targets || []) {
-    const decls = (real ? allDeclarations(css, selector, rows) : [])
-      .map((decl) => (hasTag(decl.value) ? { ...decl, value: fill(decl.value) } : decl))
-      .filter((decl) => decl.value);
-    const body = (size) => decls.filter((decl) => decl.size === size).map((decl) => `${decl.prop}: ${decl.value};`).join(' ');
-    // Inside `@scope` a selector means a descendant of the root; the root itself has to be said.
-    const both = `${real}, :scope${real}`;
+    for (const suffix of ['', ...suffixes]) {
+      const decls = (real ? allDeclarations(css, `${selector}${suffix}`, rows) : [])
+        .map((decl) => (hasTag(decl.value) ? { ...decl, value: fill(decl.value) } : decl))
+        .filter((decl) => decl.value);
+      const body = (size) => decls.filter((decl) => decl.size === size).map((decl) => `${decl.prop}: ${decl.value};`).join(' ');
+      // Inside `@scope` a selector means a descendant of the root; the root itself has to be said.
+      const both = `${real}${suffix}, :scope${real}${suffix}`;
 
-    if (body('')) {
-      parts.push(`${both} { ${body('')} }`);
+      moving = moving || decls.some((decl) => /^animation/.test(decl.prop));
+
+      if (body('')) {
+        parts.push(`${both} { ${body('')} }`);
+      }
+
+      [...(rows || [])]
+        .filter((row) => !row.base && body(row.handle))
+        .sort((a, b) => order.get(a.handle) - order.get(b.handle))
+        .forEach((row) => parts.push(`@media ${row.media} { ${both} { ${body(row.handle)} } }`));
     }
-
-    [...(rows || [])]
-      .filter((row) => !row.base && body(row.handle))
-      .sort((a, b) => order.get(a.handle) - order.get(b.handle))
-      .forEach((row) => parts.push(`@media ${row.media} { ${both} { ${body(row.handle)} } }`));
   }
 
-  return parts.length ? `@scope ([data-sve-build-root]) {\n${parts.join('\n')}\n}` : '';
+  // An animation's steps stand beside the rules: `@scope` is about what a selector reaches.
+  const steps = moving ? cssBlockTree(String(css || '')).filter((node) => /^@keyframes\b/.test(node.prelude)).map((node) => css.slice(node.from, node.to)) : [];
+  const sheet = parts.length ? [`@scope ([data-sve-build-root]) {\n${parts.join('\n')}\n}`] : [];
+
+  return [...steps, ...sheet].join('\n');
 }

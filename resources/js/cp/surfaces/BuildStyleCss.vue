@@ -27,9 +27,15 @@ const target = port.cssTarget;
 provide('sveBuild', port);
 
 let letGo = null;
+const root = ref(null);
+const head = ref(null);
 
 onMounted(() => {
   letGo = port.listen();
+
+  // In the sticky top of BuildStyle, so what is edited stays on screen, and the
+  // panel's own measure of that top (where a jump to a family stops) holds it.
+  root.value.querySelector('.fg-top')?.prepend(head.value);
 });
 
 const isId = computed(() => target.kind.value === 'id');
@@ -93,65 +99,67 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div data-sve-style-css>
-    <!-- One line when there is room for both; Class | ID goes under when there is not. -->
-    <div data-sve-style-bar>
-      <BuildStyleSwitch />
-      <div class="fg-seg" data-sve-css-target-kinds role="group" :aria-label="port.t('css_mode_target')">
-        <button type="button" :aria-pressed="!isId" data-sve-css-target-kind="class" @click="target.choose('class')">{{ port.t('css_mode_class') }}</button>
-        <button type="button" :aria-pressed="isId" data-sve-css-target-kind="id" @click="target.choose('id')">ID</button>
-      </div>
-    </div>
-
-    <div data-sve-css-target>
-      <p v-if="!target.usable()" class="fg-hint" data-sve-css-target-unusable>{{ port.t('css_mode_not_element') }}</p>
-
-      <div v-if="!isId && target.classes().length" data-sve-css-target-names>
-        <button
-          v-for="name in target.classes()"
-          :key="name"
-          type="button"
-          :title="`.${name}`"
-          :aria-pressed="name === target.open()"
-          :data-sve-css-target-name="name"
-          @click="target.openClass(name)"
-        >.{{ name }}</button>
-      </div>
-      <div v-if="isId && id && !renaming" data-sve-css-target-names>
-        <span class="is-fixed" :title="`#${id}`" aria-pressed="true" :data-sve-css-target-name="id">#{{ info?.label }}</span>
-        <span v-if="info?.kind === 'dynamic'" class="fg-hint" data-sve-css-id-kind :title="port.t('css_mode_id_dynamic_note')">{{ port.t('css_mode_id_dynamic') }}</span>
-        <span v-else-if="info?.kind === 'section'" class="fg-hint" data-sve-css-id-kind :title="port.t('css_mode_id_section_note')">{{ port.t('css_mode_id_section') }}</span>
-        <button v-if="info?.kind === 'dynamic' || info?.kind === 'own'" type="button" class="sve-css-rename" data-sve-css-id-rename :title="port.t('css_mode_id_rename')" :aria-label="port.t('css_mode_id_rename')" @click="startRename">{{ port.t('css_mode_id_rename') }}</button>
+  <div ref="root" data-sve-style-css>
+    <div ref="head" data-sve-css-head>
+      <!-- One line when there is room for both; Class | ID goes under when there is not. -->
+      <div data-sve-style-bar>
+        <BuildStyleSwitch />
+        <div class="fg-seg" data-sve-css-target-kinds role="group" :aria-label="port.t('css_mode_target')">
+          <button type="button" :aria-pressed="!isId" data-sve-css-target-kind="class" @click="target.choose('class')">{{ port.t('css_mode_class') }}</button>
+          <button type="button" :aria-pressed="isId" data-sve-css-target-kind="id" @click="target.choose('id')">ID</button>
+        </div>
       </div>
 
-      <form v-if="isId && renaming" data-sve-css-target-form @submit.prevent="submitRename" @keydown.escape.stop.prevent="cancelRename">
-        <input ref="nameField" v-model="typed" type="text" spellcheck="false" autocomplete="off" :aria-label="port.t('css_mode_id_rename')" data-sve-css-rename-input />
-        <button type="submit" :disabled="!typed.trim()" data-sve-css-rename-save>{{ port.t('css_mode_id_save') }}</button>
-      </form>
+      <div data-sve-css-target>
+        <p v-if="!target.usable()" class="fg-hint" data-sve-css-target-unusable>{{ port.t('css_mode_not_element') }}</p>
 
-      <button v-if="isId && !id && target.isRoot()" type="button" class="sve-css-rename" data-sve-css-section-id @click="target.addSectionId()">{{ port.t('css_mode_add_section_id') }}</button>
+        <div v-if="!isId && target.classes().length" data-sve-css-target-names>
+          <button
+            v-for="name in target.classes()"
+            :key="name"
+            type="button"
+            :title="`.${name}`"
+            :aria-pressed="name === target.open()"
+            :data-sve-css-target-name="name"
+            @click="target.openClass(name)"
+          >.{{ name }}</button>
+        </div>
+        <div v-if="isId && id && !renaming" data-sve-css-target-names>
+          <span class="is-fixed" :title="`#${id}`" aria-pressed="true" :data-sve-css-target-name="id">#{{ info?.label }}</span>
+          <span v-if="info?.kind === 'dynamic'" class="fg-hint" data-sve-css-id-kind :title="port.t('css_mode_id_dynamic_note')">{{ port.t('css_mode_id_dynamic') }}</span>
+          <span v-else-if="info?.kind === 'section'" class="fg-hint" data-sve-css-id-kind :title="port.t('css_mode_id_section_note')">{{ port.t('css_mode_id_section') }}</span>
+          <button v-if="info?.kind === 'dynamic' || info?.kind === 'own'" type="button" class="sve-css-rename" data-sve-css-id-rename :title="port.t('css_mode_id_rename')" :aria-label="port.t('css_mode_id_rename')" @click="startRename">{{ port.t('css_mode_id_rename') }}</button>
+        </div>
 
-      <div v-if="isId && !id && !target.isRoot() && target.canBeDynamic() && target.usable()" class="fg-seg" role="group" :aria-label="port.t('css_mode_id_how')">
-        <button type="button" :aria-pressed="target.idMode.value === 'dynamic'" :title="port.t('css_mode_id_dynamic_note')" data-sve-css-id-mode="dynamic" @click="target.idMode.value = 'dynamic'">{{ port.t('css_mode_id_dynamic') }}</button>
-        <button type="button" :aria-pressed="target.idMode.value === 'own'" :title="port.t('css_mode_id_own_note')" data-sve-css-id-mode="own" @click="target.idMode.value = 'own'">{{ port.t('css_mode_id_own') }}</button>
+        <form v-if="isId && renaming" data-sve-css-target-form @submit.prevent="submitRename" @keydown.escape.stop.prevent="cancelRename">
+          <input ref="nameField" v-model="typed" type="text" spellcheck="false" autocomplete="off" :aria-label="port.t('css_mode_id_rename')" data-sve-css-rename-input />
+          <button type="submit" :disabled="!typed.trim()" data-sve-css-rename-save>{{ port.t('css_mode_id_save') }}</button>
+        </form>
+
+        <button v-if="isId && !id && target.isRoot()" type="button" class="sve-css-rename" data-sve-css-section-id @click="target.addSectionId()">{{ port.t('css_mode_add_section_id') }}</button>
+
+        <div v-if="isId && !id && !target.isRoot() && target.canBeDynamic() && target.usable()" class="fg-seg" role="group" :aria-label="port.t('css_mode_id_how')">
+          <button type="button" :aria-pressed="target.idMode.value === 'dynamic'" :title="port.t('css_mode_id_dynamic_note')" data-sve-css-id-mode="dynamic" @click="target.idMode.value = 'dynamic'">{{ port.t('css_mode_id_dynamic') }}</button>
+          <button type="button" :aria-pressed="target.idMode.value === 'own'" :title="port.t('css_mode_id_own_note')" data-sve-css-id-mode="own" @click="target.idMode.value = 'own'">{{ port.t('css_mode_id_own') }}</button>
+        </div>
+
+        <form v-if="canType && !renaming" data-sve-css-target-form :class="{ 'is-asked': pulse }" @submit.prevent="submit">
+          <input
+            ref="nameField"
+            v-model="typed"
+            type="text"
+            spellcheck="false"
+            autocomplete="off"
+            :placeholder="port.t(isId ? 'css_mode_id_name' : 'css_mode_class_name')"
+            :aria-label="port.t(isId ? 'css_mode_id_name' : 'css_mode_class_name')"
+            data-sve-css-target-input
+          />
+          <button type="submit" :disabled="!typed.trim()" data-sve-css-target-add>{{ port.t(isId ? 'css_mode_add_id' : 'css_mode_add_class') }}</button>
+        </form>
+
+        <p v-if="target.usable() && !target.selector.value" class="fg-hint" data-sve-css-target-hint>{{ port.t(isId ? 'css_mode_need_id' : 'css_mode_need_class') }}</p>
+        <p v-if="target.notice.value" class="fg-hint" data-sve-css-target-notice>{{ target.notice.value }}</p>
       </div>
-
-      <form v-if="canType && !renaming" data-sve-css-target-form :class="{ 'is-asked': pulse }" @submit.prevent="submit">
-        <input
-          ref="nameField"
-          v-model="typed"
-          type="text"
-          spellcheck="false"
-          autocomplete="off"
-          :placeholder="port.t(isId ? 'css_mode_id_name' : 'css_mode_class_name')"
-          :aria-label="port.t(isId ? 'css_mode_id_name' : 'css_mode_class_name')"
-          data-sve-css-target-input
-        />
-        <button type="submit" :disabled="!typed.trim()" data-sve-css-target-add>{{ port.t(isId ? 'css_mode_add_id' : 'css_mode_add_class') }}</button>
-      </form>
-
-      <p v-if="target.usable() && !target.selector.value" class="fg-hint" data-sve-css-target-hint>{{ port.t(isId ? 'css_mode_need_id' : 'css_mode_need_class') }}</p>
-      <p v-if="target.notice.value" class="fg-hint" data-sve-css-target-notice>{{ target.notice.value }}</p>
     </div>
 
     <BuildStyle :node="node" />

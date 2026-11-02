@@ -13,8 +13,10 @@
  * A field asks the port for the picked element's classes and hands it a class to
  * set. So the port answers with the declarations of the rule being edited,
  * dressed as classes (`padding-top: 5rem` is `pt-[5rem]`), and takes a class by
- * what it compiles to. Only the reading and the writing change: the site's scale,
- * the sizes and the value an element shows are the real port's.
+ * what it compiles to (translate.js), the fields that share one value in their
+ * share of it (parts.js). Only the reading and the writing change: the site's
+ * scale, the sizes and the value an element shows are the real port's. A state
+ * (`:hover`) is the rule's own, and reads as Tailwind's `hover:` does to a field.
  *
  * What is edited is one selector: a `[ name ]` class of the element, or its one
  * ID. With neither, a click writes nothing and the panel asks for a name. An ID
@@ -33,23 +35,29 @@ import TwClassMenu from '../../cp/surfaces/TwClassMenu.vue';
 import { panelValues } from '../../cp/panel/store.js';
 import BuildDataBind from '../../cp/surfaces/BuildDataBind.vue';
 import { addBracketClassToTag, bracketTokens, sanitizeCssClassName } from '../../css-scope.js';
-import { newSizeQuery } from '../../dock/css-sizes.js';
+import { cssStateSuffix, newSizeQuery } from '../../dock/css-sizes.js';
 import { currentSectionValues } from '../../dock/scope.js';
+import { CSS_STATES } from '../../dock/style-modes.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { loadFamilies } from '../../tw-families.js';
-import { splitClass, splitUtility } from '../../tw-parse.js';
+import { splitClass } from '../../tw-parse.js';
 import { readAttribute, withAttribute } from '../attrs.js';
 import { BUILD_CANVAS_SHOWN_EVENT } from '../../lib/build-canvas-ids.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 import { fieldLookup } from '../canvas-paint.js';
-import { effectiveClass, fromClass, rootOf, variantChain } from '../classes.js';
+import { BUILD_TOOLS, STYLE_FIELDS } from '../catalog.js';
+import { effectiveClass, fromClass, rootFor, rootOf, variantChain } from '../classes.js';
 import { findByPath, parentOf } from '../place.js';
 import { createCssPaint } from './paint.js';
+import { PART_PROPS, applyUpdates, isPartProp, partsOf, readPlaces } from './parts.js';
 import { readBound, readRule, renameSelector, sizeKey, writeDeclarations } from './rules.js';
-import { boundLabel, boundValue, classToCss, cssToClass, fieldsFor, fillValue } from './translate.js';
+import { boundLabel, boundValue, createTranslator, fieldsFor, fillValue, planIsOn, planUpdates, printKeyframes } from './translate.js';
 
 const MENU_ID = '__sve-css-mode-menu';
 const KIND_KEY = 'sve-style-css-target';
+/** The states a rule of the CSS can have, as the dock's CSS pane has them; `before` and `after` need a `content`. */
+const SUFFIXES = CSS_STATES.map((state) => cssStateSuffix(state));
+const PSEUDO_ELEMENT = /^::/;
 /** The unit Spacing's box drags in (BuildSpacingBox.vue): a number from a field is in it too. */
 const UNIT_KEY = 'sve-build-spacing-unit';
 const SECTION_ID = /^id-\{\{\s*id\s*\}\}$/;
@@ -92,10 +100,12 @@ function createCssPort(win, port) {
   const rev = computed(() => port.rev.value + own.value);
   const model = ref(null);
   const lookup = (body) => fieldLookup(currentSectionValues(win) || {}, panelValues() || {})(body);
-  const paint = createCssPaint(win, (value) => fillValue(value, lookup));
+  const paint = createCssPaint(win, (value) => fillValue(value, lookup), SUFFIXES);
   const kind = ref(readKind());
   const chosen = ref(new Map());
   const idMode = ref('dynamic');
+  /** The state being written (`hover`), '' for the plain rule: this mode's own, the Tailwind pane keeps its. */
+  const stateNow = ref('');
   const notice = ref('');
   /** Moves when a click found nothing to write in: the panel's name field takes the caret. */
   const asked = ref(0);
@@ -113,10 +123,40 @@ function createCssPort(win, port) {
     }
   }
 
-  const cssOf = (name) => model.value?.catalog.css(name) || '';
   const rows = () => port.sizes();
   const fullCss = () => String(ask('dock:css') || '');
-  const catalog = { scale: (property) => port.scale(property), cssOf };
+
+  /** The names Style's fields have beyond the property scales: lists by hand, and fields that are one utility. */
+  function fieldNames() {
+    if (!port.scale('display').length) {
+      return null;
+    }
+
+    const tools = [...port.lists.cssTools, ...BUILD_TOOLS].flatMap((tool) => [tool, ...(tool.kids || [])]);
+    const fields = Object.values(STYLE_FIELDS).flat();
+
+    const names = [
+      'border-0',
+      ...tools.flatMap((tool) => tool.twGroup || []),
+      ...fields.flatMap((field) => field.names || []),
+      ...fields.flatMap((field) => (field.roots?.length ? port.utilityNames(field.roots, field.only) : [])),
+    ];
+
+    // Compiled in one go: one call for a list is a fraction of one per name.
+    model.value.catalog.fill(names);
+
+    return names;
+  }
+
+  const translator = computed(() => (model.value
+    ? createTranslator({
+      ruleOf: (name) => model.value.catalog.rule(name),
+      themeValue: (name) => model.value.catalog.design?.resolveThemeValue?.(name),
+      scale: (property) => port.scale(property),
+      named: fieldNames,
+    })
+    : null));
+  const planFor = (name) => translator.value?.planFor(name) || null;
 
   /* ---------------- the element, and what is edited on it ---------------- */
 
@@ -209,35 +249,103 @@ function createCssPort(win, port) {
 
   /* ---------------- reading: the rule, dressed as classes ---------------- */
 
-  const declared = computed(() => {
+  const suffixNow = () => (stateNow.value ? cssStateSuffix(stateNow.value) : '');
+  const stateName = (suffix) => (suffix ? CSS_STATES.find((state) => cssStateSuffix(state) === suffix) : '');
+
+  /** Only the states the file has a word of: most files have none, and each is another walk of its rules. */
+  const statesInFile = (css) => SUFFIXES.filter((suffix) => css.includes(suffix));
+
+  /** Each state's declarations, as `{ size, suffix, prop, value }`. */
+  const eachState = (read) => {
     rev.value;
 
-    return selector.value ? readRule(fullCss(), selector.value, rows()) : [];
-  });
-
-  const dressed = computed(() => {
-    if (!model.value) {
+    if (!selector.value) {
       return [];
     }
 
-    const variantOf = (decl) => (decl.size ? rows().find((row) => row.handle === decl.size)?.tw : '');
-    const named = (decl, name) => (variantOf(decl) ? `${variantOf(decl)}:${name}` : name);
+    const css = fullCss();
+
+    return ['', ...statesInFile(css)].flatMap((suffix) => read(css, `${selector.value}${suffix}`, rows()).map((decl) => ({ ...decl, suffix })));
+  };
+
+  const declared = computed(() => eachState(readRule));
+
+  /** Whether a declaration is a shared value's, read through its parts. */
+  const asParts = (decl) => isPartProp(decl.prop) && !!partsOf(decl.prop, decl.value);
+
+  const sizeVariant = (size) => (size ? rows().find((row) => row.handle === size)?.tw || '' : '');
+  const variantKey = (size, suffix) => [sizeVariant(size), stateName(suffix)].filter(Boolean).join(':');
+
+  /** Declarations by the place they stand: a size and a state. */
+  function placesOf(decls) {
+    const out = new Map();
+
+    for (const decl of decls) {
+      const key = variantKey(decl.size, decl.suffix);
+
+      out.set(key, [...(out.get(key) || []), decl]);
+    }
+
+    return out;
+  }
+
+  const dressed = computed(() => {
+    if (!translator.value) {
+      return [];
+    }
+
+    const named = (size, suffix, name) => {
+      const key = variantKey(size, suffix);
+
+      return key ? `${key}:${name}` : name;
+    };
+    const css = fullCss();
+    const parts = selector.value
+      ? PART_PROPS.filter((prop) => css.includes(prop)).flatMap((prop) => readPlaces(css, selector.value, prop, rows(), statesInFile(css))
+        .filter((place) => place.own.size)
+        .flatMap((place) => translator.value.namesForParts(prop, place.own).map((name) => named(place.size, place.suffix, name))))
+      : [];
 
     return [
-      ...declared.value.map((decl) => named(decl, cssToClass(decl.prop, decl.value, catalog))),
-      ...boundNow().map((decl) => named(decl, boundName(decl.prop))),
+      ...[...placesOf(declared.value.filter((decl) => !asParts(decl))).values()]
+        .flatMap((decls) => translator.value.namesForDeclarations(decls).map((name) => named(decls[0].size, decls[0].suffix, name))),
+      ...parts,
+      ...boundNow().map((decl) => named(decl.size, decl.suffix, boundName(decl.prop))),
     ];
   });
 
   const sizeNow = () => sizeKey(rows(), port.size());
-  const variantNow = () => (sizeNow() ? rows().find((row) => row.handle === sizeNow())?.tw || '' : '');
+  const keyNow = () => variantKey(sizeNow(), suffixNow());
 
-  const propertyOf = (name) => propOfBound(name) || port.propertyOf(name);
+  /** A class's own property, for one Tailwind lists under none: `border-2` also says its style. */
+  function propertyOf(name) {
+    const plan = /^\[/.test(name || '') ? null : planFor(name);
+    const hard = plan && !plan.parts.length ? plan.decls.filter((decl) => !decl.soft) : [];
+
+    return propOfBound(name) || /^\[([\w-]+):/.exec(name || '')?.[1] || port.propertyOf(name) || (hard.length === 1 ? hard[0].prop : '');
+  }
 
   function activeClass(property) {
     rev.value;
 
-    return effectiveClass(dressed.value.join(' '), [property], [variantNow()], propertyOf)?.name || '';
+    return effectiveClass(dressed.value.join(' '), [property], [keyNow()], propertyOf)?.name || '';
+  }
+
+  /** What stands at the place being written: the declarations, and a shared value's own parts. */
+  const hereNow = () => new Map(declared.value.filter((decl) => decl.size === sizeNow() && decl.suffix === suffixNow()).map((decl) => [decl.prop, decl.value]));
+
+  /** The properties that reach the place being written from a wider size or the plain state. */
+  const reachingNow = () => {
+    const chain = variantChain(rows(), port.size(), stateNow.value);
+
+    return new Set(declared.value.filter((decl) => chain.includes(variantKey(decl.size, decl.suffix))).map((decl) => decl.prop));
+  };
+
+  function ownParts(prop) {
+    const css = fullCss();
+    const place = readPlaces(css, selector.value, prop, rows(), statesInFile(`${css}${suffixNow()}`)).find((one) => one.size === sizeNow() && one.suffix === suffixNow());
+
+    return place?.own || new Map();
   }
 
   /* ---------------- writing ---------------- */
@@ -246,7 +354,7 @@ function createCssPort(win, port) {
     const size = sizeNow();
     const row = rows().find((item) => item.handle === size);
 
-    return { selector: selector.value, size, rows: rows(), query: row ? newSizeQuery(row, fullCss()) : '' };
+    return { selector: selector.value, suffix: suffixNow(), suffixes: statesInFile(`${fullCss()}${suffixNow()}`), size, rows: rows(), query: row ? newSizeQuery(row, fullCss()) : '' };
   }
 
   function canWrite() {
@@ -282,6 +390,34 @@ function createCssPort(win, port) {
     }
   }
 
+  /**
+   * `::before` shows nothing until it has a `content`: it comes with the first
+   * value, and goes with the last.
+   */
+  function withContent(css, where) {
+    const place = { ...where, selector: `${where.selector}${where.suffix}` };
+
+    if (!PSEUDO_ELEMENT.test(where.suffix)) {
+      return css;
+    }
+
+    const props = readRule(css, place.selector, where.rows).filter((decl) => decl.size === where.size);
+    const others = props.some((decl) => decl.prop !== 'content') || readBound(css, place.selector, where.rows).some((decl) => decl.size === where.size);
+    const content = props.find((decl) => decl.prop === 'content');
+
+    if (others && !content) {
+      return writeDeclarations(css, place, [{ prop: 'content', value: '""' }]);
+    }
+
+    return !others && content?.value === '""' ? writeDeclarations(css, place, [{ prop: 'content', value: null }]) : css;
+  }
+
+  const nextCss = (css, updates) => {
+    const where = whereNow();
+
+    return withContent(applyUpdates(css, where, updates), where);
+  };
+
   function write(updates) {
     if (!canWrite() || !updates.length) {
       return;
@@ -290,7 +426,7 @@ function createCssPort(win, port) {
     followFile();
 
     const css = fullCss();
-    const next = writeDeclarations(css, whereNow(), updates);
+    const next = nextCss(css, updates);
 
     notice.value = '';
 
@@ -311,40 +447,50 @@ function createCssPort(win, port) {
     emit('css-mode:changed');
   }
 
-  const baseOf = (raw) => splitUtility(splitClass(raw).base).name || splitClass(raw).base;
+  /* Without its variants. `w-1/2` keeps its `/2`: that is the class, not an opacity. */
+  const baseOf = (raw) => splitClass(raw).base.replace(/^!|!$/g, '');
 
-  function declarationsOfClass(name) {
-    const decls = classToCss(baseOf(name), cssOf);
+  function planOfClass(name) {
+    const plan = planFor(baseOf(name));
 
-    if (!decls) {
+    if (!plan) {
       notice.value = port.t('css_mode_no_css', { name: baseOf(name) });
     }
 
-    return decls;
+    return plan;
   }
 
-  /** What a class on the element stands for: its declarations, or the one a field gives. */
-  function declarationsOfRaw(raw) {
+  /** What a class on the element stands for; a field's value is the one declaration. */
+  function planOfRaw(raw) {
     const prop = propOfBound(baseOf(raw));
 
-    return prop ? [{ prop, value: '' }] : classToCss(baseOf(raw), cssOf) || [];
+    return prop ? { decls: [{ prop, value: '' }], parts: [], keyframes: '' } : planFor(baseOf(raw));
+  }
+
+  /** The steps of the animation a class needs, as the update that puts them in the file. */
+  function withSteps(plan, updates) {
+    const node = plan?.keyframes ? model.value.catalog.design?.theme.getKeyframes?.().find((one) => one.params === plan.keyframes) : null;
+
+    return node ? [...updates, { keyframes: plan.keyframes, text: printKeyframes(node) }] : updates;
   }
 
   /** The updates that put `name` in the place of `raw`: what it alone set comes out. */
   function updatesFor(name, raw) {
-    const decls = name ? declarationsOfClass(name) : [];
+    const plan = name ? planOfClass(name) : null;
 
-    if (!decls) {
+    if (name && !plan) {
       return null;
     }
 
-    const gone = raw ? declarationsOfRaw(raw) : [];
-
-    return [
-      ...gone.filter((old) => !decls.some((decl) => decl.prop === old.prop)).map((old) => ({ prop: old.prop, value: null })),
-      ...decls.map((decl) => ({ prop: decl.prop, value: decl.value })),
-    ];
+    return withSteps(plan, planUpdates(plan, raw ? planOfRaw(raw) : null, hereNow(), reachingNow()));
   }
+
+  /*
+   * The family's dot takes its classes off one after the other, in one go. What
+   * went along with a class before it (`transition`'s easing) would read as not
+   * there and be set again, so it is remembered until the go is over.
+   */
+  const justOff = new Set();
 
   /** As the pane's own click: set, or taken off when it is what stands here already. */
   function setClass(name) {
@@ -355,16 +501,25 @@ function createCssPort(win, port) {
       return;
     }
 
-    const decls = declarationsOfClass(name);
+    const plan = planOfClass(name);
 
-    if (!decls) {
+    if (!plan) {
       return;
     }
 
-    const here = declared.value.filter((decl) => decl.size === sizeNow());
-    const on = decls.every((decl) => here.some((one) => one.prop === decl.prop && one.value === decl.value));
+    if (plan.decls.length && plan.decls.every((decl) => justOff.has(decl.prop))) {
+      return;
+    }
 
-    write(decls.map((decl) => ({ prop: decl.prop, value: on ? null : decl.value })));
+    if (planIsOn(plan, hereNow(), ownParts)) {
+      const updates = planUpdates(null, plan, hereNow());
+
+      updates.forEach((one) => one.prop && !one.key && justOff.add(one.prop));
+      queueMicrotask(() => justOff.clear());
+      write(updates);
+    } else {
+      write(withSteps(plan, planUpdates(plan, null, hereNow(), reachingNow())));
+    }
   }
 
   function setFieldClass(name, raw) {
@@ -405,15 +560,16 @@ function createCssPort(win, port) {
     const options = [];
 
     for (const name of list) {
-      const decls = classToCss(name, cssOf);
+      const plan = planFor(name);
 
-      if (decls) {
-        const label = fromClass(name, root) || name;
+      if (plan) {
+        // A list with no one root (`skew-x-12`, `-skew-x-12`): each row by its own, its sign kept.
+        const label = root ? fromClass(name, root) || name : `${name.startsWith('-') ? '-' : ''}${fromClass(name, rootFor(name)) || name}`;
 
         byLabel.set(label, name);
         options.push({
           label,
-          css: decls.map((decl) => `${decl.prop}: ${decl.value}`).join('; '),
+          css: [...plan.decls.filter((decl) => !decl.soft), ...plan.parts].map((one) => `${one.prop}: ${one.value}`).join('; '),
           color: port.colorOf(name) || '',
           active: name === mine?.name,
         });
@@ -431,7 +587,7 @@ function createCssPort(win, port) {
 
       paint.remember(selector.value, port.selectedPath());
       hold();
-      paint.sync(updates ? writeDeclarations(css, whereNow(), updates) : css, rows());
+      paint.sync(updates ? nextCss(css, updates) : css, rows());
     };
     const menu = win.document.createElement('div');
 
@@ -446,7 +602,14 @@ function createCssPort(win, port) {
         ? (text) => {
             const name = free(text);
 
-            return name && classToCss(name, cssOf) ? name : '';
+            if (name && planFor(name)) {
+              return name;
+            }
+
+            // A plain number the scale has no row for (`leading-1.3`): as a typed value.
+            const typed = name ? `${rootFor(name)}-[${String(text).trim().replace(/\s+/g, '_')}]` : '';
+
+            return typed && planFor(typed) ? typed : '';
           }
         : null,
       onPreview: selector.value ? preview : null,
@@ -463,12 +626,12 @@ function createCssPort(win, port) {
         closeMenu();
 
         if (mine?.raw) {
-          write(declarationsOfRaw(mine.raw).map((decl) => ({ prop: decl.prop, value: null })));
+          write(planUpdates(null, planOfRaw(mine.raw), hereNow()));
         } else {
           // Nothing by hand here: Remove lets go of the field, if one gives this value.
           const names = [property, title].filter(Boolean);
 
-          write(boundNow().filter((decl) => decl.size === sizeNow() && names.includes(decl.prop)).map((decl) => ({ prop: decl.prop, value: null })));
+          write(boundNow().filter((decl) => decl.size === sizeNow() && decl.suffix === suffixNow() && names.includes(decl.prop)).map((decl) => ({ prop: decl.prop, value: null })));
         }
       },
     });
@@ -523,7 +686,9 @@ function createCssPort(win, port) {
   const formNow = () => {
     own.value;
 
-    return JSON.stringify(paint.selectors().flatMap((name) => readBound(fullCss(), name, rows()).map((decl) => fillValue(decl.value, lookup))));
+    const css = fullCss();
+
+    return JSON.stringify(paint.selectors().flatMap((name) => ['', ...statesInFile(css)].flatMap((suffix) => readBound(css, `${name}${suffix}`, rows()).map((decl) => fillValue(decl.value, lookup)))));
   };
 
   function hold() {
@@ -559,11 +724,7 @@ function createCssPort(win, port) {
 
   /* ---------------- a style's value from a field ---------------- */
 
-  const boundNow = () => {
-    rev.value;
-
-    return selector.value ? readBound(fullCss(), selector.value, rows()) : [];
-  };
+  const boundNow = () => eachState(readBound);
 
   /** Whether a field may give the property its value: the rule has to be this one section's alone. */
   function bindable(property) {
@@ -584,21 +745,21 @@ function createCssPort(win, port) {
       return '';
     }
 
-    const chain = variantChain(rows(), port.size(), '');
-    const keyOf = (size) => (size ? rows().find((row) => row.handle === size)?.tw || '' : '');
+    const chain = variantChain(rows(), port.size(), stateNow.value);
+    const keyOf = (decl) => variantKey(decl.size, decl.suffix);
 
     // All four sides from one field: the side shows through to it, as to a value.
     if (current && propOfBound(current.name) && ![property, twin].includes(propOfBound(current.name))) {
-      return boundLabel(decls.find((decl) => decl.prop === propOfBound(current.name) && keyOf(decl.size) === current.key)?.value);
+      return boundLabel(decls.find((decl) => decl.prop === propOfBound(current.name) && keyOf(decl) === current.key)?.value);
     }
 
-    const at = chain.findIndex((key) => decls.some((decl) => keyOf(decl.size) === key && [property, twin].includes(decl.prop)));
+    const at = chain.findIndex((key) => decls.some((decl) => keyOf(decl) === key && [property, twin].includes(decl.prop)));
 
     if (at === -1 || (current && chain.indexOf(current.key) !== -1 && chain.indexOf(current.key) < at)) {
       return '';
     }
 
-    return boundLabel(decls.find((decl) => keyOf(decl.size) === chain[at] && [property, twin].includes(decl.prop)).value);
+    return boundLabel(decls.find((decl) => keyOf(decl) === chain[at] && [property, twin].includes(decl.prop)).value);
   }
 
   /** The dock's list of fields beside the icon, of the kinds that fit: a pick is written as the style's value. */
@@ -802,6 +963,8 @@ function createCssPort(win, port) {
   return Object.create(port, Object.getOwnPropertyDescriptors({
     rev,
     cssTarget: target,
+    /* The Tailwind pane's words for its state menu name its `prose-*`, which is no state here. */
+    t: (key, replace) => port.t(key === 'state_title' ? 'css_mode_state' : key, replace),
     /* A style's value from a field: the icon the fields draw, and what it does. */
     bindIcon: BuildDataBind,
     bindable,
@@ -809,6 +972,9 @@ function createCssPort(win, port) {
     pickFieldFor,
     pickedClasses: () => (rev.value, dressed.value),
     propertyOf,
+    /* A value from a field on a field that is one utility: it counts as that utility's. */
+    utilityRoot: (name) => propOfBound(name) || port.utilityRoot(name),
+    bindsUtility: (field) => field.label === 'rotate',
     colorOf(name) {
       const prop = propOfBound(name);
 
@@ -842,9 +1008,41 @@ function createCssPort(win, port) {
       stopPicking() {},
       edit() {},
     },
-    /* A state is not part of this first demo: what is written is the plain rule. */
-    state: () => '',
-    openStateMenu() {},
+    /* A rule's state, as the dock's CSS pane lists them. Tailwind's `prose-*` is no state of a rule. */
+    state: () => (rev.value, stateNow.value),
+    openStateMenu(anchor) {
+      closeMenu();
+
+      const menu = win.document.createElement('div');
+
+      menu.id = MENU_ID;
+      win.document.body.appendChild(menu);
+      menu._sveApp = mountSurface(TwClassMenu, menu, {
+        title: port.t('css_mode_state'),
+        removeLabel: port.t('state_normal'),
+        options: CSS_STATES.map((state) => ({ label: state, css: cssStateSuffix(state), color: '', active: state === stateNow.value })),
+        onPick(label) {
+          closeMenu();
+          stateNow.value = label;
+          own.value += 1;
+        },
+        onRemove() {
+          closeMenu();
+          stateNow.value = '';
+          own.value += 1;
+        },
+      });
+      place(menu, anchor);
+
+      const onDown = (event) => {
+        if (!menu.contains(event.target) && !anchor.contains(event.target)) {
+          closeMenu();
+        }
+      };
+
+      win.document.addEventListener('pointerdown', onDown, true);
+      menu._sveClose = () => win.document.removeEventListener('pointerdown', onDown, true);
+    },
     run(item, anchor) {
       if (!item) {
         return '';
@@ -872,7 +1070,11 @@ function createCssPort(win, port) {
       }
 
       if (item.twClass) {
-        return dressed.value.includes(variantNow() ? `${variantNow()}:${item.twClass}` : item.twClass);
+        return dressed.value.includes(keyNow() ? `${keyNow()}:${item.twClass}` : item.twClass);
+      }
+
+      if (item.twGroup) {
+        return item.twGroup.some((name) => dressed.value.includes(keyNow() ? `${keyNow()}:${name}` : name));
       }
 
       return !!(item.tw && activeClass(item.tw));

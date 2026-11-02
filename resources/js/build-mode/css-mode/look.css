@@ -118,16 +118,20 @@
 /* The field stays lit while the pointer is on its icon. */
 .sve-build .bm-spx .bm-vin:has(+ .sve-css-bind:hover) { background: var(--bm-bg); border-color: var(--bm-accent); }
 
-/* What this first demo does not write yet is not offered. */
-[data-sve-style-css] .fg-sec:not([data-sve-build-group='layout'], [data-sve-build-group='background'], [data-sve-build-group='spacing']),
-[data-sve-style-css] .fg-jump,
-[data-sve-style-css] .fg-state,
+/* Tailwind's own class list and class target have no place here: the row above the fields says what is edited. */
 [data-sve-style-css] [data-sve-build-classes],
 [data-sve-style-css] [data-sve-build-target],
-[data-sve-style-css] .fg-target__note,
-[data-sve-style-css] .fg-cell:has([data-sve-build-value='gradient'], [data-sve-build-value='from'], [data-sve-build-value='via'], [data-sve-build-value='to']) {
+[data-sve-style-css] .fg-target__note {
   display: none;
 }
+
+/* Style measures and scrolls its parent (a jump to a family, what stops under the top): that parent is this wrapper here, so it is the one that scrolls. */
+.sve-build .bm-scroll:has(> [data-sve-style-css]) { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.sve-build [data-sve-style-css] { flex: 1; min-height: 0; overflow: auto; padding: 0 0.75rem; }
+
+/* The head moved into `.fg-top` (BuildStyleCss.vue), so it stays with the sizes on top of the panel's scroll. */
+[data-sve-css-head] { display: grid; gap: 0.5rem; margin-block-end: 0.5rem; }
+[data-sve-css-head] > * { margin-block-end: 0; }
 
 /* A value's menu: the look of the Tailwind pane's, under this module's own id. */
 #__sve-css-mode-menu {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { liveSheet, readBound, readRule, renameSelector, sizeKey, writeDeclarations } from '../../resources/js/build-mode/css-mode/rules.js';
-import { boundLabel, boundValue, classToCss, cssToClass, fieldsFor, fillValue, parseDeclarations } from '../../resources/js/build-mode/css-mode/translate.js';
+import { boundLabel, boundValue, createTranslator, fieldsFor, fillValue, parseDeclarations } from '../../resources/js/build-mode/css-mode/translate.js';
 
 const ROWS = [
   { handle: 'desktop', base: true, direction: 'desktop', tw: '', media: '' },
@@ -149,24 +149,22 @@ const COMPILED = {
   'border-2': 'border-style: var(--tw-border-style); border-width: 2px',
   'bg-[url(/a;b.png)]': 'background-image: url(/a;b.png)',
 };
-const catalog = {
-  cssOf: (name) => COMPILED[name] || '',
+const translator = createTranslator({
+  ruleOf: (name) => (COMPILED[name] ? `.x {\n  ${COMPILED[name].split(/;\s*(?![^(]*\))/).filter(Boolean).join(';\n  ')};\n}` : ''),
   scale: (prop) => ({ display: ['flex', 'block'], 'padding-top': ['pt-700', 'pt-800'] })[prop] || [],
-};
+});
 
-test('a class is its declarations; one built on Tailwind\'s plumbing has none', () => {
-  assert.deepEqual(classToCss('flex', catalog.cssOf), [{ prop: 'display', value: 'flex' }]);
-  assert.equal(classToCss('shadow-md', catalog.cssOf), null);
-  assert.equal(classToCss('border-2', catalog.cssOf), null);
-  assert.equal(classToCss('nothing', catalog.cssOf), null);
-  assert.deepEqual(classToCss('bg-[url(/a;b.png)]', catalog.cssOf), [{ prop: 'background-image', value: 'url(/a;b.png)' }]);
+test('a class is its declarations; what is left of Tailwind\'s plumbing has none', () => {
+  assert.deepEqual(translator.planFor('flex').decls, [{ prop: 'display', value: 'flex' }]);
+  assert.equal(translator.planFor('nothing'), null);
+  assert.deepEqual(translator.planFor('bg-[url(/a;b.png)]').decls, [{ prop: 'background-image', value: 'url(/a;b.png)' }]);
 });
 
 test('a declaration reads as the scale\'s row, a typed value, or any property', () => {
-  assert.equal(cssToClass('display', 'flex', catalog), 'flex');
-  assert.equal(cssToClass('padding-top', 'var(--spacing-700)', catalog), 'pt-700');
-  assert.equal(cssToClass('padding-top', '5rem', catalog), 'pt-[5rem]');
-  assert.equal(cssToClass('inset', '0 auto', catalog), '[inset:0_auto]');
+  assert.equal(translator.nameFor('display', 'flex'), 'flex');
+  assert.equal(translator.nameFor('padding-top', 'var(--spacing-700)'), 'pt-700');
+  assert.equal(translator.nameFor('padding-top', '5rem'), 'pt-[5rem]');
+  assert.equal(translator.nameFor('inset', '0 auto'), '[inset:0_auto]');
 });
 
 test('declarations are split where they end', () => {
