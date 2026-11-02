@@ -1,20 +1,16 @@
 /**
- * Whether the CSS mode demo is on, and which way Style writes. Off by default:
- * with it off Style is what it was, and nothing else of css-mode/ is loaded.
+ * Which way Style writes: `tw` or `css`, this browser's choice, on Tailwind until
+ * CSS is chosen. Style always has the switch.
  *
- * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
- * May import: vue, cp/bus.js, and css-mode/panel-look.js when it is on. No editor.
- * Bus: registers `css-mode:on` while the demo is on (the top bar's history asks).
+ * Owner: Build mode, the CSS mode (resources/js/build-mode/css-mode/).
+ * May import: vue, cp/bus.js, css-mode/panel-look.js. No editor.
+ * Bus: registers `css-mode:on` (the top bar's history asks).
  * Says on the root whether Style writes CSS, for Tailwind's strip over the canvas.
- *
- * `?sve-css-demo=1` on the Control Panel's address turns it on in this browser,
- * `?sve-css-demo=0` off again.
  */
 
 import { ref, watchEffect } from 'vue';
 import { register } from '../../cp/bus.js';
 
-const FLAG_KEY = 'sve-css-demo';
 const MODE_KEY = 'sve-style-mode';
 
 function stored(key) {
@@ -33,35 +29,7 @@ function keep(key, value) {
   }
 }
 
-function askedInAddress() {
-  for (const place of [window, window.parent, window.top]) {
-    try {
-      const said = new URLSearchParams(place.location.search).get(FLAG_KEY);
-
-      if (said === '1' || said === '0') {
-        return said;
-      }
-    } catch {
-      /* another origin's window */
-    }
-  }
-
-  return null;
-}
-
-export function cssDemoOn() {
-  const said = askedInAddress();
-
-  if (said) {
-    keep(FLAG_KEY, said);
-  }
-
-  const on = (said || stored(FLAG_KEY)) === '1';
-
-  register('css-mode:on', () => on);
-
-  return on;
-}
+register('css-mode:on', () => true);
 
 /** `tw` or `css`, this browser's choice. */
 export const styleMode = ref(stored(MODE_KEY) === 'css' ? 'css' : 'tw');
@@ -82,7 +50,7 @@ export function setStyleMode(mode) {
 const STRIP_ATTR = 'data-sve-style-css-on';
 const STRIP_STYLE = '__sve-style-css-strip';
 
-if (typeof document !== 'undefined' && (askedInAddress() || stored(FLAG_KEY)) === '1') {
+if (typeof document !== 'undefined') {
   const style = document.createElement('style');
 
   style.id = STRIP_STYLE;
@@ -91,6 +59,5 @@ if (typeof document !== 'undefined' && (askedInAddress() || stored(FLAG_KEY)) ==
 
   watchEffect(() => document.documentElement.toggleAttribute(STRIP_ATTR, styleMode.value === 'css'));
 
-  // A chunk of its own: with the flag off none of this is loaded.
   void import('./panel-look.js').then((module) => module.startPanelLook(document));
 }

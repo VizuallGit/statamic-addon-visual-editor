@@ -35,15 +35,12 @@ test('the demo calls no function that writes a class, and says no class changed'
   }
 });
 
-test('with the demo off, nothing of it but the flag is imported', () => {
+test('Style always has the switch, and the CSS side is a chunk of its own', () => {
   const mode = read(join(ROOT, 'cp/surfaces/BuildStyleMode.vue'));
 
-  assert.ok(/from '\.\/BuildStyle\.vue'/.test(mode));
-  assert.ok(/demo \? defineAsyncComponent\(\(\) => import\('\.\/BuildStyleCss\.vue'\)\) : null/.test(mode));
-  assert.deepEqual(
-    [...mode.matchAll(/^import .* from '([^']+)'/gm)].map((match) => match[1]).sort(),
-    ['../../build-mode/css-mode/flag.js', './BuildStyle.vue', 'vue'],
-  );
+  assert.ok(/<BuildStyleSwitch v-if="styleMode === 'tw'" \/>/.test(mode));
+  assert.ok(/defineAsyncComponent\(\(\) => import\('\.\/BuildStyleCss\.vue'\)\)/.test(mode));
+  assert.ok(!/sve-css-demo|cssDemoOn/.test(mode + read(join(DIR, 'flag.js'))), 'no way to turn it off');
 });
 
 test('the sheet is the demo\'s own, on the canvas document\'s root', () => {
@@ -52,13 +49,6 @@ test('the sheet is the demo\'s own, on the canvas document\'s root', () => {
   assert.ok(paint.includes("const SHEET_ID = '__sve-build-css-mode'"));
   assert.ok(paint.includes('page.documentElement.append(sheet)'));
   assert.ok(!/\.head\b|\.body\b/.test(paint.replace(/\/\*[\s\S]*?\*\//g, '')), 'never the head or body the canvas morphs');
-});
-
-test('with the demo off the panel\'s looks are not loaded', () => {
-  const flag = read(join(DIR, 'flag.js'));
-
-  assert.ok(!/^import .*panel-look/m.test(flag), 'no import at the top of the flag');
-  assert.ok(/=== '1'\) \{[\s\S]*import\('\.\/panel-look\.js'\)/.test(flag), 'only inside the flag\'s branch');
 });
 
 test('the panel has one door to the demo', () => {
