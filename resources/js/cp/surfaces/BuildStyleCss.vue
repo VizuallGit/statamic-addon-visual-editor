@@ -36,7 +36,29 @@ onMounted(() => {
   // In the sticky top of BuildStyle, so what is edited stays on screen, and the
   // panel's own measure of that top (where a jump to a family stops) holds it.
   root.value.querySelector('.fg-top')?.prepend(head.value);
+  applyBlocked();
 });
+
+/*
+ * With nothing to write on, the fields are off: they cannot be clicked or tabbed
+ * to, and the row above says why. The head, moved into `.fg-top`, stays on.
+ */
+const OFF = '.fg-sec, .fg-top > .fg-sizes, .fg-top > .fg-line, .fg-top > .fg-jump';
+const blocked = computed(() => target.blocked());
+
+function applyBlocked() {
+  root.value?.querySelectorAll(OFF).forEach((el) => {
+    el.inert = !!blocked.value;
+  });
+}
+
+function onFieldsOff(event) {
+  if (blocked.value && !head.value?.contains(event.target)) {
+    target.ask();
+  }
+}
+
+watch(blocked, applyBlocked, { flush: 'post' });
 
 const isId = computed(() => target.kind.value === 'id');
 const typed = ref('');
@@ -99,7 +121,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" data-sve-style-css>
+  <div ref="root" data-sve-style-css :data-sve-css-blocked="blocked ? '' : undefined" @click="onFieldsOff">
     <div ref="head" data-sve-css-head>
       <!-- One line when there is room for both; Class | ID goes under when there is not. -->
       <div data-sve-style-bar>
@@ -111,8 +133,6 @@ onBeforeUnmount(() => {
       </div>
 
       <div data-sve-css-target>
-        <p v-if="!target.usable()" class="fg-hint" data-sve-css-target-unusable>{{ port.t('css_mode_not_element') }}</p>
-
         <div v-if="!isId && target.classes().length" data-sve-css-target-names>
           <button
             v-for="name in target.classes()"
@@ -157,7 +177,7 @@ onBeforeUnmount(() => {
           <button type="submit" :disabled="!typed.trim()" data-sve-css-target-add>{{ port.t(isId ? 'css_mode_add_id' : 'css_mode_add_class') }}</button>
         </form>
 
-        <p v-if="target.usable() && !target.selector.value" class="fg-hint" data-sve-css-target-hint>{{ port.t(info?.kind === 'loop' ? 'css_mode_id_loop' : isId ? 'css_mode_need_id' : 'css_mode_need_class') }}</p>
+        <p v-if="blocked" class="fg-hint" data-sve-css-target-hint>{{ port.t(blocked) }}</p>
         <p v-if="target.notice.value" class="fg-hint" data-sve-css-target-notice>{{ target.notice.value }}</p>
       </div>
     </div>

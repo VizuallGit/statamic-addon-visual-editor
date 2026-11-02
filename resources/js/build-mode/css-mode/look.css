@@ -126,8 +126,13 @@
 }
 
 /* Style measures and scrolls its parent (a jump to a family, what stops under the top): that parent is this wrapper here, so it is the one that scrolls. */
-.sve-build .bm-scroll:has(> [data-sve-style-css]) { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.sve-build .bm-scroll:has(> [data-sve-style-css]) { display: flex; flex-direction: column; overflow: clip; padding: 0; }
 .sve-build [data-sve-style-css] { flex: 1; min-height: 0; overflow: auto; padding: 0 0.75rem; }
+
+/* Nothing to write on: the fields are off (inert, BuildStyleCss.vue), and the row above says why. */
+[data-sve-css-blocked] :is(.fg-sec, .fg-top > .fg-sizes, .fg-top > .fg-line, .fg-top > .fg-jump) { opacity: 0.4; }
+[data-sve-css-blocked] .fg-style { cursor: not-allowed; }
+[data-sve-css-blocked] [data-sve-css-target-hint] { color: var(--bm-ink); }
 
 /* The head moved into `.fg-top` (BuildStyleCss.vue), so it stays with the sizes on top of the panel's scroll. */
 [data-sve-css-head] { display: grid; gap: 0.5rem; margin-block-end: 0.5rem; }

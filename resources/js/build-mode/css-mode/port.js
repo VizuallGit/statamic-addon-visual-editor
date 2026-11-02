@@ -900,6 +900,28 @@ function createCssPort(win, port) {
     /** How a new ID is made: unique per section, or a name of the author's. */
     idMode,
     canBeDynamic: () => (rev.value, canBeDynamic()),
+    /** Why nothing can be written on the picked element right now, as a language key; '' when it can. */
+    blocked: () => {
+      rev.value;
+
+      if (!picked()) {
+        return 'css_mode_not_element';
+      }
+
+      if (kind.value === 'id') {
+        return idInfo()?.kind === 'loop' ? 'css_mode_id_loop' : selector.value ? '' : 'css_mode_need_id';
+      }
+
+      if (!selector.value) {
+        return 'css_mode_need_class';
+      }
+
+      return isFileRoot() && /@scope\b/i.test(fullCss()) ? 'css_mode_root_scope' : '';
+    },
+    /** A click on the fields while they are off: the name field takes the caret. */
+    ask() {
+      asked.value += 1;
+    },
     /** The file's outermost element takes the section's own ID, not a name. */
     isRoot: () => (rev.value, isFileRoot() && canBeDynamic()),
     addSectionId() {

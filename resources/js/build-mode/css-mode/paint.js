@@ -19,6 +19,7 @@
 
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 import { CANVAS_PATH } from '../canvas-paint.js';
+import { refreshContrast } from './contrast.js';
 import { liveSheet } from './rules.js';
 
 const SHEET_ID = '__sve-build-css-mode';
@@ -59,6 +60,8 @@ export function createCssPaint(win, fill, suffixes = []) {
 
     if (sheet.textContent !== text) {
       sheet.textContent = text;
+      // A background from the sheet is what the text's contrast is measured against.
+      refreshContrast(win);
     }
   }
 

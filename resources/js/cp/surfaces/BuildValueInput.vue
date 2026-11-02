@@ -34,6 +34,7 @@
  */
 import { computed, inject, ref, watch } from 'vue';
 import { effectiveClass, fromClass, kindOf, rootFor, rootOf, typedClass, variantChain } from '../../build-mode/classes.js';
+import BuildFieldReset from './BuildFieldReset.vue';
 
 const props = defineProps({
   tool: { type: Object, required: true },
@@ -306,4 +307,5 @@ defineExpose({ open });
     @keydown.down.prevent="open()"
   >{{ showing }}</button>
   <component :is="port.bindIcon" v-if="port.bindIcon" :class="$attrs.class" :property="property" :twin="twin" :label="label" />
+  <BuildFieldReset :class="$attrs.class" :hit="own" :label="label || property" />
 </template>

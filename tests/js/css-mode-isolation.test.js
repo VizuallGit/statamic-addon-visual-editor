@@ -54,6 +54,19 @@ test('the sheet is the demo\'s own, on the canvas document\'s root', () => {
   assert.ok(!/\.head\b|\.body\b/.test(paint.replace(/\/\*[\s\S]*?\*\//g, '')), 'never the head or body the canvas morphs');
 });
 
+test('the contrast module listens to the event the canvas really sends', () => {
+  const name = /CANVAS_PAINTED = '([^']+)'/.exec(read(join(ROOT, 'build-mode/canvas.js')))[1];
+
+  assert.ok(read(join(DIR, 'contrast.js')).includes(`const PAINTED = '${name}'`));
+});
+
+test('with the demo off the contrast module is not loaded', () => {
+  const flag = read(join(DIR, 'flag.js'));
+
+  assert.ok(!/^import .*contrast/m.test(flag), 'no import at the top of the flag');
+  assert.ok(/=== '1'\) \{[\s\S]*import\('\.\/contrast\.js'\)/.test(flag), 'only inside the flag\'s branch');
+});
+
 test('the panel has one door to the demo', () => {
   const panel = read(join(ROOT, 'cp/surfaces/BuildPanel.vue'));
 

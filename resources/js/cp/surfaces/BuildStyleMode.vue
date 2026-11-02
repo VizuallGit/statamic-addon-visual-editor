@@ -6,7 +6,7 @@
  * side is a chunk of its own (BuildStyleCss.vue), loaded the first time it is
  * chosen, and it brings its port with it.
  */
-import { defineAsyncComponent } from 'vue';
+import { defineAsyncComponent, provide } from 'vue';
 import BuildStyle from './BuildStyle.vue';
 import { cssDemoOn, styleMode } from '../../build-mode/css-mode/flag.js';
 
@@ -15,6 +15,9 @@ defineProps({
 });
 
 const demo = cssDemoOn();
+
+// A field's own reset (BuildFieldReset.vue), in either mode, while the demo is on.
+provide('sveFieldReset', demo);
 const BuildStyleCss = demo ? defineAsyncComponent(() => import('./BuildStyleCss.vue')) : null;
 const BuildStyleSwitch = demo ? defineAsyncComponent(() => import('./BuildStyleSwitch.vue')) : null;
 </script>

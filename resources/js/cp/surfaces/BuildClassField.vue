@@ -12,6 +12,7 @@
 import { computed, inject, ref } from 'vue';
 import { fieldHas } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, kindOf, rootFor, typedClass, variantChain } from '../../build-mode/classes.js';
+import BuildFieldReset from './BuildFieldReset.vue';
 
 const props = defineProps({
   field: { type: Object, required: true },
@@ -95,5 +96,6 @@ function open() {
       @keydown.down.prevent="open"
     >{{ text }}</button>
     <component :is="port.bindIcon" v-if="port.bindIcon && (field.image || port.bindsUtility(field))" :property="field.label" :label="field.label" />
+    <BuildFieldReset :hit="current && !current.inherited ? current : null" :label="field.label" />
   </label>
 </template>
