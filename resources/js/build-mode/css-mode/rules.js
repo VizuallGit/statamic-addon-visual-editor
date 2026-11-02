@@ -151,25 +151,29 @@ function declarationsIn(css, node) {
   return out;
 }
 
-/**
- * What the selector sets, per size: `[{ size, prop, value }]`, base first. Of a
- * property set twice at a size the last one stands. Antlers values are left out.
- */
-export function readRule(css, selector, rows) {
+/** Everything the selector declares, per size; of a property set twice at a size the last one stands. */
+function allDeclarations(css, selector, rows) {
   const source = String(css || '');
   const found = new Map();
 
   for (const { node, size } of hitsOf(cssBlockTree(source), selector, rows)) {
     for (const decl of declarationsIn(source, node)) {
       found.delete(`${size}|${decl.prop}`);
-
-      if (!hasTag(decl.value)) {
-        found.set(`${size}|${decl.prop}`, { size, prop: decl.prop, value: decl.value });
-      }
+      found.set(`${size}|${decl.prop}`, { size, prop: decl.prop, value: decl.value });
     }
   }
 
   return [...found.values()];
+}
+
+/** What the selector sets by hand, per size: `[{ size, prop, value }]`, base first. Antlers values are left out. */
+export function readRule(css, selector, rows) {
+  return allDeclarations(css, selector, rows).filter((decl) => !hasTag(decl.value));
+}
+
+/** What the selector takes from a field, per size: `[{ size, prop, value }]`, the value as written (`{{ gap }}rem`). */
+export function readBound(css, selector, rows) {
+  return allDeclarations(css, selector, rows).filter((decl) => hasTag(decl.value));
 }
 
 /* ---------------- writing ---------------- */
@@ -343,20 +347,51 @@ export function writeDeclarations(css, where, updates) {
   return (updates || []).reduce((text, update) => writeOne(text, where, update), String(css || ''));
 }
 
+/* ---------------- renaming ---------------- */
+
+const tagTolerant = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{\\\{\s*([\w.:-]+)\s*\\\}\\\}/g, '\\{\\{\\s*$1\\s*\\}\\}');
+
+/**
+ * Every rule that names `from` names `to`: `#a`, `#a .b`, `#a:hover`, `.x, #a`.
+ * Only in selectors, never in a value, and `#a` is not `#ab`. `{{ id }}` is the
+ * same tag however it is spaced.
+ */
+export function renameSelector(css, from, to) {
+  const source = String(css || '');
+  const name = new RegExp(`${tagTolerant(from)}(?![\\w-])`, 'g');
+  const spots = [];
+
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      spots.push([node.from, node.bodyFrom]);
+      walk(node.children);
+    }
+  };
+
+  walk(cssBlockTree(source));
+
+  return spots
+    .sort((a, b) => b[0] - a[0])
+    .reduce((text, [start, end]) => text.slice(0, start) + text.slice(start, end).replace(name, to) + text.slice(end), source);
+}
+
 /* ---------------- the canvas's sheet ---------------- */
 
 /**
  * The rules of the selectors the panel has written, as the canvas can show them:
  * no Antlers, sizes in cascade order, inside the section the canvas paints. A
  * target is `{ selector, real }`, `real` being the selector as the page has it
- * (`#id-{{ id }}` is `#id-abc` there).
+ * (`#id-{{ id }}` is `#id-abc` there). `fill` turns a value holding a field into
+ * what the field holds now; a value it cannot fill is left to the server's page.
  */
-export function liveSheet(css, targets, rows) {
+export function liveSheet(css, targets, rows, fill = () => '') {
   const order = cascadeOrder(rows);
   const parts = [];
 
   for (const { selector, real } of targets || []) {
-    const decls = real ? readRule(css, selector, rows) : [];
+    const decls = (real ? allDeclarations(css, selector, rows) : [])
+      .map((decl) => (hasTag(decl.value) ? { ...decl, value: fill(decl.value) } : decl))
+      .filter((decl) => decl.value);
     const body = (size) => decls.filter((decl) => decl.size === size).map((decl) => `${decl.prop}: ${decl.value};`).join(' ');
     // Inside `@scope` a selector means a descendant of the root; the root itself has to be said.
     const both = `${real}, :scope${real}`;

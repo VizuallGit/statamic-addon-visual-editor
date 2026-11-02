@@ -63,6 +63,50 @@
 }
 [data-sve-css-target-form] button:disabled { opacity: 0.45; cursor: default; }
 
+[data-sve-css-target-names] { align-items: center; }
+[data-sve-css-target-names] .fg-hint { font-size: 0.625rem; }
+.sve-css-rename {
+  all: unset;
+  box-sizing: border-box;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.25rem;
+  background: var(--bm-raise);
+  color: var(--bm-ink);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.sve-css-rename:hover { color: #fff; }
+[data-sve-css-id-rename] { margin-inline-start: auto; }
+
+/* The data icon on a field. Faint until it is wanted; lit when a field gives the value. */
+.sve-css-bind {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.2rem;
+  color: var(--bm-faint);
+  cursor: pointer;
+  opacity: 0.55;
+}
+.sve-css-bind svg { width: 0.75rem; height: 0.75rem; }
+.sve-css-bind:hover, .sve-css-bind:focus-visible { background: var(--bm-bg); color: var(--bm-ink); opacity: 1; }
+.sve-css-bind.is-bound { color: var(--bm-accent-text); opacity: 1; }
+[data-sve-css-bound] { color: var(--bm-accent-text) !important; font-style: normal !important; }
+
+/* In Spacing's box the icon stands beside its side's value, and shows while the box is pointed at. */
+.bm-spx .sve-css-bind { position: absolute; z-index: 3; opacity: 0; }
+.bm-spx:hover .sve-css-bind, .bm-spx .sve-css-bind:focus-visible { opacity: 0.8; }
+.bm-spx .sve-css-bind.is-bound { opacity: 1; }
+.bm-spx .sve-css-bind.bm-sp-t { top: 7%; left: calc(50% + 2rem); }
+.bm-spx .sve-css-bind.bm-sp-b { bottom: 7%; left: calc(50% + 2rem); }
+.bm-spx .sve-css-bind.bm-sp-l { left: 1.5%; top: calc(50% + 0.75rem); }
+.bm-spx .sve-css-bind.bm-sp-r { right: 1.5%; top: calc(50% + 0.75rem); }
+
 /* What this first demo does not write yet is not offered. */
 [data-sve-style-css] .fg-sec:not([data-sve-build-group='layout'], [data-sve-build-group='background'], [data-sve-build-group='spacing']),
 [data-sve-style-css] .fg-jump,

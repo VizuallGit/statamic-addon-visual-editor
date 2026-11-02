@@ -16,32 +16,43 @@
  * the sizes and the value an element shows are the real port's.
  *
  * What is edited is one selector: a `[ name ]` class of the element, or its one
- * ID. With neither, a click writes nothing and the panel asks for a name. The
+ * ID. With neither, a click writes nothing and the panel asks for a name. An ID
+ * is the section's own (`id-{{ id }}`), one made unique per section
+ * (`name-{{ id }}`) or one of the author's (`name`). On the first two, whose
+ * rule is this one section's alone, a style can take its value from a field. The
  * rules reach the file through the dock's own door (`dock:set-css`), so they are
  * saved as anything typed in the CSS pane is, and the canvas shows them the same
  * frame through a sheet of this module's (css-mode/paint.js).
  */
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ask, on } from '../../cp/bus.js';
 import { mountSurface } from '../../cp/mount.js';
 import TwClassMenu from '../../cp/surfaces/TwClassMenu.vue';
+import { panelValues } from '../../cp/panel/store.js';
+import BuildDataBind from '../../cp/surfaces/BuildDataBind.vue';
 import { addBracketClassToTag, bracketTokens, sanitizeCssClassName } from '../../css-scope.js';
 import { newSizeQuery } from '../../dock/css-sizes.js';
+import { currentSectionValues } from '../../dock/scope.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { loadFamilies } from '../../tw-families.js';
 import { splitClass, splitUtility } from '../../tw-parse.js';
 import { readAttribute, withAttribute } from '../attrs.js';
 import { BUILD_CANVAS_SHOWN_EVENT } from '../../lib/build-canvas-ids.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
-import { effectiveClass, fromClass, rootOf } from '../classes.js';
+import { fieldLookup } from '../canvas-paint.js';
+import { effectiveClass, fromClass, rootOf, variantChain } from '../classes.js';
 import { findByPath, parentOf } from '../place.js';
 import { createCssPaint } from './paint.js';
-import { readRule, sizeKey, writeDeclarations } from './rules.js';
-import { classToCss, cssToClass } from './translate.js';
+import { readBound, readRule, renameSelector, sizeKey, writeDeclarations } from './rules.js';
+import { boundLabel, boundValue, classToCss, cssToClass, fieldsFor, fillValue } from './translate.js';
 
 const MENU_ID = '__sve-css-mode-menu';
 const KIND_KEY = 'sve-style-css-target';
+/** The unit Spacing's box drags in (BuildSpacingBox.vue): a number from a field is in it too. */
+const UNIT_KEY = 'sve-build-spacing-unit';
+const SECTION_ID = /^id-\{\{\s*id\s*\}\}$/;
+const DYNAMIC_ID = /^([a-zA-Z_][\w-]*)-\{\{\s*id\s*\}\}$/;
 
 const ports = new WeakMap();
 
@@ -62,9 +73,11 @@ function createCssPort(win, port) {
   const own = ref(0);
   const rev = computed(() => port.rev.value + own.value);
   const model = ref(null);
-  const paint = createCssPaint(win);
+  const lookup = (body) => fieldLookup(currentSectionValues(win) || {}, panelValues() || {})(body);
+  const paint = createCssPaint(win, (value) => fillValue(value, lookup));
   const kind = ref(readKind());
   const chosen = ref(new Map());
+  const idMode = ref('dynamic');
   const notice = ref('');
   /** Moves when a click found nothing to write in: the panel's name field takes the caret. */
   const asked = ref(0);
@@ -85,7 +98,7 @@ function createCssPort(win, port) {
   const cssOf = (name) => model.value?.catalog.css(name) || '';
   const rows = () => port.sizes();
   const fullCss = () => String(ask('dock:css') || '');
-  const lookup = { scale: (property) => port.scale(property), cssOf };
+  const catalog = { scale: (property) => port.scale(property), cssOf };
 
   /* ---------------- the element, and what is edited on it ---------------- */
 
@@ -123,6 +136,38 @@ function createCssPort(win, port) {
     return at ? readAttribute(at.html, at.node, 'id') || '' : '';
   };
 
+  /** What the element's ID is, and what may be done with it. */
+  function idInfo() {
+    const raw = idOf();
+    const dynamic = DYNAMIC_ID.exec(raw);
+
+    if (!raw) {
+      return null;
+    }
+
+    if (SECTION_ID.test(raw)) {
+      return { kind: 'section', raw, label: raw, name: '', fields: true };
+    }
+
+    if (dynamic) {
+      return { kind: 'dynamic', raw, label: dynamic[1], name: dynamic[1], fields: true };
+    }
+
+    return raw.includes('{{') ? { kind: 'other', raw, label: raw, name: '', fields: false } : { kind: 'own', raw, label: raw, name: raw, fields: false };
+  }
+
+  /** `{{ id }}` is a section's row: in a header, a footer or a component's file it says nothing. */
+  const canBeDynamic = () => !!ask('dock:current-uid') && !ask('dock:chrome-kind') && !ask('dock:component-src');
+
+  /** The tag's other IDs in the file, and an own name anywhere on the page, are taken. */
+  function idTaken(html, raw, self = '') {
+    const flat = (text) => text.replace(/\{\{\s*([\s\S]*?)\s*\}\}/g, '{{$1}}');
+    const inFile = [...html.matchAll(/\sid\s*=\s*["']([^"']*)["']/g)].map((match) => flat(match[1]));
+    const others = inFile.filter((one) => one !== flat(self));
+
+    return others.includes(flat(raw)) || (!raw.includes('{{') && raw !== self && !!buildCanvasFrame(win)?.contentDocument?.getElementById(raw));
+  }
+
   function classOpen() {
     const names = classNames();
     const kept = chosen.value.get(port.selectedPath());
@@ -158,7 +203,7 @@ function createCssPort(win, port) {
     }
 
     return declared.value.map((decl) => {
-      const name = cssToClass(decl.prop, decl.value, lookup);
+      const name = cssToClass(decl.prop, decl.value, catalog);
       const variant = decl.size ? rows().find((row) => row.handle === decl.size)?.tw : '';
 
       return variant ? `${variant}:${name}` : name;
@@ -239,6 +284,7 @@ function createCssPort(win, port) {
     }
 
     paint.remember(selector.value, port.selectedPath());
+    hold();
     paint.sync(next, rows());
     own.value += 1;
   }
@@ -348,6 +394,7 @@ function createCssPort(win, port) {
       const css = fullCss();
 
       paint.remember(selector.value, port.selectedPath());
+      hold();
       paint.sync(updates ? writeDeclarations(css, whereNow(), updates) : css, rows());
     };
     const menu = win.document.createElement('div');
@@ -381,6 +428,11 @@ function createCssPort(win, port) {
 
         if (mine?.raw) {
           write((classToCss(baseOf(mine.raw), cssOf) || []).map((decl) => ({ prop: decl.prop, value: null })));
+        } else {
+          // Nothing by hand here: Remove lets go of the field, if one gives this value.
+          const names = [property, title].filter(Boolean);
+
+          write(boundNow().filter((decl) => decl.size === sizeNow() && names.includes(decl.prop)).map((decl) => ({ prop: decl.prop, value: null })));
         }
       },
     });
@@ -414,16 +466,125 @@ function createCssPort(win, port) {
     paint.sync(fullCss(), rows());
   };
 
-  /** Held while the panel is mounted, and let go with it: `listen()` returns the letting go. */
-  function listen() {
-    const stop = on('dock:saved', refresh);
+  /*
+   * Listening lasts while the panel is mounted or the sheet stands: the sheet
+   * outlives the panel (Content's tab, HTML Build), and has to follow the file
+   * and the form there too. The canvas gone, there is no sheet left to keep.
+   */
+  let mounted = 0;
+  let stopListening = null;
 
-    win.addEventListener(BUILD_CANVAS_SHOWN_EVENT, refresh);
+  const onCanvas = () => {
+    if (!buildCanvasFrame(win)) {
+      paint.clear();
+    }
+
+    refresh();
+    hold();
+  };
+
+  /** What the fields in the sheet hold now: it changes the frame the form is typed in. */
+  const formNow = () => {
+    own.value;
+
+    return JSON.stringify(paint.selectors().flatMap((name) => readBound(fullCss(), name, rows()).map((decl) => fillValue(decl.value, lookup))));
+  };
+
+  function hold() {
+    const want = mounted > 0 || paint.selectors().length > 0;
+
+    if (want && !stopListening) {
+      const stopSaved = on('dock:saved', refresh);
+      const stopForm = watch(formNow, () => paint.sync(fullCss(), rows()));
+
+      win.addEventListener(BUILD_CANVAS_SHOWN_EVENT, onCanvas);
+      stopListening = () => {
+        stopSaved();
+        stopForm();
+        win.removeEventListener(BUILD_CANVAS_SHOWN_EVENT, onCanvas);
+        stopListening = null;
+      };
+    } else if (!want && stopListening) {
+      stopListening();
+    }
+  }
+
+  function listen() {
+    mounted += 1;
+    hold();
 
     return () => {
-      stop();
-      win.removeEventListener(BUILD_CANVAS_SHOWN_EVENT, refresh);
+      mounted -= 1;
+      hold();
     };
+  }
+
+  /* ---------------- a style's value from a field ---------------- */
+
+  const boundNow = () => {
+    rev.value;
+
+    return selector.value ? readBound(fullCss(), selector.value, rows()) : [];
+  };
+
+  /** Whether a field may give the property its value: the rule has to be this one section's alone. */
+  function bindable(property) {
+    rev.value;
+
+    return kind.value === 'id' && !!idInfo()?.fields && !!fieldsFor(property) && !isLocked();
+  }
+
+  const isLocked = () => ask('dock:is-locked') === true;
+
+  /** The field a Style field shows instead of its value, or ''. `current`: the class it would show, which may stand nearer. */
+  function boundOf(property, twin = '', current = null) {
+    rev.value;
+
+    const decls = boundNow();
+
+    if (!decls.length) {
+      return '';
+    }
+
+    const chain = variantChain(rows(), port.size(), '');
+    const keyOf = (size) => (size ? rows().find((row) => row.handle === size)?.tw || '' : '');
+    const at = chain.findIndex((key) => decls.some((decl) => keyOf(decl.size) === key && [property, twin].includes(decl.prop)));
+
+    if (at === -1 || (current && chain.indexOf(current.key) !== -1 && chain.indexOf(current.key) < at)) {
+      return '';
+    }
+
+    return boundLabel(decls.find((decl) => keyOf(decl.size) === chain[at] && [property, twin].includes(decl.prop)).value);
+  }
+
+  /** The dock's list of fields beside the icon, of the kinds that fit: a pick is written as the style's value. */
+  function pickFieldFor(anchor, property, twin = '') {
+    const prop = twin || property;
+    const fits = fieldsFor(prop);
+
+    if (!fits || !selector.value) {
+      return;
+    }
+
+    const at = picked();
+
+    port.pickField(anchor, port.selectedPath(), fits.types, (tag) => {
+      const name = tag.replace(/^\{\{\s*|\s*\}\}$/g, '');
+      let unit = 'rem';
+
+      try {
+        unit = win.localStorage.getItem(UNIT_KEY) || unit;
+      } catch {
+        /* the default */
+      }
+
+      Promise.resolve(ask('dock:data-model', { at: at?.node.from })).then((model) => {
+        const rowsOf = [...(model?.section || []), ...(model?.page || []).flatMap((group) => group.items || []), ...(model?.site || []).flatMap((group) => group.items || [])];
+        const type = rowsOf.find((row) => row.var === name)?.type || '';
+
+        write([{ prop, value: boundValue(prop, tag, { type, current: lookup(name) ?? '', unit }) }]);
+      });
+    }, { single: !!fits.single });
   }
 
   /* ---------------- what the panel's target row works with ---------------- */
@@ -481,6 +642,30 @@ function createCssPort(win, port) {
 
       return true;
     },
+    idInfo: () => (rev.value, idInfo()),
+    /** How a new ID is made: unique per section, or a name of the author's. */
+    idMode,
+    canBeDynamic: () => (rev.value, canBeDynamic()),
+    /** The file's outermost element takes the section's own ID, not a name. */
+    isRoot: () => (rev.value, isFileRoot() && canBeDynamic()),
+    addSectionId() {
+      const at = picked();
+
+      if (!at || idOf()) {
+        return false;
+      }
+
+      if (!port.write(withAttribute(at.html, at.node, 'id', 'id-{{ id }}'), { select: at.path })) {
+        notice.value = port.t('css_mode_locked');
+
+        return false;
+      }
+
+      notice.value = '';
+      own.value += 1;
+
+      return true;
+    },
     addId(text) {
       const at = picked();
       const name = sanitizeCssClassName(text);
@@ -500,15 +685,15 @@ function createCssPort(win, port) {
         return false;
       }
 
-      const taken = new RegExp(`\\sid\\s*=\\s*["']${name}["']`).test(at.html) || !!buildCanvasFrame(win)?.contentDocument?.getElementById(name);
+      const raw = idMode.value === 'dynamic' && canBeDynamic() ? `${name}-{{ id }}` : name;
 
-      if (taken) {
+      if (idTaken(at.html, raw)) {
         notice.value = port.t('css_mode_id_taken', { name });
 
         return false;
       }
 
-      if (!port.write(withAttribute(at.html, at.node, 'id', name), { select: at.path })) {
+      if (!port.write(withAttribute(at.html, at.node, 'id', raw), { select: at.path })) {
         notice.value = port.t('css_mode_locked');
 
         return false;
@@ -519,6 +704,52 @@ function createCssPort(win, port) {
 
       return true;
     },
+    /** A new name: on the element and in every rule that names it, in one go. */
+    renameId(text) {
+      const at = picked();
+      const info = idInfo();
+      const name = sanitizeCssClassName(text);
+
+      if (!at || !info || !['dynamic', 'own'].includes(info.kind) || !name) {
+        notice.value = port.t('css_mode_bad_name');
+
+        return false;
+      }
+
+      const raw = info.kind === 'dynamic' ? `${name}-{{ id }}` : name;
+
+      if (raw === info.raw) {
+        return true;
+      }
+
+      if (idTaken(at.html, raw, info.raw)) {
+        notice.value = port.t('css_mode_id_taken', { name });
+
+        return false;
+      }
+
+      if (!port.write(withAttribute(at.html, at.node, 'id', raw), { select: at.path })) {
+        notice.value = port.t('css_mode_locked');
+
+        return false;
+      }
+
+      const before = `#${info.raw}`;
+      const after = `#${raw}`;
+
+      ask('dock:set-css', renameSelector(fullCss(), before, after));
+
+      if (paint.selectors().includes(before)) {
+        paint.forget(before);
+        paint.remember(after, at.path);
+      }
+
+      notice.value = '';
+      own.value += 1;
+      paint.sync(fullCss(), rows());
+
+      return true;
+    },
   };
 
   /* ---------------- the port ---------------- */
@@ -526,6 +757,11 @@ function createCssPort(win, port) {
   return Object.create(port, Object.getOwnPropertyDescriptors({
     rev,
     cssTarget: target,
+    /* A style's value from a field: the icon the fields draw, and what it does. */
+    bindIcon: BuildDataBind,
+    bindable,
+    boundOf,
+    pickFieldFor,
     pickedClasses: () => (rev.value, dressed.value),
     activeClass,
     setClass,
@@ -583,6 +819,7 @@ function createCssPort(win, port) {
     leave() {
       closeMenu();
       paint.clear();
+      hold();
     },
   }));
 }

@@ -14,6 +14,8 @@ const FILES = [
   ...readdirSync(DIR).filter((name) => name.endsWith('.js')).map((name) => join(DIR, name)),
   join(ROOT, 'cp/surfaces/BuildStyleCss.vue'),
   join(ROOT, 'cp/surfaces/BuildStyleMode.vue'),
+  join(ROOT, 'cp/surfaces/BuildStyleSwitch.vue'),
+  join(ROOT, 'cp/surfaces/BuildDataBind.vue'),
 ];
 const read = (file) => readFileSync(file, 'utf8');
 
@@ -57,4 +59,13 @@ test('the panel has one door to the demo', () => {
 
   assert.equal((panel.match(/<BuildStyleMode\b/g) || []).length, 1);
   assert.ok(!/\bBuildStyle\b/.test(panel));
+});
+
+test('a Style field draws the data icon only when its port hands it one', () => {
+  for (const name of ['BuildValueInput', 'BuildClassField']) {
+    const field = read(join(ROOT, `cp/surfaces/${name}.vue`));
+
+    assert.ok(/<component :is="port\.bindIcon" v-if="port\.bindIcon/.test(field), name);
+    assert.ok(!/css-mode|BuildDataBind/.test(field.replace(/\/\*[\s\S]*?\*\//g, '')), `${name} imports nothing of the demo`);
+  }
 });

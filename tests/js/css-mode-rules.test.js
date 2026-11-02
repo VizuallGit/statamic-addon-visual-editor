@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { liveSheet, readRule, sizeKey, writeDeclarations } from '../../resources/js/build-mode/css-mode/rules.js';
-import { classToCss, cssToClass, parseDeclarations } from '../../resources/js/build-mode/css-mode/translate.js';
+import { liveSheet, readBound, readRule, renameSelector, sizeKey, writeDeclarations } from '../../resources/js/build-mode/css-mode/rules.js';
+import { boundLabel, boundValue, classToCss, cssToClass, fieldsFor, fillValue, parseDeclarations } from '../../resources/js/build-mode/css-mode/translate.js';
 
 const ROWS = [
   { handle: 'desktop', base: true, direction: 'desktop', tw: '', media: '' },
@@ -171,4 +171,79 @@ test('a declaration reads as the scale\'s row, a typed value, or any property', 
 
 test('declarations are split where they end', () => {
   assert.deepEqual(parseDeclarations('a: b; c: url(x;y);'), [{ prop: 'a', value: 'b' }, { prop: 'c', value: 'url(x;y)' }]);
+});
+
+/* ---------------- renaming an ID ---------------- */
+
+test('renaming reaches every rule that names the ID, and nothing else', () => {
+  const css = '#a { color: red; }\n#ab { color: blue; }\n#a .b, .c { margin: 0; }\n@media (width < 48em) {\n    #a:hover { color: green; }\n}\n.d { background: url(#a); }\n';
+  const next = renameSelector(css, '#a', '#z');
+
+  assert.equal(next, '#z { color: red; }\n#ab { color: blue; }\n#z .b, .c { margin: 0; }\n@media (width < 48em) {\n    #z:hover { color: green; }\n}\n.d { background: url(#a); }\n');
+});
+
+test('a dynamic ID is the same however its tag is spaced', () => {
+  const next = renameSelector('#titel-{{id}} { color: red; }\n#titel-{{ id }} .x { margin: 0; }\n', '#titel-{{ id }}', '#navn-{{ id }}');
+
+  assert.equal(next, '#navn-{{ id }} { color: red; }\n#navn-{{ id }} .x { margin: 0; }\n');
+});
+
+/* ---------------- a style's value from a field ---------------- */
+
+test('a field\'s value is read apart from the values written by hand', () => {
+  const css = '#id-{{ id }} {\n    background-color: {{ bg_color }};\n    padding-top: 2rem;\n}\n';
+
+  assert.deepEqual(readBound(css, '#id-{{ id }}', ROWS), [{ size: '', prop: 'background-color', value: '{{ bg_color }}' }]);
+  assert.deepEqual(readRule(css, '#id-{{ id }}', ROWS), [{ size: '', prop: 'padding-top', value: '2rem' }]);
+});
+
+test('a field\'s value replaces a value by hand, and a value by hand replaces it', () => {
+  let css = set('', '#a', 'color', 'red');
+
+  css = set(css, '#a', 'color', '{{ c }}');
+  assert.equal(css, '#a {\n    color: {{ c }};\n}\n');
+  css = set(css, '#a', 'color', 'blue');
+  assert.equal(css, '#a {\n    color: blue;\n}\n');
+});
+
+test('only fields that fit are offered', () => {
+  assert.deepEqual(fieldsFor('background-color').types, ['theme_color_picker', 'color']);
+  assert.ok(fieldsFor('padding-top').types.includes('range'));
+  assert.ok(fieldsFor('padding-top').types.includes('select'));
+  assert.ok(!fieldsFor('padding-top').types.includes('theme_color_picker'));
+  assert.deepEqual(fieldsFor('background-image'), { types: ['assets'], single: true });
+  assert.ok(fieldsFor('background-size').types.includes('select'));
+  assert.ok(!fieldsFor('background-size').types.includes('range'));
+});
+
+test('a number gets the unit, words do not, an image its url()', () => {
+  assert.equal(boundValue('padding-top', '{{ g }}', { type: 'range', unit: 'em' }), '{{ g }}em');
+  assert.equal(boundValue('padding-top', '{{ g }}', { type: 'text', current: '4' }), '{{ g }}rem');
+  assert.equal(boundValue('padding-top', '{{ g }}', { type: 'text', current: '2rem' }), '{{ g }}');
+  assert.equal(boundValue('padding-top', '{{ g }}', { type: 'select', current: 'var(--size-500)' }), '{{ g }}');
+  assert.equal(boundValue('background-color', '{{ c }}', { type: 'theme_color_picker', current: '4' }), '{{ c }}');
+  assert.equal(boundValue('background-image', '{{ i }}'), 'url({{ i }})');
+});
+
+test('a field shows by its name', () => {
+  assert.equal(boundLabel('{{ gap }}rem'), 'gap rem');
+  assert.equal(boundLabel('url({{ image }})'), 'image');
+  assert.equal(boundLabel('{{ bg_color }}'), 'bg_color');
+});
+
+test('the canvas fills a field in, and leaves what it cannot to the server', () => {
+  const fill = (value) => fillValue(value, (body) => ({ c: 'var(--gray-600)', g: 4, empty: '' })[body.trim()]);
+
+  assert.equal(fill('{{ c }}'), 'var(--gray-600)');
+  assert.equal(fill('{{ g }}rem'), '4rem');
+  assert.equal(fill('{{ empty }}rem'), '');
+  assert.equal(fill('{{ other | modify }}'), '');
+
+  const css = '#a {\n    color: {{ c }};\n    margin: 1rem;\n    padding: {{ nope }};\n}\n';
+  const sheet = liveSheet(css, [{ selector: '#a', real: '#a' }], ROWS, fill);
+
+  assert.ok(sheet.includes('color: var(--gray-600);'));
+  assert.ok(sheet.includes('margin: 1rem;'));
+  assert.ok(!sheet.includes('padding'));
+  assert.ok(!sheet.includes('{{'));
 });

@@ -13,7 +13,8 @@
  *
  * It is drawn from the file, never kept beside it, so it cannot fall behind: a
  * value taken out goes from the sheet, and once the server's rendering holds the
- * same rules the sheet says what the page says already.
+ * same rules the sheet says what the page says already. A value from a field is
+ * filled in from the form (`fill`), and one it cannot fill waits for the server.
  */
 
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
@@ -22,7 +23,7 @@ import { liveSheet } from './rules.js';
 
 const SHEET_ID = '__sve-build-css-mode';
 
-export function createCssPaint(win) {
+export function createCssPaint(win, fill) {
   const targets = new Map();
 
   function documentOf() {
@@ -47,7 +48,7 @@ export function createCssPaint(win) {
       return;
     }
 
-    const text = liveSheet(css, [...targets.values()].map((one) => ({ selector: one.selector, real: realSelector(page, one) })), rows);
+    const text = liveSheet(css, [...targets.values()].map((one) => ({ selector: one.selector, real: realSelector(page, one) })), rows, fill);
     let sheet = page.getElementById(SHEET_ID);
 
     if (!sheet) {
@@ -66,6 +67,11 @@ export function createCssPaint(win) {
     remember(selector, path) {
       targets.set(selector, { selector, path });
     },
+    forget(selector) {
+      targets.delete(selector);
+    },
+    /** The selectors the sheet draws. */
+    selectors: () => [...targets.keys()],
     /** The sheet gone: what stands is the server's rendering. */
     clear() {
       targets.clear();

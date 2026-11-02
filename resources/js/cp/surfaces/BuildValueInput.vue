@@ -109,7 +109,9 @@ const seen = computed(() => {
   return port.seen?.(property.value, scaleProperty.value, current.value ? display(shown.value) : '') || null;
 });
 const grey = computed(() => (current.value ? '' : seen.value?.grey || ''));
-const text = computed(() => (current.value ? display(shown.value) : grey.value || props.empty));
+/* CSS mode only (build-mode/css-mode/port.js): a value from a field shows as the field. */
+const bound = computed(() => port.boundOf?.(property.value, twin.value, current.value) || '');
+const text = computed(() => bound.value || (current.value ? display(shown.value) : grey.value || props.empty));
 const tip = computed(() => seen.value?.tip || props.label || property.value);
 /** While dragged: the value the drag is on, shown instead of `text`. */
 const live = ref(null);
@@ -282,7 +284,7 @@ defineExpose({ open });
 
 <template>
   <span
-    v-if="chip && isToken"
+    v-if="chip && isToken && !bound"
     class="fg-chip"
     :class="{ inh: current.inherited }"
     :title="tip"
@@ -298,8 +300,10 @@ defineExpose({ open });
     :aria-label="label || property"
     aria-haspopup="listbox"
     :data-sve-build-value="label || property"
+    :data-sve-css-bound="bound || undefined"
     @pointerdown="press"
     @click="clicked"
     @keydown.down.prevent="open()"
   >{{ showing }}</button>
+  <component :is="port.bindIcon" v-if="port.bindIcon" :class="$attrs.class" :property="property" :twin="twin" :label="label" />
 </template>

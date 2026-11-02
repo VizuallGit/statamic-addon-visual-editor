@@ -39,7 +39,14 @@ function imageOf(name) {
   return /^bg-\[url\((.*)\)\]$/.exec(name)?.[1] || name;
 }
 
+/* CSS mode only (build-mode/css-mode/port.js): a value from a field shows as the field. */
+const bound = computed(() => (props.field.css || props.field.image ? port.boundOf?.(props.field.css || props.field.label, '', current.value) || '' : ''));
+
 const text = computed(() => {
+  if (bound.value) {
+    return bound.value;
+  }
+
   if (!current.value) {
     return '—';
   }
@@ -83,8 +90,10 @@ function open() {
       :aria-label="field.label"
       aria-haspopup="listbox"
       :data-sve-build-value="field.label"
+      :data-sve-css-bound="bound || undefined"
       @click="open"
       @keydown.down.prevent="open"
     >{{ text }}</button>
+    <component :is="port.bindIcon" v-if="port.bindIcon && field.image" :property="field.label" :label="field.label" />
   </label>
 </template>
