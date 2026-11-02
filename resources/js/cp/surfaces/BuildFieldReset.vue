@@ -1,34 +1,40 @@
 <script setup>
 /**
- * One field's value taken off, without its menu: what the family's dot does for
- * all of them, and the same call (`port.setClass`, a second set takes a class
- * off). Only a value the field has itself, at the size and state picked: what
- * reaches it from a wider size has nothing here to take off.
+ * A value the element has itself, at the size and state picked: a small dot, the
+ * family's dot (`.fg-set`), and hovered or focused the reset it does. What reaches
+ * the element from a wider size has no dot, as there is nothing here to take off.
+ * Pressed, it does what the family's dot does for all of them, and the same call
+ * (`port.setClass`, a second set takes a class off).
  *
- * Drawn while the CSS mode demo is on (BuildStyleMode.vue provides it), in either
- * mode. Its looks are css-mode/panel-look.js's.
+ * `hit` is one class; `names` several, for a row of buttons that writes more than
+ * one (a border side by side, alignment's two axes).
+ *
+ * Drawn in Style (BuildStyleMode.vue provides it), in either mode. Its looks are
+ * css-mode/panel-look.js's.
  */
-import { inject } from 'vue';
+import { computed, inject } from 'vue';
 import { ic } from '../../build-mode/icons.js';
 
-defineProps({
+const props = defineProps({
   hit: { type: Object, default: null },
+  names: { type: Array, default: () => [] },
   label: { type: String, default: '' },
 });
 
 const port = inject('sveBuild');
 const on = inject('sveFieldReset', false);
+const own = computed(() => (props.hit ? [props.hit.name] : props.names));
 </script>
 
 <template>
   <button
-    v-if="on && hit"
+    v-if="on && own.length"
     type="button"
     class="sve-field-reset"
     data-sve-field-reset
+    :data-sve-field-reset-of="label"
     :title="port.t('field_reset', { name: label })"
     :aria-label="port.t('field_reset', { name: label })"
-    @click.stop.prevent="port.setClass(hit.name)"
-    v-html="ic('reset')"
-  ></button>
+    @click.stop.prevent="own.forEach((name) => port.setClass(name))"
+  ><i></i><span v-html="ic('reset')"></span></button>
 </template>

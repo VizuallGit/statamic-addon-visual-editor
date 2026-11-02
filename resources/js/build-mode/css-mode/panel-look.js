@@ -1,13 +1,12 @@
 /**
- * What Style has with the CSS mode demo on, in either mode: the looks of a field's
- * reset (BuildFieldReset.vue), and a fade under the panel's sticky top once
- * something has scrolled under it.
+ * What Style has in either mode: the looks of a field's dot (BuildFieldReset.vue),
+ * and a fade under the panel's sticky top once something has scrolled under it.
  *
  * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
  * May import: nothing. Bus messages: none.
  *
  * A sheet of its own rather than a component's: a lazy chunk's CSS file is fetched
- * from the wrong address, and with the flag off none of this is in the page.
+ * from the wrong address.
  */
 
 const STYLE_ID = '__sve-style-panel-look';
@@ -20,18 +19,25 @@ const LOOK = `
   flex: none;
   display: grid;
   place-items: center;
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 1rem;
+  height: 1rem;
   margin-inline-end: 0.125rem;
-  border-radius: 0.2rem;
-  color: var(--bm-faint);
+  border-radius: 999px;
+  color: var(--bm-accent-text);
   cursor: pointer;
-  opacity: 0;
 }
-/* The data icon's visible height and line: this glyph fills less of its box than that one does. */
-.sve-build .sve-field-reset svg { width: 0.9375rem; height: 0.9375rem; stroke-width: 1.5; }
-:is(.fg-field, .fg-color, .bm-spx):hover .sve-field-reset, .sve-field-reset:focus-visible { opacity: 0.8; }
-.sve-field-reset:hover, .sve-field-reset:focus-visible { background: var(--bm-bg); color: var(--bm-ink); opacity: 1 !important; }
+/* The family's dot (.fg-set), a size down. Hovered or focused, the reset it does. */
+.sve-field-reset > i { width: 0.3125rem; height: 0.3125rem; border-radius: 999px; background: var(--bm-accent); box-shadow: 0 0 0 0.125rem var(--bm-accent-soft); }
+.sve-build .sve-field-reset > span { display: none; }
+.sve-build .sve-field-reset svg { width: 0.6875rem; height: 0.6875rem; stroke-width: 1.75; }
+.sve-field-reset:is(:hover, :focus-visible) { background: var(--bm-accent-soft); }
+.sve-field-reset:is(:hover, :focus-visible) > i { display: none; }
+.sve-build .sve-field-reset:is(:hover, :focus-visible) > span { display: inline-flex; }
+
+/* A row of buttons has its dot after its label, or, with no label, beside the row. */
+.sve-build .fg-lab:has(> .sve-field-reset) { display: flex; align-items: center; gap: 0.25rem; }
+.sve-build .fg-lab > .sve-field-reset { width: 0.875rem; height: 0.875rem; margin: 0; }
+.sve-build .fg-check > .sve-field-reset { margin: 0; }
 
 .sve-alpha { flex: none; display: inline-flex; align-items: center; gap: 0.0625rem; padding-inline-end: 0.375rem; color: var(--bm-faint); font-size: 0.6875rem; }
 .sve-alpha input { all: unset; box-sizing: border-box; width: 1.625rem; text-align: right; color: var(--bm-ink); font: inherit; cursor: text; }

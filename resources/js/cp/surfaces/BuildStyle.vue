@@ -28,6 +28,7 @@ import BuildSpacingBox from './BuildSpacingBox.vue';
 import BuildSpacingView from './BuildSpacingView.vue';
 import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
+import BuildFieldReset from './BuildFieldReset.vue';
 import BuildFields from './BuildFields.vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, fieldHas, kidsById, styleGroups } from '../../build-mode/catalog.js';
@@ -280,20 +281,22 @@ function toggle(group) {
   toggled.value = { ...toggled.value, [group.id]: !isOpen(group) };
 }
 
+const ownHit = (hit) => (hit && !hit.inherited ? hit : null);
+
 /**
- * The classes a family has on the element itself at the size and state
+ * The classes these tools have on the element itself at the size and state
  * picked — not what reaches it from a wider size. Both names a tool answers
  * to are asked (`css` and its Tailwind twin, `padding-block-start` and
  * `padding-top`), each on its own, so the twin counts as the element's own.
- * What the blue dot in a family's header stands for, and what it takes away.
+ * What a row's dot stands for, and what it takes away.
  */
-function groupOwn(group) {
+function ownOf(items) {
   port.rev.value;
 
   const names = new Set();
-  const take = (hit) => hit && !hit.inherited && names.add(hit.name);
+  const take = (hit) => ownHit(hit) && names.add(hit.name);
 
-  for (const item of group.tools) {
+  for (const item of items) {
     if (item.twGroup) {
       take(effGroup(item.twGroup));
       continue;
@@ -304,10 +307,19 @@ function groupOwn(group) {
     }
   }
 
-  fieldsOf(group).forEach((field) => take(effField(field)));
-
   return [...names];
 }
+
+/** The same for a family, with its fields: what the blue dot in its header stands for. */
+function groupOwn(group) {
+  return [...new Set([...ownOf(group.tools), ...fieldsOf(group).map((field) => ownHit(effField(field))?.name).filter(Boolean)])];
+}
+
+/* Flow, Alignment and Distribute write the same few properties; each row's dot takes off what that row wrote. */
+const FLOW_PROPS = [{ css: 'display' }, { css: 'flex-direction' }, { css: 'flex-wrap' }];
+const flowOwn = computed(() => ownOf(FLOW_PROPS));
+const distributeOwn = computed(() => ownOf(distributeKids.value).filter((name) => distributeKids.value.some((kid) => kid.twClass === name)));
+const alignmentOwn = computed(() => ownOf([{ css: 'justify-content' }, { css: 'align-items' }]).filter((name) => !distributeOwn.value.includes(name)));
 
 /** The dot pressed: the family's own classes taken off, each as the Tailwind pane takes one off (a second set toggles it). */
 function resetGroup(group) {
@@ -487,7 +499,7 @@ function jump(group) {
       <div v-if="isOpen(group)" class="fg-sec__b">
         <!-- Layout -->
         <template v-if="group.id === 'layout'">
-          <div class="fg-lab">{{ port.t('flow') }}</div>
+          <div class="fg-lab">{{ port.t('flow') }}<BuildFieldReset :names="flowOwn" :label="port.t('flow')" /></div>
           <div class="fg-line">
             <div class="fg-seg fg-flow">
               <button
@@ -528,7 +540,7 @@ function jump(group) {
           <template v-if="flow === 'row' || flow === 'col'">
             <div class="fg-cols">
               <div>
-                <div class="fg-lab">{{ port.t('alignment') }}</div>
+                <div class="fg-lab">{{ port.t('alignment') }}<BuildFieldReset :names="alignmentOwn" :label="port.t('alignment')" /></div>
                 <BuildAlignMatrix :column="flow === 'col'" />
               </div>
               <div>
@@ -536,7 +548,7 @@ function jump(group) {
                 <BuildField v-if="gapKid('gap-all')" :icon="flow === 'col' ? 'gapY' : 'gapX'" title="gap">
                   <BuildValueInput :tool="gapKid('gap-all')" label="gap" compact />
                 </BuildField>
-                <div class="fg-lab">{{ port.t('distribute') }}</div>
+                <div class="fg-lab">{{ port.t('distribute') }}<BuildFieldReset :names="distributeOwn" :label="port.t('distribute')" /></div>
                 <BuildAlign :kids="distributeKids" :rotate="flow === 'col'" />
               </div>
             </div>
@@ -544,7 +556,7 @@ function jump(group) {
 
           <template v-if="flow === 'grid'">
             <template v-if="structureRow">
-              <div class="fg-lab">grid-template-columns <i class="bm-soon">{{ port.t('switching_later') }}</i></div>
+              <div class="fg-lab">grid-template-columns <i class="bm-soon">{{ port.t('switching_later') }}</i><BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
               <div class="bm-sp">
                 <button v-for="s in STRUCTURES" :key="s.key" type="button" class="bm-sp-o" :aria-pressed="pressed(cols, s.cls)" :title="s.label" @click="port.setClass(s.cls)">
                   <span class="bm-bars"><i v-for="(part, n) in s.parts" :key="n" :style="{ flex: part }"></i></span>
@@ -553,7 +565,7 @@ function jump(group) {
               </div>
             </template>
             <template v-else>
-              <div class="fg-lab">grid-template-columns</div>
+              <div class="fg-lab">grid-template-columns<BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
               <div class="fg-seg fg-colsn">
                 <button
                   v-for="n in 6"
@@ -574,13 +586,14 @@ function jump(group) {
                 <BuildValueInput :tool="gapKid('gap-row')" :fallbacks="['gap']" label="row-gap" compact />
               </BuildField>
             </div>
-            <div class="fg-lab">{{ port.t('align_items') }}</div>
+            <div class="fg-lab">{{ port.t('align_items') }}<BuildFieldReset :names="ownOf(crossKids)" :label="port.t('align_items')" /></div>
             <BuildAlign :kids="crossKids" />
           </template>
 
           <label class="fg-check">
             <input type="checkbox" :checked="clip" data-sve-build-clip @change="port.setClass('overflow-hidden')" />
             <span>{{ port.t('clip_content') }}</span>
+            <BuildFieldReset :hit="clip ? ownHit(eff('overflow')) : null" :label="port.t('clip_content')" />
           </label>
         </template>
 
@@ -667,18 +680,21 @@ function jump(group) {
             <BuildField v-if="tool('tw-leading')" icon="lineHeight" title="line-height">
               <BuildValueInput :tool="tool('tw-leading')" label="line-height" compact />
             </BuildField>
-            <div class="fg-seg">
-              <button
-                v-for="[cls, glyph, title] in ALIGNS"
-                :key="cls"
-                type="button"
-                :aria-pressed="pressed(eff('text-align'), cls)"
-                :class="{ inh: inh(eff('text-align'), cls) }"
-                :title="`text-align: ${title}`"
-                :aria-label="`text-align: ${title}`"
-                @click="port.setClass(cls)"
-                v-html="ic(glyph)"
-              ></button>
+            <div class="fg-line">
+              <div class="fg-seg">
+                <button
+                  v-for="[cls, glyph, title] in ALIGNS"
+                  :key="cls"
+                  type="button"
+                  :aria-pressed="pressed(eff('text-align'), cls)"
+                  :class="{ inh: inh(eff('text-align'), cls) }"
+                  :title="`text-align: ${title}`"
+                  :aria-label="`text-align: ${title}`"
+                  @click="port.setClass(cls)"
+                  v-html="ic(glyph)"
+                ></button>
+              </div>
+              <BuildFieldReset :hit="ownHit(eff('text-align'))" label="text-align" />
             </div>
           </div>
           <template v-if="tool('color')">
@@ -686,7 +702,7 @@ function jump(group) {
             <BuildColorField :tool="tool('color')" />
           </template>
           <template v-for="item in extra(group)" :key="item.id">
-            <div class="fg-lab">{{ item.css }}</div>
+            <div class="fg-lab">{{ item.css }}<BuildFieldReset v-if="item.kids?.length" :names="ownOf([item])" :label="item.css" /></div>
             <BuildAlign v-if="item.kids?.length" :kids="item.kids" :align="false" />
             <BuildField v-else :title="item.css"><BuildValueInput :tool="item" compact /></BuildField>
           </template>
@@ -714,6 +730,7 @@ function jump(group) {
                 @click="openGroup($event, borderNames, 'border-width')"
                 @keydown.down.prevent="openGroup($event, borderNames, 'border-width')"
               >{{ effGroup(borderNames) ? borderLabel(effGroup(borderNames).name) : '—' }}</button>
+              <BuildFieldReset :hit="ownHit(effGroup(borderNames))" label="border-width" />
             </label>
             <div class="fg-line">
               <BuildField icon="radius" title="border-radius">
@@ -722,16 +739,19 @@ function jump(group) {
               <button type="button" class="fg-ib" :aria-pressed="corners" :title="port.t('link_each')" @click="corners = !corners" v-html="ic('sides')"></button>
             </div>
           </div>
-          <BuildAlign v-if="corners" :kids="cornerKids" :align="false" />
+          <template v-if="corners">
+            <div class="fg-lab">border-radius<BuildFieldReset :names="ownOf(cornerKids)" label="border-radius" /></div>
+            <BuildAlign :kids="cornerKids" :align="false" />
+          </template>
           <div class="fg-lab">border-color</div>
           <BuildColorField :tool="borderColor" />
           <button type="button" class="fg-more" :aria-pressed="borderSides" data-sve-build-border-sides @click="borderSides = !borderSides">
             <span v-html="ic('sides')"></span>{{ port.t('border_sides') }}
           </button>
           <template v-if="borderSides">
-            <div class="fg-lab">border-width</div>
+            <div class="fg-lab">border-width<BuildFieldReset :names="ownOf(widthKids)" label="border-width" /></div>
             <BuildAlign :kids="widthKids" :align="false" />
-            <div class="fg-lab">border-color</div>
+            <div class="fg-lab">border-color<BuildFieldReset :names="ownOf(colorKids)" label="border-color" /></div>
             <BuildAlign :kids="colorKids" :align="false" />
           </template>
           <BuildFields family="border" />
@@ -755,6 +775,7 @@ function jump(group) {
                 @click="openGroup($event, shadowNames, 'box-shadow')"
                 @keydown.down.prevent="openGroup($event, shadowNames, 'box-shadow')"
               >{{ effGroup(shadowNames) ? shadowLabel(effGroup(shadowNames).name) : '—' }}</button>
+              <BuildFieldReset :hit="ownHit(effGroup(shadowNames))" label="box-shadow" />
             </label>
           </div>
           <div class="fg-lab">overflow</div>
@@ -771,7 +792,7 @@ function jump(group) {
         <!-- A family this layout does not have: every tool from its shape -->
         <template v-else>
           <template v-for="item in group.tools" :key="item.id">
-            <div class="fg-lab">{{ item.css }}</div>
+            <div class="fg-lab">{{ item.css }}<BuildFieldReset v-if="item.kids?.length || (item.menu === 'choices' && choices(item).length <= 6)" :names="ownOf([item])" :label="item.css" /></div>
             <BuildAlign v-if="item.kids?.length" :kids="item.kids" :align="false" />
             <div v-else-if="item.menu === 'choices' && choices(item).length <= 6" class="fg-seg">
               <button v-for="c in choices(item)" :key="c.name" type="button" :aria-pressed="pressed(eff(item.css), c.name)" @click="port.setClass(c.name)">{{ c.label }}</button>

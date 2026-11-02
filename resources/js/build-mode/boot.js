@@ -43,7 +43,7 @@
  *
  * `drag(event, item)` hands a tile pressed in Add to the canvas
  * (canvas-ui.js); false when Build has no canvas to drop on. On a page built
- * from sections a tile with no parent is a section of its own instead
+ * from sections the Section tile is a section of its own instead
  * (`addSection`, `dropSection` — new-section.js). `openPlus(path)`
  * is a + pressed on the canvas: Add's target, shown in the panel — Add opens
  * and flashes (`pointed` counts the presses; BuildPanel.vue).
@@ -105,7 +105,7 @@ import { tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath } from './place.js';
-import { clickedAfter, hasParent, makeSection, onlySections, sectionKind, sectionRows } from './new-section.js';
+import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { classTargetFor } from '../dock/class-target.js';
@@ -480,29 +480,32 @@ export function createEditorPort(win, hooks = {}) {
       port.setPlus(path);
       pointed.value += 1;
     },
-    sectionTag: () => String(win.Statamic?.$config?.get?.('sveSectionTag') || ''),
+    /** The site's section attributes belong to a section of the page; a header, a layout or a component gets a plain tag. */
+    sectionTag: () => (fileOfItsOwn() ? '' : String(win.Statamic?.$config?.get?.('sveSectionTag') || '')),
     mobileVariant: () => rows()[rows().length - 1]?.tw || 'max-md',
 
     /* A section of its own (new-section.js): what a tile makes on a page built from sections, and where */
-    sectionKind: (entry) => sectionKind(win, entry),
+    sectionKind: (entry) => (rev.value, sectionKind(win, entry)),
+    /** A page built from sections, with one of them or nothing in the dock: what has no parent can only be a Section. */
+    inPageSections: () => (rev.value, inPageSections(win)),
     sectionRows: () => sectionRows(win),
     /** No file in the dock on a page built from sections: Add's place is a new section at the end of the page. */
     onlySections: () => (rev.value, onlySections(win)),
+    /** No file in the dock on any other page: a tile has nowhere to go until one is opened. */
+    noFile: () => (rev.value, noFile(win)),
     /** A tile clicked: true when it became a section of its own (the popup is up), false when Add writes it. */
-    addSection(entry, markup) {
-      const kind = sectionKind(win, entry);
-
-      if (!kind || (kind === 'outside' && hasParent())) {
+    addSection(entry) {
+      if (!sectionKind(win, entry)) {
         return false;
       }
 
-      void makeSection(win, { markup: kind === 'always' ? '' : markup, afterUid: clickedAfter(win) });
+      void makeSection(win, { afterUid: clickedAfter(win) });
 
       return true;
     },
     /** A tile dropped beside a section on the canvas (canvas-ui.js): its section lands after `afterUid`. */
-    dropSection(kind, markup, afterUid) {
-      void makeSection(win, { markup: kind === 'always' ? '' : markup, afterUid });
+    dropSection(afterUid) {
+      void makeSection(win, { afterUid });
     },
     components() {
       return win

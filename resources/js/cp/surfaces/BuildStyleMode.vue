@@ -13,7 +13,7 @@ defineProps({
   node: { type: Object, required: true },
 });
 
-// A field's own reset and a colour's alpha (BuildFieldReset.vue, BuildFieldAlpha.vue), in both modes.
+// A field's dot and a colour's alpha (BuildFieldReset.vue, BuildFieldAlpha.vue), in both modes.
 provide('sveFieldReset', true);
 
 const BuildStyleCss = defineAsyncComponent(() => import('./BuildStyleCss.vue'));

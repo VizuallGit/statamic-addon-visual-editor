@@ -19,9 +19,8 @@
  *                after the element under the pointer, or a box round the one
  *                it would go into, says where it lands (drop.js); letting go
  *                writes it there and picks it. Escape lets go of nothing.
- *                A tile that makes a section of its own (new-section.js) —
- *                Section anywhere, the others outside the open section — is
- *                a line before or after the page's section under the pointer,
+ *                The tile that makes a section of its own (new-section.js),
+ *                Section, is a line before or after the page's section under the pointer,
  *                and letting go asks for the section (`port.dropSection`).
  *
  * Both are for a port that writes — Visual Build's. HTML Build's port only
@@ -545,7 +544,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       },
       land: (over) =>
         over.section
-          ? port()?.dropSection(item.section, item.markup(), over.afterUid)
+          ? port()?.dropSection(over.afterUid)
           : write(dropNew(port()?.html() || '', over.path, over.where, item.markup())),
     });
 

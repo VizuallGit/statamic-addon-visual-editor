@@ -73,8 +73,10 @@ return [
     'group_other' => 'Other',
     'insert_into' => 'Inserting into :name',
     'insert_after' => 'Inserting after :name',
-    'insert_end' => 'Inserting at the end of the file',
     'insert_new_section' => 'New section at the end of the page',
+    'insert_open_file' => 'Open the template to add to it',
+    'insert_top' => 'Start with a Section or Div',
+    'insert_top_section' => 'Start with a Section',
     'insert_locked' => 'This element is locked. Pick another place.',
     'insert_reset' => 'Insert at the selected element instead',
     'columns_title' => 'Choose a grid',
@@ -124,6 +126,9 @@ return [
     'content_alt_note' => 'The alt text is the image\'s own: set it with Set Alt on the image, and it follows wherever it is changed.',
     // The SVG tile (Add → Basic) and its pictures: Statamic's {{ svg }} for a file in the site's SVG folder.
     'el_svg' => 'SVG',
+    // Add's two list tiles; a list element in the panel is `el_list`.
+    'tile_ul' => 'List ul',
+    'tile_ol' => 'List ol',
     'svg_title' => 'Pick an SVG',
     'svg_loading' => 'Loading the SVGs…',
     'svg_failed' => 'The SVGs could not be loaded.',

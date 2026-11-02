@@ -14,7 +14,7 @@
  * names lands in Other, in Build, by itself.
  *
  * Build adds only what the dock has no button for yet — Grid with its cells,
- * Button, Divider, Rich text, SVG, four more HTML tags, and grid-template-columns in Style —
+ * Button, Divider, Rich text, SVG, a numbered list, four more HTML tags, and grid-template-columns in Style —
  * each written in the dock's own shape (`{ id, classes }` like HTML_DIVS,
  * `{ id, title, css, tw }` like CSS_TOOLS), so moving one into the dock is a
  * cut and paste and then it is in both.
@@ -43,6 +43,7 @@ export const BUILD_ELEMENTS = {
   header: { id: 'header', tag: 'header' },
   footer: { id: 'footer', tag: 'footer' },
   figure: { id: 'figure', tag: 'figure' },
+  ol: { id: 'ol', tag: 'ol' },
 };
 
 /**
@@ -71,6 +72,8 @@ const ADD_LAYOUT = [
   { id: 'grid', columns: true },
   { id: 'flex', div: 'flex' },
   { id: 'div', div: 'div' },
+  { id: 'list', tool: 'ul', lang: 'tile_ul' },
+  { id: 'ol', own: 'ol', lang: 'tile_ol' },
 ];
 const ADD_BASIC = [
   { id: 'heading', tool: 'heading' },
@@ -82,7 +85,6 @@ const ADD_BASIC = [
   { id: 'gallery', own: 'gallery' },
   { id: 'svg', own: 'svg' },
   { id: 'video', tool: 'video' },
-  { id: 'list', tool: 'ul' },
   { id: 'divider', own: 'divider' },
 ];
 const ADD_LOGIC = [
@@ -152,6 +154,15 @@ export function addGroups(dock = {}) {
   }
 
   return groups.filter((group) => group.items.length);
+}
+
+/**
+ * What can stand at the top of a file with no section of the page in it: a
+ * Section, a plain Div, or a Loop or If, which is no element. All else goes
+ * inside one of them (new-section.js says what a page built from sections takes).
+ */
+export function startsFile(entry) {
+  return !!entry?.logic || (entry?.source === 'tool' && entry.def?.tag === 'section') || (entry?.source === 'div' && entry.def?.id === 'div');
 }
 
 /* ------------------------------------------------------------------ *

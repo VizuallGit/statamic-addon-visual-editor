@@ -16,10 +16,13 @@
  * where it is let go (`port.drag`, canvas-ui.js); a press that does not move
  * stays a click.
  *
- * On a page built from sections, Section is always a section of its own, and
- * a layout or an HTML tag is one where it has no parent: the HTML tree's
- * "Static HTML / With fields" popup, then a row on the page
- * (build-mode/new-section.js, through the port).
+ * On a page built from sections, Section is always a section of its own: the
+ * HTML tree's "Static HTML / With fields" popup, then a row on the page
+ * (build-mode/new-section.js, through the port). Where there is no parent —
+ * nothing open, or the top of a file — only what can stand there goes: on that
+ * page a Section, in any other file a Section, a Div, a Loop or an If
+ * (`startsFile`). Everything else is grey until it has a parent to go into. On
+ * any other page with no file open, nothing can land, so every tile is grey.
  *
  * Loop and If are handed to the port, which writes them and opens their
  * settings in a popup — clicked, not dragged. SVG opens the site's SVGs in a
@@ -34,7 +37,7 @@
 import { computed, inject, ref, watch } from 'vue';
 import BuildGridPicker from './BuildGridPicker.vue';
 import BuildSvgPopup from './BuildSvgPopup.vue';
-import { addGroups } from '../../build-mode/catalog.js';
+import { addGroups, startsFile } from '../../build-mode/catalog.js';
 import { tileLabel, tileMarkup, writeAt } from '../../build-mode/add.js';
 import { svgMarkup } from '../../build-mode/svg.js';
 import { ic, tileIcon } from '../../build-mode/icons.js';
@@ -113,19 +116,23 @@ const target = computed(() => {
     return { nowhere: true, html: esc(port.t('insert_new_section')) };
   }
 
+  if (port.noFile?.()) {
+    return { nofile: true, html: esc(port.t('insert_open_file')) };
+  }
+
   if (!place) {
     return { locked: true, html: esc(port.t('insert_locked')) };
+  }
+
+  if (!place.parent) {
+    return { top: true, html: esc(port.t(port.inPageSections?.() ? 'insert_top_section' : 'insert_top')) };
   }
 
   if (place.mode === 'into') {
     return { html: port.t('insert_into', { name: `<b>${esc(props.nameOf(place.parent))}</b>` }) };
   }
 
-  if (place.mode === 'after') {
-    return { html: port.t('insert_after', { name: `<b>${esc(props.nameOf(place.after))}</b>` }) };
-  }
-
-  return { html: esc(port.t('insert_end')) };
+  return { html: port.t('insert_after', { name: `<b>${esc(props.nameOf(place.after))}</b>` }) };
 });
 
 const write = (markup) => writeAt(port, port.plusPath() || port.selectedPath(), markup);
@@ -142,8 +149,8 @@ function add(entry, structure, rows) {
 
   const markup = markupOf(entry, { structure, rows });
 
-  // On a page built from sections, Section — and a layout with no parent — is a section of its own.
-  if (!port.addSection?.(entry, markup)) {
+  // On a page built from sections, Section is a section of its own.
+  if (!port.addSection?.(entry)) {
     write(markup);
   }
 }
@@ -181,12 +188,24 @@ function addSvg(src) {
   }
 }
 
-/** A tile with nowhere to land: beside a lock only Section, with nothing open only a section's tiles still go. */
+/** A tile with nowhere to land: beside a lock or with no parent only Section, or what can start the file. */
 function offFor(entry) {
-  const kind = port.sectionKind?.(entry) || '';
+  const { nofile, nowhere, locked, top } = target.value;
+  const section = !!port.sectionKind?.(entry);
 
-  return target.value.nowhere ? !kind : !!target.value.locked && kind !== 'always';
+  if (nofile) {
+    return true;
+  }
+
+  if (top && !port.inPageSections?.()) {
+    return !startsFile(entry);
+  }
+
+  return (nowhere || locked || top) && !section;
 }
+
+/** A component needs a parent, like any element. */
+const noComponents = computed(() => !!(target.value.nofile || target.value.nowhere || target.value.locked || target.value.top));
 
 /** Loop, If, Grid and SVG open something first, so they are clicked, not dragged. */
 const draggable = (entry) => !entry.logic && entry.source !== 'columns' && !entry.def?.svg;
@@ -274,7 +293,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
             :disabled="offFor(entry)"
             :title="port.t('add_title')"
             :data-sve-build-tile="entry.id"
-            @pointerdown="draggable(entry) && grab($event, label(entry), () => markupOf(entry), entry)"
+            @pointerdown="draggable(entry) && !offFor(entry) && grab($event, label(entry), () => markupOf(entry), entry)"
             @click="press(entry, $event)"
           >
             <span v-html="tileIcon(entry, port.lists.htmlIcons, port.lists.toolIcons)"></span>
@@ -298,10 +317,10 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
           :key="item.name"
           type="button"
           class="bm-tile is-comp"
-          :disabled="target.locked || target.nowhere"
+          :disabled="noComponents"
           :title="item.description || item.name"
           :data-sve-build-component="item.name"
-          @pointerdown="grab($event, humanize(item.name), () => item.tag)"
+          @pointerdown="!noComponents && grab($event, humanize(item.name), () => item.tag)"
           @click="write(item.tag)"
         >
           <span v-html="port.lists.htmlIcons.component || ic('cube')"></span>

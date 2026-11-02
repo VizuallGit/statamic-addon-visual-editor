@@ -20,7 +20,7 @@ defineProps({
 <template>
   <div class="fg-grid">
     <div v-for="field in STYLE_FIELDS[family]" :key="field.label" class="fg-cell" :class="{ 'is-wide': field.wide }">
-      <div class="fg-lab">{{ field.label }}</div>
+      <div v-if="!field.seg" class="fg-lab">{{ field.label }}</div>
       <BuildBgImage v-if="field.image" :field="field" :path="path" />
       <BuildClassSeg v-else-if="field.seg" :field="field" />
       <BuildColorField v-else-if="field.color" :tool="field" />

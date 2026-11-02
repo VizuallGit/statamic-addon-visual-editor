@@ -52,6 +52,10 @@ export function markupFor(entry, opts = {}) {
         return '<hr>';
       }
 
+      if (def.tag === 'ol') {
+        return `<ol>\n${INDENT}<li>${esc(text.item)}</li>\n</ol>`;
+      }
+
       if (def.gallery) {
         return `<div class="grid grid-cols-3 gap-4">\n${INDENT}<img src="" alt="" class="w-full">\n</div>`;
       }

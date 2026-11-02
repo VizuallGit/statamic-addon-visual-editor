@@ -360,7 +360,7 @@
 
 /* Luft til siderne, og tallet på linje med ikonerne. */
 :root:has(.live-preview-editor) [data-asset-picker] {
-    padding-inline: 0.75rem;
+    padding-inline: 1rem 0.75rem;
     column-gap: 0.5rem;
 }
 

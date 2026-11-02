@@ -475,7 +475,7 @@ onBeforeUnmount(() => {
 .sve-build .bm-seg button[aria-pressed='true'] { background: var(--bm-panel); color: var(--bm-ink); box-shadow: inset 0 0 0 1px var(--bm-edge); }
 .sve-build .bm-seg button.inh { background: transparent; color: var(--bm-inh); box-shadow: inset 0 0 0 1px var(--bm-inh-line); font-style: italic; }
 .sve-build .bm-seg .bm-ic, .sve-build .bm-seg svg { width: 0.875rem; height: 0.875rem; }
-.sve-build .bm-search { display: flex; align-items: center; gap: 0.45rem; padding: 0 0.55rem; height: 1.875rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; color: var(--bm-muted); }
+.sve-build .bm-search { display: flex; align-items: center; gap: 0.45rem; padding: 0 0.55rem 0 0.75rem; height: 1.875rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; color: var(--bm-muted); }
 .sve-build .bm-search:focus-within { border-color: var(--bm-accent); }
 .sve-build .bm-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--bm-ink); }
 .sve-build .bm-find { display: flex; align-items: center; gap: 0.375rem; }
@@ -782,10 +782,10 @@ onBeforeUnmount(() => {
 .sve-build .fg-sec__tog { width: 1.05rem; height: 1.05rem; border-radius: 0.25rem; background: var(--bm-raise); }
 .sve-build .fg-sec__tog .bm-ic, .sve-build .fg-sec__tog svg { width: 0.5625rem; height: 0.5625rem; }
 .sve-build button.fg-sec__tog:hover:not(:disabled) { background: var(--bm-hover); color: var(--bm-ink); }
-/* Set on the element: a blue dot beside the family's name; hovered or focused, it shows the reset it does. */
+/* Set on the element: a blue dot with a soft ring beside the family's name; hovered or focused, it shows the reset it does. */
 .sve-build .fg-set { width: 1.25rem; height: 1.25rem; display: grid; place-items: center; flex: none; border-radius: 999px; color: var(--bm-accent-text); }
 /* The blue of "This element", solid — no soft ring, which read as a darker blue. */
-.sve-build .fg-set > i { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--bm-accent); }
+.sve-build .fg-set > i { width: 0.4375rem; height: 0.4375rem; border-radius: 999px; background: var(--bm-accent); box-shadow: 0 0 0 0.1875rem var(--bm-accent-soft); }
 .sve-build .fg-set > span { display: none; }
 .sve-build .fg-set svg { width: 0.8125rem; height: 0.8125rem; }
 .sve-build .fg-set:is(:hover, :focus-visible) { background: var(--bm-accent-soft); }

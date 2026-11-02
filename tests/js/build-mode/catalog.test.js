@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILD_TOOLS, STYLE_GROUPS, addGroups, elementKind, holdsElements, styleGroups } from '../../../resources/js/build-mode/catalog.js';
+import { BUILD_TOOLS, STYLE_GROUPS, addGroups, elementKind, holdsElements, startsFile, styleGroups } from '../../../resources/js/build-mode/catalog.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 import { CSS_TOOLS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS } from './dock-lists.js';
 
@@ -15,8 +15,8 @@ test('Add shows the brief\'s groups, in order, every tile resolved', () => {
   const ids = (id) => groups.find((g) => g.id === id).items.map((item) => item.id);
 
   assert.deepEqual(groups.map((g) => g.id).slice(0, 4), ['layout', 'basic', 'logic', 'tags']);
-  assert.deepEqual(ids('layout'), ['section', 'container', 'grid', 'flex', 'div']);
-  assert.deepEqual(ids('basic'), ['heading', 'text', 'richtext', 'button', 'link', 'image', 'gallery', 'svg', 'video', 'list', 'divider']);
+  assert.deepEqual(ids('layout'), ['section', 'container', 'grid', 'flex', 'div', 'list', 'ol']);
+  assert.deepEqual(ids('basic'), ['heading', 'text', 'richtext', 'button', 'link', 'image', 'gallery', 'svg', 'video', 'divider']);
   assert.deepEqual(ids('logic'), ['loop', 'if']);
   assert.deepEqual(ids('tags'), ['article', 'aside', 'nav', 'header', 'footer', 'figure']);
 });
@@ -29,6 +29,13 @@ test('a tile the dock has is the dock\'s own definition, not a copy', () => {
   assert.equal(byId('container').def, HTML_DIVS.find((d) => d.id === 'container'));
   assert.equal(byId('loop').def, HTML_TOOLS.find((t) => t.id === 'loop'));
   assert.equal(byId('heading').headings, HTML_HEADINGS);
+});
+
+test('the top of a file takes a Section, a plain Div, a Loop or an If, and nothing else', () => {
+  const items = addGroups(dock).flatMap((g) => g.items);
+  const starters = items.filter(startsFile).map((item) => item.id);
+
+  assert.deepEqual(starters.sort(), ['div', 'if', 'loop', 'section']);
 });
 
 test('what the dock has and no group names shows up under Other, by itself', () => {

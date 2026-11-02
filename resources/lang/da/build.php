@@ -65,8 +65,10 @@ return [
     'group_other' => 'Andre',
     'insert_into' => 'Indsætter i :name',
     'insert_after' => 'Indsætter efter :name',
-    'insert_end' => 'Indsætter sidst i filen',
     'insert_new_section' => 'Ny sektion sidst på siden',
+    'insert_open_file' => 'Åbn skabelonen for at tilføje til den',
+    'insert_top' => 'Start med en Section eller Div',
+    'insert_top_section' => 'Start med en Section',
     'insert_locked' => 'Elementet er låst. Vælg et andet sted.',
     'insert_reset' => 'Indsæt ved det valgte element i stedet',
     'columns_title' => 'Vælg grid',
@@ -114,6 +116,9 @@ return [
     'content_alt_note' => 'Alt-teksten er billedets egen: sæt den med Set Alt på billedet, så følger den med, uanset hvor den ændres.',
     // SVG-flisen (Tilføj → Basis) og dens billeder: Statamics {{ svg }} for en fil i sitets SVG-mappe.
     'el_svg' => 'SVG',
+    // Add's two list tiles; a list element in the panel is `el_list`.
+    'tile_ul' => 'Liste ul',
+    'tile_ol' => 'Liste ol',
     'svg_title' => 'Vælg en SVG',
     'svg_loading' => 'Henter SVG’erne…',
     'svg_failed' => 'SVG’erne kunne ikke hentes.',

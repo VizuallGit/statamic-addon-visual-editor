@@ -479,7 +479,7 @@ function setQuery(value) {
   gap: 8px;
   box-sizing: border-box;
   height: 2rem;
-  padding: 0 0.5rem 0 0.625rem;
+  padding: 0 0.5rem 0 0.75rem;
   border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.14);
   color: inherit;
