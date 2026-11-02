@@ -24,8 +24,94 @@ import { cssBlockTree, sizeOfQuery } from '../../css-sizes.js';
 const TAG = /\{\{[\s\S]*?\}\}/g;
 const SCOPE = /^@scope\b/i;
 
-const masked = (selector) => String(selector || '').replace(TAG, '').trim();
+/** A selector as the block tree has it: a tag is blank there. Only whitespace can differ, as a blank is as long as its tag. */
+const flat = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+const masked = (selector) => flat(String(selector || '').replace(TAG, ' '));
 const hasTag = (text) => String(text || '').includes('{{');
+
+/** Where the tag at `at` ends, past the tags inside it: `{{ a b="#x-{{ id }}" }}`. */
+function tagEnd(css, at) {
+  let depth = 0;
+
+  for (let i = at; i < css.length - 1; i += 1) {
+    if (css.startsWith('{{', i)) {
+      depth += 1;
+      i += 1;
+    } else if (css.startsWith('}}', i)) {
+      depth -= 1;
+      i += 1;
+
+      if (depth === 0) {
+        return i + 1;
+      }
+    }
+  }
+
+  return css.length;
+}
+
+/**
+ * The block tree of css-sizes.js ends a tag at the first `}}`, the inner tag's in
+ * `{{ responsive_css selector="#id-{{ id }} .x" }}`, and what is left of the outer
+ * one opens a string that swallows the rest of the file. So the inner tag is
+ * blanked for it, at its own length: the tree's offsets hold for the real text.
+ */
+export function treeOf(css) {
+  const source = String(css || '');
+  let out = '';
+  let i = 0;
+
+  while (i < source.length) {
+    const at = source.indexOf('{{', i);
+
+    if (at === -1) {
+      break;
+    }
+
+    const end = tagEnd(source, at);
+    const inner = source.indexOf('{{', at + 2);
+
+    out += source.slice(i, at);
+    out += inner !== -1 && inner < end
+      ? `{{${source.slice(at + 2, end - 2).replace(/\{\{[\s\S]*?\}\}/g, (tag) => ' '.repeat(tag.length))}}}`
+      : source.slice(at, end);
+    i = end;
+  }
+
+  return cssBlockTree(out + source.slice(i));
+}
+
+/**
+ * What `{{ responsive_css }} … {{ /responsive_css }}` holds. The server wraps it
+ * in the section's own selector, so a rule on that selector written there would
+ * come out as `#id-x #id-x` and reach nothing: no new block goes in one.
+ */
+function tagPairBodies(css) {
+  const out = [];
+  const open = /\{\{\s*responsive_css\b/g;
+  const close = /\{\{\s*\/responsive_css\s*\}\}/g;
+
+  for (let match = open.exec(css); match; match = open.exec(css)) {
+    const from = tagEnd(css, match.index);
+
+    close.lastIndex = from;
+
+    const end = close.exec(css);
+
+    if (end) {
+      out.push([from, end.index]);
+      open.lastIndex = end.index + end[0].length;
+    }
+  }
+
+  return out;
+}
+
+const outsideBodies = (css) => {
+  const bodies = tagPairBodies(css);
+
+  return (node) => !bodies.some(([from, to]) => node.from >= from && node.from < to);
+};
 
 /** The size a row stands for here: the base row and All are both the rule outside every size block. */
 export const sizeKey = (rows, handle) => {
@@ -39,7 +125,7 @@ export const sizeKey = (rows, handle) => {
 /** Every place the selector has declarations, in file order: `{ node, size, media }`. */
 function hitsOf(tree, selector, rows) {
   const want = masked(selector);
-  const state = /^(.*?)(::?[a-z-]+)$/.exec(want);
+  const state = /^(.*?)\s?(::?[a-z-]+)$/.exec(want);
   const out = [];
 
   const walk = (nodes, size, media, inScope) => {
@@ -55,7 +141,7 @@ function hitsOf(tree, selector, rows) {
         if (!inScope) {
           walk(node.children, size, media, true);
         }
-      } else if (node.prelude === want) {
+      } else if (flat(node.prelude) === want) {
         out.push({ node, size, media });
 
         for (const child of node.children) {
@@ -65,11 +151,19 @@ function hitsOf(tree, selector, rows) {
             out.push({ node: child, size: own, media: child, nested: true });
           }
         }
-      } else if (state && node.prelude === state[1]) {
+      } else if (state && flat(node.prelude) === state[1]) {
         // The dock writes a state inside its rule: `.a { &:hover { … } }` is `.a:hover`.
         for (const child of node.children) {
-          if (child.prelude === `&${state[2]}`) {
+          if (flat(child.prelude) === `&${state[2]}`) {
             out.push({ node: child, size, media });
+
+            for (const inner of child.children) {
+              const own = inner.media ? sizeOfQuery(inner.query, rows) : '';
+
+              if (own && !size) {
+                out.push({ node: inner, size: own, media: inner, nested: true });
+              }
+            }
           }
         }
       }
@@ -115,9 +209,7 @@ function declarationsIn(css, node) {
     }
 
     if (css.startsWith('{{', i)) {
-      const end = css.indexOf('}}', i + 2);
-
-      i = end === -1 ? to : end + 2;
+      i = Math.min(tagEnd(css, i), to);
       continue;
     }
 
@@ -164,7 +256,7 @@ function allDeclarations(css, selector, rows) {
   const source = String(css || '');
   const found = new Map();
 
-  for (const { node, size } of hitsOf(cssBlockTree(source), selector, rows)) {
+  for (const { node, size } of hitsOf(treeOf(source), selector, rows)) {
     for (const decl of declarationsIn(source, node)) {
       found.delete(`${size}|${decl.prop}`);
       found.set(`${size}|${decl.prop}`, { size, prop: decl.prop, value: decl.value });
@@ -209,7 +301,7 @@ function removeDeclaration(css, where, prop) {
   let source = css;
 
   for (;;) {
-    const hits = hitsOf(cssBlockTree(source), where.selector, where.rows).filter((hit) => hit.size === where.size);
+    const hits = hitsOf(treeOf(source), where.selector, where.rows).filter((hit) => hit.size === where.size);
     const hit = [...hits].reverse().find((one) => declarationsIn(source, one.node).some((decl) => decl.prop === prop));
 
     if (!hit) {
@@ -224,7 +316,7 @@ function removeDeclaration(css, where, prop) {
 }
 
 function pruneEmpty(css, where) {
-  const hits = hitsOf(cssBlockTree(css), where.selector, where.rows).filter((hit) => hit.size === where.size);
+  const hits = hitsOf(treeOf(css), where.selector, where.rows).filter((hit) => hit.size === where.size);
   const empty = [...hits].reverse().find((hit) => isEmpty(css, hit.node));
 
   if (!empty) {
@@ -287,9 +379,66 @@ function cascadeOrder(rows) {
   return new Map(list.map((row, index) => [row.handle, index]));
 }
 
+/**
+ * A class's plain rule where the cascade wants it: inside the file's one `@scope`,
+ * and before the size blocks at its level. The dock puts a new `[ name ]`'s empty
+ * rule last in the file, and the save moves it to the end of the scope: after a
+ * size written meanwhile, which then loses to All on the page while the canvas
+ * shows it winning. Only a rule the save would move anyway, or an empty one, moves.
+ */
+function settlePlainRule(css, selector, rows) {
+  const want = masked(selector);
+  const tree = treeOf(css);
+  const box = containerFor(tree, selector);
+  const outside = outsideBodies(css);
+  const isRule = (node) => !node.media && flat(node.prelude) === want;
+  const holdsNothing = (node) => !node.children.length && !css.slice(node.bodyFrom, node.bodyTo).trim();
+  const stray = box ? tree.find(isRule) : null;
+  const inside = box ? box.children.filter(isRule) : [];
+
+  if (stray) {
+    const moves = holdsNothing(stray) || /_class/.test(css.slice(box.from, box.bodyFrom));
+
+    if (!moves || (inside.length && !holdsNothing(stray))) {
+      return css;
+    }
+
+    const text = cut(css, stray.from, stray.to);
+
+    return inside.length ? text : placeInLevel(text, selector, holdsNothing(stray) ? null : css.slice(stray.from, stray.to));
+  }
+
+  const nodes = box ? box.children : tree;
+  const rule = nodes.filter(isRule).pop();
+  const first = nodes.find((node) => node.media && outside(node));
+
+  if (rule && first && first.from < rule.from && holdsNothing(rule)) {
+    return placeInLevel(cut(css, rule.from, rule.to), selector, null);
+  }
+
+  return css;
+}
+
+/** A plain rule put in its level, before the first size block there; `text` its words as they stood, or null for an empty one. */
+function placeInLevel(css, selector, text) {
+  const tree = treeOf(css);
+  const box = containerFor(tree, selector);
+  const nodes = box ? box.children : tree;
+  const first = nodes.find((node) => node.media && outsideBodies(css)(node));
+  const indent = first ? indentAt(css, first.from) : box ? `${indentAt(css, box.from)}${INDENT}` : '';
+  const rule = `${indent}${text ?? `${selector} {\n${indent}}`}`;
+
+  if (first) {
+    return insertBefore(css, first, rule);
+  }
+
+  return box ? appendInBlock(css, box, rule) : appendAtEnd(css, rule);
+}
+
 function createRule(css, where, prop, value) {
   const { selector, size, rows, query } = where;
-  const tree = cssBlockTree(css);
+  const tree = treeOf(css);
+  const outside = outsideBodies(css);
   const box = containerFor(tree, selector);
   const nodes = box ? box.children : tree;
   const indent = box ? `${indentAt(css, box.from)}${INDENT}` : '';
@@ -300,15 +449,17 @@ function createRule(css, where, prop, value) {
     // Before the selector's own size rules: after them it would beat them all. A
     // state goes before the plain rule's too, so its sizes can share their blocks.
     const plain = /^(.*?)::?[a-z-]+$/.exec(masked(selector))?.[1];
-    const sized = [...hits, ...(plain ? hitsOf(tree, plain, rows) : [])].find((hit) => hit.size && !hit.nested);
-    const text = ruleText(selector, sized ? indentAt(css, sized.media.from) : indent, prop, value);
+    const sized = [...hits, ...(plain ? hitsOf(tree, plain, rows) : [])].find((hit) => hit.size && !hit.nested && outside(hit.media));
+    // A new rule goes before the level's first size block too: its own sizes can then share that block.
+    const before = sized?.media || nodes.find((node) => node.media && outside(node));
+    const text = ruleText(selector, before ? indentAt(css, before.from) : indent, prop, value);
 
-    return sized ? insertBefore(css, sized.media, text) : place(text);
+    return before ? insertBefore(css, before, text) : place(text);
   }
 
   const base = hits.filter((hit) => !hit.size).pop();
   const after = base ? base.node.to : 0;
-  const blocks = nodes.filter((node) => node.media && node.from >= after);
+  const blocks = nodes.filter((node) => node.media && node.from >= after && outside(node));
   const own = blocks.filter((node) => sizeOfQuery(node.query, rows) === size).pop();
 
   if (own) {
@@ -328,7 +479,7 @@ function writeOne(css, where, { prop, value }) {
     return removeDeclaration(css, where, prop);
   }
 
-  const hits = hitsOf(cssBlockTree(css), where.selector, where.rows).filter((hit) => hit.size === where.size);
+  const hits = hitsOf(treeOf(css), where.selector, where.rows).filter((hit) => hit.size === where.size);
   const withIt = [...hits].reverse().find((hit) => declarationsIn(css, hit.node).some((decl) => decl.prop === prop));
 
   if (withIt) {
@@ -357,7 +508,12 @@ function writeOne(css, where, { prop, value }) {
  * @param {Array<{ prop: string, value: string|null }>} updates  a null value takes the property out
  */
 export function writeDeclarations(css, where, updates) {
-  return (updates || []).reduce((text, update) => writeOne(text, where, update), String(css || ''));
+  const list = updates || [];
+  const source = String(css || '');
+  const plain = /^(.*?)\s?::?[a-z-]+$/.exec(where.selector)?.[1] || where.selector;
+  const start = list.some((update) => update.value !== null && update.value !== undefined) ? settlePlainRule(source, plain, where.rows) : source;
+
+  return list.reduce((text, update) => writeOne(text, where, update), start);
 }
 
 /* ---------------- renaming ---------------- */
@@ -381,7 +537,7 @@ export function renameSelector(css, from, to) {
     }
   };
 
-  walk(cssBlockTree(source));
+  walk(treeOf(source));
 
   return spots
     .sort((a, b) => b[0] - a[0])
@@ -425,7 +581,7 @@ export function liveSheet(css, targets, rows, fill = () => '', suffixes = []) {
   }
 
   // An animation's steps stand beside the rules: `@scope` is about what a selector reaches.
-  const steps = moving ? cssBlockTree(String(css || '')).filter((node) => /^@keyframes\b/.test(node.prelude)).map((node) => css.slice(node.from, node.to)) : [];
+  const steps = moving ? treeOf(css).filter((node) => /^@keyframes\b/.test(node.prelude)).map((node) => css.slice(node.from, node.to)) : [];
   const sheet = parts.length ? [`@scope ([data-sve-build-root]) {\n${parts.join('\n')}\n}`] : [];
 
   return [...steps, ...sheet].join('\n');

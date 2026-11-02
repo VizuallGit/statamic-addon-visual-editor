@@ -4,7 +4,8 @@ import test from 'node:test';
 import { __unstable__loadDesignSystem as loadDesignSystem } from 'tailwindcss';
 import { STYLE_FIELDS } from '../../resources/js/build-mode/catalog.js';
 import { applyUpdates, partsOf, readPlaces, writeParts } from '../../resources/js/build-mode/css-mode/parts.js';
-import { liveSheet, readRule, writeDeclarations } from '../../resources/js/build-mode/css-mode/rules.js';
+import { moveClassesIntoScope } from '../../resources/js/css-scope-move.js';
+import { liveSheet, readBound, readRule, renameSelector, treeOf, writeDeclarations } from '../../resources/js/build-mode/css-mode/rules.js';
 import { boundValue, createTranslator, fieldsFor, planIsOn, planOf, planUpdates, printKeyframes } from '../../resources/js/build-mode/css-mode/translate.js';
 
 /*
@@ -347,6 +348,94 @@ test('every class a field of Style offers is plain CSS, and reads back as a fiel
 test('a class of several declarations reads as itself when all of them stand', () => {
   assert.deepEqual(translator.namesForDeclarations([{ prop: 'overflow-wrap', value: 'normal' }, { prop: 'word-break', value: 'normal' }]), ['break-normal']);
   assert.deepEqual(translator.namesForDeclarations([{ prop: 'word-break', value: 'normal' }]), ['[word-break:normal]']);
+});
+
+/* ---------------- Fable's findings ---------------- */
+
+const at = (selector, size = '') => ({ selector, size, rows: ROWS, query: ROWS.find((row) => row.handle === size)?.media || '' });
+const put = (css, selector, prop, value, size = '') => writeDeclarations(css, at(selector, size), [{ prop, value }]);
+const HERO = readFileSync(new URL('./fixtures/css-mode-hero.css', import.meta.url), 'utf8');
+
+test('a tag holding a tag does not swallow the file: the @scope after it is seen', () => {
+  const top = treeOf(HERO).map((node) => node.prelude.replace(/\s+/g, ' '));
+
+  assert.ok(top.some((one) => /^@scope/.test(one)), top.join(' | '));
+
+  let css = put(`${HERO}\n.kort {\n}\n`, '.kort', 'padding-top', '5rem');
+
+  css = put(css, '.kort', 'padding-top', '6rem');
+  assert.deepEqual(readRule(css, '.kort', ROWS), [{ size: '', prop: 'padding-top', value: '6rem' }]);
+  assert.equal((css.match(/\.kort \{/g) || []).length, 1, 'one rule');
+  assert.ok(css.indexOf('.kort {') > css.indexOf('@scope'), 'in the scope');
+  assert.match(css, /selector="#id-\{\{ id \}\} \.content"/, 'the tag itself is as it was');
+});
+
+test('renaming reaches a rule after a tag holding a tag', () => {
+  const css = '{{ responsive_css selector="#id-{{ id }} .x" only="a" }}\n{{ /responsive_css }}\n#old {\n    color: red;\n}\n';
+
+  assert.match(renameSelector(css, '#old', '#new'), /#new \{/);
+});
+
+test('a state on an ID holding {{ id }} is found again', () => {
+  let css = put('', '#knap-{{ id }}:hover', 'color', 'blue');
+
+  css = put(css, '#knap-{{ id }}:hover', 'color', 'green');
+  assert.equal((css.match(/:hover/g) || []).length, 1);
+  assert.deepEqual(readRule(css, '#knap-{{ id }}:hover', ROWS), [{ size: '', prop: 'color', value: 'green' }]);
+  assert.deepEqual(readRule(css, '#knap-{{ id }}', ROWS), []);
+  assert.match(liveSheet(css, [{ selector: '#knap-{{ id }}', real: '#knap-abc' }], ROWS, undefined, SUFFIXES), /#knap-abc:hover, :scope#knap-abc:hover \{ color: green; \}/);
+  css = put(css, '#knap-{{ id }}:hover', 'color', null);
+  assert.equal(css.trim(), '');
+  assert.deepEqual(readRule(put('', '#id-{{ id }}::before', 'color', 'red'), '#id-{{ id }}::before', ROWS), [{ size: '', prop: 'color', value: 'red' }]);
+});
+
+test('a size on the section\'s ID stays out of {{ responsive_css }}, which would make it #id-x #id-x', () => {
+  const css = '{{ responsive_css except="padding" }}\n    .icon { color: red; }\n    @media (width < 64em) {\n        .icon { color: blue; }\n    }\n{{ /responsive_css }}\n';
+  const next = put(put(css, '#id-{{ id }}', 'padding-top', '5rem'), '#id-{{ id }}', 'padding-top', '2rem', 'tablet');
+  const close = next.indexOf('{{ /responsive_css }}');
+
+  assert.ok(next.indexOf('padding-top: 2rem') > close, next);
+  assert.deepEqual(readRule(next, '#id-{{ id }}', ROWS).map((one) => [one.size, one.value]), [['', '5rem'], ['tablet', '2rem']]);
+});
+
+test('a new class\'s All stands before its Tablet, in one block, and the save leaves it there', () => {
+  const start = '@scope(.{{ _class }}) {\n    .content { color: red; }\n    @media (width < 64em) { .content { color: blue; } }\n}\n.kort {\n}\n';
+  let css = put(start, '.kort', 'padding-top', '5rem');
+
+  css = put(css, '.kort', 'padding-top', '2rem', 'tablet');
+  assert.equal((css.match(/@media/g) || []).length, 1, css);
+
+  const saved = moveClassesIntoScope(css);
+  const text = typeof saved === 'string' ? saved : saved.css;
+
+  assert.ok(text.indexOf('padding-top: 5rem') < text.indexOf('padding-top: 2rem'), text);
+  assert.ok(text.indexOf('padding-top: 5rem') > text.indexOf('@scope'), text);
+});
+
+test('Tablet first, All after: still in cascade order', () => {
+  const start = '@scope(.{{ _class }}) {\n    .content { color: red; }\n}\n.kort {\n}\n';
+  let css = put(start, '.kort', 'padding-top', '2rem', 'tablet');
+
+  css = put(css, '.kort', 'padding-top', '5rem');
+  assert.ok(css.indexOf('padding-top: 5rem') < css.indexOf('padding-top: 2rem'), css);
+  assert.equal((css.match(/\.kort \{/g) || []).length, 2);
+});
+
+test('a global rule written by hand beside a scope of the section\'s ID stays where it is', () => {
+  const css = '@scope(#id-{{ id }}) {\n    .x { color: red; }\n}\n.kort {\n    color: blue;\n}\n';
+
+  assert.match(put(css, '.kort', 'margin-top', '1rem'), /\}\n\.kort \{\n {4}color: blue;\n {4}margin-top: 1rem;\n\}/);
+});
+
+test('a size inside a nested state is read and written there', () => {
+  const css = '.a {\n    color: red;\n    &:hover {\n        color: blue;\n        @media (width < 64em) {\n            color: green;\n        }\n    }\n}\n';
+
+  assert.deepEqual(readRule(css, '.a:hover', ROWS).map((one) => [one.size, one.value]), [['', 'blue'], ['tablet', 'green']]);
+
+  const next = put(css, '.a:hover', 'color', 'pink', 'tablet');
+
+  assert.ok(!next.includes('green') && !next.includes('.a:hover'), next);
+  assert.deepEqual(readBound(next, '.a:hover', ROWS), []);
 });
 
 test('a data icon\'s fields fit the property', () => {

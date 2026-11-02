@@ -235,4 +235,5 @@ return [
     'css_mode_field_value' => 'Værdien kommer fra et felt.',
     'css_mode_menu_search' => 'Søg eller skriv en værdi',
     'css_mode_state' => 'Reglens tilstand: :hover, :focus og så videre',
+    'css_mode_value_by_hand' => ':prop er skrevet i hånden i CSS-ruden på en måde, felterne ikke kan skille ad. Ret den dér.',
 ];

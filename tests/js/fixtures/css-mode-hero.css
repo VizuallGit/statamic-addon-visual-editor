@@ -1,0 +1,80 @@
+{{ responsive_css except="padding" }}
+        --color-bg: {{ bg_color ?? 'var(--gray-600)' }};
+        --list-grid: {{ (blocks | where('type', 'list') | pluck('list')) | first | count }};
+
+        .media { inline-size: var(--media-width, 40%); }
+        .icon  { --icon-size: var(--icon-size-l); }
+
+        @media (width < 64em) { .icon { --icon-size: var(--icon-size-t); } }
+        @media (width < 48em) { .icon { --icon-size: var(--icon-size-m); } }
+    {{ /responsive_css }}
+
+    {{ responsive_css selector="#id-{{ id }} .content" only="padding" }}
+    {{ /responsive_css }}
+
+    {{ responsive_css selector="#id-{{ id }} .list" only="padding,flow_space,bg_opacity" from="list" }}
+        --color-bg-inner: color-mix(in oklch, {{ bg_color }}, transparent var(--bg-opacity, 0%));
+        background-color: var(--color-bg-inner);
+    {{ /responsive_css }}
+
+    {{ partial:responsive/font_size }}
+    {{ partial:responsive/flex_direction }}
+
+    @scope(.{{ _class }}) {
+        :scope {
+            background-color: var(--color-bg);
+        }
+
+        .content {
+            position: relative;
+            z-index: 10;
+            max-inline-size: max-content;
+
+ 
+        }
+
+        .list {
+            position: relative;
+            z-index: 10;
+            display: grid;
+            grid-template-columns: repeat(var(--list-grid), 1fr);
+            align-items: start;
+            container-type: inline-size;
+            container-name: hero-list;
+        }
+
+        @container hero-list (width < 36rem) {
+            li {
+                grid-column: 1 / -1;
+            }
+        }
+
+        .icon {
+            --icon-sm: var(--size-600);
+            --icon-md: var(--size-700);
+            --icon-lg: var(--size-800);
+            inline-size: var(--icon-size);
+            block-size: var(--icon-size);
+        }
+
+        .media {
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 1;
+            block-size: 100%;
+            overflow: clip;
+
+            &::after {
+                content: "";
+                position: absolute;
+                z-index: 1;
+                inset: 0;
+                pointer-events: none;
+                background: linear-gradient(
+                    to var(--background-position, right),
+                    var(--background-opacity, transparent, transparent)
+                );
+            }
+        }
+    }

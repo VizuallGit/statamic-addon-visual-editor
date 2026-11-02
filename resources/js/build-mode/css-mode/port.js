@@ -91,8 +91,9 @@ export function cssPortFor(win, port) {
   return ports.get(port);
 }
 
-function inLoop(nodes, path) {
-  return (nodes || []).some((row) => path.startsWith(`${row.path}/`) && ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children, path)));
+/** Whether the row at `path` stands in a loop. Found by walking: a row's path does not name the Antlers tag around it. */
+function inLoop(nodes, path, within = false) {
+  return (nodes || []).some((row) => (within && row.path === path) || inLoop(row.children, path, within || (row.kind === 'antlers' && row.antlers === 'loop')));
 }
 
 function createCssPort(win, port) {
@@ -203,6 +204,13 @@ function createCssPort(win, port) {
       return null;
     }
 
+    const at = picked();
+
+    // On a round of a loop `{{ id }}` is the round's, in the CSS outside it the section's: a rule cannot reach it.
+    if (at && inLoop(parseTemplateTree(at.html), at.path)) {
+      return { kind: 'loop', raw, label: raw, name: '', fields: false };
+    }
+
     if (SECTION_ID.test(raw)) {
       return { kind: 'section', raw, label: raw, name: '', fields: true };
     }
@@ -239,7 +247,7 @@ function createCssPort(win, port) {
     if (kind.value === 'id') {
       const id = idOf();
 
-      return id ? `#${id}` : '';
+      return id && idInfo()?.kind !== 'loop' ? `#${id}` : '';
     }
 
     const name = classOpen();
@@ -358,6 +366,12 @@ function createCssPort(win, port) {
   }
 
   function canWrite() {
+    if (kind.value === 'id' && idInfo()?.kind === 'loop') {
+      notice.value = port.t('css_mode_id_loop');
+
+      return false;
+    }
+
     if (!selector.value) {
       asked.value += 1;
 
@@ -412,6 +426,26 @@ function createCssPort(win, port) {
     return !others && content?.value === '""' ? writeDeclarations(css, place, [{ prop: 'content', value: null }]) : css;
   }
 
+  /**
+   * A shared value the fields cannot take apart (a gradient of four stops, a
+   * value holding a field, `none`, an image): a part written would replace it
+   * whole, and it is the author's. The property, if an update would.
+   */
+  function byHandIn(updates) {
+    const css = fullCss();
+    const hit = updates.find((one) => {
+      if (!one.key || one.value === null || one.value === undefined) {
+        return false;
+      }
+
+      const place = readPlaces(css, selector.value, one.prop, rows(), statesInFile(`${css}${suffixNow()}`)).find((item) => item.size === sizeNow() && item.suffix === suffixNow());
+
+      return place?.opaque && place.value !== null;
+    });
+
+    return hit?.prop || '';
+  }
+
   const nextCss = (css, updates) => {
     const where = whereNow();
 
@@ -424,6 +458,14 @@ function createCssPort(win, port) {
     }
 
     followFile();
+
+    const byHand = byHandIn(updates);
+
+    if (byHand) {
+      notice.value = port.t('css_mode_value_by_hand', { prop: byHand });
+
+      return;
+    }
 
     const css = fullCss();
     const next = nextCss(css, updates);
@@ -582,7 +624,8 @@ function createCssPort(win, port) {
 
     const nameOf = (label) => byLabel.get(label) || label;
     const preview = (label) => {
-      const updates = label ? updatesFor(nameOf(label), mine?.raw) : null;
+      const wanted = label ? updatesFor(nameOf(label), mine?.raw) : null;
+      const updates = wanted && byHandIn(wanted) ? null : wanted;
       const css = fullCss();
 
       paint.remember(selector.value, port.selectedPath());
@@ -661,6 +704,7 @@ function createCssPort(win, port) {
   /* ---------------- the dock's save, and the canvas coming to show ---------------- */
 
   const refresh = () => {
+    followFile();
     own.value += 1;
     paint.sync(fullCss(), rows());
   };
@@ -685,6 +729,11 @@ function createCssPort(win, port) {
   /** What the fields in the sheet hold now: it changes the frame the form is typed in. */
   const formNow = () => {
     own.value;
+
+    // Nothing to paint without the canvas: it reads the file again when it comes back.
+    if (!buildCanvasFrame(win)) {
+      return '';
+    }
 
     const css = fullCss();
 

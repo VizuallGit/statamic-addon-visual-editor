@@ -245,4 +245,5 @@ return [
     'css_mode_field_value' => 'This value comes from a field.',
     'css_mode_menu_search' => 'Search or type a value',
     'css_mode_state' => 'State of the rule: :hover, :focus and so on',
+    'css_mode_value_by_hand' => ':prop is written by hand in the CSS pane, in a way these fields cannot take apart. Change it there.',
 ];

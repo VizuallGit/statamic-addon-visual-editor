@@ -4,7 +4,7 @@
  * direction and stops. Read and written here as parts of the one value.
  *
  * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
- * May import: css-sizes.js, css-mode/rules.js. Pure: strings and plain objects in and out.
+ * May import: css-mode/rules.js. Pure: strings and plain objects in and out.
  * Bus messages: none.
  *
  * Tailwind keeps each part in a variable of its own, so a blur at Tablet leaves
@@ -18,8 +18,7 @@
  * as it was written, reaches nothing, and is only replaced by a write to that very place.
  */
 
-import { cssBlockTree } from '../../css-sizes.js';
-import { declarationsAt, writeDeclarations } from './rules.js';
+import { declarationsAt, treeOf, writeDeclarations } from './rules.js';
 
 /** Text split where `by` stands outside parentheses and quotes. */
 export function splitTop(text, by) {
@@ -311,7 +310,7 @@ export function writeParts(css, where, prop, changes) {
 
 /* ---------------- what the panel hands in ---------------- */
 
-const keyframesIn = (css, name) => cssBlockTree(css).find((node) => node.prelude === `@keyframes ${name}`);
+const keyframesIn = (css, name) => treeOf(css).find((node) => node.prelude === `@keyframes ${name}`);
 
 /**
  * The CSS with a list of updates applied at one place: a declaration, a part of a

@@ -157,7 +157,7 @@ onBeforeUnmount(() => {
           <button type="submit" :disabled="!typed.trim()" data-sve-css-target-add>{{ port.t(isId ? 'css_mode_add_id' : 'css_mode_add_class') }}</button>
         </form>
 
-        <p v-if="target.usable() && !target.selector.value" class="fg-hint" data-sve-css-target-hint>{{ port.t(isId ? 'css_mode_need_id' : 'css_mode_need_class') }}</p>
+        <p v-if="target.usable() && !target.selector.value" class="fg-hint" data-sve-css-target-hint>{{ port.t(info?.kind === 'loop' ? 'css_mode_id_loop' : isId ? 'css_mode_need_id' : 'css_mode_need_class') }}</p>
         <p v-if="target.notice.value" class="fg-hint" data-sve-css-target-notice>{{ target.notice.value }}</p>
       </div>
     </div>
