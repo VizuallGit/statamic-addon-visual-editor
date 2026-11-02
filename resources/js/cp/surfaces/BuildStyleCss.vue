@@ -10,9 +10,9 @@
  */
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import BuildStyle from './BuildStyle.vue';
+import BuildStyleSwitch from './BuildStyleSwitch.vue';
 import { cssPortFor } from '../../build-mode/css-mode/port.js';
 import { styleMode } from '../../build-mode/css-mode/flag.js';
-import look from '../../build-mode/css-mode/look.css?inline';
 
 defineProps({
   node: { type: Object, required: true },
@@ -24,19 +24,10 @@ const target = port.cssTarget;
 
 provide('sveBuild', port);
 
-const STYLE_ID = '__sve-css-mode-look';
 let letGo = null;
 
 onMounted(() => {
   letGo = port.listen();
-
-  if (!document.getElementById(STYLE_ID)) {
-    const style = document.createElement('style');
-
-    style.id = STYLE_ID;
-    style.textContent = look;
-    document.head.appendChild(style);
-  }
 });
 
 const isId = computed(() => target.kind.value === 'id');
@@ -79,12 +70,16 @@ onBeforeUnmount(() => {
 
 <template>
   <div data-sve-style-css>
-    <div data-sve-css-target>
-      <div class="fg-seg" role="group" :aria-label="port.t('css_mode_target')">
+    <!-- One line when there is room for both; Class | ID goes under when there is not. -->
+    <div data-sve-style-bar>
+      <BuildStyleSwitch />
+      <div class="fg-seg" data-sve-css-target-kinds role="group" :aria-label="port.t('css_mode_target')">
         <button type="button" :aria-pressed="!isId" data-sve-css-target-kind="class" @click="target.choose('class')">{{ port.t('css_mode_class') }}</button>
         <button type="button" :aria-pressed="isId" data-sve-css-target-kind="id" @click="target.choose('id')">ID</button>
       </div>
+    </div>
 
+    <div data-sve-css-target>
       <p v-if="!target.usable()" class="fg-hint" data-sve-css-target-unusable>{{ port.t('css_mode_not_element') }}</p>
 
       <div v-if="!isId && target.classes().length" data-sve-css-target-names>
