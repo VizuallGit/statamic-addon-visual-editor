@@ -129,6 +129,7 @@
 /* Style measures and scrolls its parent (a jump to a family, what stops under the top): that parent is this wrapper here, so it is the one that scrolls. */
 .sve-build .bm-scroll:has(> [data-sve-style-css]) { display: flex; flex-direction: column; overflow: clip; padding: 0; }
 .sve-build [data-sve-style-css] { flex: 1; min-height: 0; overflow: auto; padding: 0 0.75rem; }
+:root[data-sve-zones] .sve-build [data-sve-style-css] { padding-inline: 0; }
 
 /* Nothing to write on: the fields are off (inert, BuildStyleCss.vue), and the row above says why. */
 [data-sve-css-blocked] :is(.fg-sec, .fg-top > .fg-sizes, .fg-top > .fg-line, .fg-top > .fg-jump) { opacity: 0.4; }

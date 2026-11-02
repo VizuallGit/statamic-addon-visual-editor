@@ -460,6 +460,9 @@ onBeforeUnmount(() => {
 .sve-build .bm-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 0.75rem 0.75rem; border-top: 0.75rem solid transparent; }
 /* Style: the panel's own side gutter and none of the families' — their lines end where their fields do. */
 .sve-build .bm-scroll:has(> .fg-style) { padding: 0 0.75rem; }
+/* In a pane the pane's own gutter is the one (panel-zones.js): Build lines up with the HTML tree beside it. */
+:root[data-sve-zones] .sve-build :is(.bm-tabs, .bm-el-head) { margin-inline: 0; }
+:root[data-sve-zones] .sve-build .bm-scroll { padding-inline: 0; }
 
 /* Add */
 .sve-build .bm-target { display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.55rem; border-radius: 0.3rem; background: var(--bm-accent-soft); color: var(--bm-accent-text); font-size: 0.75rem; }
@@ -846,7 +849,7 @@ onBeforeUnmount(() => {
 /* The same box as a section's + (`.fg-sec__tog`), wider when the number is. */
 .sve-build .fg-classes__count { flex: none; display: grid; place-items: center; min-width: 1.05rem; height: 1.05rem; padding-inline: 0.2rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.625rem; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
 .sve-build .fg-classes .fg-sec__acts { flex: none; }
-.sve-build .fg-classes .fg-ib { width: 1.5rem; }
+.sve-build .fg-classes .fg-ib { width: 1.5rem; height: 1.5rem; border-radius: 0.25rem; }
 /* The switch in the count's box: the same height and corners, and a square knob to match. */
 .sve-build .fg-classes .bm-switch { width: 1.625rem; height: 1.05rem; border-radius: 0.25rem; background: var(--bm-edge); }
 .sve-build .fg-classes .bm-switch::after { top: 0.15rem; left: 0.15rem; width: 0.75rem; height: 0.75rem; border-radius: 0.15rem; }
