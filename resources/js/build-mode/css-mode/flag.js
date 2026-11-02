@@ -3,7 +3,7 @@
  * with it off Style is what it was, and nothing else of css-mode/ is loaded.
  *
  * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
- * May import: vue, cp/bus.js, and css-mode/contrast.js and panel-look.js when it is on. No editor.
+ * May import: vue, cp/bus.js, and css-mode/panel-look.js when it is on. No editor.
  * Bus: registers `css-mode:on` while the demo is on (the top bar's history asks).
  * Says on the root whether Style writes CSS, for Tailwind's strip over the canvas.
  *
@@ -92,6 +92,5 @@ if (typeof document !== 'undefined' && (askedInAddress() || stored(FLAG_KEY)) ==
   watchEffect(() => document.documentElement.toggleAttribute(STRIP_ATTR, styleMode.value === 'css'));
 
   // A chunk of its own: with the flag off none of this is loaded.
-  void import('./contrast.js').then((module) => module.followContrast(window));
   void import('./panel-look.js').then((module) => module.startPanelLook(document));
 }

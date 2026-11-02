@@ -92,6 +92,7 @@ import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
 import { canvasFocus } from './canvas-focus.js';
 import { canvasCardDrop } from './canvas-card-drop.js';
+import { measureContrast } from './canvas-contrast.js';
 import { canvasHold } from './canvas-hold.js';
 import { canvasFields, fieldDomId } from './canvas-fields.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
@@ -1100,6 +1101,7 @@ export function startCanvas(win) {
   }
 
   function report() {
+    measureContrast(realWin, cdoc());
     note('build-canvas', { ...stats, at: win.performance.now() });
     frame?.contentWindow?.dispatchEvent(new Event(CANVAS_PAINTED));
   }

@@ -3,7 +3,7 @@
  * a style sheet of its own, read from the dock's CSS each time.
  *
  * Owner: Build mode, the CSS mode demo (resources/js/build-mode/css-mode/).
- * May import: lib/build-canvas.js, build-mode/css-mode/rules.js.
+ * May import: lib/build-canvas.js, lib/preview-frame.js, build-mode/canvas-contrast.js, build-mode/css-mode/rules.js.
  * Bus messages: none. The port tells it when the CSS changed.
  *
  * The sheet stands on the canvas document's root, after the body, where the
@@ -19,7 +19,8 @@
 
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 import { CANVAS_PATH } from '../canvas-paint.js';
-import { refreshContrast } from './contrast.js';
+import { previewFrame } from '../../lib/preview-frame.js';
+import { measureContrast } from '../canvas-contrast.js';
 import { liveSheet } from './rules.js';
 
 const SHEET_ID = '__sve-build-css-mode';
@@ -61,7 +62,7 @@ export function createCssPaint(win, fill, suffixes = []) {
     if (sheet.textContent !== text) {
       sheet.textContent = text;
       // A background from the sheet is what the text's contrast is measured against.
-      refreshContrast(win);
+      measureContrast(previewFrame(win)?.contentWindow, page);
     }
   }
 
