@@ -4,7 +4,8 @@
  *
  * Every grid of the open section — an element the frame lays out as a grid,
  * by Flow: grid or by the site's CSS — has its cells outlined faintly,
- * whatever is picked, so a grid stays visible as one at every size.
+ * whatever is picked, so a grid stays visible as one at every size. The cells
+ * a child covers are one box: no line runs through a child spanning two.
  *
  * The pick's grid — the pick itself, or the grid it stands in — is the
  * builder: its cells outlined, a − / + for its columns and one for its rows,
@@ -43,7 +44,7 @@ import { injectStyle } from '../lib/style.js';
 import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { columnsFor, selfAndParent } from './place.js';
 import { MAX_TRACKS, fewestTracks, spanTo, startAt } from './grid.js';
-import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
+import { cellAreas, isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
 import { placementLabel } from '../cp/xray/measure.js';
 
 const LAYER_ID = BUILD_COLUMNS_LAYER_ID;
@@ -184,17 +185,13 @@ export function startColumnsOverlay(
     return row?.label || t('size_all');
   };
 
-  /** The cells of one grid, faint or the builder's, and nothing more. */
+  /** The cells of one grid, faint or the builder's, and nothing more: a child's cells as one box (`cellAreas`). */
   const placeCells = (grid, m, v) => {
     const count = m.cols.length * m.rows.length;
-    const cells = pool(grid.wrap, 'cell', count && count <= CELL_CAP ? count : 0, () => doc.createElement('div'));
+    const areas = count && count <= CELL_CAP ? cellAreas(m) : [];
+    const cells = pool(grid.wrap, 'cell', areas.length, () => doc.createElement('div'));
 
-    cells.forEach((cell, n) => {
-      const c = m.cols[n % m.cols.length];
-      const r = m.rows[Math.floor(n / m.cols.length)];
-
-      box(cell, v.x(m.box.x + c.start), v.y(m.box.y + r.start), (c.end - c.start) * v.scale, Math.max((r.end - r.start) * v.scale, MIN_CELL));
-    });
+    cells.forEach((cell, n) => box(cell, ...areaBox(m, v, areas[n].col, areas[n].row)));
 
     // A grid with no tracks to read (none resolved yet): its box, so it still shows.
     if (!count) {

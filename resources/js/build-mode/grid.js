@@ -160,32 +160,70 @@ export function planned(value, part, n, chain) {
 }
 
 /**
- * How Style draws a grid: `null` while it is one of the structures in one row
- * (Style's tiles), else its own shape — its columns, as fractions where a
- * structure names them, by its rows.
+ * The preset a grid is at the size picked: its columns' class, and its rows —
+ * no rows class is one row. None while it has no columns class.
+ *
+ * @param {object} parts  readGrid at the size picked
+ * @param {{ cls: string, rows: number }[]} presets  catalog.js GRID_PRESETS
+ */
+export function presetOf(parts, presets = []) {
+  const name = parts?.cols?.name;
+  const rows = parts?.rows?.n ?? 1;
+
+  return (name && presets.find((preset) => preset.cls === name && preset.rows === rows)) || null;
+}
+
+/**
+ * How Style draws a grid that is none of its presets: its columns, as
+ * fractions where a preset's class names them, by its rows. `null` while it is
+ * a preset, or has neither columns nor rows of its own.
  *
  * @param {object} parts  readGrid at the size picked
  * @param {{ cols?: number, rows?: number }} seen  the counts the canvas lays out
- * @param {{ cls: string, parts: number[] }[]} structures  catalog.js STRUCTURES
+ * @param {{ cls: string, parts: number[], rows: number }[]} presets  catalog.js GRID_PRESETS
  * @returns {{ cols: number, rows: number, fr: number[], inherited: boolean }|null}
  */
-export function gridShape(parts, seen = {}, structures = []) {
-  const name = parts?.cols?.name || '';
-  const structure = structures.find((s) => s.cls === name);
-  const rows = parts?.rows?.n ?? null;
-
-  if ((rows ?? 1) <= 1 && (!name || structure)) {
+export function gridShape(parts, seen = {}, presets = []) {
+  if ((!parts?.cols && !parts?.rows) || presetOf(parts, presets)) {
     return null;
   }
 
-  const cols = structure?.parts.length ?? parts?.cols?.n ?? seen.cols ?? 1;
+  const named = presets.find((preset) => preset.cls === parts?.cols?.name);
+  const cols = named?.parts.length ?? parts?.cols?.n ?? seen.cols ?? 1;
 
   return {
     cols,
-    rows: rows ?? seen.rows ?? 1,
-    fr: structure ? structure.parts : Array.from({ length: cols }, () => 1),
+    rows: parts?.rows?.n ?? seen.rows ?? 1,
+    fr: named ? named.parts : Array.from({ length: cols }, () => 1),
     inherited: (parts?.cols?.inherited ?? true) && (parts?.rows?.inherited ?? true),
   };
+}
+
+/** Whether a preset is fewer tracks than the grid's children need (`fewestTracks`): its tile is off, as a step below them is. */
+export function presetTooSmall(preset, least) {
+  return preset.parts.length < least.cols || (preset.rows > 1 && preset.rows < least.rows);
+}
+
+/**
+ * The file with the grid at `path` set to a preset at the size picked, in one
+ * write: its columns' class, none where a wider size gives that one already;
+ * its rows, one row being no rows class unless a wider size gives more.
+ */
+export function withPresetAt(html, path, preset, { variants = [], chain = [''] } = {}) {
+  const source = String(html || '');
+  const node = path ? findByPath(parseTemplateTree(source), path) : null;
+
+  if (!node || node.kind || node.locked || node.lockedIn) {
+    return source;
+  }
+
+  const before = readClassAttr(source, node.from, node.openTo)?.value || '';
+  const wider = readGrid(before, chain.slice(1));
+  const cols = wider.cols?.name === preset.cls ? null : preset.cls.slice(`${GRID_PARTS.cols.prefix}-`.length);
+  const rows = preset.rows === 1 ? (wider.rows && wider.rows.n !== 1 ? 1 : null) : planned(before, 'rows', preset.rows, chain);
+  const value = gridValueWith(gridValueWith(before, 'cols', cols, variants), 'rows', rows, variants);
+
+  return value === before ? source : writeClassValue(source, node, value);
 }
 
 /**

@@ -17,7 +17,7 @@
  * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
  * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
-import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
@@ -34,9 +34,9 @@ import BuildFields from './BuildFields.vue';
 import BuildGapAxis from './BuildGapAxis.vue';
 import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { BUILD_KIDS, GRID_GAP, STRUCTURES, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import { BUILD_KIDS, GRID_GAP, GRID_PRESETS, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
-import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape } from '../../build-mode/grid.js';
+import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape, presetOf, presetTooSmall } from '../../build-mode/grid.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
 import { chromeGet, chromeRemove, chromeSet } from '../../chrome-prefs.js';
 
@@ -221,9 +221,60 @@ const parentGrid = computed(() => around.value.parent);
 const gridItem = computed(() => (around.value.item?.col && around.value.item?.row ? around.value.item : null));
 const gridLeast = computed(() => fewestTracks(ownGrid.value?.items || []));
 const spanOf = (range) => range[1] - range[0] + 1;
-/** One of the structures in one row: their tiles; any other grid: its own shape, with a way back to one by one. */
-const shape = computed(() => gridShape(gridParts.value, ownGrid.value || {}, STRUCTURES));
+/* Style's grid tiles on one line: the grid's own first — its preset, or its own shape when it is none of them — the other presets behind it in their order */
+const gridPreset = computed(() => presetOf(gridParts.value, GRID_PRESETS));
+const shape = computed(() => gridShape(gridParts.value, ownGrid.value || {}, GRID_PRESETS));
+const presetInherited = computed(() => (gridParts.value.cols?.inherited ?? true) && (gridParts.value.rows?.inherited ?? true));
+const tiles = computed(() => (gridPreset.value ? [gridPreset.value, ...GRID_PRESETS.filter((preset) => preset !== gridPreset.value)] : GRID_PRESETS));
+const tooSmall = (preset) => presetTooSmall(preset, gridLeast.value);
+const tileTracks = (parts, rows) => ({
+  gridTemplateColumns: parts.slice(0, MAX_TRACKS).map((part) => `${part}fr`).join(' '),
+  gridTemplateRows: `repeat(${Math.min(rows, MAX_TRACKS)}, minmax(0, 1fr))`,
+});
+const pickPreset = (preset) => {
+  if (!tooSmall(preset)) {
+    port.setGridPresetAt(props.node.path, preset);
+  }
+};
+/** One by one already, and no child spanning columns: nothing for the reset to do. */
+const oneByOneNow = computed(() => (gridParts.value.cols?.n ?? 1) === 1 && (gridParts.value.rows?.n ?? 1) <= 1 && gridLeast.value.cols <= 1);
 const resetGrid = () => port.resetGridAt(props.node.path);
+
+/* The line of tiles: faded at an edge with more beyond it, turned along by a mouse's wheel, back at its start when the grid's own changes */
+const tileRow = ref(null);
+const tileEdges = ref({ start: false, end: false });
+// A function ref: the grid's fields stand inside the groups' v-for, where a named ref is a list.
+const setTileRow = (el) => {
+  tileRow.value = el;
+};
+
+function readTileEdges() {
+  const row = tileRow.value;
+
+  tileEdges.value = row ? { start: row.scrollLeft > 1, end: row.scrollLeft + row.clientWidth < row.scrollWidth - 1 } : { start: false, end: false };
+}
+
+function tilesAcross(event) {
+  const row = tileRow.value;
+
+  if (!row || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+    return;
+  }
+
+  const next = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, row.scrollLeft + event.deltaY));
+
+  // At its end the wheel scrolls the panel on.
+  if (next !== row.scrollLeft) {
+    row.scrollLeft = next;
+    event.preventDefault();
+  }
+}
+
+watch([tileRow, () => tiles.value.length, () => !!shape.value], () => nextTick(readTileEdges));
+watch(
+  () => (shape.value ? 'own' : gridPreset.value?.key || ''),
+  () => nextTick(() => tileRow.value?.scrollTo({ left: 0, behavior: 'smooth' }))
+);
 
 const clip = computed(() => eff('overflow')?.name === 'overflow-hidden');
 
@@ -672,38 +723,43 @@ function jump(group) {
           </template>
 
           <template v-if="flow === 'grid'">
-            <div class="fg-lab">grid-template-columns<BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
-            <div v-if="shape" class="bm-sp-own" :class="{ inh: shape.inherited }" data-sve-build-grid-shape>
-              <span
-                class="bm-shape"
-                :style="{
-                  gridTemplateColumns: shape.fr.slice(0, MAX_TRACKS).map((part) => `${part}fr`).join(' '),
-                  gridTemplateRows: `repeat(${Math.min(shape.rows, MAX_TRACKS)}, minmax(0, 1fr))`,
-                  height: `${Math.min(4.5, 1.1 * shape.rows)}rem`,
-                }"
-              ><i v-for="n in Math.min(shape.cols, MAX_TRACKS) * Math.min(shape.rows, MAX_TRACKS)" :key="n"></i></span>
-              <span class="bm-sp-own__foot">
-                <span class="bm-sp-l" :title="port.t('grid_shape_title')">{{ shape.cols }} × {{ shape.rows }}</span>
-                <button type="button" class="bm-sp-reset" :title="port.t('grid_reset_title')" data-sve-build-grid-reset @click="resetGrid">
-                  <span v-html="ic('reset')"></span>{{ port.t('grid_reset') }}
-                </button>
-              </span>
-            </div>
-            <div v-else class="bm-sp" data-sve-build-structures>
-              <button
-                v-for="s in STRUCTURES"
-                :key="s.key"
-                type="button"
-                class="bm-sp-o"
-                :class="{ inh: inh(cols, s.cls) }"
-                :aria-pressed="pressed(cols, s.cls)"
-                :title="s.label"
-                :data-sve-build-structure="s.cls"
-                @click="port.setClass(s.cls)"
-              >
-                <span class="bm-bars"><i v-for="(part, n) in s.parts" :key="n" :style="{ flex: part }"></i></span>
-                <span class="bm-sp-l">{{ s.label }}</span>
+            <div class="fg-lab bm-sp-lab">
+              grid-template-columns<BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" />
+              <button v-if="!oneByOneNow" type="button" class="bm-sp-reset" :title="port.t('grid_reset_title')" data-sve-build-grid-reset @click="resetGrid">
+                <span v-html="ic('reset')"></span>{{ port.t('grid_reset') }}
               </button>
+            </div>
+            <div
+              :ref="setTileRow"
+              class="bm-sp"
+              :data-more-start="tileEdges.start || undefined"
+              :data-more-end="tileEdges.end || undefined"
+              data-sve-build-structures
+              @scroll.passive="readTileEdges"
+              @wheel="tilesAcross"
+            >
+              <TransitionGroup name="bm-sp-mv">
+                <span v-if="shape" key="own" class="bm-sp-o is-on" :class="{ inh: shape.inherited }" :title="port.t('grid_shape_title')" data-sve-build-grid-shape>
+                  <span class="bm-shape" :style="tileTracks(shape.fr, shape.rows)"><i v-for="n in Math.min(shape.cols, MAX_TRACKS) * Math.min(shape.rows, MAX_TRACKS)" :key="n"></i></span>
+                  <span class="bm-sp-l">{{ shape.cols }} × {{ shape.rows }}</span>
+                </span>
+                <button
+                  v-for="p in tiles"
+                  :key="p.key"
+                  type="button"
+                  class="bm-sp-o"
+                  :class="{ 'is-on': p === gridPreset, inh: p === gridPreset && presetInherited }"
+                  :aria-pressed="p === gridPreset"
+                  :aria-disabled="tooSmall(p) || undefined"
+                  :title="tooSmall(p) ? port.t('grid_preset_small') : p.label"
+                  :data-sve-build-preset="p.key"
+                  :data-sve-build-structure="p.rows === 1 ? p.cls : undefined"
+                  @click="pickPreset(p)"
+                >
+                  <span class="bm-shape" :style="tileTracks(p.parts, p.rows)"><i v-for="n in p.parts.length * p.rows" :key="n"></i></span>
+                  <span class="bm-sp-l">{{ p.label }}</span>
+                </button>
+              </TransitionGroup>
             </div>
             <div class="fg-grid">
               <BuildGridStep :path="node.path" part="cols" letter="C" :label="port.t('grid_columns')" :hit="gridParts.cols" :seen="ownGrid?.cols || null" :min="gridLeast.cols" :max="MAX_TRACKS" />

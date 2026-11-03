@@ -74,6 +74,29 @@ export function measureGrid(el, attr) {
 }
 
 /**
+ * The boxes a grid is outlined in: each child's cells as one — no line
+ * through a child spanning two columns or two rows — and every free cell
+ * alone. A measured grid (measureGrid) in; `[first, last]` tracks out.
+ *
+ * @returns {{ col: number[], row: number[] }[]}
+ */
+export function cellAreas(grid) {
+  const seen = new Set();
+  const areas = [];
+
+  for (const { col, row } of grid.items) {
+    const key = col && row ? `${col}:${row}` : '';
+
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      areas.push({ col, row });
+    }
+  }
+
+  return [...areas, ...grid.empty.map(([c, r]) => ({ col: [c, c], row: [r, r] }))];
+}
+
+/**
  * Whether a new child with no start of its own would land in `cell`: the
  * grid fills row by row from after the last child, so the first free cell
  * after that one. A grid that fills by column, or packs (`dense`), is never

@@ -4,8 +4,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GAP_AXIS_NEXT, countOf, fewestTracks, gapAxisOf, gridShape, gridValueWith, inFlow, oneByOne, planned, readGridAt, readGrid, spanTo, startAt, trackAt, withCellAt, withGridAt, withGridReset } from '../../../resources/js/build-mode/grid.js';
-import { STRUCTURES } from '../../../resources/js/build-mode/catalog.js';
+import { GAP_AXIS_NEXT, countOf, fewestTracks, gapAxisOf, gridShape, gridValueWith, inFlow, oneByOne, planned, presetOf, presetTooSmall, readGridAt, readGrid, spanTo, startAt, trackAt, withCellAt, withGridAt, withGridReset, withPresetAt } from '../../../resources/js/build-mode/grid.js';
+import { GRID_PRESETS } from '../../../resources/js/build-mode/catalog.js';
 
 const DESKTOP = { variants: [], chain: [''] };
 const TABLET = { variants: ['max-lg'], chain: ['max-lg', ''] };
@@ -94,17 +94,52 @@ test('a span changed at a size keeps the child\'s start there; back to the wider
   assert.equal(classOf(withGridAt(FILE, ONE, { colSpan: 1 }, TABLET), 2), 'col-span-2 max-lg:col-span-1');
 });
 
-test('Style draws the structures while the grid is one of them in one row, else the grid\'s own shape', () => {
-  const shape = (value, chain = DESKTOP.chain, seen = {}) => gridShape(readGrid(value, chain), seen, STRUCTURES);
+test('the preset a grid is: its columns\' class and its rows, no rows class being one', () => {
+  const preset = (value, chain = DESKTOP.chain) => presetOf(readGrid(value, chain), GRID_PRESETS)?.key ?? null;
+
+  assert.equal(preset('grid'), null);
+  assert.equal(preset('grid grid-cols-3'), '3');
+  assert.equal(preset('grid grid-cols-3 grid-rows-1'), '3');
+  assert.equal(preset('grid grid-cols-3 grid-rows-2'), '3x2');
+  assert.equal(preset('grid grid-cols-[1fr_2fr_1fr]'), '121');
+  assert.equal(preset('grid grid-cols-3 grid-rows-4'), null);
+  assert.equal(preset('grid grid-cols-4 grid-rows-2', TABLET.chain), '4x2');
+});
+
+test('Style draws the grid\'s own shape while it is none of the presets', () => {
+  const shape = (value, chain = DESKTOP.chain, seen = {}) => gridShape(readGrid(value, chain), seen, GRID_PRESETS);
 
   assert.equal(shape('grid'), null);
   assert.equal(shape('grid grid-cols-3'), null);
   assert.equal(shape('grid grid-cols-[2fr_1fr] grid-rows-1'), null);
+  assert.equal(shape('grid grid-cols-4 grid-rows-2'), null);
   assert.deepEqual(shape('grid grid-cols-5'), { cols: 5, rows: 1, fr: [1, 1, 1, 1, 1], inherited: false });
-  assert.deepEqual(shape('grid grid-cols-4 grid-rows-2'), { cols: 4, rows: 2, fr: [1, 1, 1, 1], inherited: false });
+  assert.deepEqual(shape('grid grid-cols-4 grid-rows-3'), { cols: 4, rows: 3, fr: [1, 1, 1, 1], inherited: false });
   assert.deepEqual(shape('grid grid-cols-[2fr_1fr] grid-rows-3'), { cols: 2, rows: 3, fr: [2, 1], inherited: false });
   assert.deepEqual(shape('grid grid-cols-5 grid-rows-2', TABLET.chain), { cols: 5, rows: 2, fr: [1, 1, 1, 1, 1], inherited: true });
   assert.deepEqual(shape('grid grid-cols-none', DESKTOP.chain, { cols: 2, rows: 1 }), { cols: 2, rows: 1, fr: [1, 1], inherited: false });
+  assert.deepEqual(shape('grid grid-rows-2', DESKTOP.chain, { cols: 1, rows: 2 }), { cols: 1, rows: 2, fr: [1], inherited: false });
+});
+
+test('a preset writes its columns and rows in one go, at the size picked', () => {
+  const file = (value) => FILE.replace('grid grid-cols-3 gap-500', value);
+  const set = (value, key, at = DESKTOP) => classOf(withPresetAt(file(value), GRID, GRID_PRESETS.find((p) => p.key === key), at), 1);
+
+  assert.equal(set('grid grid-cols-3 gap-500', '3x2'), 'grid grid-cols-3 gap-500 grid-rows-2');
+  assert.equal(set('grid grid-cols-5 grid-rows-2 gap-500', '2'), 'grid grid-cols-2 gap-500');
+  assert.equal(set('grid gap-500', '121'), 'grid gap-500 grid-cols-[1fr_2fr_1fr]');
+  assert.equal(set('grid grid-cols-3 grid-rows-2 gap-500', '3', TABLET), 'grid grid-cols-3 grid-rows-2 gap-500 max-lg:grid-rows-1');
+  assert.equal(set('grid grid-cols-3 gap-500 max-lg:grid-cols-2', '3', TABLET), 'grid grid-cols-3 gap-500');
+  assert.equal(set('grid grid-cols-3 grid-rows-2 gap-500', '3x2', TABLET), 'grid grid-cols-3 grid-rows-2 gap-500');
+});
+
+test('a preset of fewer columns than a child spans is off; one row is never too few', () => {
+  const p = (key) => GRID_PRESETS.find((one) => one.key === key);
+
+  assert.equal(presetTooSmall(p('2'), { cols: 3, rows: 1 }), true);
+  assert.equal(presetTooSmall(p('3'), { cols: 3, rows: 4 }), false);
+  assert.equal(presetTooSmall(p('3x2'), { cols: 2, rows: 3 }), true);
+  assert.equal(presetTooSmall(p('3x3'), { cols: 2, rows: 3 }), false);
 });
 
 test('back to one by one: grid-cols-1 and no rows of its own; one row where a wider size gives more', () => {

@@ -61,6 +61,25 @@ export const STRUCTURES = [
   { key: '4', parts: [1, 1, 1, 1], cls: 'grid-cols-4', label: '¼ × 4' },
 ];
 export const ROWS = [1, 2, 3];
+/**
+ * Style's grid tiles: a grid's columns and rows in one click, in the order
+ * they stand behind the grid's own (BuildStyle.vue). One row is no rows class.
+ * Add's Grid keeps STRUCTURES and its own rows.
+ */
+export const GRID_PRESETS = [
+  { key: '1', parts: [1], cls: 'grid-cols-1', rows: 1, label: '1' },
+  { key: '2', parts: [1, 1], cls: 'grid-cols-2', rows: 1, label: '½ + ½' },
+  { key: '3', parts: [1, 1, 1], cls: 'grid-cols-3', rows: 1, label: '⅓ × 3' },
+  { key: '4', parts: [1, 1, 1, 1], cls: 'grid-cols-4', rows: 1, label: '¼ × 4' },
+  { key: '2x2', parts: [1, 1], cls: 'grid-cols-2', rows: 2, label: '2 × 2' },
+  { key: '3x2', parts: [1, 1, 1], cls: 'grid-cols-3', rows: 2, label: '3 × 2' },
+  { key: '4x2', parts: [1, 1, 1, 1], cls: 'grid-cols-4', rows: 2, label: '4 × 2' },
+  { key: '3x3', parts: [1, 1, 1], cls: 'grid-cols-3', rows: 3, label: '3 × 3' },
+  { key: '21', parts: [2, 1], cls: 'grid-cols-[2fr_1fr]', rows: 1, label: '⅔ + ⅓' },
+  { key: '12', parts: [1, 2], cls: 'grid-cols-[1fr_2fr]', rows: 1, label: '⅓ + ⅔' },
+  { key: '121', parts: [1, 2, 1], cls: 'grid-cols-[1fr_2fr_1fr]', rows: 1, label: '¼ + ½ + ¼' },
+  { key: '6', parts: [1, 1, 1, 1, 1, 1], cls: 'grid-cols-6', rows: 1, label: '⅙ × 6' },
+];
 /** What a grid starts with besides its columns: the site's gutter between its cells, as `wrapper` is its container. */
 export const GRID_GAP = 'gap-gutter';
 

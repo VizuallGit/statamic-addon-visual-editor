@@ -566,28 +566,35 @@ onBeforeUnmount(() => {
 .sve-build .bm-pk:disabled { cursor: default; }
 .sve-build .bm-bars { display: flex; gap: 0.2rem; height: 2.25rem; }
 .sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: var(--bm-bar); }
-.sve-build .bm-pk:hover:not(:disabled) .bm-bars i, .sve-build .bm-sp-o[aria-pressed='true'] .bm-bars i { background: var(--bm-accent); }
+.sve-build .bm-pk:hover:not(:disabled) .bm-bars i { background: var(--bm-accent); }
 .sve-build .bm-pk-l { font-weight: 600; display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
-.sve-build .bm-sp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
+/* Style's grid tiles: one line, three in view, the grid's own first; an edge with more beyond it fades */
+.sve-build .bm-sp { display: flex; gap: 0.35rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-block-end: 0.25rem; scrollbar-width: thin; scrollbar-color: var(--bm-edge) transparent; }
+.sve-build .bm-sp[data-more-end] { mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent); }
+.sve-build .bm-sp[data-more-start] { mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent); }
+.sve-build .bm-sp[data-more-start][data-more-end] { mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent); }
+.sve-build .bm-sp > .bm-sp-o { flex: 0 0 calc((100% - 0.7rem) / 3); min-width: 0; scroll-snap-align: start; }
 .sve-build .bm-sp-o { padding: 0.4rem; gap: 0.3rem; }
-.sve-build .bm-sp-o .bm-bars { height: 1.1rem; gap: 0.12rem; }
-.sve-build .bm-sp-o[aria-pressed='true'] { border-color: var(--bm-accent); }
+.sve-build .bm-sp-o.is-on { border-color: var(--bm-accent); }
+.sve-build .bm-sp-o[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }
+.sve-build .bm-sp-o[aria-disabled='true']:hover { border-color: var(--bm-line); }
 .sve-build .bm-sp-l { font-size: 0.625rem; color: var(--bm-muted); text-align: center; }
+.sve-build .bm-shape { display: grid; gap: 0.12rem; height: 1.1rem; }
+.sve-build .bm-shape i { display: block; min-width: 0; min-height: 0; border-radius: 0.15rem; background: var(--bm-bar); }
+.sve-build .bm-sp-o.is-on .bm-shape i { background: var(--bm-accent); }
 /* What a wider size gives: shown, not set here */
 .sve-build .bm-sp-o.inh { border-color: var(--bm-inh-line); }
-.sve-build .bm-sp-o.inh .bm-bars i { background: var(--bm-inh); }
+.sve-build .bm-sp-o.inh .bm-shape i { background: var(--bm-inh); }
 .sve-build .bm-sp-o.inh .bm-sp-l { font-style: italic; }
-/* A grid none of the tiles is: its own shape, columns by rows, and the way back to one by one */
-.sve-build .bm-sp-own { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.4rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-accent); }
-.sve-build .bm-shape { display: grid; gap: 0.12rem; }
-.sve-build .bm-shape i { display: block; min-width: 0; min-height: 0; border-radius: 0.15rem; background: var(--bm-accent); }
-.sve-build .bm-sp-own__foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.sve-build .bm-sp-own .bm-sp-l { text-align: start; }
-.sve-build .bm-sp-reset { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-size: 0.625rem; color: var(--bm-muted); }
+.sve-build .bm-sp-mv-move { transition: transform 0.18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .sve-build .bm-sp-mv-move { transition: none; }
+}
+/* The way back to one by one, at the end of the tiles' title */
+.sve-build .bm-sp-lab { display: flex; align-items: center; gap: 0.25rem; }
+.sve-build .bm-sp-reset { display: inline-flex; align-items: center; gap: 0.25rem; margin-inline-start: auto; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-size: 0.625rem; color: var(--bm-muted); }
 .sve-build .bm-sp-reset:hover { background: var(--bm-hover); color: var(--bm-ink); }
 .sve-build .bm-sp-reset .bm-ic { width: 0.75rem; height: 0.75rem; }
-.sve-build .bm-sp-own.inh { border-color: var(--bm-inh-line); }
-.sve-build .bm-sp-own.inh .bm-shape i { background: var(--bm-inh); }
 
 /* A grid's numbers in Style (BuildGridStep.vue): typed, or stepped with − and + */
 .sve-build .fg-step { gap: 0.15rem; }

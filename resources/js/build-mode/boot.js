@@ -109,7 +109,7 @@ import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
 import { flowAt } from './flow.js';
-import { readGridAt, withCellAt, withGridAt, withGridReset } from './grid.js';
+import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
@@ -987,6 +987,14 @@ export function createEditorPort(win, hooks = {}) {
 
       if (next !== html()) {
         port.write(next, { select: select || hooks.selectedPath?.() || '' });
+      }
+    },
+    /** The grid at `path` set to one of Style's presets, its columns and rows in one write (grid.js `withPresetAt`); the pick stays. */
+    setGridPresetAt(path, preset) {
+      const next = withPresetAt(html(), path, preset, port.gridAt());
+
+      if (next !== html()) {
+        port.write(next, { select: hooks.selectedPath?.() || '' });
       }
     },
     /** The grid at `path` back to one column and one row, its children in its flow (grid.js `withGridReset`); the pick stays. */
