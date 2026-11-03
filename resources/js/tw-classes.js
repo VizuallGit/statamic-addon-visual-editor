@@ -708,6 +708,11 @@ function commit(win, html, nextValue) {
     return;
   }
 
+  commitTag(win, html, nextValue);
+}
+
+/** The picked tag's class value written into the file, whatever the pane is working on. */
+function commitTag(win, html, nextValue) {
   const call = node.component ? componentCall(html) : null;
   const next = node.component
     ? call ? writeCallParam(html, call, node.param, nextValue) : html
@@ -934,6 +939,35 @@ export function twReplaceClasses(win, raws, name) {
   });
 
   commit(win, current.html, next);
+}
+
+/**
+ * One of `set` on the picked tag, at every size: `name` in the place of the
+ * one it wears, or after its classes; '' takes it off. Not the size or state
+ * picked in Style — a Container's width (BuildContainerWidth.vue) is the
+ * Container's, as its tag is.
+ */
+export function twSetOneOf(win, set, name) {
+  const current = locked() ? null : tagValue();
+
+  if (!current) {
+    return;
+  }
+
+  const worn = currentChips(current.value).filter((chip) => !chip.dynamic && set.includes(chip.raw)).sort((a, b) => b.from - a.from);
+  let next = current.value;
+
+  worn.forEach((chip, index) => {
+    next = replaceToken(next, chip, index === worn.length - 1 ? name : '');
+  });
+
+  if (!worn.length && name) {
+    next = appendToken(next, name);
+  }
+
+  if (next !== current.value) {
+    commitTag(win, current.html, next);
+  }
 }
 
 /**

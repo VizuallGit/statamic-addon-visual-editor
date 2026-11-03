@@ -741,6 +741,58 @@
   width: 6.5rem;
   height: 2rem;
 }
+.sve-theme__viewport .sve-theme__input.is-select {
+  flex: 1;
+  width: auto;
+}
+
+/* Containers: the widths centred one over the other, then a row each — name, class, px */
+.sve-theme__widths-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 0.5rem 0;
+}
+.sve-theme__widths-bar {
+  height: 0.3125rem;
+  border-radius: 999px;
+  background: #3a3a3f;
+}
+.sve-theme__widths-bar.is-fluid {
+  background: #0d9488;
+}
+.sve-theme__widths {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5rem;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.sve-theme__widths-name {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+.sve-theme__widths .sve-theme__input {
+  height: 2rem;
+  padding: 0 0.5rem;
+}
+.sve-theme__widths .sve-theme__input input {
+  font-variant-numeric: tabular-nums;
+}
+.sve-theme__widths-class {
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.5;
+}
+.sve-theme__widths-full {
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
 .sve-theme__device {
   display: inline-flex;
   align-items: center;

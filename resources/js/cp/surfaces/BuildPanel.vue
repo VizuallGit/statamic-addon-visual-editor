@@ -10,6 +10,9 @@
  * it, a + or Escape puts Add back — the canvas's Escape reads it too, so the
  * first Escape lets go of the element and only the next one leaves the
  * section. Adding something keeps Add open: only a click opens the element.
+ * The panel's own + sits in the pane's bar (`bar`, the zone's — Add is the
+ * panel's, not the element's) and is pressed while Add shows; pressed again
+ * it goes back to the element. Without a bar it sits in the element's head.
  *
  * Drawn in the Figma look (Figma and Paper's design panels), on the approved
  * sketch's content, in the editor's blue. Everything the panel knows and does goes
@@ -44,6 +47,8 @@ import { ic } from '../../build-mode/icons.js';
 
 const props = defineProps({
   port: { type: Object, required: true },
+  /** The pane's bar in its zone, or null (no zones): where the panel's + goes. */
+  bar: { default: null },
 });
 
 provide('sveBuild', props.port);
@@ -245,6 +250,11 @@ function showComponentView(view) {
   componentView.value = componentView.value === view ? '' : view;
 }
 
+function toggleAdd() {
+  componentView.value = '';
+  port.panel.value = side.value === 'add' && picked.value ? 'element' : 'add';
+}
+
 const propsHost = ref(null);
 let unmountProps = null;
 
@@ -269,6 +279,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="sve-build" data-sve-build-root :data-sve-build-side="side">
+    <Teleport v-if="bar" :to="bar">
+      <button
+        type="button"
+        class="sve-build-bar-add"
+        :title="port.t('add_element')"
+        :aria-label="port.t('add_element')"
+        :aria-pressed="side === 'add' && !componentView"
+        data-sve-build-add
+        @click="toggleAdd"
+        v-html="ic('plus')"
+      ></button>
+    </Teleport>
     <div v-if="componentPropsUi.open" class="fg-head bm-chead" data-sve-build-chead>
       <span class="bm-chip-tag bm-chip-comp">{{ port.t('el_component') }}</span>
       <b :title="componentPropsUi.name">{{ componentPropsUi.name }}</b>
@@ -333,7 +355,7 @@ onBeforeUnmount(() => {
         <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
         <b>{{ isRich ? port.t('content_rich') : isGallery ? port.t('content_gallery') : nameOf(picked) }}</b>
         <span class="fg-head__acts">
-          <button type="button" class="fg-ib" :title="port.t('tab_add')" :aria-label="port.t('tab_add')" data-sve-build-add @click="port.panel.value = 'add'" v-html="ic('plus')"></button>
+          <button v-if="!bar" type="button" class="fg-ib" :title="port.t('tab_add')" :aria-label="port.t('tab_add')" data-sve-build-add @click="port.panel.value = 'add'" v-html="ic('plus')"></button>
           <template v-if="styled">
             <button type="button" class="fg-ib" :title="port.t('duplicate')" :aria-label="port.t('duplicate')" @click="port.duplicate()" v-html="ic('copy')"></button>
             <button type="button" class="fg-ib" :title="port.t('delete')" :aria-label="port.t('delete')" @click="port.remove()" v-html="ic('trash')"></button>
@@ -791,6 +813,12 @@ onBeforeUnmount(() => {
 .sve-build .fg-target { align-items: center; }
 .sve-build .fg-target__done { flex: none; margin-inline-start: auto; padding-inline: 0.6rem; color: var(--bm-ink); }
 .sve-build .fg-seg > .fg-more { flex: 0 0 1.5rem; padding: 0; white-space: nowrap; }
+/* A Container's width: six in two rows of three, each its name over its px. */
+.sve-build .bm-widths-field { display: grid; gap: 0.375rem; }
+.sve-build .bm-widths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sve-build .bm-widths button { height: auto; min-height: 2.25rem; flex-direction: column; gap: 0.0625rem; padding: 0.25rem; }
+.sve-build .bm-widths .bm-widths__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.sve-build .bm-widths .bm-widths__px { font-size: 0.625rem; color: var(--bm-faint); font-variant-numeric: tabular-nums; }
 .sve-build .fg-fit { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 0.125rem; min-width: 0; height: 1.5rem; overflow: hidden; }
 .sve-build .fg-more__icon { display: inline-flex; flex: none; margin-inline-end: 0.35rem; vertical-align: middle; }
 .sve-build .fg-more__icon svg { width: 0.75rem; height: 0.75rem; }
@@ -923,6 +951,13 @@ onBeforeUnmount(() => {
 /* The list's three buttons read as one group: the same grey, the same height, the same blue under the pointer. */
 .sve-build .fg-classes__h .fg-ib { height: 1.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .fg-classes__h button.fg-ib:hover:not(:disabled), .sve-build .fg-classes__h .fg-classes__new:hover { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+/*
+ * The panel's + in the pane's bar, outside the panel's root (Teleport), so in
+ * the editor's blue by value: soft until the pointer comes or Add is open.
+ */
+.sve-build-bar-add { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; margin-inline-start: auto; padding: 0; border: 0; border-radius: 0.3rem; background: rgba(56, 88, 233, 0.28); color: #b4c1ff; cursor: pointer; }
+.sve-build-bar-add svg { width: 0.9375rem; height: 0.9375rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.sve-build-bar-add:hover, .sve-build-bar-add[aria-pressed='true'] { background: #3858e9; color: #fff; }
 /* Add a class is the line's main action: blue before the pointer comes, full blue under it. */
 .sve-build .fg-classes__h [data-sve-build-classes-add] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
 .sve-build .fg-classes__h button[data-sve-build-classes-add]:hover:not(:disabled) { background: var(--bm-accent); color: #fff; }

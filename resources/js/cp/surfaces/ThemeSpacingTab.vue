@@ -9,24 +9,15 @@
       <span class="sve-theme__device" :title="ui.labels.spacing_container">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
       </span>
-      <label class="sve-theme__input">
-        <input type="number" min="400" step="10" :value="ui.maxViewport" :aria-label="ui.labels.spacing_container" @change="h.onViewport($event.target.value)">
-        <span class="sve-theme__unit">px</span>
-      </label>
-    </div>
-    <p class="sve-theme__hint">{{ ui.labels.spacing_viewport_hint }}</p>
-
-    <label class="sve-theme__field">
-      <span class="sve-theme__label">{{ ui.labels.spacing_gutter }}</span>
-      <span class="sve-theme__input">
-        <select data-sve-gutter :value="gutterName" @change="h.onGutter(`var(--${$event.target.value})`)">
-          <option v-if="gutterName && !ui.sizes.some((s) => s.name === gutterName)" :value="gutterName">{{ ui.gutter }}</option>
-          <option v-for="s in ui.sizes" :key="s.key" :value="s.name">{{ s.name }}</option>
+      <span class="sve-theme__input is-select">
+        <select data-sve-fluid-width :value="ui.fluidWidth" :aria-label="ui.labels.spacing_container" @change="h.onFluidWidth($event.target.value)">
+          <option v-if="!ui.fluidWidth" value="">{{ (ui.labels.spacing_fluid_custom || '').replace(':px', ui.maxViewport) }}</option>
+          <option v-for="w in widths" :key="w.key" :value="w.key" :disabled="!(w.px > MIN_VIEWPORT)">{{ w.label }}{{ w.px ? ` · ${w.px} px` : '' }}</option>
         </select>
         <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       </span>
-    </label>
-    <p class="sve-theme__hint">{{ ui.labels.spacing_gutter_hint }}</p>
+    </div>
+    <p class="sve-theme__hint">{{ ui.labels.spacing_viewport_hint }}</p>
 
     <div class="sve-theme__chart" aria-hidden="true">
       <span class="sve-theme__chart-icon">
@@ -119,13 +110,12 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { sizeRef } from '../theme-panel/presets.js';
 import { MIN_VIEWPORT } from '../theme-panel/sizes.js';
 
 defineProps({ h: { type: Object, required: true } });
 
-/** `var(--size-700)` → `size-700`, so the select matches a row of the scale. */
-const gutterName = computed(() => sizeRef(ui.gutter) || '');
+/** The container widths the sizes can stop growing at: Full width has no number, so it is not one. */
+const widths = computed(() => ui.widths.map((w) => ({ ...w, label: ui.labels[`containers_${w.key.replace('-', '_')}`] })));
 
 /** The largest desktop value: the bars are drawn against it, so desktop and mobile compare. */
 const largest = computed(() => Math.max(1, ...ui.sizes.map((s) => s.max)));

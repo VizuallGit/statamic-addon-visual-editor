@@ -33,6 +33,7 @@ import { classNameProblem, readClasses, writeClasses } from './cp/theme-panel/cu
 import { CLASS_CHIPS, applyUsage, classRows, ownedRules } from './cp/theme-panel/site-classes.js';
 import { loadSnippets, snippetHandlers } from './cp/theme-panel/snippets.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
+import { CONTAINER_WIDTHS, widthRem } from './lib/container-widths.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
 
@@ -43,7 +44,7 @@ const VARS = 'var.css';
 const CLASSES = 'custom-classes.css';
 const CLASS_DRAFT_ID = '__sve-theme-class-draft';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'styles', 'button', 'forms'];
+const TABS = ['colors', 'spacing', 'containers', 'fonts', 'type', 'styles', 'button', 'forms'];
 
 let app = null;
 let keySeq = 0;
@@ -52,6 +53,8 @@ let loadSeq = 0;
 let painted = new Set();
 /** The tokens as they stood in the file when it was read or saved — a save writes only what differs. */
 let savedTokens = new Map();
+/** Where the saved sizes stop growing, in px: a size not changed keeps its text while this holds. */
+let savedViewport = null;
 /** The `@utility` bodies as they stood in the file when it was read or saved. */
 let savedUtilities = new Map();
 /** Utilities saved while the server could not build the site's CSS: still drawn in the preview. */
@@ -134,7 +137,11 @@ function remember(css) {
   // Each color's step names as saved: what the Colors tab says will go on the next save.
   ui.savedSteps = Object.fromEntries(ui.families.map((f) => [f.name, f.steps.map((s) => String(s.name))]));
   ui.sizes = [...tokens].filter(([name]) => name.startsWith('size-')).map(([name, value]) => sizeUi(name, value)).filter(Boolean);
-  ui.maxViewport = parseSize(tokens.get('container-width'))?.max || inferViewport(ui.sizes.map((s) => s.value)) || 1280;
+  ui.widths = CONTAINER_WIDTHS.map((w) => ({ key: w.key, px: parseSize(tokens.get(w.token))?.max ?? null }));
+  // Where the sizes stop growing is what they say themselves; the Normal width only while none of them is fluid.
+  ui.maxViewport = inferViewport(ui.sizes.map((s) => s.value)) || findWidth('normal')?.px || 1280;
+  savedViewport = ui.maxViewport;
+  ui.fluidWidth = fluidWidthAt(ui.maxViewport);
   ui.gutter = tokens.get('gutter') || 'var(--size-700)';
   // A highlight keeps its key over a save, so its row stays where it is.
   const highlightKeys = new Map(ui.highlights.map((x) => [x.name, x.key]));
@@ -357,19 +364,27 @@ async function buildSiteCss(win) {
   ui.buildNote = t(win, 'theme_utilities_not_built', { reason: t(win, `theme_utilities_reason_${reason}`) });
 }
 
-/** The container width as written: unchanged, the file's own text. */
-function containerValue() {
-  const saved = savedTokens.get('container-width');
-
-  return parseSize(saved)?.max === ui.maxViewport ? saved : `${Number((ui.maxViewport / 16).toFixed(4))}rem`;
+function findWidth(key) {
+  return ui.widths.find((w) => w.key === key) || null;
 }
 
-/** A size as written: unchanged (same min, max and container), the file's own text. */
+/** The container width the sizes stop growing at: its key, '' when no width is that wide. */
+function fluidWidthAt(px) {
+  return ui.widths.find((w) => w.px === px)?.key || '';
+}
+
+/** A container width as written: unchanged, the file's own text. */
+function widthText(width, token) {
+  const saved = savedTokens.get(token);
+
+  return parseSize(saved)?.max === width.px ? saved : widthRem(width.px);
+}
+
+/** A size as written: unchanged (same min, max and where it stops growing), the file's own text. */
 function sizeText(size) {
   const saved = parseSize(size.value);
-  const viewport = parseSize(savedTokens.get('container-width'))?.max;
 
-  if (size.value && saved && saved.min === size.min && saved.max === size.max && (viewport === ui.maxViewport || saved.min === saved.max)) {
+  if (size.value && saved && saved.min === size.min && saved.max === size.max && (savedViewport === ui.maxViewport || saved.min === saved.max)) {
     return size.value;
   }
 
@@ -378,7 +393,15 @@ function sizeText(size) {
 
 /** Every token the panel manages besides colors, as the tabs say: name => value. */
 function desiredTokens() {
-  const out = { 'container-width': containerValue() };
+  const out = {};
+
+  for (const { key, token } of CONTAINER_WIDTHS) {
+    const width = findWidth(key);
+
+    if (width?.px) {
+      out[token] = widthText(width, token);
+    }
+  }
 
   if (ui.gutter) {
     out.gutter = ui.gutter;
@@ -933,13 +956,35 @@ const handlers = (win) => ({
 
     confirmRemove(win, t(win, 'theme_spacing_remove_title', { name: size.name }), t(win, 'theme_spacing_remove_body'), remove);
   },
-  onViewport: (px) => {
-    const n = Math.round(Number(px));
+  onFluidWidth: (key) => {
+    const width = findWidth(key);
 
-    if (Number.isFinite(n) && n > MIN_VIEWPORT) {
-      ui.maxViewport = n;
+    if (width?.px > MIN_VIEWPORT) {
+      ui.fluidWidth = key;
+      ui.maxViewport = width.px;
       changed(win);
     }
+  },
+  // Containers: each width in px, written in rem. The sizes follow the one they stop growing at.
+  onWidth: (key, px) => {
+    const width = findWidth(key);
+    const n = Math.round(Number(px));
+
+    if (!width || !Number.isFinite(n) || n <= 0) {
+      return;
+    }
+
+    width.px = n;
+
+    if (ui.fluidWidth === key) {
+      if (n > MIN_VIEWPORT) {
+        ui.maxViewport = n;
+      } else {
+        ui.fluidWidth = '';
+      }
+    }
+
+    changed(win);
   },
   onGutter: (value) => {
     const next = String(value || '').replace(/\s+/g, '');
@@ -1461,7 +1506,7 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|forms|utilities|classes|props)_/.test(key))
+      .filter((key) => /^theme_(panel|colors|spacing|containers|fonts|type|button|forms|utilities|classes|props)_/.test(key))
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }

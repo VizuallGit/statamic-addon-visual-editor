@@ -40,9 +40,11 @@
  * Text and layout have their tag on top (build-mode/tags.js), as in Bricks.
  *
  * What is not the element's own says whose it is: the elements inside it, or —
- * for a div or a section — nothing, as a layout has no text of its own.
+ * for a div or a section — nothing, as a layout has no text of its own. A
+ * Container has its width (BuildContainerWidth.vue) on top instead.
  */
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
+import BuildContainerWidth from './BuildContainerWidth.vue';
 import BuildSvgPicker from './BuildSvgPicker.vue';
 import { tagFamily } from '../../lib/tag-families.js';
 import { browseButton } from '../../lib/browse-button.js';
@@ -428,7 +430,8 @@ function richOff() {
   port.syncFieldEdit(path, '', { types: RICH_FIELDS });
 }
 
-const nothing = computed(() => !svg && !read.value && !address && !rich.value && richField.value === null);
+const container = props.node.kind === 'container';
+const nothing = computed(() => !svg && !container && !read.value && !address && !rich.value && richField.value === null);
 /* Rich text is a div by what it is, and a Grid's columns are divs for the Grid to stay one. */
 const tags = computed(() =>
   rich.value || richField.value !== null || ['column', 'columns'].includes(props.node.kind) ? [] : tagChoices(tag.value)
@@ -450,6 +453,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="bm-content">
+    <BuildContainerWidth v-if="container" />
     <div v-if="tags.length" class="fg-row" data-sve-build-tag>
       <span class="fg-rlab">tag</span>
       <label class="fg-field">

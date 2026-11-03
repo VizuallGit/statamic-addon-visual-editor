@@ -240,7 +240,8 @@ function mountInZone(win, col) {
   wrap.append(bar, body);
   host.appendChild(wrap);
   showInRightShell(win, host);
-  void enterBuild(win, body, hooksFor);
+  // The panel's + goes in this bar: Add is the panel's, not the picked element's.
+  void enterBuild(win, body, { ...hooksFor, bar });
 }
 
 function mount(win, col) {

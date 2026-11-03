@@ -40,6 +40,7 @@
  *                             stays where it is
  *   onSelect(fn) → unhook     a pick made anywhere else
  *   setPlus? / plusPath?      a + target set from the preview
+ *   bar?                      the pane's bar in its zone: the panel's + goes there
  *
  * `drag(event, item)` hands a tile pressed in Add to the canvas
  * (canvas-ui.js); false when Build has no canvas to drop on. On a page built
@@ -93,9 +94,11 @@ import {
   twRefresh,
   twSetClass,
   twSetFieldClass,
+  twSetOneOf,
   twSetTag,
   twSizePicked,
   twSortClasses,
+  twTagClasses,
   twVariant,
 } from '../tw-classes.js';
 import { runTwTool, twToolActive } from '../tw-tool.js';
@@ -144,7 +147,7 @@ import { mountStatamicSurface } from '../cp/mount-statamic.js';
  */
 export function mountBuildPanel(win, host, hooks = {}) {
   const port = createEditorPort(win, hooks);
-  const app = mountSurface(BuildPanel, host, { port });
+  const app = mountSurface(BuildPanel, host, { port, bar: hooks.bar || null });
   const page = buildModeUi.on ? buildCanvas(win) : null;
   const detach = page?.attach(port);
   const countPaint = () => {
@@ -1069,6 +1072,24 @@ export function createEditorPort(win, hooks = {}) {
     pickedClasses: () => (rev.value, twPickedClasses()?.raws || []),
     activeClass: (property) => (rev.value, twActiveClass(property)),
     setClass: (name) => twSetClass(win, name),
+    /** The picked tag's own class value, whatever the Tailwind pane is working on. */
+    tagClasses: () => (rev.value, twTagClasses()),
+    /** One class of `set` on the picked tag at every size, '' for none — a Container's width. */
+    setOneOf: (set, name) => twSetOneOf(win, set, name),
+    /** The length the page's theme gives `--name`, in px on the canvas; null when it gives none. */
+    themePx(name) {
+      painted.value;
+
+      const root = canvas?.elementAt(hooks.selectedPath?.() || '')?.ownerDocument?.documentElement;
+      const view = root?.ownerDocument.defaultView;
+      const m = view ? /^(-?[\d.]+)(rem|px)$/.exec(view.getComputedStyle(root).getPropertyValue(`--${name}`).trim()) : null;
+
+      if (!m) {
+        return null;
+      }
+
+      return m[2] === 'px' ? Number(m[1]) : Number(m[1]) * (parseFloat(view.getComputedStyle(root).fontSize) || 16);
+    },
     /** A value field's class in the place of its own (`own`, a raw) — Spacing's drag. */
     setFieldClass: (name, own) => twSetFieldClass(win, name, own),
     /** A value field's menu — a scale, or a group named by hand: the pane's popover, search and preview, written as the field writes. */

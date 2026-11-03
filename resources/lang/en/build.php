@@ -23,6 +23,7 @@ return [
 
     // Tabs
     'tab_add' => 'Add',
+    'add_element' => 'Add element',
     'tab_style' => 'Style',
     'tab_action' => 'Action',
     'action_has' => 'This element has',
@@ -129,6 +130,13 @@ return [
     'content_markup' => 'This element holds other elements. Click one of them to edit its text.',
     'content_layout' => 'A layout element has no text of its own: its content is the elements inside it.',
     'content_soon' => 'Content for this element comes in a later step.',
+    'content_width' => 'Width',
+    'width_ultra_narrow' => 'Ultra narrow',
+    'width_narrow' => 'Narrow',
+    'width_normal' => 'Normal',
+    'width_wide' => 'Wide',
+    'width_ultra_wide' => 'Ultra wide',
+    'width_full' => 'Full width',
     'content_gallery' => 'Gallery',
     'content_gallery_own' => 'Use my own images',
     'el_gallery' => 'Gallery',

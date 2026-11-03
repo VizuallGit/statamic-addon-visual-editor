@@ -84,6 +84,7 @@ import { firstFamily } from '../theme-panel/presets.js';
 import { MIN_VIEWPORT } from '../theme-panel/sizes.js';
 import ThemeColorsTab from './ThemeColorsTab.vue';
 import ThemeSpacingTab from './ThemeSpacingTab.vue';
+import ThemeContainersTab from './ThemeContainersTab.vue';
 import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
@@ -93,7 +94,7 @@ import ThemeStylesTab from './ThemeStylesTab.vue';
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-/** Each section with its icon: a palette, a ruler, a large and a small A, a T, braces, a button, a text field. */
+/** Each section with its icon: a palette, a ruler, a box between arrows, a large and a small A, a T, braces, a button, a text field. */
 const SECTIONS = [
   {
     key: 'colors',
@@ -104,6 +105,11 @@ const SECTIONS = [
     key: 'spacing',
     view: ThemeSpacingTab,
     icon: svg('<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>'),
+  },
+  {
+    key: 'containers',
+    view: ThemeContainersTab,
+    icon: svg('<rect x="7" y="4" width="10" height="16" rx="1.5"/><path d="M2 12h3"/><path d="m3.5 10.5-1.5 1.5 1.5 1.5"/><path d="M22 12h-3"/><path d="m20.5 10.5 1.5 1.5-1.5 1.5"/>'),
   },
   {
     key: 'fonts',
@@ -153,7 +159,8 @@ const props = defineProps({
   onSize: { type: Function, required: true },
   onSelectSize: { type: Function, required: true },
   onRemoveSize: { type: Function, required: true },
-  onViewport: { type: Function, required: true },
+  onFluidWidth: { type: Function, required: true },
+  onWidth: { type: Function, required: true },
   onGutter: { type: Function, required: true },
   onAddHighlight: { type: Function, required: true },
   onHighlightName: { type: Function, required: true },
@@ -238,6 +245,12 @@ function meta(key) {
     return ui.sizes.length
       ? (ui.labels.panel_meta_spacing || '').replace(':count', ui.sizes.length).replace(':min', MIN_VIEWPORT).replace(':max', ui.maxViewport)
       : '';
+  }
+
+  if (key === 'containers') {
+    const px = ui.widths.map((w) => w.px).filter(Boolean);
+
+    return px.length ? `${px.join(' · ')} px` : '';
   }
 
   if (key === 'fonts') {
