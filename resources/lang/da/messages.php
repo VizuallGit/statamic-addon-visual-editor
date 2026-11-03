@@ -683,6 +683,7 @@ return [
     'back_to_admin_title' => 'Luk Live Preview og gå tilbage til Control Panel',
     'open_in_new_tab' => 'Åbn i ny fane',
     'open_in_new_tab_title' => 'Åbn siden i en ny fane — editoren bliver stående',
+    'no_public_url_yet' => 'Siden har ingen offentlig URL endnu. Udgiv den for at se den på sitet.',
     'open_in_live_preview' => 'Åbn i Live Preview',
     'open_in_live_preview_title' => 'Åbn :title i Live Preview',
     'home_preview_button' => 'Live Preview',

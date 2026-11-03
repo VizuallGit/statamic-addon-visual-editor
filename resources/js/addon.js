@@ -65,7 +65,13 @@ import './components/SectionAccordion.js';
 import { initFileManager } from './file-manager-boot.js';
 import { initTemplateBoard } from './template-board-boot.js';
 import { registerContainerEvents } from './lib/publish-containers.js';
+import { registerEntryPublishForm } from './lib/entry-publish-form.js';
 import { livePreviewButton, livePreviewEditorEl, registerPanelConditions } from './lib/live-preview.js';
+
+// The entry form's publish state (public URL or not), for the close menu in
+// the cluster. A mixin, so it has to be in before Statamic mounts — the
+// cluster may land after that.
+registerEntryPublishForm();
 
 // ---- the deferred Live Preview cluster --------------------------------------
 

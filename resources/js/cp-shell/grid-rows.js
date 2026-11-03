@@ -17,6 +17,7 @@ import { lpHeader } from '../lib/live-preview.js';
 import { remToPx } from '../lib/dom.js';
 import { csrfToken } from '../lib/csrf.js';
 import { previewFrame } from '../lib/preview-frame.js';
+import { publicUrlOf } from '../lib/entry-publish-form.js';
 import { findLpRightActionTail, findLpSaveButton, syncLpRightBarGaps } from '../lp-panel.js';
 import { ensureLpPanelToggle, persistLpWidth } from '../lp-width.js';
 import { closeRightPanels, syncPreviewInset } from '../section-library.js';
@@ -563,6 +564,7 @@ export function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, af
  * bar shares one height and surface.
  */
 export const LP_BACK_MENU_ID = '__sve-lp-back-menu';
+const LP_BACK_MENU_STYLE_ID = '__sve-lp-back-menu-style';
 
 export const LP_BACK_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
@@ -1029,33 +1031,14 @@ export function closeLivePreviewUi(win) {
   }
 }
 
-/** Public URL of the open entry, from Visit URL or the preview iframe. */
+/**
+ * Public URL of the open entry, or null while it has none (a draft, a new
+ * entry, no route). Read from the publish form's own state, which Statamic
+ * updates the moment a publish lands — so a page published from Live Preview
+ * has its URL here without a reload.
+ */
 export function visitUrlOf(win) {
-  const visit = [...win.document.querySelectorAll('a')].find((a) =>
-    /visit url|besøg url/i.test(a.textContent || '')
-  );
-  const href = visit?.getAttribute('href');
-
-  if (href) {
-    return href;
-  }
-
-  try {
-    const src = win.document.getElementById('live-preview-iframe')?.getAttribute('src');
-
-    if (!src) {
-      return null;
-    }
-
-    const url = new URL(src, win.location.origin);
-
-    url.searchParams.delete('live-preview');
-    url.searchParams.delete('preview');
-
-    return url.pathname === '/' && !url.search ? null : url.href;
-  } catch {
-    return null;
-  }
+  return publicUrlOf(win);
 }
 
 /** Overlay host is the Control Panel listing/form, not the live site. */
@@ -1129,24 +1112,27 @@ export function leaveToAdmin(win) {
   leaveToOrigin(win, listing);
 }
 
-/** Leave the visual editor and land on the public page. */
+/**
+ * Leave the visual editor and land on the public page. Only with a public URL
+ * to land on: the close menu keeps this way out disabled until the page has
+ * one, so there is no admin fallback here.
+ */
 export function leaveToFrontend(win) {
-  dismissDirtyWarning(win);
   const url = visitUrlOf(win);
 
+  if (!url) {
+    return;
+  }
+
+  dismissDirtyWarning(win);
+
   if (isEmbeddedInSite(win) && !hostIsControlPanel(win)) {
-    postToHost(win, 'lp-close', url ? { url } : {});
+    postToHost(win, 'lp-close', { url });
 
     return;
   }
 
-  if (url) {
-    goTop(win, url);
-
-    return;
-  }
-
-  leaveToAdmin(win);
+  goTop(win, url);
 }
 
 /**
@@ -1259,7 +1245,15 @@ export function openLpBackMenu(win, pill) {
     'background:#343439;box-shadow:0 12px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12);' +
     'font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;';
 
-  const item = (label, title, iconSvg, onClick) => {
+  injectStyle(
+    doc,
+    LP_BACK_MENU_STYLE_ID,
+    `#${LP_BACK_MENU_ID} button[disabled] { opacity: .3; cursor: default; }\n` +
+      `#${LP_BACK_MENU_ID} [data-sve-menu-note] { max-width: 16rem; padding: .375rem .75rem .5rem; ` +
+      'font-size: .75rem; font-weight: 400; line-height: 1.35; white-space: normal; color: rgba(255,255,255,.55); }'
+  );
+
+  const item = (label, title, iconSvg, onClick, enabled = true) => {
     const btn = doc.createElement('button');
     const icon = doc.createElement('span');
     const text = doc.createElement('span');
@@ -1274,6 +1268,15 @@ export function openLpBackMenu(win, pill) {
     icon.innerHTML = iconSvg;
     text.textContent = label;
     btn.append(icon, text);
+
+    if (!enabled) {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      menu.appendChild(btn);
+
+      return;
+    }
+
     btn.addEventListener('mouseenter', () => (btn.style.background = '#2c2c31'));
     btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
     btn.addEventListener('click', (event) => {
@@ -1284,21 +1287,41 @@ export function openLpBackMenu(win, pill) {
     menu.appendChild(btn);
   };
 
+  // The page's public URL — null for a draft, a new entry or an entry with no
+  // route. Read once for the menu: the two ways to the site share it.
+  const visitUrl = visitUrlOf(win);
+
   item(t(win, 'back_to_admin'), t(win, 'back_to_admin_title'), LP_BACK_ADMIN_ICON_SVG, () => {
     confirmLeaveIfDirty(win, () => leaveToAdmin(win));
   });
-  item(t(win, 'back_to_site'), t(win, 'back_to_site_title'), LP_BACK_SITE_ICON_SVG, () => {
-    confirmLeaveIfDirty(win, () => leaveToFrontend(win));
-  });
+  item(
+    t(win, 'back_to_site'),
+    t(win, 'back_to_site_title'),
+    LP_BACK_SITE_ICON_SVG,
+    () => {
+      confirmLeaveIfDirty(win, () => leaveToFrontend(win));
+    },
+    !!visitUrl
+  );
 
   // Not a way out: the editor stays open behind the new tab, so unsaved work is
   // neither asked about nor carried over — the tab shows the published page.
-  const visitUrl = visitUrlOf(win);
-
-  if (visitUrl) {
-    item(t(win, 'open_in_new_tab'), t(win, 'open_in_new_tab_title'), LP_NEW_TAB_ICON_SVG, () => {
+  item(
+    t(win, 'open_in_new_tab'),
+    t(win, 'open_in_new_tab_title'),
+    LP_NEW_TAB_ICON_SVG,
+    () => {
       win.open(visitUrl, '_blank', 'noopener');
-    });
+    },
+    !!visitUrl
+  );
+
+  if (!visitUrl) {
+    const note = doc.createElement('p');
+
+    note.setAttribute('data-sve-menu-note', '');
+    note.textContent = t(win, 'no_public_url_yet');
+    menu.appendChild(note);
   }
 
   doc.body.appendChild(menu);

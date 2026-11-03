@@ -686,6 +686,9 @@ return [
     'back_to_admin_title' => 'Close Live Preview and return to the Control Panel',
     'open_in_new_tab' => 'Open in new tab',
     'open_in_new_tab_title' => 'Open the page in a new tab — the editor stays open',
+    // Under the close menu while the page is a draft (or has no route): why
+    // the two ways to the site are disabled.
+    'no_public_url_yet' => 'This page has no public URL yet. Publish it to see it on the site.',
     // The label beside an entry's title in a listing or the page tree
     // (open-in-preview.js), and the top bar's front-page button
     // (home-preview-button.js).
