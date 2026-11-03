@@ -860,7 +860,9 @@ onBeforeUnmount(() => {
 /* The pane's list can be long, and this stands in the sticky top. Room above and beside for its minus. */
 .sve-build .fg-classes .sve-tw { max-height: 8rem; overflow-y: auto; padding-block-start: 0.5em; padding-inline-end: 0.5em; }
 .sve-build .fg-classes__new { flex: none; height: 1.5rem; padding-inline: 0.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 500; }
-.sve-build .fg-classes__new:hover { background: var(--bm-hover); }
+/* The list's three buttons read as one group: the same grey, the same height, the same blue under the pointer. */
+.sve-build .fg-classes__h .fg-ib { height: 1.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); }
+.sve-build .fg-classes__h button.fg-ib:hover:not(:disabled), .sve-build .fg-classes__h .fg-classes__new:hover { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
 .sve-build .fg-classes.is-class { padding: 0.4rem; box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
 .sve-build .fg-field { position: relative; display: flex; align-items: center; gap: 0.35rem; min-width: 0; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; }
 .sve-build .fg-field:hover { border-color: var(--bm-edge); }

@@ -112,6 +112,9 @@ export const htmlTreeUi = reactive({
   renameTitle: '',
   hideTitle: '',
   showTitle: '',
+  sectionHideTitle: '',
+  sectionShowTitle: '',
+  moreTitle: '',
   duplicateTitle: '',
   deleteTitle: '',
   lockedTitle: '',
@@ -136,6 +139,7 @@ export const htmlTreeUi = reactive({
   onRenameCommit: null,
   onRenameCancel: null,
   onHide: null,
+  onMore: null,
   // The padlock (html-tree.js toggleHtmlTreeLock): lock, and — for a
   // developer, who may configure fields — unlock.
   onLock: null,

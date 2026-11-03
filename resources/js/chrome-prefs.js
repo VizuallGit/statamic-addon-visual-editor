@@ -60,6 +60,7 @@ export const CHROME_KEYS = [
   'sve-build-dock',
   'sve-build-classes',
   'sve-panel-zones',
+  'sve-section-toolbar',
   'sve-editor-mode',
 ];
 

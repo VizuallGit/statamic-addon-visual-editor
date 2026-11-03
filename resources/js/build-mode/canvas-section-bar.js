@@ -4,7 +4,7 @@
  * a template, a section below, duplicate, remove.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: lib/i18n.js, lib/protocol.js, lib/publish-containers.js, lib/debug.js, cp/tip.js.
+ * May import: lib/i18n.js, lib/ids.js, lib/protocol.js, lib/publish-containers.js, lib/debug.js, cp/tip.js.
  * Bus: none. Every button is the message the bridge's button sends, posted to
  * the Control Panel's own window (add-section.js `isPreviewMessageSource` takes
  * `event.source === win`, as the HTML tree's section drag does): MSG.MOVE with
@@ -19,9 +19,12 @@
  * canvas morphs. The drag is the canvas's own: a line before or after the
  * section under the pointer, and the move on letting go — its place counted in
  * the form's own rows (a hidden section is a row the canvas does not show).
+ *
+ * Off unless this user turned it on (section-toolbar-pref.js), as in Content.
  */
 
 import { t } from '../lib/i18n.js';
+import { SECTION_TOOLBAR_ATTR } from '../lib/ids.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { pageSectionRows } from '../lib/publish-containers.js';
 import { note } from '../lib/debug.js';
@@ -219,7 +222,7 @@ export function sectionBar(win, { page, frame }) {
       return;
     }
 
-    const el = sectionOf(node);
+    const el = win.document.documentElement.hasAttribute(SECTION_TOOLBAR_ATTR) ? sectionOf(node) : null;
 
     if (el) {
       show(el);

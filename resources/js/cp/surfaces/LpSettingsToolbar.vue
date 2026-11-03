@@ -39,6 +39,8 @@ const props = defineProps({
   switchTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
   // { on, label }: Style's class list, shown when a Build starts (build-classes-pref.js).
   classesDefault: { type: Object, default: () => ({ on: false, label: '' }) },
+  // { on, label }: the toolbar on each page section (section-toolbar-pref.js).
+  sectionToolbar: { type: Object, default: () => ({ on: false, label: '' }) },
   on: { type: Object, required: true },
 });
 
@@ -54,6 +56,13 @@ const classesDefaultOn = ref(props.classesDefault.on);
 function setClassesDefault(value) {
   classesDefaultOn.value = value;
   props.on.classesDefault(value);
+}
+
+const sectionToolbarOn = ref(props.sectionToolbar.on);
+
+function setSectionToolbar(value) {
+  sectionToolbarOn.value = value;
+  props.on.sectionToolbar(value);
 }
 
 const groups = ref([]);
@@ -340,6 +349,10 @@ function nudgeGroup(id, step) {
     <label class="sve-lp-settings__row" data-sve-classes-default-setting>
       <input type="checkbox" :checked="classesDefaultOn" @change="setClassesDefault($event.target.checked)">
       <span :title="classesDefault.label">{{ classesDefault.label }}</span>
+    </label>
+    <label class="sve-lp-settings__row" data-sve-section-toolbar-setting>
+      <input type="checkbox" :checked="sectionToolbarOn" @change="setSectionToolbar($event.target.checked)">
+      <span :title="sectionToolbar.label">{{ sectionToolbar.label }}</span>
     </label>
     <div class="sve-lp-settings__line">
       <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{ modeLabel ? `${label} · ${modeLabel}` : label }}</span>

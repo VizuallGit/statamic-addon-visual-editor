@@ -43,6 +43,7 @@ import { closeThemePanel } from './theme-panel-lazy.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { buildSwitchTabOn, setBuildSwitchTab } from './build-switch-tab.js';
 import { buildClassesShownByDefault, setBuildClassesShownByDefault } from './build-classes-pref.js';
+import { applySectionToolbar, sectionToolbarOn, setSectionToolbarOn } from './section-toolbar-pref.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
   deleteToolbarGroup,
@@ -336,6 +337,7 @@ function toolbarProps(win) {
     // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
     switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
     classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
+    sectionToolbar: { on: sectionToolbarOn(win), label: t(win, 'lp_settings_section_toolbar') },
     hint: t(win, 'lp_settings_toolbar_hint'),
     // Where the site says what each mode may have — only for someone who may edit it.
     editUrl: win.Statamic?.$config?.get?.('sveToolbarModesUrl') || '',
@@ -438,6 +440,7 @@ function bindSettingHandlers(win) {
       toolbarState: () => toolbarState(win),
       switchTab: (on) => setBuildSwitchTab(win, on),
       classesDefault: (on) => setBuildClassesShownByDefault(win, on),
+      sectionToolbar: (on) => setSectionToolbarOn(win, on),
       toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
       toolbarShowAll: () => showAllToolbarTools(win),
       // The tab counts places among what this mode has; these make them places among all.
@@ -499,6 +502,8 @@ function openMoreMenu(win, pill) {
 }
 
 export function ensureLpMoreButton(win) {
+  applySectionToolbar(win);
+
   const doc = win.document;
   const header = lpHeader(doc);
   const back = doc.getElementById(LP_BACK_ID);

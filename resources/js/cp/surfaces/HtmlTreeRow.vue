@@ -1,6 +1,5 @@
 <script setup>
-import { canEditFields, currentSetHandle, openFieldsetOverlay } from '../../section-fields.js';
-import { t } from '../../lib/i18n.js';
+import { canEditFields } from '../../section-fields.js';
 
 // Drawn to the same recipe as the eye, the duplicate and the bin below: same
 // box, same stroke. A row of icons where one is heavier reads as a different
@@ -9,19 +8,6 @@ const FIELDS =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>';
 
 const canFields = canEditFields(window);
-const fieldsLabel = t(window, 'section_fields');
-
-function onFields() {
-  const handle = currentSetHandle();
-
-  if (!handle) {
-    window.Statamic?.$toast?.error(t(window, 'section_fields_none'));
-
-    return;
-  }
-
-  openFieldsetOverlay(window, handle);
-}
 
 /**
  * One row in the HTML tree — a tag, or a section that has not been opened yet.
@@ -33,8 +19,12 @@ function onFields() {
  * shut is a state of it.
  *
  * What a shut section cannot offer, it does not draw: there is no file loaded,
- * so nothing to rename, hide, duplicate or delete yet. That is the state
- * differing — not the row.
+ * so nothing to rename or lock yet. Hide, duplicate and delete act on the page,
+ * so they are there either way. That is the state differing — not the row.
+ *
+ * A row wears few icons: what is special about it (a video, an Alpine state, a
+ * lock that holds), then hide, duplicate and delete. Everything else is behind
+ * the three dots (html-tree.js `openHtmlTreeRowMore`).
  */
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 
@@ -69,12 +59,13 @@ const ALPINE_OFF =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6.5" width="20" height="11" rx="5.5"/><circle cx="7.5" cy="12" r="3" fill="currentColor" stroke="none"/></svg>';
 const ALPINE_ON =
   '<svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M7.5 5.5h9a6.5 6.5 0 0 1 0 13h-9a6.5 6.5 0 0 1 0-13ZM16.5 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6Z"/></svg>';
-// A lock and an open lock, drawn in the same band as the bin and the copy
-// (4–20 of 24) so the four icons read as one size.
+// A lock, drawn in the same band as the bin and the copy (4–20 of 24) so the
+// icons read as one size.
 const LOCK_ON =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-const LOCK_OFF =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-.9"/></svg>';
+
+const MORE =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
 
 const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
@@ -162,8 +153,13 @@ function rowBind(row, dim) {
     bind['data-sve-ht-current'] = '';
   }
 
-  if (row.hidden) {
+  if (row.hidden || row.sectionOff) {
     bind['data-sve-ht-hidden'] = '';
+  }
+
+  // A video or an Alpine state shows without the pointer on the row.
+  if (row.videoNth >= 0 || row.alpineNth >= 0) {
+    bind['data-sve-ht-special'] = '';
   }
 
   // The family the row belongs to (html-tree-icons.js decides) and how deep it
@@ -215,17 +211,37 @@ function isHeld(row) {
   return !!(row.locked || row.lockedIn);
 }
 
-/**
- * The padlock is offered on any row of the file that can stand on its own —
- * not inside something already locked (the lock above holds it), not on a
- * fixed row of the frame.
- */
-function canLock(row) {
+/** The three dots: there is nothing behind them inside a lock or on a fixed row of the frame. */
+function canMore(row) {
   return !row.lockedIn && !isFixed(row);
 }
 
 function canHide(row) {
-  return !isFixed(row) && !isSections(row) && !isHeld(row) && (!row.hidden || row.wrapFrom != null);
+  return pageLevel(row) || (!isFixed(row) && !isSections(row) && !isHeld(row) && (!row.hidden || row.wrapFrom != null));
+}
+
+/** A section's eye hides it on this page. A tag's comments it out in the file, for every page. */
+function eyeTitle(row) {
+  if (!canAct(row)) {
+    return ui.lockedTitle;
+  }
+
+  const off = row.hidden || row.sectionOff;
+
+  return pageLevel(row) ? (off ? ui.sectionShowTitle : ui.sectionHideTitle) : off ? ui.showTitle : ui.hideTitle;
+}
+
+/** The pointer passing over the dots on its way down the column opens nothing. */
+const MORE_HOVER_MS = 120;
+let moreTimer = null;
+
+function hoverMore(button, row) {
+  window.clearTimeout(moreTimer);
+  moreTimer = window.setTimeout(() => ui.onMore?.(button, row.id), MORE_HOVER_MS);
+}
+
+function leaveMore() {
+  window.clearTimeout(moreTimer);
 }
 
 /**
@@ -368,7 +384,7 @@ function figmaLook() {
         @dblclick.stop
       ></button>
     </span>
-    <span v-else-if="!isShutSection(row) && !isSlot(row)" data-sve-ht-actions>
+    <span v-else-if="!isSlot(row)" data-sve-ht-actions>
       <!--
         A <video> row: hold the video paused in the preview, or let it play.
         Not behind the lock — the file is not touched, only what the editor
@@ -404,37 +420,28 @@ function figmaLook() {
         @dblclick.stop
       ></button>
 
+      <!-- The padlock while it holds: only a developer (configure fields) unlocks, and is asked first. Taking a lock is in the three dots. -->
+      <button
+        v-if="row.locked"
+        type="button"
+        data-sve-ht-lock
+        data-on=""
+        :disabled="!ui.canEdit || !ui.canUnlock"
+        :title="ui.canUnlock ? ui.unlockTitle : ui.lockedByTitle"
+        aria-pressed="true"
+        v-html="LOCK_ON"
+        @click.stop.prevent="ui.onLock?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
       <button
         v-if="canHide(row)"
         type="button"
         data-sve-ht-eye
-        :disabled="!ui.canEdit"
-        :title="ui.canEdit ? (row.hidden ? ui.showTitle : ui.hideTitle) : ui.lockedTitle"
-        v-html="row.hidden ? EYE_OFF : EYE"
+        :disabled="!canAct(row)"
+        :title="eyeTitle(row)"
+        v-html="row.hidden || row.sectionOff ? EYE_OFF : EYE"
         @click.stop.prevent="ui.onHide?.(row.id)"
-        @pointerdown.stop
-        @dblclick.stop
-      ></button>
-      <!--
-        The section's own fields, on the row that stands for the whole section.
-        Only there: every tag inside it belongs to the same fieldset, so an icon
-        on each would be the same button drawn twenty times.
-
-        Locked with the rest of them. The lock is on the template, and the
-        fields are the other half of the same section — changing what fields a
-        section has while the file that renders them is locked is the half-made
-        edit the lock exists to stop. It also has to look the way it behaves:
-        one bright icon in a row of dim ones reads as highlighted, not as
-        still-usable.
-      -->
-      <button
-        v-if="canFields && row.fieldsIcon"
-        type="button"
-        data-sve-ht-fields
-        :disabled="!ui.canEdit"
-        :title="ui.canEdit ? fieldsLabel : ui.lockedTitle"
-        v-html="FIELDS"
-        @click.stop.prevent="onFields"
         @pointerdown.stop
         @dblclick.stop
       ></button>
@@ -453,24 +460,6 @@ function figmaLook() {
         @pointerdown.stop
         @dblclick.stop
       ></button>
-      <!--
-        The padlock. Open: anyone who may edit the file locks the element and
-        everything inside it. Shut and lit: locked — only a developer (configure
-        fields) unlocks, and is asked first.
-      -->
-      <button
-        v-if="canLock(row)"
-        type="button"
-        data-sve-ht-lock
-        :data-on="row.locked ? '' : null"
-        :disabled="!ui.canEdit || (row.locked && !ui.canUnlock)"
-        :title="row.locked ? (ui.canUnlock ? ui.unlockTitle : ui.lockedByTitle) : ui.lockTitle"
-        :aria-pressed="row.locked ? 'true' : 'false'"
-        v-html="row.locked ? LOCK_ON : LOCK_OFF"
-        @click.stop.prevent="ui.onLock?.(row.id)"
-        @pointerdown.stop
-        @dblclick.stop
-      ></button>
       <button
         v-if="!isFixed(row)"
         type="button"
@@ -479,6 +468,19 @@ function figmaLook() {
         :title="canAct(row) ? ui.deleteTitle : ui.lockedTitle"
         v-html="DEL"
         @click.stop.prevent="ui.onDelete?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
+      <button
+        v-if="canMore(row)"
+        type="button"
+        data-sve-ht-more
+        :aria-label="ui.moreTitle"
+        aria-haspopup="menu"
+        v-html="MORE"
+        @pointerenter="hoverMore($event.currentTarget, row)"
+        @pointerleave="leaveMore"
+        @click.stop.prevent="leaveMore(); ui.onMore?.($event.currentTarget, row.id)"
         @pointerdown.stop
         @dblclick.stop
       ></button>
