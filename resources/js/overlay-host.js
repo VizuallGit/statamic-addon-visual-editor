@@ -296,6 +296,10 @@ function createHost(win) {
   // The page the shown editor reports with `lp-ready`: its own URL and the
   // entry's public URL. Null until it has said, and whenever the frame goes.
   let page = null;
+  // The page this document was loaded as. While the overlay is open its entry
+  // carries other pages' URLs; a site page has no router to draw those once
+  // the overlay is closed (see the popstate listener).
+  const documentPath = `${win.location.pathname}${win.location.search}`;
 
   ensureStyles(win);
   guardHostReload(win, () => open);
@@ -692,6 +696,7 @@ function createHost(win) {
       saved = false;
 
       if (!fromHistory) {
+        unmarkHistory();
         quietlyPopOverlayHistory(win);
       }
 
@@ -730,6 +735,9 @@ function createHost(win) {
     }
 
     if (!fromHistory) {
+      // Off the entry before it is popped, so Forward brings the page back
+      // plain and not the editor.
+      unmarkHistory();
       quietlyPopOverlayHistory(win);
     }
 
@@ -862,6 +870,15 @@ function createHost(win) {
     'popstate',
     (event) => {
       if (!open) {
+        // Closed, and the browser has traversed onto an entry that names a
+        // page this document is not: Back after a refresh (the entries the
+        // old document pushed stay same-document through a reload), or Forward
+        // onto the page that was edited. The Control Panel's Inertia draws its
+        // own pages; a site page is loaded, as any link to it would.
+        if (!isCpHost(win) && `${win.location.pathname}${win.location.search}` !== documentPath) {
+          win.location.reload();
+        }
+
         return;
       }
 
