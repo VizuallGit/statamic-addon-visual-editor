@@ -31,9 +31,12 @@ import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
 import BuildFieldReset from './BuildFieldReset.vue';
 import BuildFields from './BuildFields.vue';
+import BuildGridPopup from './BuildGridPopup.vue';
+import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
+import { MAX_TRACKS, fewestTracks } from '../../build-mode/grid.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
 import { chromeGet, chromeRemove, chromeSet } from '../../chrome-prefs.js';
 
@@ -175,8 +178,23 @@ const distributeKids = computed(() => [
 const crossKids = computed(() => [...displayKids.value.filter((kid) => kid.css === 'align-items'), ...BUILD_KIDS.cross]);
 const gapKid = (id) => kidsById(tool('tw-gap')).get(id);
 const cols = computed(() => eff('grid-template-columns'));
-const atBase = computed(() => !sizeNow.value || !!port.sizes().find((row) => row.handle === sizeNow.value)?.base);
-const structureRow = computed(() => props.node.kind === 'columns' && atBase.value && !stateNow.value);
+
+/* Grid: the classes at the size picked (grid.js), the counts and cells as the canvas lays them out (the port's `gridAround`) */
+const gridParts = computed(() => port.gridPartsAt(props.node.path));
+const around = computed(() => port.gridAround?.(props.node.path) || { own: null, parent: null, item: null });
+const ownGrid = computed(() => around.value.own);
+const parentGrid = computed(() => around.value.parent);
+const gridItem = computed(() => (around.value.item?.col && around.value.item?.row ? around.value.item : null));
+const gridLeast = computed(() => fewestTracks(ownGrid.value?.items || []));
+const spanOf = (range) => range[1] - range[0] + 1;
+const gridPop = ref(null);
+
+function openGrid(event, path) {
+  const button = event.currentTarget;
+
+  gridPop.value = { path, row: button.getBoundingClientRect(), column: (button.closest('[data-sve-build-root]') || button).getBoundingClientRect() };
+}
+
 const clip = computed(() => eff('overflow')?.name === 'overflow-hidden');
 
 /* ---------------- Size ---------------- */
@@ -624,29 +642,27 @@ function jump(group) {
           </template>
 
           <template v-if="flow === 'grid'">
-            <template v-if="structureRow">
-              <div class="fg-lab">grid-template-columns <i class="bm-soon">{{ port.t('switching_later') }}</i><BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
-              <div class="bm-sp">
-                <button v-for="s in STRUCTURES" :key="s.key" type="button" class="bm-sp-o" :aria-pressed="pressed(cols, s.cls)" :title="s.label" @click="port.setClass(s.cls)">
-                  <span class="bm-bars"><i v-for="(part, n) in s.parts" :key="n" :style="{ flex: part }"></i></span>
-                  <span class="bm-sp-l">{{ s.label }}</span>
-                </button>
-              </div>
-            </template>
-            <template v-else>
-              <div class="fg-lab">grid-template-columns<BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
-              <div class="fg-seg fg-colsn">
-                <button
-                  v-for="n in 6"
-                  :key="n"
-                  type="button"
-                  :aria-pressed="pressed(cols, `grid-cols-${n}`)"
-                  :class="{ inh: inh(cols, `grid-cols-${n}`) }"
-                  :title="`repeat(${n}, 1fr)`"
-                  @click="port.setClass(`grid-cols-${n}`)"
-                ><span class="bm-mini"><i v-for="m in n" :key="m"></i></span><span>{{ n }}</span></button>
-              </div>
-            </template>
+            <div class="fg-lab">grid-template-columns<BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
+            <div class="bm-sp" data-sve-build-structures>
+              <button
+                v-for="s in STRUCTURES"
+                :key="s.key"
+                type="button"
+                class="bm-sp-o"
+                :class="{ inh: inh(cols, s.cls) }"
+                :aria-pressed="pressed(cols, s.cls)"
+                :title="s.label"
+                :data-sve-build-structure="s.cls"
+                @click="port.setClass(s.cls)"
+              >
+                <span class="bm-bars"><i v-for="(part, n) in s.parts" :key="n" :style="{ flex: part }"></i></span>
+                <span class="bm-sp-l">{{ s.label }}</span>
+              </button>
+            </div>
+            <div class="fg-grid">
+              <BuildGridStep :path="node.path" part="cols" letter="C" :label="port.t('grid_columns')" :hit="gridParts.cols" :seen="ownGrid?.cols || null" :min="gridLeast.cols" :max="MAX_TRACKS" />
+              <BuildGridStep :path="node.path" part="rows" letter="R" :label="port.t('grid_rows')" :hit="gridParts.rows" :seen="ownGrid?.rows || null" :min="gridLeast.rows" />
+            </div>
             <div class="fg-grid">
               <BuildField v-if="gapKid('gap-col')" icon="gapX" title="column-gap">
                 <BuildValueInput :tool="gapKid('gap-col')" :fallbacks="['gap']" label="column-gap" compact />
@@ -657,6 +673,22 @@ function jump(group) {
             </div>
             <div class="fg-lab">{{ port.t('align_items') }}<BuildFieldReset :names="ownOf(crossKids)" :label="port.t('align_items')" /></div>
             <BuildAlign :kids="crossKids" />
+            <button v-if="ownGrid" type="button" class="fg-more" data-sve-build-grid-edit @click="openGrid($event, node.path)">
+              <span v-html="ic('grid')"></span>{{ port.t('grid_edit') }}
+            </button>
+          </template>
+
+          <template v-if="gridItem">
+            <div class="fg-lab">{{ port.t('grid_item') }}</div>
+            <div class="fg-grid" data-sve-build-grid-item-fields>
+              <BuildGridStep :path="node.path" part="colSpan" letter="↔" :label="port.t('grid_col_span')" :hit="gridParts.colSpan" :seen="spanOf(gridItem.col)" :max="parentGrid.cols" />
+              <BuildGridStep :path="node.path" part="rowSpan" letter="↕" :label="port.t('grid_row_span')" :hit="gridParts.rowSpan" :seen="spanOf(gridItem.row)" />
+              <BuildGridStep :path="node.path" part="colStart" letter="C" :label="port.t('grid_col_start')" :hit="gridParts.colStart" :seen="gridItem.col[0] + 1" :max="parentGrid.cols" auto />
+              <BuildGridStep :path="node.path" part="rowStart" letter="R" :label="port.t('grid_row_start')" :hit="gridParts.rowStart" :seen="gridItem.row[0] + 1" auto />
+            </div>
+            <button type="button" class="fg-more" data-sve-build-grid-edit-parent @click="openGrid($event, parentGrid.path)">
+              <span v-html="ic('grid')"></span>{{ port.t('grid_edit_parent') }}
+            </button>
           </template>
 
           <label class="fg-check">
@@ -919,5 +951,6 @@ function jump(group) {
       </div>
     </section>
 
+    <BuildGridPopup v-if="gridPop" :key="gridPop.path" :path="gridPop.path" :row="gridPop.row" :column="gridPop.column" :hint="sizeHint" @close="gridPop = null" />
   </div>
 </template>

@@ -551,6 +551,40 @@ onBeforeUnmount(() => {
 .sve-build .bm-sp-o .bm-bars { height: 1.1rem; gap: 0.12rem; }
 .sve-build .bm-sp-o[aria-pressed='true'] { border-color: var(--bm-accent); }
 .sve-build .bm-sp-l { font-size: 0.625rem; color: var(--bm-muted); text-align: center; }
+/* What a wider size gives: shown, not set here */
+.sve-build .bm-sp-o.inh { border-color: var(--bm-inh-line); }
+.sve-build .bm-sp-o.inh .bm-bars i { background: var(--bm-inh); }
+.sve-build .bm-sp-o.inh .bm-sp-l { font-style: italic; }
+
+/* A grid's numbers in Style (BuildGridStep.vue): typed, or stepped with − and + */
+.sve-build .fg-step { gap: 0.15rem; }
+.sve-build .fg-step .bm-vin::placeholder { color: var(--bm-faint); }
+.sve-build .fg-step__b { flex: none; width: 1.25rem; height: 1.25rem; display: grid; place-items: center; border-radius: 0.25rem; color: var(--bm-muted); }
+.sve-build .fg-step__b:hover:not(:disabled) { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .fg-step__b:disabled { opacity: 0.35; cursor: default; }
+.sve-build .fg-step__b .bm-ic { width: 0.75rem; height: 0.75rem; }
+
+/* Edit grid (BuildGridPopup.vue): the grid small, its children as blocks to drag */
+.sve-build.bm-gb { width: 24rem; }
+.sve-build.bm-gb .bm-pop-body { display: grid; gap: 0.625rem; }
+.sve-build .bm-gb-wrap { display: grid; grid-template-columns: 1rem minmax(0, 1fr); grid-template-areas: '. cols' 'rows board'; gap: 0.25rem; }
+.sve-build .bm-gb-nums { display: grid; gap: 0.25rem; font: 500 0.5625rem var(--bm-mono); color: var(--bm-faint); text-align: center; }
+.sve-build .bm-gb-nums.is-cols { grid-area: cols; }
+.sve-build .bm-gb-nums.is-rows { grid-area: rows; align-items: center; }
+.sve-build .bm-gb-board { grid-area: board; display: grid; gap: 0.25rem; touch-action: none; user-select: none; }
+.sve-build .bm-gb-cell { display: grid; place-items: center; min-width: 0; border-radius: 0.25rem; border: 1px dashed var(--bm-edge); }
+.sve-build .bm-gb-add { width: 1.25rem; height: 1.25rem; display: grid; place-items: center; border-radius: 50%; color: var(--bm-faint); opacity: 0; }
+.sve-build .bm-gb-cell:hover .bm-gb-add, .sve-build .bm-gb-add:focus-visible { opacity: 1; }
+.sve-build .bm-gb-add:hover { background: var(--bm-accent); color: #fff; }
+.sve-build .bm-gb-add .bm-ic { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-gb-item { position: relative; z-index: 1; display: flex; align-items: flex-start; min-width: 0; padding: 0.25rem 0.35rem; border-radius: 0.3rem; background: var(--bm-accent-soft); border: 1px solid var(--bm-edge); color: var(--bm-ink); cursor: grab; }
+.sve-build .bm-gb-item.is-picked { border-color: var(--bm-accent); box-shadow: inset 0 0 0 1px var(--bm-accent); }
+.sve-build .bm-gb-item.is-loop { background: var(--bm-raise); border-style: dashed; cursor: default; }
+.sve-build .bm-gb-item.is-taken { opacity: 0.45; }
+.sve-build .bm-gb-board.is-dragging, .sve-build .bm-gb-board.is-dragging .bm-gb-item { cursor: grabbing; }
+.sve-build .bm-gb-label { min-width: 0; font: 500 0.625rem var(--bm-mono); color: var(--bm-accent-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve-build .bm-gb-corner { position: absolute; right: 0.15rem; bottom: 0.15rem; width: 0.55rem; height: 0.55rem; border-right: 0.125rem solid var(--bm-accent-text); border-bottom: 0.125rem solid var(--bm-accent-text); border-bottom-right-radius: 0.15rem; cursor: nwse-resize; }
+.sve-build .bm-gb-ghost { z-index: 2; border-radius: 0.3rem; border: 1px solid var(--bm-accent); background: var(--bm-accent-soft); pointer-events: none; }
 
 /* A Grid's rows and columns (BuildGridPicker.vue): each structure drawn as its cells */
 .sve-build .bm-gp h4 { margin: 0.75rem 0 0.4rem; font-size: 0.6875rem; font-weight: 600; color: var(--bm-muted); }
@@ -847,7 +881,7 @@ onBeforeUnmount(() => {
 /* A family's More: its switch under what stands in front; on, what it unfolds goes below it. */
 .sve-build .fg-sec__more { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .sve-build .fg-sec__more.is-open { order: 2; }
-.sve-build .fg-sec__more-row { order: 1; display: flex; align-items: center; gap: 0.4rem; width: fit-content; font-size: 0.75rem; font-weight: 500; color: var(--bm-muted); cursor: pointer; }
+.sve-build .fg-sec__more-row { order: 1; display: flex; align-items: center; gap: 0.4rem; width: fit-content; margin-top: 0.5rem; font-size: 0.75rem; font-weight: 500; color: var(--bm-muted); cursor: pointer; }
 .sve-build .fg-sec__more-row:hover { color: var(--bm-ink); }
 /* The class list's count and switch (.fg-classes), a size down. */
 .sve-build .fg-sec__more-row .fg-classes__count { min-width: 0.875rem; height: 0.875rem; }

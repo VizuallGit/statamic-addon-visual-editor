@@ -104,10 +104,13 @@ import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
 import { tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
-import { addAt, findByPath } from './place.js';
+import { addAt, findByPath, pathAt } from './place.js';
 import { flowAt } from './flow.js';
+import { readGridAt, withCellAt, withGridAt } from './grid.js';
+import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
+import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
-import { fromClass, rootFor, rootOf } from './classes.js';
+import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { classTargetFor } from '../dock/class-target.js';
 import { createComputedValues, hoverText, inherits } from './computed-values.js';
@@ -149,11 +152,16 @@ export function mountBuildPanel(win, host, hooks = {}) {
   };
 
   page?.frame()?.contentWindow?.addEventListener(CANVAS_PAINTED, countPaint);
-  // Columns drawn over the canvas for the pick (columns-overlay.js).
+  // A size picked resizes the canvas, and a grid lays out again without a paint: Style's grid reads it (`gridAround`).
+  const resized = page?.frame() ? new win.ResizeObserver(countPaint) : null;
+
+  resized?.observe(page.frame());
+  // The grids drawn over the canvas, and the builder on the pick's (columns-overlay.js).
   const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false } : {});
 
   return () => {
     page?.frame()?.contentWindow?.removeEventListener(CANVAS_PAINTED, countPaint);
+    resized?.disconnect();
     stopColumns();
     detach?.();
     port.dispose();
@@ -961,6 +969,60 @@ export function createEditorPort(win, hooks = {}) {
       const order = [...(model?.catalog.design?.utilities.keys('static') || [])];
 
       return names.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    },
+    /* Grid: what the builder over the preview and Style's grid fields write (grid.js), at the pane's size and state */
+    gridAt: () => ({ variants: twVariant().split(':').filter(Boolean), chain: variantChain(rows(), port.size(), port.state()) }),
+    /**
+     * What the element at `path`'s classes say at the size picked (grid.js
+     * `readGrid`). The number a step goes from: a preview narrower than the
+     * size's range shows a smaller size's columns, not the ones written here.
+     */
+    gridPartsAt: (path) => (rev.value, readGridAt(html(), path, port.gridAt().chain)),
+    /** Parts of the element at `path` (`{ colSpan: 2 }`, null for the wider size's again); the pick stays, or goes to `select`. */
+    setGridAt(path, changes, { select = '' } = {}) {
+      const next = withGridAt(html(), path, changes, port.gridAt());
+
+      if (next !== html()) {
+        port.write(next, { select: select || hooks.selectedPath?.() || '' });
+      }
+    },
+    /** An empty element in the grid's cell `[col, row]`, picked. `next`: the grid would put it there by itself. */
+    addGridCell(path, cell, next) {
+      const out = withCellAt(html(), path, cell, next, port.gridAt());
+
+      if (out) {
+        port.write(out.html, { select: pathAt(out.html, out.at) });
+      }
+    },
+    /**
+     * The grid the element at `path` is, and the one it stands in, as the
+     * canvas lays them out now (grid-measure.js) — at the size it shows:
+     * `{ own, parent, item }`, each null when there is none. Off the canvas,
+     * so with no canvas there is nothing to read.
+     */
+    gridAround(path) {
+      rev.value;
+      painted.value;
+
+      const el = path ? canvas?.elementAt(path) : null;
+      const read = (grid) => {
+        const m = measureGrid(grid, CANVAS_PATH);
+
+        return {
+          path: grid.getAttribute(CANVAS_PATH) || '',
+          cols: m.cols.length,
+          rows: m.rows.length,
+          empty: m.empty,
+          // The cell a new child with no start lands in by itself (null when the grid's flow is not guessed at).
+          next: m.empty.find((cell) => nextFreeCell(m, cell)) || null,
+          items: m.items.map((item) => ({ path: item.path, col: item.col, row: item.row, label: elementLabel(item.el.tagName, item.el.getAttribute('class')) })),
+        };
+      };
+      const own = el && isGrid(el) ? read(el) : null;
+      const up = el?.parentElement;
+      const parent = up?.hasAttribute(CANVAS_PATH) && isGrid(up) ? read(up) : null;
+
+      return { own, parent, item: parent?.items.find((one) => one.path === path) || null };
     },
     painted,
     classesShown,
