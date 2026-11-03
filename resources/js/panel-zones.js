@@ -64,6 +64,8 @@ const ZONES_ATTR = 'data-sve-zones';
 const DROP_ATTR = 'data-sve-zone-drop';
 
 let bandWatch = null;
+/** The band's height while its grip is dragged: the observer places the band too, and must not put the stored one back. */
+let bandDragHeight = null;
 /** The column shut because nothing stood in it: it opens again by itself when something does. */
 let leftEmptied = false;
 
@@ -173,7 +175,7 @@ function padBelow(doc, px) {
 }
 
 /** The band stands where the preview's room is: between the sidebars, under the page. */
-function placeBand(win, shell, height = bandHeight(win)) {
+function placeBand(win, shell, height = bandDragHeight ?? bandHeight(win)) {
   const doc = win.document;
   const contents = doc.querySelector('.live-preview-contents');
 
@@ -214,10 +216,14 @@ function bindBandHeight(win, shell) {
       'ns-resize',
       (e) => {
         next = Math.min(Math.max(BAND_MIN, startH + (startY - e.clientY)), Math.round(win.innerHeight * 0.7));
+        bandDragHeight = next;
         placeBand(win, shell, next);
       },
       () => {
         chromeSet(win, BAND_KEY, String(Math.round(next)));
+        bandDragHeight = null;
+        // Placed once more from what is stored now: nothing else may follow the drop to do it.
+        placeBand(win, shell);
         win.dispatchEvent(new win.Event('resize'));
       },
       'data-sve-zone-band-shield'
