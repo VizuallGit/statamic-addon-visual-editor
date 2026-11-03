@@ -168,6 +168,8 @@ return [
     'classes_note' => 'Klik på en Tailwind-klasse for at ændre den, eller på en blå klasse for at åbne den. Minus fjerner den.',
     'display_more' => 'Flere display-værdier',
     'border_sides' => 'Hver side',
+    'style_more' => 'Flere (:count)',
+    'style_less' => 'Færre',
     'classes_add' => 'Tilføj en klasse',
     'classes_sort' => 'Sortér klasserne',
     'duplicate' => 'Duplikér',

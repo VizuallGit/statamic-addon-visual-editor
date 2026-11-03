@@ -469,8 +469,6 @@ return [
     'tw_classes_component_none' => 'This component takes no classes — its file has no {{ class }} or {{ _class }}. Open the component to style it.',
     'tw_classes_component_bound' => 'The classes on this component come from Antlers (:class="…") — change them in the HTML pane.',
     'tw_size_base' => 'Base',
-    'tw_strip_on' => 'Classes in the preview: on',
-    'tw_strip_off' => 'Classes in the preview: off',
     'tw_sort' => 'Sort the classes',
     'tw_tag' => 'Change tag',
     'tw_tag_placeholder' => 'Search… e.g. div',

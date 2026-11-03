@@ -50,7 +50,7 @@ import { bindBack, bindLayoutWatch, bindPaneToggles, bindResize, bindSplitters, 
 import { DATA_ICON, DOCK_ID, HANDLES, SCOPE_ICON, UNLOCK_ID, css, editors, html, loadCm } from '../code-dock.js';
 import { bindCssTools, bindHtmlTidy, bindHtmlTools, bindStyleMode } from './toolbars.js';
 import { bindCssAddClass } from './html-tools.js';
-import { bindHistory, bindStrip, paintStrip } from './history-strip.js';
+import { bindHistory } from './history-strip.js';
 import { attachHelp } from './help-attach.js';
 import { attachGhost } from './ghost-attach.js';
 import { bindHtmlScope, clearHtmlScopeRange, currentFullHtml, currentSectionValues, flushCssScope, goBackTemplate, htmlEditorText, htmlScopeEnabled, openNestedTemplate, openRenameClassMenu, paintHtmlScope, paintLock, showHtmlFull, showHtmlScope, syncScopedHtml, writeHandleEditor, writeHtmlEditor } from './scope.js';
@@ -124,7 +124,6 @@ async function ensureDockAsync(win) {
     bindCssAddClass(win, dock);
     bindStyleMode(win, dock);
     bindHistory(win, dock);
-    bindStrip(win, dock);
     bindTips(win, dock);
     bindHtmlTools(win, dock);
     bindHtmlScope(win, dock);
@@ -155,7 +154,6 @@ async function ensureDockAsync(win) {
   paintBack(win);
   paintAutosave(win);
   paintStyleMode(win);
-  paintStrip(win);
 
   await loadCm();
 
@@ -286,7 +284,6 @@ async function showBlank(win, doc) {
   paintBack(win);
   paintAutosave(win);
   paintStyleMode(win);
-  paintStrip(win);
   placeDock(win, dock);
 }
 
@@ -400,7 +397,6 @@ export async function loadTemplate(win, type, mode = 'replace') {
   paintBack(win);
   paintAutosave(win);
   paintStyleMode(win);
-  paintStrip(win);
   placeDock(win, dock);
 
   win

@@ -4,14 +4,12 @@
  */
 import { on } from '../cp/bus.js';
 import CodeDockMenu from '../cp/surfaces/CodeDockMenu.vue';
-import { setTwOverlayOn, twOverlayOn } from '../tw-overlay.js';
-import { twRepaintOverlay } from '../tw-classes.js';
 import { mountSurface } from '../cp/mount.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { currentTemplateType, isCodeDockLocked } from './dock-api.js';
 import { closeCssMenu, placeCssMenu, writeParts } from './css-tools.js';
-import { CSS_MENU_ID, DOCK_ID, HISTORY_ICON, STRIP_ICON } from '../code-dock.js';
+import { CSS_MENU_ID, DOCK_ID, HISTORY_ICON } from '../code-dock.js';
 import { onEditorInput } from './save.js';
 import { syncTwTarget } from './style-modes.js';
 
@@ -140,45 +138,6 @@ async function restoreVersion(win, type, id) {
   );
   onEditorInput(win);
   syncTwTarget(win);
-}
-
-/** The class strip over the preview: on, off, and remembered. */
-export function paintStrip(win) {
-  const btn = win?.document.getElementById(DOCK_ID)?.querySelector('[data-sve-code-strip]');
-
-  if (!btn) {
-    return;
-  }
-
-  // The strip shows the picked tag's Tailwind classes over the preview. In CSS
-  // mode there are no chips to show, so the button has nothing to switch — and
-  // a switch that does nothing is worse than no switch.
-  btn.hidden = dockState.styleMode !== 'tw';
-
-  const on = twOverlayOn(win);
-
-  btn.innerHTML = STRIP_ICON;
-  btn.title = t(win, on ? 'tw_strip_on' : 'tw_strip_off');
-  btn.setAttribute('aria-label', btn.title);
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-}
-
-export function bindStrip(win, dock) {
-  const btn = dock.querySelector('[data-sve-code-strip]');
-
-  if (!btn || btn._sveBound) {
-    return;
-  }
-
-  btn._sveBound = true;
-  btn.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setTwOverlayOn(win, !twOverlayOn(win));
-    paintStrip(win);
-    twRepaintOverlay(win);
-  });
-  paintStrip(win);
 }
 
 export function bindHistory(win, dock) {

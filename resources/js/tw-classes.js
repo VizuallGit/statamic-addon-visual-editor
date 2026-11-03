@@ -42,7 +42,6 @@ import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from '.
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
 import { twUi } from './cp/tailwind/store.js';
-import { hideTwOverlay, paintTwOverlay, twPreviewBox } from './tw-overlay.js';
 import TwClassList from './cp/surfaces/TwClassList.vue';
 import TwClassMenu from './cp/surfaces/TwClassMenu.vue';
 import TwAddClass from './cp/surfaces/TwAddClass.vue';
@@ -52,19 +51,6 @@ import { EVENT } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
 
 const MENU_ID = '__sve-tw-menu';
-const ANCHOR_NAME = '--sve-tw-anchor';
-
-/**
- * CSS anchor positioning where the browser has it.
- *
- * The menu is then tied to the button itself: it follows when the strip moves
- * and flips on its own when it runs out of room, without a line of geometry
- * here. `placeMenu` stays as the fallback for browsers without it, and for
- * every menu opened from the panel rather than the strip.
- */
-const CAN_ANCHOR = typeof CSS !== 'undefined' && CSS.supports?.('anchor-name: --x');
-
-let anchored = null;
 const STYLE_ID = '__sve-tw-style';
 
 /**
@@ -498,11 +484,6 @@ function chipColor(win, name) {
 export function closeTwMenu(win) {
   const menu = win?.document.getElementById(MENU_ID);
 
-  if (anchored) {
-    anchored.style.removeProperty('anchor-name');
-    anchored = null;
-  }
-
   menuUnhook?.();
   menuUnhook = null;
   openChipId = '';
@@ -529,21 +510,13 @@ function placeMenu(win, anchor, menu) {
   const pad = 8;
   const min = 140;
 
-  // Opened from the strip over the preview, it stays over the preview: a menu
-  // that spills onto the sidebar or the dock reads as belonging to them.
-  const box = anchor.closest?.('#__sve-tw-strip') ? twPreviewBox(win) : null;
-  const edgeTop = box ? box.top : 0;
-  const edgeBottom = box ? box.bottom : win.innerHeight;
-  const edgeLeft = box ? box.left : 0;
-  const edgeRight = box ? box.right : win.innerWidth;
-
   const below = rect.bottom + 4;
-  const room = edgeBottom - below - pad;
+  const room = win.innerHeight - below - pad;
   const height = Math.max(min, Math.min(room, 420));
 
-  menu.style.left = `${Math.max(edgeLeft + pad, Math.min(rect.left, edgeRight - width - pad))}px`;
+  menu.style.left = `${Math.max(pad, Math.min(rect.left, win.innerWidth - width - pad))}px`;
   menu.style.maxHeight = `${height}px`;
-  menu.style.top = `${room >= min ? below : Math.max(edgeTop + pad, edgeBottom - pad - height)}px`;
+  menu.style.top = `${room >= min ? below : Math.max(pad, win.innerHeight - pad - height)}px`;
 }
 
 /** One popover, wherever it is anchored: chip, tool icon or the + button. */
@@ -558,30 +531,9 @@ function openMenu(win, anchor, component, props) {
   menu.id = MENU_ID;
   doc.body.appendChild(menu);
   menu._sveApp = mountSurface(component, menu, props);
+  placeMenu(win, anchor, menu);
 
-  const tether = CAN_ANCHOR && !!anchor.closest?.('#__sve-tw-strip');
-
-  if (tether) {
-    anchored = anchor;
-    anchor.style.setProperty('anchor-name', ANCHOR_NAME);
-    menu.style.setProperty('position', 'absolute');
-    menu.style.setProperty('position-anchor', ANCHOR_NAME);
-    menu.style.setProperty('position-area', 'block-end span-inline-start');
-    menu.style.setProperty(
-      'position-try-fallbacks',
-      'flip-block, flip-inline, flip-block flip-inline'
-    );
-    menu.style.setProperty('margin', '4px 0 0 0');
-    menu.style.setProperty('max-height', '20rem');
-  } else {
-    placeMenu(win, anchor, menu);
-  }
-
-  const reposition = () => {
-    if (!tether) {
-      placeMenu(win, anchor, menu);
-    }
-  };
+  const reposition = () => placeMenu(win, anchor, menu);
   const onDown = (event) => {
     if (!menu.contains(event.target) && !anchor.contains(event.target)) {
       closeTwMenu(win);
@@ -1331,49 +1283,6 @@ export function twOpenTagMenu(win, anchor) {
   });
 }
 
-/**
- * Put the shown classes in a new order.
- *
- * Only the slots the reader can see are rewritten — a class hidden by the
- * size filter keeps its place in the file, so dragging under one filter does
- * not quietly shuffle what another one shows.
- */
-export function twReorder(win, ids) {
-  if (locked()) {
-    return;
-  }
-
-  const current = currentValue();
-
-  if (!current) {
-    return;
-  }
-
-  const picked = ids.map((id) => chips.get(id)).filter(Boolean);
-
-  if (picked.length < 2) {
-    return;
-  }
-
-  const slots = [...picked].sort((a, b) => a.from - b.from).map((chip) => ({ from: chip.from, to: chip.to }));
-  const next = reorderTokens(current.value, slots, picked.map((chip) => chip.raw));
-
-  if (next === current.value) {
-    return;
-  }
-
-  commit(win, current.html, next);
-}
-
-export function twHideOverlay(win) {
-  hideTwOverlay(win);
-}
-
-/** Draw the strip again — the toolbar calls this after switching it on. */
-export function twRepaintOverlay(win) {
-  paintTwOverlay(win, node?.path || '');
-}
-
 export function twHasNode() {
   return !!node && !(node.component && !node.param);
 }
@@ -2085,7 +1994,6 @@ function render(win) {
   }
 
   paint();
-  paintTwOverlay(win, node?.path || '');
   emit('tw:changed');
 }
 

@@ -24,7 +24,6 @@ defineProps({
       <span data-sve-code-status></span>
       <!-- All comes first: it is about what both panes show (dock/all.js). -->
       <button type="button" data-sve-all></button>
-      <button type="button" data-sve-code-strip></button>
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
       <!-- Tailwind's own docs, beside the switch while the pane is on Tailwind. -->

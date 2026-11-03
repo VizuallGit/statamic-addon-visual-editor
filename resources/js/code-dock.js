@@ -298,12 +298,6 @@ export const TW_TOOL_ICONS = {
     + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" fill="currentColor" stroke="none" opacity=".55"/></svg>',
 };
 
-export const STRIP_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<rect x="3" y="10" width="18" height="11" rx="2"/>'
-  + '<rect x="6" y="3" width="9" height="4" rx="1.4" fill="currentColor" stroke="none"/></svg>';
-
 export const HISTORY_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'

@@ -15,7 +15,6 @@ import { applyCssFolds, cssSizeRow, cssSizeRows, newSizeBlockSpot, newSizeQuery,
 import { closeCssMenu, leadingCssIndent, paintCssToolState } from './css-tools.js';
 import { applyCssScope, flushCssScope, setHtmlAll, syncHtmlTree } from './scope.js';
 import { paintCssIdMark } from './editor.js';
-import { paintStrip } from './history-strip.js';
 import { paintAlpine } from './alpine.js';
 import { allOn, allParts, paintAll } from './all.js';
 
@@ -384,7 +383,6 @@ export function applyStyleMode(win) {
   paintStyleMode(win);
   paintValuesMode(win);
   paintAll(win);
-  paintStrip(win);
   dockState.cssToolRow?.();
 
   if (dockState.styleMode === 'tw') {

@@ -729,6 +729,10 @@ onBeforeUnmount(() => {
 .sve-build [data-sve-build-display-more] svg path { stroke-width: 3.75; }
 .sve-build button.fg-ib:hover:not(:disabled) { background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .fg-ib[aria-pressed='true'] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+/* The element's own add, duplicate and delete stand on a background, as the dock's buttons do; hovered, the editor's blue. */
+.sve-build .bm-el-head .fg-head__acts { gap: 0.25rem; }
+.sve-build .bm-el-head .fg-head__acts .fg-ib { background: var(--bm-raise); }
+.sve-build .bm-el-head .fg-head__acts button.fg-ib:hover:not(:disabled) { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
 .sve-build .fg-ib:disabled { opacity: 0.35; cursor: default; }
 .sve-build .fg-ib.is-quiet { color: var(--bm-faint); }
 .sve-build .fg-seg { display: flex; gap: 0.125rem; padding: 0.125rem; min-width: 0; border-radius: 0.3rem; background: var(--bm-raise); }
@@ -840,6 +844,11 @@ onBeforeUnmount(() => {
 .sve-build .fg-more:hover { color: var(--bm-ink); }
 .sve-build .fg-more[aria-pressed='true'] { color: var(--bm-accent-text); }
 .sve-build .fg-more .bm-ic { width: 0.875rem; height: 0.875rem; }
+/* A family's More: the button under what stands in front; open, what it unfolds goes below it. */
+.sve-build .fg-sec__more { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+.sve-build .fg-sec__more.is-open { order: 2; }
+.sve-build .fg-sec__more-btn { order: 1; }
+.sve-build .fg-sec__more-btn[aria-expanded='false'] .bm-ic { transform: rotate(-90deg); }
 /* The Tailwind pane's own class list, in the panel: its tag, sizes and state are the panel's sticky top. */
 .sve-build .fg-classes .sve-tw { padding: 0; }
 .sve-build .fg-classes .sve-tw-head { display: none; }

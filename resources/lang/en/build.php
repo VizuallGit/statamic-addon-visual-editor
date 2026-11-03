@@ -178,6 +178,8 @@ return [
     'classes_note' => 'Click a Tailwind class to change it, or a blue class to open it. The minus takes it off.',
     'display_more' => 'More display values',
     'border_sides' => 'Each side',
+    'style_more' => 'More (:count)',
+    'style_less' => 'Less',
     'classes_add' => 'Add a class',
     'classes_sort' => 'Sort the classes',
     'duplicate' => 'Duplicate',

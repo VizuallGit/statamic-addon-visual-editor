@@ -466,8 +466,6 @@ return [
     'tw_classes_component_none' => 'Komponenten tager ikke klasser — dens fil har ingen {{ class }} eller {{ _class }}. Åbn komponenten for at style den.',
     'tw_classes_component_bound' => 'Klasserne på komponenten kommer fra Antlers (:class="…") — ret dem i HTML-ruden.',
     'tw_size_base' => 'Basis',
-    'tw_strip_on' => 'Klasser i previewet: til',
-    'tw_strip_off' => 'Klasser i previewet: fra',
     'tw_sort' => 'Sortér klasserne',
     'tw_tag' => 'Skift tag',
     'tw_tag_placeholder' => 'Søg… fx div',

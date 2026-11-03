@@ -306,6 +306,28 @@ export const STYLE_FIELDS = {
 };
 
 /**
+ * What stands in front of each family: the fields BuildStyle.vue draws by hand
+ * by their property, STYLE_FIELDS ones by their label. The rest of a family
+ * named here waits under its More, folded; Layout and Spacing are not named,
+ * and show everything. A field with a value stands wherever it sits: nothing
+ * set is ever hidden.
+ */
+export const STYLE_FRONT = {
+  position: ['position', 'z-index'],
+  size: ['width', 'height', 'max-width'],
+  typography: ['font-size', 'font-weight', 'line-height', 'text-align', 'color'],
+  background: ['background-color', 'background-image'],
+  border: ['border-width', 'border-radius', 'border-color'],
+  effects: ['opacity', 'box-shadow'],
+  transform: ['rotate', 'scale', 'transition', 'transition-duration'],
+};
+
+/** Whether a family's field waits under More rather than standing in front. */
+export function inMore(family, name) {
+  return !!STYLE_FRONT[family] && !STYLE_FRONT[family].includes(name);
+}
+
+/**
  * Whether a class is a field's own. `rootOfClass` is the catalog's answer for
  * what utility a class belongs to; passed in, as `propertyOf` is to
  * effectiveClass. Never asked for a field on `css`, which the catalog sorts by

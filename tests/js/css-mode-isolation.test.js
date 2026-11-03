@@ -20,7 +20,7 @@ const FILES = [
 const read = (file) => readFileSync(file, 'utf8');
 
 test('the demo imports nothing from the Tailwind pane or the kernel', () => {
-  const banned = /from\s+['"][^'"]*(tw-classes|tw-tool|tw-compile|tw-overlay|class-target|preview\.js|overlay-host|bridge|live-reload-morph|\/canvas\.js|cp-shell)/;
+  const banned = /from\s+['"][^'"]*(tw-classes|tw-tool|tw-compile|class-target|preview\.js|overlay-host|bridge|live-reload-morph|\/canvas\.js|cp-shell)/;
 
   for (const file of FILES) {
     assert.ok(!banned.test(read(file)), file);

@@ -18,8 +18,7 @@
  * A frame of Build's own stands exactly over the real Live Preview. The real
  * one stays mounted and keeps rendering underneath, only invisible
  * (`visibility: hidden` — never `display: none`, never removed), and is read
- * the way the class strip reads it: same origin, straight out of its
- * document. Nothing in the kernel is touched and no message is sent to it.
+ * straight out of its document, which is same origin. Nothing in the kernel is touched and no message is sent to it.
  *
  *   The page     the real preview's stylesheets and styles, and its body,
  *                without scripts — the canvas is sandboxed, so neither Alpine
@@ -64,8 +63,7 @@
  *
  * Not in the prototype:
  *   - Instant-JS is unchanged and still paints the real preview underneath.
- *   - `previewFrame` still names the real preview, so the class strip does
- *     not show in Build. X-ray reads the canvas itself (`BUILD_CANVAS_ID`,
+ *   - `previewFrame` still names the real preview. X-ray reads the canvas itself (`BUILD_CANVAS_ID`,
  *     and `BUILD_CANVAS_SHOWN_EVENT` when it comes to show or goes — xray.js).
  *   - Header and footer are a copy; Alpine and the site's JS do not run (what
  *     they show in the real preview does — see What runs).

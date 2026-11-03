@@ -31,7 +31,7 @@ function evaluate(body, names) {
 
 const html = evaluate(slice('export const HTML_HEADINGS', 'export const CSS_SPACING'), ['HTML_HEADINGS', 'HTML_DIVS', 'HTML_TOOLS']);
 const tools = evaluate(slice('const boxKids', 'export const CSS_LENGTHS'), ['CSS_TOOLS']);
-const twIcons = evaluate(slice('export const TW_TOOL_ICONS', 'export const STRIP_ICON'), ['TW_TOOL_ICONS']);
+const twIcons = evaluate(slice('export const TW_TOOL_ICONS', 'export const HISTORY_ICON'), ['TW_TOOL_ICONS']);
 const cssIcons = evaluate(slice('export const CSS_TOOL_ICONS', '\nexport ', SOURCE.indexOf('export const CSS_TOOL_ICONS') + 1), ['CSS_TOOL_ICONS']);
 
 export const HTML_HEADINGS = html.HTML_HEADINGS;

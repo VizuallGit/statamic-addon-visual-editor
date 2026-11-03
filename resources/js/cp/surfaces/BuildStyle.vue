@@ -31,9 +31,10 @@ import BuildField from './BuildField.vue';
 import BuildFieldReset from './BuildFieldReset.vue';
 import BuildFields from './BuildFields.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, fieldHas, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
+import { chromeGet, chromeRemove, chromeSet } from '../../chrome-prefs.js';
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -326,6 +327,40 @@ function resetGroup(group) {
   groupOwn(group).forEach((name) => port.setClass(name));
 }
 
+/* ---------------- More: what a family keeps folded (catalog.js STYLE_FRONT) ---------------- */
+
+/** The fields this layout draws by hand that wait under More, by family and property. */
+const DRAWN_MORE = { size: ['min-width', 'min-height', 'max-height'], typography: ['font-family'], effects: ['overflow'] };
+/* The families whose More is open, kept per user like the rest of the editor's chrome. */
+const MORE_KEY = 'sve-build-style-more';
+const moreOpen = ref(String(chromeGet(window, MORE_KEY) || '').split(',').filter(Boolean));
+const moreIsOpen = (group) => moreOpen.value.includes(group.id);
+
+function toggleMore(group) {
+  moreOpen.value = moreIsOpen(group) ? moreOpen.value.filter((id) => id !== group.id) : [...moreOpen.value, group.id];
+
+  if (moreOpen.value.length) {
+    chromeSet(window, MORE_KEY, moreOpen.value.join(','));
+  } else {
+    chromeRemove(window, MORE_KEY);
+  }
+}
+
+/** Whether a field stands: in front always, from under More when it is open or the field has a value. */
+const stands = (group, name, hit) => !inMore(group.id, name) || moreIsOpen(group) || !!hit;
+const frontFields = (group) => fieldsOf(group).filter((field) => !inMore(group.id, field.label));
+const moreFields = (group) => fieldsOf(group).filter((field) => inMore(group.id, field.label) && stands(group, field.label, effField(field)));
+const drawnStands = (group) => (DRAWN_MORE[group.id] || []).some((name) => stands(group, name, eff(name)));
+const moreStands = (group) => drawnStands(group) || moreFields(group).length > 0;
+
+/** How many of a family's fields More keeps out of sight: those under it with no value. */
+function folded(group) {
+  port.rev.value;
+
+  return (DRAWN_MORE[group.id] || []).filter((name) => !eff(name)).length
+    + fieldsOf(group).filter((field) => inMore(group.id, field.label) && !effField(field)).length;
+}
+
 /* Spacing: the box or the fields, this browser's choice */
 const SPACING_VIEW_KEY = 'sve-build-spacing-view';
 
@@ -603,7 +638,10 @@ function jump(group) {
             <span class="fg-pre" v-html="groupIcon(group, port.lists.toolIcons)"></span>
             <BuildValueInput :tool="POSITION" label="position" :typed="false" />
           </label>
-          <BuildFields family="position" />
+          <BuildFields :fields="frontFields(group)" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <BuildFields :fields="moreFields(group)" />
+          </div>
         </template>
 
         <!-- Size -->
@@ -629,21 +667,26 @@ function jump(group) {
                 </select>
               </template>
             </BuildField>
-            <BuildField v-if="tool('tw-minw')" letter="Min W" title="min-width">
-              <BuildValueInput :tool="tool('tw-minw')" label="min-width" compact />
-            </BuildField>
             <BuildField v-if="tool('tw-maxw')" letter="Max W" title="max-width">
               <BuildValueInput :tool="tool('tw-maxw')" label="max-width" compact />
             </BuildField>
-            <BuildField letter="Min H" title="min-height">
-              <BuildValueInput :tool="MIN_H" label="min-height" compact />
-            </BuildField>
-            <BuildField letter="Max H" title="max-height">
-              <BuildValueInput :tool="MAX_H" label="max-height" compact />
-            </BuildField>
           </div>
           <p class="fg-hint">{{ port.t('size_more') }}</p>
-          <BuildFields family="size" />
+          <BuildFields :fields="frontFields(group)" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <div v-if="drawnStands(group)" class="fg-grid">
+              <BuildField v-if="tool('tw-minw') && stands(group, 'min-width', eff('min-width'))" letter="Min W" title="min-width">
+                <BuildValueInput :tool="tool('tw-minw')" label="min-width" compact />
+              </BuildField>
+              <BuildField v-if="stands(group, 'min-height', eff('min-height'))" letter="Min H" title="min-height">
+                <BuildValueInput :tool="MIN_H" label="min-height" compact />
+              </BuildField>
+              <BuildField v-if="stands(group, 'max-height', eff('max-height'))" letter="Max H" title="max-height">
+                <BuildValueInput :tool="MAX_H" label="max-height" compact />
+              </BuildField>
+            </div>
+            <BuildFields :fields="moreFields(group)" />
+          </div>
         </template>
 
         <!-- Spacing -->
@@ -666,9 +709,6 @@ function jump(group) {
 
         <!-- Typography -->
         <template v-else-if="group.id === 'typography'">
-          <BuildField v-if="tool('tw-font')" title="font-family">
-            <BuildValueInput :tool="tool('tw-font')" label="font-family" empty="font-family" compact chip />
-          </BuildField>
           <div class="fg-grid">
             <label class="fg-field" title="font-weight">
               <span class="fg-pre" v-html="ic('weight')"></span>
@@ -706,13 +746,22 @@ function jump(group) {
             <BuildAlign v-if="item.kids?.length" :kids="item.kids" :align="false" />
             <BuildField v-else :title="item.css"><BuildValueInput :tool="item" compact /></BuildField>
           </template>
-          <BuildFields family="typography" />
+          <BuildFields :fields="frontFields(group)" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <BuildField v-if="tool('tw-font') && stands(group, 'font-family', eff('font-family'))" title="font-family">
+              <BuildValueInput :tool="tool('tw-font')" label="font-family" empty="font-family" compact chip />
+            </BuildField>
+            <BuildFields :fields="moreFields(group)" />
+          </div>
         </template>
 
         <!-- Background -->
         <template v-else-if="group.id === 'background'">
           <BuildColorField v-if="tool('bg')" :tool="tool('bg')" />
-          <BuildFields family="background" :path="node.path" />
+          <BuildFields :fields="frontFields(group)" :path="node.path" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <BuildFields :fields="moreFields(group)" :path="node.path" />
+          </div>
         </template>
 
         <!-- Border -->
@@ -754,7 +803,10 @@ function jump(group) {
             <div class="fg-lab">border-color<BuildFieldReset :names="ownOf(colorKids)" label="border-color" /></div>
             <BuildAlign :kids="colorKids" :align="false" />
           </template>
-          <BuildFields family="border" />
+          <BuildFields :fields="frontFields(group)" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <BuildFields :fields="moreFields(group)" />
+          </div>
         </template>
 
         <!-- Effects -->
@@ -778,16 +830,26 @@ function jump(group) {
               <BuildFieldReset :hit="ownHit(effGroup(shadowNames))" label="box-shadow" />
             </label>
           </div>
-          <div class="fg-lab">overflow</div>
-          <label class="fg-field">
-            <span class="fg-pre" v-html="ic('sides')"></span>
-            <BuildValueInput :tool="OVERFLOW" label="overflow" :typed="false" />
-          </label>
-          <BuildFields family="effects" />
+          <BuildFields :fields="frontFields(group)" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <template v-if="stands(group, 'overflow', eff('overflow'))">
+              <div class="fg-lab">overflow</div>
+              <label class="fg-field">
+                <span class="fg-pre" v-html="ic('sides')"></span>
+                <BuildValueInput :tool="OVERFLOW" label="overflow" :typed="false" />
+              </label>
+            </template>
+            <BuildFields :fields="moreFields(group)" />
+          </div>
         </template>
 
         <!-- Transform & transition -->
-        <BuildFields v-else-if="group.id === 'transform'" family="transform" />
+        <template v-else-if="group.id === 'transform'">
+          <BuildFields :fields="frontFields(group)" />
+          <div v-if="moreStands(group)" class="fg-sec__more" :class="{ 'is-open': moreIsOpen(group) }">
+            <BuildFields :fields="moreFields(group)" />
+          </div>
+        </template>
 
         <!-- A family this layout does not have: every tool from its shape -->
         <template v-else>
@@ -800,6 +862,16 @@ function jump(group) {
             <BuildField v-else :title="item.css"><BuildValueInput :tool="item" compact /></BuildField>
           </template>
         </template>
+
+        <!-- Under what is in front; open, above what it unfolded (the order is the stylesheet's) -->
+        <button
+          v-if="STYLE_FRONT[group.id] && (moreIsOpen(group) || folded(group))"
+          type="button"
+          class="fg-more fg-sec__more-btn"
+          :aria-expanded="moreIsOpen(group)"
+          :data-sve-build-more="group.id"
+          @click="toggleMore(group)"
+        ><span v-html="ic('chev')"></span>{{ moreIsOpen(group) ? port.t('style_less') : port.t('style_more', { count: folded(group) }) }}</button>
       </div>
     </section>
 

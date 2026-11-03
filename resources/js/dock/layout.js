@@ -317,7 +317,6 @@ export function ensureStyle(doc) {
   color: #93c5fd;
   background: rgba(56,88,233,.22);
 }
-#${DOCK_ID} [data-sve-code-strip],
 #${DOCK_ID} [data-sve-code-history] {
   all: unset;
   cursor: pointer;
@@ -333,16 +332,10 @@ export function ensureStyle(doc) {
   opacity: .8;
   background: rgba(255,255,255,.1);
 }
-#${DOCK_ID} [data-sve-code-strip]:hover,
 #${DOCK_ID} [data-sve-code-history]:hover,
 #${DOCK_ID} [data-sve-code-history][data-open] {
   opacity: 1;
   background: rgba(255,255,255,.16);
-}
-#${DOCK_ID} [data-sve-code-strip][aria-pressed="true"] {
-  opacity: 1;
-  color: #7dd3fc;
-  background: rgba(56,189,248,.16);
 }
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-values-mode],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode] {
@@ -492,7 +485,6 @@ export function ensureStyle(doc) {
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-autosave],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-style-mode],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-history],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-code-strip],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-save] {
   pointer-events: none;
   opacity: .28;
@@ -926,7 +918,7 @@ export function ensureStyle(doc) {
 }
 #${DATA_MENU_ID} {
   position: fixed;
-  /* Over the Tailwind pane's tag strip (tw-overlay.js) as well as the dock. */
+  /* Over the dock. */
   z-index: 99999;
   width: 23rem;
 }

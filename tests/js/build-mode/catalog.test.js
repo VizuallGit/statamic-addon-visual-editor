@@ -4,7 +4,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILD_TOOLS, STYLE_GROUPS, addGroups, elementKind, holdsElements, startsFile, styleGroups } from '../../../resources/js/build-mode/catalog.js';
+import { readFileSync } from 'node:fs';
+import { BUILD_TOOLS, STYLE_FIELDS, STYLE_FRONT, STYLE_GROUPS, addGroups, elementKind, holdsElements, inMore, startsFile, styleGroups } from '../../../resources/js/build-mode/catalog.js';
+import { CHROME_KEYS } from '../../../resources/js/chrome-prefs.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 import { CSS_TOOLS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS } from './dock-lists.js';
 
@@ -108,4 +110,36 @@ test('what can hold elements', () => {
   assert.ok(!holdsElements(img));
   assert.ok(holdsElements(figure));
   assert.ok(!holdsElements({ ...div, locked: true }));
+});
+
+test('Style keeps the agreed fields in front, and the rest of a family under More', () => {
+  // Layout and Spacing have no More.
+  assert.equal(inMore('layout', 'display'), false);
+  assert.equal(inMore('spacing', 'margin'), false);
+
+  assert.equal(inMore('typography', 'font-size'), false);
+  assert.equal(inMore('typography', 'color'), false);
+  assert.equal(inMore('typography', 'font-family'), true);
+  assert.equal(inMore('typography', 'letter-spacing'), true);
+  assert.equal(inMore('size', 'max-width'), false);
+  assert.equal(inMore('size', 'min-height'), true);
+  assert.equal(inMore('effects', 'overflow'), true);
+
+  // Every STYLE_FIELDS name in front is a real field of its family, so a typo cannot fold one away unseen.
+  const drawn = new Set(['position', 'width', 'height', 'max-width', 'font-size', 'font-weight', 'line-height', 'text-align', 'color', 'background-color', 'border-width', 'border-radius', 'border-color', 'opacity', 'box-shadow']);
+
+  for (const [family, names] of Object.entries(STYLE_FRONT)) {
+    assert.ok(STYLE_GROUPS.some((group) => group.id === family), family);
+
+    for (const name of names) {
+      assert.ok(drawn.has(name) || (STYLE_FIELDS[family] || []).some((field) => field.label === name), `${family}: ${name}`);
+    }
+  }
+});
+
+test('which Mores are open is kept per user — JS and PHP alike', () => {
+  const php = readFileSync(new URL('../../../src/Http/Controllers/ChromePrefsController.php', import.meta.url), 'utf8');
+
+  assert.ok(CHROME_KEYS.includes('sve-build-style-more'));
+  assert.ok(php.includes("'sve-build-style-more'"));
 });

@@ -10,8 +10,7 @@
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: vue, lib/build-canvas-ids.js, lib/preview-frame.js, lib/style.js, html-pick-align.js, build-mode/place.js,
- *   cp/xray/measure.js. Drawn from the Control Panel over the frame, the way
- *   tw-overlay.js draws the class strip: the frame is same origin, so the
+ *   cp/xray/measure.js. Drawn from the Control Panel over the frame: the frame is same origin, so the
  *   boxes are read straight out of it by the paths stamped on its elements —
  *   the preview's (`data-sve-ht-path`, html-pick-align.js) or the canvas's
  *   (`data-sve-build-path`, canvas.js), whichever frame it is given. Nothing

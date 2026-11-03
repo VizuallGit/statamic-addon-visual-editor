@@ -923,10 +923,15 @@ function mountCollectionPicker(win, header, collections) {
 
   newBtn.type = 'button';
   newBtn.id = NEW_ENTRY_ID;
-  newBtn.textContent = `+ ${t(win, 'new_entry')}`;
+  // The plus and the word side by side, on one line however narrow the bar gets.
+  newBtn.append(
+    Object.assign(doc.createElement('span'), { textContent: '+' }),
+    Object.assign(doc.createElement('span'), { textContent: t(win, 'new_entry') })
+  );
   // Same flat primary as Visible / active device pills.
   newBtn.style.cssText =
     `${FRAMED_CONTROL_STYLE}padding:0 .75rem;font-weight:600;` +
+    'display:inline-flex;align-items:center;gap:.3rem;flex:none;white-space:nowrap;' +
     `background:${LP_PRIMARY_FLAT};color:#fff;opacity:1;border:none;box-shadow:none;`;
 
   const selected = () => collections.find((c) => c.handle === collectionSelect.value);
