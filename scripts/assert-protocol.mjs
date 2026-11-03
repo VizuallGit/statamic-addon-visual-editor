@@ -17,7 +17,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = new URL('../resources/js/', import.meta.url).pathname;
-const STANDALONE = new Set(['dock-instant-preview.js', 'dedupe-cp-fetch.js']);
+const STANDALONE = new Set(['dedupe-cp-fetch.js']);
 const SRC = "'statamic-visual-editor'";
 
 function* walk(dir) {

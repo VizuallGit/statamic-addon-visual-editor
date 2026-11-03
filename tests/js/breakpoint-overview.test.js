@@ -437,9 +437,8 @@ test('the top bar\'s zoom group is the overview\'s while it is open, with a hidd
   assert.ok(shell.includes("win.addEventListener('keydown', (event) => onLpZoomKey(win, event))") && shell.includes('lpZoomStep(win, dir)'), 'the +/- keys are that step too');
 });
 
-test('the layer id is the shared one: the paint script spells it, lib/preview-frame.js reads it', () => {
+test('the layer id is the shared one: lib/preview-frame.js reads it', () => {
   assert.ok(code.includes('const LAYER_ID = BP_OVERVIEW_ID;'));
-  assert.ok(readFileSync(join(JS, 'dock-instant-preview.js'), 'utf8').includes(`getElementById('${BP_OVERVIEW_ID}')`), 'dock-instant-preview.js spells BP_OVERVIEW_ID');
   assert.ok(readFileSync(join(JS, 'lib/preview-frame.js'), 'utf8').includes('BP_OVERVIEW_ID'));
 });
 

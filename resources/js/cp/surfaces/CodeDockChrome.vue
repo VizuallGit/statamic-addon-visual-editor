@@ -27,6 +27,8 @@ defineProps({
       <button type="button" data-sve-code-strip></button>
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
+      <!-- Tailwind's own docs, beside the switch while the pane is on Tailwind. -->
+      <a data-sve-tw-docs href="https://tailwindcss.com/docs" target="_blank" rel="noopener noreferrer" title="Tailwind CSS docs — utility classes" @click.stop>Docs</a>
       <button type="button" data-sve-values-mode></button>
       <button type="button" data-sve-code-autosave aria-pressed="true"></button>
       <button type="button" data-sve-code-save hidden></button>

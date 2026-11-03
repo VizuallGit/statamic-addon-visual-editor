@@ -77,15 +77,14 @@ try {
       const status = dock?.querySelector('[data-sve-code-status]')?.textContent?.trim() || '';
       const cur = document.querySelector('[data-sve-ht-current]');
       const lite = document.querySelector('[data-sve-lite]')?.getAttribute('data-sve-lite');
-      const trace = (window.__sveInstantTrace || []).slice(-1)[0];
-      return { file: (path?.getAttribute('data-sve-code-path') || path?.textContent || '').split('/').slice(-2).join('/'), status, tree: cur?.textContent?.trim().slice(0, 40) || '', lite, trace: typeof trace === 'string' ? trace.slice(0, 80) : '' };
+      return { file: (path?.getAttribute('data-sve-code-path') || path?.textContent || '').split('/').slice(-2).join('/'), status, tree: cur?.textContent?.trim().slice(0, 40) || '', lite };
     }).catch((e) => ({ err: e.message.slice(0, 60) }));
     const pv = p ? await p.evaluate(() => {
       const sec = document.querySelector('.hero-test-heroo, [class*="test-heroo"]') || [...document.querySelectorAll('section[id^="id-"]')].pop();
       return { heroo: sec ? `${sec.id} ${sec.className.slice(0, 30)} text="${(sec.innerText || '').trim().slice(0, 30)}" children=${sec.children.length}` : 'none', active: document.querySelectorAll('[data-sid-active]').length };
     }).catch((e) => ({ err: e.message.slice(0, 60) })) : { err: 'no preview' };
     const msgs = await cp.evaluate(() => { const m = (window.__probeMsgs || []).splice(0); return m.join(' '); }).catch(() => '');
-    net.push(`${at()} [${label}] dock=${c.file || '-'} ${c.status ? '(' + c.status + ')' : ''} | tree=${c.tree} | lite=${c.lite} | paint=${(c.trace || '').replace(/^\d+ /, '')} | heroo: ${pv.heroo} active=${pv.active}${msgs ? ' | msgs: ' + msgs : ''}`);
+    net.push(`${at()} [${label}] dock=${c.file || '-'} ${c.status ? '(' + c.status + ')' : ''} | tree=${c.tree} | lite=${c.lite} | heroo: ${pv.heroo} active=${pv.active}${msgs ? ' | msgs: ' + msgs : ''}`);
   };
 
   // section A: a text field inside the employees list; section B: the test heroo root (empty)

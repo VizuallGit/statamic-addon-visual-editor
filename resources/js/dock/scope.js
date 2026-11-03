@@ -136,60 +136,11 @@ export function htmlFocusOk(from, to, length) {
   return from != null && to != null && from >= 0 && to > from && to <= length;
 }
 
-/**
- * What the Instant paint script needs while the pane shows a slice of the
- * file: the file as of the last sync and the slice's range in it. The script
- * splices the pane's current text into that range, so a keystroke the dock has
- * not synced yet is still painted against the whole file — and a `<p>` typed
- * next to the scoped one lands in the section, not outside the snippet.
- */
-function exposeHtmlScope() {
-  const dock = globalThis.document?.getElementById(DOCK_ID);
-
-  if (!dock) {
-    return;
-  }
-
-  // `css` is the whole sheet as it stands when it is read: the CSS pane shows
-  // a slice while the HTML pane is scoped, and the paint holds the sheet with
-  // the slice merged in — the same merge the save does. Until v1.1.468 it was
-  // a copy of `cssFull` taken here, on HTML changes only, and the paint put
-  // the pane after it: the copy's rule sat inside `@scope`, the pane's did
-  // not, and a scoped rule wins over an unscoped one of the same selector
-  // whatever the order — a value changed or removed in the pane stayed in
-  // the preview until a reload.
-  // Unscoped, the sheet is exposed all the same. The CSS pane is a slice
-  // whenever the tree is on — All with a pick, and a file just opened, which
-  // shows the root element's rules — and the paint cuts the saved sheet out of
-  // the page to hold this one instead. Exposed only for All, the file just
-  // opened was painted from the pane: its slice stood for the whole sheet and
-  // every rule outside it left the page until a pick scoped the HTML pane — a
-  // closed <dialog> styled `flex`, hidden only by the sheet, showed for a few
-  // frames on the first click with the dock open. A getter, so a pane that
-  // changes between full, tree and empty after this ran is read as it is now;
-  // with the pane the whole sheet, the merge is the pane.
-  dock.__sveHtmlScope = dockState.htmlScopeActive && dockState.htmlFocus
-    ? {
-        full: dockState.htmlFull,
-        from: dockState.htmlFocus.from,
-        to: dockState.htmlFocus.to,
-        get css() {
-          return mergedCssFull();
-        },
-      }
-    : {
-        get css() {
-          return mergedCssFull();
-        },
-      };
-}
-
 export function syncScopedHtml() {
   const text = editors.html?.state.doc.toString() ?? '';
 
   if (!dockState.htmlScopeActive || !dockState.htmlFocus) {
     dockState.htmlFull = text;
-    exposeHtmlScope();
 
     return;
   }
@@ -198,14 +149,12 @@ export function syncScopedHtml() {
     dockState.htmlScopeActive = false;
     dockState.htmlFull = text;
     dockState.htmlFocus = null;
-    exposeHtmlScope();
 
     return;
   }
 
   dockState.htmlFull = dockState.htmlFull.slice(0, dockState.htmlFocus.from) + text + dockState.htmlFull.slice(dockState.htmlFocus.to);
   dockState.htmlFocus = { from: dockState.htmlFocus.from, to: dockState.htmlFocus.from + text.length };
-  exposeHtmlScope();
 }
 
 export function currentFullHtml() {
@@ -536,13 +485,11 @@ export function openRenameClassMenu(win, token) {
 export function htmlEditorText() {
   if (dockState.htmlScopePref && !dockState.htmlAll && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
     dockState.htmlScopeActive = true;
-    exposeHtmlScope();
 
     return dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to);
   }
 
   dockState.htmlScopeActive = false;
-  exposeHtmlScope();
 
   return dockState.htmlFull;
 }
@@ -717,7 +664,7 @@ export function pickHtmlTagAtCursor(win) {
 
 /**
  * The file's HTML as the panes hold it now, read without syncing anything into
- * `htmlFull`: `mergedCssFull` is also what the Instant paint reads.
+ * `htmlFull`.
  */
 function fullHtmlNow() {
   const text = editors.html?.state.doc.toString();
@@ -882,7 +829,6 @@ export function showHtmlScope(caret) {
 
   dockState.htmlFocus = { from, to };
   dockState.htmlScopeActive = true;
-  exposeHtmlScope();
 
   const at = caret == null ? 0 : Math.max(0, Math.min(caret - from, to - from));
 
@@ -908,7 +854,6 @@ export function showHtmlFull(selectFocus = true, caret = null) {
   // The tree's own whole-file view, with the CSS pane on the whole block too;
   // All is the narrower look and has nothing left to switch here.
   dockState.htmlAll = false;
-  exposeHtmlScope();
 
   const full = dockState.htmlFull || view.state.doc.toString();
   // A caret beats the range: the tree asked to be put inside the row, not to
@@ -956,7 +901,6 @@ export function setHtmlAll(win, on) {
 
     dockState.htmlScopeActive = false;
     dockState.htmlFull = full;
-    exposeHtmlScope();
     writeHtmlEditor(full, focus ? { anchor: focus.from } : null);
     freshUndo('html');
     // Set only now: the write above swaps the slice for the file, and a pick
@@ -993,7 +937,6 @@ export function clearHtmlScopeRange() {
   dockState.cssScopeSnapshot = '';
   dockState.lastBracketNames = null;
   dockState.lastCssSelectorNames = null;
-  exposeHtmlScope();
 }
 
 /**
@@ -1071,7 +1014,6 @@ export function paintHtmlScope(win) {
   btn.setAttribute('aria-label', btn.title);
   btn.innerHTML = SCOPE_ICON;
   win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', dockState.htmlScopeActive);
-  exposeHtmlScope();
   paintAll(win);
 }
 

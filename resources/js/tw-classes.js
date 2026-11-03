@@ -1147,9 +1147,9 @@ export function twAddClass(win, raw) {
 /**
  * Show what the add list is on, before it is picked.
  *
- * The painting is the paint script's (dock-instant-preview.js, listening for
- * `sve:tw-preview`): it holds the tag's would-be class value on the live
- * elements, and the rule comes from the same compiler as a save. Here is
+ * The painting is Build's canvas's (build-mode/canvas-hold.js, listening for
+ * `sve:tw-preview`): it holds the tag's would-be class value on its element,
+ * and the rule comes from the same compiler as a save. Here is
  * only the answer to "what would Enter write" — the one place that knows,
  * so hover and Enter cannot disagree. A row always previews; typed text
  * previews once it is a class the catalog can compile.
@@ -1169,7 +1169,7 @@ function previewAdd(win, name, listed) {
   sendPreview(win, next.changed ? { path: node.path, value: next.value } : null);
 }
 
-/** The pick is about to be written: the paint script keeps what it shows and forgets the hold. */
+/** The pick is about to be written: the canvas keeps what it shows and forgets the hold. */
 function keepPreview(win) {
   sendPreview(win, { keep: true });
 }
@@ -1181,18 +1181,11 @@ function sendPreview(win, detail) {
     return;
   }
 
-  // A call's classes land on whatever its component renders, which the HTML
-  // caret — in the tag around the call — does not point at. The paint script
-  // finds those elements from the call itself (dock-instant-preview.js
-  // `holdCallTw`), so it is told the component and the value being replaced.
-  // A tag's own class (`{{ svg class="…" }}`) is on an element the server
-  // renders: nothing on the page is known to be it, so nothing previews —
-  // the morph shows the pick a second later.
-  const next = node?.tagCall && typeof detail?.value === 'string'
-    ? null
-    : node?.component && typeof detail?.value === 'string'
-      ? { component: node.src, param: node.param || '', old: currentValue()?.value ?? '', value: detail.value }
-      : detail;
+  // A call's classes land on whatever its component renders, and a tag's own
+  // class (`{{ svg class="…" }}`) on an element the server renders: neither
+  // is an element of the file the canvas holds by path, so nothing previews —
+  // the pick shows once it is written.
+  const next = (node?.tagCall || node?.component) && typeof detail?.value === 'string' ? null : detail;
 
   win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail: next }));
 }

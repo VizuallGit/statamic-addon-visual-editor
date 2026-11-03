@@ -12,15 +12,10 @@
  * the tools' menus) — say what a pick would write as they move
  * (tw-classes.js `sendPreview`: the tag's path and its would-be class value;
  * nothing when the menu moves off or closes; `keep` when the pick is being
- * written). The real preview's paint script holds that on the live page
- * (dock-instant-preview.js), and Build hides that page under its canvas — so
- * the canvas holds it too, on its own element for the same path. Only the
+ * written). The canvas holds it on its own element for that path. Only the
  * difference is applied (the classes the pick adds, and the ones it takes
  * away), never the raw value, which may carry Antlers the canvas has already
  * resolved. A paint of the section forgets the hold: the page's truth won.
- *
- * Switched with the dock's eye (dock-instant-preview.js, `sveInstantHover`):
- * off there, off here.
  */
 
 import { ask } from '../cp/bus.js';
@@ -30,18 +25,7 @@ import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_PATH } from './canvas-paint.js';
 import { findByPath } from './place.js';
 
-/** The dock's eye: the key dock-instant-preview.js keeps it under (`HOVER_KEY`). */
-const HOVER_KEY = 'sveInstantHover';
-
 const tokens = (value) => String(value || '').split(/\s+/).filter(Boolean);
-
-function hoverOn(win) {
-  try {
-    return win.localStorage.getItem(HOVER_KEY) !== 'off';
-  } catch {
-    return true;
-  }
-}
 
 /**
  * @param {Window} win  the Control Panel window
@@ -79,7 +63,7 @@ export function canvasHold(win, { page, compile }) {
       return;
     }
 
-    if (!detail.path || typeof detail.value !== 'string' || !hoverOn(win)) {
+    if (!detail.path || typeof detail.value !== 'string') {
       return;
     }
 

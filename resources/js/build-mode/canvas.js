@@ -120,8 +120,8 @@ const TW_ID = '__sve-build-canvas-tw';
 const SELECTED = 'data-sve-build-sel';
 const HOVERED = 'data-sve-build-hover';
 const TARGET = 'data-sve-build-plus';
-/** The page's own looks among the editor's styles: the theme's scale and the CSS pane's live sheet. */
-const PAGE_STYLES = new Set(['__sve-theme-scale', '__sve-dock-css-live']);
+/** The page's own looks among the editor's styles: the theme's scale. */
+const PAGE_STYLES = new Set(['__sve-theme-scale']);
 /** Left off the canvas: what runs there (scripts and their preloads — the canvas runs none) and what the editor puts on the page. */
 const LEFT_OFF = 'script, noscript, link[rel~="modulepreload"], link[as="script"], [id^="__sve"], [data-sve-menu]';
 /** The bus's door for a card dragged from Patterns: answered while the canvas is the page on screen, so unanswered in Content. */

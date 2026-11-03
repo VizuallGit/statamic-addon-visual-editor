@@ -33,7 +33,7 @@
  * other sizes are
  * copies of the preview (mirror.js): one server render per change, each copy
  * morphed from the preview's own render a task later; the tree's video hold
- * and the dock's Instant paint reach every frame. The
+ * reaches every frame. The
  * installed PHP decides which script a copy's document loads. Against a site
  * whose InjectBridgeScript predates mirror.js — every SVE_WORKTREE=1 run
  * before `composer update` — the copy documents are fetched by the test and
@@ -220,7 +220,7 @@ seedLayoutPrefs(PREFS);
 info('layout prefs', JSON.stringify(PREFS));
 info('installed PHP', PHP_HAS_VIEW_FLAG ? 'knows sve_view — every check is enforced' : 'predates sve_view (vendor has the released addon) — the no-bridge and string checks are skipped until composer update');
 const entryBefore = md5(entryFile);
-// The section file the dock autosaves into during the video and Instant steps; put back in `finally`.
+// The section file the dock autosaves into during the video step; put back in `finally`.
 let filePath = '';
 let original = null;
 let twPath = null;
@@ -1316,7 +1316,7 @@ try {
   await page.keyboard.press('Escape');
   await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
 
-  // 12. The tree's video hold and the dock's Instant paint reach every frame.
+  // 12. The tree's video hold reaches every frame.
   //     Both need the dock on the section's own file: open the dock, then click
   //     a bare spot of the headline's section (a field click scopes the pane to
   //     that block), unlock the template for the test, and back the file up —
@@ -1487,36 +1487,6 @@ try {
     await sleep(3500);
   } else {
     skip('video in every frame', !ready ? 'the dock is not on the section file (another site, or no file to back up)' : 'no SVE_VIDEO_FILE on disk and no SVE_VIDEO_SRC');
-  }
-
-  // 12b. Instant: a tag typed in the dock is in the preview and in every copy
-  //      in the same frame — well before any morph — with the field text kept.
-  if (ready) {
-    const copies = await openOverview();
-    const all = [await livePreview(), ...(copies || [])];
-    for (const f of all) await f.evaluate(() => { window.__sveBpoMorphs = []; window.addEventListener('statamic:preview-updated', () => window.__sveBpoMorphs.push(Date.now())); });
-    const typedOk = await typeAfterRoot('<aside class="sve-bpo-probe">probe</aside>');
-    const typedAt = Date.now();
-    const firstSeen = new Array(all.length).fill(null);
-    await until(async () => {
-      const got = await Promise.all(all.map((f) => f.evaluate(() => !!document.querySelector('.sve-bpo-probe')).catch(() => false)));
-      const now = Date.now() - typedAt;
-      got.forEach((ok, i) => { if (ok && firstSeen[i] === null) firstSeen[i] = now; });
-      return got.every(Boolean);
-    }, 2500, 15);
-    const morphed = await Promise.all(all.map((f) => f.evaluate(() => (window.__sveBpoMorphs || []).length).catch(() => 0)));
-    const instantOk = typedOk && !!copies && firstSeen.every((ms) => ms !== null) && morphed.every((n) => n === 0);
-    step('Instant: the new tag is in the preview and in every copy before any morph', instantOk, frameNames.map((n, i) => `${n} ${firstSeen[i] ?? '–'} ms${morphed[i] ? ' (a morph had run)' : ''}`).join(', '));
-    if (!instantOk) info('paint script', await cp.evaluate(() => { const view = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.cmTile?.view; const text = view ? view.state.doc.toString() : ''; const at = text.indexOf('sve-bpo-probe'); return `mode=${localStorage.getItem('sveInstantPreview')} v${window.__sveDockInstantPreview} | pane around the probe: ${JSON.stringify(text.slice(Math.max(0, at - 160), at + 80))} | trace: ${(window.__sveInstantTrace || []).slice(-6).map((l) => l.replace(/^\d+ /, '')).join(' → ')}`; }));
-    const textKept = await Promise.all(all.map((f) => f.evaluate(() => new RegExp(window.__sveTestFieldText, 'i').test(document.body.textContent)).catch(() => false)));
-    step('and the field text is still there in every frame', textKept.every(Boolean), textKept.join(' '));
-    step('the probe line removed again', await removeLine('sve-bpo-probe'));
-    await sleep(3500);
-    const gone = await Promise.all(all.map((f) => f.evaluate(() => !document.querySelector('.sve-bpo-probe')).catch(() => true)));
-    step('removed, the morph takes it out of every frame', gone.every(Boolean), gone.join(' '));
-    await closeOverview();
-  } else {
-    skip('Instant in every frame', 'the dock is not on the section file');
   }
 
   if (process.env.SVE_DEBUG) await page.screenshot({ path: `${tmpdir()}/sve-breakpoint-overview.png` });

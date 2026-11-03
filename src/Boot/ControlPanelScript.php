@@ -18,7 +18,6 @@ use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\Shortcuts;
-use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\ToolbarModes;
 use Statamic\Facades\User;
 use Statamic\Statamic;
@@ -131,9 +130,6 @@ final class ControlPanelScript
                 // to a note at that count, instead of a save the Store refuses.
                 'sveBreakpointsMax' => Breakpoints::MAX,
                 'sveBreakpointsMin' => Breakpoints::MIN,
-                // Hashed Tailwind compiler chunk — dock-instant-preview imports it
-                // so a new class can paint before the section morph comes back.
-                'sveTwCompile' => static::twCompileUrl(),
             ]);
 
             // Build mode's own words (resources/lang/*/build.php), only for a
@@ -205,19 +201,5 @@ final class ControlPanelScript
                 'initials' => $user->initials() ?: strtoupper(mb_substr($name, 0, 1)),
             ],
         ];
-    }
-
-    /**
-     * URL of the existing hashed Tailwind compiler. Empty when the dist has
-     * no tw-compile chunk — the instant paint still swaps classes that are
-     * already in the stylesheet.
-     */
-    protected static function twCompileUrl(): string
-    {
-        try {
-            return BuiltAssets::url('resources/js/tw-compile.js');
-        } catch (\Throwable $e) {
-            return '';
-        }
     }
 }

@@ -5,7 +5,7 @@
  * Pure: the markup, where the caret stands and the section's fields go in;
  * a few suggestions come out, each one change to that markup and where the
  * caret lands after it. One change, so the dock applies a suggestion as one
- * transaction and ⌘Z takes it back in one step; Instant paints it like
+ * transaction and ⌘Z takes it back in one step; the canvas paints it like
  * anything typed.
  *
  * The fields are the Data button's section rows (`/!/sve/data-vars`): `var`,

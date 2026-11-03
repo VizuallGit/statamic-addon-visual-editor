@@ -9,7 +9,7 @@ Spørger ejeren "kan du det, eller er det en Fable-opgave?", så afgør det her 
 
 ## VENT PÅ FABLE — rør det ikke
 
-1. **Kernen (låst overflade):** `preview.js`, `overlay-host.js`, `bridge.js` + `bridge/`, `mirror.js`, `lp-replay.js`, `cp.js` + `cp-shell/`, `code-dock.js` + `dock/`, `dock-instant-preview.js`. Også når fejlen "bare" skal have én linje.
+1. **Kernen (låst overflade):** `preview.js`, `overlay-host.js`, `bridge.js` + `bridge/`, `mirror.js`, `lp-replay.js`, `cp.js` + `cp-shell/`, `code-dock.js` + `dock/`. Også når fejlen "bare" skal have én linje.
 2. **Protokollen:** postMessage-typer, `data-sid`/`data-sve-*`-attributter, `lib/protocol.js`, `{{ visual_edit }}`-outputtet.
 3. **Udgivelse & drift:** `npm run cp:build`, alt under `resources/dist`, sitets `composer.lock`, Packagist-kæden, server/demo over SSH, GitHub Actions, starter-kit-struktur.
 4. **Statamic-integritet:** alt der wrapper, subclasser eller erstatter Statamics egne fieldtypes eller CP-komponenter.

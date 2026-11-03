@@ -103,13 +103,6 @@ async function ensureDockAsync(win) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
     dock.setAttribute('data-sve-code-chrome', 'scope-9');
-    // The file's CSS as it is on disk, for the Instant paint script: it takes
-    // that block out of the render's <style> while its own sheet holds the
-    // pane, so a declaration removed in the pane is gone from the preview
-    // before any save. A getter — `lastParts` is replaced on load and on save.
-    Object.defineProperty(dock, '__sveSavedCss', {
-      get: () => dockState.lastParts?.css ?? '',
-    });
     // The user's own family colours, on the root every mark and button reads.
     paintFamilyColors(dock, readFamilyOverrides(win));
     mountPane(dock, CodeDockChrome, {
@@ -1390,8 +1383,8 @@ register('dock:set-html', (payload) => {
  * server's split into HTML, CSS, JS and the utilities baked for it, exactly
  * what loading the file gives — and nothing is saved. The file on disk *is*
  * the text in the panes, so `lastParts` says so, the compile is primed for
- * it, and the autosave has nothing to do; the Instant paint follows from the
- * pane's change as for any edit, and the render is the caller's. The dock
+ * it, and the autosave has nothing to do; Build's canvas follows the pane's
+ * change as for any edit, and the render is the caller's. The dock
  * reads here and never writes: v1.1.508 put the raw file through
  * `dock:set-html` as if typed, and the autosave that followed made the dock
  * a second writer of a file open in Cursor — landing seconds later (after
@@ -1450,14 +1443,6 @@ register('dock:take-file', (payload) => {
   writeParts(next, false);
   setStatus(win.document, '');
   paintAutosave(win);
-
-  // The Instant paint script paints on input in the dock and on changes in
-  // the panes. A pane scoped to one element shows the same slice as before
-  // when the file changed outside it, so nothing fires — yet the whole file
-  // the script paints from (`__sveHtmlScope.full`, republished by writeParts)
-  // did change. One input event on the dock is the script's own trigger;
-  // the panes' editors listen on their own content nodes, not here.
-  win.document.getElementById(DOCK_ID)?.dispatchEvent(new win.Event('input', { bubbles: true }));
 
   return true;
 });

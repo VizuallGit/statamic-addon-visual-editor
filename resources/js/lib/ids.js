@@ -18,7 +18,7 @@ export const SID_FIELD_ATTR = 'data-sid-field';
 /**
  * The breakpoint overview's layer (breakpoint-overview.js draws it, only while
  * open). Its frames are the preview's copies: lib/preview-frame.js lists them
- * and the paint script spells the id — while the layer is absent, there are none.
+ * — while the layer is absent, there are none.
  */
 export const BP_OVERVIEW_ID = '__sve-bp-overview';
 /**

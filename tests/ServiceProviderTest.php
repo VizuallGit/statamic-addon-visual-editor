@@ -135,27 +135,13 @@ class ServiceProviderTest extends TestCase
         $this->assertContains(DisableViteHotReload::class, $middleware);
     }
 
-    public function test_instant_paint_script_stays_out_of_the_cp_while_the_template_dock_is_off(): void
+    public function test_the_cp_gets_the_two_classic_scripts_and_no_instant_paint(): void
     {
-        $this->assertFalse(Features::enabled('template_dock'));
+        $names = $this->cpScriptNames();
 
-        $this->assertNotContains('dock-instant-preview', $this->cpScriptNames());
-        $this->assertContains('dedupe-cp-fetch', $this->cpScriptNames());
-        $this->assertContains('save-errors', $this->cpScriptNames());
-    }
-
-    public function test_instant_paint_script_is_handed_to_the_cp_when_the_template_dock_is_on(): void
-    {
-        $features = config('statamic-visual-editor.features', []);
-        $features['template_dock'] = true;
-        config(['statamic-visual-editor.features' => $features]);
-        Features::flush();
-
-        $provider = $this->app->getProvider(ServiceProvider::class);
-        $boot = new \ReflectionMethod($provider, 'bootScripts');
-        $boot->invoke($provider);
-
-        $this->assertContains('dock-instant-preview', $this->cpScriptNames());
+        $this->assertContains('dedupe-cp-fetch', $names);
+        $this->assertContains('save-errors', $names);
+        $this->assertNotContains('dock-instant-preview', $names);
     }
 
     /** The file names (without hash or extension) Statamic will put in the CP's <head>. */

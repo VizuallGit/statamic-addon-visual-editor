@@ -232,31 +232,18 @@ class ServiceProvider extends AddonServiceProvider
     // Iconify's fieldtype captures `fetch` when its own module evaluates
     // (`let K = fetch` in its build), so dedupe-cp-fetch must have replaced
     // window.fetch before that — a classic script runs while the page is
-    // parsed, a module only after. The paint script is proven on its own by
-    // tests/browser/instant-paint.mjs. disable-publish-stack-pin went in
-    // WP6c: the observer it neutralised was in an old addon.js and no longer
-    // exists in any build. A standalone script never import()s a build file
-    // by name.
+    // parsed, a module only after. disable-publish-stack-pin went in WP6c:
+    // the observer it neutralised was in an old addon.js and no longer exists
+    // in any build. dock-instant-preview (the Instant paint into the real
+    // preview) went on 3 Nov 2026: the HTML dock is only open in Build, where
+    // Build's canvas stands over the preview and paints the dock's text
+    // itself, so the script had nothing left to paint. A standalone script
+    // never import()s a build file by name.
     //
     //   dedupe-cp-fetch           — one GET for iconify/config and colour swatches
-    //   dock-instant-preview        — paint HTML-dock classes into LP before morph
-    //                                 (only while `template_dock` is on, see
-    //                                 SCRIPT_FEATURES)
     protected $scripts = [
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
-        __DIR__.'/../resources/js/dock-instant-preview.js',
         __DIR__.'/../resources/js/save-errors.js',
-    ];
-
-    /**
-     * Scripts that belong to one tool, keyed by file name: handed to the
-     * Control Panel only while that tool is on. The Instant paint script is
-     * 150 KB of classic JS on every CP screen; without the template dock there
-     * is nothing for it to paint, so it stays out of the page instead of
-     * loading and returning early.
-     */
-    protected const SCRIPT_FEATURES = [
-        'dock-instant-preview' => 'template_dock',
     ];
 
     protected $commands = [
@@ -345,12 +332,6 @@ class ServiceProvider extends AddonServiceProvider
     public function registerScript(string $path)
     {
         $filename = pathinfo($path, PATHINFO_FILENAME);
-        $feature = static::SCRIPT_FEATURES[$filename] ?? null;
-
-        if ($feature !== null && ! Features::enabled($feature)) {
-            return;
-        }
-
         $name = $this->getAddon()->packageName();
         $dest = public_path("vendor/{$name}/js/{$filename}.js");
 

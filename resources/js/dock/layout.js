@@ -381,6 +381,28 @@ export function ensureStyle(doc) {
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
 }
+#${DOCK_ID} [data-sve-tw-docs] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 7px;
+  margin-left: 2px;
+  border-radius: 6px;
+  font: 600 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .02em;
+  color: #7dd3fc;
+  opacity: .7;
+}
+#${DOCK_ID} [data-sve-tw-docs]:hover {
+  opacity: 1;
+  background: rgba(56,189,248,.16);
+}
+#${DOCK_ID}:not([data-sve-style="tw"]) [data-sve-tw-docs] {
+  display: none;
+}
 /* The CSS pane holds two things and shows one: the editor, or the chips. */
 #${DOCK_ID} [data-sve-tw-host] {
   display: none;

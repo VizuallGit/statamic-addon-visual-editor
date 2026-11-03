@@ -91,10 +91,9 @@
  * render per change however many sizes are open, and the copies a task behind
  * the preview rather than a round trip. A frame still loading gets the latest
  * render once it has loaded, and the remembered video holds and Alpine states
- * with it (`video-holds:sync`, `alpine-states:sync` on the bus). The dock's
- * Instant paint and the tree's video hold and Alpine state reach every frame
- * as well, through lib/preview-frame.js's list of copies and the paint
- * script's own.
+ * with it (`video-holds:sync`, `alpine-states:sync` on the bus). The tree's
+ * video hold and Alpine state reach every frame as well, through
+ * lib/preview-frame.js's list of copies.
  *
  * Which sizes stand in the row is a menu on the overview button's right-click
  * (openSizesMenu), open or closed: a checkbox per size. Unticked, the size is
@@ -137,8 +136,7 @@
  * mirror.js and scripts/vite-mirror-graph.js; the `__sveMirror` line in
  * preview.js; `SVE_MIRROR` and `MIRRORED` in lib/protocol.js; `previewCopies`
  * in lib/preview-frame.js and its use in sendToPreview; `video-holds:sync` in
- * video-holds.js and `alpine-states:sync` in alpine-states.js;
- * `previewDocuments` in dock-instant-preview.js; the
+ * video-holds.js and `alpine-states:sync` in alpine-states.js; the
  * `bp_overview*` strings; the narrow-window rule at the end of
  * resources/css/addon.css; tests/js and tests/browser breakpoint-overview.
  * bridge/viewport.js may stay as it is: it lays the bridge's UI out by a

@@ -9,8 +9,7 @@
  * two named channels the CP posts publish values on.
  *
  * Names stay the wire strings they always were: nothing in the protocol
- * changed, only where it is written down. The standalone paint script
- * (dock-instant-preview.js) cannot import and keeps its literals.
+ * changed, only where it is written down.
  *
  * May import: nothing.
  */
@@ -151,9 +150,8 @@ export const CHANNEL = Object.freeze({
 });
 
 /**
- * DOM events the Control Panel bundle sends the standalone paint script,
- * which cannot import. The bundle dispatches these on `document`; the script
- * spells the literal, and tests/js/protocol.test.js keeps the two the same.
+ * DOM events the Control Panel bundle dispatches on `document`: what the
+ * Tailwind lists are on, held on Build's canvas (build-mode/canvas-hold.js).
  */
 export const EVENT = Object.freeze({
   TW_PREVIEW: 'sve:tw-preview',

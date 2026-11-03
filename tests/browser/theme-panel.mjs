@@ -145,36 +145,33 @@ async function waitFor(frame, fn, arg, ms = 8000) {
 }
 
 /**
- * The Tailwind chunk to ask. The CP names the installed one; with SVE_WORKTREE
- * that is the old build, so the working tree's own chunk (served by
- * serveWorktreeBuild under the same folder) is asked instead.
+ * The Tailwind chunk to ask: the installed build's, or with SVE_WORKTREE the
+ * working tree's own (served by serveWorktreeBuild under the same folder).
  */
-const worktreeTwFile = (() => {
+const twFileOf = (manifestPath) => {
   try {
-    const manifest = JSON.parse(readFileSync(`${ADDON_DIR}/resources/dist/build/manifest.json`, 'utf8'));
-
-    return manifest['resources/js/tw-compile.js']?.file || '';
+    return JSON.parse(readFileSync(manifestPath, 'utf8'))['resources/js/tw-compile.js']?.file || '';
   } catch {
     return '';
   }
-})();
+};
+const twFile = WORKTREE
+  ? twFileOf(`${ADDON_DIR}/resources/dist/build/manifest.json`)
+  : twFileOf(`${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`);
 
 /** What the dock's Tailwind knows right now: its class list, and the CSS it compiles for `html`. */
 const dockTailwind = (frame, html) => frame.evaluate(async (markup, file) => {
-  const installed = window.Statamic?.$config?.get?.('sveTwCompile');
-
-  if (!installed) {
+  if (!file) {
     return null;
   }
 
-  const base = new URL(installed, location.href);
-  const url = file ? new URL(file.replace(/^assets\//, ''), base).href : base.href;
+  const url = new URL(`/vendor/visual-editor/build/${file}`, location.href).href;
   const mod = await import(url);
   const design = await mod.loadTailwindDesign(window);
   const names = (design.getClassList() || []).map((entry) => (Array.isArray(entry) ? entry[0] : entry));
 
   return { names, css: mod.buildTailwind(await mod.loadTailwindCompiler(window), markup) || '' };
-}, html, WORKTREE ? worktreeTwFile : '');
+}, html, twFile);
 
 /** A heading or paragraph made in the preview for a moment: its computed weight and line height (as a ratio). */
 const probe = (frame, tag) => frame.evaluate((t) => {

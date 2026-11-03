@@ -7,12 +7,12 @@
  * the `open` attribute away, the flip runs the effect again); and a state set
  * before a reload is still set after it, before anything is opened.
  *
- * Serves the working tree's build and dock-instant-preview.js (SVE_WORKTREE=1)
- * so the bridge is proven before release. The dock autosaves to the section's
+ * Serves the working tree's build (SVE_WORKTREE=1) so the bridge is proven
+ * before release. The dock autosaves to the section's
  * file: it is backed up before typing and written back afterwards, and the
  * states the run remembered are taken out of localStorage again.
  *
- * Same env vars as instant-paint.mjs.
+ * SVE_SITE_DIR / SVE_SITE_URL / SVE_USER / SVE_PASS / SVE_ENTRY as in the smoke test.
  */
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'node:fs';
@@ -27,7 +27,6 @@ const USER = env('SVE_USER', 'claude-test@vizuall.dk');
 const PASS = env('SVE_PASS', '');
 const ENTRY = env('SVE_ENTRY', '/cp/collections/pages/entries/68f56034-ce7c-4d33-b15d-da7fa7675662');
 const CHROME = env('SVE_CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
-const SCRIPT = `${ADDON_DIR}/resources/js/dock-instant-preview.js`;
 
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,24 +41,13 @@ async function absoluteRect(frame, selector) {
 }
 async function realClick(page, frame, selector) { const r = await absoluteRect(frame, selector); await page.mouse.click(r.x + r.w / 2, r.y + Math.min(r.h / 2, 300)); }
 
-const scriptSource = readFileSync(SCRIPT, 'utf8');
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
-let served = 0;
-const answerScript = (req) => {
-  if (!/\/vendor\/visual-editor\/js\/dock-instant-preview\.js/.test(req.url())) return false;
-  served++;
-  req.respond({ status: 200, contentType: 'application/javascript', body: scriptSource });
-  return true;
-};
 let servedBuild = null;
 if (process.env.SVE_WORKTREE === '1') {
-  servedBuild = await serveWorktreeBuild(page, { buildDir: process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js`, extra: answerScript });
-} else {
-  await page.setRequestInterception(true);
-  page.on('request', (req) => { if (!answerScript(req)) req.continue(); });
+  servedBuild = await serveWorktreeBuild(page, { buildDir: process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
 }
 
 let abs = null;

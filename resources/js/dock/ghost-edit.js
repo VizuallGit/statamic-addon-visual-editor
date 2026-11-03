@@ -333,7 +333,7 @@ async function send(self) {
     scrollIntoView: true,
   });
 
-  // The dock hears the edit (Instant paints it, autosave saves it); the
+  // The dock hears the edit (the canvas paints it, autosave saves it); the
   // focus comes back to the box, where Enter and Esc decide.
   finishHtmlEdit();
   self.written = text;

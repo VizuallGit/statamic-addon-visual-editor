@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 /**
- * A video in the open section: autoplays in the preview once painted and
- * once morphed, stops on the tree's hold icon, plays again on the next press
+ * A video in the open section: autoplays in the preview once morphed, stops on the tree's hold icon, plays again on the next press
  * — and keeps its muted state through a tag rename in the dock (Chrome sets
  * `muted` from the attribute only while parsing; a copy loses it, and an
  * unmuted video neither autoplays nor plays without a click on the page).
  *
- * Serves the working tree's build and dock-instant-preview.js (SVE_WORKTREE=1)
- * so the bridge is proven before release. The dock autosaves to the section's
+ * Serves the working tree's build (SVE_WORKTREE=1) so the bridge is proven
+ * before release. The dock autosaves to the section's
  * file: it is backed up before typing and written back afterwards.
  *
- * Same env vars as instant-paint.mjs. SVE_VIDEO_SRC picks the video.
+ * SVE_SITE_DIR / SVE_SITE_URL / SVE_USER / SVE_PASS / SVE_ENTRY as in the smoke test. SVE_VIDEO_SRC picks the video.
  */
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync, copyFileSync } from 'node:fs';
@@ -31,7 +30,6 @@ const VIDEO_FILE = env('SVE_VIDEO_FILE', '');
 const PUBLIC_COPY = VIDEO_FILE ? `${SITE_DIR}/public/sve-video-probe.mp4` : null;
 const SRC = env('SVE_VIDEO_SRC', PUBLIC_COPY ? `${SITE_URL}/sve-video-probe.mp4` : 'https://vizuall-demo.vizdev.dk/assets/video/vizuall-showreel-2026-bredformat-august-2_1_1_1-1.mp4');
 if (PUBLIC_COPY) copyFileSync(VIDEO_FILE, PUBLIC_COPY);
-const SCRIPT = `${ADDON_DIR}/resources/js/dock-instant-preview.js`;
 // SVE_OTHER: a word in the class or tree label of the section to visit on the round trip (e.g. "static").
 const OTHER = env('SVE_OTHER', '');
 
@@ -48,24 +46,13 @@ async function absoluteRect(frame, selector) {
 }
 async function realClick(page, frame, selector) { const r = await absoluteRect(frame, selector); await page.mouse.click(r.x + r.w / 2, r.y + Math.min(r.h / 2, 300)); }
 
-const scriptSource = readFileSync(SCRIPT, 'utf8');
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
-let served = 0;
-const answerScript = (req) => {
-  if (!/\/vendor\/visual-editor\/js\/dock-instant-preview\.js/.test(req.url())) return false;
-  served++;
-  req.respond({ status: 200, contentType: 'application/javascript', body: scriptSource });
-  return true;
-};
 let servedBuild = null;
 if (process.env.SVE_WORKTREE === '1') {
-  servedBuild = await serveWorktreeBuild(page, { buildDir: process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js`, extra: answerScript });
-} else {
-  await page.setRequestInterception(true);
-  page.on('request', (req) => { if (!answerScript(req)) req.continue(); });
+  servedBuild = await serveWorktreeBuild(page, { buildDir: process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
 }
 
 let abs = null;
@@ -152,14 +139,10 @@ try {
     console.log(`info pane line — ${line.slice(0, 200)}`);
     return true;
   };
-  const trace = () => cp.evaluate(() => (window.__sveInstantTrace || []).slice(-6).join(' | ')).catch(() => '');
 
-  // 1. Painted before the morph, and playing after it.
+  // 1. Playing after the morph.
   step('typed a muted autoplay video into the HTML pane', await typeAfterRoot(`<video class="sve-video-probe" autoplay="true" muted="true" src="${SRC}"></video>`));
-  await sleep(150);
-  const painted = await stateOf(await livePreview(), 'sve-video-probe');
-  step('painted in the same frame, muted', !!painted && painted.tag === 'video' && painted.muted === true, `${JSON.stringify(painted)}; trace: ${await trace()}`);
-  await sleep(3500);
+  await sleep(3650);
   let run = await advancing(await livePreview(), 'sve-video-probe');
   step('plays after the morph (muted, time advancing)', run.moved && run.b?.muted === true && run.b?.paused === false, JSON.stringify(run.b));
   if (!run.b) throw new Error('no probe video in the preview after the morph — nothing more to measure');
