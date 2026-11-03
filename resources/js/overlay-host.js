@@ -7,9 +7,18 @@
  * The page underneath never goes away. Control Panel Live Preview boots in a
  * full-screen iframe, and page changes boot the next editor hidden and swap
  * once it has painted. Close just lifts the overlay.
+ *
+ * The host's one history entry (`sveEditing`) names the page being edited
+ * (lib/overlay-history.js): the editor says which with `lp-ready`, and the
+ * entry follows every swap by replaceState — never another push. A refresh
+ * lands on that URL: a Control Panel host reopens the editor through
+ * `autoOpenLivePreview`, a site host through the page's own edit button, which
+ * reads the mark the entry still carries (`history.state.sveEditing`). Every
+ * deliberate close takes the mark off first.
  */
 
 import { MSG, SOURCE } from './lib/protocol.js';
+import { overlayHistoryUrl, withoutEditorMark } from './lib/overlay-history.js';
 
 const STYLE_ID = 'sve-overlay-host-styles';
 const LOADING_ID = 'sve-overlay-loading';
@@ -284,9 +293,46 @@ function createHost(win) {
   let failTimer = null;
   let swapTimer = null;
   let   loadingHideTimer = null;
+  // The page the shown editor reports with `lp-ready`: its own URL and the
+  // entry's public URL. Null until it has said, and whenever the frame goes.
+  let page = null;
 
   ensureStyles(win);
   guardHostReload(win, () => open);
+
+  /** What the overlay's history entry should say for `page`, or null to leave the URL as it is. */
+  function historyUrl() {
+    return overlayHistoryUrl({ origin: win.location.origin, cpHost: isCpHost(win), page });
+  }
+
+  /** The open overlay's entry names the page being edited. Same entry, never another. */
+  function reflectPage() {
+    const url = historyUrl();
+
+    if (!open || !url) {
+      return;
+    }
+
+    try {
+      win.history.replaceState({ sveEditing: true }, '', url);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Take the editor's mark off the entry before anything loads it again — a
+   * refresh, a Back from wherever the close went — or the editor would come
+   * up uninvited. The entry keeps the page's URL: the page being edited is
+   * where a close after a save lands, and what Back comes back to.
+   */
+  function unmarkHistory() {
+    try {
+      win.history.replaceState(null, '', withoutEditorMark(win.location.href, win.location.origin));
+    } catch {
+      /* ignore */
+    }
+  }
 
   /**
    * The box the page-change spinner covers. With every size side by side the
@@ -485,6 +531,7 @@ function createHost(win) {
       frame.remove();
       frame = null;
       ready = false;
+      page = null;
     }
 
     frame = editor(url);
@@ -498,7 +545,16 @@ function createHost(win) {
     open = true;
 
     try {
-      win.history.pushState({ sveEditing: true }, '', win.location.href);
+      const url = historyUrl() ?? win.location.href;
+
+      // A refresh brought this entry back and it is already the overlay's own
+      // (the mark survives a reload): keep it rather than stack another, so a
+      // close still pops to the host's entry underneath.
+      if (win.history.state?.sveEditing) {
+        win.history.replaceState({ sveEditing: true }, '', url);
+      } else {
+        win.history.pushState({ sveEditing: true }, '', url);
+      }
     } catch {
       /* ignore */
     }
@@ -585,6 +641,7 @@ function createHost(win) {
     frame = null;
     next = null;
     ready = false;
+    page = null;
     win.clearTimeout(nextTimer);
     next = null;
   }
@@ -625,6 +682,7 @@ function createHost(win) {
       // Live Preview for an entry's plain publish form): go there, frames up,
       // as the site host does below. Without a destination, just lift.
       if (elsewhere) {
+        unmarkHistory();
         win.location.href = dest.href;
 
         return;
@@ -643,6 +701,8 @@ function createHost(win) {
     }
 
     if (saved || elsewhere) {
+      unmarkHistory();
+
       if (elsewhere) {
         // The frames stay up: the editor covers the page while the browser
         // fetches the destination, and the navigation tears document and
@@ -661,6 +721,9 @@ function createHost(win) {
         /* ignore */
       }
 
+      // The page being edited, fresh — the entry carries its URL by now, so
+      // after a switch this is the saved page and not the one the editor was
+      // opened from.
       win.location.reload();
 
       return;
@@ -735,6 +798,11 @@ function createHost(win) {
     }
 
     if (data.type === MSG.LP_READY) {
+      // The editor names the page it shows: its own URL, and the entry's
+      // public URL when it has one. Taken as sent; the rule for what the
+      // history entry makes of it is lib/overlay-history.js.
+      page = typeof data.url === 'string' ? { url: data.url, permalink: data.permalink ?? null } : null;
+
       if (from === 'next') {
         win.clearTimeout(nextTimer);
         win.clearTimeout(swapTimer);
@@ -750,6 +818,9 @@ function createHost(win) {
           swapTimer = null;
         }, FADE_MS);
 
+        rememberOverlaySrc(win, frame.src);
+        reflectPage();
+
         return;
       }
 
@@ -759,7 +830,13 @@ function createHost(win) {
       if (wanted) {
         wanted = false;
         show();
+
+        return;
       }
+
+      // Shown already — the 8 s failsafe did not wait for this — so the entry
+      // learns the page now.
+      reflectPage();
 
       return;
     }
@@ -779,7 +856,8 @@ function createHost(win) {
 
   // Capture: iframe/morph history must not reach Statamic's dirty confirm
   // (`dirty_navigation_warning` on popstate). replaceState keeps one overlay
-  // entry; pushState here used to stack noise and fire the leave dialog.
+  // entry; pushState here used to stack noise and fire the leave dialog. The
+  // entry goes on naming the page being edited, as the open overlay still is.
   win.addEventListener(
     'popstate',
     (event) => {
@@ -790,7 +868,7 @@ function createHost(win) {
       event.stopImmediatePropagation();
 
       try {
-        win.history.replaceState({ sveEditing: true }, '', win.location.href);
+        win.history.replaceState({ sveEditing: true }, '', historyUrl() ?? win.location.href);
       } catch {
         /* ignore */
       }

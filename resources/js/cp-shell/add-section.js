@@ -3062,7 +3062,15 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
         console.error('[sve] restoreDockedHeaderPanels', err);
       }
 
-      postToHost(win, 'lp-ready');
+      // Which page this is, for the host's address bar: this screen's URL
+      // (the Live Preview ask already stripped) and the entry's public URL as
+      // Statamic's own edit screen was handed it — `permalink`, the prop its
+      // "Visit URL" reads (`$entry->absoluteUrl()`); null for an entry with
+      // no page of its own. Named in CONTRACTS (statamic-update-check.py).
+      postToHost(win, 'lp-ready', {
+        url: win.location.href,
+        permalink: win.Statamic?.$app?.config?.globalProperties?.$page?.props?.permalink ?? null,
+      });
     }
 
     markLivePreviewReady(win);

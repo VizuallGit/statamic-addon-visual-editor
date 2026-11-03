@@ -2,13 +2,19 @@
  * Settings toggle: `home_preview_button`
  * A Live Preview button in the Control Panel's top bar, on every page.
  *
- * Opens the site's front page in Live Preview — the overlay the listing label
- * and the front-end edit button use (goToPreview), with a note of where it was
- * opened from so × leads back here. The server says which entry that is
+ * Opens the page last open in Live Preview — the first time, the site's front
+ * page — in the overlay the listing label and the front-end edit button use
+ * (goToPreview), with a note of where it was opened from so × leads back here.
+ * The server says whether there is a button and where the front page is
  * (`sveHomePreview`: the entry at `/` on the selected site, as a Live Preview
  * URL), and says nothing when there is none, when it cannot be previewed, when
  * this user may not edit it, or when the toggle is off — then there is no
- * button. Nothing is decided here.
+ * button.
+ *
+ * The last page is a note in the browser (lib/last-page.js). The editor writes
+ * it in the overlay's frame once a page's preview is ready, so switching pages
+ * in the picker moves it along; the button reads it here and follows it while
+ * it stands in the header.
  *
  * The button is a real link, so ⌘-click and the middle button open a tab the
  * ordinary way. It sits in Statamic's global header just before the search,
@@ -26,6 +32,9 @@ import { t } from './lib/i18n.js';
 import { injectStyle } from './lib/style.js';
 import { isEmbeddedInSite } from './lib/live-preview.js';
 import { ENTRY_OPEN_ATTR, ENTRY_OPEN_INSIDE_ATTR } from './lib/entry-opening.js';
+import { LAST_PAGE_KEY, lastPage, rememberLastPage } from './lib/last-page.js';
+import { publishContainers } from './lib/publish-containers.js';
+import { unwrapRef } from './lib/values.js';
 import { goToPreview } from './open-in-preview.js';
 
 export const HOME_PREVIEW_ATTR = 'data-sve-home-preview';
@@ -45,6 +54,62 @@ export function homePreview(win) {
   const home = win.Statamic?.$config?.get?.('sveHomePreview');
 
   return home && typeof home.url === 'string' && home.url ? home : null;
+}
+
+function storageOf(win) {
+  try {
+    return win.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Who and where a last-page note is for: the Control Panel's user and selected site. */
+function noteScope(win) {
+  const config = win.Statamic?.$config;
+
+  return { site: config?.get?.('selectedSite'), user: config?.get?.('user')?.id };
+}
+
+/**
+ * In the editor: write down the page whose preview is ready. Its title comes
+ * from the page's own publish form — Statamic's container, not a field of ours.
+ */
+function rememberShownPage(win) {
+  const page = publishContainers.find((container) => container.name === 'base');
+
+  rememberLastPage(storageOf(win), win.location.href, win.location.origin, {
+    ...noteScope(win),
+    title: unwrapRef(page?.values)?.title,
+  });
+}
+
+/** Where the button goes, and what it says on hover: the last page, else the front page. */
+export function buttonTarget(win, home) {
+  const last = lastPage(storageOf(win), win.location.origin, {
+    ...noteScope(win),
+    previewable: win.Statamic?.$config?.get?.('svePreviewable'),
+  });
+
+  if (last) {
+    return {
+      url: last.url,
+      title: last.title ? t(win, 'open_in_live_preview_title', { title: last.title }) : t(win, 'open_in_live_preview'),
+    };
+  }
+
+  return {
+    url: home.url,
+    title: home.title ? t(win, 'open_in_live_preview_title', { title: home.title }) : t(win, 'home_preview_button_title'),
+  };
+}
+
+function paintTarget(win, button, home) {
+  const target = buttonTarget(win, home);
+
+  button.setAttribute('href', target.url);
+  button.title = target.title;
+  button.setAttribute('aria-label', target.title);
 }
 
 function ensureStyles(doc) {
@@ -124,9 +189,7 @@ export function ensureHomePreviewButton(win, home) {
 
   button.setAttribute(HOME_PREVIEW_ATTR, '');
   button.setAttribute(ENTRY_OPEN_INSIDE_ATTR, '');
-  button.setAttribute('href', home.url);
-  button.title = home.title ? t(win, 'open_in_live_preview_title', { title: home.title }) : t(win, 'home_preview_button_title');
-  button.setAttribute('aria-label', button.title);
+  paintTarget(win, button, home);
   button.innerHTML = `${ICON}<span>${t(win, 'home_preview_button')}</span>`;
   button.addEventListener('click', (event) => {
     // A middle click or ⌘-click asks for a tab, and the link says where.
@@ -135,7 +198,7 @@ export function ensureHomePreviewButton(win, home) {
     }
 
     event.preventDefault();
-    goToPreview(win, home.url, button);
+    goToPreview(win, button.getAttribute('href'), button);
   });
 
   search.before(button);
@@ -144,11 +207,33 @@ export function ensureHomePreviewButton(win, home) {
 export function initHomePreviewButton(win = window) {
   const home = homePreview(win);
 
-  if (!home || isEmbeddedInSite(win)) {
+  if (!home) {
+    return;
+  }
+
+  // In an iframe this document is the editor in the overlay (or a screen in a
+  // drawer, which never gets ready): it writes down the page it shows.
+  if (isEmbeddedInSite(win)) {
+    win.addEventListener('sve-lp-ready', () => rememberShownPage(win), { once: true });
+
     return;
   }
 
   // The header is Statamic's Vue and may be drawn after boot; it stays across
   // Inertia visits, so after the first draw this finds the button in place.
   watchPage(win, () => ensureHomePreviewButton(win, home));
+
+  // The note is written in the overlay's frame, so this document hears of it
+  // as a storage event — the button standing in the header follows it.
+  win.addEventListener('storage', (event) => {
+    if (event.key !== LAST_PAGE_KEY && event.key !== null) {
+      return;
+    }
+
+    const button = win.document.querySelector(`[${HOME_PREVIEW_ATTR}]`);
+
+    if (button) {
+      paintTarget(win, button, home);
+    }
+  });
 }

@@ -6,7 +6,9 @@ use Statamic\Statamic;
 
 /**
  * The "Rediger" button itself — markup, styles and the script that reveals
- * it after paint and warms Live Preview.
+ * it after paint and warms Live Preview. After a refresh with the editor open
+ * (the overlay host's mark on the history entry, `history.state.sveEditing`)
+ * the same script asks for the editor at once, the way a click does.
  * Moved verbatim out of InjectEditButton in WP7d.
  */
 final class Button
@@ -124,6 +126,19 @@ final class Button
                 s.src = hostUrl;
                 s.setAttribute('data-sve-overlay-host', '');
                 document.head.appendChild(s);
+            }
+
+            // A refresh while the editor was open: the overlay host marked this
+            // history entry as its own, and the mark survives a reload. Bring
+            // the editor straight back, as a click would — the host script now,
+            // not after the paint wait below. Every deliberate close takes the
+            // mark off, so a page you closed the editor on comes back plain.
+            var wasEditing = false;
+            try { wasEditing = !!(history.state && history.state.sveEditing); } catch (e) { /* no history */ }
+            if (wasEditing) {
+                button.setAttribute('data-loading', '');
+                window.__sveWantEditor = true;
+                loadOverlayHost();
             }
 
             function reveal() {
