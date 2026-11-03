@@ -80,7 +80,7 @@ return [
     'grid_rows_less' => 'Én række færre',
     'grid_rows_more' => 'Én række mere',
     'grid_add_cell' => 'Tilføj et element i denne celle',
-    'grid_move' => 'Træk for at flytte den til en anden celle',
+    'grid_move' => 'Træk for at flytte den til en anden celle · klik for at vælge den',
     'grid_span' => 'Træk for at vælge hvor mange kolonner og rækker den fylder',
     'grid_edit' => 'Redigér grid',
     'grid_edit_parent' => 'Redigér det grid den står i',

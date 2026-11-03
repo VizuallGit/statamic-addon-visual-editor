@@ -8,9 +8,11 @@
  *
  * The pick's grid — the pick itself, or the grid it stands in — is the
  * builder: its cells outlined, a − / + for its columns and one for its rows,
- * each child outlined with a grip (top left) that moves it to another cell
- * and a corner (bottom right) that drags the cells it covers, and a + in
- * every free cell that puts an empty element there. All of it writes a class
+ * each child outlined with a tab (top left: its tag and the cells it covers)
+ * that moves it to another cell, or picks it when pressed, and a corner
+ * (bottom right) that drags the cells it covers, and a + in every free cell
+ * that puts an empty element there. While a handle is held a sheet lies over
+ * the frame, so its moves reach the Control Panel. All of it writes a class
  * at the size the panel edits, through the port (`setGridAt`, `addGridCell` —
  * grid.js): on Tablet a drag writes Tablet's span and leaves Desktop's. The
  * pill names that size. Typed numbers are Style's (BuildStyle.vue), not here.
@@ -49,6 +51,10 @@ const STYLE_ID = '__sve-build-columns-css';
 export const PLUS =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 const MINUS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>';
+const GRIP =
+  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
+/** How far a pressed handle moves before it is a drag, not a click. */
+const DRAG_FROM = 4;
 /** Over this many cells a grid is a list: its cells are not drawn one by one, nor given a +. */
 const CELL_CAP = 240;
 /** The least a cell is drawn: an empty row still has room for its +. */
@@ -71,9 +77,18 @@ function ensureStyles(doc) {
 #${LAYER_ID} [data-k="add"]{display:flex;align-items:center;justify-content:center}
 #${LAYER_ID} [data-k="add"] button{opacity:.55}
 #${LAYER_ID} [data-k="add"] button:hover{opacity:1}
-#${LAYER_ID} [data-grid-grip],#${LAYER_ID} [data-grid-corner]{position:absolute;pointer-events:auto;width:.875rem;height:.875rem;box-sizing:border-box;background:#3858e9;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35);touch-action:none}
-#${LAYER_ID} [data-grid-grip]{left:-.4375rem;top:-.4375rem;border-radius:.25rem;cursor:move}
-#${LAYER_ID} [data-grid-corner]{right:-.4375rem;bottom:-.4375rem;border-radius:999px;cursor:nwse-resize}
+#${LAYER_ID} [data-col][data-picked]{box-shadow:inset 0 0 0 1px #3858e9}
+#${LAYER_ID} [data-grid-grip],#${LAYER_ID} [data-grid-corner]{position:absolute;pointer-events:auto;box-sizing:border-box;touch-action:none;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+#${LAYER_ID} [data-grid-grip]{left:.25rem;top:.25rem;display:inline-flex;align-items:center;gap:.25rem;height:1.375rem;padding:0 .5rem 0 .25rem;border-radius:999px;background:#fff;border:1px solid #3858e9;color:#3858e9;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;cursor:grab}
+#${LAYER_ID} [data-grid-grip]:hover{background:#eef1fd}
+#${LAYER_ID} [data-grid-grip] svg{width:.875rem;height:.875rem;flex:none}
+#${LAYER_ID} [data-grid-grip] i{font-style:normal;font-weight:500;opacity:.75}
+#${LAYER_ID} [data-col][data-picked] [data-grid-grip]{background:#3858e9;color:#fff}
+#${LAYER_ID} [data-grid-corner]{right:.25rem;bottom:.25rem;width:1.125rem;height:1.125rem;border-radius:.3rem;background:#3858e9;cursor:nwse-resize}
+#${LAYER_ID} [data-grid-corner]:hover{background:#4a68ee}
+#${LAYER_ID} [data-grid-corner]::after{content:"";position:absolute;right:.25rem;bottom:.25rem;width:.45rem;height:.45rem;box-sizing:border-box;border-right:.125rem solid #fff;border-bottom:.125rem solid #fff;border-bottom-right-radius:.1rem}
+#${LAYER_ID} [data-k="shield"]{inset:0;pointer-events:auto;cursor:grabbing}
+#${LAYER_ID} [data-k="shield"][data-kind="corner"]{cursor:nwse-resize}
 #${LAYER_ID} [data-k^="pill"]{pointer-events:auto;display:flex;align-items:center;gap:.125rem;padding:.125rem;border-radius:999px;background:#3858e9;color:#fff;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 #${LAYER_ID} [data-k^="pill"] button{width:1.25rem;height:1.25rem;background:transparent;box-shadow:none}
 #${LAYER_ID} [data-k^="pill"] button:hover{background:rgba(255,255,255,.22)}
@@ -115,7 +130,7 @@ function box(el, left, top, width, height) {
  * Start drawing for the port's pick. Returns a stop function.
  *
  * @param {Window} win   the Control Panel window
- * @param {object} port  html(), selectedPath(), plusPath(), setPlus(path), rev, t(key), sizes(), size(),
+ * @param {object} port  html(), selectedPath(), select(path), plusPath(), setPlus(path), rev, t(key), sizes(), size(),
  *                       setGridAt(path, changes, { select }), addGridCell(path, cell, next), gridPartsAt(path)
  * @param {object} [on]
  * @param {() => HTMLIFrameElement|null} [on.frame]  the frame drawn over; the Live Preview's by default
@@ -294,6 +309,7 @@ export function startColumnsOverlay(
       return el;
     });
     const plusAt = port.plusPath();
+    const picked = port.selectedPath();
 
     kids.forEach((el, n) => {
       const item = named[n];
@@ -318,6 +334,16 @@ export function startColumnsOverlay(
       }
 
       el.toggleAttribute('data-target', plusAt === item.path);
+      el.toggleAttribute('data-picked', picked === item.path);
+
+      const tab = el.querySelector('[data-grid-grip]');
+
+      // The handle names what it holds: its tag, and the columns × rows it covers.
+      if (tab) {
+        tab.querySelector('b').textContent = item.el.tagName.toLowerCase();
+        tab.querySelector('i').textContent = `${item.col[1] - item.col[0] + 1}×${item.row[1] - item.row[0] + 1}`;
+      }
+
       box(el, ...areaBox(m, v, item.col, item.row));
     });
 
@@ -408,12 +434,18 @@ export function startColumnsOverlay(
     });
   };
 
-  /* ---------------- dragging a child: the grip moves it, the corner spans it ---------------- */
+  /* ---------------- dragging a child: its tab moves it (or, pressed, picks it), its corner spans it ---------------- */
 
   function handle(kind, path) {
     const el = doc.createElement('span');
 
-    el.dataset[kind === 'grip' ? 'gridGrip' : 'gridCorner'] = path;
+    if (kind === 'grip') {
+      el.dataset.gridGrip = path;
+      el.innerHTML = `${GRIP}<b></b><i></i>`;
+    } else {
+      el.dataset.gridCorner = path;
+    }
+
     el.title = t(kind === 'grip' ? 'grid_move' : 'grid_span');
     el.addEventListener('pointerdown', (event) => startDrag(event, kind, path));
 
@@ -430,7 +462,14 @@ export function startColumnsOverlay(
 
     event.preventDefault();
     event.stopPropagation();
-    drag = { kind, path, from: { col: item.col, row: item.row }, target: null };
+    drag = { kind, path, from: { col: item.col, row: item.row }, down: { x: event.clientX, y: event.clientY }, moved: false, target: null };
+
+    // A sheet over the frame while the handle is held: the frame under the pointer would take its moves.
+    const shield = doc.createElement('div');
+
+    shield.dataset.k = 'shield';
+    shield.dataset.kind = kind;
+    layer()?.appendChild(shield);
     win.addEventListener('pointermove', onMove, true);
     win.addEventListener('pointerup', onUp, true);
     win.addEventListener('pointercancel', endDrag, true);
@@ -444,6 +483,12 @@ export function startColumnsOverlay(
     if (!drag || !grid || !v) {
       return;
     }
+
+    if (!drag.moved && Math.hypot(event.clientX - drag.down.x, event.clientY - drag.down.y) < DRAG_FROM) {
+      return;
+    }
+
+    drag.moved = true;
 
     const m = measureGrid(grid.el, attr);
     const fx = (event.clientX - v.at.left) / v.scale - m.box.x;
@@ -469,6 +514,13 @@ export function startColumnsOverlay(
     const done = drag;
 
     endDrag();
+
+    // A tab pressed and let go where it was: the child is picked.
+    if (done && !done.moved && done.kind === 'grip') {
+      port.select?.(done.path);
+
+      return;
+    }
 
     if (!done?.target) {
       return;
@@ -507,6 +559,7 @@ export function startColumnsOverlay(
 
   function endDrag() {
     drag = null;
+    layer()?.querySelector(':scope > [data-k="shield"]')?.remove();
     win.removeEventListener('pointermove', onMove, true);
     win.removeEventListener('pointerup', onUp, true);
     win.removeEventListener('pointercancel', endDrag, true);

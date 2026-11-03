@@ -31,7 +31,6 @@ import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
 import BuildFieldReset from './BuildFieldReset.vue';
 import BuildFields from './BuildFields.vue';
-import BuildGridPopup from './BuildGridPopup.vue';
 import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
@@ -187,13 +186,6 @@ const parentGrid = computed(() => around.value.parent);
 const gridItem = computed(() => (around.value.item?.col && around.value.item?.row ? around.value.item : null));
 const gridLeast = computed(() => fewestTracks(ownGrid.value?.items || []));
 const spanOf = (range) => range[1] - range[0] + 1;
-const gridPop = ref(null);
-
-function openGrid(event, path) {
-  const button = event.currentTarget;
-
-  gridPop.value = { path, row: button.getBoundingClientRect(), column: (button.closest('[data-sve-build-root]') || button).getBoundingClientRect() };
-}
 
 const clip = computed(() => eff('overflow')?.name === 'overflow-hidden');
 
@@ -673,9 +665,6 @@ function jump(group) {
             </div>
             <div class="fg-lab">{{ port.t('align_items') }}<BuildFieldReset :names="ownOf(crossKids)" :label="port.t('align_items')" /></div>
             <BuildAlign :kids="crossKids" />
-            <button v-if="ownGrid" type="button" class="fg-more" data-sve-build-grid-edit @click="openGrid($event, node.path)">
-              <span v-html="ic('grid')"></span>{{ port.t('grid_edit') }}
-            </button>
           </template>
 
           <template v-if="gridItem">
@@ -686,9 +675,6 @@ function jump(group) {
               <BuildGridStep :path="node.path" part="colStart" letter="C" :label="port.t('grid_col_start')" :hit="gridParts.colStart" :seen="gridItem.col[0] + 1" :max="parentGrid.cols" auto />
               <BuildGridStep :path="node.path" part="rowStart" letter="R" :label="port.t('grid_row_start')" :hit="gridParts.rowStart" :seen="gridItem.row[0] + 1" auto />
             </div>
-            <button type="button" class="fg-more" data-sve-build-grid-edit-parent @click="openGrid($event, parentGrid.path)">
-              <span v-html="ic('grid')"></span>{{ port.t('grid_edit_parent') }}
-            </button>
           </template>
 
           <label class="fg-check">
@@ -950,7 +936,5 @@ function jump(group) {
         </label>
       </div>
     </section>
-
-    <BuildGridPopup v-if="gridPop" :key="gridPop.path" :path="gridPop.path" :row="gridPop.row" :column="gridPop.column" :hint="sizeHint" @close="gridPop = null" />
   </div>
 </template>

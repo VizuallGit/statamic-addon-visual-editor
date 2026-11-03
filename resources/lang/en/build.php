@@ -88,7 +88,7 @@ return [
     'grid_rows_less' => 'One row fewer',
     'grid_rows_more' => 'One row more',
     'grid_add_cell' => 'Add an element in this cell',
-    'grid_move' => 'Drag to move it to another cell',
+    'grid_move' => 'Drag to move it to another cell · click to select it',
     'grid_span' => 'Drag to set how many columns and rows it spans',
     'grid_edit' => 'Edit grid',
     'grid_edit_parent' => 'Edit the grid it stands in',

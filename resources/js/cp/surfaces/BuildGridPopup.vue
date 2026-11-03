@@ -10,6 +10,9 @@
  *
  * On the Control Panel's body beside the panel, as Add's SVG popup is
  * (lib/beside.js); Escape or a press outside closes it.
+ *
+ * Mounted nowhere for now: Style's grid fields and the builder over the
+ * preview (columns-overlay.js) do this. Kept for when a popup is wanted again.
  */
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import BuildGridStep from './BuildGridStep.vue';
