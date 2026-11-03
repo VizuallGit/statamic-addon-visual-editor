@@ -923,6 +923,9 @@ onBeforeUnmount(() => {
 /* The list's three buttons read as one group: the same grey, the same height, the same blue under the pointer. */
 .sve-build .fg-classes__h .fg-ib { height: 1.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .fg-classes__h button.fg-ib:hover:not(:disabled), .sve-build .fg-classes__h .fg-classes__new:hover { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+/* Add a class is the line's main action: blue before the pointer comes, full blue under it. */
+.sve-build .fg-classes__h [data-sve-build-classes-add] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+.sve-build .fg-classes__h button[data-sve-build-classes-add]:hover:not(:disabled) { background: var(--bm-accent); color: #fff; }
 .sve-build .fg-classes.is-class { padding: 0.4rem; box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
 .sve-build .fg-field { position: relative; display: flex; align-items: center; gap: 0.35rem; min-width: 0; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; }
 .sve-build .fg-field:hover { border-color: var(--bm-edge); }

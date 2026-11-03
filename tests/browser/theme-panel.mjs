@@ -257,13 +257,13 @@ try {
     const el = document.querySelector(`${p} .sve-theme`);
     const cs = getComputedStyle(el);
 
-    return { bg: cs.backgroundColor, display: cs.display, tabs: getComputedStyle(el.querySelector('.sve-theme__tabs')).overflowX };
+    return { bg: cs.backgroundColor, display: cs.display, folds: el.querySelectorAll('.sve-theme__fold').length };
   }, PANEL);
 
-  // The panel's own sheet: its flex column and the tab row that scrolls.
-  step('its stylesheet loaded', look.display === 'flex' && look.tabs === 'auto', JSON.stringify(look));
+  // The panel's own sheet: its flex column and the seven sections.
+  step('its stylesheet loaded', look.display === 'flex' && look.folds === 7, JSON.stringify(look));
   step('it sits in the shared right sidebar', await cp.evaluate((p) => !!document.querySelector(`#__sve-right-dock ${p}`), PANEL));
-  step('each tab has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 7, PANEL));
+  step('each section has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__fold-icon svg`).length === 7, PANEL));
 
   const knewBefore = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
 
@@ -299,7 +299,7 @@ try {
   }, PANEL);
 
   step('the gray scale is one of the colors', gray === 'found');
-  await click(page, cp, `${PANEL} .sve-theme__add`);
+  await click(page, cp, `${PANEL} [data-sve-theme-add]`);
   await waitFor(cp, (o) => !!document.querySelector(`${o} input[type="text"]:not([readonly])`), OPEN);
   await retype(page, cp, TEXT_INPUTS, 'gutter', 0);
   step('a name the site already uses is refused', await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__input.is-bad`), OPEN));
@@ -342,7 +342,7 @@ try {
   step('a changed size paints at once, written like the fluid-size addon',
     await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--size-500').trim() === 'clamp(1.5rem, 1.1667rem + 1.6667vw, 2.5rem)'),
     await rootVar(preview, '--size-500'));
-  await click(page, cp, `${PANEL} .sve-theme__add`);
+  await click(page, cp, `${PANEL} [data-sve-theme-add]`);
   step('a new size is added after the last', await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--size-1300').trim().startsWith('clamp(5.625rem')));
   step('the chart has a bar per size', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__bars.is-desktop .sve-theme__bar`).length === 17, PANEL));
   await shot(page, '2-spacing');

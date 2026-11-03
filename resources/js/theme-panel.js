@@ -718,11 +718,12 @@ function loadClassRows(win) {
 const handlers = (win) => ({
   onClose: () => closeThemePanel(win),
   onSave: () => void saveTheme(win),
+  // One section open at a time; its header again closes it.
   onTab: (tab) => {
     if (TABS.includes(tab)) {
-      ui.tab = tab;
+      ui.tab = ui.tab === tab ? '' : tab;
 
-      if (tab === 'styles') {
+      if (ui.tab === 'styles') {
         loadClassRows(win);
         // Read again each time: a snippet saved in the dock a moment ago is here.
         void loadSnippets(win);

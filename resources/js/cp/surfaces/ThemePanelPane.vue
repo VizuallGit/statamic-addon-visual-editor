@@ -13,83 +13,75 @@
       </div>
     </div>
 
-    <!-- One row that scrolls sideways when the tabs do not fit, with a fade saying
-         there is more. The fades are siblings: a mask on the scroller resets its
-         scrollLeft in Chrome (same as the a11y and Patterns rows). -->
-    <div class="sve-theme__tabs-wrap">
-      <nav ref="tabsEl" class="sve-theme__tabs" role="tablist" @scroll="syncFades">
-        <button
-          v-for="tab in TABS"
-          :key="tab.key"
-          type="button"
-          role="tab"
-          class="sve-theme__tab"
-          :class="{ 'is-on': ui.tab === tab.key }"
-          :aria-selected="ui.tab === tab.key"
-          :data-sve-theme-tab="tab.key"
-          @click="onTab(tab.key)"
+    <!-- One section open at a time (`ui.tab`, '' for none). The open one's
+         header stays at the top while its body scrolls under it. -->
+    <div ref="bodyEl" class="sve-theme__body">
+      <section
+        v-for="s in SECTIONS"
+        :key="s.key"
+        class="sve-theme__fold"
+        :class="{ 'is-open': ui.tab === s.key }"
+        :data-sve-theme-fold="s.key"
+      >
+        <div class="sve-theme__fold-head">
+          <button
+            type="button"
+            class="sve-theme__fold-toggle"
+            :class="{ 'is-on': ui.tab === s.key, 'has-add': !!addFor(s.key) }"
+            :aria-expanded="ui.tab === s.key"
+            :aria-controls="`sve-theme-fold-${s.key}`"
+            :data-sve-theme-tab="s.key"
+            @click="onTab(s.key)"
+          >
+            <span class="sve-theme__fold-icon" aria-hidden="true" v-html="s.icon"></span>
+            <span class="sve-theme__fold-title">{{ ui.labels[`panel_tab_${s.key}`] }}</span>
+            <span v-if="s.key === 'colors'" class="sve-theme__fold-swatches" aria-hidden="true">
+              <span v-for="c in swatches" :key="c.key" :style="{ background: c.color }"></span>
+            </span>
+            <span v-else class="sve-theme__fold-meta">{{ meta(s.key) }}</span>
+            <svg class="sve-theme__fold-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+          </button>
+          <!-- The section's one "new": under Styles the chip says which. -->
+          <button
+            v-if="addFor(s.key)"
+            type="button"
+            class="sve-theme__fold-add"
+            data-sve-theme-add
+            v-bind="{ [`data-sve-${addFor(s.key).attr}-add`]: '' }"
+            :title="addFor(s.key).label"
+            :aria-label="addFor(s.key).label"
+            :disabled="addFor(s.key).off"
+            @click="addFor(s.key).run()"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+
+        <div
+          v-if="ui.tab === s.key"
+          :id="`sve-theme-fold-${s.key}`"
+          class="sve-theme__fold-body"
+          role="region"
+          :aria-label="ui.labels[`panel_tab_${s.key}`]"
         >
-          <span class="sve-theme__tab-icon" aria-hidden="true" v-html="tab.icon"></span>
-          <span>{{ ui.labels[`panel_tab_${tab.key}`] }}</span>
-        </button>
-      </nav>
-      <span class="sve-theme__tabs-fade is-start" :class="{ 'is-on': fades.start }" aria-hidden="true"></span>
-      <span class="sve-theme__tabs-fade is-end" :class="{ 'is-on': fades.end }" aria-hidden="true"></span>
+          <p v-if="ui.loading" class="sve-theme__empty">{{ ui.labels.panel_loading }}</p>
+          <component :is="s.view" v-else :h="props" />
+        </div>
+      </section>
     </div>
 
-    <div class="sve-theme__actions">
-      <button v-if="ui.tab === 'colors'" type="button" class="sve-theme__add" @click="onAddColor">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        {{ ui.labels.colors_add }}
-      </button>
-      <button v-else-if="ui.tab === 'spacing'" type="button" class="sve-theme__add" @click="onAddSize">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        {{ ui.labels.spacing_add }}
-      </button>
-      <button v-else-if="ui.tab === 'fonts'" type="button" class="sve-theme__add" data-sve-font-add :disabled="!ui.fontsWritable" @click="onAddFont">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        {{ ui.labels.fonts_add }}
-      </button>
-      <button v-else-if="ui.tab === 'utilities'" type="button" class="sve-theme__add" data-sve-utility-add @click="onAddUtility">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        {{ ui.labels.utilities_add }}
-      </button>
-      <!-- One button, and the chip says which. -->
-      <template v-else-if="ui.tab === 'styles'">
-        <!-- Not while saving: the save reads the list in again, and a row made now would be left with nothing behind it. -->
-        <button v-if="ui.classChip === 'class'" type="button" class="sve-theme__add" :disabled="ui.saving" data-sve-class-add @click="onAddUtilityFromClasses">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.classes_add }}
-        </button>
-        <button v-else-if="ui.classChip === 'variable'" type="button" class="sve-theme__add" data-sve-prop-add @click="onAddProp">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.props_add }}
-        </button>
-        <button v-else-if="ui.classChip === 'snippet'" type="button" class="sve-theme__add" data-sve-snippet-add @click="onAddSnippet">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.classes_add_snippet }}
-        </button>
-      </template>
+    <div class="sve-theme__foot">
       <span class="sve-theme__status">{{ ui.status }}</span>
       <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
-    </div>
-
-    <div class="sve-theme__body">
-      <p v-if="ui.loading" class="sve-theme__empty">{{ ui.labels.panel_loading }}</p>
-      <ThemeColorsTab v-else-if="ui.tab === 'colors'" :h="props" />
-      <ThemeSpacingTab v-else-if="ui.tab === 'spacing'" :h="props" />
-      <ThemeFontsTab v-else-if="ui.tab === 'fonts'" :h="props" />
-      <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
-      <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
-      <ThemeFormsTab v-else-if="ui.tab === 'forms'" :h="props" />
-      <ThemeStylesTab v-else-if="ui.tab === 'styles'" :h="props" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
+import { firstFamily } from '../theme-panel/presets.js';
+import { MIN_VIEWPORT } from '../theme-panel/sizes.js';
 import ThemeColorsTab from './ThemeColorsTab.vue';
 import ThemeSpacingTab from './ThemeSpacingTab.vue';
 import ThemeFontsTab from './ThemeFontsTab.vue';
@@ -101,72 +93,46 @@ import ThemeStylesTab from './ThemeStylesTab.vue';
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, braces, a button, a text field. */
-const TABS = [
+/** Each section with its icon: a palette, a ruler, a large and a small A, a T, braces, a button, a text field. */
+const SECTIONS = [
   {
     key: 'colors',
+    view: ThemeColorsTab,
     icon: svg('<circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/>'),
   },
   {
     key: 'spacing',
+    view: ThemeSpacingTab,
     icon: svg('<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>'),
   },
   {
     key: 'fonts',
+    view: ThemeFontsTab,
     icon: svg('<path d="M21 14h-5"/><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16"/><path d="M4.5 13h6"/><path d="m3 16 4.5-9 4.5 9"/>'),
   },
   {
     key: 'type',
+    view: ThemeTypeTab,
     icon: svg('<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>'),
   },
   {
     key: 'styles',
+    view: ThemeStylesTab,
     icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/><path d="M10 10h4"/><path d="M10 14h2"/>'),
   },
   {
     key: 'button',
+    view: ThemeButtonTab,
     icon: svg('<rect x="2" y="7" width="20" height="10" rx="5"/><path d="M8 12h8"/>'),
   },
   {
     key: 'forms',
+    view: ThemeFormsTab,
     icon: svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4"/>'),
   },
 ];
 
-const tabsEl = ref(null);
-const fades = reactive({ start: false, end: false });
-let resize = null;
-
-/** A fade only while there is more that way — otherwise it reads as a shadow on nothing. */
-function syncFades() {
-  const el = tabsEl.value;
-
-  if (!el) {
-    return;
-  }
-
-  fades.start = el.scrollLeft > 1;
-  fades.end = el.scrollWidth - el.clientWidth - el.scrollLeft > 1;
-}
-
-onMounted(() => {
-  syncFades();
-
-  if (typeof ResizeObserver !== 'undefined' && tabsEl.value) {
-    resize = new ResizeObserver(syncFades);
-    resize.observe(tabsEl.value);
-  }
-});
-
-onBeforeUnmount(() => resize?.disconnect());
-
-// The chosen tab stays in sight, and the fades follow.
-watch(() => ui.tab, () => nextTick(() => {
-  tabsEl.value?.querySelector('.is-on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  syncFades();
-}));
-
-/** Every handler from theme-panel.js; the tabs get them all as `h`. */
+/** Every handler from theme-panel.js; the sections get them all as `h`. */
 const props = defineProps({
   onClose: { type: Function, required: true },
   onSave: { type: Function, required: true },
@@ -223,4 +189,79 @@ const props = defineProps({
   onSaveSnippet: { type: Function, required: true },
   onRemoveSnippet: { type: Function, required: true },
 });
+
+/**
+ * The open section's "new", or null: none on a closed section, none while the
+ * theme loads. `attr` names the button for the browser tests.
+ */
+function addFor(key) {
+  if (ui.tab !== key || ui.loading) {
+    return null;
+  }
+
+  if (key === 'colors') {
+    return { attr: 'color', label: ui.labels.colors_add, run: props.onAddColor };
+  }
+
+  if (key === 'spacing') {
+    return { attr: 'size', label: ui.labels.spacing_add, run: props.onAddSize };
+  }
+
+  if (key === 'fonts') {
+    return { attr: 'font', label: ui.labels.fonts_add, run: props.onAddFont, off: !ui.fontsWritable };
+  }
+
+  if (key === 'styles' && ui.classChip === 'class') {
+    // Not while saving: the save reads the list in again, and a row made now would be left with nothing behind it.
+    return { attr: 'class', label: ui.labels.classes_add, run: props.onAddUtilityFromClasses, off: ui.saving };
+  }
+
+  if (key === 'styles' && ui.classChip === 'variable') {
+    return { attr: 'prop', label: ui.labels.props_add, run: props.onAddProp };
+  }
+
+  if (key === 'styles' && ui.classChip === 'snippet') {
+    return { attr: 'snippet', label: ui.labels.classes_add_snippet, run: props.onAddSnippet };
+  }
+
+  return null;
+}
+
+/** The palette on the Colors header: each color's base, or its first step. */
+const swatches = computed(() => ui.families
+  .map((f) => ({ key: f.key, color: f.value || f.steps[0]?.value }))
+  .filter((c) => c.color));
+
+/** What a closed section holds, in a few words on its header. */
+function meta(key) {
+  if (key === 'spacing') {
+    return ui.sizes.length
+      ? (ui.labels.panel_meta_spacing || '').replace(':count', ui.sizes.length).replace(':min', MIN_VIEWPORT).replace(':max', ui.maxViewport)
+      : '';
+  }
+
+  if (key === 'fonts') {
+    const kits = ui.kits.flatMap((kit) => kit.families || []).map((f) => (typeof f === 'string' ? f : f?.name));
+
+    return [...new Set([...ui.installed.map((f) => f.name), ...kits].filter(Boolean))].join(', ');
+  }
+
+  if (key === 'type') {
+    return [...new Set([firstFamily(ui.type['font-base']), firstFamily(ui.type['font-heading'])].filter(Boolean))].join(' · ');
+  }
+
+  return ui.labels[`panel_meta_${key}`] || '';
+}
+
+const bodyEl = ref(null);
+
+// The section just opened starts at the top of the list, its header in sight.
+watch(() => ui.tab, (tab) => nextTick(() => {
+  const body = bodyEl.value;
+  const fold = tab ? body?.querySelector(`[data-sve-theme-fold="${tab}"]`) : null;
+
+  if (fold) {
+    body.scrollTop = fold.offsetTop - body.firstElementChild.offsetTop;
+  }
+}));
 </script>

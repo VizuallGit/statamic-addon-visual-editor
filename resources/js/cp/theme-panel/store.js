@@ -3,6 +3,8 @@ import { reactive } from 'vue';
 /**
  * The theme panel's state — one save writes every tab into site.css.
  *
+ * `tab` is the one section open, '' when every section is closed.
+ *
  * `families` (Colors): `{ key, name, value, steps, tints, shades, generated, scale,
  * nudges, fresh, problem }` — `nudges` each step's lightness nudge by name,
  * `fresh` for a color not saved yet (only its name can change), `problem` a

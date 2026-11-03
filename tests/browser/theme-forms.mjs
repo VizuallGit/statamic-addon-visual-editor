@@ -348,7 +348,7 @@ try {
   step('palette icon in the top bar', !!(await cp.$(icon)));
   await click(page, cp, icon);
   step('the panel opens and has a Forms tab', await waitFor(cp, (sel) => !!document.querySelector(sel), tab('forms'), 15000));
-  step('each tab has its icon (7)', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 7, PANEL));
+  step('each section has its icon (7)', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__fold-icon svg`).length === 7, PANEL));
   await waitFor(cp, (p) => !document.querySelector(`${p} .sve-theme__empty`), PANEL, 10000);
   await click(page, cp, tab('forms'));
   step('Forms is the open tab', await waitFor(cp, (sel) => document.querySelector(sel)?.classList.contains('is-on'), tab('forms')));
