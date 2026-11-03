@@ -108,7 +108,8 @@ import { tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
-import { flowAt } from './flow.js';
+import { flowAt, siteFlowSpaces, siteReadsFlow } from './flow.js';
+import { loadClassDefs } from '../dock/class-defs.js';
 import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
 import { elementLabel } from '../cp/xray/measure.js';
@@ -281,6 +282,18 @@ export function createEditorPort(win, hooks = {}) {
       modelWanted = true;
       loadFamilies(win).then((loaded) => {
         model = loaded;
+        bump();
+      });
+    }
+  };
+  // The site's own stylesheets, rule by rule (the dock's list, class-defs.js): Flow space's plain CSS classes.
+  let siteDefs = [];
+  let siteDefsWanted = false;
+  const wantSiteDefs = () => {
+    if (!siteDefsWanted) {
+      siteDefsWanted = true;
+      void loadClassDefs(win).then((rows) => {
+        siteDefs = Array.isArray(rows) ? rows : [];
         bump();
       });
     }
@@ -964,14 +977,22 @@ export function createEditorPort(win, hooks = {}) {
 
       const path = hooks.selectedPath?.() || '';
 
-      return path ? flowAt(html(), path, (name) => model.catalog.rule(name).includes('var(--flow-space')) : null;
+      wantSiteDefs();
+
+      return path ? flowAt(html(), path, (name) => model.catalog.rule(name).includes('var(--flow-space') || siteReadsFlow(siteDefs, name)) : null;
     },
-    /** The classes that set `--flow-space`, in the order site.css writes them (the catalog's own list is alphabetical). */
+    /**
+     * The classes that set `--flow-space`: Tailwind's `@utility` ones in the
+     * order site.css writes them (the catalog's own list is alphabetical), then
+     * the site's plain CSS ones (a demo keeps them in base.css).
+     */
     flowSpaces() {
       const names = port.scale('--flow-space');
       const order = [...(model?.catalog.design?.utilities.keys('static') || [])];
 
-      return names.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      wantSiteDefs();
+
+      return [...new Set([...names.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b)), ...siteFlowSpaces(siteDefs)])];
     },
     /* Grid: what the builder over the preview and Style's grid fields write (grid.js), at the pane's size and state */
     gridAt: () => ({ variants: twVariant().split(':').filter(Boolean), chain: variantChain(rows(), port.size(), port.state()) }),

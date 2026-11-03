@@ -61,3 +61,19 @@ test('outside any flow: nothing', () => {
   assert.deepEqual(at((n) => n.tag === 'p' && /Plain/.test(text(n))), { inside: false, holds: false, first: true });
   assert.equal(flowAt(html, 'no-such-path', readsFlow), null);
 });
+
+test('the site\'s own plain CSS classes that set --flow-space, in the file\'s order; a flow class read from its rule', async () => {
+  const { siteFlowSpaces, siteReadsFlow } = await import('../../../resources/js/build-mode/flow.js');
+  /* As /!/sve/site-css/defined hands them over: a demo keeps them in base.css. */
+  const defs = [
+    { name: 'flow-space-none', file: 'resources/css/base.css', selector: '.flow-space-none', css: '--flow-space: 0px;', kind: 'rule' },
+    { name: 'flow-space-900', file: 'resources/css/base.css', selector: '.flow-space-900', css: '--flow-space: var(--size-900);', kind: 'rule' },
+    { name: 'card', file: 'resources/css/base.css', selector: '.card .flow-space-x', css: '--flow-space: 1em;', kind: 'rule' },
+    { name: 'gap', file: 'resources/css/base.css', selector: '.gap', css: 'gap: 1rem;', kind: 'rule' },
+    { name: 'flow-y', file: 'resources/css/base.css', selector: '.flow-y > * + *', css: 'margin-block-start: var(--flow-space, 1em);', kind: 'rule' },
+  ];
+
+  assert.deepEqual(siteFlowSpaces(defs), ['flow-space-none', 'flow-space-900']);
+  assert.equal(siteReadsFlow(defs, 'flow-y'), true);
+  assert.equal(siteReadsFlow(defs, 'gap'), false);
+});

@@ -16,6 +16,23 @@ import { parseTemplateTree } from '../html-tree-parse.js';
 import { readClassAttr, tokenizeClassValue } from '../tw-parse.js';
 
 /**
+ * The site's own classes that set `--flow-space`, from its stylesheets
+ * (`/!/sve/site-css/defined` rows), in their order: one class and nothing
+ * around it, as a plain rule in base.css or wherever the site keeps them.
+ * Tailwind's `@utility` ones come from the catalog.
+ */
+export function siteFlowSpaces(defs) {
+  return [...new Set((defs || [])
+    .filter((row) => row.kind === 'rule' && row.selector === `.${row.name}` && /(?:^|[\s;{])--flow-space\s*:/.test(String(row.css || '')))
+    .map((row) => row.name))];
+}
+
+/** Whether a class of the site's own stylesheets spaces children with the flow's room (`.flow-y > * + *`). */
+export function siteReadsFlow(defs, name) {
+  return (defs || []).some((row) => row.name === name && String(row.css || '').includes('var(--flow-space'));
+}
+
+/**
  * @param {string} html            the file
  * @param {string} path            the picked element's path
  * @param {(name: string) => boolean} readsFlow  whether a class is one that spaces its children
