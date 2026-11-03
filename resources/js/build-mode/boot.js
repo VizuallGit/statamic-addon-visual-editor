@@ -105,6 +105,7 @@ import { tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath } from './place.js';
+import { flowAt } from './flow.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf } from './classes.js';
 import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
@@ -935,6 +936,31 @@ export function createEditorPort(win, hooks = {}) {
       const names = roots.flatMap((root) => model.catalog.byRoot.get(root) || []);
 
       return only ? names.filter((name) => model.catalog.css(name).startsWith(only)) : names;
+    },
+    /**
+     * Where the picked element stands in the site's flow (flow.js). A class
+     * spaces its children when it compiles to `var(--flow-space` — `flow-y`,
+     * `flow-x` in site.css — so no name is written here.
+     */
+    flow() {
+      rev.value;
+
+      if (!model) {
+        wantModel();
+
+        return null;
+      }
+
+      const path = hooks.selectedPath?.() || '';
+
+      return path ? flowAt(html(), path, (name) => model.catalog.rule(name).includes('var(--flow-space')) : null;
+    },
+    /** The classes that set `--flow-space`, in the order site.css writes them (the catalog's own list is alphabetical). */
+    flowSpaces() {
+      const names = port.scale('--flow-space');
+      const order = [...(model?.catalog.design?.utilities.keys('static') || [])];
+
+      return names.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b));
     },
     painted,
     classesShown,

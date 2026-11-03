@@ -21,6 +21,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
+import BuildClassField from './BuildClassField.vue';
 import BuildClassList from './BuildClassList.vue';
 import BuildClassTarget from './BuildClassTarget.vue';
 import { useFitRow } from './fit-row.js';
@@ -361,6 +362,39 @@ function folded(group) {
     + fieldsOf(group).filter((field) => inMore(group.id, field.label) && !effField(field)).length;
 }
 
+/* ---------------- Flow space: the room a flow puts above the element, or between its children (build-mode/flow.js) ---------------- */
+
+const flowPlace = computed(() => port.flow());
+const flowField = computed(() => {
+  const names = (port.rev.value, port.flowSpaces());
+
+  // Tailwind's side only: a class is what it writes.
+  if (port.cssTarget || !names.length) {
+    return null;
+  }
+
+  const set = !!effectiveClass(classes.value.join(' '), ['field'], chain.value, (name) => (names.includes(name) ? 'field' : ''));
+
+  return flowPlace.value?.inside || flowPlace.value?.holds || set ? { label: 'flow-space', names } : null;
+});
+const flowHint = computed(() => {
+  const at = flowPlace.value || {};
+
+  if (at.inside && at.holds) {
+    return 'flow_space_both';
+  }
+
+  if (at.holds) {
+    return 'flow_space_between';
+  }
+
+  if (at.inside) {
+    return at.first ? 'flow_space_first' : 'flow_space_above';
+  }
+
+  return 'flow_space_idle';
+});
+
 /* Spacing: the box or the fields, this browser's choice */
 const SPACING_VIEW_KEY = 'sve-build-spacing-view';
 
@@ -691,6 +725,11 @@ function jump(group) {
 
         <!-- Spacing -->
         <template v-else-if="group.id === 'spacing'">
+          <template v-if="flowField">
+            <div class="fg-lab">{{ port.t('flow_space') }}</div>
+            <BuildClassField :field="flowField" />
+            <p class="fg-hint" data-sve-build-flow-hint>{{ port.t(flowHint) }}</p>
+          </template>
           <BuildSpacingBox
             v-if="spacingView === 'box' && tool('padding') && tool('margin')"
             :tools="{ padding: tool('padding'), margin: tool('margin') }"
@@ -863,15 +902,20 @@ function jump(group) {
           </template>
         </template>
 
-        <!-- Under what is in front; open, above what it unfolded (the order is the stylesheet's) -->
-        <button
-          v-if="STYLE_FRONT[group.id] && (moreIsOpen(group) || folded(group))"
-          type="button"
-          class="fg-more fg-sec__more-btn"
-          :aria-expanded="moreIsOpen(group)"
-          :data-sve-build-more="group.id"
-          @click="toggleMore(group)"
-        ><span v-html="ic('chev')"></span>{{ moreIsOpen(group) ? port.t('style_less') : port.t('style_more', { count: folded(group) }) }}</button>
+        <!-- Under what is in front; on, above what it unfolded (the order is the stylesheet's). The class list's switch, a size down -->
+        <label v-if="STYLE_FRONT[group.id] && (moreIsOpen(group) || folded(group))" class="fg-sec__more-row">
+          <span>{{ port.t('style_more') }}</span>
+          <span class="fg-classes__count">{{ folded(group) }}</span>
+          <button
+            type="button"
+            class="bm-switch"
+            role="switch"
+            :aria-checked="moreIsOpen(group)"
+            :aria-label="port.t('style_more')"
+            :data-sve-build-more="group.id"
+            @click="toggleMore(group)"
+          ></button>
+        </label>
       </div>
     </section>
 

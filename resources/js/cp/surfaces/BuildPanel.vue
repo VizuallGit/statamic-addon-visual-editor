@@ -844,11 +844,17 @@ onBeforeUnmount(() => {
 .sve-build .fg-more:hover { color: var(--bm-ink); }
 .sve-build .fg-more[aria-pressed='true'] { color: var(--bm-accent-text); }
 .sve-build .fg-more .bm-ic { width: 0.875rem; height: 0.875rem; }
-/* A family's More: the button under what stands in front; open, what it unfolds goes below it. */
+/* A family's More: its switch under what stands in front; on, what it unfolds goes below it. */
 .sve-build .fg-sec__more { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .sve-build .fg-sec__more.is-open { order: 2; }
-.sve-build .fg-sec__more-btn { order: 1; }
-.sve-build .fg-sec__more-btn[aria-expanded='false'] .bm-ic { transform: rotate(-90deg); }
+.sve-build .fg-sec__more-row { order: 1; display: flex; align-items: center; gap: 0.4rem; width: fit-content; font-size: 0.75rem; font-weight: 500; color: var(--bm-muted); cursor: pointer; }
+.sve-build .fg-sec__more-row:hover { color: var(--bm-ink); }
+/* The class list's count and switch (.fg-classes), a size down. */
+.sve-build .fg-sec__more-row .fg-classes__count { min-width: 0.875rem; height: 0.875rem; }
+.sve-build .fg-sec__more-row .bm-switch { width: 1.375rem; height: 0.875rem; border-radius: 0.2rem; background: var(--bm-edge); }
+.sve-build .fg-sec__more-row .bm-switch::after { top: 0.125rem; left: 0.125rem; width: 0.625rem; height: 0.625rem; border-radius: 0.125rem; }
+.sve-build .fg-sec__more-row .bm-switch[aria-checked='true'] { background: var(--bm-accent); }
+.sve-build .fg-sec__more-row .bm-switch[aria-checked='true']::after { transform: translateX(0.5rem); }
 /* The Tailwind pane's own class list, in the panel: its tag, sizes and state are the panel's sticky top. */
 .sve-build .fg-classes .sve-tw { padding: 0; }
 .sve-build .fg-classes .sve-tw-head { display: none; }
