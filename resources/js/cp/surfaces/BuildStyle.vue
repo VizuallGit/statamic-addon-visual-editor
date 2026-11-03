@@ -31,11 +31,12 @@ import BuildColorField from './BuildColorField.vue';
 import BuildField from './BuildField.vue';
 import BuildFieldReset from './BuildFieldReset.vue';
 import BuildFields from './BuildFields.vue';
+import BuildGapAxis from './BuildGapAxis.vue';
 import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { BUILD_KIDS, STRUCTURES, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import { BUILD_KIDS, GRID_GAP, STRUCTURES, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
-import { MAX_TRACKS, fewestTracks } from '../../build-mode/grid.js';
+import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape } from '../../build-mode/grid.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
 import { chromeGet, chromeRemove, chromeSet } from '../../chrome-prefs.js';
 
@@ -132,6 +133,24 @@ function setFlow(next) {
     return;
   }
 
+  // A grid starts as Add's Grid does: one column and the site's gutter, where it has neither yet.
+  if (next === 'grid' && flow.value !== 'grid') {
+    const cols = !eff('grid-template-columns');
+    const gap = !eff('gap') && !eff('column-gap') && !eff('row-gap');
+
+    ensure('display', 'grid');
+
+    if (cols) {
+      port.setClass('grid-cols-1');
+    }
+
+    if (gap) {
+      port.setClass(GRID_GAP);
+    }
+
+    return;
+  }
+
   if (next === 'grid' || next === 'none' || next === 'inline') {
     ensure('display', next === 'none' ? 'hidden' : next);
 
@@ -178,6 +197,22 @@ const crossKids = computed(() => [...displayKids.value.filter((kid) => kid.css =
 const gapKid = (id) => kidsById(tool('tw-gap')).get(id);
 const cols = computed(() => eff('grid-template-columns'));
 
+/* A grid's one gap field: the axis it sets, picked with BuildGapAxis for this element, else the gap it already has */
+const GAP_FIELD = {
+  all: { id: 'gap-all', css: 'gap', icon: 'gapAll', fallbacks: [] },
+  block: { id: 'gap-row', css: 'row-gap', icon: 'gapY', fallbacks: ['gap'] },
+  inline: { id: 'gap-col', css: 'column-gap', icon: 'gapX', fallbacks: ['gap'] },
+};
+const gapPick = ref({ path: null, axis: '' });
+const gapAxis = computed({
+  get: () => (gapPick.value.path === props.node.path && gapPick.value.axis)
+    || gapAxisOf({ gap: !!eff('gap'), row: !!eff('row-gap'), col: !!eff('column-gap') }),
+  set: (axis) => {
+    gapPick.value = { path: props.node.path, axis };
+  },
+});
+const gapField = computed(() => GAP_FIELD[gapAxis.value]);
+
 /* Grid: the classes at the size picked (grid.js), the counts and cells as the canvas lays them out (the port's `gridAround`) */
 const gridParts = computed(() => port.gridPartsAt(props.node.path));
 const around = computed(() => port.gridAround?.(props.node.path) || { own: null, parent: null, item: null });
@@ -186,6 +221,9 @@ const parentGrid = computed(() => around.value.parent);
 const gridItem = computed(() => (around.value.item?.col && around.value.item?.row ? around.value.item : null));
 const gridLeast = computed(() => fewestTracks(ownGrid.value?.items || []));
 const spanOf = (range) => range[1] - range[0] + 1;
+/** One of the structures in one row: their tiles; any other grid: its own shape, with a way back to one by one. */
+const shape = computed(() => gridShape(gridParts.value, ownGrid.value || {}, STRUCTURES));
+const resetGrid = () => port.resetGridAt(props.node.path);
 
 const clip = computed(() => eff('overflow')?.name === 'overflow-hidden');
 
@@ -635,7 +673,23 @@ function jump(group) {
 
           <template v-if="flow === 'grid'">
             <div class="fg-lab">grid-template-columns<BuildFieldReset :hit="ownHit(cols)" label="grid-template-columns" /></div>
-            <div class="bm-sp" data-sve-build-structures>
+            <div v-if="shape" class="bm-sp-own" :class="{ inh: shape.inherited }" data-sve-build-grid-shape>
+              <span
+                class="bm-shape"
+                :style="{
+                  gridTemplateColumns: shape.fr.slice(0, MAX_TRACKS).map((part) => `${part}fr`).join(' '),
+                  gridTemplateRows: `repeat(${Math.min(shape.rows, MAX_TRACKS)}, minmax(0, 1fr))`,
+                  height: `${Math.min(4.5, 1.1 * shape.rows)}rem`,
+                }"
+              ><i v-for="n in Math.min(shape.cols, MAX_TRACKS) * Math.min(shape.rows, MAX_TRACKS)" :key="n"></i></span>
+              <span class="bm-sp-own__foot">
+                <span class="bm-sp-l" :title="port.t('grid_shape_title')">{{ shape.cols }} × {{ shape.rows }}</span>
+                <button type="button" class="bm-sp-reset" :title="port.t('grid_reset_title')" data-sve-build-grid-reset @click="resetGrid">
+                  <span v-html="ic('reset')"></span>{{ port.t('grid_reset') }}
+                </button>
+              </span>
+            </div>
+            <div v-else class="bm-sp" data-sve-build-structures>
               <button
                 v-for="s in STRUCTURES"
                 :key="s.key"
@@ -655,13 +709,11 @@ function jump(group) {
               <BuildGridStep :path="node.path" part="cols" letter="C" :label="port.t('grid_columns')" :hit="gridParts.cols" :seen="ownGrid?.cols || null" :min="gridLeast.cols" :max="MAX_TRACKS" />
               <BuildGridStep :path="node.path" part="rows" letter="R" :label="port.t('grid_rows')" :hit="gridParts.rows" :seen="ownGrid?.rows || null" :min="gridLeast.rows" />
             </div>
-            <div class="fg-grid">
-              <BuildField v-if="gapKid('gap-col')" icon="gapX" title="column-gap">
-                <BuildValueInput :tool="gapKid('gap-col')" :fallbacks="['gap']" label="column-gap" compact />
+            <div v-if="gapKid(gapField.id)" class="fg-box" data-sve-build-gap>
+              <BuildField :icon="gapField.icon" :title="gapField.css">
+                <BuildValueInput :key="gapField.id" :tool="gapKid(gapField.id)" :fallbacks="gapField.fallbacks" :label="gapField.css" compact />
               </BuildField>
-              <BuildField v-if="gapKid('gap-row')" icon="gapY" title="row-gap">
-                <BuildValueInput :tool="gapKid('gap-row')" :fallbacks="['gap']" label="row-gap" compact />
-              </BuildField>
+              <BuildGapAxis v-model:axis="gapAxis" />
             </div>
             <div class="fg-lab">{{ port.t('align_items') }}<BuildFieldReset :names="ownOf(crossKids)" :label="port.t('align_items')" /></div>
             <BuildAlign :kids="crossKids" />

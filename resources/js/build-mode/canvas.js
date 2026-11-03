@@ -36,8 +36,9 @@
  *                One that is a field's alone (a Bard document) is the form's
  *                editor's while that is typed in (canvas-fields.js).
  *   Its own      an element the file leaves empty stands open, dashed, until
- *                something is put in it (`CANVAS_EMPTY`, stamped by the paint);
- *                the + and the drags are canvas-ui.js's.
+ *                something is put in it (`CANVAS_EMPTY`, stamped by the paint),
+ *                and one that folds to nothing in another section does too
+ *                (canvas-empty.js); the + and the drags are canvas-ui.js's.
  *   What runs    the tree's video icon and Alpine toggle talk to the real
  *                preview, as in Content. Its videos and dialogs are followed
  *                on the canvas (canvas-live.js), and while the tree holds an
@@ -85,7 +86,8 @@ import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_CLOAK, CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { CANVAS_CLOAK, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { EMPTY_CSS, findEmpties, fitRows } from './canvas-empty.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
 import { canvasFocus } from './canvas-focus.js';
@@ -128,9 +130,7 @@ const CARD_DROP = 'build-canvas:card-drop';
 export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 
 // A video without `controls` wears none: the browser shows its own wherever scripts are off, as on the canvas.
-const OWN_CSS = `[${CANVAS_EMPTY}]{min-height:4rem!important;outline:1px dashed rgba(56,88,233,.6);outline-offset:-1px}
-[${CANVAS_EMPTY}="text"]{min-height:1.5em!important}
-[${CANVAS_ROOT}][${CANVAS_EMPTY}]{min-height:8rem!important}
+const OWN_CSS = `${EMPTY_CSS}
 [${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}
 [${SELECTED}]{outline:.125rem solid #3858e9;outline-offset:-.125rem}
 [${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
@@ -460,6 +460,8 @@ export function startCanvas(win) {
     page.addEventListener('scroll', bar.place, true);
     page.addEventListener('scroll', focus.place, true);
     page.addEventListener('keydown', onKey, true);
+    // First: what draws over the page measures it with its empty boxes' room.
+    frame.contentWindow.addEventListener('resize', room);
     frame.contentWindow.addEventListener('resize', ui.draw);
     frame.contentWindow.addEventListener('resize', bar.place);
     frame.contentWindow.addEventListener('resize', focus.place);
@@ -493,6 +495,8 @@ export function startCanvas(win) {
         return;
       }
 
+      // The page's sheets are in only now: what folds to nothing is found with them.
+      room();
       // Instant: a site's `scroll-behavior: smooth` would glide the canvas down from the top.
       frame.contentWindow.scrollTo({ top: realWin?.scrollY || 0, behavior: 'instant' });
       frame.removeAttribute(UNSTYLED_ATTR);
@@ -963,6 +967,7 @@ export function startCanvas(win) {
     painted.html = section?.html ?? null;
     painted.rootKey = sectionKeyOf(realRoot);
     sheet(painted.html);
+    room();
     marks();
     rehover();
     follow();
@@ -1014,9 +1019,20 @@ export function startCanvas(win) {
           tw = state;
           buildTailwind = mod.buildTailwind;
           sheet(painted.html);
+          fitRows(cdoc()?.querySelector(`[${CANVAS_ROOT}]`));
         })
       )
       .catch((error) => console.warn('[sve] Build canvas: no Tailwind compiler', error));
+  }
+
+  /** The empty boxes' room on the whole page: after it was read again, its sheets came in or the frame's width changed. */
+  function room() {
+    const page = cdoc();
+
+    if (page?.body) {
+      findEmpties(page);
+      fitRows(page.body);
+    }
   }
 
   /** The dock's file changed: the section painted from it, unless the canvas already shows this file. */
@@ -1086,6 +1102,8 @@ export function startCanvas(win) {
       sheet(section.html);
     }
 
+    // Only the open section changed: the others' empty boxes are as they were found.
+    fitRows(cdoc().querySelector(`[${CANVAS_ROOT}]`));
     marks();
     rehover();
     follow();

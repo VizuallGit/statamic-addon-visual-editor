@@ -61,6 +61,8 @@ export const STRUCTURES = [
   { key: '4', parts: [1, 1, 1, 1], cls: 'grid-cols-4', label: '¼ × 4' },
 ];
 export const ROWS = [1, 2, 3];
+/** What a grid starts with besides its columns: the site's gutter between its cells, as `wrapper` is its container. */
+export const GRID_GAP = 'gap-gutter';
 
 /**
  * The tiles, by group. `tool` names an HTML_TOOLS id, `div` an HTML_DIVS one,

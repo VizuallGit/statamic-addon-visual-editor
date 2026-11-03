@@ -106,7 +106,7 @@ import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
 import { flowAt } from './flow.js';
-import { readGridAt, withCellAt, withGridAt } from './grid.js';
+import { readGridAt, withCellAt, withGridAt, withGridReset } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
@@ -984,6 +984,14 @@ export function createEditorPort(win, hooks = {}) {
 
       if (next !== html()) {
         port.write(next, { select: select || hooks.selectedPath?.() || '' });
+      }
+    },
+    /** The grid at `path` back to one column and one row, its children in its flow (grid.js `withGridReset`); the pick stays. */
+    resetGridAt(path) {
+      const next = withGridReset(html(), path, port.gridAt());
+
+      if (next !== html()) {
+        port.write(next, { select: hooks.selectedPath?.() || '' });
       }
     },
     /** An empty element in the grid's cell `[col, row]`, picked. `next`: the grid would put it there by itself. */

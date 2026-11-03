@@ -555,6 +555,17 @@ onBeforeUnmount(() => {
 .sve-build .bm-sp-o.inh { border-color: var(--bm-inh-line); }
 .sve-build .bm-sp-o.inh .bm-bars i { background: var(--bm-inh); }
 .sve-build .bm-sp-o.inh .bm-sp-l { font-style: italic; }
+/* A grid none of the tiles is: its own shape, columns by rows, and the way back to one by one */
+.sve-build .bm-sp-own { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.4rem; border-radius: 0.5rem; background: var(--bm-raise); border: 1px solid var(--bm-accent); }
+.sve-build .bm-shape { display: grid; gap: 0.12rem; }
+.sve-build .bm-shape i { display: block; min-width: 0; min-height: 0; border-radius: 0.15rem; background: var(--bm-accent); }
+.sve-build .bm-sp-own__foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.sve-build .bm-sp-own .bm-sp-l { text-align: start; }
+.sve-build .bm-sp-reset { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-size: 0.625rem; color: var(--bm-muted); }
+.sve-build .bm-sp-reset:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .bm-sp-reset .bm-ic { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-sp-own.inh { border-color: var(--bm-inh-line); }
+.sve-build .bm-sp-own.inh .bm-shape i { background: var(--bm-inh); }
 
 /* A grid's numbers in Style (BuildGridStep.vue): typed, or stepped with − and + */
 .sve-build .fg-step { gap: 0.15rem; }
@@ -952,6 +963,8 @@ onBeforeUnmount(() => {
 .sve-build .fg-box { display: flex; align-items: flex-start; gap: 0.375rem; }
 .sve-build .fg-box > .fg-grid { flex: 1; min-width: 0; }
 .sve-build .fg-box > .bm-sp-sides { height: 1.875rem; }
+.sve-build .fg-box > .fg-field { flex: 1; }
+.sve-build .bm-sp-sides rect { opacity: 0.5; }
 .sve-build .fg-colsn button { flex-direction: column; gap: 0.15rem; height: auto; padding: 0.3rem 0.1rem; }
 .sve-build .fg-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; cursor: pointer; }
 .sve-build .fg-check input { appearance: none; -webkit-appearance: none; width: 0.875rem; height: 0.875rem; margin: 0; display: grid; place-content: center; border-radius: 0.2rem; border: 1px solid var(--bm-edge); background: var(--bm-raise); cursor: pointer; }

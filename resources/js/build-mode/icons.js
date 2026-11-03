@@ -85,6 +85,7 @@ const P = {
   sides: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
   gapY: '<path d="M4 5h16M4 19h16"/><path d="M9 12h6"/>',
   gapX: '<path d="M5 4v16M19 4v16"/><path d="M12 9v6"/>',
+  gapAll: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path d="M12 9v6M9 12h6"/>',
   radius: '<path d="M4 20V10a6 6 0 0 1 6-6h10"/>',
   opacity: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h5v5H4zM9 4h5v5H9zM14 9h6v5h-6zM9 14h5v6H9z" fill="currentColor" stroke="none" opacity=".55"/>',
   minus: '<path d="M5 12h14"/>',

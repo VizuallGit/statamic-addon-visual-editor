@@ -16,7 +16,7 @@
  * a list item is indented one step of four spaces, as the site's files are.
  */
 
-import { STRUCTURES } from './catalog.js';
+import { GRID_GAP, STRUCTURES } from './catalog.js';
 
 export const INDENT = '    ';
 
@@ -114,12 +114,12 @@ function toolMarkup(entry, def, opts, text) {
   return `<${tag}></${tag}>`;
 }
 
-/** A grid with one empty div per cell — its columns times its rows — stacking at the narrowest size. */
+/** A grid with one empty div per cell — its columns times its rows — stacking at the narrowest size, the site's gutter between. */
 export function columnsMarkup(key, mobile = 'max-md', rows = 1) {
   const structure = STRUCTURES.find((s) => s.key === key) || STRUCTURES[1];
   const stack = structure.parts.length > 1 && mobile ? ` ${mobile}:grid-cols-1` : '';
   const cells = structure.parts.length * Math.max(1, Math.floor(rows) || 1);
   const kids = Array.from({ length: cells }, () => `${INDENT}<div></div>`).join('\n');
 
-  return `<div class="grid ${structure.cls}${stack}">\n${kids}\n</div>`;
+  return `<div class="grid ${structure.cls}${stack} ${GRID_GAP}">\n${kids}\n</div>`;
 }

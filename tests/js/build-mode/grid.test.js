@@ -4,7 +4,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countOf, fewestTracks, gridValueWith, planned, readGridAt, readGrid, spanTo, startAt, trackAt, withCellAt, withGridAt } from '../../../resources/js/build-mode/grid.js';
+import { GAP_AXIS_NEXT, countOf, fewestTracks, gapAxisOf, gridShape, gridValueWith, inFlow, oneByOne, planned, readGridAt, readGrid, spanTo, startAt, trackAt, withCellAt, withGridAt, withGridReset } from '../../../resources/js/build-mode/grid.js';
+import { STRUCTURES } from '../../../resources/js/build-mode/catalog.js';
 
 const DESKTOP = { variants: [], chain: [''] };
 const TABLET = { variants: ['max-lg'], chain: ['max-lg', ''] };
@@ -93,6 +94,44 @@ test('a span changed at a size keeps the child\'s start there; back to the wider
   assert.equal(classOf(withGridAt(FILE, ONE, { colSpan: 1 }, TABLET), 2), 'col-span-2 max-lg:col-span-1');
 });
 
+test('Style draws the structures while the grid is one of them in one row, else the grid\'s own shape', () => {
+  const shape = (value, chain = DESKTOP.chain, seen = {}) => gridShape(readGrid(value, chain), seen, STRUCTURES);
+
+  assert.equal(shape('grid'), null);
+  assert.equal(shape('grid grid-cols-3'), null);
+  assert.equal(shape('grid grid-cols-[2fr_1fr] grid-rows-1'), null);
+  assert.deepEqual(shape('grid grid-cols-5'), { cols: 5, rows: 1, fr: [1, 1, 1, 1, 1], inherited: false });
+  assert.deepEqual(shape('grid grid-cols-4 grid-rows-2'), { cols: 4, rows: 2, fr: [1, 1, 1, 1], inherited: false });
+  assert.deepEqual(shape('grid grid-cols-[2fr_1fr] grid-rows-3'), { cols: 2, rows: 3, fr: [2, 1], inherited: false });
+  assert.deepEqual(shape('grid grid-cols-5 grid-rows-2', TABLET.chain), { cols: 5, rows: 2, fr: [1, 1, 1, 1, 1], inherited: true });
+  assert.deepEqual(shape('grid grid-cols-none', DESKTOP.chain, { cols: 2, rows: 1 }), { cols: 2, rows: 1, fr: [1, 1], inherited: false });
+});
+
+test('back to one by one: grid-cols-1 and no rows of its own; one row where a wider size gives more', () => {
+  const file = (value) => FILE.replace('grid grid-cols-3 gap-500', value);
+  const reset = (value, at) => classOf(withGridAt(file(value), GRID, oneByOne(value, at.chain), at), 1);
+
+  assert.equal(reset('grid grid-cols-5 grid-rows-2 gap-500', DESKTOP), 'grid grid-cols-1 gap-500');
+  assert.equal(reset('grid grid-cols-5 grid-rows-2 gap-500 max-lg:grid-cols-3', TABLET), 'grid grid-cols-5 grid-rows-2 gap-500 max-lg:grid-cols-1 max-lg:grid-rows-1');
+  assert.equal(reset('grid grid-cols-1 gap-500 max-lg:grid-cols-4 max-lg:grid-rows-2', TABLET), 'grid grid-cols-1 gap-500');
+});
+
+test('the reset puts the children back in the flow: no spans or starts there, a span of one where a wider size places them', () => {
+  const file = (kid) => FILE.replace('grid grid-cols-3 gap-500', 'grid grid-cols-3 grid-rows-2 gap-500').replace('col-span-2', kid);
+
+  const desk = withGridReset(file('col-span-2 row-span-2 col-start-2'), GRID, DESKTOP);
+  assert.equal(classOf(desk, 1), 'grid grid-cols-1 gap-500');
+  assert.equal(classOf(desk, 2), '');
+  assert.equal(classOf(desk, 3), null);
+
+  const tab = withGridReset(file('col-start-2 row-start-1 col-span-2'), GRID, TABLET);
+  assert.equal(classOf(tab, 1), 'grid grid-cols-3 grid-rows-2 gap-500 max-lg:grid-cols-1 max-lg:grid-rows-1');
+  assert.equal(classOf(tab, 2), 'col-start-2 row-start-1 col-span-2 max-lg:col-span-1 max-lg:row-span-1');
+
+  assert.equal(inFlow('row-span-2 max-lg:row-span-3', TABLET.chain, TABLET.variants), 'row-span-2 max-lg:row-span-1');
+  assert.equal(inFlow('max-lg:col-span-2', DESKTOP.chain, DESKTOP.variants), 'max-lg:col-span-2');
+});
+
 test('a child with no class attribute gets one; the grid\'s columns are the grid\'s', () => {
   assert.equal(classOf(withGridAt(FILE, TWO, { colStart: 2, rowStart: 1 }, DESKTOP), 3), 'col-start-2 row-start-1');
   assert.equal(classOf(withGridAt(FILE, GRID, { cols: 4 }, MOBILE), 1), 'grid grid-cols-3 gap-500 max-md:grid-cols-4');
@@ -148,4 +187,14 @@ test('a grid goes no lower than its widest span and its lowest child', () => {
     ]),
     { cols: 3, rows: 5 }
   );
+});
+
+test('the gap field: both, then rows (block), then columns (inline), round again; opens on the one gap set alone', () => {
+  assert.deepEqual([GAP_AXIS_NEXT.all, GAP_AXIS_NEXT.block, GAP_AXIS_NEXT.inline], ['block', 'inline', 'all']);
+  assert.equal(gapAxisOf({}), 'all');
+  assert.equal(gapAxisOf({ gap: true }), 'all');
+  assert.equal(gapAxisOf({ gap: true, row: true }), 'all');
+  assert.equal(gapAxisOf({ row: true }), 'block');
+  assert.equal(gapAxisOf({ col: true }), 'inline');
+  assert.equal(gapAxisOf({ row: true, col: true }), 'block');
 });

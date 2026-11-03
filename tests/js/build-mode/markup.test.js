@@ -47,15 +47,15 @@ test('elements that hold text start with a word to see and click', () => {
   assert.equal(markupFor(tile('heading'), { text: { heading: 'A <b> & c' } }), '<h2>A &lt;b&gt; &amp; c</h2>');
 });
 
-test('a grid: one empty div per cell, its columns stacked at the narrowest size', () => {
-  assert.equal(columnsMarkup('3', 'max-md'), '<div class="grid grid-cols-3 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n    <div></div>\n</div>');
-  assert.equal(columnsMarkup('1', 'max-md'), '<div class="grid grid-cols-1">\n    <div></div>\n</div>');
-  assert.equal(columnsMarkup('21', 'max-sm'), '<div class="grid grid-cols-[2fr_1fr] max-sm:grid-cols-1">\n    <div></div>\n    <div></div>\n</div>');
+test('a grid: one empty div per cell, its columns stacked at the narrowest size, the site\'s gutter between', () => {
+  assert.equal(columnsMarkup('3', 'max-md'), '<div class="grid grid-cols-3 max-md:grid-cols-1 gap-gutter">\n    <div></div>\n    <div></div>\n    <div></div>\n</div>');
+  assert.equal(columnsMarkup('1', 'max-md'), '<div class="grid grid-cols-1 gap-gutter">\n    <div></div>\n</div>');
+  assert.equal(columnsMarkup('21', 'max-sm'), '<div class="grid grid-cols-[2fr_1fr] max-sm:grid-cols-1 gap-gutter">\n    <div></div>\n    <div></div>\n</div>');
   assert.equal(write('grid', { structure: '4', mobile: 'max-md' }).split('<div></div>').length - 1, 4);
 });
 
 test('a grid\'s rows: a line of cells per row, the same columns', () => {
-  assert.equal(columnsMarkup('2', 'max-md', 2), '<div class="grid grid-cols-2 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n    <div></div>\n    <div></div>\n</div>');
+  assert.equal(columnsMarkup('2', 'max-md', 2), '<div class="grid grid-cols-2 max-md:grid-cols-1 gap-gutter">\n    <div></div>\n    <div></div>\n    <div></div>\n    <div></div>\n</div>');
   assert.equal(write('grid', { structure: '3', rows: 3 }).split('<div></div>').length - 1, 9);
   assert.equal(write('grid', { structure: '2', rows: 0 }).split('<div></div>').length - 1, 2);
 });

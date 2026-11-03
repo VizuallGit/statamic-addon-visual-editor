@@ -160,6 +160,106 @@ export function planned(value, part, n, chain) {
 }
 
 /**
+ * How Style draws a grid: `null` while it is one of the structures in one row
+ * (Style's tiles), else its own shape — its columns, as fractions where a
+ * structure names them, by its rows.
+ *
+ * @param {object} parts  readGrid at the size picked
+ * @param {{ cols?: number, rows?: number }} seen  the counts the canvas lays out
+ * @param {{ cls: string, parts: number[] }[]} structures  catalog.js STRUCTURES
+ * @returns {{ cols: number, rows: number, fr: number[], inherited: boolean }|null}
+ */
+export function gridShape(parts, seen = {}, structures = []) {
+  const name = parts?.cols?.name || '';
+  const structure = structures.find((s) => s.cls === name);
+  const rows = parts?.rows?.n ?? null;
+
+  if ((rows ?? 1) <= 1 && (!name || structure)) {
+    return null;
+  }
+
+  const cols = structure?.parts.length ?? parts?.cols?.n ?? seen.cols ?? 1;
+
+  return {
+    cols,
+    rows: rows ?? seen.rows ?? 1,
+    fr: structure ? structure.parts : Array.from({ length: cols }, () => 1),
+    inherited: (parts?.cols?.inherited ?? true) && (parts?.rows?.inherited ?? true),
+  };
+}
+
+/**
+ * Back to one column and one row at the size picked: `grid-cols-1` unless a
+ * wider size gives it already, and no rows of its own — one row only where a
+ * wider size gives more. Changes for withGridAt.
+ */
+export function oneByOne(value, chain) {
+  const wider = readGrid(value, chain.slice(1)).rows;
+
+  return { cols: 1, rows: wider && wider.n !== 1 ? 1 : null };
+}
+
+/**
+ * A child back in its grid's flow at the size picked: no start or span of its
+ * own there, and a span of one where a wider size still spans or places it —
+ * the span shorthand puts the start back to auto (`SPAN_OF`).
+ */
+export function inFlow(value, chain, variants = []) {
+  const wider = readGrid(value, chain.slice(1));
+  let next = String(value || '');
+
+  for (const [start, span] of Object.entries(SPAN_OF)) {
+    const undo = wider[start] || (wider[span] && wider[span].n !== 1);
+
+    next = gridValueWith(next, start, null, variants);
+    next = gridValueWith(next, span, undo ? 1 : null, variants);
+  }
+
+  return next;
+}
+
+/**
+ * The file with the grid at `path` back to one column and one row at the
+ * size picked (`oneByOne`) and its children back in its flow there
+ * (`inFlow`): the 1 × 1 Style's reset says, which a child spanning two
+ * columns would otherwise widen.
+ */
+export function withGridReset(html, path, { variants = [], chain = [''] } = {}) {
+  const source = String(html || '');
+  const grid = path ? findByPath(parseTemplateTree(source), path) : null;
+
+  if (!grid || grid.kind || grid.locked || grid.lockedIn) {
+    return source;
+  }
+
+  let next = source;
+
+  // From the last child, so the offsets before each one still hold.
+  for (const kid of grid.children.filter((k) => !k.kind && !k.locked && !k.lockedIn).reverse()) {
+    const value = readClassAttr(next, kid.from, kid.openTo)?.value || '';
+    const moved = inFlow(value, chain, variants);
+
+    if (moved !== value) {
+      next = writeClassValue(next, kid, moved);
+    }
+  }
+
+  return withGridAt(next, path, oneByOne(readClassAttr(next, grid.from, grid.openTo)?.value || '', chain), { variants, chain });
+}
+
+/** The gap a grid's one gap field sets — both, between rows (the block axis), between columns (the inline axis) — and the next one round. */
+export const GAP_AXIS_NEXT = { all: 'block', block: 'inline', inline: 'all' };
+
+/** The axis that field opens on: the one gap the element has without `gap`, else both. */
+export function gapAxisOf({ gap, row, col }) {
+  if (gap || !(row || col)) {
+    return 'all';
+  }
+
+  return row ? 'block' : 'inline';
+}
+
+/**
  * The file with the element at `path` changed: `changes` is parts by name
  * (`{ colSpan: 2, rowSpan: 1 }`), each a number, or null for back to what a
  * wider size gives. The same file when nothing changes or the element is gone.
