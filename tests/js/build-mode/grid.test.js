@@ -71,6 +71,28 @@ test('back to what the wider size gives: the size\'s own class comes off', () =>
   assert.equal(classOf(withGridAt(tablet, ONE, { colSpan: null }, TABLET), 2), 'col-span-2');
 });
 
+test('a span at a narrower size puts a wider start back to auto, as the stylesheet does', () => {
+  assert.equal(readGrid('col-start-2 max-lg:col-span-1', TABLET.chain).colStart, null);
+  assert.equal(readGrid('col-start-2 max-lg:col-span-1', DESKTOP.chain).colStart.n, 2);
+  assert.equal(readGrid('col-span-2 col-start-2', DESKTOP.chain).colStart.n, 2);
+  assert.equal(readGrid('col-span-2 max-lg:col-start-3', TABLET.chain).colStart.n, 3);
+  assert.equal(readGrid('row-start-2 max-md:row-span-2', MOBILE.chain).rowStart, null);
+});
+
+test('a span changed at a size keeps the child\'s start there; back to the wider span, the start comes off again', () => {
+  const placed = withGridAt(FILE, ONE, { colStart: 2, rowStart: 1 }, DESKTOP);
+
+  assert.equal(classOf(placed, 2), 'col-span-2 col-start-2 row-start-1');
+
+  const narrower = withGridAt(placed, ONE, { colSpan: 1 }, TABLET);
+
+  assert.equal(classOf(narrower, 2), 'col-span-2 col-start-2 row-start-1 max-lg:col-span-1 max-lg:col-start-2');
+  assert.equal(readGrid(classOf(narrower, 2), TABLET.chain).colStart.n, 2);
+  assert.equal(classOf(withGridAt(narrower, ONE, { colSpan: 2 }, TABLET), 2), 'col-span-2 col-start-2 row-start-1');
+  assert.equal(classOf(withGridAt(placed, ONE, { colSpan: 3 }, DESKTOP), 2), 'col-span-3 col-start-2 row-start-1');
+  assert.equal(classOf(withGridAt(FILE, ONE, { colSpan: 1 }, TABLET), 2), 'col-span-2 max-lg:col-span-1');
+});
+
 test('a child with no class attribute gets one; the grid\'s columns are the grid\'s', () => {
   assert.equal(classOf(withGridAt(FILE, TWO, { colStart: 2, rowStart: 1 }, DESKTOP), 3), 'col-start-2 row-start-1');
   assert.equal(classOf(withGridAt(FILE, GRID, { cols: 4 }, MOBILE), 1), 'grid grid-cols-3 gap-500 max-md:grid-cols-4');

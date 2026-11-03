@@ -39,6 +39,13 @@ export const GRID_PARTS = {
   rowStart: { prefix: 'row-start', match: /^row-start-(?:\d+|auto|\[.+\])$/ },
 };
 
+/**
+ * Each start and the span that can undo it. A span is Tailwind's shorthand
+ * (`grid-column: span 2 / span 2`), and a narrower size's comes after a wider
+ * size's start in the stylesheet: there it puts the start back to auto.
+ */
+const SPAN_OF = { colStart: 'colSpan', rowStart: 'rowSpan' };
+
 /** The classes of a value, each with its variant key, without the scope and the `{{ … }}` ones. */
 function chipsOf(value) {
   return tokenizeClassValue(value)
@@ -67,23 +74,33 @@ export function countOf(name) {
 /**
  * Each part as the element has it at the size and state picked: the nearest
  * class along `chain` (classes.js `variantChain`, nearest first), and whether
- * it is the element's own there or reaches it from a wider size.
+ * it is the element's own there or reaches it from a wider size. A start a
+ * nearer span undoes is none (`SPAN_OF`).
  *
  * @returns {Record<string, { name: string, raw: string, n: number|null, inherited: boolean }|null>}
  */
 export function readGrid(value, chain) {
   const chips = chipsOf(value);
   const out = {};
+  const at = {};
 
   for (const [part, { match }] of Object.entries(GRID_PARTS)) {
     out[part] = null;
+    at[part] = Infinity;
 
     for (let i = 0; i < chain.length && !out[part]; i += 1) {
       const hit = chips.find((chip) => chip.key === chain[i] && match.test(chip.name));
 
       if (hit) {
         out[part] = { name: hit.name, raw: hit.raw, n: countOf(hit.name), inherited: i > 0 };
+        at[part] = i;
       }
+    }
+  }
+
+  for (const [start, span] of Object.entries(SPAN_OF)) {
+    if (at[span] < at[start]) {
+      out[start] = null;
     }
   }
 
@@ -158,10 +175,21 @@ export function withGridAt(html, path, changes, { variants = [], chain = [''] } 
   }
 
   let value = readClassAttr(source, node.from, node.openTo)?.value || '';
+  const before = readGrid(value, chain);
 
   for (const [part, n] of Object.entries(changes || {})) {
     if (GRID_PARTS[part]) {
       value = gridValueWith(value, part, n === null ? null : planned(value, part, n, chain), variants);
+    }
+  }
+
+  // A span changed alone keeps the child where it stood: beside a span of
+  // this size its start is said here too, and without one a wider size's does.
+  for (const [start, span] of Object.entries(SPAN_OF)) {
+    const keep = before[start]?.n ?? null;
+
+    if (span in (changes || {}) && !(start in changes) && keep !== null) {
+      value = gridValueWith(value, start, readGrid(value, chain.slice(0, 1))[span] ? keep : planned(value, start, keep, chain), variants);
     }
   }
 
