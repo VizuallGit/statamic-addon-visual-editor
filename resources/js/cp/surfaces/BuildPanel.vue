@@ -182,18 +182,18 @@ watch(tabRow, (row) => {
 }, { flush: 'post' });
 onBeforeUnmount(() => tabRowSized?.disconnect());
 
-/** The element's tabs: [value, icon, word]. A loop's or condition's one tab is its Settings. */
+/** The element's tabs: [value, word], words only, as the canvas's TabBar. A loop's or condition's one tab is its Settings. */
 const TABS = computed(() => {
   if (styled.value) {
     return [
-      ['content', 'form', 'tab_content'],
-      ['style', 'sliders', 'tab_style'],
-      ['action', 'zap', 'tab_action'],
-      ['animation', 'svg', 'anim_tab'],
+      ['content', 'tab_content'],
+      ['style', 'tab_style'],
+      ['action', 'tab_action'],
+      ['animation', 'anim_tab'],
     ];
   }
 
-  return content.value === 'fields' ? [['content', 'form', 'tab_content']] : [['content', 'sliders', 'tab_settings']];
+  return content.value === 'fields' ? [['content', 'tab_content']] : [['content', 'tab_settings']];
 });
 watch(() => TABS.value.length, readTabEdges, { flush: 'post' });
 
@@ -424,14 +424,14 @@ onBeforeUnmount(() => {
       <div class="bm-tabs bm-tabs-scroll" :data-more-start="tabEdges.start || undefined" :data-more-end="tabEdges.end || undefined">
         <div ref="tabRow" class="bm-tabs-row" role="tablist" @scroll.passive="readTabEdges" @wheel="tabsAcross">
           <button
-            v-for="[value, icon, word] in TABS"
+            v-for="[value, word] in TABS"
             :key="value"
             type="button"
             role="tab"
             :aria-selected="tab === value"
             :data-sve-build-tab="value"
             @click="choose(value)"
-          ><span v-html="ic(icon)"></span>{{ port.t(word) }}</button>
+          >{{ port.t(word) }}</button>
         </div>
       </div>
 
@@ -538,10 +538,10 @@ onBeforeUnmount(() => {
 .sve-build .bm-tabs-fit button { flex: 1 1 auto; padding-inline: 0.8em; }
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 /* The element's tabs keep their width; the row scrolls under the track, and an edge with more beyond it fades into the track (the canvas's TabBar). */
-.sve-build .bm-tabs.bm-tabs-scroll { position: relative; padding: 0; overflow: hidden; }
-.sve-build .bm-tabs-row { position: relative; display: flex; flex: 1; gap: 0.1875rem; min-width: 0; padding: 0.15rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.sve-build .bm-tabs.bm-tabs-scroll { position: relative; padding: 0; border-radius: 0.5rem; overflow: hidden; }
+.sve-build .bm-tabs-row { position: relative; display: flex; flex: 1; gap: 0.25rem; min-width: 0; padding: 0.1875rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .sve-build .bm-tabs-row::-webkit-scrollbar { display: none; }
-.sve-build .bm-tabs-row button { padding-inline: 0.75rem; white-space: nowrap; }
+.sve-build .bm-tabs-row button { flex: none; padding: 0.4375rem 1rem; border-radius: 0.375rem; color: var(--bm-faint); letter-spacing: 0.06em; white-space: nowrap; user-select: none; }
 .sve-build .bm-tabs-scroll::before, .sve-build .bm-tabs-scroll::after { content: ''; position: absolute; top: 0; bottom: 0; z-index: 1; width: 2.5rem; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
 .sve-build .bm-tabs-scroll::before { left: 0; background: linear-gradient(to right, var(--bm-raise) 25%, transparent); }
 .sve-build .bm-tabs-scroll::after { right: 0; background: linear-gradient(to left, var(--bm-raise) 25%, transparent); }
