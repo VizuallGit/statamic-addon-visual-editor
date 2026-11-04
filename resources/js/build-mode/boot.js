@@ -82,6 +82,7 @@ import { breakpoints } from '../breakpoints.js';
 import { HTML_ICONS } from '../html-tree-icons.js';
 import { flattenHtmlTree, parseHtmlTree, parseTemplateTree } from '../html-tree-parse.js';
 import { deleteHtml, duplicateHtml } from '../html-tree-edit.js';
+import { htmlTreeDisplayName, readHtmlTreeLabels } from '../html-tree-labels.js';
 import { CSS_TOOLS, CSS_TOOL_ICONS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, TW_TOOL_ICONS } from '../code-dock.js';
 import {
   openStateMenu as twOpenStateMenu,
@@ -1102,8 +1103,8 @@ export function createEditorPort(win, hooks = {}) {
     setContainerSize: (variant) => twSetContainerSize(win, variant),
     /**
      * The container a size query on the element at `path` asks, as the canvas
-     * lays it out now: `{ tag, name, path, rem }` — its HTML tree name and path
-     * when the file has it, rem its content width — or null.
+     * lays it out now: `{ tag, name, rem }` — name the one the HTML tree's layer
+     * was given, if it was; rem its content width — or null.
      */
     containerAround(path) {
       rev.value;
@@ -1117,9 +1118,9 @@ export function createEditorPort(win, hooks = {}) {
       }
 
       const at = box.getAttribute(CANVAS_PATH) || '';
-      const row = at ? flattenHtmlTree(parseHtmlTree(html()), new Set()).find((item) => item.path === at) : null;
+      const name = at ? htmlTreeDisplayName('', at, readHtmlTreeLabels(ask('dock:current-type') || '')) : '';
 
-      return { tag: box.tagName.toLowerCase(), name: row?.name || '', path: row ? at : '', rem: contentWidthRem(box) };
+      return { tag: box.tagName.toLowerCase(), name, rem: contentWidthRem(box) };
     },
     painted,
     classesShown,

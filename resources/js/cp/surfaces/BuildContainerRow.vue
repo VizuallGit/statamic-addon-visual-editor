@@ -28,7 +28,9 @@ const port = inject('sveBuild');
 const around = computed(() => port.containerAround(props.path));
 const now = computed(() => port.containerSize());
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-const heading = computed(() => port.t('container_active_on', { name: `<b>${escapeHtml(around.value.name || around.value.tag)}</b>` }));
+const heading = computed(() => (around.value.name
+  ? port.t('container_active_on', { name: `<b>${escapeHtml(around.value.name)}</b>` })
+  : port.t('container_active_on_parent', { parent: `<b>${port.t('container_parent')}</b>` })));
 
 /** The arbitrary sizes to offer: the element's own `@max-[…]` classes, and the one picked. */
 const customs = computed(() => {
