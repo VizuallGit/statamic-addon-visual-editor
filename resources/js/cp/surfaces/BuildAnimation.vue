@@ -9,7 +9,9 @@
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
  * animation with the page's own runtime.css and presets.json, so what it
- * shows is what the page does; ▶ also replays it on Build's canvas.
+ * shows is what the page does; ▶ also replays it on Build's canvas. The stage
+ * leaves reduced-motion.css out: on a computer set to reduce motion it still
+ * plays the motion as set, and says that the canvas and such visitors get a fade.
  *
  * What the runtime cannot do yet (scroll, hover and switch triggers, the
  * library's other recipes, saved presets) stands as the canvas draws it and
@@ -32,6 +34,7 @@ import {
   newAnimation,
   ownValues,
   presetOf,
+  presetRules,
   RUNTIME_DEFAULTS,
   springEase,
   TIMING_RANGE,
@@ -265,12 +268,15 @@ function stageSheet() {
   const sheet = document.createElement('style');
 
   sheet.id = 'sve-anim-stage-css';
-  sheet.textContent = [
-    RUNTIME_CSS,
-    ...PRESETS.map((p) => `[data-anim-preset="${p.handle}"] { ${Object.entries(p.vars).map(([name, value]) => `${name}: ${value};`).join(' ')} }`),
-  ].join('\n');
+  sheet.textContent = `${RUNTIME_CSS}\n${presetRules(PRESETS)}`;
   document.head.appendChild(sheet);
 }
+
+const lessMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reduced = ref(lessMotion.matches);
+const onMotion = (event) => {
+  reduced.value = event.matches;
+};
 
 const presetText = computed(() => `${label(preset.value) || anim.value?.preset || ''}${isChanged(anim.value) ? ` · ${t('anim_changed')}` : ''}`);
 const effects = computed(() => (anim.value ? effectsOf(anim.value, preset.value) : []));
@@ -507,6 +513,7 @@ const onDown = (event) => {
 
 onMounted(() => {
   stageSheet();
+  lessMotion.addEventListener('change', onMotion);
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', place);
   document.addEventListener('pointerdown', onDown, true);
@@ -514,6 +521,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   sized?.disconnect();
+  lessMotion.removeEventListener('change', onMotion);
   window.removeEventListener('keydown', onKey, true);
   window.removeEventListener('resize', place);
   document.removeEventListener('pointerdown', onDown, true);
@@ -731,6 +739,7 @@ const Num = defineComponent({
             </div>
             <span class="bm-anim-stage__note">{{ t('anim_stage_note') }}</span>
           </div>
+          <p v-if="reduced" class="bm-anim-reduced" data-sve-build-anim-reduced>{{ t('anim_reduced_note') }}</p>
 
           <section class="bm-anim-block is-first">
             <div class="bm-anim-line">
@@ -1056,6 +1065,7 @@ const Num = defineComponent({
 .sve-build .bm-anim-stage__set { display: flex; flex-direction: column; gap: 0.3125rem; }
 .sve-build .bm-anim-stage__set > i { display: block; width: 8.75rem; height: 1.25rem; border-radius: 0.3125rem; background: color-mix(in srgb, var(--bm-accent) 50%, transparent); border: 1px solid color-mix(in srgb, var(--bm-accent) 90%, transparent); }
 .sve-build .bm-anim-stage__note { position: absolute; right: 0.5rem; bottom: 0.375rem; color: var(--bm-faint); font-size: 0.625rem; }
+.sve-build .bm-anim-reduced { margin: 0; padding: 0.4375rem 0.75rem; border-top: 1px solid var(--bm-line); background: color-mix(in srgb, var(--bm-accent) 8%, transparent); color: var(--bm-faint); font-size: 0.6875rem; line-height: 1.4; }
 
 /* Line, Box, Select, Num, Seg, Switch */
 .sve-build .bm-anim-line { display: grid; grid-template-columns: 5.75rem minmax(0, 1fr); align-items: center; gap: 0.5rem; }

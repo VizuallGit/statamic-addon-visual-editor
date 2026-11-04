@@ -101,11 +101,17 @@ namespace MarioHamann\StatamicVisualEditor\Tests {
 
                 foreach ($preset['vars'] as $name => $value) {
                     $this->assertStringStartsWith('--anim-', $name);
-                    $this->assertStringContainsString($name.': '.$value.';', $css);
+                    $this->assertStringContainsString(str_replace('--anim-', '--anim-preset-', $name).': '.$value.';', $css);
                 }
             }
 
-            $this->assertStringContainsString('[data-anim-preset="fade-up"] { --anim-opacity: 0; --anim-y: 2rem; }', $css);
+            $this->assertStringContainsString('[data-anim-preset="fade-up"] { --anim-preset-opacity: 0; --anim-preset-y: 2rem; }', $css);
+        }
+
+        public function test_a_visitor_who_asked_for_less_motion_gets_the_fade(): void
+        {
+            $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', SveAnimation::css());
+            $this->assertStringContainsString('@keyframes anim-fade', SveAnimation::css());
         }
     }
 }

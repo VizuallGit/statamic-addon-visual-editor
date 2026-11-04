@@ -61,6 +61,7 @@ return [
     'anim_repeat' => 'Spil igen',
     'anim_active' => 'Aktiv på siden',
     'anim_stage_note' => 'spiller når du ændrer noget',
+    'anim_reduced_note' => 'Din computer har «Reducer bevægelse» slået til. Scenen viser bevægelsen, som du har sat den. Lærredet og besøgende med samme indstilling ser kun en kort fade.',
     'anim_effects' => 'Effekter',
     'anim_add_effect' => 'Tilføj effekt',
     'anim_fx_opacity' => 'Opacity',
