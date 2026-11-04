@@ -179,13 +179,14 @@ function useTile(tile) {
   open.value = true;
 }
 
-/** A finished CSS animation is gone from getAnimations(): the runtime's own off switch, on and off again across a style flush, starts it from its first frame. */
-function play() {
-  take.value += 1;
-
+function canvasEl() {
   const doc = buildCanvasFrame(window)?.contentDocument;
-  const el = doc?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path.value)}"]`);
 
+  return doc?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path.value)}"]`) || null;
+}
+
+/** A finished CSS animation is gone from getAnimations(): the runtime's own off switch, on and off again across a style flush, starts it from its first frame. */
+function replay(el) {
   if (!el || anim.value?.off) {
     return;
   }
@@ -194,6 +195,40 @@ function play() {
   void el.offsetWidth;
   el.removeAttribute('data-anim-off');
 }
+
+function play() {
+  take.value += 1;
+  replay(canvasEl());
+}
+
+/**
+ * The element's animation as the canvas paints it. New values on an animation
+ * that has finished show nothing, so the canvas plays it again on the paint
+ * that brings them, not when the file is written.
+ */
+const drawn = (el) => (el
+  ? [
+      el.getAttribute('data-anim'),
+      el.getAttribute('data-anim-preset'),
+      el.getAttribute('data-anim-on'),
+      el.hasAttribute('data-anim-off'),
+      ...[...el.style].filter((name) => name.startsWith('--anim-')).sort().map((name) => `${name}:${el.style.getPropertyValue(name)}`),
+    ].join('\n')
+  : null);
+
+let seen = { path: path.value, drawn: drawn(canvasEl()) };
+
+watch(() => port.painted.value, () => {
+  const el = canvasEl();
+  const now = drawn(el);
+  const changed = seen.path === path.value && seen.drawn !== null && now !== seen.drawn;
+
+  seen = { path: path.value, drawn: now };
+
+  if (changed) {
+    replay(el);
+  }
+});
 
 /* The chip's ⋯ menu. */
 const menu = ref(false);
