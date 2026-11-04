@@ -78,14 +78,18 @@ function setTime(key, event) {
   write({ ...anim.value, [key]: ms });
 }
 
+/** A finished CSS animation is gone from getAnimations(): the runtime's own off switch, on and off again across a style flush, starts it from its first frame. */
 function play() {
   const doc = buildCanvasFrame(window)?.contentDocument;
   const el = doc?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path.value)}"]`);
 
-  for (const animation of el?.getAnimations({ subtree: true }) || []) {
-    animation.cancel();
-    animation.play();
+  if (!el) {
+    return;
   }
+
+  el.setAttribute('data-anim-off', '');
+  void el.offsetWidth;
+  el.removeAttribute('data-anim-off');
 }
 </script>
 
