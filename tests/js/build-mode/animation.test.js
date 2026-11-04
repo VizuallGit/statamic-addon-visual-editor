@@ -15,7 +15,9 @@ import {
   isChanged,
   missingEffects,
   newAnimation,
+  presetName,
   presetOf,
+  presetRules,
   RUNTIME_DEFAULTS,
   springEase,
   withAnimation,
@@ -28,6 +30,7 @@ import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 const root = new URL('../../../resources/animation/', import.meta.url);
 const PRESETS = JSON.parse(readFileSync(new URL('presets.json', root), 'utf8'));
 const RUNTIME = readFileSync(new URL('runtime.css', root), 'utf8');
+const REDUCED = readFileSync(new URL('reduced-motion.css', root), 'utf8');
 
 const read = (html, path) => animationOf(html, findByPath(parseTemplateTree(html), path));
 const anim = (own = {}) => ({ ...newAnimation('fade'), ...own });
@@ -41,11 +44,19 @@ test('a written animation reads back as it was written', () => {
   assert.deepEqual(read(next, '0:div'), written);
   assert.equal(
     next,
-    '<div data-anim="children" data-anim-preset="fade-up" data-anim-on="load" class="hero" style="color: red; --anim-duration: 0.6s; --anim-delay: 0.2s; --anim-step: 0.07s">\n  <h2>{{ title }}</h2>\n  <p>Tekst</p>\n</div>\n\n{{ sve_animation }}\n'
+    '<div data-anim="children" data-anim-preset="fade-up" data-anim-on="load" class="hero [--anim-duration:0.6s] [--anim-delay:0.2s] [--anim-step:0.07s]" style="color: red">\n  <h2>{{ title }}</h2>\n  <p>Tekst</p>\n</div>\n\n{{ sve_animation }}\n'
   );
 });
 
-test('a fresh preset is the element, on scroll into view, with the runtime\'s timing — nothing in style', () => {
+test('an element without a class gets one for its own values, and loses it with them', () => {
+  const next = withAnimation('<p>x</p>', '0:p', anim({ duration: 500 }));
+
+  assert.equal(next, '<p data-anim="self" data-anim-preset="fade" data-anim-on="view" class="[--anim-duration:0.5s]">x</p>\n\n{{ sve_animation }}');
+  assert.equal(withAnimation(next, '0:p', anim()), '<p data-anim="self" data-anim-preset="fade" data-anim-on="view">x</p>\n\n{{ sve_animation }}');
+  assert.equal(withAnimation(next, '0:p', null), '<p>x</p>');
+});
+
+test('a fresh preset is the element, on scroll into view, with the runtime\'s timing — no class of its own', () => {
   const next = withAnimation('<p>x</p>', '0:p', newAnimation('fade'));
 
   assert.equal(next, '<p data-anim="self" data-anim-preset="fade" data-anim-on="view">x</p>\n\n{{ sve_animation }}');
@@ -65,24 +76,47 @@ test('removal leaves no attribute, declaration or runtime tag behind', () => {
   assert.equal(withAnimation(animated, '0:p', null), html);
 });
 
-test('removal keeps the element\'s own style and drops only the --anim-* values', () => {
+test('removal keeps the element\'s own classes and style and drops only the [--anim-*] classes', () => {
   const animated = withAnimation(SECTION, '0:div', anim({ duration: 400, vars: { '--anim-ease': 'linear' } }));
 
   assert.equal(withAnimation(animated, '0:div', null), SECTION);
 });
 
-test('other style declarations and {{ }} in them stay as written', () => {
-  const html = "<div style=\"background: {{ bg ?? 'red;blue' }};color:red\">x</div>";
-  const next = withAnimation(html, '0:div', anim({ duration: 300 }));
+test('the author\'s classes stay: one with a size or state in front, and {{ }}', () => {
+  const html = '<p class="lead max-md:[--anim-y:1rem] {{ extra }} hover:[--anim-scale:1.1]">x</p>';
+  const next = withAnimation(html, '0:p', anim({ duration: 300, vars: { '--anim-y': '3rem' } }));
 
-  assert.equal(next, "<div data-anim=\"self\" data-anim-preset=\"fade\" data-anim-on=\"view\" style=\"background: {{ bg ?? 'red;blue' }};color:red; --anim-duration: 0.3s\">x</div>\n\n{{ sve_animation }}");
-  assert.equal(read(next, '0:div').duration, 300);
-  assert.equal(withAnimation(next, '0:div', null), html);
+  assert.match(next, /class="lead max-md:\[--anim-y:1rem\] \{\{ extra \}\} hover:\[--anim-scale:1\.1\] \[--anim-duration:0\.3s\] \[--anim-y:3rem\]"/);
+  assert.deepEqual(read(next, '0:p').vars, { '--anim-y': '3rem' });
+  assert.equal(withAnimation(next, '0:p', null), html);
+});
+
+test('curves and shapes go into a class without spaces and read back as the editor writes them', () => {
+  const spring = springEase(100, 8, 1);
+  const written = anim({ vars: { '--anim-ease': 'cubic-bezier(.42, 0, .58, 1)', '--anim-clip': 'inset(100% 0 0 0)', '--anim-clip-to': 'inset(0)' } });
+  const next = withAnimation('<p>x</p>', '0:p', written);
+
+  assert.match(next, /class="\[--anim-ease:cubic-bezier\(\.42,0,\.58,1\)\] \[--anim-clip:inset\(100%_0_0_0\)\] \[--anim-clip-to:inset\(0\)\]"/);
+  assert.deepEqual(read(next, '0:p'), written);
+  assert.equal(read(withAnimation('<p>x</p>', '0:p', anim({ vars: { '--anim-ease': spring } })), '0:p').vars['--anim-ease'], spring);
+});
+
+test('values an earlier version wrote in the style read as the element\'s own and move into the class', () => {
+  const html = "<div data-anim=\"self\" data-anim-preset=\"fade\" data-anim-on=\"view\" style=\"background: {{ bg ?? 'red;blue' }};color:red; --anim-duration: 0.3s; --anim-ease: ease-in\">x</div>";
+  const old = read(html, '0:div');
+
+  assert.equal(old.duration, 300);
+  assert.equal(old.vars['--anim-ease'], 'ease-in');
+  assert.equal(
+    withAnimation(html, '0:div', old),
+    "<div class=\"[--anim-duration:0.3s] [--anim-ease:ease-in]\" data-anim=\"self\" data-anim-preset=\"fade\" data-anim-on=\"view\" style=\"background: {{ bg ?? 'red;blue' }};color:red\">x</div>\n\n{{ sve_animation }}"
+  );
+  assert.equal(withAnimation('<p data-anim="self" style="--anim-y: 2rem">x</p>', '0:p', null), '<p>x</p>');
 });
 
 test('a style with no value of ours is not rewritten', () => {
   const html = '<div style="color: red;">x</div>';
-  const next = withAnimation(html, '0:div', newAnimation('fade'));
+  const next = withAnimation(html, '0:div', anim({ duration: 300 }));
 
   assert.match(next, /style="color: red;"/);
 });
@@ -92,8 +126,8 @@ test('a change rewrites only what changed, and the timing reads in ms from s or 
 
   html = withAnimation(html, '0:div', { ...read(html, '0:div'), preset: 'blur', duration: null });
   assert.deepEqual(read(html, '0:div'), anim({ target: 'children', preset: 'blur', step: 100 }));
-  assert.match(html, /style="color: red; --anim-step: 0\.1s"/);
-  assert.equal(read('<p data-anim="self" style="--anim-delay: 250ms">x</p>', '0:p').delay, 250);
+  assert.match(html, /class="hero \[--anim-step:0\.1s\]" style="color: red"/);
+  assert.equal(read('<p data-anim="self" class="[--anim-delay:250ms]">x</p>', '0:p').delay, 250);
 });
 
 test('play again and kept-but-off stand as their own attributes and read back', () => {
@@ -108,7 +142,7 @@ test('the element\'s own curve and effects stand after the timing, in the editor
   const written = anim({ duration: 600, vars: { '--anim-blur': '0.5rem', '--anim-ease': 'linear', '--anim-y': '2rem' } });
   const next = withAnimation('<p>x</p>', '0:p', written);
 
-  assert.match(next, /style="--anim-duration: 0\.6s; --anim-ease: linear; --anim-y: 2rem; --anim-blur: 0\.5rem"/);
+  assert.match(next, /class="\[--anim-duration:0\.6s\] \[--anim-ease:linear\] \[--anim-y:2rem\] \[--anim-blur:0\.5rem\]"/);
   assert.deepEqual(read(next, '0:p'), written);
 });
 
@@ -238,6 +272,29 @@ test('the spring presets carry a fixed linear() curve', () => {
   for (const preset of PRESETS.filter((p) => p.group === 'spring')) {
     assert.match(preset.vars['--anim-ease'], /^linear\(/, preset.handle);
   }
+});
+
+test('a preset\'s values stand under --anim-preset-*, as SveAnimation::css writes them', () => {
+  const rules = presetRules(PRESETS);
+
+  assert.equal(rules.split('\n').length, 25);
+  assert.match(rules, /^\[data-anim-preset="fade-up"\] \{ --anim-preset-opacity: 0; --anim-preset-y: 2rem; \}$/m);
+  assert.doesNotMatch(rules, /\s--anim-(?!preset-)[a-z-]+:/);
+});
+
+test('the runtime reads every value a preset can carry as the element\'s own first, its preset\'s after', () => {
+  const names = new Set(PRESETS.flatMap((preset) => Object.keys(preset.vars)));
+
+  for (const name of names) {
+    assert.ok(RUNTIME.includes(`var(${name}, var(${presetName(name)}, `), name);
+    assert.ok(!new RegExp(`var\\(${name}, (?!var\\(${presetName(name)},)`).test(RUNTIME), `${name} read without its preset`);
+  }
+});
+
+test('the fade for less motion stands on its own, so the stage can leave it out', () => {
+  assert.doesNotMatch(RUNTIME, /prefers-reduced-motion|anim-fade/);
+  assert.match(REDUCED, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(REDUCED, /:not\(\[data-anim-off\], \[data-anim-off\] > \*\)/);
 });
 
 test('the timing placeholders are the runtime\'s own defaults', () => {

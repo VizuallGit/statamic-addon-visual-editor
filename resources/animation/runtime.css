@@ -1,42 +1,41 @@
 /*
  * The animation runtime, pushed onto the page by {{ sve_animation }} once per
- * page. An element says what it does with attributes the build panel writes:
+ * page with reduced-motion.css. An element says what it does with attributes
+ * and classes the build panel writes:
  *
  *   data-anim="self | children"   the element, or its children one after another
- *   data-anim-preset="fade-up"    a preset's --anim-* values (presets.json)
+ *   data-anim-preset="fade-up"    a preset's values, as --anim-preset-* (presets.json)
  *   data-anim-on="view | load"    view: runtime.js holds it (its own sheet) until it is seen
  *   data-anim-repeat              view: plays again each time it comes back into view
  *   data-anim-off                 kept in the file, not played
- *   style="--anim-duration: …"    the element's own timing, curve and effects
+ *   class="[--anim-duration:…]"   the element's own timing, curve and effects
+ *
+ * A value reads the element's own --anim-* first and its preset's
+ * --anim-preset-* after: the two never share a name, so the element's own
+ * wins from any sheet, in any layer or order.
  *
  * Only compositor properties move: opacity, translate, scale, rotate, filter,
  * transform and clip-path.
  */
 @keyframes anim-in {
   from {
-    opacity: var(--anim-opacity, 1);
-    translate: calc(var(--anim-x, 0rem) * var(--anim-flip, 1)) var(--anim-y, 0rem);
-    scale: var(--anim-scale, 1);
-    rotate: var(--anim-rotate, 0deg);
-    filter: blur(var(--anim-blur, 0rem));
-    transform: perspective(60rem) rotateX(var(--anim-rx, 0deg)) rotateY(var(--anim-ry, 0deg));
-    clip-path: var(--anim-clip, none);
+    opacity: var(--anim-opacity, var(--anim-preset-opacity, 1));
+    translate: calc(var(--anim-x, var(--anim-preset-x, 0rem)) * var(--anim-flip, 1)) var(--anim-y, var(--anim-preset-y, 0rem));
+    scale: var(--anim-scale, var(--anim-preset-scale, 1));
+    rotate: var(--anim-rotate, var(--anim-preset-rotate, 0deg));
+    filter: blur(var(--anim-blur, var(--anim-preset-blur, 0rem)));
+    transform: perspective(60rem) rotateX(var(--anim-rx, var(--anim-preset-rx, 0deg))) rotateY(var(--anim-ry, var(--anim-preset-ry, 0deg)));
+    clip-path: var(--anim-clip, var(--anim-preset-clip, none));
   }
 
   /* A clip-path only moves between two shapes of one kind: a reveal names where it ends. */
   to {
-    clip-path: var(--anim-clip-to, none);
-  }
-}
-
-@keyframes anim-fade {
-  from {
-    opacity: 0;
+    clip-path: var(--anim-clip-to, var(--anim-preset-clip-to, none));
   }
 }
 
 :is([data-anim="self"], [data-anim="children"] > *) {
-  animation: anim-in var(--anim-duration, 0.7s) var(--anim-ease, ease) backwards;
+  animation: anim-in var(--anim-duration, 0.7s) var(--anim-ease, var(--anim-preset-ease, ease)) backwards;
   animation-delay: calc(var(--anim-delay, 0s) + var(--anim-step, 0.07s) * pow(var(--anim-i, 0), var(--anim-step-curve, 1)));
 }
 
@@ -51,12 +50,6 @@
 [data-anim="children"] > :nth-child(10) { --anim-i: 9; }
 [data-anim="children"] > :nth-child(11) { --anim-i: 10; }
 [data-anim="children"] > :nth-child(n + 12) { --anim-i: 11; }
-
-@media (prefers-reduced-motion: reduce) {
-  :is([data-anim="self"], [data-anim="children"] > *) {
-    animation: anim-fade 0.3s ease backwards;
-  }
-}
 
 :is([data-anim-off], [data-anim-off] > *) {
   animation: none;

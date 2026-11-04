@@ -1,0 +1,16 @@
+/*
+ * For a visitor who asked for less motion: a short fade in place of every
+ * animation. {{ sve_animation }} pushes it with runtime.css; the build
+ * panel's stage leaves it out, so the author sees the motion they set.
+ */
+@keyframes anim-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-anim="self"], [data-anim="children"] > *):not([data-anim-off], [data-anim-off] > *) {
+    animation: anim-fade 0.3s ease backwards;
+  }
+}

@@ -2,23 +2,32 @@
  * An element's animation in the dock's file — the build panel's Animation tab.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: html-tree-parse.js, build-mode/attrs.js, build-mode/place.js. Pure.
+ * May import: html-tree-parse.js, tw-parse.js, build-mode/attrs.js,
+ * build-mode/place.js. Pure.
  * Bus messages: none.
  *
  * What an element does stands in its opening tag, as
  * resources/animation/runtime.css reads it: `data-anim` (self | children),
  * `data-anim-preset`, `data-anim-on` (view | load), `data-anim-repeat` (play
  * again each time it comes into view), `data-anim-off` (kept, not played),
- * and every `--anim-*` value of its own in its `style`: the timing, the curve
- * and the effects that differ from the preset. The values stay inline: a
- * stylesheet rule can never win over them, so a value per section has to
- * stand in the same declaration later (`--anim-duration: {{ … ?? '0.6s' }}`).
+ * and every `--anim-*` value of its own as a Tailwind class in its `class`
+ * (`[--anim-duration:1.2s]`): the timing, the curve and the effects that
+ * differ from the preset. `{{ sve_tw }}` bakes them like any other class. A
+ * preset's values stand under `--anim-preset-*` (presetRules), which
+ * runtime.css reads only where the element has none of its own, so the class
+ * wins whatever layer or order the two sheets come in.
+ *
+ * Only classes without a size or state in front are the editor's;
+ * `max-md:[--anim-y:1rem]` is the author's and stays. An element an earlier
+ * version animated has its values in its `style`: they read as its own, and
+ * the next write moves them into the class.
  *
  * The section's template carries `{{ sve_animation }}` while anything in it
  * animates: the tag pushes the runtime onto the page, once however many
  * sections ask.
  */
 import { maskAntlers, parseTemplateTree } from '../html-tree-parse.js';
+import { appendToken, readClassAttr, replaceToken, tokenizeClassValue, writeClassValue } from '../tw-parse.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { findByPath } from './place.js';
 
@@ -60,6 +69,7 @@ const ORDER = ['--anim-step-curve', '--anim-ease', ...EFFECTS.map((effect) => ef
 const RUNTIME_TAG = '{{ sve_animation }}';
 const RUNTIME_RE = /\s*\{\{\s*sve_animation\s*\}\}/;
 const CLIP_RE = /^inset\((\d*\.?\d+)%\s+0\s+0\s+0\)$/;
+const OWN_RE = /^\[(--anim-[a-z-]+):(.+)\]$/;
 
 /** A preset on an element with nothing yet: the element itself, when it scrolls into view, the runtime's timing. */
 export function newAnimation(preset, target = 'self') {
@@ -81,6 +91,18 @@ export function groupPresets(presets) {
   return [...groups];
 }
 
+/** The name a preset's value stands under. */
+export function presetName(name) {
+  return name.replace(/^--anim-/, '--anim-preset-');
+}
+
+/** A rule per preset, as {{ sve_animation }} pushes them (SveAnimation::css writes the same). */
+export function presetRules(presets) {
+  return (presets || [])
+    .map((preset) => `[data-anim-preset="${preset.handle}"] { ${Object.entries(preset.vars).map(([name, value]) => `${presetName(name)}: ${value};`).join(' ')} }`)
+    .join('\n');
+}
+
 /**
  * The element's animation, or null when it has none. Timing is in ms, null
  * where the runtime's own applies; `vars` holds its other `--anim-*` values
@@ -93,14 +115,25 @@ export function animationOf(html, node) {
     return null;
   }
 
+  const own = {};
   const timing = {};
   const vars = {};
 
   for (const decl of declarations(readAttribute(html, node, 'style'))) {
-    if (Object.values(TIMING).includes(decl.name)) {
-      timing[decl.name] = decl.value;
-    } else if (decl.name.startsWith('--anim-')) {
-      vars[decl.name] = decl.value;
+    if (decl.name.startsWith('--anim-')) {
+      own[decl.name] = decl.value;
+    }
+  }
+
+  for (const { name, value } of ownTokens(readClassAttr(html, node.from, node.openTo)?.value)) {
+    own[name] = value;
+  }
+
+  for (const [name, value] of Object.entries(own)) {
+    if (Object.values(TIMING).includes(name)) {
+      timing[name] = value;
+    } else {
+      vars[name] = value;
     }
   }
 
@@ -119,8 +152,8 @@ export function animationOf(html, node) {
 
 /**
  * The file with the element at `path` animating as `anim` says; null takes
- * every attribute and `--anim-*` declaration it wrote back out. Its other
- * attributes and declarations stay as they were.
+ * every attribute and `[--anim-*:…]` class it wrote back out. Its other
+ * attributes, classes and declarations stay as they were.
  */
 export function withAnimation(html, path, anim) {
   let next = String(html ?? '');
@@ -140,11 +173,12 @@ export function withAnimation(html, path, anim) {
   };
 
   const style = readAttribute(next, node, 'style');
-  const valued = withVars(style ?? '', anim);
 
-  if (valued !== (style ?? '')) {
-    set('style', valued || null);
+  if (style !== null && withoutVars(style) !== style) {
+    set('style', withoutVars(style) || null);
   }
+
+  next = withOwnClasses(next, at(), ownValues(anim));
 
   set('data-anim-off', anim?.off ? '' : null);
   set('data-anim-repeat', anim?.repeat ? '' : null);
@@ -359,8 +393,8 @@ function declarations(style) {
 }
 
 /**
- * The animation's own `--anim-*` values as they stand in its `style`, in
- * order: [[name, value], …] — the timing in seconds, then the rest.
+ * The animation's own `--anim-*` values, in the order its classes stand:
+ * [[name, value], …] — the timing in seconds, then the rest.
  */
 export function ownValues(anim) {
   if (!anim) {
@@ -373,22 +407,55 @@ export function ownValues(anim) {
   return [...timing, ...Object.entries(anim.vars || {}).sort(([a], [b]) => rank(a) - rank(b))];
 }
 
-/** The style with every `--anim-*` declaration of the element's replaced by the animation's own values. */
-function withVars(style, anim) {
-  const decls = declarations(style);
-  const added = ownValues(anim).map(([name, value]) => `${name}: ${value}`);
+/** The class value's `[--anim-*:…]` classes without a size or state in front: name, value as CSS reads it, and the token. */
+function ownTokens(value) {
+  return tokenizeClassValue(value).flatMap((token) => {
+    const match = token.dynamic ? null : OWN_RE.exec(token.text);
 
-  if (!added.length && !decls.some((decl) => decl.name.startsWith('--anim-'))) {
+    return match ? [{ name: match[1], value: fromClass(match[2]), token }] : [];
+  });
+}
+
+/** A value as a Tailwind class carries it: no space after a comma, `_` for any other. */
+function toClass(value) {
+  return String(value).trim().replace(/\s*,\s*/g, ',').replace(/\s+/g, '_');
+}
+
+/** A class's value as CSS reads it, its commas spaced as the editor writes its curves. */
+function fromClass(text) {
+  return text.replace(/_/g, ' ').replace(/\s*,\s*/g, ', ');
+}
+
+/** The file with the element's own `[--anim-*:…]` classes replaced by these values, after its other classes; a class left empty goes. */
+function withOwnClasses(source, node, values) {
+  const before = readClassAttr(source, node.from, node.openTo)?.value ?? '';
+  let after = ownTokens(before).reverse().reduce((text, { token }) => replaceToken(text, token, ''), before);
+
+  for (const [name, value] of values) {
+    after = appendToken(after, `[${name}:${toClass(value)}]`);
+  }
+
+  if (after === before) {
+    return source;
+  }
+
+  return after.trim() ? writeClassValue(source, node, after) : withAttribute(source, node, 'class', null);
+}
+
+/** The style without the `--anim-*` declarations an earlier version wrote there. */
+function withoutVars(style) {
+  const decls = declarations(style);
+
+  if (!decls.some((decl) => decl.name.startsWith('--anim-'))) {
     return style;
   }
 
-  const kept = decls
+  return decls
     .filter((decl) => !decl.name.startsWith('--anim-'))
     .map((decl) => decl.text)
     .join(';')
-    .replace(/[\s;]+$/, '');
-
-  return [kept, ...added].filter(Boolean).join('; ');
+    .replace(/[\s;]+$/, '')
+    .trim();
 }
 
 function animates(source) {
