@@ -293,6 +293,15 @@ function setPreset(handle) {
 
 const setEffect = (key, value) => write(withEffect(anim.value, preset.value, key, value));
 const addEffect = (effect) => setEffect(effect.key, effect.add);
+
+/* The effects' + menu: the effect to add, by name. */
+const addMenu = ref(false);
+const addMenuEl = ref(null);
+
+function pickEffect(effect) {
+  addMenu.value = false;
+  addEffect(effect);
+}
 const setTime = (key, ms) => write({ ...anim.value, [key]: ms === null ? null : Math.round(ms) });
 const setVar = (name, value) => write(withVar(anim.value, preset.value, name, value));
 
@@ -462,6 +471,7 @@ watch(anim, (now) => {
 watch(open, (now) => {
   if (!now) {
     curveOpen.value = false;
+    addMenu.value = false;
   }
 });
 
@@ -476,6 +486,8 @@ const onKey = (event) => {
 
   if (menu.value) {
     menu.value = false;
+  } else if (addMenu.value) {
+    addMenu.value = false;
   } else if (curveOpen.value) {
     curveOpen.value = false;
   } else {
@@ -486,6 +498,10 @@ const onKey = (event) => {
 const onDown = (event) => {
   if (menu.value && !menuEl.value?.contains(event.target)) {
     menu.value = false;
+  }
+
+  if (addMenu.value && !addMenuEl.value?.contains(event.target)) {
+    addMenu.value = false;
   }
 };
 
@@ -754,7 +770,24 @@ const Num = defineComponent({
           <section class="bm-anim-block" data-sve-build-anim-effects>
             <div class="bm-anim-head">
               <span>{{ t('anim_effects') }}</span>
-              <button v-if="missing.length" type="button" class="bm-anim-head__plus" :aria-label="t('anim_add_effect')" @click="addEffect(missing[0])" v-html="icon('plus', 12)"></button>
+              <span v-if="missing.length" ref="addMenuEl" class="bm-anim-head__add">
+                <button
+                  type="button"
+                  class="bm-anim-head__plus"
+                  :aria-label="t('anim_add_effect')"
+                  :title="t('anim_add_effect')"
+                  aria-haspopup="menu"
+                  :aria-expanded="addMenu"
+                  data-sve-build-anim-add-menu
+                  @click="addMenu = !addMenu"
+                  v-html="icon('plus', 12)"
+                ></button>
+                <div v-if="addMenu" class="bm-anim-menu" role="menu">
+                  <button v-for="effect in missing" :key="effect.key" type="button" role="menuitem" :data-sve-build-anim-add-item="effect.key" @click="pickEffect(effect)">
+                    {{ t(`anim_fx_${effect.key}`) }}
+                  </button>
+                </div>
+              </span>
             </div>
             <div v-for="effect in effects" :key="effect.key" class="bm-anim-line is-effect" :data-sve-build-anim-effect="effect.key">
               <span>{{ t(`anim_fx_${effect.key}`) }}</span>
@@ -959,7 +992,8 @@ const Num = defineComponent({
 .sve-build .bm-anim-block.is-first { border-top: 0; }
 :root[data-sve-zones] .sve-build .bm-anim > .bm-anim-block { padding-inline: 0; }
 .sve-build .bm-anim-head { display: flex; align-items: center; font-size: 0.75rem; font-weight: 600; }
-.sve-build .bm-anim-head__plus { display: flex; margin-left: auto; color: var(--bm-muted); }
+.sve-build .bm-anim-head__add { position: relative; display: flex; margin-left: auto; font-weight: 400; }
+.sve-build .bm-anim-head__plus { display: flex; color: var(--bm-muted); }
 .sve-build .bm-anim-head__plus:hover { color: var(--bm-ink); }
 .sve-build .bm-anim-none { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
 
