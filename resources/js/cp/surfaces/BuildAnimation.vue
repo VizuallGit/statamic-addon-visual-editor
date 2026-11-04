@@ -3,15 +3,16 @@
  * The picked element's Animation tab, as the approved canvas draws it
  * (animationer-forslag.canvas.tsx, "Animation og Action i build-panelet"):
  * the element's animation as a chip, its triggers, and the library. The chip
- * opens the editor beside the panel; the editor's curve button opens the
+ * opens the editor over the panel; the editor's curve button opens the
  * curve beside the editor.
  *
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
  * animation with the page's own runtime.css and presets.json, so what it
- * shows is what the page does; ▶ also replays it on Build's canvas. The stage
- * leaves reduced-motion.css out: on a computer set to reduce motion it still
- * plays the motion as set, and says that the canvas and such visitors get a fade.
+ * shows is what the page does; ▶ and every change also replay it on Build's
+ * canvas. On a computer set to reduce motion, the stage leaves
+ * reduced-motion.css out and the canvas reverts it while the tab is open
+ * (canvas-motion.css): the author sees the motion as set, such visitors a fade.
  *
  * What the runtime cannot do yet (scroll, hover and switch triggers, the
  * library's other recipes, saved presets) stands as the canvas draws it and
@@ -19,6 +20,7 @@
  */
 import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PRESETS from '../../../animation/presets.json';
+import CANVAS_MOTION_CSS from '../../../animation/canvas-motion.css?raw';
 import RUNTIME_CSS from '../../../animation/runtime.css?raw';
 import { statesInScope } from '../../build-mode/alpine.js';
 import {
@@ -215,13 +217,31 @@ const drawn = (el) => (el
       el.getAttribute('data-anim-preset'),
       el.getAttribute('data-anim-on'),
       el.hasAttribute('data-anim-off'),
+      ...[...el.classList].filter((name) => name.startsWith('[--anim-')).sort(),
       ...[...el.style].filter((name) => name.startsWith('--anim-')).sort().map((name) => `${name}:${el.style.getPropertyValue(name)}`),
     ].join('\n')
   : null);
 
+const MOTION_ID = 'sve-anim-canvas-motion';
+
+/** Hung on the canvas's root after its body, as the canvas hangs its own sheets: a read of the page again never meets it. */
+function showMotion() {
+  const doc = buildCanvasFrame(window)?.contentDocument;
+
+  if (doc?.documentElement && !doc.getElementById(MOTION_ID)) {
+    const sheet = doc.createElement('style');
+
+    sheet.id = MOTION_ID;
+    sheet.textContent = CANVAS_MOTION_CSS;
+    doc.documentElement.append(sheet);
+  }
+}
+
 let seen = { path: path.value, drawn: drawn(canvasEl()) };
 
 watch(() => port.painted.value, () => {
+  showMotion();
+
   const el = canvasEl();
   const now = drawn(el);
   const changed = seen.path === path.value && seen.drawn !== null && now !== seen.drawn;
@@ -513,6 +533,7 @@ const onDown = (event) => {
 
 onMounted(() => {
   stageSheet();
+  showMotion();
   lessMotion.addEventListener('change', onMotion);
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', place);
@@ -521,6 +542,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   sized?.disconnect();
+  buildCanvasFrame(window)?.contentDocument?.getElementById(MOTION_ID)?.remove();
   lessMotion.removeEventListener('change', onMotion);
   window.removeEventListener('keydown', onKey, true);
   window.removeEventListener('resize', place);

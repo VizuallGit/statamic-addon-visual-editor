@@ -1,0 +1,10 @@
+/*
+ * The build canvas while its Animation tab is open: reduced-motion.css's fade
+ * reverted, so the runtime's own animation plays on a computer set to reduce
+ * motion too. Same selector as the fade, after it in the cascade.
+ */
+@layer anim-reduced {
+  :is([data-anim="self"], [data-anim="children"] > *):not([data-anim-off], [data-anim-off] > *) {
+    animation: revert-layer;
+  }
+}

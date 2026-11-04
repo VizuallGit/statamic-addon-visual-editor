@@ -14,9 +14,46 @@
  * --anim-preset-* after: the two never share a name, so the element's own
  * wins from any sheet, in any layer or order.
  *
+ * None of them is inherited: an element animating inside another reads its
+ * own values and its preset's, never the outer one's. The children of
+ * `data-anim="children"` take their parent's, unless they animate themselves.
+ *
+ * The rules stand in `anim-runtime`; reduced-motion.css stands in
+ * `anim-reduced` over it, so a sheet that reverts that layer plays the motion
+ * as set (the build panel's canvas, while its Animation tab is open).
+ *
  * Only compositor properties move: opacity, translate, scale, rotate, filter,
  * transform and clip-path.
  */
+@layer anim-runtime, anim-reduced;
+
+@property --anim-opacity { syntax: "*"; inherits: false; }
+@property --anim-x { syntax: "*"; inherits: false; }
+@property --anim-y { syntax: "*"; inherits: false; }
+@property --anim-scale { syntax: "*"; inherits: false; }
+@property --anim-rotate { syntax: "*"; inherits: false; }
+@property --anim-blur { syntax: "*"; inherits: false; }
+@property --anim-rx { syntax: "*"; inherits: false; }
+@property --anim-ry { syntax: "*"; inherits: false; }
+@property --anim-clip { syntax: "*"; inherits: false; }
+@property --anim-clip-to { syntax: "*"; inherits: false; }
+@property --anim-ease { syntax: "*"; inherits: false; }
+@property --anim-duration { syntax: "*"; inherits: false; }
+@property --anim-delay { syntax: "*"; inherits: false; }
+@property --anim-step { syntax: "*"; inherits: false; }
+@property --anim-step-curve { syntax: "*"; inherits: false; }
+@property --anim-preset-opacity { syntax: "*"; inherits: false; }
+@property --anim-preset-x { syntax: "*"; inherits: false; }
+@property --anim-preset-y { syntax: "*"; inherits: false; }
+@property --anim-preset-scale { syntax: "*"; inherits: false; }
+@property --anim-preset-rotate { syntax: "*"; inherits: false; }
+@property --anim-preset-blur { syntax: "*"; inherits: false; }
+@property --anim-preset-rx { syntax: "*"; inherits: false; }
+@property --anim-preset-ry { syntax: "*"; inherits: false; }
+@property --anim-preset-clip { syntax: "*"; inherits: false; }
+@property --anim-preset-clip-to { syntax: "*"; inherits: false; }
+@property --anim-preset-ease { syntax: "*"; inherits: false; }
+
 @keyframes anim-in {
   from {
     opacity: var(--anim-opacity, var(--anim-preset-opacity, 1));
@@ -34,23 +71,54 @@
   }
 }
 
-:is([data-anim="self"], [data-anim="children"] > *) {
-  animation: anim-in var(--anim-duration, 0.7s) var(--anim-ease, var(--anim-preset-ease, ease)) backwards;
-  animation-delay: calc(var(--anim-delay, 0s) + var(--anim-step, 0.07s) * pow(var(--anim-i, 0), var(--anim-step-curve, 1)));
-}
+@layer anim-runtime {
+  :is([data-anim="self"], [data-anim="children"] > *) {
+    animation: anim-in var(--anim-duration, 0.7s) var(--anim-ease, var(--anim-preset-ease, ease)) backwards;
+    animation-delay: calc(var(--anim-delay, 0s) + var(--anim-step, 0.07s) * pow(var(--anim-i, 0), var(--anim-step-curve, 1)));
+  }
 
-[data-anim="children"] > :nth-child(2) { --anim-i: 1; }
-[data-anim="children"] > :nth-child(3) { --anim-i: 2; }
-[data-anim="children"] > :nth-child(4) { --anim-i: 3; }
-[data-anim="children"] > :nth-child(5) { --anim-i: 4; }
-[data-anim="children"] > :nth-child(6) { --anim-i: 5; }
-[data-anim="children"] > :nth-child(7) { --anim-i: 6; }
-[data-anim="children"] > :nth-child(8) { --anim-i: 7; }
-[data-anim="children"] > :nth-child(9) { --anim-i: 8; }
-[data-anim="children"] > :nth-child(10) { --anim-i: 9; }
-[data-anim="children"] > :nth-child(11) { --anim-i: 10; }
-[data-anim="children"] > :nth-child(n + 12) { --anim-i: 11; }
+  [data-anim="children"] > :not([data-anim]) {
+    --anim-opacity: inherit;
+    --anim-x: inherit;
+    --anim-y: inherit;
+    --anim-scale: inherit;
+    --anim-rotate: inherit;
+    --anim-blur: inherit;
+    --anim-rx: inherit;
+    --anim-ry: inherit;
+    --anim-clip: inherit;
+    --anim-clip-to: inherit;
+    --anim-ease: inherit;
+    --anim-duration: inherit;
+    --anim-delay: inherit;
+    --anim-step: inherit;
+    --anim-step-curve: inherit;
+    --anim-preset-opacity: inherit;
+    --anim-preset-x: inherit;
+    --anim-preset-y: inherit;
+    --anim-preset-scale: inherit;
+    --anim-preset-rotate: inherit;
+    --anim-preset-blur: inherit;
+    --anim-preset-rx: inherit;
+    --anim-preset-ry: inherit;
+    --anim-preset-clip: inherit;
+    --anim-preset-clip-to: inherit;
+    --anim-preset-ease: inherit;
+  }
 
-:is([data-anim-off], [data-anim-off] > *) {
-  animation: none;
+  [data-anim="children"] > :nth-child(2) { --anim-i: 1; }
+  [data-anim="children"] > :nth-child(3) { --anim-i: 2; }
+  [data-anim="children"] > :nth-child(4) { --anim-i: 3; }
+  [data-anim="children"] > :nth-child(5) { --anim-i: 4; }
+  [data-anim="children"] > :nth-child(6) { --anim-i: 5; }
+  [data-anim="children"] > :nth-child(7) { --anim-i: 6; }
+  [data-anim="children"] > :nth-child(8) { --anim-i: 7; }
+  [data-anim="children"] > :nth-child(9) { --anim-i: 8; }
+  [data-anim="children"] > :nth-child(10) { --anim-i: 9; }
+  [data-anim="children"] > :nth-child(11) { --anim-i: 10; }
+  [data-anim="children"] > :nth-child(n + 12) { --anim-i: 11; }
+
+  :is([data-anim-off], [data-anim-off] > *) {
+    animation: none;
+  }
 }

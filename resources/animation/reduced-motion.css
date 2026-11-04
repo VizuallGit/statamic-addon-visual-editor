@@ -1,7 +1,9 @@
 /*
  * For a visitor who asked for less motion: a short fade in place of every
  * animation. {{ sve_animation }} pushes it with runtime.css; the build
- * panel's stage leaves it out, so the author sees the motion they set.
+ * panel's stage leaves it out, and its canvas reverts this layer while the
+ * Animation tab is open (canvas-motion.css), so the author sees the motion
+ * they set.
  */
 @keyframes anim-fade {
   from {
@@ -9,8 +11,10 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :is([data-anim="self"], [data-anim="children"] > *):not([data-anim-off], [data-anim-off] > *) {
-    animation: anim-fade 0.3s ease backwards;
+@layer anim-reduced {
+  @media (prefers-reduced-motion: reduce) {
+    :is([data-anim="self"], [data-anim="children"] > *):not([data-anim-off], [data-anim-off] > *) {
+      animation: anim-fade 0.3s ease backwards;
+    }
   }
 }

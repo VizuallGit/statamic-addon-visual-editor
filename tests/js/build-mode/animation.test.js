@@ -31,6 +31,7 @@ const root = new URL('../../../resources/animation/', import.meta.url);
 const PRESETS = JSON.parse(readFileSync(new URL('presets.json', root), 'utf8'));
 const RUNTIME = readFileSync(new URL('runtime.css', root), 'utf8');
 const REDUCED = readFileSync(new URL('reduced-motion.css', root), 'utf8');
+const CANVAS_MOTION = readFileSync(new URL('canvas-motion.css', root), 'utf8');
 
 const read = (html, path) => animationOf(html, findByPath(parseTemplateTree(html), path));
 const anim = (own = {}) => ({ ...newAnimation('fade'), ...own });
@@ -295,6 +296,29 @@ test('the fade for less motion stands on its own, so the stage can leave it out'
   assert.doesNotMatch(RUNTIME, /prefers-reduced-motion|anim-fade/);
   assert.match(REDUCED, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(REDUCED, /:not\(\[data-anim-off\], \[data-anim-off\] > \*\)/);
+});
+
+test('no value the runtime reads is inherited, except by the children of children, from their parent', () => {
+  const read = new Set([...RUNTIME.matchAll(/var\((--anim-[a-z-]+)/g)].map((match) => match[1]));
+  const own = [...read].filter((name) => !['--anim-i', '--anim-flip'].includes(name));
+  const children = /\[data-anim="children"\] > :not\(\[data-anim\]\) \{([^}]*)\}/.exec(RUNTIME)?.[1] || '';
+
+  assert.ok(own.length > 20);
+
+  for (const name of own) {
+    assert.ok(RUNTIME.includes(`@property ${name} { syntax: "*"; inherits: false; }`), `${name} registered`);
+    assert.ok(children.includes(`${name}: inherit;`), `${name} passed to the children`);
+  }
+});
+
+test('the fade for less motion stands over the runtime, and the canvas reverts it with the same selector', () => {
+  const selector = (css) => /\n\s*(:is\([^{]+\))\s*\{/.exec(css)?.[1];
+
+  assert.match(RUNTIME, /^@layer anim-runtime, anim-reduced;$/m);
+  assert.match(REDUCED, /@layer anim-reduced \{\s*@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(CANVAS_MOTION, /@layer anim-reduced \{[^}]*animation: revert-layer;/);
+  assert.ok(selector(REDUCED));
+  assert.equal(selector(CANVAS_MOTION), selector(REDUCED));
 });
 
 test('the timing placeholders are the runtime\'s own defaults', () => {

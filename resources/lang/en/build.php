@@ -69,7 +69,7 @@ return [
     'anim_repeat' => 'Play again',
     'anim_active' => 'Active on the page',
     'anim_stage_note' => 'plays when you change something',
-    'anim_reduced_note' => 'Your computer has Reduce motion on. The stage shows the motion as you set it. The canvas, and visitors with the same setting, see only a short fade.',
+    'anim_reduced_note' => 'Your computer has Reduce motion on. While this tab is open, the stage and the canvas show the motion as you set it. Visitors with the same setting see only a short fade.',
     'anim_effects' => 'Effects',
     'anim_add_effect' => 'Add effect',
     'anim_fx_opacity' => 'Opacity',
