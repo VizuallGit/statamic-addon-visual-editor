@@ -1,5 +1,5 @@
 /**
- * Container queries in Style — the demo.
+ * Container queries in Style.
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: nothing. Reads the DOM it is handed; writes nothing.
@@ -12,21 +12,111 @@
  * at a time.
  */
 
-/** Tailwind's own `--container-*` steps the row offers, widest first as the breakpoints are. */
-export const CONTAINER_SIZES = [
-  { key: '3xl', rem: 48 },
-  { key: 'xl', rem: 36 },
-  { key: 'md', rem: 28 },
-  { key: 'xs', rem: 20 },
-];
+/** Tailwind v4's default `--container-*` scale, in rem, narrowest first. */
+export const CONTAINER_SCALE = {
+  '3xs': 16,
+  '2xs': 18,
+  xs: 20,
+  sm: 24,
+  md: 28,
+  lg: 32,
+  xl: 36,
+  '2xl': 42,
+  '3xl': 48,
+  '4xl': 56,
+  '5xl': 64,
+  '6xl': 72,
+  '7xl': 80,
+};
 
-const CONTAINER_VARIANT = /^@max-(?:[a-z0-9]+|\[[^\]]+\])$/;
+/** The steps the row offers, widest first as the breakpoints are. */
+export const CONTAINER_SIZES = ['3xl', 'xl', 'md', 'xs'].map((key) => ({ key, rem: CONTAINER_SCALE[key] }));
+
+// `@container` and `@container/name` are the utility, not a variant.
+const CONTAINER_VARIANT = /^@(?!container(?:$|\/))(?:(?:min|max)-)?(?:[a-z0-9]+|\[[^\]]+\])(?:\/[\w-]+)?$/;
+const CONTAINER_LENGTH = /^@(?:(?:min|max)-)?(?:([a-z0-9]+)|\[(\d*\.?\d+)(?:rem|em)\])(?:\/[\w-]+)?$/;
+const CUSTOM_LENGTH = /^\d+(\.\d+)?(rem|em)$/;
 
 /** `md` → `@max-md`: under the size, as the breakpoints are desktop-first. */
 export const containerVariant = (key) => `@max-${key}`;
 
-/** A container size variant (`@max-md`, `@max-[30rem]`), not a screen size or a state. */
+/**
+ * A container size variant — `@max-md`, `@max-[30rem]`, `@md`, `@min-[30rem]`,
+ * `@max-md/card` — not a screen size or a state.
+ */
 export const isContainerVariant = (part) => CONTAINER_VARIANT.test(String(part || ''));
+
+/**
+ * The rem a container variant names: `@max-md` → 28, `@max-[30rem]` → 30,
+ * `@max-[22.5em]` → 22.5, or null. An `em` is ordered as a `rem`: the query
+ * itself measures it in the container's font size, which only the canvas knows.
+ */
+export function containerRem(variant) {
+  const m = CONTAINER_LENGTH.exec(String(variant || ''));
+
+  if (!m) {
+    return null;
+  }
+
+  return m[1] ? CONTAINER_SCALE[m[1]] ?? null : Number(m[2]);
+}
+
+/** The length a container variant is under, as written: `@max-xl` → `36rem`, `@max-[22.5em]` → `22.5em`. */
+export function containerLength(variant) {
+  const arbitrary = /\[([^\]]+)\]/.exec(String(variant || ''));
+
+  if (arbitrary) {
+    return arbitrary[1];
+  }
+
+  const rem = containerRem(variant);
+
+  return rem === null ? '' : `${rem}rem`;
+}
+
+/**
+ * The named sizes wider than a `@max-*` size, nearest first: what a class
+ * reads through, desktop-first, before All's. Wider arbitrary sizes are not
+ * in it — only the classes the element has could name them.
+ */
+export function widerContainerSizes(variant) {
+  const rem = /^@max-[^/]+$/.test(String(variant || '')) ? containerRem(variant) : null;
+
+  if (rem === null) {
+    return [];
+  }
+
+  return Object.entries(CONTAINER_SCALE)
+    .filter(([, size]) => size > rem)
+    .map(([key]) => containerVariant(key));
+}
+
+/** A size typed for the row (`30rem`) as its variant, or null. Only rem or em: px does not follow the reader's text size. */
+export function customContainerVariant(text) {
+  const value = String(text || '').trim();
+
+  return CUSTOM_LENGTH.test(value) ? `@max-[${value}]` : null;
+}
+
+/** The arbitrary sizes (`@max-[30rem]`) a list of classes already writes under, in the order met. */
+export function customSizesIn(classes) {
+  const found = new Set();
+
+  for (const name of classes || []) {
+    for (const m of String(name).matchAll(/(?:^|:)(@max-\[[^\]]+\])(?=:)/g)) {
+      found.add(m[1]);
+    }
+  }
+
+  return [...found];
+}
+
+/**
+ * The container size a new pick keeps. A size asks the pick's own size
+ * container, so a pick outside one gives it up; a pick inside one — the same
+ * or another — keeps it.
+ */
+export const containerSizeOnPick = (variant, el) => (variant && sizeContainerOf(el) ? variant : '');
 
 /**
  * The container a size query on `el` asks: its nearest ancestor whose

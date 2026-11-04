@@ -2,7 +2,7 @@
  * What a designer types into a Style field, as the Tailwind class for it.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: tw-parse.js. Pure — no editor, no bus, no DOM.
+ * May import: tw-parse.js, container-query.js. Pure — no editor, no bus, no DOM.
  * Bus messages: none.
  *
  * Everything else about classes is the dock's: which family a class belongs
@@ -20,6 +20,7 @@
  */
 
 import { splitClass, splitUtility, tokenizeClassValue } from '../tw-parse.js';
+import { widerContainerSizes } from './container-query.js';
 
 const COLOR_LITERAL = /^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|color-mix\()/i;
 
@@ -252,14 +253,15 @@ export function sideFallbackTools(box, toolId) {
  * tw-classes.js writes the two in (`max-md:hover`).
  *
  * A container size (`@max-md`, Style's container row — container-query.js)
- * stands where a size handle does and reads its own classes, then All's.
+ * stands where a size handle does, desktop-first too: its own classes, then
+ * the wider named sizes nearest first (`@max-lg`, `@max-xl` …), then All's.
  */
 export function variantChain(rows, handle, state = '') {
   const list = Array.isArray(rows) ? rows : [];
   const cascade = list[0]?.direction === 'mobile' ? [...list].reverse() : list;
   const at = handle ? cascade.findIndex((row) => row.handle === handle) : -1;
   const sizes = String(handle || '').startsWith('@')
-    ? [handle, '']
+    ? [handle, ...widerContainerSizes(handle), '']
     : at === -1
       ? ['']
       : cascade

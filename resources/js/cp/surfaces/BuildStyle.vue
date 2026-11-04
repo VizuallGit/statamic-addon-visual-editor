@@ -36,7 +36,7 @@ import BuildGapAxis from './BuildGapAxis.vue';
 import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { BUILD_KIDS, GRID_GAP, GRID_PRESETS, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
-import { CONTAINER_SIZES, containerVariant } from '../../build-mode/container-query.js';
+import { containerLength, isContainerVariant } from '../../build-mode/container-query.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape, presetOf, presetTooSmall } from '../../build-mode/grid.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
@@ -94,10 +94,10 @@ const stateNow = computed(() => (port.rev.value, port.state()));
 const deviceIcon = (name) => (name === 'all' ? ic('sidesAll') : port.lists.deviceIcons?.[name] || '');
 
 const sizeHint = computed(() => {
-  const container = CONTAINER_SIZES.find((size) => containerVariant(size.key) === sizeNow.value);
+  const container = isContainerVariant(sizeNow.value) ? containerLength(sizeNow.value) : '';
 
   if (container) {
-    const under = port.t('container_under', { size: `${container.rem}rem` });
+    const under = port.t('container_under', { size: container });
     const what = stateNow.value ? port.t('size_hint_state', { size: under, state: stateNow.value }) : under;
 
     return port.t('size_hint_container', { size: `<b>${what}</b>` });
@@ -618,28 +618,30 @@ function jump(group) {
         </div>
       </div>
       <BuildContainerRow v-if="containerTools" :path="node.path" />
-      <div class="fg-line">
+      <div class="fg-line fg-line--size">
         <p class="fg-hint" v-html="sizeHint"></p>
-        <button
-          v-if="containerTools"
-          type="button"
-          class="fg-state"
-          :class="{ 'is-set': isContainer }"
-          :aria-pressed="isContainer"
-          :disabled="!containerBare"
-          :title="port.t(containerBare ? 'container_title' : 'container_title_bare')"
-          data-sve-build-container-toggle
-          @click="port.setClass('@container')"
-        ><span>{{ port.t('container') }}</span></button>
-        <button
-          ref="stateBtn"
-          type="button"
-          class="fg-state"
-          :class="{ 'is-set': !!stateNow }"
-          :title="port.t('state_title')"
-          data-sve-build-state
-          @click="port.openStateMenu(stateBtn)"
-        ><span>{{ stateNow || port.t('state') }}</span><span v-html="ic('chev')"></span></button>
+        <span class="fg-line__tools">
+          <button
+            v-if="containerTools"
+            type="button"
+            class="fg-state"
+            :class="{ 'is-set': isContainer }"
+            :aria-pressed="isContainer"
+            :disabled="!containerBare"
+            :title="port.t(!containerBare ? 'container_title_bare' : isContainer ? 'container_title_remove' : 'container_title')"
+            data-sve-build-container-toggle
+            @click="port.setClass('@container')"
+          ><span>{{ port.t(isContainer ? 'container_set' : 'container') }}</span></button>
+          <button
+            ref="stateBtn"
+            type="button"
+            class="fg-state"
+            :class="{ 'is-set': !!stateNow }"
+            :title="port.t('state_title')"
+            data-sve-build-state
+            @click="port.openStateMenu(stateBtn)"
+          ><span>{{ stateNow || port.t('state') }}</span><span v-html="ic('chev')"></span></button>
+        </span>
       </div>
 
       <div class="fg-jump">

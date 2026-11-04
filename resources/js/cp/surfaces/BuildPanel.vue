@@ -841,6 +841,11 @@ onBeforeUnmount(() => {
 .sve-build .fg-classpick__rows button:hover { background: var(--bm-hover); }
 .sve-build .fg-line { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
 .sve-build .fg-line > :first-child { flex: 1; min-width: 0; }
+.sve-build .fg-line--size { flex-wrap: wrap; row-gap: 0.25rem; }
+.sve-build .fg-line--size > .fg-hint { flex: 1 1 8rem; }
+.sve-build .fg-line__tools { display: flex; flex: none; gap: 0.375rem; margin-inline-start: auto; }
+.sve-build .fg-line__tools .fg-state { white-space: nowrap; }
+.sve-build [data-sve-build-container] [data-now]::after { content: ''; flex: none; width: 0.3rem; height: 0.3rem; border-radius: 50%; background: var(--bm-accent-text); }
 .sve-build .fg-sizes .fg-fit button { flex: 1 0 auto; padding-inline: 0.625rem; font-size: 0.6875rem; }
 .sve-build .fg-sizes button span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .sve-build .fg-sizes button span:first-child { display: inline-flex; flex: none; }

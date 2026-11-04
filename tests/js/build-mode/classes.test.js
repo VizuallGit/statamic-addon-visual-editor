@@ -134,9 +134,25 @@ test('a state reads its own classes at every size first, then the sizes without 
   assert.deepEqual(variantChain(ROWS, null, 'prose-p'), ['prose-p', '']);
 });
 
-test('a container size reads its own classes, then All — with a state, the state first', () => {
-  assert.deepEqual(variantChain(ROWS, '@max-md'), ['@max-md', '']);
-  assert.deepEqual(variantChain(ROWS, '@max-[30rem]', 'hover'), ['@max-[30rem]:hover', 'hover', '@max-[30rem]', '']);
+test('a container size reads its own classes, the wider named sizes nearest first, then All — with a state, the state first', () => {
+  const wider = ['@max-lg', '@max-xl', '@max-2xl', '@max-3xl', '@max-4xl', '@max-5xl', '@max-6xl', '@max-7xl'];
+
+  assert.deepEqual(variantChain(ROWS, '@max-md'), ['@max-md', ...wider, '']);
+  assert.deepEqual(variantChain(ROWS, '@max-6xl'), ['@max-6xl', '@max-7xl', '']);
+  assert.deepEqual(variantChain(ROWS, '@max-[30rem]'), ['@max-[30rem]', ...wider, '']);
+  assert.deepEqual(variantChain(ROWS, '@max-6xl', 'hover'), ['@max-6xl:hover', '@max-7xl:hover', 'hover', '@max-6xl', '@max-7xl', '']);
+
+  const propertyOf = (name) => (name.startsWith('pt-') ? 'padding-top' : '');
+
+  assert.deepEqual(
+    effectiveClass('pt-2 @max-xl:pt-6 @max-[30rem]:pt-1', ['padding-top'], variantChain(ROWS, '@max-md'), propertyOf),
+    { raw: '@max-xl:pt-6', key: '@max-xl', name: 'pt-6', property: 'padding-top', inherited: true }
+  );
+});
+
+test('a container size with a state, and an arbitrary one, keep the state first', () => {
+  assert.deepEqual(variantChain(ROWS, '@max-[30rem]', 'hover').slice(0, 2), ['@max-[30rem]:hover', '@max-lg:hover']);
+  assert.deepEqual(variantChain(ROWS, '@max-[30rem]', 'hover').slice(-2), ['@max-7xl', '']);
 
   const propertyOf = (name) => (name.startsWith('pbs-') ? 'padding-block-start' : '');
 

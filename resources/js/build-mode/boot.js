@@ -106,7 +106,7 @@ import {
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
-import { tokenizeClassValue } from '../tw-parse.js';
+import { splitClass, splitUtility, tokenizeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
@@ -114,7 +114,7 @@ import { flowAt, siteFlowSpaces, siteReadsFlow } from './flow.js';
 import { loadClassDefs } from '../dock/class-defs.js';
 import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
-import { contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
+import { containerLength, containerSizeOnPick, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
@@ -322,6 +322,22 @@ export function createEditorPort(win, hooks = {}) {
   };
 
   /*
+   * A pick: a container size asks the picked element's size container, so a
+   * pick outside one gives the size up before Style shows it. Only on a pick —
+   * the canvas repaints after every write, and a read mid-paint finds none.
+   */
+  const selected = () => {
+    const size = twContainerSize();
+    const path = hooks.selectedPath?.() || '';
+
+    if (size && !containerSizeOnPick(size, path ? canvas?.elementAt(path) : null)) {
+      twSetContainerSize(win, '');
+    }
+
+    follow();
+  };
+
+  /*
    * The file changed, so where the picked tag starts may have too. Style and its
    * list read the file through those offsets (tw-classes.js), so they are found
    * again after every change, wherever it came from. Typed in the dock, the tag
@@ -353,7 +369,7 @@ export function createEditorPort(win, hooks = {}) {
       twRefresh(win);
       bump();
     }),
-    hooks.onSelect?.(follow),
+    hooks.onSelect?.(selected),
     listen(win.document, 'click', (event) => {
       // A row of the HTML tree clicked: the element, as a click on the canvas.
       // Its buttons (eye, lock, delete) stop their own click on the way.
@@ -1103,14 +1119,21 @@ export function createEditorPort(win, hooks = {}) {
      * What the picked element shows for a field's property, and the field's
      * hover. `own` is the text of a class the field has; without one, `grey` is
      * the value to show in its place, and `raw` the value as the browser has it.
+     * `inheritedKey` is the variant key `own` was inherited from (`@max-xl`), if it was.
      */
-    seen(property, scaleProperty, own = '') {
+    seen(property, scaleProperty, own = '', inheritedKey = '') {
       const read = shown.read(property, scaleProperty || property, (name) => fromClass(name, rootFor(name, port.scale(scaleProperty || property))));
 
       if (!read) {
         return null;
       }
 
+      // A value from a container size names it: `from under 36rem`.
+      const under = (variants) => {
+        const size = variants.find((part) => part.startsWith('@max-') && isContainerVariant(part));
+
+        return size ? port.t('value_seen_container', { size: containerLength(size) }) : '';
+      };
       const source = () => {
         // `p-500` sets padding-top too: a class counts for the property it sets and the sides under it.
         const sets = (one) => !!one && (one === property || one === scaleProperty || property.startsWith(`${one}-`) || String(scaleProperty).startsWith(`${one}-`));
@@ -1120,13 +1143,23 @@ export function createEditorPort(win, hooks = {}) {
           return port.t('value_seen_class', { name: from });
         }
 
+        // The element's own `@max-md:` class for the property, holding at the container's width now, is no site CSS.
+        const sized = tokenizeClassValue(port.pickedClasses().join(' '))
+          .filter((tok) => !tok.dynamic)
+          .map((tok) => splitClass(tok.text))
+          .find(({ variants, base }) => under(variants) && sets(port.propertyOf(splitUtility(base).name)));
+
+        if (sized) {
+          return under(sized.variants);
+        }
+
         return port.t(!inherits(property) ? 'value_seen_css' : read.token ? 'value_seen_theme' : 'value_seen_inherited');
       };
 
       return {
         grey: own ? '' : read.words,
         raw: read.value,
-        tip: own || read.words ? hoverText(property, own || read.words, read.value, { rootPx: read.rootPx, source: own ? '' : source() }) : '',
+        tip: own || read.words ? hoverText(property, own || read.words, read.value, { rootPx: read.rootPx, source: own ? under(String(inheritedKey).split(':')) : source() }) : '',
       };
     },
     /** The colour a class paints with — the dot the Tailwind pane's menu draws beside it. */

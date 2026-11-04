@@ -107,7 +107,7 @@ const seen = computed(() => {
   port.rev.value;
   port.painted?.value;
 
-  return port.seen?.(property.value, scaleProperty.value, current.value ? display(shown.value) : '') || null;
+  return port.seen?.(property.value, scaleProperty.value, current.value ? display(shown.value) : '', current.value?.inherited ? current.value.key : '') || null;
 });
 const grey = computed(() => (current.value ? '' : seen.value?.grey || ''));
 /* CSS mode only (build-mode/css-mode/port.js): a value from a field shows as the field. */

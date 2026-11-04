@@ -168,9 +168,11 @@ function variantKey() {
  * the arbitrary `max-[900px]` a self-chosen boundary has to be written as —
  * Tailwind's scale has five steps, and a site's list need not land on them.
  * A container size (`@max-md`, `twSetContainerSize`) takes the same slot, so
- * it groups and filters the same way.
+ * it groups and filters the same way — and so does one written by hand:
+ * `@md`, `@min-[30rem]`, `@max-md/card` (build-mode/container-query.js
+ * `isContainerVariant`). `@container` itself is a class, not a size.
  */
-const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$|^@max-(?:[a-z0-9]+|\[[^\]]+\])$/;
+const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$|^@(?!container(?:$|\/))(?:(?:min|max)-)?(?:[a-z0-9]+|\[[^\]]+\])(?:\/[\w-]+)?$/;
 
 /** The screen size a group belongs to — `max-lg:hover` belongs to `max-lg`. */
 function groupBp(key) {
