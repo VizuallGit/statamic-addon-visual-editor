@@ -170,3 +170,90 @@ test('MORPH_OPTIONS.updating keeps the bridge\'s component marks on the server\'
   // Text nodes carry no attributes and must pass through untouched.
   assert.doesNotThrow(() => MORPH_OPTIONS.updating({ nodeType: 3, nodeName: '#text' }, { nodeType: 3, nodeName: '#text' }));
 });
+
+/** An element whose attribute list follows set/remove, as a DOM node's does. */
+function node(attrs, shown) {
+  const el = {
+    nodeType: 1,
+    nodeName: 'P',
+    attrs,
+    get attributes() {
+      return Object.entries(attrs).map(([name, value]) => ({ name, value }));
+    },
+    hasAttribute(name) {
+      return name in attrs;
+    },
+    setAttribute(name, value) {
+      attrs[name] = value;
+    },
+    removeAttribute(name) {
+      delete attrs[name];
+    },
+  };
+
+  if (shown !== undefined) {
+    el._x_isShown = shown;
+  }
+
+  return el;
+}
+
+test('an x-show the element gains is held off the server node while the attributes go across, then set on the live node', () => {
+  const live = node({ 'data-sve-ht-path': '0:p' });
+  const server = node({ 'x-show': 'tab === 1', role: 'tabpanel' });
+
+  MORPH_OPTIONS.updating(live, server);
+  // Alpine.cloneNode would now run the server node's directives: there is no x-show to run.
+  assert.deepEqual(server.attrs, { role: 'tabpanel' });
+  assert.equal(live.hasAttribute('x-show'), false);
+
+  MORPH_OPTIONS.updated(live, server);
+  assert.equal(live.attrs['x-show'], 'tab === 1');
+
+  // Modifiers are the same directive.
+  const important = node({ 'x-show.important': 'open' });
+  const plain = node({});
+  MORPH_OPTIONS.updating(plain, important);
+  assert.deepEqual(important.attrs, {});
+  MORPH_OPTIONS.updated(plain, important);
+  assert.deepEqual(plain.attrs, { 'x-show.important': 'open' });
+});
+
+test('an x-show on both sides is left to the morph', () => {
+  const live = node({ 'x-show': 'tab === 1' }, true);
+  const server = node({ 'x-show': 'tab === 2', role: 'tabpanel' });
+
+  MORPH_OPTIONS.updating(live, server);
+  assert.deepEqual(server.attrs, { 'x-show': 'tab === 2', role: 'tabpanel' });
+  assert.equal(server._x_isShown, undefined);
+
+  MORPH_OPTIONS.updated(live, server);
+  assert.equal(live._x_isShown, true);
+});
+
+test('an x-show the element loses: the server node takes the live shown-state for the comparison, and the state goes with the attribute', () => {
+  const live = node({ 'x-show': 'tab === 1', class: 'a' }, true);
+  const server = node({ class: 'a2' });
+
+  MORPH_OPTIONS.updating(live, server);
+  assert.equal(server._x_isShown, true);
+
+  // The morph's own diff has now taken x-show off the live node.
+  live.removeAttribute('x-show');
+  MORPH_OPTIONS.updated(live, server);
+  assert.equal('_x_isShown' in live, false);
+
+  // A hidden one the same way.
+  const hidden = node({ 'x-show': 'tab === 2' }, false);
+  const bare = node({});
+  MORPH_OPTIONS.updating(hidden, bare);
+  assert.equal(bare._x_isShown, false);
+
+  // An element that never had x-show gets no state.
+  const plainLive = node({ class: 'x' });
+  const plainServer = node({ class: 'y' });
+  MORPH_OPTIONS.updating(plainLive, plainServer);
+  assert.equal('_x_isShown' in plainServer, false);
+  MORPH_OPTIONS.updated(plainLive, plainServer);
+  assert.equal('_x_isShown' in plainLive, false);
+});
