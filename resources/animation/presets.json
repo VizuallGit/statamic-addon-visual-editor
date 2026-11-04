@@ -1,0 +1,33 @@
+[
+  { "handle": "fade", "group": "fade", "label_da": "Fade", "label_en": "Fade", "vars": { "--anim-opacity": "0" } },
+  { "handle": "fade-up", "group": "fade", "label_da": "Fade op", "label_en": "Fade up", "vars": { "--anim-opacity": "0", "--anim-y": "2rem" } },
+  { "handle": "fade-down", "group": "fade", "label_da": "Fade ned", "label_en": "Fade down", "vars": { "--anim-opacity": "0", "--anim-y": "-2rem" } },
+  { "handle": "fade-left", "group": "fade", "label_da": "Fra venstre", "label_en": "From the left", "vars": { "--anim-opacity": "0", "--anim-x": "-2rem" } },
+  { "handle": "fade-right", "group": "fade", "label_da": "Fra højre", "label_en": "From the right", "vars": { "--anim-opacity": "0", "--anim-x": "2rem" } },
+
+  { "handle": "slide-up", "group": "slide", "label_da": "Slide op", "label_en": "Slide up", "vars": { "--anim-opacity": "0", "--anim-y": "4rem", "--anim-ease": "cubic-bezier(.22, 1, .36, 1)" } },
+  { "handle": "slide-down", "group": "slide", "label_da": "Slide ned", "label_en": "Slide down", "vars": { "--anim-opacity": "0", "--anim-y": "-4rem", "--anim-ease": "cubic-bezier(.22, 1, .36, 1)" } },
+  { "handle": "slide-left", "group": "slide", "label_da": "Slide fra venstre", "label_en": "Slide from the left", "vars": { "--anim-opacity": "0", "--anim-x": "-4rem", "--anim-ease": "cubic-bezier(.22, 1, .36, 1)" } },
+  { "handle": "slide-right", "group": "slide", "label_da": "Slide fra højre", "label_en": "Slide from the right", "vars": { "--anim-opacity": "0", "--anim-x": "4rem", "--anim-ease": "cubic-bezier(.22, 1, .36, 1)" } },
+
+  { "handle": "zoom-in", "group": "zoom", "label_da": "Zoom ind", "label_en": "Zoom in", "vars": { "--anim-opacity": "0", "--anim-scale": ".85" } },
+  { "handle": "zoom-out", "group": "zoom", "label_da": "Zoom ud", "label_en": "Zoom out", "vars": { "--anim-opacity": "0", "--anim-scale": "1.15" } },
+  { "handle": "pop", "group": "zoom", "label_da": "Pop", "label_en": "Pop", "vars": { "--anim-opacity": "0", "--anim-scale": ".5", "--anim-ease": "cubic-bezier(.34, 1.56, .64, 1)" } },
+
+  { "handle": "blur", "group": "blur", "label_da": "Blur", "label_en": "Blur", "vars": { "--anim-opacity": "0", "--anim-blur": ".75rem" } },
+  { "handle": "blur-up", "group": "blur", "label_da": "Blur op", "label_en": "Blur up", "vars": { "--anim-opacity": "0", "--anim-blur": ".5rem", "--anim-y": "1.5rem" } },
+
+  { "handle": "tilt", "group": "rotate", "label_da": "Tilt", "label_en": "Tilt", "vars": { "--anim-opacity": "0", "--anim-rotate": "-6deg", "--anim-y": "1rem" } },
+  { "handle": "spin", "group": "rotate", "label_da": "Spin", "label_en": "Spin", "vars": { "--anim-opacity": "0", "--anim-rotate": "-180deg", "--anim-scale": ".5" } },
+  { "handle": "flip-up", "group": "rotate", "label_da": "Vip op", "label_en": "Flip up", "vars": { "--anim-opacity": "0", "--anim-rx": "60deg" } },
+  { "handle": "flip-in", "group": "rotate", "label_da": "Vend ind", "label_en": "Turn in", "vars": { "--anim-opacity": "0", "--anim-ry": "-90deg" } },
+
+  { "handle": "bounce", "group": "spring", "label_da": "Bounce", "label_en": "Bounce", "vars": { "--anim-opacity": "0", "--anim-scale": ".6", "--anim-ease": "linear(0, 0.127, 0.422, 0.761, 1.051, 1.237, 1.307, 1.283, 1.198, 1.093, 0.999, 0.935, 0.907, 0.909, 0.933, 0.965, 0.995, 1.017, 1.028, 1.029, 1.022, 1.013, 1.003, 0.996, 1)" } },
+  { "handle": "bounce-in", "group": "spring", "label_da": "Bounce ind", "label_en": "Bounce in", "vars": { "--anim-opacity": "0", "--anim-y": "3rem", "--anim-ease": "linear(0, 0.124, 0.394, 0.688, 0.928, 1.083, 1.153, 1.159, 1.127, 1.079, 1.034, 1, 0.98, 0.974, 0.976, 0.982, 0.99, 0.997, 1.002, 1.004, 1)" } },
+  { "handle": "drop", "group": "spring", "label_da": "Drop", "label_en": "Drop", "vars": { "--anim-y": "-4rem", "--anim-ease": "linear(0 0%, 0.019 5%, 0.076 10%, 0.17 15%, 0.303 20%, 0.473 25%, 0.681 30%, 0.926 35%, 0.999 36.4%, 0.91 40%, 0.819 45%, 0.766 50%, 0.75 54.5%, 0.75 55%, 0.772 60%, 0.833 65%, 0.931 70%, 0.999 72.7%, 0.973 75%, 0.94 80%, 0.938 81.8%, 0.945 85%, 0.988 90%, 1 90.9%, 0.985 95%, 0.984 95.5%, 1 100%)" } },
+
+  { "handle": "draw-up", "group": "reveal", "label_da": "Tegn op", "label_en": "Draw up", "vars": { "--anim-clip": "inset(100% 0 0 0)", "--anim-clip-to": "inset(0)", "--anim-ease": "cubic-bezier(.65, 0, .35, 1)" } },
+  { "handle": "draw-left", "group": "reveal", "label_da": "Tegn fra venstre", "label_en": "Draw from the left", "vars": { "--anim-clip": "inset(0 100% 0 0)", "--anim-clip-to": "inset(0)", "--anim-ease": "cubic-bezier(.65, 0, .35, 1)" } },
+  { "handle": "circle", "group": "reveal", "label_da": "Cirkel", "label_en": "Circle", "vars": { "--anim-clip": "circle(0% at 50% 50%)", "--anim-clip-to": "circle(72% at 50% 50%)", "--anim-ease": "cubic-bezier(.65, 0, .35, 1)" } },
+  { "handle": "curtain", "group": "reveal", "label_da": "Gardin", "label_en": "Curtain", "vars": { "--anim-clip": "inset(0 50%)", "--anim-clip-to": "inset(0)", "--anim-ease": "cubic-bezier(.65, 0, .35, 1)" } }
+]

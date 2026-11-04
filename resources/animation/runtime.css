@@ -1,0 +1,67 @@
+/*
+ * The animation runtime, pushed onto the page by {{ sve_animation }} once per
+ * page. An element says what it does with attributes the build panel writes:
+ *
+ *   data-anim="self | children"   the element, or its children one after another
+ *   data-anim-preset="fade-up"    a preset's --anim-* values (presets.json)
+ *   data-anim-on="view | load"    view: runtime.js holds it until it is seen
+ *   style="--anim-duration: …"    the element's own timing
+ *
+ * Only compositor properties move: opacity, translate, scale, rotate, filter,
+ * transform and clip-path.
+ */
+@keyframes anim-in {
+  from {
+    opacity: var(--anim-opacity, 1);
+    translate: calc(var(--anim-x, 0rem) * var(--anim-flip, 1)) var(--anim-y, 0rem);
+    scale: var(--anim-scale, 1);
+    rotate: var(--anim-rotate, 0deg);
+    filter: blur(var(--anim-blur, 0rem));
+    transform: perspective(60rem) rotateX(var(--anim-rx, 0deg)) rotateY(var(--anim-ry, 0deg));
+    clip-path: var(--anim-clip, none);
+  }
+
+  /* A clip-path only moves between two shapes of one kind: a reveal names where it ends. */
+  to {
+    clip-path: var(--anim-clip-to, none);
+  }
+}
+
+@keyframes anim-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+:is([data-anim="self"], [data-anim="children"] > *) {
+  animation: anim-in var(--anim-duration, 0.7s) var(--anim-ease, ease) backwards;
+  animation-delay: calc(var(--anim-delay, 0s) + var(--anim-step, 0.07s) * pow(var(--anim-i, 0), var(--anim-step-curve, 1)));
+}
+
+[data-anim="children"] > :nth-child(2) { --anim-i: 1; }
+[data-anim="children"] > :nth-child(3) { --anim-i: 2; }
+[data-anim="children"] > :nth-child(4) { --anim-i: 3; }
+[data-anim="children"] > :nth-child(5) { --anim-i: 4; }
+[data-anim="children"] > :nth-child(6) { --anim-i: 5; }
+[data-anim="children"] > :nth-child(7) { --anim-i: 6; }
+[data-anim="children"] > :nth-child(8) { --anim-i: 7; }
+[data-anim="children"] > :nth-child(9) { --anim-i: 8; }
+[data-anim="children"] > :nth-child(10) { --anim-i: 9; }
+[data-anim="children"] > :nth-child(11) { --anim-i: 10; }
+[data-anim="children"] > :nth-child(n + 12) { --anim-i: 11; }
+
+/* Held until runtime.js sees it. Without the script nothing is held: the animation plays. */
+[data-anim="self"][data-anim-watch]:not([data-in-view]),
+[data-anim="children"][data-anim-watch]:not([data-in-view]) > * {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-anim="self"], [data-anim="children"] > *) {
+    animation: anim-fade 0.3s ease backwards;
+  }
+}
+
+:is([data-anim-off], [data-anim-off] > *) {
+  animation: none;
+}
