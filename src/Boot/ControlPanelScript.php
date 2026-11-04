@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Boot;
 use MarioHamann\StatamicVisualEditor\AiChat;
 use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\AiCopy;
+use MarioHamann\StatamicVisualEditor\AnimationPresets;
 use MarioHamann\StatamicVisualEditor\CollectionPresets;
 use MarioHamann\StatamicVisualEditor\RowLimits;
 use MarioHamann\StatamicVisualEditor\SetMeta;
@@ -119,6 +120,9 @@ final class ControlPanelScript
                 'sveHomePreview' => ScriptCollections::homePreview(),
                 'sveCollectionTemplatesCollection' => Stores::collectionTemplates(),
                 'sveCollectionPresets' => CollectionPresets::all(),
+                // The site's own animation presets, under My presets in
+                // Build's Animation tab (build-mode/animation-presets.js).
+                'sveAnimationPresets' => AnimationPresets::all(),
                 // The one breakpoint list: Live Preview's device buttons, the
                 // responsive field, the Tailwind row and the CSS panel all
                 // read this and can never disagree about where a size ends.

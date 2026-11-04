@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiCopyController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiTabsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\AnimationPresetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BreakpointsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
@@ -353,6 +354,12 @@ final class EditorRoutes
 
             Route::post('/!/sve/collection-presets/apply', CollectionPresetController::class)
                 ->name('sve.collection-presets.apply');
+
+            // The Animation tab's own presets (resources/visual-editor/animations.yaml).
+            Route::post('/!/sve/animation-presets', [AnimationPresetController::class, 'store'])
+                ->name('sve.animation-presets.store');
+            Route::post('/!/sve/animation-presets/delete', [AnimationPresetController::class, 'destroy'])
+                ->name('sve.animation-presets.destroy');
 
             // The Templates board: every row, and filling one empty slot.
             Route::get('/!/sve/template-board', [TemplateBoardController::class, 'index'])

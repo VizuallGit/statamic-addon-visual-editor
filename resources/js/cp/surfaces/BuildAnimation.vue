@@ -17,9 +17,12 @@
  * A switch comes from Action: the trigger binds the nearest one in reach. The
  * canvas runs no Alpine, so there ▶ plays it as when the switch turns on.
  *
+ * «Save as preset» keeps the animation's look (its effects and curve, not its
+ * timing) under a name in the site's animations.yaml and puts the element on
+ * it; My presets lists them beside the library and in the preset list.
+ *
  * What the runtime cannot do yet (following the mouse, words one by one,
- * picking children, saved presets) stands as the canvas draws it and says so
- * when pressed.
+ * picking children) stands as the canvas draws it and says so when pressed.
  */
 import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PRESETS from '../../../animation/presets.json';
@@ -37,7 +40,9 @@ import {
   isChanged,
   missingEffects,
   newAnimation,
+  onPreset,
   ownValues,
+  presetLook,
   presetOf,
   presetRules,
   recipeAnimation,
@@ -52,6 +57,7 @@ import {
   withEffect,
   withVar,
 } from '../../build-mode/animation.js';
+import { deletePreset, ownPresets, savePreset } from '../../build-mode/animation-presets.js';
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
@@ -67,7 +73,9 @@ const t = (key) => port.t(key);
 const path = computed(() => props.node.path);
 const html = computed(() => (port.rev.value, port.html()));
 const anim = computed(() => animationOf(html.value, findByPath(parseTemplateTree(html.value), path.value)));
-const preset = computed(() => presetOf(PRESETS, anim.value?.preset));
+const own = ownPresets();
+const presets = computed(() => [...PRESETS, ...own.value]);
+const preset = computed(() => presetOf(presets.value, anim.value?.preset));
 const label = (p) => (p ? p[t('anim_label')] : '');
 const decimal = computed(() => t('anim_decimal'));
 
@@ -155,7 +163,7 @@ const TILES = [
   { key: 'mouse', word: 'anim_r_mouse', later: true, art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
 ];
 
-const GROUPS = groupPresets(PRESETS);
+const groups = computed(() => groupPresets(presets.value));
 const plays = computed(() => !!anim.value && timed(anim.value.target));
 
 /** The chip's and the editor's name: a recipe's own, else what the element or its children do. */
@@ -226,6 +234,71 @@ function useTile(tile) {
   }
 
   open.value = true;
+}
+
+/* ---------------- My presets ---------------- */
+
+const mineOpen = ref(false);
+/** The × asked to delete `handle`; `used` once the server has said how many templates still name it. */
+const dropping = ref(null);
+
+/** An own preset, as the preset list sets one: on an animation that plays in time, else on the element in. */
+function useOwn(p) {
+  write(plays.value ? onPreset(anim.value, p.handle) : newAnimation(p.handle, 'self'));
+  open.value = true;
+}
+
+async function dropOwn(p) {
+  const done = await deletePreset(p.handle, !!dropping.value?.used);
+
+  if (done?.used) {
+    dropping.value = { handle: p.handle, used: done.used };
+  } else {
+    dropping.value = null;
+    port.toast(done ? 'success' : 'error', done ? 'anim_mine_deleted' : 'anim_mine_failed');
+  }
+}
+
+/* «Save as preset»: the name typed in the editor's foot, then the element on the new preset. */
+const naming = ref(false);
+const newName = ref('');
+const saving = ref(false);
+const nameInput = ref(null);
+
+function startNaming() {
+  if (!Object.keys(presetLook(anim.value, preset.value)).length) {
+    port.toast('info', 'anim_save_nothing');
+
+    return;
+  }
+
+  newName.value = '';
+  naming.value = true;
+  nextTick(() => nameInput.value?.focus());
+}
+
+async function saveLook() {
+  const name = newName.value.trim();
+
+  if (!name || saving.value) {
+    return;
+  }
+
+  saving.value = true;
+
+  const saved = await savePreset(name, presetLook(anim.value, preset.value));
+
+  saving.value = false;
+
+  if (!saved) {
+    port.toast('error', 'anim_save_failed');
+
+    return;
+  }
+
+  naming.value = false;
+  write(onPreset(anim.value, saved.handle));
+  port.toast('success', 'anim_saved');
 }
 
 function canvasEl() {
@@ -336,18 +409,20 @@ watch(() => JSON.stringify(anim.value), () => {
 
 const stageStyle = computed(() => Object.fromEntries(ownValues(anim.value)));
 
-/** runtime.css and a rule per preset, as {{ sve_animation }} pushes them onto the page, once in the Control Panel for the stage. */
+/** runtime.css and a rule per preset, as {{ sve_animation }} pushes them onto the page, in the Control Panel for the stage; again when My presets change. */
 function stageSheet() {
-  if (document.getElementById('sve-anim-stage-css')) {
-    return;
+  let sheet = document.getElementById('sve-anim-stage-css');
+
+  if (!sheet) {
+    sheet = document.createElement('style');
+    sheet.id = 'sve-anim-stage-css';
+    document.head.appendChild(sheet);
   }
 
-  const sheet = document.createElement('style');
-
-  sheet.id = 'sve-anim-stage-css';
-  sheet.textContent = `${RUNTIME_CSS}\n${presetRules(PRESETS)}`;
-  document.head.appendChild(sheet);
+  sheet.textContent = `${RUNTIME_CSS}\n${presetRules(presets.value)}`;
 }
+
+watch(own, stageSheet);
 
 const lessMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = ref(lessMotion.matches);
@@ -582,6 +657,7 @@ watch(open, (now) => {
   if (!now) {
     curveOpen.value = false;
     addMenu.value = false;
+    naming.value = false;
   }
 });
 
@@ -598,6 +674,8 @@ const onKey = (event) => {
     menu.value = false;
   } else if (addMenu.value) {
     addMenu.value = false;
+  } else if (naming.value) {
+    naming.value = false;
   } else if (curveOpen.value) {
     curveOpen.value = false;
   } else {
@@ -819,7 +897,28 @@ const Num = defineComponent({
         </button>
       </div>
       <div class="bm-anim-mine">
-        <button type="button" class="bm-anim-btn" data-sve-build-anim-mine @click="soon">{{ t('anim_mine') }} · 0</button>
+        <button type="button" class="bm-anim-btn" :aria-expanded="mineOpen" data-sve-build-anim-mine @click="mineOpen = !mineOpen">{{ t('anim_mine') }} · {{ own.length }}</button>
+      </div>
+      <div v-if="mineOpen" class="bm-anim-own" data-sve-build-anim-own-list>
+        <p v-if="!own.length" class="bm-anim-hint">{{ t('anim_mine_empty') }}</p>
+        <div v-for="p in own" :key="p.handle" class="bm-anim-own__row" :data-sve-build-anim-own="p.handle">
+          <button type="button" class="bm-anim-own__use" :aria-pressed="anim?.preset === p.handle" @click="useOwn(p)">{{ label(p) }}</button>
+          <template v-if="dropping?.handle === p.handle">
+            <span v-if="dropping.used" class="bm-anim-own__used">{{ port.t('anim_mine_used', { n: dropping.used }) }}</span>
+            <button type="button" class="bm-anim-own__sure" data-sve-build-anim-own-sure @click="dropOwn(p)">{{ t(dropping.used ? 'anim_mine_delete_anyway' : 'anim_mine_delete') }}</button>
+            <button type="button" class="bm-anim-own__x" :aria-label="t('anim_cancel')" @click="dropping = null" v-html="icon('x', 12)"></button>
+          </template>
+          <button
+            v-else
+            type="button"
+            class="bm-anim-own__x"
+            :aria-label="t('anim_mine_delete')"
+            :title="t('anim_mine_delete')"
+            data-sve-build-anim-own-delete
+            @click="dropping = { handle: p.handle, used: 0 }"
+            v-html="icon('trash', 12)"
+          ></button>
+        </div>
       </div>
     </section>
 
@@ -894,7 +993,7 @@ const Num = defineComponent({
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
                   <select :value="anim.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
                     <option v-if="!anim.preset" value="" disabled>{{ t('anim_own') }}</option>
-                    <optgroup v-for="[group, list] in GROUPS" :key="group" :label="t(`anim_group_${group}`)">
+                    <optgroup v-for="[group, list] in groups" :key="group" :label="t(`anim_group_${group}`)">
                       <option v-for="p in list" :key="p.handle" :value="p.handle">{{ label(p) }}</option>
                     </optgroup>
                   </select>
@@ -1046,9 +1145,28 @@ const Num = defineComponent({
             </template>
           </section>
 
-          <section class="bm-anim-block bm-anim-foot">
+          <section v-if="naming" class="bm-anim-block bm-anim-naming" data-sve-build-anim-naming>
+            <div class="bm-anim-head"><span>{{ t('anim_save_preset') }}</span></div>
+            <p class="bm-anim-hint">{{ t('anim_save_note') }}</p>
+            <input
+              ref="nameInput"
+              v-model="newName"
+              class="bm-anim-name"
+              type="text"
+              :maxlength="40"
+              :placeholder="t('anim_preset_name')"
+              :aria-label="t('anim_preset_name')"
+              data-sve-build-anim-name
+              @keydown.enter.prevent="saveLook"
+            />
+            <div class="bm-anim-foot">
+              <button type="button" class="bm-anim-btn" @click="naming = false">{{ t('anim_cancel') }}</button>
+              <button type="button" class="bm-anim-btn is-primary" :disabled="!newName.trim() || saving" data-sve-build-anim-save-confirm @click="saveLook">{{ t('anim_save') }}</button>
+            </div>
+          </section>
+          <section v-else class="bm-anim-block bm-anim-foot">
             <button v-if="playable" type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
-            <button v-if="plays" type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="soon">{{ t('anim_save_preset') }}</button>
+            <button v-if="plays" type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{ t('anim_save_preset') }}</button>
           </section>
         </div>
       </div>
@@ -1208,11 +1326,23 @@ const Num = defineComponent({
 .sve-build .bm-anim-tile.is-later:hover { background: var(--bm-raise); }
 .sve-build .bm-anim-mine { display: flex; justify-content: center; margin-top: 0.125rem; }
 
+/* My presets: a row each, its × asking first */
+.sve-build .bm-anim-own { display: flex; flex-direction: column; gap: 0.125rem; }
+.sve-build .bm-anim-own__row { display: flex; align-items: center; gap: 0.375rem; min-height: 1.625rem; padding: 0 0.25rem 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); }
+.sve-build .bm-anim-own__use { flex: 1; min-width: 0; padding: 0.3125rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+.sve-build .bm-anim-own__use:hover { color: var(--bm-ink); text-decoration: underline; }
+.sve-build .bm-anim-own__use[aria-pressed='true'] { color: var(--bm-accent); font-weight: 600; }
+.sve-build .bm-anim-own__used { color: var(--bm-faint); font-size: 0.625rem; white-space: nowrap; }
+.sve-build .bm-anim-own__sure { padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.625rem; font-weight: 600; white-space: nowrap; }
+.sve-build .bm-anim-own__x { display: flex; padding: 0.25rem; color: var(--bm-faint); }
+.sve-build .bm-anim-own__x:hover { color: var(--bm-ink); }
+
 /* SmallBtn */
 .sve-build .bm-anim-btn { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.625rem; padding: 0 0.625rem; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
 .sve-build .bm-anim-btn:hover { background: var(--bm-hover); }
 .sve-build .bm-anim-btn.is-primary { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-anim-btn.is-primary:hover { background: color-mix(in srgb, var(--bm-accent) 85%, #fff); }
+.sve-build .bm-anim-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Popover: the editor over the panel, the curve beside the editor (lib/beside.js) */
 .sve-build.bm-anim-pop { position: fixed; z-index: 99999; display: flex; flex-direction: column; width: 20rem; height: auto; max-height: calc(100vh - 1rem); border: 1px solid var(--bm-edge); border-radius: 0.75rem; box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45); overflow: hidden; }
@@ -1288,6 +1418,9 @@ const Num = defineComponent({
 .sve-build .bm-anim-note { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
 .sve-build .bm-anim-foot { flex-direction: row; justify-content: space-between; }
 .sve-build .bm-anim-foot:not(:has(> *)) { display: none; }
+.sve-build .bm-anim-naming .bm-anim-foot { display: flex; justify-content: flex-end; gap: 0.375rem; }
+.sve-build .bm-anim-name { height: 1.625rem; padding: 0 0.5rem; border: 0; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font: inherit; }
+.sve-build .bm-anim-name:focus { outline: 0.125rem solid var(--bm-accent); outline-offset: 1px; }
 .sve-build .bm-anim-hint { margin: 0; color: var(--bm-faint); font-size: 0.625rem; line-height: 1.45; }
 .sve-build .bm-anim-box code.bm-anim-box__val { font: 0.6875rem var(--bm-mono); }
 

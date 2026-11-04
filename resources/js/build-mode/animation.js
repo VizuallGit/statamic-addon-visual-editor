@@ -285,6 +285,50 @@ export function effectsOf(anim, preset) {
   }).filter(Boolean);
 }
 
+/** A saved preset's names: the effects, the 3D turns the editor does not list, and the curve. AnimationPresets.php keeps the same. */
+const TURNS = ['--anim-rx', '--anim-ry'];
+const LOOK = ['--anim-ease', ...EFFECTS.map((effect) => effect.name), '--anim-clip-to', ...TURNS];
+
+/**
+ * What «Save as preset» keeps: the animation's look as it stands, its own
+ * values over its preset's, never its timing. A clip keeps where it opens to;
+ * the runtime's own curve is left out.
+ */
+export function presetLook(anim, preset) {
+  const vars = {};
+
+  for (const effect of effectsOf(anim, preset)) {
+    vars[effect.name] = effect.raw;
+
+    if (effect.key === 'clip') {
+      vars['--anim-clip-to'] = valueOf(anim, preset, '--anim-clip-to') ?? 'inset(0)';
+    }
+  }
+
+  for (const name of TURNS) {
+    const value = valueOf(anim, preset, name);
+
+    if (value !== null) {
+      vars[name] = value;
+    }
+  }
+
+  const ease = valueOf(anim, preset, '--anim-ease');
+
+  if (ease !== null && ease !== 'ease') {
+    vars['--anim-ease'] = ease;
+  }
+
+  return vars;
+}
+
+/** The animation on a preset saved from it: the look is the preset's now, its other own values stay. */
+export function onPreset(anim, handle) {
+  const vars = Object.fromEntries(Object.entries(anim.vars || {}).filter(([name]) => !LOOK.includes(name)));
+
+  return { ...anim, preset: handle, vars };
+}
+
 /** The effects not in the list yet — the editor's "+" offers these. */
 export function missingEffects(anim, preset) {
   const shown = new Set(effectsOf(anim, preset).map((effect) => effect.key));

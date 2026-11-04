@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tags;
 
+use MarioHamann\StatamicVisualEditor\AnimationPresets;
 use MarioHamann\StatamicVisualEditor\ScriptPushStack;
 use MarioHamann\StatamicVisualEditor\StylePushStack;
 use Statamic\Tags\Tags;
@@ -15,7 +16,8 @@ use Statamic\Tags\Tags;
  * gets the runtime once however many sections ask for it.
  *
  * The files live in resources/animation/. presets.json is the one list of
- * presets, read here and by the build panel.
+ * the addon's presets, read here and by the build panel; the site's own,
+ * saved from the panel, come from AnimationPresets.
  */
 class SveAnimation extends Tags
 {
@@ -31,8 +33,8 @@ class SveAnimation extends Tags
 
     /**
      * runtime.css, reduced-motion.css and a `[data-anim-preset="…"]` rule for
-     * each preset, its values under `--anim-preset-*` — the build panel's
-     * presetRules() writes the same.
+     * each preset, the addon's and the site's own, its values under
+     * `--anim-preset-*` — the build panel's presetRules() writes the same.
      */
     public static function css(): string
     {
@@ -44,12 +46,16 @@ class SveAnimation extends Tags
             }
 
             return '[data-anim-preset="'.$preset['handle'].'"] { '.implode(' ', $vars).' }';
-        }, static::presets());
+        }, [...static::presets(), ...AnimationPresets::all()]);
 
         return static::file('runtime.css')."\n".static::file('reduced-motion.css')."\n".implode("\n", $rules);
     }
 
-    /** @return list<array{handle: string, group: string, label_da: string, label_en: string, vars: array<string, string>}> */
+    /**
+     * The addon's presets only.
+     *
+     * @return list<array{handle: string, group: string, label_da: string, label_en: string, vars: array<string, string>}>
+     */
     public static function presets(): array
     {
         return json_decode(static::file('presets.json'), true, 512, JSON_THROW_ON_ERROR);

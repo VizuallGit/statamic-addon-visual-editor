@@ -15,6 +15,8 @@ import {
   isChanged,
   missingEffects,
   newAnimation,
+  onPreset,
+  presetLook,
   presetName,
   presetOf,
   presetRules,
@@ -417,6 +419,47 @@ test('runtime.js copies a ticker\'s row once, out of reach of assistive technolo
   assert.match(js, /setAttribute\('aria-hidden', 'true'\)/);
   assert.match(js, /\.inert = true/);
   assert.match(js, /removeAttribute\('id'\)/);
+});
+
+test('a saved preset keeps the look as it stands, its own values over the preset\'s, never the timing', () => {
+  const fadeUp = presetOf(PRESETS, 'fade-up');
+  const anim = { ...newAnimation('fade-up'), duration: 1200, vars: { '--anim-y': '3rem', '--anim-step-curve': '1.5' } };
+
+  assert.deepEqual(presetLook(anim, fadeUp), { '--anim-opacity': '0', '--anim-y': '3rem' });
+  assert.deepEqual(presetLook({ ...anim, vars: { '--anim-opacity': '1' } }, fadeUp), { '--anim-y': '2rem' });
+  assert.deepEqual(presetLook(newAnimation('flip-up'), presetOf(PRESETS, 'flip-up')), { '--anim-opacity': '0', '--anim-rx': '60deg' });
+  assert.deepEqual(presetLook(newAnimation('circle'), presetOf(PRESETS, 'circle')), {
+    '--anim-clip': 'circle(0% at 50% 50%)',
+    '--anim-clip-to': 'circle(72% at 50% 50%)',
+    '--anim-ease': 'cubic-bezier(.65, 0, .35, 1)',
+  });
+  assert.deepEqual(presetLook({ ...newAnimation('fade-up'), vars: { '--anim-ease': 'ease' } }, fadeUp), { '--anim-opacity': '0', '--anim-y': '2rem' });
+});
+
+test('on the preset it was saved as, the element keeps only what is not the look', () => {
+  const anim = { ...newAnimation('fade-up', 'children'), duration: 900, vars: { '--anim-y': '3rem', '--anim-ease': 'ease-out', '--anim-step-curve': '1.5' } };
+  const next = onPreset(anim, 'my-soft-rise');
+
+  assert.equal(next.preset, 'my-soft-rise');
+  assert.equal(next.duration, 900);
+  assert.equal(next.target, 'children');
+  assert.deepEqual(next.vars, { '--anim-step-curve': '1.5' });
+});
+
+test('AnimationPresets.php keeps every name a saved look can hold', () => {
+  const php = readFileSync(new URL('../../../src/AnimationPresets.php', import.meta.url), 'utf8');
+  const kept = new Set(/VARS = \[([^\]]+)\]/.exec(php)[1].match(/--anim-[a-z-]+/g));
+  const looks = PRESETS.map((preset) => presetLook(newAnimation(preset.handle), preset));
+
+  for (const name of new Set(looks.flatMap((vars) => Object.keys(vars)))) {
+    assert.ok(kept.has(name), name);
+  }
+
+  for (const preset of PRESETS) {
+    for (const name of Object.keys(preset.vars)) {
+      assert.ok(kept.has(name), `${preset.handle} ${name}`);
+    }
+  }
 });
 
 test('the timing placeholders are the runtime\'s own defaults', () => {
