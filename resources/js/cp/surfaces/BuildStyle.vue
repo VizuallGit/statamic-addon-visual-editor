@@ -122,9 +122,6 @@ const sizeHint = computed(() => {
 /* ---------------- Container queries — the demo (container-query.js) ---------------- */
 
 const containerTools = computed(() => !port.cssTarget);
-const isContainer = computed(() => classes.value.includes('@container'));
-// `@container` goes on bare: no breakpoint, container size or state in front of it.
-const containerBare = computed(() => chain.value[0] === '');
 
 /* ---------------- the element ---------------- */
 
@@ -621,21 +618,9 @@ function jump(group) {
           ><span class="fg-more__icon" v-html="deviceIcon(row.icon)"></span>{{ row.label }}</button>
         </div>
       </div>
-      <div class="fg-line fg-line--size" :class="{ 'fg-line--cq': containerTools }">
+      <div class="fg-line fg-line--size">
         <p class="fg-hint" v-html="sizeHint"></p>
         <span class="fg-line__tools">
-          <button
-            v-if="containerTools"
-            type="button"
-            class="fg-state fg-cq"
-            :class="{ 'is-set': isContainer }"
-            role="switch"
-            :aria-checked="isContainer"
-            :disabled="!containerBare"
-            :title="port.t(containerBare ? 'container_title' : 'container_title_bare')"
-            data-sve-build-container-toggle
-            @click="port.setClass('@container')"
-          ><span v-html="ic('containerQueries')"></span><span class="fg-cq__label">{{ port.t('container') }}</span><span class="fg-cq__switch" aria-hidden="true"></span></button>
           <button
             ref="stateBtn"
             type="button"

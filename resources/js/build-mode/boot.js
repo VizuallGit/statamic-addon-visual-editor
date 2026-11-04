@@ -99,6 +99,7 @@ import {
   twSetFieldClass,
   twSetOneOf,
   twSetTag,
+  twToggleClassAt,
   twSizePicked,
   twSortClasses,
   twTagClasses,
@@ -1100,8 +1101,11 @@ export function createEditorPort(win, hooks = {}) {
     setContainerSize: (variant) => twSetContainerSize(win, variant),
     /**
      * The container a size query on the element at `path` asks, as the canvas
-     * lays it out now: `{ tag, name, rem }` — name the one the HTML tree's layer
-     * was given, if it was; rem its content width — or null.
+     * lays it out now, or else the parent in the file that would be one:
+     * `{ on, target, name, rem }`, or null with neither. `target` is the path
+     * the container switch writes `@container` at — the parent when off; the
+     * container when on, if its own `@container` class made it one, else ''.
+     * `name` is the one the HTML tree's layer was given, if it was.
      */
     containerAround(path) {
       rev.value;
@@ -1109,16 +1113,24 @@ export function createEditorPort(win, hooks = {}) {
 
       const el = path ? canvas?.elementAt(path) : null;
       const box = el ? sizeContainerOf(el) : null;
+      const parent = el?.parentElement?.closest(`[${CANVAS_PATH}]`) || null;
+      const shown = box || parent;
 
-      if (!box) {
+      if (!shown) {
         return null;
       }
 
-      const at = box.getAttribute(CANVAS_PATH) || '';
+      const at = shown.getAttribute(CANVAS_PATH) || '';
       const name = at ? htmlTreeDisplayName('', at, readHtmlTreeLabels(ask('dock:current-type') || '')) : '';
 
-      return { tag: box.tagName.toLowerCase(), name, rem: contentWidthRem(box) };
+      return {
+        on: Boolean(box),
+        target: !box || box.classList.contains('@container') ? at : '',
+        name,
+        rem: contentWidthRem(shown),
+      };
     },
+    toggleContainerAt: (at) => twToggleClassAt(win, at, '@container'),
     painted,
     classesShown,
     /**

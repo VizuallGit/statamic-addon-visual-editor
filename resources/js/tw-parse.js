@@ -306,6 +306,13 @@ export function appendToken(value, raw) {
   return `${text.replace(/\s+$/, '')} ${raw}`;
 }
 
+/** The value with the class `raw` taken off where it stands on its own, else added at the end. */
+export function toggleToken(value, raw) {
+  const token = tokenizeClassValue(value).find((item) => item.text === raw);
+
+  return token ? replaceToken(value, token, '') : appendToken(value, raw);
+}
+
 /**
  * The same classes in a new order.
  *

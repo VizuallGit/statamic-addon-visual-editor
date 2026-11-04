@@ -2,16 +2,16 @@
 /**
  * Style's container query group (build-mode/container-query.js).
  *
- * Under the breakpoints, on an element the canvas lays out inside a size
- * container (an ancestor with container queries, or `container-type` from
- * CSS). A size picked here is the variant every field writes under
- * (`@max-md:pbs-500`), in the slot a breakpoint takes: picking a breakpoint
- * gives it up, and so does clicking the picked size again. All is the
- * breakpoint row's.
+ * Under the breakpoints, on an element with a parent in the file or inside a
+ * size container. The head is a switch for the container the element's size
+ * queries ask: on puts `@container` on the parent, so it is on for every
+ * sibling too; off takes it off the container again — unless something other
+ * than its own `@container` class made it one (CSS, a named container), and
+ * then the switch is shut.
  *
- * The head is a switch. Off, the group is one line and every field writes at
- * all widths; on, the sizes show. Switching off gives the picked size up, and
- * a new pick starts off (boot.js gives the size up on every pick).
+ * On, the sizes show, All first. A size picked is the variant every field
+ * writes under (`@max-md:pbs-500`), in the slot a breakpoint takes; All writes
+ * none. A new pick starts at All (boot.js gives the size up on every pick).
  */
 import { computed, inject, nextTick, ref, watch } from 'vue';
 import { ic } from '../../build-mode/icons.js';
@@ -30,11 +30,18 @@ const props = defineProps({
 
 const port = inject('sveBuild');
 const around = computed(() => port.containerAround(props.path));
+const on = computed(() => Boolean(around.value?.on));
 const now = computed(() => port.containerSize());
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-const heading = computed(() => (around.value.name
-  ? port.t('container_active_on', { name: `<b>${escapeHtml(around.value.name)}</b>` })
-  : port.t('container_active_on_parent', { parent: `<b>${port.t('container_parent')}</b>` })));
+const heading = computed(() => {
+  if (!on.value) {
+    return port.t('container_queries');
+  }
+
+  return around.value.name
+    ? port.t('container_active_on', { name: `<b>${escapeHtml(around.value.name)}</b>` })
+    : port.t('container_active_on_parent', { parent: `<b>${port.t('container_parent')}</b>` });
+});
 
 /** The arbitrary sizes to offer: the element's own `@max-[…]` classes, and the one picked. */
 const customs = computed(() => {
@@ -50,9 +57,6 @@ const nowAt = computed(() => {
   return shown.value.filter((variant) => containerRem(variant) > width).sort((a, b) => containerRem(a) - containerRem(b))[0] || '';
 });
 
-const pick = (variant) => port.setContainerSize(now.value === variant ? '' : variant);
-const titleOf = (variant) => (now.value === variant ? port.t('container_release') : `${variant}:`);
-
 /* ---------------- a size of its own ---------------- */
 
 const typing = ref(false);
@@ -60,27 +64,9 @@ const typed = ref('');
 const refused = ref(false);
 const input = ref(null);
 
-/* ---------------- the switch ---------------- */
-
-const open = ref(false);
-const on = computed(() => open.value || Boolean(now.value));
-
 watch(() => props.path, () => {
-  open.value = false;
   typing.value = false;
 });
-
-function toggle() {
-  if (!on.value) {
-    open.value = true;
-
-    return;
-  }
-
-  open.value = false;
-  typing.value = false;
-  port.setContainerSize('');
-}
 
 async function toggleCustom() {
   typing.value = !typing.value;
@@ -104,6 +90,23 @@ function submit() {
     port.setContainerSize(variant);
   }
 }
+
+/* ---------------- the switch ---------------- */
+
+function toggle() {
+  const at = around.value?.target;
+
+  if (!at) {
+    return;
+  }
+
+  if (on.value) {
+    port.setContainerSize('');
+  }
+
+  typing.value = false;
+  port.toggleContainerAt(at);
+}
 </script>
 
 <template>
@@ -113,35 +116,42 @@ function submit() {
       class="fg-cq-group__head"
       role="switch"
       :aria-checked="on"
-      :title="port.t('container_sizes_title')"
+      :disabled="!around.target"
+      :title="port.t(around.target ? 'container_switch_title' : 'container_locked')"
       data-sve-build-container-switch
       @click="toggle"
     >
       <span class="fg-cq-group__icon" v-html="ic('containerQueries')"></span>
       <span class="fg-cq-group__title" v-html="heading"></span>
-      <span class="fg-cq-group__now">{{ port.t('container_now', { size: `${around.rem}rem` }) }}</span>
+      <span v-if="on" class="fg-cq-group__now">{{ port.t('container_now', { size: `${around.rem}rem` }) }}</span>
       <span class="fg-cq__switch" aria-hidden="true"></span>
     </button>
     <div v-if="on" class="fg-seg" role="group" :aria-label="port.t('container_queries')">
+      <button
+        type="button"
+        :aria-pressed="!now"
+        data-sve-build-container-size=""
+        @click="port.setContainerSize('')"
+      >{{ port.t('container_all') }}</button>
       <button
         v-for="size in CONTAINER_SIZES"
         :key="size.key"
         type="button"
         :aria-pressed="now === containerVariant(size.key)"
-        :title="titleOf(containerVariant(size.key))"
+        :title="`${containerVariant(size.key)}:`"
         :data-now="nowAt === containerVariant(size.key) || undefined"
         :data-sve-build-container-size="size.key"
-        @click="pick(containerVariant(size.key))"
+        @click="port.setContainerSize(containerVariant(size.key))"
       >&lt; {{ size.rem }}</button>
       <button
         v-for="variant in customs"
         :key="variant"
         type="button"
         :aria-pressed="now === variant"
-        :title="titleOf(variant)"
+        :title="`${variant}:`"
         :data-now="nowAt === variant || undefined"
         :data-sve-build-container-size="variant"
-        @click="pick(variant)"
+        @click="port.setContainerSize(variant)"
       >&lt; {{ containerLength(variant) }}</button>
       <button
         type="button"
