@@ -51,6 +51,16 @@ test('who follows a switch, and how', () => {
   ]);
 });
 
+test('an animation on the switch follows it too, as the Animation tab binds it', () => {
+  const html = '<section x-data="{ open: false }"><button @click="open = !open">Go</button><div x-show="open" :data-anim-active="open" data-anim="self" data-anim-on="switch">Hi</div></section>';
+
+  assert.deepEqual(followsOn(attrsAt(html, '0:section/1:div'), ['open']), [
+    { attr: 'x-show', name: 'open', then: 'show' },
+    { attr: ':data-anim-active', name: 'open', then: 'animate' },
+  ]);
+  assert.deepEqual(followsOn([{ name: 'x-bind:data-anim-active', value: 'menu' }], ['menu']), [{ attr: 'x-bind:data-anim-active', name: 'menu', then: 'animate' }]);
+});
+
 test('a statement changes in its place, moves to another trigger, or goes with its attribute', () => {
   const from = { attr: '@click', part: 'open = !open' };
 

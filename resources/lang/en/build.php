@@ -171,6 +171,8 @@ return [
     'action_class' => 'Class',
     'action_motion' => 'Motion',
     'action_give_motion' => 'Give :tag an animation',
+    'action_animates' => 'Animates when it turns on',
+    'action_open_animation' => 'Open in Animation',
     'action_motion_note' => 'Opens the Animation tab on the element with «When :name turns on» chosen.',
     'action_try' => 'Try',
     'action_remove' => 'Remove action',

@@ -73,7 +73,7 @@ const DOES = [['toggle', 'action_toggle'], ['on', 'action_on'], ['off', 'action_
 const doesWord = (does) => t(DOES.find(([id]) => id === does)[1]).toLowerCase();
 const whenWord = (when) => (TRIGGER_WORDS[when] ? t(TRIGGER_WORDS[when][0]) : when);
 const whenIcon = (when) => TRIGGER_WORDS[when]?.[1] || 'cursor';
-const thenWord = (id) => t(THENS.find((item) => item.id === id)?.label || 'action_then');
+const thenWord = (id) => t(id === 'animate' ? 'action_animates' : THENS.find((item) => item.id === id)?.label || 'action_then');
 
 /** One chip per statement a trigger runs, and one per switch the element follows. */
 const chips = computed(() => [
@@ -196,6 +196,8 @@ watch(current, (now) => {
 const switchName = computed(() => (current.value ? current.value.name : nameNow.value));
 const holder = computed(() => states.value.find((state) => state.name === switchName.value) || null);
 const followers = computed(() => (holder.value ? followersOf(html.value, holder.value.path, switchName.value) : []));
+/** Followers that show on the switch and have no animation on it yet. */
+const unmoved = computed(() => followers.value.filter((f) => f.then.startsWith('show') && !followers.value.some((o) => o.path === f.path && o.then === 'animate')));
 const title = computed(() => {
   const now = current.value;
 
@@ -320,6 +322,13 @@ function giveMotion(follower) {
     port.select(follower.path);
   }
 
+  chooseTab?.('animation');
+}
+
+/** An animation on the switch is the Animation tab's: changed or taken off there. */
+function openAnimation(follower) {
+  open.value = false;
+  port.select(follower.path);
   chooseTab?.('animation');
 }
 
@@ -532,13 +541,13 @@ onBeforeUnmount(() => {
           class="bm-act-chip"
           :aria-pressed="open && !!current && chip.action?.part === current.part && chip.action?.attr === current.attr"
           :data-sve-build-action-chip="chip.action ? chip.action.attr : chip.follow.attr"
-          @click="chip.action ? openChip(chip, $event.currentTarget) : (raw = true)"
+          @click="chip.action ? openChip(chip, $event.currentTarget) : chip.follow.then === 'animate' ? chooseTab?.('animation') : (raw = true)"
         >
           <span class="bm-act-chip__ic" v-html="ic(chip.icon)"></span>
           <b>{{ chip.title }}</b>
           <span class="bm-act-chip__sub">{{ chip.sub }}</span>
         </button>
-        <button type="button" class="bm-act-chip__more" :aria-expanded="menuKey === chip.key" :aria-label="t('alpine_remove')" @click="menuKey = menuKey === chip.key ? '' : chip.key" v-html="ic('more')"></button>
+        <button v-if="chip.follow?.then !== 'animate'" type="button" class="bm-act-chip__more" :aria-expanded="menuKey === chip.key" :aria-label="t('alpine_remove')" @click="menuKey = menuKey === chip.key ? '' : chip.key" v-html="ic('more')"></button>
         <div v-if="menuKey === chip.key" class="bm-act-menu" role="menu">
           <button type="button" role="menuitem" data-sve-build-action-chip-remove @click="removeChip(chip)"><span v-html="ic('trash')"></span>{{ t('alpine_remove') }}</button>
         </div>
@@ -718,7 +727,17 @@ onBeforeUnmount(() => {
             <div v-for="f in followers" :key="`${f.path}-${f.attr}`" class="bm-act-follow" :data-sve-build-action-follower="f.path">
               <span class="bm-act-follow__tag">{{ tagOf(f) }}</span>
               <span class="bm-act-box"><span class="bm-act-box__val">{{ thenWord(f.then) }}</span><code>{{ f.attr }}</code></span>
-              <button type="button" class="bm-act-x" :aria-label="t('alpine_remove')" :title="t('alpine_remove')" @click="dropFollow(f.path, f)" v-html="ic('minus')"></button>
+              <button
+                v-if="f.then === 'animate'"
+                type="button"
+                class="bm-act-x"
+                :aria-label="t('action_open_animation')"
+                :title="t('action_open_animation')"
+                data-sve-build-action-follower-animation
+                @click="openAnimation(f)"
+                v-html="ic('linkic')"
+              ></button>
+              <button v-else type="button" class="bm-act-x" :aria-label="t('alpine_remove')" :title="t('alpine_remove')" @click="dropFollow(f.path, f)" v-html="ic('minus')"></button>
             </div>
             <button type="button" class="bm-act-pick" :class="{ 'is-picking': picking, 'is-set': !!targetNode }" data-sve-build-action-pick @click="pickTarget">
               <span v-html="ic('cursor')"></span>{{ picking ? t('action_picking') : targetNode ? `<${tagOf(targetNode)}>` : `+ ${t('action_pick')}` }}
@@ -741,10 +760,10 @@ onBeforeUnmount(() => {
             </template>
           </section>
 
-          <section v-if="current && followers.some((f) => f.then.startsWith('show'))" class="bm-act-block" data-sve-build-action-motion>
+          <section v-if="current && unmoved.length" class="bm-act-block" data-sve-build-action-motion>
             <div class="bm-act-head"><span>{{ t('action_motion') }}</span></div>
             <button
-              v-for="f in followers.filter((one) => one.then.startsWith('show'))"
+              v-for="f in unmoved"
               :key="`m-${f.path}`"
               type="button"
               class="bm-act-quiet"
@@ -866,7 +885,7 @@ onBeforeUnmount(() => {
 .sve-build button.bm-act-flow__node:hover { border-color: color-mix(in srgb, var(--bm-accent) 60%, transparent); }
 .sve-build .bm-act-flow__node code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 0.625rem var(--bm-mono); color: var(--bm-ink); }
 .sve-build .bm-act-flow__node em, .sve-build .bm-act-flow__arrow em { font-style: normal; color: var(--bm-faint); font-size: 0.5625rem; }
-.sve-build .bm-act-flow__node.is-switch { border-color: color-mix(in srgb, var(--bm-accent) 70%, transparent); background: color-mix(in srgb, var(--bm-accent) 18%, transparent); }
+.sve-build .bm-act-flow__node.is-switch { flex: none; border-color: color-mix(in srgb, var(--bm-accent) 70%, transparent); background: color-mix(in srgb, var(--bm-accent) 18%, transparent); }
 .sve-build .bm-act-flow__node.is-empty { border-style: dashed; }
 .sve-build .bm-act-flow__arrow { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 1.75rem; }
 .sve-build .bm-act-flow__arrow::after { content: ''; width: 100%; border-top: 1px solid var(--bm-quiet); }

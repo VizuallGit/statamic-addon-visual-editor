@@ -66,7 +66,15 @@ export function actionsOn(attrs) {
     .map((part) => ({ attr: attr.name, part, ...(statementOf(part) || { name: null, does: null }) })));
 }
 
-const FOLLOW = { 'x-show': 'show', ':class': 'class_when', 'x-bind:class': 'class_when', 'x-text': 'text' };
+/** `animate` is the Animation tab's switch binding (animation.js SWITCH_ATTRS): that tab writes and removes it. */
+const FOLLOW = {
+  'x-show': 'show',
+  ':class': 'class_when',
+  'x-bind:class': 'class_when',
+  'x-text': 'text',
+  ':data-anim-active': 'animate',
+  'x-bind:data-anim-active': 'animate',
+};
 const mentions = (value, name) => new RegExp(`(^|[^\\w$.'"])${name.replace(/\$/g, '\\$')}([^\\w$]|$)`).test(String(value));
 
 /**

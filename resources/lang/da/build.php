@@ -163,6 +163,8 @@ return [
     'action_class' => 'Klasse',
     'action_motion' => 'Bevægelse',
     'action_give_motion' => 'Giv :tag en animation',
+    'action_animates' => 'Animerer, når den tænder',
+    'action_open_animation' => 'Åbn i Animation',
     'action_motion_note' => 'Åbner Animation-fanen på elementet med «Når :name tænder» valgt.',
     'action_try' => 'Prøv',
     'action_remove' => 'Fjern handling',
