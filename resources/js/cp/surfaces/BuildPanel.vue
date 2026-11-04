@@ -35,6 +35,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { bindTips, hideTip } from '../tip.js';
+import { on } from '../bus.js';
 import { componentPropsUi } from '../component-props/store.js';
 import BuildAdd from './BuildAdd.vue';
 import BuildComponentInfo from './BuildComponentInfo.vue';
@@ -130,6 +131,8 @@ function choose(value) {
 
 /* Action's «Give it an animation» opens Animation on the element it has just picked. */
 provide('sveBuildTab', choose);
+/* So does the tree's animation icon (html-tree.js), over the bus. */
+onBeforeUnmount(on('build:tab', choose));
 
 /* The element's tabs keep their width: the row scrolls sideways, an edge with more beyond it fades, a mouse's wheel turns it along. */
 const tabRow = ref(null);

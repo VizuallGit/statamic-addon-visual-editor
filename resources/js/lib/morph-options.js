@@ -44,6 +44,26 @@
  * shown-state for the comparison, so the attribute comes off with the rest,
  * and the state is cleared from the live node once the attribute is gone.
  * The morph's own attribute diff runs in every case; nothing is diffed here.
+ *
+ * The order Alpine meets the morph's changes in (`morph`, below). Alpine
+ * learns of an attribute a live element gains from its MutationObserver,
+ * and runs the directive then: an `x-data` makes the element's scope, an
+ * `x-show` or `:aria-selected` below it binds to the nearest scope as it
+ * stands — and keeps that binding; one bound before its scope exists throws
+ * on every read and never binds again. The observer hands Alpine the
+ * changes in the order they were made, so a morph that writes the parent's
+ * `x-data` before the children's bindings would be fine — except that it
+ * also runs the server nodes' own directives (Alpine.cloneNode), and each
+ * `x-bind` there flushes the observer (Alpine.mutateDom): the changes made
+ * so far are taken out of the observer and queued for later, and the
+ * changes made after the last such flush stay in the observer, whose own
+ * delivery runs first. So the end of the morph was handled before its
+ * start: a tabs panel's `x-show` and its tab's `@click` before the
+ * `x-data` above them (Build's Tabs, 4 Nov 2026 — the second tab never
+ * switched, and the panels stayed hidden). A flush of our own, once the
+ * morph is done, takes the rest of its changes into the same queue, behind
+ * the earlier ones; Alpine then meets the whole morph in document order.
+ * An empty `mutateDom` is that flush, and nothing else.
  */
 const BRIDGE_MARK = 'data-sve-component-';
 const SHOW_DIRECTIVE = /^x-show(\.|$)/;
@@ -99,3 +119,12 @@ export const MORPH_OPTIONS = {
     }
   },
 };
+
+/**
+ * Alpine.morph with these options, and the rest of the morph's changes handed
+ * to Alpine in order (see above). `to` is a string or a same-document element.
+ */
+export function morph(alpine, from, to) {
+  alpine.morph(from, to, MORPH_OPTIONS);
+  alpine.mutateDom(() => {});
+}

@@ -94,6 +94,15 @@ export const MSG = Object.freeze({
   SVE_ALPINE_STATE: 'sve-alpine-state',
   // Preview → CP, at boot: send me the remembered Alpine states.
   SVE_ALPINE_STATES_REQUEST: 'sve-alpine-states-request',
+  // CP → preview: Build's «Stille | Kører» — `still: true` shows every
+  // animated element at its end frame, false plays them as the public site.
+  SVE_ANIM_MODE: 'sve-anim-mode',
+  // Preview → CP, at boot: send me the mode.
+  SVE_ANIM_MODE_REQUEST: 'sve-anim-mode-request',
+  // CP → preview: play the animation of the element stamped `path` (the
+  // open file's rendering, html-pick-align.js) again, in the real document;
+  // on an element with none of its own, every animated element inside it.
+  SVE_ANIM_PLAY: 'sve-anim-play',
   SVE_CHROME_DIRTY: 'sve-chrome-dirty',
   SVE_CHROME_DIRTY_QUERY: 'sve-chrome-dirty-query',
   SVE_CHROME_SET_STYLE: 'sve-chrome-set-style',
@@ -142,7 +151,7 @@ export const MSG = Object.freeze({
  * posts these to the copies too; everything else is the bridge's — editing,
  * hover, focus — and reaches only the preview.
  */
-export const MIRRORED = Object.freeze([MSG.SVE_VIDEO_HOLD, MSG.SVE_ALPINE_STATE]);
+export const MIRRORED = Object.freeze([MSG.SVE_VIDEO_HOLD, MSG.SVE_ALPINE_STATE, MSG.SVE_ANIM_MODE]);
 
 export const CHANNEL = Object.freeze({
   GLOBALS: 'sve.globals',

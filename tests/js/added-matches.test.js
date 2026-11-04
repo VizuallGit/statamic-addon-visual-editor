@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { watchAddedMatches } from '../../resources/js/lib/added-matches.js';
-import { MORPH_OPTIONS } from '../../resources/js/lib/morph-options.js';
+import { MORPH_OPTIONS, morph } from '../../resources/js/lib/morph-options.js';
 
 /** An element that answers `matches` by class and `querySelector` over its children. */
 class El {
@@ -256,4 +256,22 @@ test('an x-show the element loses: the server node takes the live shown-state fo
   assert.equal('_x_isShown' in plainServer, false);
   MORPH_OPTIONS.updated(plainLive, plainServer);
   assert.equal('_x_isShown' in plainLive, false);
+});
+
+test('morph runs Alpine.morph with the options, then one empty mutateDom so Alpine meets the whole morph in order', () => {
+  const calls = [];
+  const alpine = {
+    morph: (from, to, options) => calls.push(['morph', from, to, options]),
+    mutateDom: (callback) => {
+      calls.push(['mutateDom', typeof callback]);
+      callback();
+    },
+  };
+
+  morph(alpine, 'live', '<p>next</p>');
+
+  assert.deepEqual(calls, [
+    ['morph', 'live', '<p>next</p>', MORPH_OPTIONS],
+    ['mutateDom', 'function'],
+  ]);
 });

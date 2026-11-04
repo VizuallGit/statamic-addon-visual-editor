@@ -154,6 +154,9 @@ export const htmlTreeUi = reactive({
   // The Alpine icon on a row whose x-data has booleans: set one in the preview.
   alpineTitle: '',
   onAlpineState: null,
+  // The animation icon on a row with `data-anim`: Build's Animation tab, on it.
+  animTitle: '',
+  onAnimation: null,
   onDuplicate: null,
   onDelete: null,
   onPointerDown: null,

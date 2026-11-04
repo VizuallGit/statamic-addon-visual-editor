@@ -1788,6 +1788,15 @@ export function createMessageListener(doc = document, win = window) {
       return;
     }
 
+    // Build's «Stille | Kører» (animation-mode.js, over the bus): a fresh
+    // preview asks whether its animations are held still. Build not loaded:
+    // nobody answers, and the preview plays as the public site.
+    if (data.type === MSG.SVE_ANIM_MODE_REQUEST) {
+      ask('animation-mode:sync', { win });
+
+      return;
+    }
+
     // The keyboard shortcuts (toolbar-shortcuts.js, over the bus): a fresh
     // preview asks for the list; a press in the preview runs as one here would.
     if (data.type === MSG.SVE_SHORTCUTS_REQUEST) {

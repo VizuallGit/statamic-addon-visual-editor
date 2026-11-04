@@ -13,7 +13,7 @@ import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from 
 import { heldVideos, rememberVideoHolds, syncStoredVideoHolds } from './video-holds.js';
 import { alpineStates, frameScope, rememberAlpineStates, syncStoredAlpineStates } from './alpine-states.js';
 import { alpineBooleans, xDataOf } from './lib/alpine-booleans.js';
-import { ask, on, register } from './cp/bus.js';
+import { ask, emit, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import HtmlTreePane from './cp/surfaces/HtmlTreePane.vue';
@@ -453,14 +453,15 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-row][data-sve-ht-more-open] [data-sve-ht-actions] {
       display: inline-flex;
     }
-    /* A video or an Alpine state shows on its own; the rest waits for the pointer. */
-    [data-sve-ht-row][data-sve-ht-special]:not(:hover, [data-sve-ht-current], [data-sve-ht-hidden], [data-sve-ht-locked], [data-sve-ht-more-open]) [data-sve-ht-actions] > :not([data-sve-ht-video], [data-sve-ht-alpine]) {
+    /* A video, an Alpine state or an animation shows on its own; the rest waits for the pointer. */
+    [data-sve-ht-row][data-sve-ht-special]:not(:hover, [data-sve-ht-current], [data-sve-ht-hidden], [data-sve-ht-locked], [data-sve-ht-more-open]) [data-sve-ht-actions] > :not([data-sve-ht-video], [data-sve-ht-alpine], [data-sve-ht-anim]) {
       display: none;
     }
     [data-sve-ht-more],
     [data-sve-ht-lock],
     [data-sve-ht-video],
     [data-sve-ht-alpine],
+    [data-sve-ht-anim],
     [data-sve-ht-eye],
     [data-sve-ht-fields],
     [data-sve-ht-dup],
@@ -488,6 +489,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-lock]:not([disabled]):hover,
     [data-sve-ht-video]:hover,
     [data-sve-ht-alpine]:hover,
+    [data-sve-ht-anim]:hover,
     [data-sve-ht-eye]:hover,
     [data-sve-ht-fields]:hover,
     [data-sve-ht-dup]:hover,
@@ -764,6 +766,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-more]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-video]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-alpine]:hover,
+    [data-sve-ht-look="tags"] [data-sve-ht-anim]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-eye]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-fields]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
@@ -838,6 +841,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-lock] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-alpine] svg,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-anim] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.625rem; height: 0.625rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
 
@@ -1818,6 +1822,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.videoHoldTitle = t(win, 'html_tree_video_hold');
   htmlTreeUi.videoPlayTitle = t(win, 'html_tree_video_play');
   htmlTreeUi.alpineTitle = t(win, 'html_tree_alpine_state');
+  htmlTreeUi.animTitle = t(win, 'html_tree_animation');
   htmlTreeUi.lockedTitle = t(win, 'html_tree_locked');
   htmlTreeUi.searchEmpty = t(win, 'html_tree_search_empty');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
@@ -1886,6 +1891,12 @@ export function renderHtmlTree(win) {
   htmlTreeUi.lockedByTitle = t(win, 'html_tree_locked_by_developer');
   htmlTreeUi.onVideoHold = (id) => toggleVideoHold(win, id);
   htmlTreeUi.onAlpineState = (event, id) => openAlpineState(win, event, id);
+  // The animation icon: the row selected, and Build's Animation tab opened on
+  // it (BuildPanel.vue hears `build:tab` while Build is open).
+  htmlTreeUi.onAnimation = (id) => {
+    selectHtmlTreeRow(win, id, rows);
+    emit('build:tab', 'animation');
+  };
   htmlTreeUi.onDuplicate = (id) => duplicateHtmlTreeRow(win, id);
   htmlTreeUi.onDelete = (id) => deleteHtmlTreeRow(win, id);
   htmlTreeUi.onPointerDown = (event, id) => beginHtmlTreePointer(win, event, id);
@@ -2122,6 +2133,9 @@ export function renderHtmlTree(win) {
       alpineKeys,
       // Lit while the preview shows something the file does not.
       alpineSet: alpineKeys.some((item) => item.value !== item.file),
+      // What the element animates (its `data-anim`), for the icon that opens
+      // Build's Animation tab on it; '' on an element without one.
+      anim: row.kind ? '' : animOf(html.slice(row.from, row.openTo)),
     };
   });
 
@@ -2763,6 +2777,11 @@ function toggleVideoHold(win, id) {
  * the rows on screen: folding a branch must not change which component a
  * number names. A commented-out tag is not in the preview and is not counted.
  */
+/** The `data-anim` in an element's opening tag — self, children, ticker, … — or ''. */
+function animOf(openTag) {
+  return /\sdata-anim="([a-z]+)"/.exec(openTag)?.[1] || '';
+}
+
 function alpineComponents(roots, html) {
   const out = new Map();
   let nth = 0;

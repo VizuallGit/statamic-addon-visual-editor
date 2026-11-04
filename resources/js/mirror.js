@@ -33,6 +33,7 @@
 import { applyThemeScaleCss, morphRender, normalizeChromeKind } from './preview.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './bridge/video-hold.js';
 import { applyAlpineStates, guardDialogs, setAlpineState, watchAlpineStart } from './bridge/alpine-state.js';
+import { setAnimationMode } from './bridge/animation-play.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 /** The preview morphed to this render: do the same, from the same HTML. */
@@ -83,6 +84,12 @@ window.addEventListener('message', (event) => {
 
   if (data.type === MSG.SVE_ALPINE_STATE) {
     setAlpineState(window, data);
+
+    return;
+  }
+
+  if (data.type === MSG.SVE_ANIM_MODE) {
+    setAnimationMode(window, data);
   }
 });
 
