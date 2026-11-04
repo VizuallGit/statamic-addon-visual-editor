@@ -13,8 +13,9 @@ use Statamic\Facades\User;
  * The Animation tab's own presets: «Save as preset» and the × under My presets.
  *
  * Build writes the dock's file, so a user who may use the dock may keep the
- * looks it is written with. A preset still named in a template is deleted
- * only when the panel has said so and asks again with `force`.
+ * looks it is written with. How many templates still name a preset is a GET
+ * the panel asks before it offers Delete; the delete itself always deletes.
+ * A POST that answers 4xx is a rejected save to the CP (save-errors.js).
  */
 class AnimationPresetController extends Controller
 {
@@ -33,18 +34,18 @@ class AnimationPresetController extends Controller
         return response()->json(['preset' => $preset, 'presets' => AnimationPresets::all()]);
     }
 
+    public function usage(Request $request)
+    {
+        $this->authorizeBuild();
+
+        return response()->json(['used' => AnimationPresets::usage((string) $request->query('handle', ''))]);
+    }
+
     public function destroy(Request $request)
     {
         $this->authorizeBuild();
 
-        $handle = (string) $request->input('handle', '');
-        $used = AnimationPresets::usage($handle);
-
-        if ($used > 0 && ! $request->boolean('force')) {
-            return response()->json(['used' => $used], 409);
-        }
-
-        abort_unless(AnimationPresets::delete($handle), 404);
+        abort_unless(AnimationPresets::delete((string) $request->input('handle', '')), 404);
 
         return response()->json(['presets' => AnimationPresets::all()]);
     }

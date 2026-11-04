@@ -127,7 +127,7 @@ return [
     'anim_mine_empty' => 'Ingen endnu. Åbn en animation og tryk «Gem som preset».',
     'anim_mine_delete' => 'Slet',
     'anim_mine_delete_anyway' => 'Slet alligevel',
-    'anim_mine_used' => 'Bruges i :n skabeloner',
+    'anim_mine_used' => 'Skabeloner der bruger det: :n',
     'anim_mine_deleted' => 'Presettet er slettet.',
     'anim_mine_failed' => 'Presettet kunne ikke slettes.',
     'anim_remove' => 'Fjern animation',

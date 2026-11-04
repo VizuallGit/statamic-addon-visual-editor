@@ -861,16 +861,16 @@ onBeforeUnmount(() => {
 .sve-build .bm-act-pop__body { min-height: 0; overflow: auto; }
 
 /* Flow: who talks to whom, as the stage is Animation's */
-.sve-build .bm-act-flow { display: flex; align-items: center; justify-content: center; gap: 0.375rem; min-height: 8rem; padding: 0.75rem; background: var(--bm-bg); }
-.sve-build .bm-act-flow__node { display: flex; flex-direction: column; align-items: center; gap: 0.125rem; max-width: 6rem; padding: 0.375rem 0.5rem; border: 1px solid var(--bm-edge); border-radius: 0.375rem; background: var(--bm-raise); }
+.sve-build .bm-act-flow { display: flex; align-items: center; justify-content: safe center; gap: 0.375rem; padding: 1rem 0.75rem; background: var(--bm-bg); }
+.sve-build .bm-act-flow__node { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 0.125rem; max-width: 6rem; padding: 0.375rem 0.5rem; border: 1px solid var(--bm-edge); border-radius: 0.375rem; background: var(--bm-raise); }
 .sve-build button.bm-act-flow__node:hover { border-color: color-mix(in srgb, var(--bm-accent) 60%, transparent); }
 .sve-build .bm-act-flow__node code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 0.625rem var(--bm-mono); color: var(--bm-ink); }
 .sve-build .bm-act-flow__node em, .sve-build .bm-act-flow__arrow em { font-style: normal; color: var(--bm-faint); font-size: 0.5625rem; }
 .sve-build .bm-act-flow__node.is-switch { border-color: color-mix(in srgb, var(--bm-accent) 70%, transparent); background: color-mix(in srgb, var(--bm-accent) 18%, transparent); }
 .sve-build .bm-act-flow__node.is-empty { border-style: dashed; }
-.sve-build .bm-act-flow__arrow { display: flex; flex-direction: column; align-items: center; min-width: 1.75rem; }
+.sve-build .bm-act-flow__arrow { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 1.75rem; }
 .sve-build .bm-act-flow__arrow::after { content: ''; width: 100%; border-top: 1px solid var(--bm-quiet); }
-.sve-build .bm-act-flow__ends { display: flex; flex-direction: column; gap: 0.25rem; }
+.sve-build .bm-act-flow__ends { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
 
 /* Line, Box, Seg, inputs */
 .sve-build .bm-act-line { display: grid; grid-template-columns: 5.75rem minmax(0, 1fr); align-items: center; gap: 0.5rem; }

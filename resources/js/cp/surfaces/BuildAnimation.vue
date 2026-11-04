@@ -57,7 +57,7 @@ import {
   withEffect,
   withVar,
 } from '../../build-mode/animation.js';
-import { deletePreset, ownPresets, savePreset } from '../../build-mode/animation-presets.js';
+import { deletePreset, ownPresets, presetUsage, savePreset } from '../../build-mode/animation-presets.js';
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
@@ -239,7 +239,7 @@ function useTile(tile) {
 /* ---------------- My presets ---------------- */
 
 const mineOpen = ref(false);
-/** The × asked to delete `handle`; `used` once the server has said how many templates still name it. */
+/** The × asked to delete `handle`; Delete is offered once `used` says how many templates still name it. */
 const dropping = ref(null);
 
 /** An own preset, as the preset list sets one: on an animation that plays in time, else on the element in. */
@@ -248,15 +248,28 @@ function useOwn(p) {
   open.value = true;
 }
 
-async function dropOwn(p) {
-  const done = await deletePreset(p.handle, !!dropping.value?.used);
+async function askDrop(p) {
+  dropping.value = { handle: p.handle, used: null };
 
-  if (done?.used) {
-    dropping.value = { handle: p.handle, used: done.used };
-  } else {
-    dropping.value = null;
-    port.toast(done ? 'success' : 'error', done ? 'anim_mine_deleted' : 'anim_mine_failed');
+  const used = await presetUsage(p.handle);
+
+  if (dropping.value?.handle !== p.handle) {
+    return;
   }
+
+  if (used === null) {
+    dropping.value = null;
+    port.toast('error', 'anim_mine_failed');
+  } else {
+    dropping.value = { handle: p.handle, used };
+  }
+}
+
+async function dropOwn(p) {
+  const done = await deletePreset(p.handle);
+
+  dropping.value = null;
+  port.toast(done ? 'success' : 'error', done ? 'anim_mine_deleted' : 'anim_mine_failed');
 }
 
 /* «Save as preset»: the name typed in the editor's foot, then the element on the new preset. */
@@ -905,7 +918,7 @@ const Num = defineComponent({
           <button type="button" class="bm-anim-own__use" :aria-pressed="anim?.preset === p.handle" @click="useOwn(p)">{{ label(p) }}</button>
           <template v-if="dropping?.handle === p.handle">
             <span v-if="dropping.used" class="bm-anim-own__used">{{ port.t('anim_mine_used', { n: dropping.used }) }}</span>
-            <button type="button" class="bm-anim-own__sure" data-sve-build-anim-own-sure @click="dropOwn(p)">{{ t(dropping.used ? 'anim_mine_delete_anyway' : 'anim_mine_delete') }}</button>
+            <button type="button" class="bm-anim-own__sure" data-sve-build-anim-own-sure :disabled="dropping.used === null" @click="dropOwn(p)">{{ t(dropping.used ? 'anim_mine_delete_anyway' : 'anim_mine_delete') }}</button>
             <button type="button" class="bm-anim-own__x" :aria-label="t('anim_cancel')" @click="dropping = null" v-html="icon('x', 12)"></button>
           </template>
           <button
@@ -915,7 +928,7 @@ const Num = defineComponent({
             :aria-label="t('anim_mine_delete')"
             :title="t('anim_mine_delete')"
             data-sve-build-anim-own-delete
-            @click="dropping = { handle: p.handle, used: 0 }"
+            @click="askDrop(p)"
             v-html="icon('trash', 12)"
           ></button>
         </div>
@@ -1334,6 +1347,7 @@ const Num = defineComponent({
 .sve-build .bm-anim-own__use[aria-pressed='true'] { color: var(--bm-accent); font-weight: 600; }
 .sve-build .bm-anim-own__used { color: var(--bm-faint); font-size: 0.625rem; white-space: nowrap; }
 .sve-build .bm-anim-own__sure { padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.625rem; font-weight: 600; white-space: nowrap; }
+.sve-build .bm-anim-own__sure:disabled { opacity: 0.4; cursor: default; }
 .sve-build .bm-anim-own__x { display: flex; padding: 0.25rem; color: var(--bm-faint); }
 .sve-build .bm-anim-own__x:hover { color: var(--bm-ink); }
 

@@ -49,24 +49,29 @@ export async function savePreset(label, vars, win = window) {
   return data.preset;
 }
 
-/**
- * Deletes a preset → `{ deleted: true }`, `{ used: n }` while n templates
- * still name it (asked again with `force`, it goes anyway), or null.
- */
-export async function deletePreset(handle, force = false, win = window) {
-  const res = await post(win, '/!/sve/animation-presets/delete', { handle, force }).catch(() => null);
+/** How many templates still name a preset → a number, or null when the server could not say. */
+export async function presetUsage(handle, win = window) {
+  const res = await win
+    .fetch(`/!/sve/animation-presets/usage?handle=${encodeURIComponent(handle)}`, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+    })
+    .catch(() => null);
+  const data = res?.ok ? await res.json() : null;
 
-  if (res?.status === 409) {
-    return { used: (await res.json()).used };
-  }
+  return Number.isInteger(data?.used) ? data.used : null;
+}
 
+/** Deletes a preset → true, or false when the server said no. */
+export async function deletePreset(handle, win = window) {
+  const res = await post(win, '/!/sve/animation-presets/delete', { handle }).catch(() => null);
   const data = res?.ok ? await res.json() : null;
 
   if (!data) {
-    return null;
+    return false;
   }
 
   ownPresets(win).value = data.presets;
 
-  return { deleted: true };
+  return true;
 }

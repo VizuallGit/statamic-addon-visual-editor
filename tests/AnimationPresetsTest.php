@@ -4,7 +4,9 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use InvalidArgumentException;
 use MarioHamann\StatamicVisualEditor\AnimationPresets;
+use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Tags\SveAnimation;
+use Statamic\Facades\User;
 use Symfony\Component\Yaml\Yaml;
 
 class AnimationPresetsTest extends TestCase
@@ -116,8 +118,29 @@ class AnimationPresetsTest extends TestCase
     public function test_a_guest_can_neither_save_nor_delete(): void
     {
         $this->postJson('/!/sve/animation-presets', ['label' => 'Soft', 'vars' => ['--anim-y' => '1rem']])->assertStatus(403);
+        $this->getJson('/!/sve/animation-presets/usage?handle=my-soft')->assertStatus(403);
         $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertStatus(403);
         $this->assertFileDoesNotExist(AnimationPresets::file());
+    }
+
+    /* A POST that answers 4xx is a rejected save to the CP (save-errors.js), so
+     * "still used" is asked as a GET and the delete always deletes. */
+    public function test_usage_is_asked_before_a_delete_that_always_deletes(): void
+    {
+        $user = User::make()->email('anim-presets@example.com')->makeSuper();
+        $user->save();
+        $this->actingAs($user);
+        config(['statamic-visual-editor.features.template_dock' => true, 'statamic-visual-editor.features.build_mode' => true]);
+        Features::flush();
+
+        $this->postJson('/!/sve/animation-presets', ['label' => 'Soft', 'vars' => ['--anim-y' => '1rem']])
+            ->assertOk()
+            ->assertJsonPath('preset.handle', 'my-soft');
+        $this->getJson('/!/sve/animation-presets/usage?handle=my-soft')->assertOk()->assertExactJson(['used' => 0]);
+        $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertOk()->assertExactJson(['presets' => []]);
+        $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertNotFound();
+
+        $user->delete();
     }
 
     public function test_the_tag_writes_a_rule_for_an_own_preset_beside_the_addons(): void

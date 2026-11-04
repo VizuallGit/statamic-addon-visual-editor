@@ -358,6 +358,8 @@ final class EditorRoutes
             // The Animation tab's own presets (resources/visual-editor/animations.yaml).
             Route::post('/!/sve/animation-presets', [AnimationPresetController::class, 'store'])
                 ->name('sve.animation-presets.store');
+            Route::get('/!/sve/animation-presets/usage', [AnimationPresetController::class, 'usage'])
+                ->name('sve.animation-presets.usage');
             Route::post('/!/sve/animation-presets/delete', [AnimationPresetController::class, 'destroy'])
                 ->name('sve.animation-presets.destroy');
 

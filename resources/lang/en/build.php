@@ -135,7 +135,7 @@ return [
     'anim_mine_empty' => 'None yet. Open an animation and press «Save as preset».',
     'anim_mine_delete' => 'Delete',
     'anim_mine_delete_anyway' => 'Delete anyway',
-    'anim_mine_used' => 'Used in :n templates',
+    'anim_mine_used' => 'Templates using it: :n',
     'anim_mine_deleted' => 'The preset is deleted.',
     'anim_mine_failed' => 'The preset could not be deleted.',
     'anim_remove' => 'Remove animation',
