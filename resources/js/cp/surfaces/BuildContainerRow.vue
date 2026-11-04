@@ -1,15 +1,16 @@
 <script setup>
 /**
- * Style's container row (build-mode/container-query.js).
+ * Style's container query group (build-mode/container-query.js).
  *
  * Under the breakpoints, on an element the canvas lays out inside a size
- * container (an ancestor with `@container`, or `container-type` from CSS). A
- * size picked here is the variant every field below writes under
+ * container (an ancestor with container queries, or `container-type` from
+ * CSS). A size picked here is the variant every field writes under
  * (`@max-md:pbs-500`), in the slot a breakpoint takes: picking a breakpoint
  * gives it up, and so does clicking the picked size again. All is the
  * breakpoint row's.
  */
 import { computed, inject, nextTick, ref } from 'vue';
+import { ic } from '../../build-mode/icons.js';
 import {
   CONTAINER_SIZES,
   containerLength,
@@ -26,6 +27,8 @@ const props = defineProps({
 const port = inject('sveBuild');
 const around = computed(() => port.containerAround(props.path));
 const now = computed(() => port.containerSize());
+const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+const heading = computed(() => port.t('container_active_on', { name: `<b>${escapeHtml(around.value.name || around.value.tag)}</b>` }));
 
 /** The arbitrary sizes to offer: the element's own `@max-[…]` classes, and the one picked. */
 const customs = computed(() => {
@@ -76,12 +79,13 @@ function submit() {
 </script>
 
 <template>
-  <div v-if="around" data-sve-build-container>
-    <div class="fg-line">
-      <p class="fg-hint">{{ port.t('container_row', { tag: around.tag }) }}</p>
-      <p class="fg-hint">{{ port.t('container_now', { size: `${around.rem}rem` }) }}</p>
+  <div v-if="around" class="fg-cq-group" data-sve-build-container>
+    <div class="fg-cq-group__head">
+      <span class="fg-cq-group__icon" v-html="ic('containerQueries')"></span>
+      <span class="fg-cq-group__title" v-html="heading"></span>
+      <span class="fg-cq-group__now">{{ port.t('container_now', { size: `${around.rem}rem` }) }}</span>
     </div>
-    <div class="fg-seg" role="group" :aria-label="port.t('container_row', { tag: around.tag })">
+    <div class="fg-seg" role="group" :aria-label="port.t('container_queries')">
       <button
         v-for="size in CONTAINER_SIZES"
         :key="size.key"

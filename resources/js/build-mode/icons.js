@@ -18,6 +18,8 @@
 const P = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   container: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1"/>',
+  // A box and its width: container queries, told apart from the Container element above.
+  containerQueries: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 12h10M9.5 9.5L7 12l2.5 2.5M14.5 9.5L17 12l-2.5 2.5"/>',
   columns: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   button: '<rect x="3" y="7" width="18" height="10" rx="3"/><path d="M8 12h8"/>',

@@ -93,14 +93,18 @@ const sizesOut = computed(() => (sizeFit.hidden.value ? sizes.value.slice(-sizeF
 const stateNow = computed(() => (port.rev.value, port.state()));
 const deviceIcon = (name) => (name === 'all' ? ic('sidesAll') : port.lists.deviceIcons?.[name] || '');
 
+const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const sizeHint = computed(() => {
   const container = isContainerVariant(sizeNow.value) ? containerLength(sizeNow.value) : '';
 
   if (container) {
     const under = port.t('container_under', { size: container });
     const what = stateNow.value ? port.t('size_hint_state', { size: under, state: stateNow.value }) : under;
+    const name = port.containerAround(props.node.path)?.name;
 
-    return port.t('size_hint_container', { size: `<b>${what}</b>` });
+    return name
+      ? port.t('size_hint_container_named', { name: `<b>${escapeHtml(name)}</b>`, size: `<b>${what}</b>` })
+      : port.t('size_hint_container', { size: `<b>${what}</b>` });
   }
 
   const rows = port.sizes();
@@ -617,21 +621,21 @@ function jump(group) {
           ><span class="fg-more__icon" v-html="deviceIcon(row.icon)"></span>{{ row.label }}</button>
         </div>
       </div>
-      <BuildContainerRow v-if="containerTools" :path="node.path" />
-      <div class="fg-line fg-line--size">
+      <div class="fg-line fg-line--size" :class="{ 'fg-line--cq': containerTools }">
         <p class="fg-hint" v-html="sizeHint"></p>
         <span class="fg-line__tools">
           <button
             v-if="containerTools"
             type="button"
-            class="fg-state"
+            class="fg-state fg-cq"
             :class="{ 'is-set': isContainer }"
-            :aria-pressed="isContainer"
+            role="switch"
+            :aria-checked="isContainer"
             :disabled="!containerBare"
             :title="port.t(!containerBare ? 'container_title_bare' : isContainer ? 'container_title_remove' : 'container_title')"
             data-sve-build-container-toggle
             @click="port.setClass('@container')"
-          ><span>{{ port.t(isContainer ? 'container_set' : 'container') }}</span></button>
+          ><span v-html="ic('containerQueries')"></span><span class="fg-cq__label">{{ port.t(isContainer ? 'container_set' : 'container') }}</span><span class="fg-cq__switch" aria-hidden="true"></span></button>
           <button
             ref="stateBtn"
             type="button"
@@ -643,6 +647,7 @@ function jump(group) {
           ><span>{{ stateNow || port.t('state') }}</span><span v-html="ic('chev')"></span></button>
         </span>
       </div>
+      <BuildContainerRow v-if="containerTools" :path="node.path" />
 
       <div class="fg-jump">
         <button

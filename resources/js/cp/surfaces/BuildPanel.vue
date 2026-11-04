@@ -845,6 +845,26 @@ onBeforeUnmount(() => {
 .sve-build .fg-line--size > .fg-hint { flex: 1 1 8rem; }
 .sve-build .fg-line__tools { display: flex; flex: none; gap: 0.375rem; margin-inline-start: auto; }
 .sve-build .fg-line__tools .fg-state { white-space: nowrap; }
+.sve-build .fg-line--cq { row-gap: 0.5rem; }
+.sve-build .fg-line--cq > .fg-hint { flex-basis: 100%; }
+.sve-build .fg-line--cq > .fg-line__tools { flex: 1 1 100%; margin-inline-start: 0; }
+.sve-build .fg-cq { flex: 1; min-width: 0; gap: 0.375rem; }
+.sve-build .fg-state.fg-cq.is-set { color: var(--bm-ink); font-family: inherit; }
+.sve-build .fg-cq:disabled { opacity: 0.5; cursor: default; }
+.sve-build .fg-cq__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: start; }
+.sve-build .fg-cq__switch { position: relative; flex: none; inline-size: 1.5rem; block-size: 0.875rem; border-radius: 0.4375rem; background: var(--bm-hover); transition: background 0.15s; }
+.sve-build .fg-cq__switch::after { content: ''; position: absolute; inset-block-start: 0.125rem; inset-inline-start: 0.125rem; inline-size: 0.625rem; block-size: 0.625rem; border-radius: 50%; background: var(--bm-muted); transition: inset-inline-start 0.15s; }
+.sve-build .fg-cq.is-set .fg-cq__switch { background: var(--bm-accent); }
+.sve-build .fg-cq.is-set .fg-cq__switch::after { inset-inline-start: 0.75rem; background: var(--bm-ink); }
+.sve-build .fg-cq-group { display: grid; gap: 0.5rem; padding: 0.5rem; border-radius: 0.4rem; background: var(--bm-tag-bg); border: 1px solid var(--bm-accent-soft); }
+.sve-build .fg-cq-group__head { display: flex; align-items: center; gap: 0.375rem; min-width: 0; font-size: 0.6875rem; color: var(--bm-ink); }
+.sve-build .fg-cq-group__icon { display: inline-flex; flex: none; color: var(--bm-accent-text); }
+.sve-build .fg-cq-group__icon .bm-ic { width: 0.875rem; height: 0.875rem; }
+.sve-build .fg-cq-group__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve-build .fg-cq-group__title b { font-weight: 600; }
+.sve-build .fg-cq-group__now { flex: none; color: var(--bm-faint); }
+.sve-build .fg-cq-group .fg-seg { background: var(--bm-bg); }
+.sve-build .fg-cq-group .fg-seg button[aria-pressed='true'] { background: var(--bm-accent-soft); box-shadow: none; }
 .sve-build [data-sve-build-container] [data-now]::after { content: ''; flex: none; width: 0.3rem; height: 0.3rem; border-radius: 50%; background: var(--bm-accent-text); }
 .sve-build .fg-sizes .fg-fit button { flex: 1 0 auto; padding-inline: 0.625rem; font-size: 0.6875rem; }
 .sve-build .fg-sizes button span:last-child { overflow: hidden; text-overflow: ellipsis; }

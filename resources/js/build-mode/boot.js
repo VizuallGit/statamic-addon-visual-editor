@@ -1102,7 +1102,8 @@ export function createEditorPort(win, hooks = {}) {
     setContainerSize: (variant) => twSetContainerSize(win, variant),
     /**
      * The container a size query on the element at `path` asks, as the canvas
-     * lays it out now: `{ tag, rem }` — rem its content width — or null.
+     * lays it out now: `{ tag, name, path, rem }` — its HTML tree name and path
+     * when the file has it, rem its content width — or null.
      */
     containerAround(path) {
       rev.value;
@@ -1111,7 +1112,14 @@ export function createEditorPort(win, hooks = {}) {
       const el = path ? canvas?.elementAt(path) : null;
       const box = el ? sizeContainerOf(el) : null;
 
-      return box ? { tag: box.tagName.toLowerCase(), rem: contentWidthRem(box) } : null;
+      if (!box) {
+        return null;
+      }
+
+      const at = box.getAttribute(CANVAS_PATH) || '';
+      const row = at ? flattenHtmlTree(parseHtmlTree(html()), new Set()).find((item) => item.path === at) : null;
+
+      return { tag: box.tagName.toLowerCase(), name: row?.name || '', path: row ? at : '', rem: contentWidthRem(box) };
     },
     painted,
     classesShown,
