@@ -117,7 +117,7 @@ const sizeHint = computed(() => {
 
 /* ---------------- Container queries — the demo (container-query.js) ---------------- */
 
-const containerDemo = computed(() => !!port.containerDemo && !port.cssTarget);
+const containerTools = computed(() => !port.cssTarget);
 const isContainer = computed(() => classes.value.includes('@container'));
 // `@container` goes on bare: no breakpoint, container size or state in front of it.
 const containerBare = computed(() => chain.value[0] === '');
@@ -617,11 +617,11 @@ function jump(group) {
           ><span class="fg-more__icon" v-html="deviceIcon(row.icon)"></span>{{ row.label }}</button>
         </div>
       </div>
-      <BuildContainerRow v-if="containerDemo" :path="node.path" />
+      <BuildContainerRow v-if="containerTools" :path="node.path" />
       <div class="fg-line">
         <p class="fg-hint" v-html="sizeHint"></p>
         <button
-          v-if="containerDemo"
+          v-if="containerTools"
           type="button"
           class="fg-state"
           :class="{ 'is-set': isContainer }"

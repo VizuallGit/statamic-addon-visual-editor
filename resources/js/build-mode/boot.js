@@ -114,7 +114,7 @@ import { flowAt, siteFlowSpaces, siteReadsFlow } from './flow.js';
 import { loadClassDefs } from '../dock/class-defs.js';
 import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
-import { containerDemoOn, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
+import { contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
@@ -1080,8 +1080,7 @@ export function createEditorPort(win, hooks = {}) {
       return { own, parent, item: parent?.items.find((one) => one.path === path) || null };
     },
 
-    /* Container queries — the demo (container-query.js), on in this browser only */
-    containerDemo: containerDemoOn(win),
+    /* Container queries — the demo (container-query.js) */
     /** The container size new classes are written under (`@max-md`), or ''. */
     containerSize: () => (rev.value, twContainerSize()),
     setContainerSize: (variant) => twSetContainerSize(win, variant),

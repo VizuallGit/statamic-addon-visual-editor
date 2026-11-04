@@ -10,12 +10,7 @@
  * the variant every Style field writes under — `@max-md:pbs-500` — in the slot
  * a breakpoint takes (tw-classes.js `twSetContainerSize`), so the two are one
  * at a time.
- *
- * Off unless this browser turned it on:
- * `localStorage.setItem('sve-container-demo', '1')`, then reload.
  */
-
-const DEMO_KEY = 'sve-container-demo';
 
 /** Tailwind's own `--container-*` steps the row offers, widest first as the breakpoints are. */
 export const CONTAINER_SIZES = [
@@ -32,14 +27,6 @@ export const containerVariant = (key) => `@max-${key}`;
 
 /** A container size variant (`@max-md`, `@max-[30rem]`), not a screen size or a state. */
 export const isContainerVariant = (part) => CONTAINER_VARIANT.test(String(part || ''));
-
-export function containerDemoOn(win = window) {
-  try {
-    return win.localStorage.getItem(DEMO_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 /**
  * The container a size query on `el` asks: its nearest ancestor whose
