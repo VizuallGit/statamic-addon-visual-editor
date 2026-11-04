@@ -39,6 +39,7 @@ import { componentPropsUi } from '../component-props/store.js';
 import BuildAdd from './BuildAdd.vue';
 import BuildComponentInfo from './BuildComponentInfo.vue';
 import BuildAction from './BuildAction.vue';
+import BuildAnimation from './BuildAnimation.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
 import BuildStyleMode from './BuildStyleMode.vue';
@@ -103,7 +104,7 @@ function readTab() {
   try {
     const saved = window.localStorage.getItem(TAB_KEY);
 
-    return saved === 'content' || saved === 'action' ? saved : 'style';
+    return saved === 'content' || saved === 'action' || saved === 'animation' ? saved : 'style';
   } catch {
     return 'style';
   }
@@ -118,6 +119,7 @@ watch(port.contentAsked, () => {
 
 function choose(value) {
   chosen.value = value;
+  revealTab(value, 'smooth');
 
   try {
     window.localStorage.setItem(TAB_KEY, value);
@@ -126,6 +128,60 @@ function choose(value) {
   }
 }
 
+/* The element's tabs keep their width: the row scrolls sideways, an edge with more beyond it fades, a mouse's wheel turns it along. */
+const tabRow = ref(null);
+const tabEdges = ref({ start: false, end: false });
+let tabRowSized = null;
+
+function readTabEdges() {
+  const row = tabRow.value;
+
+  tabEdges.value = row ? { start: row.scrollLeft > 1, end: row.scrollLeft + row.clientWidth < row.scrollWidth - 1 } : { start: false, end: false };
+}
+
+function tabsAcross(event) {
+  const row = tabRow.value;
+
+  if (!row || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+    return;
+  }
+
+  const next = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, row.scrollLeft + event.deltaY));
+
+  // At its end the wheel scrolls the panel on.
+  if (next !== row.scrollLeft) {
+    row.scrollLeft = next;
+    event.preventDefault();
+  }
+}
+
+/** The tab in full view, clear of the fade at either edge. */
+function revealTab(value, behavior) {
+  const row = tabRow.value;
+  const button = row?.querySelector(`[data-sve-build-tab="${value}"]`);
+
+  if (!button) {
+    return;
+  }
+
+  const room = parseFloat(getComputedStyle(row.parentElement, '::after').width);
+  const left = button.offsetLeft - room;
+  const right = button.offsetLeft + button.offsetWidth + room - row.clientWidth;
+
+  row.scrollTo({ left: row.scrollLeft > left ? left : row.scrollLeft < right ? right : row.scrollLeft, behavior });
+}
+
+watch(tabRow, (row) => {
+  tabRowSized?.disconnect();
+  tabRowSized = row ? new ResizeObserver(readTabEdges) : null;
+
+  if (row) {
+    tabRowSized.observe(row);
+    revealTab(tab.value, 'auto');
+  }
+}, { flush: 'post' });
+onBeforeUnmount(() => tabRowSized?.disconnect());
+
 /** The element's tabs: [value, icon, word]. A loop's or condition's one tab is its Settings. */
 const TABS = computed(() => {
   if (styled.value) {
@@ -133,11 +189,13 @@ const TABS = computed(() => {
       ['content', 'form', 'tab_content'],
       ['style', 'sliders', 'tab_style'],
       ['action', 'zap', 'tab_action'],
+      ['animation', 'svg', 'anim_tab'],
     ];
   }
 
   return content.value === 'fields' ? [['content', 'form', 'tab_content']] : [['content', 'sliders', 'tab_settings']];
 });
+watch(() => TABS.value.length, readTabEdges, { flush: 'post' });
 
 /** A row's name in the panel: what it is, a column's number, a component's file. */
 function nameOf(row) {
@@ -363,21 +421,24 @@ onBeforeUnmount(() => {
         </span>
       </div>
 
-      <div class="bm-tabs" role="tablist">
-        <button
-          v-for="[value, icon, word] in TABS"
-          :key="value"
-          type="button"
-          role="tab"
-          :aria-selected="tab === value"
-          :data-sve-build-tab="value"
-          @click="choose(value)"
-        ><span v-html="ic(icon)"></span>{{ port.t(word) }}</button>
+      <div class="bm-tabs bm-tabs-scroll" :data-more-start="tabEdges.start || undefined" :data-more-end="tabEdges.end || undefined">
+        <div ref="tabRow" class="bm-tabs-row" role="tablist" @scroll.passive="readTabEdges" @wheel="tabsAcross">
+          <button
+            v-for="[value, icon, word] in TABS"
+            :key="value"
+            type="button"
+            role="tab"
+            :aria-selected="tab === value"
+            :data-sve-build-tab="value"
+            @click="choose(value)"
+          ><span v-html="ic(icon)"></span>{{ port.t(word) }}</button>
+        </div>
       </div>
 
       <div ref="scroller" class="bm-scroll">
         <BuildStyleMode v-if="tab === 'style'" :key="picked.path" :node="picked" />
         <BuildAction v-else-if="tab === 'action'" :key="`action-${picked.path}`" :node="picked" />
+        <BuildAnimation v-else-if="tab === 'animation'" :key="`animation-${picked.path}`" :node="picked" />
 
         <div v-else-if="!styled" class="bm-content">
           <p v-if="content === 'fields'" class="bm-note is-top" v-html="port.t('fields_note', { path: `<code>partials/components/${picked.label}.antlers.html</code>` })"></p>
@@ -476,6 +537,15 @@ onBeforeUnmount(() => {
 /* All | Elements | Components: words of different lengths, each with the same room at its sides; more room is shared out. */
 .sve-build .bm-tabs-fit button { flex: 1 1 auto; padding-inline: 0.8em; }
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
+/* The element's tabs keep their width; the row scrolls under the track, and an edge with more beyond it fades into the track (the canvas's TabBar). */
+.sve-build .bm-tabs.bm-tabs-scroll { position: relative; padding: 0; overflow: hidden; }
+.sve-build .bm-tabs-row { position: relative; display: flex; flex: 1; gap: 0.1875rem; min-width: 0; padding: 0.15rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.sve-build .bm-tabs-row::-webkit-scrollbar { display: none; }
+.sve-build .bm-tabs-row button { padding-inline: 0.75rem; white-space: nowrap; }
+.sve-build .bm-tabs-scroll::before, .sve-build .bm-tabs-scroll::after { content: ''; position: absolute; top: 0; bottom: 0; z-index: 1; width: 2.5rem; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+.sve-build .bm-tabs-scroll::before { left: 0; background: linear-gradient(to right, var(--bm-raise) 25%, transparent); }
+.sve-build .bm-tabs-scroll::after { right: 0; background: linear-gradient(to left, var(--bm-raise) 25%, transparent); }
+.sve-build .bm-tabs-scroll[data-more-start]::before, .sve-build .bm-tabs-scroll[data-more-end]::after { opacity: 1; }
 /* The picked element's name and its +, duplicate and delete, above Content | Style, on the tabs' side gutter. */
 .sve-build .bm-el-head { flex: none; margin: 0.625rem 0.75rem 0; }
 /* The room under the tabs is a border, not padding: padding scrolls away and the tiles would run up against the tabs. */
