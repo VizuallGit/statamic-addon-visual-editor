@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { besideSpot } from '../../resources/js/lib/beside.js';
+import { besideSpot, overSpot } from '../../resources/js/lib/beside.js';
 
 const view = { width: 1440, height: 900 };
 const size = { width: 272, height: 320 };
@@ -37,4 +37,16 @@ test('no room on either side: kept inside the window', () => {
   const spot = besideSpot({ top: 10 }, { left: 0, right: 1400 }, size, view);
 
   assert.equal(spot.left, 1440 - 272 - 8);
+});
+
+test('over the column: its width less a gap each side, just under what was clicked', () => {
+  const spot = overSpot({ bottom: 120 }, { left: 0, right: 340 }, size, view);
+
+  assert.deepEqual(spot, { left: 8, top: 128, width: 324 });
+});
+
+test('over the column, near the bottom: lifted so the popup stays in the window', () => {
+  const spot = overSpot({ bottom: 800 }, { left: 0, right: 340 }, size, view);
+
+  assert.equal(spot.top, 900 - 320 - 8);
 });

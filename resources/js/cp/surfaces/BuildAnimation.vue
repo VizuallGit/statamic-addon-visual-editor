@@ -43,7 +43,7 @@ import {
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
-import { besideSpot } from '../../lib/beside.js';
+import { besideSpot, overSpot } from '../../lib/beside.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 
 const props = defineProps({
@@ -246,7 +246,7 @@ const root = ref(null);
 const chip = ref(null);
 const editor = ref(null);
 const open = ref(false);
-const editorSpot = ref({ left: 0, top: 0 });
+const editorSpot = ref({ left: 0, top: 0, width: 0 });
 
 /** The stage plays again on every change, as the canvas promises ("spiller når du ændrer noget"). */
 const take = ref(0);
@@ -438,7 +438,7 @@ function place() {
   const panel = root.value?.closest('.sve-build');
 
   if (editor.value && chip.value && panel) {
-    editorSpot.value = besideSpot(chip.value.getBoundingClientRect(), panel.getBoundingClientRect(), size(editor.value), view());
+    editorSpot.value = overSpot(chip.value.getBoundingClientRect(), panel.getBoundingClientRect(), size(editor.value), view());
   }
 
   nextTick(placeCurve);
@@ -701,7 +701,7 @@ const Num = defineComponent({
         role="dialog"
         :aria-label="recipe"
         data-sve-build-anim-editor
-        :style="{ left: `${editorSpot.left}px`, top: `${editorSpot.top}px` }"
+        :style="{ left: `${editorSpot.left}px`, top: `${editorSpot.top}px`, width: editorSpot.width ? `${editorSpot.width}px` : null }"
       >
         <header class="bm-anim-pop__head">
           <b>{{ recipe }}</b>
@@ -1007,7 +1007,7 @@ const Num = defineComponent({
 .sve-build .bm-anim-btn.is-primary { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-anim-btn.is-primary:hover { background: color-mix(in srgb, var(--bm-accent) 85%, #fff); }
 
-/* Popover, beside the panel (lib/beside.js) */
+/* Popover: the editor over the panel, the curve beside the editor (lib/beside.js) */
 .sve-build.bm-anim-pop { position: fixed; z-index: 99999; display: flex; flex-direction: column; width: 20rem; height: auto; max-height: calc(100vh - 1rem); border: 1px solid var(--bm-edge); border-radius: 0.75rem; box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45); overflow: hidden; }
 .sve-build.bm-anim-pop.is-curve { width: 16.875rem; }
 .sve-build .bm-anim-pop__head { flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 0.75rem; }
