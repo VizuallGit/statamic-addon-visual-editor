@@ -1248,9 +1248,8 @@ export function openLpBackMenu(win, pill) {
   injectStyle(
     doc,
     LP_BACK_MENU_STYLE_ID,
-    `#${LP_BACK_MENU_ID} button[disabled] { opacity: .3; cursor: default; }\n` +
-      `#${LP_BACK_MENU_ID} [data-sve-menu-note] { max-width: 16rem; padding: .375rem .75rem .5rem; ` +
-      'font-size: .75rem; font-weight: 400; line-height: 1.35; white-space: normal; color: rgba(255,255,255,.55); }'
+    `#${LP_BACK_MENU_ID} [data-sve-menu-note] { max-width: 16rem; padding: .375rem .75rem .5rem; ` +
+      'font-size: .6875rem; font-weight: 400; line-height: 1.35; white-space: normal; color: rgba(255,255,255,.55); }'
   );
 
   const item = (label, title, iconSvg, onClick, enabled = true) => {
@@ -1272,6 +1271,9 @@ export function openLpBackMenu(win, pill) {
     if (!enabled) {
       btn.disabled = true;
       btn.setAttribute('aria-disabled', 'true');
+      // Inline, as the rest of the button: its inline `all:unset` wins over any stylesheet.
+      btn.style.opacity = '.4';
+      btn.style.cursor = 'default';
       menu.appendChild(btn);
 
       return;

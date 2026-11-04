@@ -46,11 +46,18 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* Sections: a header each, one open at a time. The open one's header stays
-   at the top of the list while its body scrolls under it. */
+/* Sections: a header each, one open at a time. The open one is one card: its
+   header on top and its body inside the same frame, the header staying at the
+   top of the list while the body scrolls under it. `clip`, not `hidden`: a
+   scroll box here would hold the sticky header inside the card. */
 .sve-theme__fold {
   display: flex;
   flex-direction: column;
+}
+.sve-theme__fold.is-open {
+  border: 1px solid #303035;
+  border-radius: 0.875rem;
+  overflow: clip;
 }
 .sve-theme__fold-head {
   position: relative;
@@ -59,10 +66,6 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  /* The panel's own color round the header, so a body that scrolls under it does not show at its corners. */
-  box-shadow: 0 0 0 0.25rem #1E1E21;
-  border-radius: 0.625rem;
-  background: #1E1E21;
 }
 .sve-theme__fold-toggle {
   display: flex;
@@ -81,6 +84,7 @@
   background: #2c2c30;
 }
 .sve-theme__fold-toggle.is-on {
+  border-radius: 0;
   background: #303035;
   color: #fff !important;
 }
@@ -173,7 +177,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  padding: 0.5rem 0 0.75rem;
+  padding: 0.375rem;
 }
 
 /* Save and what it says, under the sections */

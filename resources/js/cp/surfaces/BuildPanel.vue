@@ -974,10 +974,12 @@ onBeforeUnmount(() => {
 .sve-build .fg-classes .bm-switch::after { top: 0.15rem; left: 0.15rem; width: 0.75rem; height: 0.75rem; border-radius: 0.15rem; }
 .sve-build .fg-classes .bm-switch[aria-checked='true'] { background: var(--bm-accent); }
 .sve-build .fg-classes .bm-switch[aria-checked='true']::after { transform: translateX(0.575rem); }
-/* The list's first class stands under its size's name. */
-.sve-build .fg-classes .sve-tw-chips { padding-inline-start: 0; margin-inline-start: 0; }
-/* The pane's list can be long, and this stands in the sticky top. Room above and beside for its minus. */
-.sve-build .fg-classes .sve-tw { max-height: 8rem; overflow-y: auto; padding-block-start: 0.5em; padding-inline-end: 0.5em; }
+/* One line in the sticky top: each size's name, then its classes, scrolling sideways. Room above and beside for the minus. */
+.sve-build .fg-classes .sve-tw { flex-direction: row; align-items: center; gap: 0.75rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; padding-block: 0.5em 0.25rem; padding-inline-end: 0.5em; scrollbar-width: thin; scrollbar-color: var(--bm-edge) transparent; }
+.sve-build .fg-classes .sve-tw-group { flex: none; flex-direction: row; align-items: center; gap: 0.4rem; }
+.sve-build .fg-classes .sve-tw-variant { flex: none; align-self: center; }
+.sve-build .fg-classes .sve-tw-chips { flex-wrap: nowrap; padding: 0; margin-inline-start: 0; }
+.sve-build .fg-classes .sve-tw-chip-wrap { flex: none; }
 .sve-build .fg-classes__new { flex: none; height: 1.5rem; padding-inline: 0.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 500; }
 /* The list's three buttons read as one group: the same grey, the same height, the same blue under the pointer. */
 .sve-build .fg-classes__h .fg-ib { height: 1.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); }
@@ -989,8 +991,8 @@ onBeforeUnmount(() => {
 .sve-build-bar-add { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; margin-inline-start: auto; padding: 0; border: 0; border-radius: 0.3rem; background: rgba(56, 88, 233, 0.28); color: #b4c1ff; cursor: pointer; }
 .sve-build-bar-add svg { width: 0.9375rem; height: 0.9375rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .sve-build-bar-add:hover, .sve-build-bar-add[aria-pressed='true'] { background: #3858e9; color: #fff; }
-/* Add a class is the line's main action: blue before the pointer comes, full blue under it. */
-.sve-build .fg-classes__h [data-sve-build-classes-add] { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+/* Add a class is the line's main action: full blue, under the pointer too. */
+.sve-build .fg-classes__h button[data-sve-build-classes-add],
 .sve-build .fg-classes__h button[data-sve-build-classes-add]:hover:not(:disabled) { background: var(--bm-accent); color: #fff; }
 .sve-build .fg-classes.is-class { padding: 0.4rem; box-shadow: inset 0 0 0 1px var(--bm-accent); border-radius: 0.3rem; }
 .sve-build .fg-field { position: relative; display: flex; align-items: center; gap: 0.35rem; min-width: 0; height: 1.875rem; padding: 0 0.4rem; border-radius: 0.3rem; background: var(--bm-raise); border: 1px solid transparent; }
