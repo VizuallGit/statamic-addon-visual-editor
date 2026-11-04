@@ -10,7 +10,8 @@
  * so it beats runtime.css's `anim-runtime` and reduced-motion.css's
  * `anim-reduced` layers whatever they say, and it names the runtime's own
  * selectors and nothing of the site's. A hover's transition is the visitor's
- * own gesture and is left as it is.
+ * own gesture and is left as it is; an element that follows the mouse stands
+ * where the file put it, so the pointer over the preview moves nothing.
  *
  * ▶ (playAnimation). The element the open file's rendering stamps `path` on
  * (html-pick-align.js), every rendering of it: its animation plays again, or
@@ -32,9 +33,12 @@ const STILL_ATTR = 'data-sve-anim-still';
 const PLAYING_ATTR = 'data-sve-anim-playing';
 const STILL_SHEET_ID = '__sve-anim-still';
 const ANIMATED = '[data-anim]';
-/** What runtime.css animates: the element, or each child of one that animates its children. */
-const RUNS = ':is([data-anim="self"], [data-anim="parallax"], [data-anim="ticker"], [data-anim="words"], [data-anim="children"] > *)';
-const STILL_CSS = `html[${STILL_ATTR}] ${RUNS}:not([${PLAYING_ATTR}], [${PLAYING_ATTR}] > *) { animation: none; }`;
+/** What runtime.css animates: the element, each child of one that animates its children, each word of one that animates its words. */
+const RUNS = ':is([data-anim="self"], [data-anim="parallax"], [data-anim="ticker"], [data-anim="children"] > *, [data-anim="words"] [data-anim-word])';
+const STILL_CSS = [
+  `html[${STILL_ATTR}] ${RUNS}:not([${PLAYING_ATTR}], [${PLAYING_ATTR}] > *, [${PLAYING_ATTR}] [data-anim-word]) { animation: none; }`,
+  `html[${STILL_ATTR}] [data-anim="mouse"] { translate: none; transition: none; }`,
+].join('\n');
 
 function still(win) {
   return win.document.documentElement.hasAttribute(STILL_ATTR);

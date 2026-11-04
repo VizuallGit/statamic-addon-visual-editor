@@ -177,7 +177,9 @@ test('«Stille» marks the document and hangs one unlayered sheet in the head, o
   assert.equal(win.head.children[0].id, '__sve-anim-still');
   assert.match(win.head.children[0].textContent, /^html\[data-sve-anim-still\] /);
   assert.ok(!win.head.children[0].textContent.includes('@layer'), 'unlayered: it beats the runtime’s layers');
-  assert.ok(win.head.children[0].textContent.includes(':not([data-sve-anim-playing], [data-sve-anim-playing] > *)'));
+  assert.ok(win.head.children[0].textContent.includes(':not([data-sve-anim-playing], [data-sve-anim-playing] > *, [data-sve-anim-playing] [data-anim-word])'));
+  assert.ok(win.head.children[0].textContent.includes('[data-anim="words"] [data-anim-word])'), 'the words of a heading stand at their end frame too');
+  assert.match(win.head.children[0].textContent, /html\[data-sve-anim-still\] \[data-anim="mouse"\] \{ translate: none; transition: none; \}/, 'the pointer over the preview moves nothing');
 
   setAnimationMode(win, { still: false });
 

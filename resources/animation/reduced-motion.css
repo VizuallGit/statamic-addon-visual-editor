@@ -7,7 +7,9 @@
  * author sees the motion they set.
  *
  * What does not play now gets no fade either: an element that is off, waits
- * for a hover, or waits for its switch.
+ * for a hover, or waits for its switch. The words of a heading fade as one.
+ * An element that follows the mouse stands still: runtime.js never starts
+ * following for such a visitor.
  */
 @keyframes anim-fade {
   from {
@@ -17,7 +19,7 @@
 
 @layer anim-reduced {
   @media (prefers-reduced-motion: reduce) {
-    :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *) {
+    :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *, [data-anim="words"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) [data-anim-word]) {
       animation: anim-fade 0.3s ease backwards;
     }
 
@@ -25,7 +27,7 @@
       animation: none;
     }
 
-    :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *) {
+    :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *, [data-anim="words"][data-anim-on="hover"] [data-anim-word]) {
       --anim-motion: 0;
     }
   }

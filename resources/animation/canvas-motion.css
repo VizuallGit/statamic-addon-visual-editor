@@ -5,7 +5,7 @@
  * the cascade.
  */
 @layer anim-reduced {
-  :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *) {
+  :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *, [data-anim="words"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) [data-anim-word]) {
     animation: revert-layer;
   }
 
@@ -13,7 +13,7 @@
     animation: revert-layer;
   }
 
-  :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *) {
+  :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *, [data-anim="words"][data-anim-on="hover"] [data-anim-word]) {
     --anim-motion: revert-layer;
   }
 }

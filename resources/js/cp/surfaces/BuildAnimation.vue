@@ -21,8 +21,11 @@
  * timing) under a name in the site's animations.yaml and puts the element on
  * it; My presets lists them beside the library and in the preset list.
  *
- * What the runtime cannot do yet (following the mouse, words one by one,
- * picking children) stands as the canvas draws it and says so when pressed.
+ * Words in turn and the mouse are runtime.js's work on the page: the canvas
+ * runs no scripts, so there a heading stands whole and an element stays
+ * put; the stage shows the words as children, Live Preview shows both as
+ * the page does. Picking children stands as the canvas draws it and says so
+ * when pressed.
  */
 import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PRESETS from '../../../animation/presets.json';
@@ -40,6 +43,7 @@ import {
   groupPresets,
   isChanged,
   missingEffects,
+  moves,
   newAnimation,
   onPreset,
   ownValues,
@@ -50,6 +54,7 @@ import {
   RUNTIME_DEFAULTS,
   SETTINGS,
   springEase,
+  stepped,
   TICKER_DURATION,
   timed,
   TIMING_RANGE,
@@ -107,17 +112,17 @@ const icon = (name, size = 14) =>
 
 /* ---------------- the tab ---------------- */
 
-/** [trigger, icon, word, later]: the five the runtime plays, and the one for later. */
+/** [trigger, icon, word]: the five the runtime plays a preset on, and the mouse, which is the recipe of its own (RECIPES.mouse). */
 const TRIGGERS = [
-  ['view', 'eye', 'anim_on_view', false],
-  ['scroll', 'scroll', 'anim_on_scroll', false],
-  ['load', 'bolt', 'anim_on_load', false],
-  ['hover', 'hover', 'anim_on_hover', false],
-  ['switch', 'tap', 'anim_on_switch', false],
-  ['mouse', 'move', 'anim_on_mouse', true],
+  ['view', 'eye', 'anim_on_view'],
+  ['scroll', 'scroll', 'anim_on_scroll'],
+  ['load', 'bolt', 'anim_on_load'],
+  ['hover', 'hover', 'anim_on_hover'],
+  ['switch', 'tap', 'anim_on_switch'],
+  ['mouse', 'move', 'anim_on_mouse'],
 ];
 
-const RECIPE_ICONS = { parallax: 'scroll', ticker: 'ticker', stack: 'stack' };
+const RECIPE_ICONS = { parallax: 'scroll', ticker: 'ticker', stack: 'stack', mouse: 'move' };
 
 const stroke = 'stroke:var(--bm-accent);stroke-width:1.3';
 const tint = (p) => `fill:color-mix(in srgb,var(--bm-accent) ${p}%,transparent)`;
@@ -159,10 +164,10 @@ const TILES = [
   {
     key: 'words',
     word: 'anim_r_words',
-    later: true,
+    target: 'words',
     art: `<rect x="6" y="15" width="14" height="10" rx="2" style="${tint(50)}"/><rect x="23" y="15" width="18" height="10" rx="2" style="${tint(30)}"/><rect x="44" y="15" width="14" height="10" rx="2" style="${tint(12)}"/>`,
   },
-  { key: 'mouse', word: 'anim_r_mouse', later: true, art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
+  { key: 'mouse', word: 'anim_r_mouse', recipe: 'mouse', art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
 ];
 
 const groups = computed(() => groupPresets(presets.value));
@@ -180,12 +185,12 @@ const recipe = computed(() => {
     return t(`anim_r_hover_${now.target}`);
   }
 
-  return t(now?.target === 'children' ? 'anim_r_children' : 'anim_r_self');
+  return t(`anim_r_${now?.target || 'self'}`);
 });
 const chipIcon = computed(() => (plays.value ? TRIGGERS.find(([on]) => on === anim.value.on)[1] : RECIPE_ICONS[anim.value?.target]));
 const chipSub = computed(() => (plays.value ? label(preset.value) || anim.value.preset || t('anim_own') : ''));
 
-/** ▶ shows something only where the motion runs in time: not on hover, while scrolling, or on a stack. */
+/** ▶ shows something only where the motion runs in time: not on hover, while scrolling, on a stack or toward the mouse. */
 const playable = computed(() => (plays.value ? !['hover', 'scroll'].includes(anim.value.on) : anim.value?.target === 'ticker'));
 const tagName = computed(() => {
   const first = String(props.node.classes || '').split(/\s+/).find((name) => /^[a-z_-]/i.test(name) && !name.includes('{'));
@@ -207,8 +212,12 @@ function withTrigger(now, on) {
   return { ...now, on, switch: on === 'switch' ? keep : null };
 }
 
-function pickTrigger(on, later) {
-  if (later) {
+/** A trigger on the element's preset; the mouse is no trigger but the recipe of its own, and takes the preset's place. */
+function pickTrigger(on) {
+  if (on === 'mouse') {
+    write(recipeAnimation('mouse'));
+    open.value = true;
+
     return;
   }
 
@@ -221,12 +230,8 @@ function pickTrigger(on, later) {
   write(withTrigger(anim.value, on));
 }
 
-/** A recipe replaces what was there; "Element in" and "Children in turn" keep the preset, unless it was a hover's or a recipe's. */
+/** A recipe replaces what was there; "Element in", "Children in turn" and "Words in turn" keep the preset, unless it was a hover's or a recipe's. */
 function useTile(tile) {
-  if (tile.later) {
-    return;
-  }
-
   if (tile.recipe) {
     write(recipeAnimation(tile.recipe));
   } else {
@@ -473,18 +478,20 @@ const presetText = computed(() => {
 });
 const effects = computed(() => (anim.value ? effectsOf(anim.value, preset.value) : []));
 const missing = computed(() => (anim.value ? missingEffects(anim.value, preset.value) : []));
-const hasEffects = computed(() => plays.value || anim.value?.target === 'parallax');
-const effectsNote = computed(() => ({ hover: 'anim_hover_note', scroll: 'anim_scroll_note' })[anim.value?.on] || (anim.value?.target === 'parallax' ? 'anim_parallax_note' : ''));
+const hasEffects = computed(() => plays.value || moves(anim.value?.target));
+/** What the effects mean here: on a hover, while scrolling, for a parallax or the mouse, and for words, where the page cuts the heading. */
+const NOTES = { parallax: 'anim_parallax_note', mouse: 'anim_mouse_note', words: 'anim_words_note' };
+const effectsNote = computed(() => ({ hover: 'anim_hover_note', scroll: 'anim_scroll_note' })[anim.value?.on] || NOTES[anim.value?.target] || '');
 
-/** While scrolling the scroll is the clock: no delay, duration or wait between children. */
+/** While scrolling the scroll is the clock: no delay, duration or wait between children or words. */
 const timing = computed(() => (anim.value?.on === 'scroll'
   ? []
   : [
       ['delay', 'anim_delay'],
       ['duration', 'anim_duration'],
-      ...(anim.value?.target === 'children' ? [['step', 'anim_step']] : []),
+      ...(stepped(anim.value?.target) ? [['step', 'anim_step']] : []),
     ]));
-const staggers = computed(() => anim.value?.target === 'children' && anim.value.on !== 'scroll');
+const staggers = computed(() => stepped(anim.value?.target) && anim.value.on !== 'scroll');
 
 /* A ticker's and a stack's own lengths, in rem; the runtime's own is written as nothing. */
 const remOf = (name) => parseFloat(valueOf(anim.value, null, name) ?? SETTINGS[name]);
@@ -903,19 +910,16 @@ const Num = defineComponent({
       <div class="bm-anim-head"><span>{{ t('anim_triggers') }}</span></div>
       <div class="bm-anim-triggers">
         <button
-          v-for="[on, ic, word, later] in TRIGGERS"
+          v-for="[on, ic, word] in TRIGGERS"
           :key="on"
           type="button"
           class="bm-anim-trigger"
-          :class="{ 'is-later': later }"
           :aria-pressed="anim.on === on"
-          :aria-disabled="later || undefined"
           :data-sve-build-anim-on="on"
-          @click="pickTrigger(on, later)"
+          @click="pickTrigger(on)"
         >
           <span class="bm-anim-trigger__ic" v-html="icon(ic)"></span>
           <span class="bm-anim-trigger__word">{{ t(word) }}</span>
-          <em v-if="later">{{ t('anim_later') }}</em>
         </button>
       </div>
       <div v-if="switches.length" class="bm-anim-switches">
@@ -932,8 +936,6 @@ const Num = defineComponent({
           :key="tile.key"
           type="button"
           class="bm-anim-tile"
-          :class="{ 'is-later': tile.later }"
-          :aria-disabled="tile.later || undefined"
           :data-sve-build-anim-tile="tile.key"
           @click="useTile(tile)"
         >
@@ -996,7 +998,7 @@ const Num = defineComponent({
             <div
               :key="take"
               class="bm-anim-stage__set"
-              :data-anim="anim.target"
+              :data-anim="anim.target === 'words' ? 'children' : anim.target"
               :data-anim-preset="anim.preset || null"
               :data-anim-on="anim.on === 'hover' ? 'hover' : null"
               :style="stageStyle"
@@ -1014,9 +1016,9 @@ const Num = defineComponent({
                 <span class="bm-anim-box">
                   <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="anim.on" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="write(withTrigger(anim, $event.target.value))">
-                    <option v-for="[on, , word, later] in TRIGGERS" :key="on" :value="on" :disabled="later || (on === 'switch' && !switches.length)">
-                      {{ t(word) }}{{ later ? ` · ${t('anim_later')}` : '' }}
+                  <select :value="anim.on" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="pickTrigger($event.target.value)">
+                    <option v-for="[on, , word] in TRIGGERS" :key="on" :value="on" :disabled="on === 'switch' && !switches.length">
+                      {{ t(word) }}
                     </option>
                   </select>
                 </span>
@@ -1355,9 +1357,6 @@ const Num = defineComponent({
 .sve-build .bm-anim-trigger[aria-pressed='true'] { background: var(--bm-raise); }
 .sve-build .bm-anim-trigger__ic { display: flex; color: var(--bm-accent); }
 .sve-build .bm-anim-trigger__word { flex: 1; min-width: 0; }
-.sve-build .bm-anim-trigger em { font-style: normal; font-size: 0.625rem; }
-.sve-build .bm-anim-trigger.is-later, .sve-build .bm-anim-trigger.is-later .bm-anim-trigger__ic { color: var(--bm-quiet); cursor: default; }
-.sve-build .bm-anim-trigger.is-later:hover { background: none; }
 .sve-build .bm-anim-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; padding-left: 1.875rem; color: var(--bm-faint); font-size: 0.625rem; }
 .sve-build .bm-anim-switches code { padding: 0.0625rem 0.3125rem; border-radius: 0.25rem; background: var(--bm-hover); color: var(--bm-muted); font-size: 0.625rem; white-space: nowrap; }
 
@@ -1367,8 +1366,6 @@ const Num = defineComponent({
 .sve-build .bm-anim-tile:hover { background: var(--bm-hover); }
 .sve-build .bm-anim-tile svg { width: 4rem; height: 2.5rem; }
 .sve-build .bm-anim-tile > span { color: var(--bm-muted); font-size: 0.625rem; line-height: 1.2; text-align: center; }
-.sve-build .bm-anim-tile.is-later { opacity: 0.45; cursor: default; }
-.sve-build .bm-anim-tile.is-later:hover { background: var(--bm-raise); }
 .sve-build .bm-anim-mine { display: flex; justify-content: center; margin-top: 0.125rem; }
 
 /* My presets: a row each, its × asking first */

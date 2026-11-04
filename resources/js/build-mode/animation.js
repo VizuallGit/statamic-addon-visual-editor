@@ -7,12 +7,12 @@
  * Bus messages: none.
  *
  * What an element does stands in its opening tag, as
- * resources/animation/runtime.css reads it: `data-anim` (self | children,
- * or one of the recipes parallax | ticker | stack), and for self and
- * children `data-anim-preset`, `data-anim-on` (view | scroll | load | hover |
- * switch), `data-anim-repeat` (play again each time it comes into view) and,
- * on a switch, Alpine's `:data-anim-active="open"`. `data-anim-off` (kept,
- * not played) and a ticker's `data-anim-pause` stand on any of them,
+ * resources/animation/runtime.css reads it: `data-anim` (self | children |
+ * words, or one of the recipes parallax | ticker | stack | mouse), and for
+ * self, children and words `data-anim-preset`, `data-anim-on` (view | scroll
+ * | load | hover | switch), `data-anim-repeat` (play again each time it comes
+ * into view) and, on a switch, Alpine's `:data-anim-active="open"`.
+ * `data-anim-off` (kept, not played) and a ticker's `data-anim-pause` stand on any of them,
  * and every `--anim-*` value of its own as a Tailwind class in its `class`
  * (`[--anim-duration:1.2s]`): the timing, the curve and the effects that
  * differ from the preset. `{{ sve_tw }}` bakes them like any other class. A
@@ -35,13 +35,19 @@ import { elementAttrs, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { findByPath } from './place.js';
 
-export const TARGETS = ['self', 'children', 'parallax', 'ticker', 'stack'];
+export const TARGETS = ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse'];
 
-/** When the element or its children play: the triggers runtime.css knows. */
+/** When the element, its children or its words play: the triggers runtime.css knows. */
 export const TRIGGER_KEYS = ['view', 'scroll', 'load', 'hover', 'switch'];
 
 /** Whether the target plays a preset on a trigger; the recipes do one thing of their own. */
-export const timed = (target) => target === 'self' || target === 'children';
+export const timed = (target) => target === 'self' || target === 'children' || target === 'words';
+
+/** Whether the target plays one after another, with a step between: the children, or the words. */
+export const stepped = (target) => target === 'children' || target === 'words';
+
+/** Whether the target only moves, by its x and y: a parallax with the scroll, or toward the mouse. */
+export const moves = (target) => target === 'parallax' || target === 'mouse';
 
 /** What runtime.css falls back to, in ms — the timing fields' placeholders. */
 export const RUNTIME_DEFAULTS = { duration: 700, delay: 0, step: 70 };
@@ -58,6 +64,7 @@ export const RECIPES = {
   parallax: { target: 'parallax', vars: { '--anim-y': '4rem' } },
   ticker: { target: 'ticker' },
   stack: { target: 'stack' },
+  mouse: { target: 'mouse', vars: { '--anim-x': '1rem', '--anim-y': '1rem' } },
 };
 
 const SWITCH_ATTRS = [':data-anim-active', 'x-bind:data-anim-active'];
@@ -336,9 +343,9 @@ export function missingEffects(anim, preset) {
   return effectsFor(anim).filter((effect) => !shown.has(effect.key));
 }
 
-/** The effects the runtime plays for this animation: a parallax only moves, a hover reveals nothing, a ticker and a stack have none. */
+/** The effects the runtime plays for this animation: a parallax and the mouse only move, a hover reveals nothing, a ticker and a stack have none. */
 function effectsFor(anim) {
-  if (anim?.target === 'parallax') {
+  if (moves(anim?.target)) {
     return EFFECTS.filter((effect) => effect.key === 'y' || effect.key === 'x');
   }
 

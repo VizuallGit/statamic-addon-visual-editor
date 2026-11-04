@@ -14,6 +14,7 @@ import {
   groupPresets,
   isChanged,
   missingEffects,
+  moves,
   newAnimation,
   onPreset,
   presetLook,
@@ -25,7 +26,9 @@ import {
   RUNTIME_DEFAULTS,
   SETTINGS,
   springEase,
+  stepped,
   TICKER_DURATION,
+  timed,
   withAnimation,
   withEffect,
   withVar,
@@ -293,14 +296,28 @@ test('every trigger the runtime knows reads back; anything else reads as scrolle
   assert.equal(read('<p data-anim="self" data-anim-on="mouse">x</p>', '0:p').on, 'view');
 });
 
-test('a parallax moves only, a hover reveals nothing, and a ticker or a stack has no effects', () => {
+test('a parallax and the mouse move only, a hover reveals nothing, and a ticker or a stack has no effects', () => {
   const keys = (list) => list.map((effect) => effect.key);
 
   assert.deepEqual(keys(missingEffects(recipeAnimation('parallax'), null)), ['x']);
   assert.deepEqual(keys(effectsOf(recipeAnimation('parallax'), null)), ['y']);
+  assert.deepEqual(keys(effectsOf(recipeAnimation('mouse'), null)), ['y', 'x']);
+  assert.deepEqual(missingEffects(recipeAnimation('mouse'), null), []);
   assert.ok(!keys(missingEffects({ ...newAnimation(''), on: 'hover' }, null)).includes('clip'));
   assert.deepEqual(missingEffects(recipeAnimation('ticker'), null), []);
   assert.deepEqual(effectsOf(recipeAnimation('stack'), null), []);
+});
+
+test('words in turn play a preset on a trigger as children do, with a step between; the mouse is a recipe with how far it goes', () => {
+  const words = { ...newAnimation('fade-up', 'words'), step: 50 };
+  const next = withAnimation('<h2>Two <em>short</em> words</h2>', '0:h2', words);
+
+  assert.ok(timed('words') && stepped('words') && !moves('words'));
+  assert.ok(!timed('mouse') && !stepped('mouse') && moves('mouse'));
+  assert.equal(next, '<h2 data-anim="words" data-anim-preset="fade-up" data-anim-on="view" class="[--anim-step:0.05s]">Two <em>short</em> words</h2>\n\n{{ sve_animation }}');
+  assert.deepEqual(read(next, '0:h2'), words);
+  assert.equal(withAnimation('<p>x</p>', '0:p', recipeAnimation('mouse')), '<p data-anim="mouse" class="[--anim-y:1rem] [--anim-x:1rem]">x</p>\n\n{{ sve_animation }}');
+  assert.equal(read('<p data-anim="mouse" data-anim-on="view" data-anim-preset="fade">x</p>', '0:p').on, null);
 });
 
 test('a path that is no element leaves the file alone', () => {
@@ -361,15 +378,16 @@ test('the fade for less motion stands on its own, so the stage can leave it out'
 test('with less motion, only what plays now fades: not an element that is off, waits for a hover or waits for its switch', () => {
   const gate = ':not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active]))';
 
-  assert.ok(REDUCED.includes(`:is([data-anim="self"]${gate}, [data-anim="children"]${gate} > *) {\n      animation: anim-fade 0.3s ease backwards;`));
+  assert.ok(REDUCED.includes(`:is([data-anim="self"]${gate}, [data-anim="children"]${gate} > *, [data-anim="words"]${gate} [data-anim-word]) {\n      animation: anim-fade 0.3s ease backwards;`));
   assert.match(REDUCED, /:is\(\[data-anim="parallax"\], \[data-anim="ticker"\]\) \{\s*animation: none;/);
-  assert.match(REDUCED, /\[data-anim-on="hover"\] > \*\) \{\s*--anim-motion: 0;/);
+  assert.match(REDUCED, /\[data-anim="words"\]\[data-anim-on="hover"\] \[data-anim-word\]\) \{\s*--anim-motion: 0;/);
 });
 
-test('no value the runtime reads is inherited, except by the children of children and of a stack, from their parent', () => {
+test('no value the runtime reads is inherited, except by the children of children and of a stack, and the words of words, from their parent', () => {
   const read = new Set([...RUNTIME.matchAll(/var\((--anim-[a-z-]+)/g)].map((match) => match[1]));
-  const own = [...read].filter((name) => !['--anim-i', '--anim-flip'].includes(name));
-  const children = /:is\(\[data-anim="children"\], \[data-anim="stack"\]\) > :not\(\[data-anim\]\) \{([^}]*)\}/.exec(RUNTIME)?.[1] || '';
+  // --anim-i, --anim-mx and --anim-my are the runtime's own marks on the element itself, as --anim-flip is the section's.
+  const own = [...read].filter((name) => !['--anim-i', '--anim-flip', '--anim-mx', '--anim-my'].includes(name));
+  const children = /:is\(\[data-anim="children"\], \[data-anim="stack"\]\) > :not\(\[data-anim\]\), \[data-anim="words"\] :not\(\[data-anim\]\) \{([^}]*)\}/.exec(RUNTIME)?.[1] || '';
 
   assert.ok(own.length > 20);
 
@@ -377,6 +395,23 @@ test('no value the runtime reads is inherited, except by the children of childre
     assert.ok(RUNTIME.includes(`@property ${name} { syntax: "*"; inherits: false; }`), `${name} registered`);
     assert.ok(children.includes(`${name}: inherit;`), `${name} passed to the children`);
   }
+});
+
+test('a heading\'s words animate as children do, from a <span data-anim-word> each, and are boxes so they can move', () => {
+  assert.match(RUNTIME, /:is\(\[data-anim="self"\], \[data-anim="children"\] > \*, \[data-anim="words"\] \[data-anim-word\]\) \{\s*animation: anim-in/);
+  assert.match(RUNTIME, /\[data-anim="words"\] \[data-anim-word\] \{\s*display: inline-block;\s*\}/);
+  assert.match(RUNTIME, /\[data-anim="words"\]\[data-anim-on="switch"\]:not\(\[data-anim-active\]\) \[data-anim-word\]\) \{\s*animation: none;/);
+  assert.match(RUNTIME, /\[data-anim="words"\]\[data-anim-on="scroll"\] \[data-anim-word\]\) \{\s*animation-duration: auto;/);
+  assert.ok(RUNTIME.includes(':is([data-anim-off], [data-anim-off] > *, [data-anim-off] [data-anim-word]) {\n    animation: none;'));
+});
+
+test('an element that follows the mouse moves by its x and y times where the pointer is, for a fine pointer only, and stands still when off', () => {
+  const rule = /@media \(hover: hover\) and \(pointer: fine\) \{\s*\[data-anim="mouse"\] \{([^}]*)\}/.exec(RUNTIME)?.[1] || '';
+
+  assert.ok(rule.includes('translate: calc(var(--anim-x, var(--anim-preset-x, 0rem)) * var(--anim-flip, 1) * var(--anim-mx, 0)) calc(var(--anim-y, var(--anim-preset-y, 0rem)) * var(--anim-my, 0));'));
+  assert.match(rule, /transition: translate var\(--anim-duration, 0\.7s\)/);
+  assert.match(RUNTIME, /\[data-anim="mouse"\]\[data-anim-off\] \{\s*translate: none;\s*\}/);
+  assert.doesNotMatch(RUNTIME, /\[data-anim="mouse"\][^{]*\{[^}]*animation:/, 'the mouse is a transition, never an animation');
 });
 
 test('less motion stands over the runtime, and the canvas reverts each of its rules with the same selector', () => {
@@ -392,16 +427,18 @@ test('less motion stands over the runtime, and the canvas reverts each of its ru
 test('while scrolling and a parallax follow a view() timeline, only where the browser has one', () => {
   const supports = RUNTIME.slice(RUNTIME.indexOf('@supports (animation-timeline: view())'));
 
-  assert.match(supports, /\[data-anim="children"\]\[data-anim-on="scroll"\] > \*\) \{[^}]*animation-timeline: view\(\);/);
+  assert.match(supports, /\[data-anim="children"\]\[data-anim-on="scroll"\] > \*, \[data-anim="words"\]\[data-anim-on="scroll"\] \[data-anim-word\]\) \{[^}]*animation-timeline: view\(\);/);
   assert.match(supports, /\[data-anim="parallax"\] \{\s*animation: anim-parallax auto linear both;\s*animation-timeline: view\(\);\s*animation-range: cover;/);
   assert.doesNotMatch(RUNTIME.slice(0, RUNTIME.indexOf('@supports')), /animation-timeline/);
 });
 
 test('a hover is a transition to the values, a switch waits for Alpine\'s data-anim-active, and off stops both', () => {
-  assert.match(RUNTIME, /\[data-anim="self"\]\[data-anim-on="hover"\], \[data-anim="children"\]\[data-anim-on="hover"\] > \*\) \{\s*animation: none;\s*transition-property: opacity, translate, scale, rotate, filter, transform;/);
-  assert.match(RUNTIME, /@media \(hover: hover\) \{\s*:is\(\[data-anim="self"\]\[data-anim-on="hover"\]:hover, \[data-anim="children"\]\[data-anim-on="hover"\]:hover > \*\):not\(\[data-anim-off\], \[data-anim-off\] > \*\)/);
-  assert.match(RUNTIME, /\[data-anim="self"\]\[data-anim-on="switch"\]:not\(\[data-anim-active\]\), \[data-anim="children"\]\[data-anim-on="switch"\]:not\(\[data-anim-active\]\) > \*\) \{\s*animation: none;/);
-  assert.ok(RUNTIME.lastIndexOf(':is([data-anim-off], [data-anim-off] > *)') > RUNTIME.indexOf('[data-anim="ticker"] {'));
+  const words = (on) => `\\[data-anim="words"\\]\\[data-anim-on="${on}"\\]`;
+
+  assert.match(RUNTIME, new RegExp(`\\[data-anim="self"\\]\\[data-anim-on="hover"\\], \\[data-anim="children"\\]\\[data-anim-on="hover"\\] > \\*, ${words('hover')} \\[data-anim-word\\]\\) \\{\\s*animation: none;\\s*transition-property: opacity, translate, scale, rotate, filter, transform;`));
+  assert.match(RUNTIME, new RegExp(`@media \\(hover: hover\\) \\{\\s*:is\\(\\[data-anim="self"\\]\\[data-anim-on="hover"\\]:hover, \\[data-anim="children"\\]\\[data-anim-on="hover"\\]:hover > \\*, ${words('hover')}:hover \\[data-anim-word\\]\\):not\\(\\[data-anim-off\\], \\[data-anim-off\\] > \\*, \\[data-anim-off\\] \\[data-anim-word\\]\\)`));
+  assert.match(RUNTIME, new RegExp(`\\[data-anim="self"\\]\\[data-anim-on="switch"\\]:not\\(\\[data-anim-active\\]\\), \\[data-anim="children"\\]\\[data-anim-on="switch"\\]:not\\(\\[data-anim-active\\]\\) > \\*, ${words('switch')}:not\\(\\[data-anim-active\\]\\) \\[data-anim-word\\]\\) \\{\\s*animation: none;`));
+  assert.ok(RUNTIME.lastIndexOf(':is([data-anim-off], [data-anim-off] > *, [data-anim-off] [data-anim-word])') > RUNTIME.indexOf('[data-anim="ticker"] {'));
 });
 
 test('a ticker\'s and a stack\'s placeholders are the runtime\'s own', () => {
@@ -419,6 +456,26 @@ test('runtime.js copies a ticker\'s row once, out of reach of assistive technolo
   assert.match(js, /setAttribute\('aria-hidden', 'true'\)/);
   assert.match(js, /\.inert = true/);
   assert.match(js, /removeAttribute\('id'\)/);
+});
+
+test('runtime.js cuts a heading into words the page owns, said once to assistive technology, and follows the mouse through one sheet — never a style attribute', () => {
+  const js = readFileSync(new URL('runtime.js', root), 'utf8');
+
+  assert.match(js, /querySelectorAll\('\[data-anim="words"\]'\)\.forEach\(wrapWords\)/);
+  assert.match(js, /createTreeWalker\(el, NodeFilter\.SHOW_TEXT\)/, 'the text nodes are cut; inline markup stays');
+  assert.match(js, /word\.setAttribute\(WORD, String\(count\+\+\)\)/);
+  assert.match(js, /word\.setAttribute\('aria-hidden', 'true'\)/);
+  assert.match(js, /el\.setAttribute\('aria-label', el\.textContent/);
+  assert.match(js, /\[\$\{WORD\}="\$\{n \+ 1\}"\] \{ --anim-i: \$\{n \+ 1\}; \}/, 'the index is a rule in a sheet of its own');
+  assert.match(js, /if \(el\.querySelector\(`\[\$\{WORD\}\]`\)\) \{\s*return;/, 'a heading already cut is left as it is');
+
+  assert.match(js, /matchMedia\('\(hover: hover\) and \(pointer: fine\)'\)\.matches/);
+  assert.match(js, /!matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
+  assert.match(js, /el\.setAttribute\(MOUSE, String\(\+\+follow\.keys\)\)/);
+  assert.match(js, /rule\.style\.setProperty\('--anim-mx', x\.toFixed\(3\)\)/);
+  assert.match(js, /\[\$\{MOUSE\}="\$\{el\.getAttribute\(MOUSE\)\}"\] \{ --anim-mx: 0; --anim-my: 0; \}/);
+  assert.match(js, /addEventListener\('pointermove', [^\n]*\{ passive: true \}\)/);
+  assert.doesNotMatch(js, /(?<!rule)\.style\b|setAttribute\('style'/, 'only a rule’s style is written, never an element’s');
 });
 
 test('a saved preset keeps the look as it stands, its own values over the preset\'s, never the timing', () => {
