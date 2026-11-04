@@ -112,13 +112,6 @@ export function customSizesIn(classes) {
 }
 
 /**
- * The container size a new pick keeps. A size asks the pick's own size
- * container, so a pick outside one gives it up; a pick inside one — the same
- * or another — keeps it.
- */
-export const containerSizeOnPick = (variant, el) => (variant && sizeContainerOf(el) ? variant : '');
-
-/**
  * The container a size query on `el` asks: its nearest ancestor whose
  * `container-type` is `inline-size` or `size`, however it got it — a class in
  * this file, another partial's markup, a section's own CSS. An element is

@@ -8,7 +8,6 @@ import {
   CONTAINER_SIZES,
   containerLength,
   containerRem,
-  containerSizeOnPick,
   containerVariant,
   contentWidthRem,
   customContainerVariant,
@@ -92,16 +91,6 @@ test('a size of its own is rem or em only', () => {
 test('the arbitrary sizes a class list already writes under', () => {
   assert.deepEqual(customSizesIn(['@max-[30rem]:pt-6', 'hover:@max-[30rem]:pt-2', '@max-[22.5em]:hover:p-1', '@max-md:pt-4', 'pt-[1rem]']), ['@max-[30rem]', '@max-[22.5em]']);
   assert.deepEqual(customSizesIn([]), []);
-});
-
-test('a pick keeps the container size only inside a size container', () => {
-  const [box, child, grandchild] = fakeTree([{ containerType: 'inline-size' }, { containerType: 'normal' }, {}]);
-
-  assert.equal(containerSizeOnPick('@max-xl', child), '@max-xl');
-  assert.equal(containerSizeOnPick('@max-xl', grandchild), '@max-xl');
-  assert.equal(containerSizeOnPick('@max-xl', box), '');
-  assert.equal(containerSizeOnPick('@max-xl', null), '');
-  assert.equal(containerSizeOnPick('', child), '');
 });
 
 test('a size query asks the nearest inline-size or size ancestor, never the element itself', () => {

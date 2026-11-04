@@ -632,10 +632,10 @@ function jump(group) {
             role="switch"
             :aria-checked="isContainer"
             :disabled="!containerBare"
-            :title="port.t(!containerBare ? 'container_title_bare' : isContainer ? 'container_title_remove' : 'container_title')"
+            :title="port.t(containerBare ? 'container_title' : 'container_title_bare')"
             data-sve-build-container-toggle
             @click="port.setClass('@container')"
-          ><span v-html="ic('containerQueries')"></span><span class="fg-cq__label">{{ port.t(isContainer ? 'container_set' : 'container') }}</span><span class="fg-cq__switch" aria-hidden="true"></span></button>
+          ><span v-html="ic('containerQueries')"></span><span class="fg-cq__label">{{ port.t('container') }}</span><span class="fg-cq__switch" aria-hidden="true"></span></button>
           <button
             ref="stateBtn"
             type="button"

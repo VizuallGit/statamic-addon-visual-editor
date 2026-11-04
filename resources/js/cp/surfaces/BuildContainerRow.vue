@@ -8,8 +8,12 @@
  * (`@max-md:pbs-500`), in the slot a breakpoint takes: picking a breakpoint
  * gives it up, and so does clicking the picked size again. All is the
  * breakpoint row's.
+ *
+ * The head is a switch. Off, the group is one line and every field writes at
+ * all widths; on, the sizes show. Switching off gives the picked size up, and
+ * a new pick starts off (boot.js gives the size up on every pick).
  */
-import { computed, inject, nextTick, ref } from 'vue';
+import { computed, inject, nextTick, ref, watch } from 'vue';
 import { ic } from '../../build-mode/icons.js';
 import {
   CONTAINER_SIZES,
@@ -56,6 +60,28 @@ const typed = ref('');
 const refused = ref(false);
 const input = ref(null);
 
+/* ---------------- the switch ---------------- */
+
+const open = ref(false);
+const on = computed(() => open.value || Boolean(now.value));
+
+watch(() => props.path, () => {
+  open.value = false;
+  typing.value = false;
+});
+
+function toggle() {
+  if (!on.value) {
+    open.value = true;
+
+    return;
+  }
+
+  open.value = false;
+  typing.value = false;
+  port.setContainerSize('');
+}
+
 async function toggleCustom() {
   typing.value = !typing.value;
   typed.value = '';
@@ -82,12 +108,21 @@ function submit() {
 
 <template>
   <div v-if="around" class="fg-cq-group" data-sve-build-container>
-    <div class="fg-cq-group__head">
+    <button
+      type="button"
+      class="fg-cq-group__head"
+      role="switch"
+      :aria-checked="on"
+      :title="port.t('container_sizes_title')"
+      data-sve-build-container-switch
+      @click="toggle"
+    >
       <span class="fg-cq-group__icon" v-html="ic('containerQueries')"></span>
       <span class="fg-cq-group__title" v-html="heading"></span>
       <span class="fg-cq-group__now">{{ port.t('container_now', { size: `${around.rem}rem` }) }}</span>
-    </div>
-    <div class="fg-seg" role="group" :aria-label="port.t('container_queries')">
+      <span class="fg-cq__switch" aria-hidden="true"></span>
+    </button>
+    <div v-if="on" class="fg-seg" role="group" :aria-label="port.t('container_queries')">
       <button
         v-for="size in CONTAINER_SIZES"
         :key="size.key"
@@ -118,7 +153,7 @@ function submit() {
         @click="toggleCustom"
       >⋯</button>
     </div>
-    <div v-if="typing" class="fg-classpick" data-sve-build-container-custom>
+    <div v-if="on && typing" class="fg-classpick" data-sve-build-container-custom>
       <input
         ref="input"
         v-model="typed"

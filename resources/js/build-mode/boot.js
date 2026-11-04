@@ -115,7 +115,7 @@ import { flowAt, siteFlowSpaces, siteReadsFlow } from './flow.js';
 import { loadClassDefs } from '../dock/class-defs.js';
 import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
-import { containerLength, containerSizeOnPick, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
+import { containerLength, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
@@ -323,15 +323,12 @@ export function createEditorPort(win, hooks = {}) {
   };
 
   /*
-   * A pick: a container size asks the picked element's size container, so a
-   * pick outside one gives the size up before Style shows it. Only on a pick —
-   * the canvas repaints after every write, and a read mid-paint finds none.
+   * A pick starts at all widths: a container size belongs to the element it
+   * was picked on, so the next pick gives it up before Style shows it. Only on
+   * a pick — the canvas repaints after every write.
    */
   const selected = () => {
-    const size = twContainerSize();
-    const path = hooks.selectedPath?.() || '';
-
-    if (size && !containerSizeOnPick(size, path ? canvas?.elementAt(path) : null)) {
+    if (twContainerSize()) {
       twSetContainerSize(win, '');
     }
 
