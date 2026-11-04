@@ -4,7 +4,7 @@
  *
  *   data-anim="self | children"   the element, or its children one after another
  *   data-anim-preset="fade-up"    a preset's --anim-* values (presets.json)
- *   data-anim-on="view | load"    view: runtime.js holds it until it is seen
+ *   data-anim-on="view | load"    view: runtime.js holds it (its own sheet) until it is seen
  *   style="--anim-duration: …"    the element's own timing
  *
  * Only compositor properties move: opacity, translate, scale, rotate, filter,
@@ -49,12 +49,6 @@
 [data-anim="children"] > :nth-child(10) { --anim-i: 9; }
 [data-anim="children"] > :nth-child(11) { --anim-i: 10; }
 [data-anim="children"] > :nth-child(n + 12) { --anim-i: 11; }
-
-/* Held until runtime.js sees it. Without the script nothing is held: the animation plays. */
-[data-anim="self"][data-anim-watch]:not([data-in-view]),
-[data-anim="children"][data-anim-watch]:not([data-in-view]) > * {
-  animation-play-state: paused;
-}
 
 @media (prefers-reduced-motion: reduce) {
   :is([data-anim="self"], [data-anim="children"] > *) {
