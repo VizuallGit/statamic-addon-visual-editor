@@ -1,20 +1,49 @@
 <script setup>
 /**
- * The picked element's Animation tab: its animation as one chip, what it
- * animates (the element, or its children in turn), when, and how long; under
- * it the presets library. A tile applies its preset and keeps the rest.
+ * The picked element's Animation tab, as the approved canvas draws it
+ * (animationer-forslag.canvas.tsx, "Animation og Action i build-panelet"):
+ * the element's animation as a chip, its triggers, and the library. The chip
+ * opens the editor beside the panel; the editor's curve button opens the
+ * curve beside the editor.
  *
  * Everything is read from the dock's file and written back through the port
- * in one write (build-mode/animation.js), as Action's changes are. ▶ replays
- * the element's CSS animations on Build's canvas, where no script holds them.
+ * in one write (build-mode/animation.js). The editor's stage plays the
+ * animation with the page's own runtime.css and presets.json, so what it
+ * shows is what the page does; ▶ also replays it on Build's canvas.
+ *
+ * What the runtime cannot do yet (scroll, hover and switch triggers, the
+ * library's other recipes, saved presets) stands as the canvas draws it and
+ * says so when pressed.
  */
-import { computed, inject } from 'vue';
+import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PRESETS from '../../../animation/presets.json';
-import { animationOf, groupPresets, newAnimation, RUNTIME_DEFAULTS, TARGETS, withAnimation } from '../../build-mode/animation.js';
+import RUNTIME_CSS from '../../../animation/runtime.css?raw';
+import { statesInScope } from '../../build-mode/alpine.js';
+import {
+  animationOf,
+  bezierCss,
+  bezierOf,
+  EASES,
+  easeKey,
+  effectsOf,
+  groupPresets,
+  isChanged,
+  missingEffects,
+  newAnimation,
+  ownValues,
+  presetOf,
+  RUNTIME_DEFAULTS,
+  springEase,
+  TIMING_RANGE,
+  valueOf,
+  withAnimation,
+  withEffect,
+  withVar,
+} from '../../build-mode/animation.js';
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
-import { ic } from '../../build-mode/icons.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
+import { besideSpot } from '../../lib/beside.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 
 const props = defineProps({
@@ -22,68 +51,142 @@ const props = defineProps({
 });
 
 const port = inject('sveBuild');
+const t = (key) => port.t(key);
 const path = computed(() => props.node.path);
+const html = computed(() => (port.rev.value, port.html()));
+const anim = computed(() => animationOf(html.value, findByPath(parseTemplateTree(html.value), path.value)));
+const preset = computed(() => presetOf(PRESETS, anim.value?.preset));
+const label = (p) => (p ? p[t('anim_label')] : '');
+const decimal = computed(() => t('anim_decimal'));
 
-const anim = computed(() => {
-  port.rev.value;
+/* ---------------- the canvas's icons (viewBox 24, stroke 1.8) ---------------- */
 
-  const html = port.html();
+const PATHS = {
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  play: '<path d="M7 5l12 7-12 7z"/>',
+  dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  caret: '<path d="M6 9l6 6 6-6"/>',
+  curve: '<path d="M4 20C10 20 14 4 20 4"/><circle cx="4" cy="20" r="1.5"/><circle cx="20" cy="4" r="1.5"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  scroll: '<rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v3"/>',
+  hover: '<path d="M5 3l6 16 2-6 6-2z"/>',
+  tap: '<path d="M9 11V5a2 2 0 0 1 4 0v6M13 10a2 2 0 0 1 4 0v4a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-3-4a2 2 0 0 1 3-2l1 1"/>',
+  bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  move: '<path d="M12 2v20M2 12h20M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+};
 
-  return animationOf(html, findByPath(parseTemplateTree(html), path.value));
-});
+const icon = (name, size = 14) =>
+  `<svg class="bm-anim-ic" style="width:${size / 16}rem;height:${size / 16}rem" viewBox="0 0 24 24" aria-hidden="true">${PATHS[name]}</svg>`;
 
-const PLAY = '<svg class="bm-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
-const GROUPS = groupPresets(PRESETS);
-const current = computed(() => PRESETS.find((preset) => preset.handle === anim.value?.preset) || null);
-const label = (preset) => preset[port.t('anim_label')];
+/* ---------------- the tab ---------------- */
 
-/** [trigger, icon, word, later]: the two the runtime has, then the ones still to come. */
+/** [trigger, icon, word, runs, later]: the two the runtime plays, the three still to come, the one for later. */
 const TRIGGERS = [
-  ['view', 'eye', 'anim_on_view', false],
-  ['scroll', 'chev', 'anim_on_scroll', true],
-  ['load', 'zap', 'anim_on_load', false],
-  ['hover', 'cursor', 'anim_on_hover', true],
-  ['switch', 'button', 'anim_on_switch', true],
-  ['mouse', 'svg', 'anim_on_mouse', true],
+  ['view', 'eye', 'anim_on_view', true, false],
+  ['scroll', 'scroll', 'anim_on_scroll', false, false],
+  ['load', 'bolt', 'anim_on_load', true, false],
+  ['hover', 'hover', 'anim_on_hover', false, false],
+  ['switch', 'tap', 'anim_on_switch', false, false],
+  ['mouse', 'move', 'anim_on_mouse', false, true],
 ];
 
-const times = computed(() => [
-  ['duration', 'anim_duration'],
-  ['delay', 'anim_delay'],
-  ...(anim.value?.target === 'children' ? [['step', 'anim_step']] : []),
-]);
+const stroke = 'stroke:var(--bm-accent);stroke-width:1.3';
+const tint = (p) => `fill:color-mix(in srgb,var(--bm-accent) ${p}%,transparent)`;
+const framed = (p, more = '') => `style="${tint(p)};${stroke}${more}"`;
+
+/** The library's recipes, drawn as the canvas draws them; `target` for the ones the runtime plays. */
+const TILES = [
+  { key: 'self', word: 'anim_r_self', target: 'self', art: `<rect x="20" y="10" width="24" height="22" rx="3" ${framed(30)}/><path d="M32 6V2M29 5l3-3 3 3" style="${stroke}"/>` },
+  {
+    key: 'children',
+    word: 'anim_r_children',
+    target: 'children',
+    art: `<rect x="8" y="6" width="14" height="28" rx="3" ${framed(45)}/><rect x="25" y="10" width="14" height="24" rx="3" ${framed(28)}/><rect x="42" y="14" width="14" height="20" rx="3" ${framed(12, ';stroke-opacity:.5')}/>`,
+  },
+  {
+    key: 'parallax',
+    word: 'anim_r_parallax',
+    art: `<rect x="10" y="12" width="20" height="20" rx="3" ${framed(20)}/><rect x="36" y="4" width="18" height="18" rx="3" ${framed(40)}/><path d="M45 26v10M42 33l3 3 3-3" style="${stroke}"/>`,
+  },
+  {
+    key: 'ticker',
+    word: 'anim_r_ticker',
+    art: `${[2, 18, 34, 50].map((x) => `<rect x="${x}" y="14" width="12" height="12" rx="2" ${framed(28)}/>`).join('')}<path d="M40 34H24M27 31l-3 3 3 3" style="${stroke}"/>`,
+  },
+  {
+    key: 'stack',
+    word: 'anim_r_stack',
+    art: `<rect x="16" y="18" width="32" height="18" rx="3" ${framed(18)}/><rect x="19" y="11" width="26" height="18" rx="3" ${framed(30)}/><rect x="22" y="4" width="20" height="18" rx="3" ${framed(45)}/>`,
+  },
+  {
+    key: 'lift',
+    word: 'anim_r_lift',
+    art: `<rect x="16" y="6" width="26" height="20" rx="3" ${framed(35)}/><path d="M18 32h22" style="${stroke};stroke-dasharray:2 2"/><path d="M44 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>`,
+  },
+  {
+    key: 'words',
+    word: 'anim_r_words',
+    later: true,
+    art: `<rect x="6" y="15" width="14" height="10" rx="2" style="${tint(50)}"/><rect x="23" y="15" width="18" height="10" rx="2" style="${tint(30)}"/><rect x="44" y="15" width="14" height="10" rx="2" style="${tint(12)}"/>`,
+  },
+  { key: 'mouse', word: 'anim_r_mouse', later: true, art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
+];
+
+const GROUPS = groupPresets(PRESETS);
+const recipe = computed(() => t(anim.value?.target === 'children' ? 'anim_r_children' : 'anim_r_self'));
+const tagName = computed(() => {
+  const first = String(props.node.classes || '').split(/\s+/).find((name) => /^[a-z_-]/i.test(name) && !name.includes('{'));
+
+  return first ? `${props.node.tag}.${first}` : props.node.tag;
+});
+const switches = computed(() => statesInScope(html.value, path.value).map((state) => state.name));
 
 function write(next) {
   port.write(withAnimation(port.html(), path.value, next), { select: path.value });
 }
 
-function apply(handle) {
-  write({ ...(anim.value || newAnimation(handle)), preset: handle });
-}
+const soon = () => port.toast('info', 'anim_coming');
 
-function setTarget(target) {
-  write({ ...anim.value, target, step: target === 'children' ? anim.value.step : null });
-}
+function pickTrigger(on, runs, later) {
+  if (later) {
+    return;
+  }
 
-function setTime(key, event) {
-  const raw = event.target.value.trim();
-  const ms = raw === '' ? null : Math.round(Number(raw));
-
-  if (ms !== null && !(ms >= 0)) {
-    event.target.value = anim.value[key] ?? '';
+  if (!runs) {
+    soon();
 
     return;
   }
 
-  write({ ...anim.value, [key]: ms });
+  write({ ...anim.value, on });
+}
+
+function useTile(tile) {
+  if (tile.later) {
+    return;
+  }
+
+  if (!tile.target) {
+    soon();
+
+    return;
+  }
+
+  write(anim.value ? { ...anim.value, target: tile.target } : newAnimation('fade-up', tile.target));
+  open.value = true;
 }
 
 /** A finished CSS animation is gone from getAnimations(): the runtime's own off switch, on and off again across a style flush, starts it from its first frame. */
 function play() {
+  take.value += 1;
+
   const doc = buildCanvasFrame(window)?.contentDocument;
   const el = doc?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path.value)}"]`);
 
-  if (!el) {
+  if (!el || anim.value?.off) {
     return;
   }
 
@@ -91,120 +194,854 @@ function play() {
   void el.offsetWidth;
   el.removeAttribute('data-anim-off');
 }
+
+/* The chip's ⋯ menu. */
+const menu = ref(false);
+const menuEl = ref(null);
+
+function remove() {
+  menu.value = false;
+  open.value = false;
+  write(null);
+}
+
+/* ---------------- the editor ---------------- */
+
+const root = ref(null);
+const chip = ref(null);
+const editor = ref(null);
+const open = ref(false);
+const editorSpot = ref({ left: 0, top: 0 });
+
+/** The stage plays again on every change, as the canvas promises ("spiller når du ændrer noget"). */
+const take = ref(0);
+watch(() => JSON.stringify(anim.value), () => {
+  take.value += 1;
+});
+
+const stageStyle = computed(() => Object.fromEntries(ownValues(anim.value)));
+
+/** runtime.css and a rule per preset, as {{ sve_animation }} pushes them onto the page, once in the Control Panel for the stage. */
+function stageSheet() {
+  if (document.getElementById('sve-anim-stage-css')) {
+    return;
+  }
+
+  const sheet = document.createElement('style');
+
+  sheet.id = 'sve-anim-stage-css';
+  sheet.textContent = [
+    RUNTIME_CSS,
+    ...PRESETS.map((p) => `[data-anim-preset="${p.handle}"] { ${Object.entries(p.vars).map(([name, value]) => `${name}: ${value};`).join(' ')} }`),
+  ].join('\n');
+  document.head.appendChild(sheet);
+}
+
+const presetText = computed(() => `${label(preset.value) || anim.value?.preset || ''}${isChanged(anim.value) ? ` · ${t('anim_changed')}` : ''}`);
+const effects = computed(() => (anim.value ? effectsOf(anim.value, preset.value) : []));
+const missing = computed(() => (anim.value ? missingEffects(anim.value, preset.value) : []));
+const timing = computed(() => [
+  ['delay', 'anim_delay'],
+  ['duration', 'anim_duration'],
+  ...(anim.value?.target === 'children' ? [['step', 'anim_step']] : []),
+]);
+const stepCurve = computed(() => valueOf(anim.value, preset.value, '--anim-step-curve') ?? '1');
+const easeRaw = computed(() => valueOf(anim.value, preset.value, '--anim-ease') ?? 'ease');
+const ease = computed(() => easeKey(easeRaw.value));
+const duration = computed(() => anim.value?.duration ?? RUNTIME_DEFAULTS.duration);
+
+function setPreset(handle) {
+  const keep = anim.value.vars['--anim-step-curve'];
+
+  write({ ...anim.value, preset: handle, vars: keep ? { '--anim-step-curve': keep } : {} });
+}
+
+const setEffect = (key, value) => write(withEffect(anim.value, preset.value, key, value));
+const addEffect = (effect) => setEffect(effect.key, effect.add);
+const setTime = (key, ms) => write({ ...anim.value, [key]: ms === null ? null : Math.round(ms) });
+const setVar = (name, value) => write(withVar(anim.value, preset.value, name, value));
+
+/** The runtime's own curve is `ease`: written only where the preset has another. */
+function setEaseCss(css) {
+  setVar('--anim-ease', css === 'ease' && !preset.value?.vars?.['--anim-ease'] ? null : css);
+}
+
+function setEase(key) {
+  setEaseCss(key === 'spring' ? springEase(spring.value.stiffness, spring.value.damping, spring.value.mass) : EASES.find(([k]) => k === key)[1]);
+}
+
+/* ---------------- the curve ---------------- */
+
+const curveBtn = ref(null);
+const curvePop = ref(null);
+const curveOpen = ref(false);
+const curveSpot = ref({ left: 0, top: 0 });
+const curveMode = ref('ease');
+const spring = ref({ stiffness: 100, damping: 10, mass: 1 });
+const SPRING = [
+  ['stiffness', 'anim_stiffness', { max: 300, min: 10, step: 5 }],
+  ['damping', 'anim_damping', { max: 50, min: 1, step: 1 }],
+  ['mass', 'anim_mass', { max: 5, min: 0.1, step: 0.1 }],
+];
+
+watch(curveOpen, (now) => {
+  if (now) {
+    curveMode.value = ease.value === 'spring' ? 'spring' : 'ease';
+  }
+});
+
+function setMode(mode) {
+  curveMode.value = mode;
+
+  if (mode === 'spring' && ease.value !== 'spring') {
+    setEase('spring');
+  } else if (mode === 'ease' && ease.value === 'spring') {
+    setEase('in-out');
+  }
+}
+
+function setSpring(key, value) {
+  spring.value = { ...spring.value, [key]: value };
+  setEase('spring');
+}
+
+const S = 168;
+const P = 14;
+const gx = (v) => P + v * (S - 2 * P);
+const gy = (v) => S - P - v * (S - 2 * P);
+const short = (n) => String(Number(Number(n).toFixed(2)));
+const graph = ref(null);
+const dragging = ref(null);
+const draft = ref(null);
+const points = computed(() => draft.value ?? bezierOf(easeRaw.value));
+const bezierText = computed(() => (points.value ? points.value.map(short).join(', ').replace(/(^|\s)0\./g, '$1.') : easeRaw.value));
+
+/** A spring's linear() as the graph's line: stops without a place share out the room between the ones with one. */
+const springLine = computed(() => {
+  const match = /^linear\((.*)\)$/.exec(easeRaw.value);
+
+  if (points.value || !match) {
+    return '';
+  }
+
+  const stops = match[1].split(',').map((part) => {
+    const [y, x] = part.trim().split(/\s+/);
+
+    return { y: Number(y), x: x ? parseFloat(x) / 100 : null };
+  });
+
+  stops[0].x ??= 0;
+  stops[stops.length - 1].x ??= 1;
+
+  for (let i = 1; i < stops.length - 1; i += 1) {
+    if (stops[i].x === null) {
+      const next = stops.findIndex((stop, j) => j > i && stop.x !== null);
+
+      stops[i].x = stops[i - 1].x + (stops[next].x - stops[i - 1].x) / (next - i + 1);
+    }
+  }
+
+  return stops.map((stop) => `${gx(stop.x)},${gy(stop.y)}`).join(' ');
+});
+
+function grab(index, event) {
+  event.preventDefault();
+  dragging.value = index;
+  draft.value = [...points.value];
+  graph.value.setPointerCapture(event.pointerId);
+}
+
+function pull(event) {
+  if (dragging.value === null) {
+    return;
+  }
+
+  const box = graph.value.getBoundingClientRect();
+  const x = (((event.clientX - box.left) * S) / box.width - P) / (S - 2 * P);
+  const y = (S - P - ((event.clientY - box.top) * S) / box.height) / (S - 2 * P);
+  const next = [...draft.value];
+
+  next[dragging.value * 2] = Number(Math.min(1, Math.max(0, x)).toFixed(2));
+  next[dragging.value * 2 + 1] = Number(Math.min(1.5, Math.max(-0.5, y)).toFixed(2));
+  draft.value = next;
+}
+
+function drop() {
+  if (dragging.value === null) {
+    return;
+  }
+
+  const next = draft.value;
+
+  dragging.value = null;
+  draft.value = null;
+  setEaseCss(bezierCss(next));
+}
+
+function setBezier(event) {
+  const numbers = event.target.value.split(',').map((n) => Number(n.trim()));
+
+  if (numbers.length === 4 && numbers.every(Number.isFinite)) {
+    setEaseCss(bezierCss([Math.min(1, Math.max(0, numbers[0])), numbers[1], Math.min(1, Math.max(0, numbers[2])), numbers[3]]));
+  } else {
+    event.target.value = bezierText.value;
+  }
+}
+
+/* ---------------- placing, closing ---------------- */
+
+const view = () => ({ width: window.innerWidth, height: window.innerHeight });
+const size = (el) => ({ width: el.offsetWidth, height: el.offsetHeight });
+
+function placeCurve() {
+  if (curvePop.value && curveBtn.value && editor.value) {
+    curveSpot.value = besideSpot(curveBtn.value.getBoundingClientRect(), editor.value.getBoundingClientRect(), size(curvePop.value), view());
+  }
+}
+
+function place() {
+  const panel = root.value?.closest('.sve-build');
+
+  if (editor.value && chip.value && panel) {
+    editorSpot.value = besideSpot(chip.value.getBoundingClientRect(), panel.getBoundingClientRect(), size(editor.value), view());
+  }
+
+  nextTick(placeCurve);
+}
+
+let sized = null;
+
+watch([editor, curvePop], ([e, c]) => {
+  sized?.disconnect();
+  sized = new ResizeObserver(place);
+  [e, c].filter(Boolean).forEach((el) => sized.observe(el));
+  place();
+}, { flush: 'post' });
+
+watch(anim, (now) => {
+  if (!now) {
+    open.value = false;
+  }
+});
+
+watch(open, (now) => {
+  if (!now) {
+    curveOpen.value = false;
+  }
+});
+
+// Ahead of Build's own Escape, which would let go of the pick.
+const onKey = (event) => {
+  if (event.key !== 'Escape' || !(open.value || menu.value)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (menu.value) {
+    menu.value = false;
+  } else if (curveOpen.value) {
+    curveOpen.value = false;
+  } else {
+    open.value = false;
+  }
+};
+
+const onDown = (event) => {
+  if (menu.value && !menuEl.value?.contains(event.target)) {
+    menu.value = false;
+  }
+};
+
+onMounted(() => {
+  stageSheet();
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', place);
+  document.addEventListener('pointerdown', onDown, true);
+});
+
+onBeforeUnmount(() => {
+  sized?.disconnect();
+  window.removeEventListener('keydown', onKey, true);
+  window.removeEventListener('resize', place);
+  document.removeEventListener('pointerdown', onDown, true);
+});
+
+/* ---------------- a number field with a fill, as the canvas's Num ---------------- */
+
+/**
+ * The value as text, the fill as how far along `max` it is. Drag sideways to
+ * scrub (written once, on release); a click types; ↑ ↓ step (⇧ ten steps).
+ * `blank` lets an emptied field mean "the runtime's own" (null).
+ */
+const Num = defineComponent({
+  name: 'BuildAnimationNum',
+  props: {
+    value: { type: Number, default: null },
+    raw: { type: String, default: '' },
+    unit: { type: String, default: '' },
+    max: { type: Number, required: true },
+    min: { type: Number, default: 0 },
+    step: { type: Number, default: 1 },
+    cap: { type: Boolean, default: false },
+    blank: { type: Boolean, default: false },
+    decimal: { type: String, default: '.' },
+  },
+  emits: ['set'],
+  setup(own, { emit }) {
+    const input = ref(null);
+    const scrub = ref(null);
+    let start = null;
+    const shown = computed(() => scrub.value ?? own.value);
+    const fmt = (n) => String(Number(Number(n).toFixed(3))).replace('.', own.decimal);
+    const bound = (n) => Math.min(own.cap ? own.max : Infinity, Math.max(own.min, n));
+    const snap = (n) => bound(Number((Math.round(n / own.step) * own.step).toFixed(3)));
+
+    const move = (event) => {
+      const dx = event.clientX - start.x;
+
+      if (!start.moved && Math.abs(dx) < 3) {
+        return;
+      }
+
+      start.moved = true;
+      scrub.value = snap(start.value + (dx / start.width) * own.max);
+    };
+
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+
+      const moved = start?.moved;
+      const next = scrub.value;
+
+      start = null;
+      scrub.value = null;
+
+      if (moved && next !== null && next !== own.value) {
+        emit('set', next);
+      } else if (!moved) {
+        input.value?.focus();
+        input.value?.select();
+      }
+    };
+
+    const down = (event) => {
+      if (event.button !== 0 || document.activeElement === input.value || own.value === null) {
+        return;
+      }
+
+      event.preventDefault();
+      start = { x: event.clientX, value: own.value, width: event.currentTarget.getBoundingClientRect().width, moved: false };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up, { once: true });
+    };
+
+    const commit = (event) => {
+      const text = event.target.value.trim().replace(',', '.');
+      const n = Number(text);
+
+      if (text === '' && own.blank) {
+        emit('set', null);
+      } else if (text === '' || !Number.isFinite(n)) {
+        event.target.value = own.value === null ? own.raw : fmt(own.value);
+      } else {
+        emit('set', bound(n));
+      }
+    };
+
+    const key = (event) => {
+      if (event.key === 'Enter') {
+        event.target.blur();
+      } else if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && own.value !== null) {
+        event.preventDefault();
+        emit('set', snap(own.value + (event.key === 'ArrowUp' ? 1 : -1) * own.step * (event.shiftKey ? 10 : 1)));
+      }
+    };
+
+    onBeforeUnmount(() => window.removeEventListener('pointermove', move));
+
+    return () => {
+      const value = shown.value;
+      const fill = value === null ? 0 : Math.min(100, (Math.abs(value) / own.max) * 100);
+
+      return h('div', { class: ['bm-anim-num', { 'is-raw': value === null }], onPointerdown: down }, [
+        h('i', { class: 'bm-anim-num__fill', style: { width: `${fill}%` } }),
+        h('input', {
+          ref: input,
+          class: 'bm-anim-num__in',
+          type: 'text',
+          inputmode: 'decimal',
+          value: value === null ? own.raw : fmt(value),
+          readonly: value === null,
+          onChange: commit,
+          onKeydown: key,
+        }),
+        own.unit ? h('span', { class: 'bm-anim-num__unit' }, own.unit) : null,
+      ]);
+    };
+  },
+});
 </script>
 
 <template>
-  <div class="bm-anim" data-sve-build-animation>
-    <div class="fg-lab">{{ port.t('anim_on_element') }}</div>
-    <template v-if="anim">
-      <div class="bm-anim-chip" data-sve-build-anim-chip>
-        <span v-html="ic(anim.on === 'load' ? 'zap' : 'eye')"></span>
-        <b>{{ port.t(`anim_target_${anim.target}`) }}</b>
-        <span v-if="current" class="bm-anim-chip__sub">· {{ label(current) }}</span>
-      </div>
-      <div class="bm-anim-acts">
-        <button type="button" class="bm-anim-btn" :title="port.t('anim_play_tip')" data-sve-build-anim-play @click="play">
-          <span v-html="PLAY"></span>{{ port.t('anim_play') }}
-        </button>
-        <button type="button" class="bm-anim-btn" data-sve-build-anim-remove @click="write(null)">
-          <span v-html="ic('trash')"></span>{{ port.t('anim_remove') }}
-        </button>
-      </div>
-
-      <div class="fg-lab">{{ port.t('anim_target') }}</div>
-      <div class="fg-seg">
+  <div ref="root" class="bm-anim" data-sve-build-animation>
+    <section class="bm-anim-block is-first">
+      <div class="bm-anim-head"><span>{{ t('anim_on_element') }}</span></div>
+      <div v-if="anim" ref="menuEl" class="bm-anim-chipwrap">
         <button
-          v-for="target in TARGETS"
-          :key="target"
+          ref="chip"
           type="button"
-          :aria-pressed="anim.target === target"
-          :data-sve-build-anim-target="target"
-          @click="setTarget(target)"
-        >{{ port.t(`anim_target_${target}`) }}</button>
+          class="bm-anim-chip"
+          :aria-pressed="open"
+          :aria-expanded="open"
+          data-sve-build-anim-chip
+          @click="open = !open"
+        >
+          <span class="bm-anim-chip__ic" v-html="icon(anim.on === 'load' ? 'bolt' : 'eye')"></span>
+          <b>{{ recipe }}</b>
+          <span class="bm-anim-chip__sub">· {{ label(preset) || anim.preset }}</span>
+        </button>
+        <button type="button" class="bm-anim-chip__more" :aria-expanded="menu" :aria-label="t('anim_remove')" data-sve-build-anim-more @click="menu = !menu" v-html="icon('dots', 12)"></button>
+        <div v-if="menu" class="bm-anim-menu" role="menu">
+          <button type="button" role="menuitem" data-sve-build-anim-play @click="menu = false; play()"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
+          <button type="button" role="menuitem" data-sve-build-anim-remove @click="remove"><span v-html="icon('trash', 12)"></span>{{ t('anim_remove') }}</button>
+        </div>
       </div>
+      <p v-else class="bm-anim-none" data-sve-build-anim-none>{{ t('anim_none') }}</p>
+    </section>
 
-      <div class="fg-lab">{{ port.t('anim_trigger') }}</div>
+    <section v-if="anim" class="bm-anim-block" data-sve-build-anim-triggers>
+      <div class="bm-anim-head"><span>{{ t('anim_triggers') }}</span></div>
       <div class="bm-anim-triggers">
         <button
-          v-for="[on, icon, word, later] in TRIGGERS"
+          v-for="[on, ic, word, runs, later] in TRIGGERS"
           :key="on"
           type="button"
-          :disabled="later"
+          class="bm-anim-trigger"
+          :class="{ 'is-later': later }"
           :aria-pressed="anim.on === on"
+          :aria-disabled="later || undefined"
           :data-sve-build-anim-on="on"
-          @click="write({ ...anim, on })"
+          @click="pickTrigger(on, runs, later)"
         >
-          <span v-html="ic(icon)"></span>
-          <span class="bm-anim-triggers__word">{{ port.t(word) }}</span>
-          <em v-if="later" class="bm-soon">{{ port.t('anim_soon') }}</em>
+          <span class="bm-anim-trigger__ic" v-html="icon(ic)"></span>
+          <span class="bm-anim-trigger__word">{{ t(word) }}</span>
+          <em v-if="later">{{ t('anim_later') }}</em>
         </button>
       </div>
-
-      <div class="fg-lab">{{ port.t('anim_timing') }}</div>
-      <div class="fg-grid">
-        <label v-for="[key, word] in times" :key="key" class="fg-cell">
-          <span class="fg-lab">{{ port.t(word) }}</span>
-          <span class="fg-field">
-            <input
-              class="bm-vin"
-              type="number"
-              min="0"
-              step="50"
-              :value="anim[key] ?? ''"
-              :placeholder="RUNTIME_DEFAULTS[key]"
-              :data-sve-build-anim-time="key"
-              @change="setTime(key, $event)"
-            />
-            <span class="fg-suf">ms</span>
-          </span>
-        </label>
+      <div v-if="switches.length" class="bm-anim-switches">
+        {{ t('anim_switches') }}
+        <code v-for="name in switches" :key="name">{{ name }}</code>
       </div>
-    </template>
-    <p v-else class="fg-hint" data-sve-build-anim-none>{{ port.t('anim_none') }}</p>
+    </section>
 
-    <div class="fg-lab">{{ port.t('anim_library') }}</div>
-    <div v-for="[group, presets] in GROUPS" :key="group" class="bm-anim-group">
-      <h4>{{ port.t(`anim_group_${group}`) }}</h4>
-      <div class="bm-anim-tiles">
+    <section class="bm-anim-block" data-sve-build-anim-library>
+      <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
+      <div class="bm-anim-lib">
         <button
-          v-for="preset in presets"
-          :key="preset.handle"
+          v-for="tile in TILES"
+          :key="tile.key"
           type="button"
           class="bm-anim-tile"
-          :aria-pressed="anim?.preset === preset.handle"
-          :data-sve-build-anim-preset="preset.handle"
-          @click="apply(preset.handle)"
-        >{{ label(preset) }}</button>
+          :class="{ 'is-later': tile.later }"
+          :aria-disabled="tile.later || undefined"
+          :data-sve-build-anim-tile="tile.key"
+          @click="useTile(tile)"
+        >
+          <svg viewBox="0 0 64 40" fill="none" aria-hidden="true" v-html="tile.art"></svg>
+          <span>{{ t(tile.word) }}</span>
+        </button>
       </div>
-    </div>
+      <div class="bm-anim-mine">
+        <button type="button" class="bm-anim-btn" data-sve-build-anim-mine @click="soon">{{ t('anim_mine') }} · 0</button>
+      </div>
+    </section>
+
+    <Teleport to="body">
+      <div
+        v-if="open && anim"
+        ref="editor"
+        class="sve-build bm-anim-pop"
+        role="dialog"
+        :aria-label="recipe"
+        data-sve-build-anim-editor
+        :style="{ left: `${editorSpot.left}px`, top: `${editorSpot.top}px` }"
+      >
+        <header class="bm-anim-pop__head">
+          <b>{{ recipe }}</b>
+          <span class="bm-anim-pop__tag">{{ tagName }}</span>
+          <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="open = false" v-html="icon('x', 12)"></button>
+        </header>
+        <div class="bm-anim-pop__body">
+          <div class="bm-anim-stage" data-sve-build-anim-stage>
+            <div :key="take" class="bm-anim-stage__set" :data-anim="anim.target" :data-anim-preset="anim.preset || null" :style="stageStyle">
+              <i v-for="n in 4" :key="n"></i>
+            </div>
+            <span class="bm-anim-stage__note">{{ t('anim_stage_note') }}</span>
+          </div>
+
+          <section class="bm-anim-block is-first">
+            <div class="bm-anim-line">
+              <span>{{ t('anim_trigger') }}</span>
+              <span class="bm-anim-box">
+                <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
+                <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                <select :value="anim.on" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="write({ ...anim, on: $event.target.value })">
+                  <option v-for="[on, , word, runs, later] in TRIGGERS" :key="on" :value="on" :disabled="!runs">
+                    {{ t(word) }}{{ runs ? '' : ` · ${t(later ? 'anim_later' : 'anim_soon')}` }}
+                  </option>
+                </select>
+              </span>
+            </div>
+            <div class="bm-anim-line">
+              <span>{{ t('anim_preset') }}</span>
+              <span class="bm-anim-box">
+                <span class="bm-anim-box__val">{{ presetText }}</span>
+                <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                <select :value="anim.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
+                  <optgroup v-for="[group, list] in GROUPS" :key="group" :label="t(`anim_group_${group}`)">
+                    <option v-for="p in list" :key="p.handle" :value="p.handle">{{ label(p) }}</option>
+                  </optgroup>
+                </select>
+              </span>
+            </div>
+            <div class="bm-anim-line">
+              <span>{{ t('anim_repeat') }}</span>
+              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
+            </div>
+            <div class="bm-anim-line">
+              <span>{{ t('anim_active') }}</span>
+              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="!anim.off" :aria-label="t('anim_active')" data-sve-build-anim-active @click="write({ ...anim, off: !anim.off })"></button>
+            </div>
+          </section>
+
+          <section class="bm-anim-block" data-sve-build-anim-effects>
+            <div class="bm-anim-head">
+              <span>{{ t('anim_effects') }}</span>
+              <button v-if="missing.length" type="button" class="bm-anim-head__plus" :aria-label="t('anim_add_effect')" @click="addEffect(missing[0])" v-html="icon('plus', 12)"></button>
+            </div>
+            <div v-for="effect in effects" :key="effect.key" class="bm-anim-line is-effect" :data-sve-build-anim-effect="effect.key">
+              <span>{{ t(`anim_fx_${effect.key}`) }}</span>
+              <Num
+                :value="effect.value"
+                :raw="effect.raw"
+                :unit="effect.unit"
+                :max="effect.max"
+                :min="effect.min"
+                :step="effect.step"
+                :cap="!!effect.cap"
+                :decimal="decimal"
+                @set="(v) => setEffect(effect.key, v)"
+              />
+              <button type="button" class="bm-anim-minus" :aria-label="t('anim_remove')" @click="setEffect(effect.key, null)" v-html="icon('minus', 12)"></button>
+            </div>
+            <div v-if="missing.length" class="bm-anim-more">
+              <span>+</span>
+              <template v-for="(effect, i) in missing" :key="effect.key">
+                <span v-if="i" aria-hidden="true">·</span>
+                <button type="button" :data-sve-build-anim-add="effect.key" @click="addEffect(effect)">{{ t(`anim_fx_${effect.key}`) }}</button>
+              </template>
+            </div>
+          </section>
+
+          <section class="bm-anim-block" data-sve-build-anim-timing>
+            <div class="bm-anim-head"><span>{{ t('anim_timing') }}</span></div>
+            <div v-for="[key, word] in timing" :key="key" class="bm-anim-line" :data-sve-build-anim-time="key">
+              <span>{{ t(word) }}</span>
+              <Num
+                :value="anim[key] ?? RUNTIME_DEFAULTS[key]"
+                unit="ms"
+                :max="TIMING_RANGE[key].max"
+                :step="TIMING_RANGE[key].step"
+                blank
+                :decimal="decimal"
+                @set="(v) => setTime(key, v)"
+              />
+            </div>
+            <div v-if="anim.target === 'children'" class="bm-anim-line">
+              <span>{{ t('anim_step_curve') }}</span>
+              <span class="bm-anim-box">
+                <span class="bm-anim-box__val">{{ stepCurve === '1.5' ? t('anim_step_faster') : stepCurve === '1' ? t('anim_step_linear') : stepCurve }}</span>
+                <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                <select :value="stepCurve" :aria-label="t('anim_step_curve')" data-sve-build-anim-step-curve @change="setVar('--anim-step-curve', $event.target.value === '1' ? null : $event.target.value)">
+                  <option value="1">{{ t('anim_step_linear') }}</option>
+                  <option value="1.5">{{ t('anim_step_faster') }}</option>
+                  <option v-if="stepCurve !== '1' && stepCurve !== '1.5'" :value="stepCurve">{{ stepCurve }}</option>
+                </select>
+              </span>
+            </div>
+            <div class="bm-anim-line">
+              <span>{{ t('anim_ease') }}</span>
+              <span class="bm-anim-ease">
+                <span class="bm-anim-box">
+                  <span class="bm-anim-box__val">{{ t(`anim_ease_${ease}`) }}</span>
+                  <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                  <select :value="ease" :aria-label="t('anim_ease')" data-sve-build-anim-ease @change="setEase($event.target.value)">
+                    <option v-for="[key] in EASES" :key="key" :value="key">{{ t(`anim_ease_${key}`) }}</option>
+                    <option value="spring">{{ t('anim_ease_spring') }}</option>
+                    <option v-if="ease === 'custom'" value="custom" disabled>{{ t('anim_ease_custom') }}</option>
+                  </select>
+                </span>
+                <button
+                  ref="curveBtn"
+                  type="button"
+                  class="bm-anim-curvebtn"
+                  :aria-pressed="curveOpen"
+                  :aria-label="t('anim_curve_open')"
+                  :title="t('anim_curve_open')"
+                  data-sve-build-anim-curve
+                  @click="curveOpen = !curveOpen"
+                  v-html="icon('curve', 13)"
+                ></button>
+              </span>
+            </div>
+            <div v-if="anim.target === 'children'" class="bm-anim-line">
+              <span>{{ t('anim_target') }}</span>
+              <span class="bm-anim-seg">
+                <button type="button" :aria-pressed="false" @click="soon">{{ t('anim_target_pick') }}</button>
+                <button type="button" :aria-pressed="true">{{ t('anim_target_all') }}</button>
+              </span>
+            </div>
+          </section>
+
+          <section class="bm-anim-block bm-anim-foot">
+            <button type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
+            <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="soon">{{ t('anim_save_preset') }}</button>
+          </section>
+        </div>
+      </div>
+
+      <div
+        v-if="open && curveOpen && anim"
+        ref="curvePop"
+        class="sve-build bm-anim-pop is-curve"
+        role="dialog"
+        :aria-label="t('anim_ease')"
+        data-sve-build-anim-curve-pop
+        :style="{ left: `${curveSpot.left}px`, top: `${curveSpot.top}px` }"
+      >
+        <header class="bm-anim-pop__head">
+          <b>{{ t('anim_ease') }}</b>
+          <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="curveOpen = false" v-html="icon('x', 12)"></button>
+        </header>
+        <div class="bm-anim-pop__body">
+          <section class="bm-anim-block is-first">
+            <span class="bm-anim-seg">
+              <button type="button" :aria-pressed="curveMode === 'ease'" data-sve-build-anim-mode="ease" @click="setMode('ease')">{{ t('anim_ease_ease') }}</button>
+              <button type="button" :aria-pressed="curveMode === 'spring'" data-sve-build-anim-mode="spring" @click="setMode('spring')">{{ t('anim_ease_spring') }}</button>
+            </span>
+
+            <template v-if="curveMode === 'ease'">
+              <div class="bm-anim-line">
+                <span>{{ t('anim_ease') }}</span>
+                <span class="bm-anim-box">
+                  <span class="bm-anim-box__val">{{ t(`anim_ease_${ease}`) }}</span>
+                  <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                  <select :value="ease" :aria-label="t('anim_ease')" @change="setEase($event.target.value)">
+                    <option v-for="[key] in EASES" :key="key" :value="key">{{ t(`anim_ease_${key}`) }}</option>
+                    <option v-if="ease === 'custom' || ease === 'spring'" :value="ease" disabled>{{ t(`anim_ease_${ease}`) }}</option>
+                  </select>
+                </span>
+              </div>
+              <div class="bm-anim-line">
+                <span>{{ t('anim_duration') }}</span>
+                <Num :value="duration" unit="ms" :max="TIMING_RANGE.duration.max" :step="TIMING_RANGE.duration.step" blank :decimal="decimal" @set="(v) => setTime('duration', v)" />
+              </div>
+              <div class="bm-anim-line">
+                <span>{{ t('anim_bezier') }}</span>
+                <span class="bm-anim-box">
+                  <input class="bm-anim-bezier" type="text" :value="bezierText" :readonly="!points" :aria-label="t('anim_bezier')" data-sve-build-anim-bezier @change="setBezier" @keydown.enter="$event.target.blur()" />
+                </span>
+              </div>
+            </template>
+            <template v-else>
+              <div v-for="[key, word, range] in SPRING" :key="key" class="bm-anim-line" :data-sve-build-anim-spring="key">
+                <span>{{ t(word) }}</span>
+                <Num :value="spring[key]" :max="range.max" :min="range.min" :step="range.step" :decimal="decimal" @set="(v) => setSpring(key, v)" />
+              </div>
+            </template>
+
+            <div class="bm-anim-graph">
+              <svg
+                ref="graph"
+                :viewBox="`0 0 ${S} ${S}`"
+                aria-hidden="true"
+                data-sve-build-anim-graph
+                @pointermove="pull"
+                @pointerup="drop"
+                @pointercancel="drop"
+              >
+                <rect :x="P" :y="P" :width="S - 2 * P" :height="S - 2 * P" class="g-line" />
+                <g v-for="g in [0.25, 0.5, 0.75]" :key="g">
+                  <line :x1="gx(g)" :y1="P" :x2="gx(g)" :y2="S - P" class="g-line" />
+                  <line :x1="P" :y1="gy(g)" :x2="S - P" :y2="gy(g)" class="g-line" />
+                </g>
+                <line :x1="gx(0)" :y1="gy(0)" :x2="gx(1)" :y2="gy(1)" class="g-diag" />
+                <template v-if="points">
+                  <line :x1="gx(0)" :y1="gy(0)" :x2="gx(points[0])" :y2="gy(points[1])" class="g-arm" />
+                  <line :x1="gx(1)" :y1="gy(1)" :x2="gx(points[2])" :y2="gy(points[3])" class="g-arm" />
+                  <path :d="`M ${gx(0)} ${gy(0)} C ${gx(points[0])} ${gy(points[1])}, ${gx(points[2])} ${gy(points[3])}, ${gx(1)} ${gy(1)}`" class="g-curve" />
+                  <circle :cx="gx(points[0])" :cy="gy(points[1])" r="5" class="g-h1" data-sve-build-anim-handle="0" @pointerdown="grab(0, $event)" />
+                  <circle :cx="gx(points[2])" :cy="gy(points[3])" r="5" class="g-h2" data-sve-build-anim-handle="1" @pointerdown="grab(1, $event)" />
+                  <text :x="gx(points[0]) - 4" :y="gy(points[1]) - 8" font-size="9" class="g-text">{{ short(points[0]) }}, {{ short(points[1]) }}</text>
+                  <text :x="gx(points[2]) + 8" :y="gy(points[3]) + 3" font-size="9" class="g-text">{{ short(points[2]) }}, {{ short(points[3]) }}</text>
+                </template>
+                <polyline v-else :points="springLine" class="g-curve" />
+              </svg>
+            </div>
+            <div class="bm-anim-strip" :style="{ '--strip-ease': easeRaw, '--strip-time': `${duration}ms` }" data-sve-build-anim-strip>
+              <i class="bm-anim-strip__sq"></i>
+              <span class="bm-anim-strip__room"></span>
+              <span class="bm-anim-strip__line"></span>
+              <span class="bm-anim-strip__end"></span>
+            </div>
+            <div class="bm-anim-strip__hint">{{ t('anim_curve_hover') }}</div>
+          </section>
+          <section class="bm-anim-block">
+            <p class="bm-anim-note" v-html="t('anim_curve_note')"></p>
+          </section>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style>
-/* Under the panel's root, `bm-anim-` only: the tab's own pieces beside the panel's shared ones (BuildPanel.vue). */
-.sve-build .bm-anim { display: grid; gap: 0.5rem; padding-bottom: 0.75rem; }
-.sve-build .bm-anim > .fg-lab { margin-top: 0.5rem; }
-.sve-build .bm-anim > .fg-lab:first-child { margin-top: 0; }
-.sve-build .bm-anim-chip { display: flex; align-items: center; gap: 0.5rem; min-width: 0; height: 1.875rem; padding: 0 0.5rem; border-radius: 0.375rem; background: var(--bm-accent-soft); border: 1px solid var(--bm-accent); color: var(--bm-ink); font-size: 0.75rem; }
-.sve-build .bm-anim-chip > span:first-child { color: var(--bm-accent-text); }
+/*
+ * The canvas's panel primitives (Block, Head, Line, Box, Num, Seg, Switch,
+ * Chip, Trigger, Tile, SmallBtn, Popover), px over 16 in rem, its host theme
+ * in the panel's own greys (BuildPanel.vue): fill.tertiary --bm-raise,
+ * fill.secondary --bm-hover, text.secondary --bm-muted, text.tertiary
+ * --bm-faint, stroke.tertiary --bm-line, stroke.secondary --bm-edge.
+ * `bm-anim-` only, under the panel's root.
+ */
+.sve-build .bm-scroll:has(> .bm-anim) { padding: 0; border-top-width: 0; }
+.sve-build .bm-anim, .sve-build.bm-anim-pop { --bm-quiet: color-mix(in srgb, var(--bm-ink) 38%, transparent); }
+.sve-build .bm-anim { padding-bottom: 0.25rem; }
+.sve-build .bm-anim-ic { flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sve-build .bm-anim-block { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.625rem 0.75rem; border-top: 1px solid var(--bm-line); }
+.sve-build .bm-anim-block.is-first { border-top: 0; }
+:root[data-sve-zones] .sve-build .bm-anim > .bm-anim-block { padding-inline: 0; }
+.sve-build .bm-anim-head { display: flex; align-items: center; font-size: 0.75rem; font-weight: 600; }
+.sve-build .bm-anim-head__plus { display: flex; margin-left: auto; color: var(--bm-muted); }
+.sve-build .bm-anim-head__plus:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-none { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
+
+/* Chip */
+.sve-build .bm-anim-chipwrap { position: relative; }
+.sve-build .bm-anim-chip { display: flex; align-items: center; gap: 0.5rem; width: 100%; height: 1.75rem; padding: 0 1.75rem 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid transparent; text-align: start; }
+.sve-build .bm-anim-chip:hover { background: var(--bm-hover); }
+.sve-build .bm-anim-chip[aria-pressed='true'] { background: color-mix(in srgb, var(--bm-accent) 22%, transparent); border-color: color-mix(in srgb, var(--bm-accent) 50%, transparent); }
+.sve-build .bm-anim-chip__ic { display: flex; color: var(--bm-muted); }
+.sve-build .bm-anim-chip[aria-pressed='true'] .bm-anim-chip__ic { color: var(--bm-accent); }
 .sve-build .bm-anim-chip b { flex: none; font-weight: 600; }
 .sve-build .bm-anim-chip__sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bm-muted); }
-.sve-build .bm-anim-acts { display: flex; gap: 0.375rem; }
-.sve-build .bm-anim-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; height: 1.875rem; border: 1px solid var(--bm-line); border-radius: 0.375rem; color: var(--bm-muted); font-size: 0.75rem; white-space: nowrap; }
-.sve-build .bm-anim-btn:hover { background: var(--bm-raise); color: var(--bm-ink); }
-.sve-build .bm-anim-btn .bm-ic { width: 0.8125rem; height: 0.8125rem; }
-.sve-build .bm-anim-triggers { display: grid; gap: 0.0625rem; }
-.sve-build .bm-anim-triggers button { display: flex; align-items: center; gap: 0.625rem; min-height: 1.75rem; padding: 0.25rem 0.5rem; border-radius: 0.375rem; color: var(--bm-ink); font-size: 0.75rem; text-align: start; }
-.sve-build .bm-anim-triggers button > span:first-child { color: var(--bm-accent-text); }
-.sve-build .bm-anim-triggers .bm-ic { width: 0.875rem; height: 0.875rem; }
-.sve-build .bm-anim-triggers__word { flex: 1; min-width: 0; }
-.sve-build .bm-anim-triggers button:hover:not(:disabled) { background: var(--bm-hover); }
-.sve-build .bm-anim-triggers button[aria-pressed='true'] { background: var(--bm-raise); }
-.sve-build .bm-anim-triggers button:disabled { cursor: default; color: var(--bm-faint); }
-.sve-build .bm-anim-triggers button:disabled > span:first-child { color: var(--bm-faint); }
-.sve-build .bm-anim-group h4 { margin: 0.25rem 0 0.375rem; font-size: 0.6875rem; font-weight: 600; color: var(--bm-muted); }
-.sve-build .bm-anim-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); gap: 0.375rem; }
-.sve-build .bm-anim-tile { min-width: 0; padding: 0.55rem 0.4rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid transparent; color: var(--bm-ink); font-size: 0.6875rem; text-align: center; overflow-wrap: anywhere; }
-.sve-build .bm-anim-tile:hover { border-color: var(--bm-accent); background: var(--bm-hover); }
-.sve-build .bm-anim-tile[aria-pressed='true'] { border-color: var(--bm-accent); background: var(--bm-accent-soft); color: var(--bm-accent-text); }
+.sve-build .bm-anim-chip__more { position: absolute; top: 50%; right: 0.25rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; color: var(--bm-muted); transform: translateY(-50%); }
+.sve-build .bm-anim-chip__more:hover { background: var(--bm-hover); color: var(--bm-ink); }
+.sve-build .bm-anim-menu { position: absolute; top: calc(100% + 0.25rem); right: 0; z-index: 5; display: grid; min-width: 11rem; padding: 0.25rem; border: 1px solid var(--bm-edge); border-radius: 0.5rem; background: var(--bm-panel); box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4); }
+.sve-build .bm-anim-menu button { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; text-align: start; }
+.sve-build .bm-anim-menu button:hover { background: var(--bm-hover); }
+
+/* Triggers */
+.sve-build .bm-anim-triggers { display: flex; flex-direction: column; gap: 0.0625rem; margin-inline: -0.5rem; }
+.sve-build .bm-anim-trigger { display: flex; align-items: center; gap: 0.625rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; text-align: start; }
+.sve-build .bm-anim-trigger:hover { background: color-mix(in srgb, var(--bm-raise) 60%, transparent); }
+.sve-build .bm-anim-trigger[aria-pressed='true'] { background: var(--bm-raise); }
+.sve-build .bm-anim-trigger__ic { display: flex; color: var(--bm-accent); }
+.sve-build .bm-anim-trigger__word { flex: 1; min-width: 0; }
+.sve-build .bm-anim-trigger em { font-style: normal; font-size: 0.625rem; }
+.sve-build .bm-anim-trigger.is-later, .sve-build .bm-anim-trigger.is-later .bm-anim-trigger__ic { color: var(--bm-quiet); cursor: default; }
+.sve-build .bm-anim-trigger.is-later:hover { background: none; }
+.sve-build .bm-anim-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; padding-left: 1.875rem; color: var(--bm-faint); font-size: 0.625rem; }
+.sve-build .bm-anim-switches code { padding: 0.0625rem 0.3125rem; border-radius: 0.25rem; background: var(--bm-hover); color: var(--bm-muted); font-size: 0.625rem; white-space: nowrap; }
+
+/* Library */
+.sve-build .bm-anim-lib { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; }
+.sve-build .bm-anim-tile { display: flex; flex-direction: column; align-items: center; gap: 0.375rem; padding: 0.625rem 0.375rem 0.5rem; border-radius: 0.5rem; background: var(--bm-raise); transition: background 0.12s; }
+.sve-build .bm-anim-tile:hover { background: var(--bm-hover); }
+.sve-build .bm-anim-tile svg { width: 4rem; height: 2.5rem; }
+.sve-build .bm-anim-tile > span { color: var(--bm-muted); font-size: 0.625rem; line-height: 1.2; text-align: center; }
+.sve-build .bm-anim-tile.is-later { opacity: 0.45; cursor: default; }
+.sve-build .bm-anim-tile.is-later:hover { background: var(--bm-raise); }
+.sve-build .bm-anim-mine { display: flex; justify-content: center; margin-top: 0.125rem; }
+
+/* SmallBtn */
+.sve-build .bm-anim-btn { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.625rem; padding: 0 0.625rem; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
+.sve-build .bm-anim-btn:hover { background: var(--bm-hover); }
+.sve-build .bm-anim-btn.is-primary { background: var(--bm-accent); color: #fff; }
+.sve-build .bm-anim-btn.is-primary:hover { background: color-mix(in srgb, var(--bm-accent) 85%, #fff); }
+
+/* Popover, beside the panel (lib/beside.js) */
+.sve-build.bm-anim-pop { position: fixed; z-index: 99999; display: flex; flex-direction: column; width: 20rem; height: auto; max-height: calc(100vh - 1rem); border: 1px solid var(--bm-edge); border-radius: 0.75rem; box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45); overflow: hidden; }
+.sve-build.bm-anim-pop.is-curve { width: 16.875rem; }
+.sve-build .bm-anim-pop__head { flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 0.75rem; }
+.sve-build .bm-anim-pop__head b { font-weight: 600; }
+.sve-build .bm-anim-pop__tag { padding: 0.0625rem 0.375rem; border-radius: 0.25rem; background: var(--bm-hover); color: var(--bm-muted); font-size: 0.625rem; }
+.sve-build .bm-anim-pop__x { display: flex; margin-left: auto; color: var(--bm-faint); }
+.sve-build .bm-anim-pop__x:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-pop__body { min-height: 0; overflow: auto; }
+
+/* Stage: the page's own runtime.css on four bars */
+.sve-build .bm-anim-stage { position: relative; display: flex; align-items: center; justify-content: center; height: 8rem; background: var(--bm-bg); overflow: hidden; }
+.sve-build .bm-anim-stage__set { display: flex; flex-direction: column; gap: 0.3125rem; }
+.sve-build .bm-anim-stage__set > i { display: block; width: 8.75rem; height: 1.25rem; border-radius: 0.3125rem; background: color-mix(in srgb, var(--bm-accent) 50%, transparent); border: 1px solid color-mix(in srgb, var(--bm-accent) 90%, transparent); }
+.sve-build .bm-anim-stage__note { position: absolute; right: 0.5rem; bottom: 0.375rem; color: var(--bm-faint); font-size: 0.625rem; }
+
+/* Line, Box, Select, Num, Seg, Switch */
+.sve-build .bm-anim-line { display: grid; grid-template-columns: 5.75rem minmax(0, 1fr); align-items: center; gap: 0.5rem; }
+.sve-build .bm-anim-line > span:first-child { color: var(--bm-muted); font-size: 0.6875rem; white-space: nowrap; }
+.sve-build .bm-anim-line.is-effect { grid-template-columns: 5.75rem minmax(0, 1fr) 1rem; }
+.sve-build .bm-anim-box { position: relative; display: flex; align-items: center; gap: 0.375rem; min-width: 0; height: 1.625rem; padding: 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); }
+.sve-build .bm-anim-box:hover { background: var(--bm-hover); }
+.sve-build .bm-anim-box__val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sve-build .bm-anim-caret { display: flex; color: var(--bm-faint); }
+.sve-build .bm-anim-box select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.sve-build .bm-anim-box:has(select:focus-visible) { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
+.sve-build .bm-anim-num { position: relative; display: flex; align-items: center; min-width: 0; height: 1.625rem; padding: 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); overflow: hidden; cursor: ew-resize; touch-action: none; }
+.sve-build .bm-anim-num.is-raw { cursor: default; }
+.sve-build .bm-anim-num__fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--bm-hover); pointer-events: none; }
+.sve-build .bm-anim-num__in { position: relative; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--bm-ink); font: inherit; cursor: inherit; pointer-events: none; }
+.sve-build .bm-anim-num__in:focus { outline: 0; cursor: text; pointer-events: auto; }
+.sve-build .bm-anim-num:has(.bm-anim-num__in:focus) { outline: 2px solid var(--bm-accent); outline-offset: 1px; cursor: text; }
+.sve-build .bm-anim-num__unit { position: relative; color: var(--bm-faint); font-size: 0.625rem; pointer-events: none; }
+.sve-build .bm-anim-seg { display: flex; gap: 0.125rem; padding: 0.125rem; border-radius: 0.375rem; background: var(--bm-raise); }
+.sve-build .bm-anim-seg button { flex: 1; padding: 0.25rem 0.375rem; border-radius: 0.25rem; color: var(--bm-faint); font-size: 0.6875rem; white-space: nowrap; text-align: center; }
+.sve-build .bm-anim-seg button:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-seg button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; }
+.sve-build .bm-anim-switch { position: relative; justify-self: end; width: 1.75rem; height: 1rem; border-radius: 0.5rem; background: var(--bm-hover); transition: background 0.15s; }
+.sve-build .bm-anim-switch::after { content: ''; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--bm-ink); transition: left 0.15s; }
+.sve-build .bm-anim-switch[aria-checked='true'] { background: var(--bm-accent); }
+.sve-build .bm-anim-switch[aria-checked='true']::after { left: 0.875rem; }
+
+/* Effects */
+.sve-build .bm-anim-minus { display: flex; color: var(--bm-faint); }
+.sve-build .bm-anim-minus:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-more { display: flex; flex-wrap: wrap; gap: 0.25rem; color: var(--bm-faint); font-size: 0.625rem; }
+.sve-build .bm-anim-more button:hover { color: var(--bm-ink); text-decoration: underline; }
+
+/* Curve */
+.sve-build .bm-anim-ease { display: grid; grid-template-columns: minmax(0, 1fr) 1.625rem; gap: 0.375rem; }
+.sve-build .bm-anim-curvebtn { display: flex; align-items: center; justify-content: center; height: 1.625rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid color-mix(in srgb, var(--bm-accent) 60%, transparent); color: var(--bm-accent); }
+.sve-build .bm-anim-curvebtn:hover, .sve-build .bm-anim-curvebtn[aria-pressed='true'] { background: color-mix(in srgb, var(--bm-accent) 22%, transparent); }
+.sve-build .bm-anim-bezier { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--bm-ink); font: 0.6875rem var(--bm-mono); }
+.sve-build .bm-anim-bezier:focus { outline: 0; }
+.sve-build .bm-anim-graph { display: flex; justify-content: center; padding: 0.5rem; border-radius: 0.5rem; background: var(--bm-bg); }
+.sve-build .bm-anim-graph svg { width: 10.5rem; height: 10.5rem; overflow: visible; touch-action: none; }
+.sve-build .bm-anim-graph .g-line { fill: none; stroke: var(--bm-line); }
+.sve-build .bm-anim-graph .g-diag { stroke: var(--bm-quiet); stroke-dasharray: 3 3; }
+.sve-build .bm-anim-graph .g-arm { stroke: var(--bm-faint); stroke-dasharray: 2 2; }
+.sve-build .bm-anim-graph .g-curve { fill: none; stroke: var(--bm-accent); stroke-width: 2; stroke-linejoin: round; }
+.sve-build .bm-anim-graph .g-h1 { fill: var(--bm-ink); cursor: grab; }
+.sve-build .bm-anim-graph .g-h2 { fill: var(--bm-accent); cursor: grab; }
+.sve-build .bm-anim-graph .g-text { fill: var(--bm-faint); pointer-events: none; }
+.sve-build .bm-anim-strip { position: relative; display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); }
+.sve-build .bm-anim-strip__sq { position: absolute; top: 50%; left: 0.5rem; width: 0.875rem; height: 0.875rem; border-radius: 0.1875rem; background: var(--bm-accent); transform: translateY(-50%); transition: left var(--strip-time, 0.6s) var(--strip-ease, ease); }
+.sve-build .bm-anim-strip:hover .bm-anim-strip__sq { left: calc(100% - 1.875rem - 1px); }
+.sve-build .bm-anim-strip__room { flex: none; width: 0.875rem; height: 0.875rem; }
+.sve-build .bm-anim-strip__line { flex: 1; height: 0; border-top: 1px dashed var(--bm-quiet); }
+.sve-build .bm-anim-strip__end { flex: none; width: 1px; height: 0.875rem; background: var(--bm-faint); }
+.sve-build .bm-anim-strip__hint { color: var(--bm-faint); font-size: 0.625rem; text-align: center; }
+.sve-build .bm-anim-note { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
+.sve-build .bm-anim-foot { flex-direction: row; justify-content: space-between; }
 </style>
