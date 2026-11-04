@@ -12,9 +12,9 @@
  * (lib/overlay-history.js): the editor says which with `lp-ready`, and the
  * entry follows every swap by replaceState — never another push. A refresh
  * lands on that URL: a Control Panel host reopens the editor through
- * `autoOpenLivePreview`, a site host through the page's own edit button, which
- * reads the mark the entry still carries (`history.state.sveEditing`). Every
- * deliberate close takes the mark off first.
+ * `autoOpenLivePreview`; a site host shows the page plain, and its edit button
+ * takes the mark off the entry (`history.state.sveEditing`). Every deliberate
+ * close takes the mark off first.
  */
 
 import { MSG, SOURCE } from './lib/protocol.js';

@@ -85,8 +85,9 @@ class InjectEditButtonTest extends TestCase
         $this->assertStringContainsString('data-sve-overlay-host', $html);
         $this->assertStringContainsString('data-ready', $html);
         $this->assertStringContainsString('__sveWantEditor', $html);
-        // A refresh with the editor open asks for it again, off the overlay host's own mark.
+        // A refresh with the editor open comes back plain: the overlay host's mark comes off.
         $this->assertStringContainsString('history.state.sveEditing', $html);
+        $this->assertStringContainsString("history.replaceState(null, '', location.href)", $html);
     }
 
     public function test_head_wraps_vite_full_reload_before_the_client_module(): void
