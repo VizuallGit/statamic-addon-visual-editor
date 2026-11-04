@@ -13,9 +13,21 @@
 
   const seen = new IntersectionObserver((entries) => {
     for (const entry of entries) {
+      const el = entry.target;
+      const again = el.hasAttribute('data-anim-repeat') && !el.hasAttribute('data-anim-off');
+
       if (entry.isIntersecting) {
-        entry.target.setAttribute('data-in-view', '');
-        seen.unobserve(entry.target);
+        el.setAttribute('data-in-view', '');
+
+        if (!again) {
+          seen.unobserve(el);
+        }
+      } else if (again && el.hasAttribute('data-in-view')) {
+        // Out of sight again: back to its first frame, held until it is seen once more.
+        el.removeAttribute('data-in-view');
+        el.setAttribute('data-anim-off', '');
+        void el.offsetWidth;
+        el.removeAttribute('data-anim-off');
       }
     }
   });

@@ -5,7 +5,9 @@
  *   data-anim="self | children"   the element, or its children one after another
  *   data-anim-preset="fade-up"    a preset's --anim-* values (presets.json)
  *   data-anim-on="view | load"    view: runtime.js holds it (its own sheet) until it is seen
- *   style="--anim-duration: …"    the element's own timing
+ *   data-anim-repeat              view: plays again each time it comes back into view
+ *   data-anim-off                 kept in the file, not played
+ *   style="--anim-duration: …"    the element's own timing, curve and effects
  *
  * Only compositor properties move: opacity, translate, scale, rotate, filter,
  * transform and clip-path.
