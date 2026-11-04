@@ -99,7 +99,6 @@ import {
   twSetFieldClass,
   twSetOneOf,
   twSetTag,
-  twToggleClassAt,
   twSizePicked,
   twSortClasses,
   twTagClasses,
@@ -108,7 +107,7 @@ import {
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
-import { splitClass, splitUtility, tokenizeClassValue } from '../tw-parse.js';
+import { readClassAttr, splitClass, splitUtility, toggleToken, tokenizeClassValue, writeClassValue } from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
@@ -1130,7 +1129,25 @@ export function createEditorPort(win, hooks = {}) {
         rem: contentWidthRem(shown),
       };
     },
-    toggleContainerAt: (at) => twToggleClassAt(win, at, '@container'),
+    /**
+     * `@container` on or off at `at` — the container switch, on the picked
+     * element's parent. That tag starts before the picked one, so the write
+     * moves it (`writeMoved`).
+     */
+    toggleContainerAt(at) {
+      const html = ask('dock:html');
+      const row = typeof html === 'string' ? flattenHtmlTree(parseHtmlTree(html), new Set()).find((item) => item.path === at) : null;
+
+      if (!row || row.kind === 'component') {
+        return;
+      }
+
+      const next = writeClassValue(html, row, toggleToken(readClassAttr(html, row.from, row.openTo)?.value || '', '@container'));
+
+      if (next !== html) {
+        port.writeMoved(next, hooks.selectedPath?.() || '');
+      }
+    },
     painted,
     classesShown,
     /**

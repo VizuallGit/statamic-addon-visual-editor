@@ -35,7 +35,6 @@ import {
   replaceToken,
   splitClass,
   splitUtility,
-  toggleToken,
   writeClassValue,
 } from './tw-parse.js';
 import { coveredBy } from './tw-covered.js';
@@ -1061,36 +1060,6 @@ export function twSetClass(win, name) {
   }
 
   commit(win, current.html, setClassValueWith(current.value, name));
-}
-
-/**
- * A bare class on or off on another tag in the file than the picked one —
- * Build mode's container switch puts `@container` on the parent of the
- * element it styles. No variant in front: the tag is not the one the strip
- * is set for. Found by its path, written the way the picked tag is.
- */
-export function twToggleClassAt(win, path, name) {
-  const html = ask('dock:html');
-
-  if (!path || !name || typeof html !== 'string' || ask('dock:is-locked') === true) {
-    return;
-  }
-
-  const row = flattenHtmlTree(parseHtmlTree(html), new Set()).find((item) => item.path === path);
-
-  if (!row || row.kind === 'component') {
-    return;
-  }
-
-  const next = writeClassValue(html, nodeFor(row), toggleToken(readClassAttr(html, row.from, row.openTo)?.value || '', name));
-
-  if (next === html) {
-    return;
-  }
-
-  ask('dock:set-html', next);
-  resyncNode(next);
-  render(win);
 }
 
 /** The icon row's menu: the row under the marker, shown as `twSetClass` would write it. */
