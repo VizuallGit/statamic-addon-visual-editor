@@ -88,11 +88,13 @@ import {
   renderTwClasses,
   twActiveClass,
   twColorOf,
+  twContainerSize,
   twOpenAddMenu,
   twOpenValueMenu,
   twPickedClasses,
   twRefresh,
   twSetClass,
+  twSetContainerSize,
   twSetFieldClass,
   twSetOneOf,
   twSetTag,
@@ -112,6 +114,7 @@ import { flowAt, siteFlowSpaces, siteReadsFlow } from './flow.js';
 import { loadClassDefs } from '../dock/class-defs.js';
 import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
+import { containerDemoOn, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
@@ -884,6 +887,13 @@ export function createEditorPort(win, hooks = {}) {
     size() {
       rev.value;
 
+      // A container size stands in the size's slot (Style's container row): it is what the chain reads through.
+      const container = twContainerSize();
+
+      if (container) {
+        return container;
+      }
+
       const variant = twVariant().split(':').find((part) => rows().some((row) => row.tw && row.tw === part)) || '';
 
       if (variant) {
@@ -899,7 +909,7 @@ export function createEditorPort(win, hooks = {}) {
 
       return twVariant()
         .split(':')
-        .filter((part) => part && !rows().some((row) => row.tw && row.tw === part))
+        .filter((part) => part && !isContainerVariant(part) && !rows().some((row) => row.tw && row.tw === part))
         .join(':');
     },
     openStateMenu(anchor) {
@@ -910,6 +920,11 @@ export function createEditorPort(win, hooks = {}) {
       }
     },
     setSize(handle) {
+      // A breakpoint picked gives up the container size: the two are one at a time.
+      if (twContainerSize()) {
+        twSetContainerSize(win, '');
+      }
+
       if (hooks.setSize) {
         hooks.setSize(handle);
       } else {
@@ -1063,6 +1078,25 @@ export function createEditorPort(win, hooks = {}) {
       const parent = up?.hasAttribute(CANVAS_PATH) && isGrid(up) ? read(up) : null;
 
       return { own, parent, item: parent?.items.find((one) => one.path === path) || null };
+    },
+
+    /* Container queries — the demo (container-query.js), on in this browser only */
+    containerDemo: containerDemoOn(win),
+    /** The container size new classes are written under (`@max-md`), or ''. */
+    containerSize: () => (rev.value, twContainerSize()),
+    setContainerSize: (variant) => twSetContainerSize(win, variant),
+    /**
+     * The container a size query on the element at `path` asks, as the canvas
+     * lays it out now: `{ tag, rem }` — rem its content width — or null.
+     */
+    containerAround(path) {
+      rev.value;
+      painted.value;
+
+      const el = path ? canvas?.elementAt(path) : null;
+      const box = el ? sizeContainerOf(el) : null;
+
+      return box ? { tag: box.tagName.toLowerCase(), rem: contentWidthRem(box) } : null;
     },
     painted,
     classesShown,

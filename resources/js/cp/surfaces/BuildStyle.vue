@@ -28,6 +28,7 @@ import { useFitRow } from './fit-row.js';
 import BuildSpacingBox from './BuildSpacingBox.vue';
 import BuildSpacingView from './BuildSpacingView.vue';
 import BuildColorField from './BuildColorField.vue';
+import BuildContainerRow from './BuildContainerRow.vue';
 import BuildField from './BuildField.vue';
 import BuildFieldReset from './BuildFieldReset.vue';
 import BuildFields from './BuildFields.vue';
@@ -35,6 +36,7 @@ import BuildGapAxis from './BuildGapAxis.vue';
 import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
 import { BUILD_KIDS, GRID_GAP, GRID_PRESETS, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import { CONTAINER_SIZES, containerVariant } from '../../build-mode/container-query.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape, presetOf, presetTooSmall } from '../../build-mode/grid.js';
 import { groupIcon, ic } from '../../build-mode/icons.js';
@@ -92,6 +94,15 @@ const stateNow = computed(() => (port.rev.value, port.state()));
 const deviceIcon = (name) => (name === 'all' ? ic('sidesAll') : port.lists.deviceIcons?.[name] || '');
 
 const sizeHint = computed(() => {
+  const container = CONTAINER_SIZES.find((size) => containerVariant(size.key) === sizeNow.value);
+
+  if (container) {
+    const under = port.t('container_under', { size: `${container.rem}rem` });
+    const what = stateNow.value ? port.t('size_hint_state', { size: under, state: stateNow.value }) : under;
+
+    return port.t('size_hint_container', { size: `<b>${what}</b>` });
+  }
+
   const rows = port.sizes();
   const row = rows.find((item) => item.handle === sizeNow.value);
   const where = !row
@@ -103,6 +114,13 @@ const sizeHint = computed(() => {
 
   return port.t('size_hint', { size: `<b>${what}</b>` });
 });
+
+/* ---------------- Container queries — the demo (container-query.js) ---------------- */
+
+const containerDemo = computed(() => !!port.containerDemo && !port.cssTarget);
+const isContainer = computed(() => classes.value.includes('@container'));
+// `@container` goes on bare: no breakpoint, container size or state in front of it.
+const containerBare = computed(() => chain.value[0] === '');
 
 /* ---------------- the element ---------------- */
 
@@ -599,8 +617,20 @@ function jump(group) {
           ><span class="fg-more__icon" v-html="deviceIcon(row.icon)"></span>{{ row.label }}</button>
         </div>
       </div>
+      <BuildContainerRow v-if="containerDemo" :path="node.path" />
       <div class="fg-line">
         <p class="fg-hint" v-html="sizeHint"></p>
+        <button
+          v-if="containerDemo"
+          type="button"
+          class="fg-state"
+          :class="{ 'is-set': isContainer }"
+          :aria-pressed="isContainer"
+          :disabled="!containerBare"
+          :title="port.t(containerBare ? 'container_title' : 'container_title_bare')"
+          data-sve-build-container-toggle
+          @click="port.setClass('@container')"
+        ><span>{{ port.t('container') }}</span></button>
         <button
           ref="stateBtn"
           type="button"

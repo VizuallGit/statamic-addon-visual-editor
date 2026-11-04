@@ -134,6 +134,19 @@ test('a state reads its own classes at every size first, then the sizes without 
   assert.deepEqual(variantChain(ROWS, null, 'prose-p'), ['prose-p', '']);
 });
 
+test('a container size reads its own classes, then All — with a state, the state first', () => {
+  assert.deepEqual(variantChain(ROWS, '@max-md'), ['@max-md', '']);
+  assert.deepEqual(variantChain(ROWS, '@max-[30rem]', 'hover'), ['@max-[30rem]:hover', 'hover', '@max-[30rem]', '']);
+
+  const propertyOf = (name) => (name.startsWith('pbs-') ? 'padding-block-start' : '');
+
+  assert.deepEqual(
+    effectiveClass('pbs-800 max-md:pbs-400 @max-md:pbs-200', ['padding-block-start'], variantChain(ROWS, '@max-md'), propertyOf),
+    { raw: '@max-md:pbs-200', key: '@max-md', name: 'pbs-200', property: 'padding-block-start', inherited: false }
+  );
+  assert.equal(effectiveClass('pbs-800 max-md:pbs-400', ['padding-block-start'], variantChain(ROWS, '@max-md'), propertyOf).name, 'pbs-800');
+});
+
 test('what a size shows: its own class, else the nearest wider size, else the broader property', () => {
   const props = { pbs: 'padding-block-start', py: 'padding-block', p: 'padding', 'text-700': 'font-size' };
   const propertyOf = (name) => props[name.split('-')[0]] || props[name] || '';

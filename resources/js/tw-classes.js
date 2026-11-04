@@ -167,8 +167,10 @@ function variantKey() {
  * Anything shaped like a screen size: ours, Tailwind's own min-width set, or
  * the arbitrary `max-[900px]` a self-chosen boundary has to be written as —
  * Tailwind's scale has five steps, and a site's list need not land on them.
+ * A container size (`@max-md`, `twSetContainerSize`) takes the same slot, so
+ * it groups and filters the same way.
  */
-const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$/;
+const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$|^@max-(?:[a-z0-9]+|\[[^\]]+\])$/;
 
 /** The screen size a group belongs to — `max-lg:hover` belongs to `max-lg`. */
 function groupBp(key) {
@@ -1384,6 +1386,28 @@ function setBreakpoint(win, index) {
   closeTwMenu(win);
   render(win);
   emit('tw:changed');
+}
+
+/**
+ * A container size picked in Style's container row (`@max-md` — the container
+ * query demo, build-mode/container-query.js): what new classes are written
+ * under, in the slot a breakpoint takes, so the two are one at a time. The
+ * preview keeps its device — a container's width is not the screen's. `''`
+ * gives the slot back to the device buttons, as `lp:device` does.
+ */
+export function twSetContainerSize(win, variant) {
+  variantBp = variant || '';
+  bpManual = !!variant;
+  closeTwMenu(win);
+  render(win);
+  emit('tw:changed');
+}
+
+/** The container size new classes are written under, or ''. */
+export function twContainerSize() {
+  const bp = activeBp();
+
+  return bp.startsWith('@') ? bp : '';
 }
 
 /**
