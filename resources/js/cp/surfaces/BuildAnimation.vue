@@ -3,8 +3,8 @@
  * The picked element's Animation tab, as the approved canvas draws it
  * (animationer-forslag.canvas.tsx, "Animation og Action i build-panelet"):
  * the element's animation as a chip, its triggers, and the library. The chip
- * opens the editor over the panel; the editor's curve button opens the
- * curve beside the editor.
+ * opens the editor over the panel, which dims under it; the editor's curve
+ * button opens the curve beside the editor.
  *
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
@@ -14,9 +14,12 @@
  * reduced-motion.css out and the canvas reverts it while the tab is open
  * (canvas-motion.css): the author sees the motion as set, such visitors a fade.
  *
- * What the runtime cannot do yet (scroll, hover and switch triggers, the
- * library's other recipes, saved presets) stands as the canvas draws it and
- * says so when pressed.
+ * A switch comes from Action: the trigger binds the nearest one in reach. The
+ * canvas runs no Alpine, so there ▶ plays it as when the switch turns on.
+ *
+ * What the runtime cannot do yet (following the mouse, words one by one,
+ * picking children, saved presets) stands as the canvas draws it and says so
+ * when pressed.
  */
 import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PRESETS from '../../../animation/presets.json';
@@ -37,8 +40,12 @@ import {
   ownValues,
   presetOf,
   presetRules,
+  recipeAnimation,
   RUNTIME_DEFAULTS,
+  SETTINGS,
   springEase,
+  TICKER_DURATION,
+  timed,
   TIMING_RANGE,
   valueOf,
   withAnimation,
@@ -80,6 +87,8 @@ const PATHS = {
   tap: '<path d="M9 11V5a2 2 0 0 1 4 0v6M13 10a2 2 0 0 1 4 0v4a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-3-4a2 2 0 0 1 3-2l1 1"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
   move: '<path d="M12 2v20M2 12h20M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3"/>',
+  ticker: '<rect x="3" y="8" width="5" height="5" rx="1"/><rect x="10" y="8" width="5" height="5" rx="1"/><rect x="17" y="8" width="4" height="5" rx="1"/><path d="M15 18H7M9 16l-2 2 2 2"/>',
+  stack: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M7 7h10M9 4h6"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
 };
 
@@ -88,21 +97,23 @@ const icon = (name, size = 14) =>
 
 /* ---------------- the tab ---------------- */
 
-/** [trigger, icon, word, runs, later]: the two the runtime plays, the three still to come, the one for later. */
+/** [trigger, icon, word, later]: the five the runtime plays, and the one for later. */
 const TRIGGERS = [
-  ['view', 'eye', 'anim_on_view', true, false],
-  ['scroll', 'scroll', 'anim_on_scroll', false, false],
-  ['load', 'bolt', 'anim_on_load', true, false],
-  ['hover', 'hover', 'anim_on_hover', false, false],
-  ['switch', 'tap', 'anim_on_switch', false, false],
-  ['mouse', 'move', 'anim_on_mouse', false, true],
+  ['view', 'eye', 'anim_on_view', false],
+  ['scroll', 'scroll', 'anim_on_scroll', false],
+  ['load', 'bolt', 'anim_on_load', false],
+  ['hover', 'hover', 'anim_on_hover', false],
+  ['switch', 'tap', 'anim_on_switch', false],
+  ['mouse', 'move', 'anim_on_mouse', true],
 ];
+
+const RECIPE_ICONS = { parallax: 'scroll', ticker: 'ticker', stack: 'stack' };
 
 const stroke = 'stroke:var(--bm-accent);stroke-width:1.3';
 const tint = (p) => `fill:color-mix(in srgb,var(--bm-accent) ${p}%,transparent)`;
 const framed = (p, more = '') => `style="${tint(p)};${stroke}${more}"`;
 
-/** The library's recipes, drawn as the canvas draws them; `target` for the ones the runtime plays. */
+/** The library's recipes, drawn as the canvas draws them: a `target` keeps the preset, a `recipe` is one of its own (RECIPES). */
 const TILES = [
   { key: 'self', word: 'anim_r_self', target: 'self', art: `<rect x="20" y="10" width="24" height="22" rx="3" ${framed(30)}/><path d="M32 6V2M29 5l3-3 3 3" style="${stroke}"/>` },
   {
@@ -114,21 +125,25 @@ const TILES = [
   {
     key: 'parallax',
     word: 'anim_r_parallax',
+    recipe: 'parallax',
     art: `<rect x="10" y="12" width="20" height="20" rx="3" ${framed(20)}/><rect x="36" y="4" width="18" height="18" rx="3" ${framed(40)}/><path d="M45 26v10M42 33l3 3 3-3" style="${stroke}"/>`,
   },
   {
     key: 'ticker',
     word: 'anim_r_ticker',
+    recipe: 'ticker',
     art: `${[2, 18, 34, 50].map((x) => `<rect x="${x}" y="14" width="12" height="12" rx="2" ${framed(28)}/>`).join('')}<path d="M40 34H24M27 31l-3 3 3 3" style="${stroke}"/>`,
   },
   {
     key: 'stack',
     word: 'anim_r_stack',
+    recipe: 'stack',
     art: `<rect x="16" y="18" width="32" height="18" rx="3" ${framed(18)}/><rect x="19" y="11" width="26" height="18" rx="3" ${framed(30)}/><rect x="22" y="4" width="20" height="18" rx="3" ${framed(45)}/>`,
   },
   {
     key: 'lift',
     word: 'anim_r_lift',
+    recipe: 'lift',
     art: `<rect x="16" y="6" width="26" height="20" rx="3" ${framed(35)}/><path d="M18 32h22" style="${stroke};stroke-dasharray:2 2"/><path d="M44 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>`,
   },
   {
@@ -141,7 +156,27 @@ const TILES = [
 ];
 
 const GROUPS = groupPresets(PRESETS);
-const recipe = computed(() => t(anim.value?.target === 'children' ? 'anim_r_children' : 'anim_r_self'));
+const plays = computed(() => !!anim.value && timed(anim.value.target));
+
+/** The chip's and the editor's name: a recipe's own, else what the element or its children do. */
+const recipe = computed(() => {
+  const now = anim.value;
+
+  if (now && !plays.value) {
+    return t(`anim_r_${now.target}`);
+  }
+
+  if (now?.on === 'hover') {
+    return t(`anim_r_hover_${now.target}`);
+  }
+
+  return t(now?.target === 'children' ? 'anim_r_children' : 'anim_r_self');
+});
+const chipIcon = computed(() => (plays.value ? TRIGGERS.find(([on]) => on === anim.value.on)[1] : RECIPE_ICONS[anim.value?.target]));
+const chipSub = computed(() => (plays.value ? label(preset.value) || anim.value.preset || t('anim_own') : ''));
+
+/** ▶ shows something only where the motion runs in time: not on hover, while scrolling, or on a stack. */
+const playable = computed(() => (plays.value ? !['hover', 'scroll'].includes(anim.value.on) : anim.value?.target === 'ticker'));
 const tagName = computed(() => {
   const first = String(props.node.classes || '').split(/\s+/).find((name) => /^[a-z_-]/i.test(name) && !name.includes('{'));
 
@@ -155,32 +190,41 @@ function write(next) {
 
 const soon = () => port.toast('info', 'anim_coming');
 
-function pickTrigger(on, runs, later) {
+/** On a switch, the one it had while it is still in reach, else the nearest. */
+function withTrigger(now, on) {
+  const keep = now.switch && switches.value.includes(now.switch) ? now.switch : switches.value[0];
+
+  return { ...now, on, switch: on === 'switch' ? keep : null };
+}
+
+function pickTrigger(on, later) {
   if (later) {
     return;
   }
 
-  if (!runs) {
-    soon();
+  if (on === 'switch' && !switches.value.length) {
+    port.toast('info', 'anim_no_switch');
 
     return;
   }
 
-  write({ ...anim.value, on });
+  write(withTrigger(anim.value, on));
 }
 
+/** A recipe replaces what was there; "Element in" and "Children in turn" keep the preset, unless it was a hover's or a recipe's. */
 function useTile(tile) {
   if (tile.later) {
     return;
   }
 
-  if (!tile.target) {
-    soon();
+  if (tile.recipe) {
+    write(recipeAnimation(tile.recipe));
+  } else {
+    const keep = plays.value && anim.value.on !== 'hover';
 
-    return;
+    write(keep ? { ...anim.value, target: tile.target } : newAnimation('fade-up', tile.target));
   }
 
-  write(anim.value ? { ...anim.value, target: tile.target } : newAnimation('fade-up', tile.target));
   open.value = true;
 }
 
@@ -190,10 +234,19 @@ function canvasEl() {
   return doc?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path.value)}"]`) || null;
 }
 
-/** A finished CSS animation is gone from getAnimations(): the runtime's own off switch, on and off again across a style flush, starts it from its first frame. */
+/**
+ * A finished CSS animation is gone from getAnimations(): the runtime's own off
+ * switch, on and off again across a style flush, starts it from its first
+ * frame. The canvas runs no Alpine, so a switch is turned on there, until the
+ * next paint.
+ */
 function replay(el) {
   if (!el || anim.value?.off) {
     return;
+  }
+
+  if (anim.value?.on === 'switch') {
+    el.setAttribute('data-anim-active', '');
   }
 
   el.setAttribute('data-anim-off', '');
@@ -271,6 +324,10 @@ const editor = ref(null);
 const open = ref(false);
 const editorSpot = ref({ left: 0, top: 0, width: 0 });
 
+/** The panel's box: the dimmed layer under the editor covers it, and only it, so the canvas stays in sight. */
+const panelSpot = ref(null);
+const panelEl = () => root.value?.closest('.sve-build');
+
 /** The stage plays again on every change, as the canvas promises ("spiller når du ændrer noget"). */
 const take = ref(0);
 watch(() => JSON.stringify(anim.value), () => {
@@ -298,14 +355,38 @@ const onMotion = (event) => {
   reduced.value = event.matches;
 };
 
-const presetText = computed(() => `${label(preset.value) || anim.value?.preset || ''}${isChanged(anim.value) ? ` · ${t('anim_changed')}` : ''}`);
+const presetText = computed(() => {
+  const name = label(preset.value) || anim.value?.preset;
+
+  return name ? `${name}${isChanged(anim.value) ? ` · ${t('anim_changed')}` : ''}` : t('anim_own');
+});
 const effects = computed(() => (anim.value ? effectsOf(anim.value, preset.value) : []));
 const missing = computed(() => (anim.value ? missingEffects(anim.value, preset.value) : []));
-const timing = computed(() => [
-  ['delay', 'anim_delay'],
-  ['duration', 'anim_duration'],
-  ...(anim.value?.target === 'children' ? [['step', 'anim_step']] : []),
-]);
+const hasEffects = computed(() => plays.value || anim.value?.target === 'parallax');
+const effectsNote = computed(() => ({ hover: 'anim_hover_note', scroll: 'anim_scroll_note' })[anim.value?.on] || (anim.value?.target === 'parallax' ? 'anim_parallax_note' : ''));
+
+/** While scrolling the scroll is the clock: no delay, duration or wait between children. */
+const timing = computed(() => (anim.value?.on === 'scroll'
+  ? []
+  : [
+      ['delay', 'anim_delay'],
+      ['duration', 'anim_duration'],
+      ...(anim.value?.target === 'children' ? [['step', 'anim_step']] : []),
+    ]));
+const staggers = computed(() => anim.value?.target === 'children' && anim.value.on !== 'scroll');
+
+/* A ticker's and a stack's own lengths, in rem; the runtime's own is written as nothing. */
+const remOf = (name) => parseFloat(valueOf(anim.value, null, name) ?? SETTINGS[name]);
+const setRem = (name, rem) => setVar(name, rem === null || `${rem}rem` === SETTINGS[name] ? null : `${rem}rem`);
+const SETTING_FIELDS = {
+  ticker: [['--anim-gap', 'anim_ticker_gap', { max: 8, step: 0.25 }]],
+  stack: [
+    ['--anim-stack-top', 'anim_stack_top', { max: 20, step: 0.25 }],
+    ['--anim-stack-gap', 'anim_stack_gap', { max: 4, step: 0.125 }],
+  ],
+};
+const tickerSeconds = computed(() => (anim.value?.duration ?? TICKER_DURATION) / 1000);
+const reversed = computed(() => valueOf(anim.value, null, '--anim-dir') === 'reverse');
 const stepCurve = computed(() => valueOf(anim.value, preset.value, '--anim-step-curve') ?? '1');
 const easeRaw = computed(() => valueOf(anim.value, preset.value, '--anim-ease') ?? 'ease');
 const ease = computed(() => easeKey(easeRaw.value));
@@ -470,10 +551,13 @@ function placeCurve() {
 }
 
 function place() {
-  const panel = root.value?.closest('.sve-build');
+  const panel = panelEl();
 
   if (editor.value && chip.value && panel) {
-    editorSpot.value = overSpot(chip.value.getBoundingClientRect(), panel.getBoundingClientRect(), size(editor.value), view());
+    const box = panel.getBoundingClientRect();
+
+    editorSpot.value = overSpot(chip.value.getBoundingClientRect(), box, size(editor.value), view());
+    panelSpot.value = { left: box.left, top: box.top, width: box.width, height: box.height };
   }
 
   nextTick(placeCurve);
@@ -484,7 +568,7 @@ let sized = null;
 watch([editor, curvePop], ([e, c]) => {
   sized?.disconnect();
   sized = new ResizeObserver(place);
-  [e, c].filter(Boolean).forEach((el) => sized.observe(el));
+  [e, c, e ? panelEl() : null].filter(Boolean).forEach((el) => sized.observe(el));
   place();
 }, { flush: 'post' });
 
@@ -679,24 +763,24 @@ const Num = defineComponent({
           data-sve-build-anim-chip
           @click="open = !open"
         >
-          <span class="bm-anim-chip__ic" v-html="icon(anim.on === 'load' ? 'bolt' : 'eye')"></span>
+          <span class="bm-anim-chip__ic" v-html="icon(chipIcon)"></span>
           <b>{{ recipe }}</b>
-          <span class="bm-anim-chip__sub">· {{ label(preset) || anim.preset }}</span>
+          <span v-if="chipSub" class="bm-anim-chip__sub">· {{ chipSub }}</span>
         </button>
         <button type="button" class="bm-anim-chip__more" :aria-expanded="menu" :aria-label="t('anim_remove')" data-sve-build-anim-more @click="menu = !menu" v-html="icon('dots', 12)"></button>
         <div v-if="menu" class="bm-anim-menu" role="menu">
-          <button type="button" role="menuitem" data-sve-build-anim-play @click="menu = false; play()"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
+          <button v-if="playable" type="button" role="menuitem" data-sve-build-anim-play @click="menu = false; play()"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
           <button type="button" role="menuitem" data-sve-build-anim-remove @click="remove"><span v-html="icon('trash', 12)"></span>{{ t('anim_remove') }}</button>
         </div>
       </div>
       <p v-else class="bm-anim-none" data-sve-build-anim-none>{{ t('anim_none') }}</p>
     </section>
 
-    <section v-if="anim" class="bm-anim-block" data-sve-build-anim-triggers>
+    <section v-if="plays" class="bm-anim-block" data-sve-build-anim-triggers>
       <div class="bm-anim-head"><span>{{ t('anim_triggers') }}</span></div>
       <div class="bm-anim-triggers">
         <button
-          v-for="[on, ic, word, runs, later] in TRIGGERS"
+          v-for="[on, ic, word, later] in TRIGGERS"
           :key="on"
           type="button"
           class="bm-anim-trigger"
@@ -704,7 +788,7 @@ const Num = defineComponent({
           :aria-pressed="anim.on === on"
           :aria-disabled="later || undefined"
           :data-sve-build-anim-on="on"
-          @click="pickTrigger(on, runs, later)"
+          @click="pickTrigger(on, later)"
         >
           <span class="bm-anim-trigger__ic" v-html="icon(ic)"></span>
           <span class="bm-anim-trigger__word">{{ t(word) }}</span>
@@ -741,6 +825,15 @@ const Num = defineComponent({
 
     <Teleport to="body">
       <div
+        v-if="open && anim && panelSpot"
+        class="sve-build bm-anim-scrim"
+        aria-hidden="true"
+        data-sve-build-anim-scrim
+        :style="{ left: `${panelSpot.left}px`, top: `${panelSpot.top}px`, width: `${panelSpot.width}px`, height: `${panelSpot.height}px` }"
+        @click="open = false"
+      ></div>
+
+      <div
         v-if="open && anim"
         ref="editor"
         class="sve-build bm-anim-pop"
@@ -755,50 +848,70 @@ const Num = defineComponent({
           <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="open = false" v-html="icon('x', 12)"></button>
         </header>
         <div class="bm-anim-pop__body">
-          <div class="bm-anim-stage" data-sve-build-anim-stage>
-            <div :key="take" class="bm-anim-stage__set" :data-anim="anim.target" :data-anim-preset="anim.preset || null" :style="stageStyle">
+          <div v-if="plays" class="bm-anim-stage" data-sve-build-anim-stage>
+            <div
+              :key="take"
+              class="bm-anim-stage__set"
+              :data-anim="anim.target"
+              :data-anim-preset="anim.preset || null"
+              :data-anim-on="anim.on === 'hover' ? 'hover' : null"
+              :style="stageStyle"
+            >
               <i v-for="n in 4" :key="n"></i>
             </div>
-            <span class="bm-anim-stage__note">{{ t('anim_stage_note') }}</span>
+            <span class="bm-anim-stage__note">{{ t(anim.on === 'hover' ? 'anim_stage_hover' : 'anim_stage_note') }}</span>
           </div>
           <p v-if="reduced" class="bm-anim-reduced" data-sve-build-anim-reduced>{{ t('anim_reduced_note') }}</p>
 
           <section class="bm-anim-block is-first">
-            <div class="bm-anim-line">
-              <span>{{ t('anim_trigger') }}</span>
-              <span class="bm-anim-box">
-                <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
-                <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                <select :value="anim.on" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="write({ ...anim, on: $event.target.value })">
-                  <option v-for="[on, , word, runs, later] in TRIGGERS" :key="on" :value="on" :disabled="!runs">
-                    {{ t(word) }}{{ runs ? '' : ` · ${t(later ? 'anim_later' : 'anim_soon')}` }}
-                  </option>
-                </select>
-              </span>
-            </div>
-            <div class="bm-anim-line">
-              <span>{{ t('anim_preset') }}</span>
-              <span class="bm-anim-box">
-                <span class="bm-anim-box__val">{{ presetText }}</span>
-                <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                <select :value="anim.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
-                  <optgroup v-for="[group, list] in GROUPS" :key="group" :label="t(`anim_group_${group}`)">
-                    <option v-for="p in list" :key="p.handle" :value="p.handle">{{ label(p) }}</option>
-                  </optgroup>
-                </select>
-              </span>
-            </div>
-            <div class="bm-anim-line">
-              <span>{{ t('anim_repeat') }}</span>
-              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
-            </div>
+            <template v-if="plays">
+              <div class="bm-anim-line">
+                <span>{{ t('anim_trigger') }}</span>
+                <span class="bm-anim-box">
+                  <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
+                  <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                  <select :value="anim.on" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="write(withTrigger(anim, $event.target.value))">
+                    <option v-for="[on, , word, later] in TRIGGERS" :key="on" :value="on" :disabled="later || (on === 'switch' && !switches.length)">
+                      {{ t(word) }}{{ later ? ` · ${t('anim_later')}` : '' }}
+                    </option>
+                  </select>
+                </span>
+              </div>
+              <div v-if="anim.on === 'switch'" class="bm-anim-line">
+                <span>{{ t('anim_switch') }}</span>
+                <span class="bm-anim-box">
+                  <code class="bm-anim-box__val">{{ anim.switch }}</code>
+                  <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                  <select :value="anim.switch" :aria-label="t('anim_switch')" data-sve-build-anim-switch @change="write({ ...anim, switch: $event.target.value })">
+                    <option v-for="name in switches" :key="name" :value="name">{{ name }}</option>
+                  </select>
+                </span>
+              </div>
+              <div class="bm-anim-line">
+                <span>{{ t('anim_preset') }}</span>
+                <span class="bm-anim-box">
+                  <span class="bm-anim-box__val">{{ presetText }}</span>
+                  <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+                  <select :value="anim.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
+                    <option v-if="!anim.preset" value="" disabled>{{ t('anim_own') }}</option>
+                    <optgroup v-for="[group, list] in GROUPS" :key="group" :label="t(`anim_group_${group}`)">
+                      <option v-for="p in list" :key="p.handle" :value="p.handle">{{ label(p) }}</option>
+                    </optgroup>
+                  </select>
+                </span>
+              </div>
+              <div v-if="anim.on === 'view'" class="bm-anim-line">
+                <span>{{ t('anim_repeat') }}</span>
+                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
+              </div>
+            </template>
             <div class="bm-anim-line">
               <span>{{ t('anim_active') }}</span>
               <button type="button" role="switch" class="bm-anim-switch" :aria-checked="!anim.off" :aria-label="t('anim_active')" data-sve-build-anim-active @click="write({ ...anim, off: !anim.off })"></button>
             </div>
           </section>
 
-          <section class="bm-anim-block" data-sve-build-anim-effects>
+          <section v-if="hasEffects" class="bm-anim-block" data-sve-build-anim-effects>
             <div class="bm-anim-head">
               <span>{{ t('anim_effects') }}</span>
               <span v-if="missing.length" ref="addMenuEl" class="bm-anim-head__add">
@@ -820,6 +933,7 @@ const Num = defineComponent({
                 </div>
               </span>
             </div>
+            <p v-if="effectsNote" class="bm-anim-hint" data-sve-build-anim-effects-note>{{ t(effectsNote) }}</p>
             <div v-for="effect in effects" :key="effect.key" class="bm-anim-line is-effect" :data-sve-build-anim-effect="effect.key">
               <span>{{ t(`anim_fx_${effect.key}`) }}</span>
               <Num
@@ -844,7 +958,7 @@ const Num = defineComponent({
             </div>
           </section>
 
-          <section class="bm-anim-block" data-sve-build-anim-timing>
+          <section v-if="plays" class="bm-anim-block" data-sve-build-anim-timing>
             <div class="bm-anim-head"><span>{{ t('anim_timing') }}</span></div>
             <div v-for="[key, word] in timing" :key="key" class="bm-anim-line" :data-sve-build-anim-time="key">
               <span>{{ t(word) }}</span>
@@ -858,7 +972,7 @@ const Num = defineComponent({
                 @set="(v) => setTime(key, v)"
               />
             </div>
-            <div v-if="anim.target === 'children'" class="bm-anim-line">
+            <div v-if="staggers" class="bm-anim-line">
               <span>{{ t('anim_step_curve') }}</span>
               <span class="bm-anim-box">
                 <span class="bm-anim-box__val">{{ stepCurve === '1.5' ? t('anim_step_faster') : stepCurve === '1' ? t('anim_step_linear') : stepCurve }}</span>
@@ -904,9 +1018,37 @@ const Num = defineComponent({
             </div>
           </section>
 
+          <section v-if="SETTING_FIELDS[anim.target]" class="bm-anim-block" data-sve-build-anim-settings>
+            <div class="bm-anim-head"><span>{{ t('anim_settings') }}</span></div>
+            <p class="bm-anim-hint">{{ t(`anim_${anim.target}_note`) }}</p>
+            <template v-if="anim.target === 'ticker'">
+              <div class="bm-anim-line" data-sve-build-anim-ticker-time>
+                <span>{{ t('anim_ticker_time') }}</span>
+                <Num :value="tickerSeconds" unit="s" :max="60" :min="1" :step="0.5" blank :decimal="decimal" @set="(v) => setTime('duration', v === null ? null : v * 1000)" />
+              </div>
+            </template>
+            <div v-for="[name, word, range] in SETTING_FIELDS[anim.target]" :key="name" class="bm-anim-line" :data-sve-build-anim-setting="name">
+              <span>{{ t(word) }}</span>
+              <Num :value="remOf(name)" unit="rem" :max="range.max" :step="range.step" blank :decimal="decimal" @set="(v) => setRem(name, v)" />
+            </div>
+            <template v-if="anim.target === 'ticker'">
+              <div class="bm-anim-line">
+                <span>{{ t('anim_ticker_dir') }}</span>
+                <span class="bm-anim-seg" data-sve-build-anim-ticker-dir>
+                  <button type="button" :aria-pressed="!reversed" @click="setVar('--anim-dir', null)">{{ t('anim_dir_left') }}</button>
+                  <button type="button" :aria-pressed="reversed" @click="setVar('--anim-dir', 'reverse')">{{ t('anim_dir_right') }}</button>
+                </span>
+              </div>
+              <div class="bm-anim-line">
+                <span>{{ t('anim_ticker_pause') }}</span>
+                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.pause" :aria-label="t('anim_ticker_pause')" data-sve-build-anim-pause @click="write({ ...anim, pause: !anim.pause })"></button>
+              </div>
+            </template>
+          </section>
+
           <section class="bm-anim-block bm-anim-foot">
-            <button type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
-            <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="soon">{{ t('anim_save_preset') }}</button>
+            <button v-if="playable" type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
+            <button v-if="plays" type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="soon">{{ t('anim_save_preset') }}</button>
           </section>
         </div>
       </div>
@@ -1145,4 +1287,10 @@ const Num = defineComponent({
 .sve-build .bm-anim-strip__hint { color: var(--bm-faint); font-size: 0.625rem; text-align: center; }
 .sve-build .bm-anim-note { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
 .sve-build .bm-anim-foot { flex-direction: row; justify-content: space-between; }
+.sve-build .bm-anim-foot:not(:has(> *)) { display: none; }
+.sve-build .bm-anim-hint { margin: 0; color: var(--bm-faint); font-size: 0.625rem; line-height: 1.45; }
+.sve-build .bm-anim-box code.bm-anim-box__val { font: 0.6875rem var(--bm-mono); }
+
+/* Scrim: the panel dimmed and softened under the editor; the canvas beside it stays clear */
+.sve-build.bm-anim-scrim { position: fixed; z-index: 99998; height: auto; min-height: 0; background: color-mix(in srgb, var(--bm-bg) 55%, transparent); -webkit-backdrop-filter: blur(0.1875rem); backdrop-filter: blur(0.1875rem); }
 </style>

@@ -18,8 +18,12 @@ import {
   presetName,
   presetOf,
   presetRules,
+  RECIPES,
+  recipeAnimation,
   RUNTIME_DEFAULTS,
+  SETTINGS,
   springEase,
+  TICKER_DURATION,
   withAnimation,
   withEffect,
   withVar,
@@ -242,6 +246,61 @@ test('the runtime tag is written once, and stays while another element still ani
   assert.equal(html, '<div>\n  <h2>A</h2>\n  <p>B</p>\n</div>');
 });
 
+test('each recipe reads back as it was written, and a recipe writes no trigger, preset or repeat', () => {
+  for (const key of Object.keys(RECIPES)) {
+    const written = recipeAnimation(key);
+
+    assert.deepEqual(read(withAnimation('<ul>\n  <li>a</li>\n</ul>\n', '0:ul', written), '0:ul'), written, key);
+  }
+
+  assert.equal(
+    withAnimation('<a>x</a>', '0:a', recipeAnimation('lift')),
+    '<a data-anim="self" data-anim-on="hover" class="[--anim-duration:0.25s] [--anim-ease:ease-out] [--anim-y:-0.375rem]">x</a>\n\n{{ sve_animation }}'
+  );
+  assert.equal(
+    withAnimation('<ul>x</ul>', '0:ul', { ...recipeAnimation('ticker'), on: 'view', preset: 'fade', repeat: true, pause: true }),
+    '<ul data-anim="ticker" data-anim-pause="">x</ul>\n\n{{ sve_animation }}'
+  );
+});
+
+test('a ticker\'s round, gap and direction, and a stack\'s top and offset, are classes like any other value', () => {
+  const ticker = { ...recipeAnimation('ticker'), duration: 30000, vars: { '--anim-gap': '3rem', '--anim-dir': 'reverse' } };
+  const stack = { ...recipeAnimation('stack'), vars: { '--anim-stack-top': '5rem', '--anim-stack-gap': '0.5rem' } };
+
+  assert.equal(withAnimation('<ul>x</ul>', '0:ul', ticker), '<ul data-anim="ticker" class="[--anim-duration:30s] [--anim-dir:reverse] [--anim-gap:3rem]">x</ul>\n\n{{ sve_animation }}');
+  assert.deepEqual(read(withAnimation('<ul>x</ul>', '0:ul', stack), '0:ul'), stack);
+});
+
+test('a switch is Alpine\'s :data-anim-active on the element, read as x-bind too, and goes with the trigger', () => {
+  const html = '<div x-data="{ open: false }">\n  <ul>x</ul>\n</div>\n';
+  const on = { ...newAnimation('fade-up', 'children'), on: 'switch', switch: 'open' };
+  const next = withAnimation(html, '0:div/0:ul', on);
+
+  assert.equal(next.split('\n')[1], '  <ul data-anim="children" data-anim-preset="fade-up" data-anim-on="switch" :data-anim-active="open">x</ul>');
+  assert.deepEqual(read(next, '0:div/0:ul'), on);
+  assert.equal(read(next.replace(':data-anim-active', 'x-bind:data-anim-active'), '0:div/0:ul').switch, 'open');
+  assert.equal(withAnimation(next, '0:div/0:ul', { ...on, on: 'view', switch: null }).split('\n')[1], '  <ul data-anim="children" data-anim-preset="fade-up" data-anim-on="view">x</ul>');
+  assert.equal(withAnimation(next, '0:div/0:ul', null), html);
+});
+
+test('every trigger the runtime knows reads back; anything else reads as scrolled into view', () => {
+  for (const on of ['view', 'scroll', 'load', 'hover']) {
+    assert.equal(read(withAnimation('<p>x</p>', '0:p', { ...newAnimation('fade'), on }), '0:p').on, on);
+  }
+
+  assert.equal(read('<p data-anim="self" data-anim-on="mouse">x</p>', '0:p').on, 'view');
+});
+
+test('a parallax moves only, a hover reveals nothing, and a ticker or a stack has no effects', () => {
+  const keys = (list) => list.map((effect) => effect.key);
+
+  assert.deepEqual(keys(missingEffects(recipeAnimation('parallax'), null)), ['x']);
+  assert.deepEqual(keys(effectsOf(recipeAnimation('parallax'), null)), ['y']);
+  assert.ok(!keys(missingEffects({ ...newAnimation(''), on: 'hover' }, null)).includes('clip'));
+  assert.deepEqual(missingEffects(recipeAnimation('ticker'), null), []);
+  assert.deepEqual(effectsOf(recipeAnimation('stack'), null), []);
+});
+
 test('a path that is no element leaves the file alone', () => {
   assert.equal(withAnimation(SECTION, '9:div', newAnimation('fade')), SECTION);
 });
@@ -295,13 +354,20 @@ test('the runtime reads every value a preset can carry as the element\'s own fir
 test('the fade for less motion stands on its own, so the stage can leave it out', () => {
   assert.doesNotMatch(RUNTIME, /prefers-reduced-motion|anim-fade/);
   assert.match(REDUCED, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(REDUCED, /:not\(\[data-anim-off\], \[data-anim-off\] > \*\)/);
 });
 
-test('no value the runtime reads is inherited, except by the children of children, from their parent', () => {
+test('with less motion, only what plays now fades: not an element that is off, waits for a hover or waits for its switch', () => {
+  const gate = ':not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active]))';
+
+  assert.ok(REDUCED.includes(`:is([data-anim="self"]${gate}, [data-anim="children"]${gate} > *) {\n      animation: anim-fade 0.3s ease backwards;`));
+  assert.match(REDUCED, /:is\(\[data-anim="parallax"\], \[data-anim="ticker"\]\) \{\s*animation: none;/);
+  assert.match(REDUCED, /\[data-anim-on="hover"\] > \*\) \{\s*--anim-motion: 0;/);
+});
+
+test('no value the runtime reads is inherited, except by the children of children and of a stack, from their parent', () => {
   const read = new Set([...RUNTIME.matchAll(/var\((--anim-[a-z-]+)/g)].map((match) => match[1]));
   const own = [...read].filter((name) => !['--anim-i', '--anim-flip'].includes(name));
-  const children = /\[data-anim="children"\] > :not\(\[data-anim\]\) \{([^}]*)\}/.exec(RUNTIME)?.[1] || '';
+  const children = /:is\(\[data-anim="children"\], \[data-anim="stack"\]\) > :not\(\[data-anim\]\) \{([^}]*)\}/.exec(RUNTIME)?.[1] || '';
 
   assert.ok(own.length > 20);
 
@@ -311,14 +377,46 @@ test('no value the runtime reads is inherited, except by the children of childre
   }
 });
 
-test('the fade for less motion stands over the runtime, and the canvas reverts it with the same selector', () => {
-  const selector = (css) => /\n\s*(:is\([^{]+\))\s*\{/.exec(css)?.[1];
+test('less motion stands over the runtime, and the canvas reverts each of its rules with the same selector', () => {
+  const rules = (css) => [...css.matchAll(/\n\s*(:is\([^{]+\))\s*\{\s*([a-z-]+):/g)].map((match) => [match[1], match[2]]);
 
   assert.match(RUNTIME, /^@layer anim-runtime, anim-reduced;$/m);
   assert.match(REDUCED, /@layer anim-reduced \{\s*@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(CANVAS_MOTION, /@layer anim-reduced \{[^}]*animation: revert-layer;/);
-  assert.ok(selector(REDUCED));
-  assert.equal(selector(CANVAS_MOTION), selector(REDUCED));
+  assert.equal(rules(REDUCED).length, 3);
+  assert.deepEqual(rules(CANVAS_MOTION), rules(REDUCED));
+  assert.equal(CANVAS_MOTION.match(/: revert-layer;/g).length, 3);
+});
+
+test('while scrolling and a parallax follow a view() timeline, only where the browser has one', () => {
+  const supports = RUNTIME.slice(RUNTIME.indexOf('@supports (animation-timeline: view())'));
+
+  assert.match(supports, /\[data-anim="children"\]\[data-anim-on="scroll"\] > \*\) \{[^}]*animation-timeline: view\(\);/);
+  assert.match(supports, /\[data-anim="parallax"\] \{\s*animation: anim-parallax auto linear both;\s*animation-timeline: view\(\);\s*animation-range: cover;/);
+  assert.doesNotMatch(RUNTIME.slice(0, RUNTIME.indexOf('@supports')), /animation-timeline/);
+});
+
+test('a hover is a transition to the values, a switch waits for Alpine\'s data-anim-active, and off stops both', () => {
+  assert.match(RUNTIME, /\[data-anim="self"\]\[data-anim-on="hover"\], \[data-anim="children"\]\[data-anim-on="hover"\] > \*\) \{\s*animation: none;\s*transition-property: opacity, translate, scale, rotate, filter, transform;/);
+  assert.match(RUNTIME, /@media \(hover: hover\) \{\s*:is\(\[data-anim="self"\]\[data-anim-on="hover"\]:hover, \[data-anim="children"\]\[data-anim-on="hover"\]:hover > \*\):not\(\[data-anim-off\], \[data-anim-off\] > \*\)/);
+  assert.match(RUNTIME, /\[data-anim="self"\]\[data-anim-on="switch"\]:not\(\[data-anim-active\]\), \[data-anim="children"\]\[data-anim-on="switch"\]:not\(\[data-anim-active\]\) > \*\) \{\s*animation: none;/);
+  assert.ok(RUNTIME.lastIndexOf(':is([data-anim-off], [data-anim-off] > *)') > RUNTIME.indexOf('[data-anim="ticker"] {'));
+});
+
+test('a ticker\'s and a stack\'s placeholders are the runtime\'s own', () => {
+  assert.match(RUNTIME, new RegExp(`var\\(--anim-duration, ${TICKER_DURATION / 1000}s\\) linear infinite`));
+
+  for (const [name, value] of Object.entries(SETTINGS)) {
+    assert.ok(RUNTIME.includes(`var(${name}, ${value})`), name);
+  }
+});
+
+test('runtime.js copies a ticker\'s row once, out of reach of assistive technology and the tab order', () => {
+  const js = readFileSync(new URL('runtime.js', root), 'utf8');
+
+  assert.match(js, /querySelectorAll\('\[data-anim="ticker"\]'\)/);
+  assert.match(js, /setAttribute\('aria-hidden', 'true'\)/);
+  assert.match(js, /\.inert = true/);
+  assert.match(js, /removeAttribute\('id'\)/);
 });
 
 test('the timing placeholders are the runtime\'s own defaults', () => {

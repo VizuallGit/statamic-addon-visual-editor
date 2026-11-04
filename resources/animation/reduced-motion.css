@@ -1,9 +1,13 @@
 /*
  * For a visitor who asked for less motion: a short fade in place of every
- * animation. {{ sve_animation }} pushes it with runtime.css; the build
- * panel's stage leaves it out, and its canvas reverts this layer while the
- * Animation tab is open (canvas-motion.css), so the author sees the motion
- * they set.
+ * animation that plays, a parallax and a ticker standing still, and a hover
+ * that changes only its opacity. {{ sve_animation }} pushes it with
+ * runtime.css; the build panel's stage leaves it out, and its canvas reverts
+ * this layer while the Animation tab is open (canvas-motion.css), so the
+ * author sees the motion they set.
+ *
+ * What does not play now gets no fade either: an element that is off, waits
+ * for a hover, or waits for its switch.
  */
 @keyframes anim-fade {
   from {
@@ -13,8 +17,16 @@
 
 @layer anim-reduced {
   @media (prefers-reduced-motion: reduce) {
-    :is([data-anim="self"], [data-anim="children"] > *):not([data-anim-off], [data-anim-off] > *) {
+    :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *) {
       animation: anim-fade 0.3s ease backwards;
+    }
+
+    :is([data-anim="parallax"], [data-anim="ticker"]) {
+      animation: none;
+    }
+
+    :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *) {
+      --anim-motion: 0;
     }
   }
 }

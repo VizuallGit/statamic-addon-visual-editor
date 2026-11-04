@@ -5,10 +5,21 @@
  *
  *   data-anim="self | children"   the element, or its children one after another
  *   data-anim-preset="fade-up"    a preset's values, as --anim-preset-* (presets.json)
- *   data-anim-on="view | load"    view: runtime.js holds it (its own sheet) until it is seen
+ *   data-anim-on="view"           when it is seen: runtime.js holds it (its own sheet) until then
+ *                "scroll"         follows the scroll while it comes into view
+ *                "load"           as the page shows
+ *                "hover"          the values are where it goes on hover, with a transition
+ *                "switch"         when Alpine's `:data-anim-active="open"` turns on
  *   data-anim-repeat              view: plays again each time it comes back into view
  *   data-anim-off                 kept in the file, not played
  *   class="[--anim-duration:…]"   the element's own timing, curve and effects
+ *
+ * The recipes do one thing of their own:
+ *
+ *   data-anim="parallax"          moves from its values to the opposite while it crosses the screen
+ *   data-anim="ticker"            its children run in a row without end (runtime.js copies them
+ *                                 once, so the loop has no seam); data-anim-pause stops it on hover
+ *   data-anim="stack"             its children stick one below the other as the page scrolls
  *
  * A value reads the element's own --anim-* first and its preset's
  * --anim-preset-* after: the two never share a name, so the element's own
@@ -16,14 +27,15 @@
  *
  * None of them is inherited: an element animating inside another reads its
  * own values and its preset's, never the outer one's. The children of
- * `data-anim="children"` take their parent's, unless they animate themselves.
+ * `data-anim="children"` and `"stack"` take their parent's, unless they
+ * animate themselves.
  *
  * The rules stand in `anim-runtime`; reduced-motion.css stands in
  * `anim-reduced` over it, so a sheet that reverts that layer plays the motion
  * as set (the build panel's canvas, while its Animation tab is open).
  *
  * Only compositor properties move: opacity, translate, scale, rotate, filter,
- * transform and clip-path.
+ * transform and clip-path. A stack sticks with position: sticky.
  */
 @layer anim-runtime, anim-reduced;
 
@@ -42,6 +54,11 @@
 @property --anim-delay { syntax: "*"; inherits: false; }
 @property --anim-step { syntax: "*"; inherits: false; }
 @property --anim-step-curve { syntax: "*"; inherits: false; }
+@property --anim-motion { syntax: "*"; inherits: false; }
+@property --anim-dir { syntax: "*"; inherits: false; }
+@property --anim-gap { syntax: "*"; inherits: false; }
+@property --anim-stack-top { syntax: "*"; inherits: false; }
+@property --anim-stack-gap { syntax: "*"; inherits: false; }
 @property --anim-preset-opacity { syntax: "*"; inherits: false; }
 @property --anim-preset-x { syntax: "*"; inherits: false; }
 @property --anim-preset-y { syntax: "*"; inherits: false; }
@@ -71,13 +88,30 @@
   }
 }
 
+@keyframes anim-parallax {
+  from {
+    translate: calc(var(--anim-x, var(--anim-preset-x, 0rem)) * var(--anim-flip, 1)) var(--anim-y, var(--anim-preset-y, 0rem));
+  }
+
+  to {
+    translate: calc(var(--anim-x, var(--anim-preset-x, 0rem)) * var(--anim-flip, 1) * -1) calc(var(--anim-y, var(--anim-preset-y, 0rem)) * -1);
+  }
+}
+
+/* The row holds its children twice: half of it, and half a gap, is one round. */
+@keyframes anim-ticker {
+  to {
+    translate: calc(-50% - var(--anim-gap, 2rem) / 2) 0;
+  }
+}
+
 @layer anim-runtime {
   :is([data-anim="self"], [data-anim="children"] > *) {
     animation: anim-in var(--anim-duration, 0.7s) var(--anim-ease, var(--anim-preset-ease, ease)) backwards;
     animation-delay: calc(var(--anim-delay, 0s) + var(--anim-step, 0.07s) * pow(var(--anim-i, 0), var(--anim-step-curve, 1)));
   }
 
-  [data-anim="children"] > :not([data-anim]) {
+  :is([data-anim="children"], [data-anim="stack"]) > :not([data-anim]) {
     --anim-opacity: inherit;
     --anim-x: inherit;
     --anim-y: inherit;
@@ -93,6 +127,11 @@
     --anim-delay: inherit;
     --anim-step: inherit;
     --anim-step-curve: inherit;
+    --anim-motion: inherit;
+    --anim-dir: inherit;
+    --anim-gap: inherit;
+    --anim-stack-top: inherit;
+    --anim-stack-gap: inherit;
     --anim-preset-opacity: inherit;
     --anim-preset-x: inherit;
     --anim-preset-y: inherit;
@@ -106,17 +145,85 @@
     --anim-preset-ease: inherit;
   }
 
-  [data-anim="children"] > :nth-child(2) { --anim-i: 1; }
-  [data-anim="children"] > :nth-child(3) { --anim-i: 2; }
-  [data-anim="children"] > :nth-child(4) { --anim-i: 3; }
-  [data-anim="children"] > :nth-child(5) { --anim-i: 4; }
-  [data-anim="children"] > :nth-child(6) { --anim-i: 5; }
-  [data-anim="children"] > :nth-child(7) { --anim-i: 6; }
-  [data-anim="children"] > :nth-child(8) { --anim-i: 7; }
-  [data-anim="children"] > :nth-child(9) { --anim-i: 8; }
-  [data-anim="children"] > :nth-child(10) { --anim-i: 9; }
-  [data-anim="children"] > :nth-child(11) { --anim-i: 10; }
-  [data-anim="children"] > :nth-child(n + 12) { --anim-i: 11; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(2) { --anim-i: 1; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(3) { --anim-i: 2; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(4) { --anim-i: 3; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(5) { --anim-i: 4; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(6) { --anim-i: 5; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(7) { --anim-i: 6; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(8) { --anim-i: 7; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(9) { --anim-i: 8; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(10) { --anim-i: 9; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(11) { --anim-i: 10; }
+  :is([data-anim="children"], [data-anim="stack"]) > :nth-child(n + 12) { --anim-i: 11; }
+
+  /* Hover: no animation; the values are the hover state, reached with a transition. */
+  :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *) {
+    animation: none;
+    transition-property: opacity, translate, scale, rotate, filter, transform;
+    transition-duration: var(--anim-duration, 0.7s);
+    transition-timing-function: var(--anim-ease, var(--anim-preset-ease, ease));
+    transition-delay: calc(var(--anim-delay, 0s) + var(--anim-step, 0.07s) * pow(var(--anim-i, 0), var(--anim-step-curve, 1)));
+  }
+
+  /* --anim-motion: 0 (reduced-motion.css) keeps the change of opacity and drops the movement. */
+  @media (hover: hover) {
+    :is([data-anim="self"][data-anim-on="hover"]:hover, [data-anim="children"][data-anim-on="hover"]:hover > *):not([data-anim-off], [data-anim-off] > *) {
+      opacity: var(--anim-opacity, var(--anim-preset-opacity, 1));
+      translate: calc(var(--anim-x, var(--anim-preset-x, 0rem)) * var(--anim-flip, 1) * var(--anim-motion, 1)) calc(var(--anim-y, var(--anim-preset-y, 0rem)) * var(--anim-motion, 1));
+      scale: calc(1 + (var(--anim-scale, var(--anim-preset-scale, 1)) - 1) * var(--anim-motion, 1));
+      rotate: calc(var(--anim-rotate, var(--anim-preset-rotate, 0deg)) * var(--anim-motion, 1));
+      filter: blur(calc(var(--anim-blur, var(--anim-preset-blur, 0rem)) * var(--anim-motion, 1)));
+      transform: perspective(60rem) rotateX(calc(var(--anim-rx, var(--anim-preset-rx, 0deg)) * var(--anim-motion, 1))) rotateY(calc(var(--anim-ry, var(--anim-preset-ry, 0deg)) * var(--anim-motion, 1)));
+    }
+  }
+
+  /* A switch: Alpine removes data-anim-active while it is off; it plays when it turns on. */
+  :is([data-anim="self"][data-anim-on="switch"]:not([data-anim-active]), [data-anim="children"][data-anim-on="switch"]:not([data-anim-active]) > *) {
+    animation: none;
+  }
+
+  [data-anim="ticker"] {
+    display: flex;
+    flex-wrap: nowrap;
+    column-gap: var(--anim-gap, 2rem);
+    width: max-content;
+    animation: anim-ticker var(--anim-duration, 20s) linear infinite var(--anim-dir, normal);
+  }
+
+  [data-anim="ticker"] > * {
+    flex: none;
+  }
+
+  [data-anim="ticker"][data-anim-pause]:hover {
+    animation-play-state: paused;
+  }
+
+  :has(> [data-anim="ticker"]) {
+    overflow-x: clip;
+  }
+
+  [data-anim="stack"]:not([data-anim-off]) > * {
+    position: sticky;
+    top: calc(var(--anim-stack-top, 6rem) + var(--anim-i, 0) * var(--anim-stack-gap, 1rem));
+  }
+
+  /* Without a scroll timeline, "while scrolling" plays as it would on load, and a parallax stands still. */
+  @supports (animation-timeline: view()) {
+    :is([data-anim="self"][data-anim-on="scroll"], [data-anim="children"][data-anim-on="scroll"] > *) {
+      animation-duration: auto;
+      animation-delay: 0s;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      animation-range: entry calc(var(--anim-i, 0) * 8%) cover calc(40% + var(--anim-i, 0) * 8%);
+    }
+
+    [data-anim="parallax"] {
+      animation: anim-parallax auto linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+  }
 
   :is([data-anim-off], [data-anim-off] > *) {
     animation: none;

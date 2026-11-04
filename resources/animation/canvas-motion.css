@@ -1,10 +1,19 @@
 /*
- * The build canvas while its Animation tab is open: reduced-motion.css's fade
- * reverted, so the runtime's own animation plays on a computer set to reduce
- * motion too. Same selector as the fade, after it in the cascade.
+ * The build canvas while its Animation tab is open: reduced-motion.css
+ * reverted, so the runtime's own motion plays on a computer set to reduce
+ * motion too. The same selectors as there, in the same order, after it in
+ * the cascade.
  */
 @layer anim-reduced {
-  :is([data-anim="self"], [data-anim="children"] > *):not([data-anim-off], [data-anim-off] > *) {
+  :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *) {
     animation: revert-layer;
+  }
+
+  :is([data-anim="parallax"], [data-anim="ticker"]) {
+    animation: revert-layer;
+  }
+
+  :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *) {
+    --anim-motion: revert-layer;
   }
 }

@@ -2,14 +2,17 @@
  * An element's animation in the dock's file — the build panel's Animation tab.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: html-tree-parse.js, tw-parse.js, build-mode/attrs.js,
- * build-mode/place.js. Pure.
+ * May import: html-tree-parse.js, tw-parse.js, build-mode/alpine.js,
+ * build-mode/attrs.js, build-mode/place.js. Pure.
  * Bus messages: none.
  *
  * What an element does stands in its opening tag, as
- * resources/animation/runtime.css reads it: `data-anim` (self | children),
- * `data-anim-preset`, `data-anim-on` (view | load), `data-anim-repeat` (play
- * again each time it comes into view), `data-anim-off` (kept, not played),
+ * resources/animation/runtime.css reads it: `data-anim` (self | children,
+ * or one of the recipes parallax | ticker | stack), and for self and
+ * children `data-anim-preset`, `data-anim-on` (view | scroll | load | hover |
+ * switch), `data-anim-repeat` (play again each time it comes into view) and,
+ * on a switch, Alpine's `:data-anim-active="open"`. `data-anim-off` (kept,
+ * not played) and a ticker's `data-anim-pause` stand on any of them,
  * and every `--anim-*` value of its own as a Tailwind class in its `class`
  * (`[--anim-duration:1.2s]`): the timing, the curve and the effects that
  * differ from the preset. `{{ sve_tw }}` bakes them like any other class. A
@@ -28,13 +31,36 @@
  */
 import { maskAntlers, parseTemplateTree } from '../html-tree-parse.js';
 import { appendToken, readClassAttr, replaceToken, tokenizeClassValue, writeClassValue } from '../tw-parse.js';
+import { elementAttrs, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { findByPath } from './place.js';
 
-export const TARGETS = ['self', 'children'];
+export const TARGETS = ['self', 'children', 'parallax', 'ticker', 'stack'];
+
+/** When the element or its children play: the triggers runtime.css knows. */
+export const TRIGGER_KEYS = ['view', 'scroll', 'load', 'hover', 'switch'];
+
+/** Whether the target plays a preset on a trigger; the recipes do one thing of their own. */
+export const timed = (target) => target === 'self' || target === 'children';
 
 /** What runtime.css falls back to, in ms — the timing fields' placeholders. */
 export const RUNTIME_DEFAULTS = { duration: 700, delay: 0, step: 70 };
+
+/** One loop of a ticker, in ms, when it has no duration of its own. */
+export const TICKER_DURATION = 20000;
+
+/** The recipes' own lengths and what runtime.css falls back to for each. */
+export const SETTINGS = { '--anim-gap': '2rem', '--anim-stack-top': '6rem', '--anim-stack-gap': '1rem' };
+
+/** The library's recipes beyond a preset: what each one writes on the element. */
+export const RECIPES = {
+  lift: { target: 'self', on: 'hover', duration: 250, vars: { '--anim-ease': 'ease-out', '--anim-y': '-0.375rem' } },
+  parallax: { target: 'parallax', vars: { '--anim-y': '4rem' } },
+  ticker: { target: 'ticker' },
+  stack: { target: 'stack' },
+};
+
+const SWITCH_ATTRS = [':data-anim-active', 'x-bind:data-anim-active'];
 
 /**
  * The effects the editor lists, in its order: the variable, its unit, what it
@@ -65,7 +91,7 @@ export const EASES = [
 ];
 
 const TIMING = { duration: '--anim-duration', delay: '--anim-delay', step: '--anim-step' };
-const ORDER = ['--anim-step-curve', '--anim-ease', ...EFFECTS.map((effect) => effect.name), '--anim-clip-to'];
+const ORDER = ['--anim-step-curve', '--anim-ease', ...EFFECTS.map((effect) => effect.name), '--anim-clip-to', '--anim-dir', ...Object.keys(SETTINGS)];
 const RUNTIME_TAG = '{{ sve_animation }}';
 const RUNTIME_RE = /\s*\{\{\s*sve_animation\s*\}\}/;
 const CLIP_RE = /^inset\((\d*\.?\d+)%\s+0\s+0\s+0\)$/;
@@ -73,7 +99,26 @@ const OWN_RE = /^\[(--anim-[a-z-]+):(.+)\]$/;
 
 /** A preset on an element with nothing yet: the element itself, when it scrolls into view, the runtime's timing. */
 export function newAnimation(preset, target = 'self') {
-  return { target, preset, on: 'view', repeat: false, off: false, duration: null, delay: null, step: null, vars: {} };
+  return {
+    target,
+    preset: timed(target) ? preset : '',
+    on: timed(target) ? 'view' : null,
+    repeat: false,
+    off: false,
+    duration: null,
+    delay: null,
+    step: null,
+    vars: {},
+    switch: null,
+    pause: false,
+  };
+}
+
+/** A recipe of the library's (RECIPES) as an animation of its own. */
+export function recipeAnimation(key) {
+  const recipe = RECIPES[key];
+
+  return { ...newAnimation('', recipe.target), ...recipe, vars: { ...(recipe.vars || {}) } };
 }
 
 /** presets.json in its groups, in the order the file has them: [[group, [preset, …]], …]. */
@@ -137,16 +182,22 @@ export function animationOf(html, node) {
     }
   }
 
+  const plays = timed(target);
+  const written = readAttribute(html, node, 'data-anim-on');
+  const on = plays ? (TRIGGER_KEYS.includes(written) ? written : 'view') : null;
+
   return {
     target,
-    preset: readAttribute(html, node, 'data-anim-preset') || '',
-    on: readAttribute(html, node, 'data-anim-on') === 'load' ? 'load' : 'view',
-    repeat: readAttribute(html, node, 'data-anim-repeat') !== null,
+    preset: plays ? readAttribute(html, node, 'data-anim-preset') || '' : '',
+    on,
+    repeat: plays && readAttribute(html, node, 'data-anim-repeat') !== null,
     off: readAttribute(html, node, 'data-anim-off') !== null,
     duration: toMs(timing[TIMING.duration]),
     delay: toMs(timing[TIMING.delay]),
     step: toMs(timing[TIMING.step]),
     vars,
+    switch: on === 'switch' ? elementAttrs(html, node).find((attr) => SWITCH_ATTRS.includes(attr.name))?.value || null : null,
+    pause: target === 'ticker' && readAttribute(html, node, 'data-anim-pause') !== null,
   };
 }
 
@@ -180,13 +231,24 @@ export function withAnimation(html, path, anim) {
 
   next = withOwnClasses(next, at(), ownValues(anim));
 
+  const plays = !!anim && timed(anim.target);
+
+  next = withSwitch(next, path, plays && anim.on === 'switch' ? anim.switch : null);
+  set('data-anim-pause', anim?.target === 'ticker' && anim.pause ? '' : null);
   set('data-anim-off', anim?.off ? '' : null);
-  set('data-anim-repeat', anim?.repeat ? '' : null);
-  set('data-anim-on', anim ? anim.on : null);
-  set('data-anim-preset', anim?.preset || null);
+  set('data-anim-repeat', plays && anim.repeat ? '' : null);
+  set('data-anim-on', plays ? anim.on : null);
+  set('data-anim-preset', (plays && anim.preset) || null);
   set('data-anim', anim ? anim.target : null);
 
   return withRuntimeTag(next);
+}
+
+/** Alpine's `:data-anim-active` on the element, bound to the switch; null takes it out. */
+function withSwitch(source, path, name) {
+  const next = withoutAlpineAttr(source, path, 'x-bind:data-anim-active');
+
+  return name ? withAlpineAttr(next, path, ':data-anim-active', name) : withoutAlpineAttr(next, path, ':data-anim-active');
 }
 
 /** The preset with this handle, or null. */
@@ -210,7 +272,7 @@ export function isChanged(anim) {
  * read as one (a preset's circle reveal) — `raw` shows it as written.
  */
 export function effectsOf(anim, preset) {
-  return EFFECTS.map((effect) => {
+  return effectsFor(anim).map((effect) => {
     const raw = valueOf(anim, preset, effect.name);
 
     if (raw === null || raw === 'none') {
@@ -227,7 +289,20 @@ export function effectsOf(anim, preset) {
 export function missingEffects(anim, preset) {
   const shown = new Set(effectsOf(anim, preset).map((effect) => effect.key));
 
-  return EFFECTS.filter((effect) => !shown.has(effect.key));
+  return effectsFor(anim).filter((effect) => !shown.has(effect.key));
+}
+
+/** The effects the runtime plays for this animation: a parallax only moves, a hover reveals nothing, a ticker and a stack have none. */
+function effectsFor(anim) {
+  if (anim?.target === 'parallax') {
+    return EFFECTS.filter((effect) => effect.key === 'y' || effect.key === 'x');
+  }
+
+  if (anim && !timed(anim.target)) {
+    return [];
+  }
+
+  return anim?.on === 'hover' ? EFFECTS.filter((effect) => effect.key !== 'clip') : EFFECTS;
 }
 
 /**

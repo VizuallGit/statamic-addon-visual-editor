@@ -1,4 +1,23 @@
 (() => {
+  // A ticker runs its row twice over, so a round ends where the next begins. The copies are the
+  // page's, never the file's: hidden from assistive technology, out of the tab order, without ids.
+  for (const row of document.querySelectorAll('[data-anim="ticker"]')) {
+    const copies = [...row.children].map((child) => {
+      const copy = child.cloneNode(true);
+
+      for (const el of [copy, ...copy.querySelectorAll('[id]')]) {
+        el.removeAttribute('id');
+      }
+
+      copy.setAttribute('aria-hidden', 'true');
+      copy.inert = true;
+
+      return copy;
+    });
+
+    row.append(...copies);
+  }
+
   const watched = document.querySelectorAll('[data-anim-on="view"]');
 
   if (!watched.length || !('IntersectionObserver' in window) || typeof CSSStyleSheet.prototype.replaceSync !== 'function') {
