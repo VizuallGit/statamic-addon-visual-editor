@@ -639,7 +639,7 @@ function jump(group) {
           :title="port.t('state_title')"
           data-sve-build-state
           @click="port.openStateMenu(stateBtn)"
-        ><span>{{ stateNow || port.t('state_normal') }}</span><span v-html="ic('chev')"></span></button>
+        ><span>{{ stateNow || port.t('state') }}</span><span v-html="ic('chev')"></span></button>
       </div>
 
       <div class="fg-jump">

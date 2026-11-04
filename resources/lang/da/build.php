@@ -223,6 +223,7 @@ return [
     'size_hint_up' => ':size og større',
     'size_hint_state' => ':size, ved :state',
     'state_normal' => 'Normal',
+    'state' => 'Tilstand',
     'state_title' => 'Tilstand — samme menu som Tailwind-ruden (hover, focus, prose …)',
     'container' => 'Container',
     'container_title' => 'Gør elementet til container (@container): børnene får containerstørrelser under breakpoints',

@@ -233,6 +233,7 @@ return [
     'size_hint_up' => ':size and larger',
     'size_hint_state' => ':size, on :state',
     'state_normal' => 'Normal',
+    'state' => 'State',
     'state_title' => 'State — the same menu as the Tailwind pane (hover, focus, prose …)',
     'container' => 'Container',
     'container_title' => 'Make this element a container (@container): its children get container sizes under the breakpoints',
