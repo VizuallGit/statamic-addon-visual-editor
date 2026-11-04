@@ -148,7 +148,12 @@ const classes = ref('');
 const target = ref('');
 const picking = ref('');
 
-const nameNow = computed(() => typedName.value.trim().replace(/[^\w$]/g, '') || freeName(html.value, [path.value, target.value || path.value]));
+/** The typed name, else the nearest switch that also reaches the target, else a new one. */
+const nameNow = computed(() => {
+  const reaches = (name) => !target.value || statesInScope(html.value, target.value).some((state) => state.name === name);
+
+  return typedName.value.trim().replace(/[^\w$]/g, '') || names.value.find(reaches) || freeName(html.value, [path.value, target.value || path.value]);
+});
 const targetNode = computed(() => (target.value ? nodeAt(target.value) : null));
 const needsClass = computed(() => thenId.value === 'class_when');
 const ready = computed(() => !!targetNode.value && (!needsClass.value || !!classes.value.trim()));
@@ -340,10 +345,18 @@ function openRaw() {
 /* ---------------- the library ---------------- */
 
 const patternPicking = ref('');
+const pickWord = computed(() => {
+  const pick = PATTERNS.find((pattern) => pattern.key === patternPicking.value)?.pick;
+
+  return pick ? `action_pattern_pick_${pick}` : 'action_pattern_pick';
+});
+
+/** The selected element's own element children: Tabs and Carousel read them as their buttons. */
+const buttonCount = () => (nodeAt(path.value)?.children || []).filter((node) => !node.kind).length;
 
 function usePattern(pattern) {
-  if (pattern.later) {
-    port.toast('info', 'action_later_note');
+  if (pattern.controls && buttonCount() < pattern.controls) {
+    port.toast('error', `action_controls_${pattern.key}`);
 
     return;
   }
@@ -365,6 +378,12 @@ function usePattern(pattern) {
 
       if (at === path.value) {
         port.toast('error', 'action_not_itself');
+
+        return false;
+      }
+
+      if (pattern.items && (node.children || []).filter((child) => !child.kind).length < pattern.items) {
+        port.toast('error', `action_items_${pattern.key}`);
 
         return false;
       }
@@ -595,21 +614,20 @@ onBeforeUnmount(() => {
 
     <section class="bm-act-block" data-sve-build-action-library>
       <div class="bm-act-head"><span>{{ t('action_library') }}</span></div>
-      <p v-if="patternPicking" class="bm-act-hint is-picking" data-sve-build-action-pattern-picking>{{ t('action_pattern_pick') }}</p>
+      <p v-if="patternPicking" class="bm-act-hint is-picking" data-sve-build-action-pattern-picking>{{ t(pickWord) }}</p>
       <div class="bm-act-lib">
         <button
           v-for="pattern in PATTERNS"
           :key="pattern.key"
           type="button"
           class="bm-act-tile"
-          :class="{ 'is-later': pattern.later }"
           :aria-pressed="patternPicking === pattern.key"
-          :aria-disabled="pattern.later || undefined"
+          :title="pattern.controls ? t(`action_controls_${pattern.key}`) : null"
           :data-sve-build-action-pattern="pattern.key"
           @click="usePattern(pattern)"
         >
           <svg viewBox="0 0 64 40" fill="none" aria-hidden="true" v-html="ART[pattern.key]"></svg>
-          <span>{{ t(`action_p_${pattern.key}`) }}<em v-if="pattern.later"> · {{ t('action_later') }}</em></span>
+          <span>{{ t(`action_p_${pattern.key}`) }}</span>
         </button>
       </div>
     </section>
@@ -847,9 +865,6 @@ onBeforeUnmount(() => {
 .sve-build .bm-act-tile svg { width: 4rem; height: 2.5rem; }
 .sve-build .bm-act-tile > span { color: var(--bm-muted); font-size: 0.625rem; line-height: 1.2; text-align: center; }
 .sve-build .bm-act-tile em { font-style: normal; }
-.sve-build .bm-act-tile.is-later { opacity: 0.45; cursor: default; }
-.sve-build .bm-act-tile.is-later:hover { background: var(--bm-raise); }
-
 /* QuietLink, raw Alpine */
 .sve-build .bm-act-quiet { display: flex; align-items: center; gap: 0.5rem; color: var(--bm-muted); font-size: 0.6875rem; text-align: start; }
 .sve-build .bm-act-quiet:hover { color: var(--bm-ink); }

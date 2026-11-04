@@ -104,9 +104,37 @@ test('a second pattern beside the first gets a switch of its own', () => {
   assert.match(next, /x-data="\{ open: false, open2: false \}"/);
 });
 
-test('the patterns that wait say so, and every step is a trigger the dock has', () => {
-  assert.deepEqual(PATTERNS.filter((p) => p.later).map((p) => p.key), ['tabs', 'carousel']);
+test('tabs: each button shows its panel, the first shown, roles for a screen reader', () => {
+  const html = '<section><nav><button>A</button><button @click="track()">B</button></nav><div><p>One</p><p>Two</p></div></section>';
+  const { html: next, name } = withPattern(html, PATTERNS.find((p) => p.key === 'tabs'), '0:section/0:nav', '0:section/1:div');
 
+  assert.equal(name, 'tab');
+  assert.equal(
+    next,
+    '<section x-data="{ tab: 1 }"><nav role="tablist"><button :aria-selected="tab === 1" role="tab" @click="tab = 1">A</button><button :aria-selected="tab === 2" role="tab" @click="track(); tab = 2">B</button></nav><div><p x-show="tab === 1" role="tabpanel">One</p><p x-cloak x-show="tab === 2" role="tabpanel">Two</p></div></section>'
+  );
+});
+
+test('a carousel: first button back, last on, round the ends, dots between', () => {
+  const html = '<section x-data="{ open: false }"><div><i>a</i><i>b</i><i>c</i></div><nav><button>‹</button><button>1</button><button>2</button><button>3</button><button>›</button></nav></section>';
+  const { html: next, name } = withPattern(html, PATTERNS.find((p) => p.key === 'carousel'), '0:section/1:nav', '0:section/0:div');
+
+  assert.equal(name, 'slide');
+  assert.match(next, /x-data="\{ open: false, slide: 0 \}"/);
+  assert.match(next, /<button @click="slide = \(slide \+ 2\) % 3">‹<\/button>/);
+  assert.match(next, /<button :aria-current="slide === 1" @click="slide = 1">2<\/button>/);
+  assert.match(next, /<button @click="slide = \(slide \+ 1\) % 3">›<\/button>/);
+  assert.match(next, /<i x-show="slide === 0">a<\/i><i x-cloak x-show="slide === 1">b<\/i><i x-cloak x-show="slide === 2">c<\/i>/);
+});
+
+test('a second set of tabs gets a value of its own, and no holder means no tabs', () => {
+  const html = '<section x-data="{ tab: 1 }"><nav><b>A</b></nav><div><p>One</p></div></section>';
+
+  assert.equal(withPattern(html, PATTERNS.find((p) => p.key === 'tabs'), '0:section/0:nav', '0:section/1:div').name, 'tab2');
+  assert.equal(withPattern('<nav><b>A</b></nav><div><p>One</p></div>', PATTERNS.find((p) => p.key === 'tabs'), '0:nav', '1:div'), null);
+});
+
+test('every step is a trigger the dock has', () => {
   for (const step of PATTERNS.flatMap((p) => p.steps || [])) {
     assert.ok(TRIGGERS.includes(step.when), step.when);
     assert.ok(!step.then || THENS.some((item) => item.id === step.then), step.then);

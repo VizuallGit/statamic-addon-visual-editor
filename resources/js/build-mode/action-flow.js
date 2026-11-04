@@ -7,13 +7,15 @@
  * build-mode/place.js. Pure — strings in, strings out.
  * Bus messages: none.
  *
- * Nothing here writes Alpine of its own: a statement is the one STATEMENT
- * writes, an action is withAction's, an attribute is withAlpineAttr's. The tab
- * only reads them back as chips and lets one be changed or taken out.
+ * A statement is the one STATEMENT writes, an action is withAction's, an
+ * attribute is withAlpineAttr's. The tab reads them back as chips and lets one
+ * be changed or taken out. Tabs and Carousel switch between values, not on
+ * and off: they write `tab = 2` / `x-show="tab === 2"` of their own, which
+ * read back as written.
  */
 import { ALPINE_BEHAVIOURS } from '../alpine-behaviours.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
-import { alpineAttrs, freeName, STATEMENT, withAction, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
+import { alpineAttrs, chainTo, elementAttrs, freeName, statesInScope, STATEMENT, withAction, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
 import { findByPath } from './place.js';
 
 /** The dock's triggers, each once, in the dock's order: a trigger added there is a trigger here. */
@@ -198,15 +200,145 @@ export const PATTERNS = [
       { on: 'trigger', when: '@focusout', does: 'off' },
     ],
   },
-  { key: 'tabs', later: true },
-  { key: 'carousel', later: true },
+  { key: 'tabs', controls: 1, pick: 'panels', items: 1, write: withTabs },
+  { key: 'carousel', controls: 2, pick: 'slides', items: 2, write: withCarousel },
 ];
+
+/** The element children of the tag at `path`, by path. */
+function childrenOf(html, path) {
+  return (findByPath(parseTemplateTree(html), path)?.children || []).filter((node) => !node.kind).map((node) => node.path);
+}
+
+/** A value switch nothing in reach uses: `tab`, `tab2`, … */
+function freeValue(html, paths, base) {
+  const used = new Set(paths.flatMap((path) => statesInScope(html, path).map((state) => state.name)));
+  let n = 1;
+
+  while (used.has(n === 1 ? base : `${base}${n}`)) {
+    n += 1;
+  }
+
+  return n === 1 ? base : `${base}${n}`;
+}
+
+/**
+ * `name: first` in the nearest `x-data` holding both, or a new one on the
+ * nearest tag holding both. Null when only the file holds both, or the
+ * `x-data` is not an object written out.
+ */
+function withValueState(html, a, b, name, first) {
+  const roots = parseTemplateTree(html);
+  const one = chainTo(roots, a);
+  const two = chainTo(roots, b);
+  let shared = 0;
+
+  while (shared < one.length && shared < two.length && one[shared].path === two[shared].path) {
+    shared += 1;
+  }
+
+  const holders = one.slice(0, shared).reverse().filter((node) => !node.kind);
+
+  if (!holders.length) {
+    return null;
+  }
+
+  for (const node of holders) {
+    const data = elementAttrs(html, node).find((attr) => attr.name === 'x-data');
+
+    if (data) {
+      const inner = /^\{([\s\S]*)\}$/.exec(String(data.value).trim());
+
+      if (!inner) {
+        return null;
+      }
+
+      const body = inner[1].trim().replace(/,$/, '');
+
+      return withAlpineAttr(html, node.path, 'x-data', body ? `{ ${body}, ${name}: ${first} }` : `{ ${name}: ${first} }`);
+    }
+  }
+
+  return withAlpineAttr(html, holders[0].path, 'x-data', `{ ${name}: ${first} }`);
+}
+
+/** One more statement on the element's `@click`, beside the ones it runs. */
+const withClick = (html, path, part) => withAlpineAttr(html, path, '@click', join([...(partsOf(html, path, '@click') || []), part]));
+
+/**
+ * Tabs: the picked element's children are the tabs, the target's children
+ * the panels, the first shown. Roles and `aria-selected` are the tabs' own,
+ * so a screen reader hears tabs and `aria-selected:` styles the chosen one.
+ */
+export function withTabs(html, controls, panels) {
+  const tabs = childrenOf(html, controls);
+  const shown = childrenOf(html, panels);
+
+  if (!tabs.length || !shown.length) {
+    return null;
+  }
+
+  const name = freeValue(html, [controls, panels], 'tab');
+  let next = withValueState(html, controls, panels, name, 1);
+
+  if (next === null) {
+    return null;
+  }
+
+  next = withAlpineAttr(next, controls, 'role', 'tablist');
+  tabs.slice(0, shown.length).forEach((at, i) => {
+    next = withAlpineAttr(withAlpineAttr(withClick(next, at, `${name} = ${i + 1}`), at, 'role', 'tab'), at, ':aria-selected', `${name} === ${i + 1}`);
+  });
+  shown.forEach((at, i) => {
+    next = withAlpineAttr(withAlpineAttr(next, at, 'role', 'tabpanel'), at, 'x-show', `${name} === ${i + 1}`);
+    next = i ? withAlpineAttr(next, at, 'x-cloak', '') : next;
+  });
+
+  return { html: next, name };
+}
+
+/**
+ * A carousel: the picked element's first child goes back, its last goes on,
+ * round the ends; any between are dots, one per slide. The target's children
+ * are the slides, the first shown.
+ */
+export function withCarousel(html, controls, slides) {
+  const buttons = childrenOf(html, controls);
+  const shown = childrenOf(html, slides);
+  const n = shown.length;
+
+  if (buttons.length < 2 || n < 2) {
+    return null;
+  }
+
+  const name = freeValue(html, [controls, slides], 'slide');
+  let next = withValueState(html, controls, slides, name, 0);
+
+  if (next === null) {
+    return null;
+  }
+
+  next = withClick(next, buttons[0], `${name} = (${name} + ${n - 1}) % ${n}`);
+  next = withClick(next, buttons.at(-1), `${name} = (${name} + 1) % ${n}`);
+  buttons.slice(1, -1).slice(0, n).forEach((at, i) => {
+    next = withAlpineAttr(withClick(next, at, `${name} = ${i}`), at, ':aria-current', `${name} === ${i}`);
+  });
+  shown.forEach((at, i) => {
+    next = withAlpineAttr(next, at, 'x-show', `${name} === ${i}`);
+    next = i ? withAlpineAttr(next, at, 'x-cloak', '') : next;
+  });
+
+  return { html: next, name };
+}
 
 /**
  * A pattern written between `trigger` and `target`, on a switch of its own:
  * `{ html, name }`, or null when no tag can hold the switch for both.
  */
 export function withPattern(html, pattern, trigger, target) {
+  if (pattern.write) {
+    return pattern.write(html, trigger, target);
+  }
+
   const name = freeName(html, [trigger, target]);
   let next = html;
 
