@@ -234,10 +234,11 @@ const utility = (label, roots, extra = {}) => ({ label, roots: [].concat(roots),
 
 /**
  * Where a child of a grid or a flex row stands among its siblings: Layout's
- * Order, drawn under Grid item (BuildStyle.vue). With a Data state picked it is
- * the image first while `data-position` says left (lib/data-states.js).
+ * Order, drawn under Grid item (BuildStyle.vue). A placement: inside a section
+ * that says a field (`data-position="{{ image_position }}"`) it is written for
+ * the value that field stands on (boot.js `placedAt`), as the grid's are.
  */
-export const ORDER_FIELD = seg('order', [['order-first', '#first', 'first'], ['order-last', '#last', 'last'], ['order-none', 'x', 'none']], { wide: true });
+export const ORDER_FIELD = seg('order', [['order-first', '#first', 'first'], ['order-last', '#last', 'last'], ['order-none', 'x', 'none']], { wide: true, placement: true });
 
 /**
  * The fields beyond the ones BuildStyle.vue draws by hand, by family. Every one

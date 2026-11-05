@@ -293,6 +293,7 @@ return [
     'content_remove_img' => 'Remove image',
     'content_remove_video' => 'Remove video',
     'content_field_pick' => 'Insert data',
+    'placement_scoped' => 'Placement is saved for :what',
     'attrs_data' => 'Data attributes',
     'attrs_aria' => 'Aria attributes',
     'attrs_role' => 'Role',

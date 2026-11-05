@@ -18,10 +18,13 @@ const props = defineProps({
 
 const port = inject('sveBuild');
 
+/* A placement field (Order) on an element whose place follows a field: read and written for the value that field stands on (boot.js `placedAt`). */
+const placed = computed(() => (port.rev.value, props.field.placement ? port.placedAt?.(port.selectedPath()) : null));
+
 const current = computed(() => {
   port.rev.value;
 
-  const chain = variantChain(port.sizes(), port.size(), port.state());
+  const chain = placed.value?.scope ? placed.value.chain : variantChain(port.sizes(), port.size(), port.state());
 
   return effectiveClass(port.pickedClasses().join(' '), ['field'], chain, (name) => (fieldHas(props.field, name) ? 'field' : ''));
 });
@@ -29,6 +32,12 @@ const current = computed(() => {
 const own = computed(() => (current.value && !current.value.inherited ? current.value : null));
 
 function pick(name) {
+  if (placed.value?.scope) {
+    port.setPlacedOneOf(props.field.names, own.value?.name === name ? null : name);
+
+    return;
+  }
+
   if (own.value?.name === name) {
     port.setClass(name);
   } else {

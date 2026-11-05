@@ -240,6 +240,8 @@ const gridParts = computed(() => port.gridPartsAt(props.node.path));
 const around = computed(() => port.gridAround?.(props.node.path) || { own: null, parent: null, item: null });
 const ownGrid = computed(() => around.value.own);
 const parentGrid = computed(() => around.value.parent);
+/* Inside a section that says a field (`data-position="{{ image_position }}"`): where this stands is saved for that field's value now (boot.js `placementScope`). */
+const placement = computed(() => port.placementScope?.(props.node.path) || null);
 const gridItem = computed(() => (around.value.item?.col && around.value.item?.row ? around.value.item : null));
 const gridLeast = computed(() => fewestTracks(ownGrid.value?.items || []));
 const spanOf = (range) => range[1] - range[0] + 1;
@@ -800,6 +802,7 @@ function jump(group) {
             <BuildAlign :kids="crossKids" />
           </template>
 
+          <p v-if="placement && (gridItem || around.flex)" class="bm-note is-top bm-placement" data-sve-build-placement>{{ port.t('placement_scoped', { what: placement.label }) }}</p>
           <template v-if="gridItem">
             <div class="fg-lab">{{ port.t('grid_item') }}</div>
             <div class="fg-grid" data-sve-build-grid-item-fields>

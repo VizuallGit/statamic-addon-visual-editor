@@ -13,11 +13,13 @@
  * around it `group-data-[…]`, and that element wears `group` (tw-classes.js
  * adds it when the state is picked).
  *
- * May import: html-tree-parse.js, build-mode/attrs.js, data-var-types.js. Pure.
+ * May import: html-tree-parse.js, build-mode/attrs.js, data-var-types.js, tw-parse.js, lib/retag.js. Pure.
  */
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { attributeList } from '../build-mode/attrs.js';
 import { wholeTag } from '../data-var-types.js';
+import { appendToken, readClassAttr, splitClass, tokenizeClassValue, writeClassValue } from '../tw-parse.js';
+import { tagAt } from './retag.js';
 
 /** What a Tailwind data variant can carry without quotes. */
 const SAFE = /^[A-Za-z0-9_-]+$/;
@@ -81,13 +83,6 @@ export function dataStates(html, at, model) {
   return out;
 }
 
-/** A Data state's parts — `{ own, key, value }` (`value` null for a bare one) — or null for any other state. */
-export function parseDataState(variant) {
-  const m = VARIANT.exec(String(variant || ''));
-
-  return m ? { own: !m[1], key: m[2], value: m[3] ?? null } : null;
-}
-
 /** Whether a state is a Data state (`data-[…]`, `group-data-[…]`). */
 export function isDataState(variant) {
   return VARIANT.test(String(variant || ''));
@@ -98,4 +93,106 @@ export function dataStateLabel(variant) {
   const m = VARIANT.exec(String(variant || ''));
 
   return m ? (m[3] ? `${m[2]} = ${m[3]}` : m[2]) : '';
+}
+
+/* ---------------- placement that follows a field ---------------- */
+
+/**
+ * The attribute on a tag that prints a field whole — `data-position="{{ image_position }}"` —
+ * as `{ key, field }`, the first such one; null when the tag has none. A section
+ * that says its field this way has a placement per value of it.
+ */
+export function fieldDataAttr(html, node) {
+  for (const attr of attributeList(html, node)) {
+    const name = attr.name.toLowerCase();
+    const key = name.slice(5);
+    const field = attr.bare ? null : wholeTag(attr.value);
+
+    if (name.startsWith('data-') && !name.startsWith('data-sve-') && SAFE.test(key) && field !== null) {
+      return { key, field: field.split('|')[0].trim() };
+    }
+  }
+
+  return null;
+}
+
+/** `image_position` as a person reads it: `Image position`. */
+export function fieldLabel(handle) {
+  const words = String(handle || '').replace(/[_-]+/g, ' ').trim();
+
+  return words ? words[0].toUpperCase() + words.slice(1) : '';
+}
+
+/**
+ * The placement scope of what stands inside an element that says a field's
+ * value (`fieldDataAttr`), as that field stands now (`value`, read off the
+ * page): the variant a column, a row, a span or an order is written under, and
+ * what the panel says. Null when the value is not one a class can carry.
+ */
+export function placementScope({ key, field }, value, from) {
+  const now = String(value ?? '').trim();
+
+  if (!SAFE.test(now)) {
+    return null;
+  }
+
+  return {
+    from,
+    key,
+    field,
+    value: now,
+    variant: `group-data-[${key}=${now}]`,
+    label: `${fieldLabel(field)} = ${now[0].toUpperCase()}${now.slice(1)}`,
+  };
+}
+
+/** The file with the tag starting at `from` given the class `group` — unchanged when it has it, or is no tag. */
+export function withGroup(html, from) {
+  const source = String(html || '');
+  const el = tagAt(source, from);
+  const value = el ? readClassAttr(source, el.from, el.openTo)?.value || '' : '';
+
+  if (!el || tokenizeClassValue(value).some((token) => token.text === 'group')) {
+    return source;
+  }
+
+  return writeClassValue(source, el, appendToken(value, 'group'));
+}
+
+/**
+ * A class value with one of `names` set under `variants` (`['md', 'group-data-[position=right]']`):
+ * what was there of them under the same variants taken off, `name` (or nothing, null) put on.
+ * Classes under other variants, and every other class, stay where they are.
+ */
+export function withOneOfUnder(value, names, name, variants) {
+  const prefix = variants.filter(Boolean).join(':');
+  let out = String(value || '');
+  const tokens = tokenizeClassValue(out);
+
+  // Back to front, so the offsets of what is left to look at hold.
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    const token = tokens[i];
+    const { variants: has, base } = token.dynamic ? { variants: null, base: '' } : splitClass(token.text);
+
+    if (!has || has.join(':') !== prefix || !names.includes(base)) {
+      continue;
+    }
+
+    let from = token.from;
+    let to = token.to;
+
+    while (from > 0 && /[ \t]/.test(out[from - 1])) {
+      from -= 1;
+    }
+
+    if (from === 0) {
+      while (to < out.length && /[ \t]/.test(out[to])) {
+        to += 1;
+      }
+    }
+
+    out = out.slice(0, from) + out.slice(to);
+  }
+
+  return name ? appendToken(out, prefix ? `${prefix}:${name}` : name) : out;
 }

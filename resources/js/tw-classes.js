@@ -38,8 +38,8 @@ import {
 } from './tw-parse.js';
 import { coveredBy } from './tw-covered.js';
 import { tagChoices, tagRefusal } from './lib/tag-choices.js';
-import { retag, tagAt } from './lib/retag.js';
-import { dataStateLabel, dataStates, isDataState } from './lib/data-states.js';
+import { retag } from './lib/retag.js';
+import { dataStateLabel, dataStates, isDataState, withGroup } from './lib/data-states.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
@@ -1511,14 +1511,7 @@ function showStateMenu(win, anchor, states, write) {
  */
 function giveGroup(from, write = null) {
   const html = ask('dock:html');
-  const el = typeof html === 'string' && !locked() ? tagAt(html, from) : null;
-  const value = el ? readClassAttr(html, el.from, el.openTo)?.value || '' : '';
-
-  if (!el || /(^|\s)group(\s|$)/.test(value)) {
-    return;
-  }
-
-  const next = writeClassValue(html, el, appendToken(value, 'group'));
+  const next = typeof html === 'string' && !locked() ? withGroup(html, from) : html;
 
   if (next === html) {
     return;

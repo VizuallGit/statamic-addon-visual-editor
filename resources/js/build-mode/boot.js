@@ -112,6 +112,7 @@ import { readClassAttr, splitClass, splitUtility, toggleToken, tokenizeClassValu
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
+import { fieldDataAttr, placementScope, withGroup, withOneOfUnder } from '../lib/data-states.js';
 import { flowAt, siteFlowSpaces, siteReadsFlow } from './flow.js';
 import { loadClassDefs } from '../dock/class-defs.js';
 import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from './grid.js';
@@ -141,7 +142,6 @@ import { wholeOwner } from './whole.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
-import { startDataStatePreview } from './canvas-data-state.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
@@ -171,14 +171,11 @@ export function mountBuildPanel(win, host, hooks = {}) {
   resized?.observe(page.frame());
   // The grids drawn over the canvas, and the builder on the pick's (columns-overlay.js).
   const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false } : {});
-  // A Data state picked in Style: the canvas says its value, so what is written under it shows (canvas-data-state.js).
-  const stopDataState = page ? startDataStatePreview(win, port, { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED }) : () => {};
 
   return () => {
     page?.frame()?.contentWindow?.removeEventListener(CANVAS_PAINTED, countPaint);
     resized?.disconnect();
     stopColumns();
-    stopDataState();
     detach?.();
     port.dispose();
     app.unmount();
@@ -1096,14 +1093,94 @@ export function createEditorPort(win, hooks = {}) {
      * `readGrid`). The number a step goes from: a preview narrower than the
      * size's range shows a smaller size's columns, not the ones written here.
      */
-    gridPartsAt: (path) => (rev.value, readGridAt(html(), path, port.gridAt().chain)),
+    gridPartsAt: (path) => (rev.value, readGridAt(html(), path, port.placedAt(path).chain)),
+    /**
+     * Where the element at `path` stands is per value of a field when an
+     * element around it says that field (`data-position="{{ image_position }}"`,
+     * lib/data-states.js): the field is the switch, set in the section's own
+     * fields, and what is placed here is for the value it stands on now — read
+     * off the canvas, as the page draws it. `{ variant, label, from, … }`, or
+     * null: no such element, no canvas, or a value a class cannot carry.
+     */
+    placementScope(path) {
+      rev.value;
+      painted.value;
+
+      if (!path || !canvas) {
+        return null;
+      }
+
+      const source = html();
+      const roots = parseTemplateTree(source);
+      const parts = path.split('/');
+
+      // The nearest element around the pick first; the pick itself places nothing of its own.
+      for (let n = parts.length - 1; n > 0; n -= 1) {
+        const around = findByPath(roots, parts.slice(0, n).join('/'));
+        const says = around && !around.kind ? fieldDataAttr(source, around) : null;
+
+        if (says) {
+          return placementScope(says, canvas.elementAt(around.path)?.getAttribute(`data-${says.key}`), around.from);
+        }
+      }
+
+      return null;
+    },
+    /** The grid's `gridAt` for the element at `path`: its size, and the value of the field it follows in place of the pane's state. */
+    placedAt(path) {
+      const scope = port.placementScope(path);
+      const at = port.gridAt();
+
+      if (!scope) {
+        return { ...at, scope: null };
+      }
+
+      const sizes = at.variants.filter((part) => isContainerVariant(part) || rows().some((row) => row.tw && row.tw === part));
+
+      return { variants: [...sizes, scope.variant], chain: variantChain(rows(), port.size(), scope.variant), scope };
+    },
     /** Parts of the element at `path` (`{ colSpan: 2 }`, null for the wider size's again); the pick stays, or goes to `select`. */
     setGridAt(path, changes, { select = '' } = {}) {
-      const next = withGridAt(html(), path, changes, port.gridAt());
+      const at = port.placedAt(path);
+      // Placed per value: the element saying the field holds `group`, so `group-data-[…]` reaches inside it.
+      const source = at.scope ? withGroup(html(), at.scope.from) : html();
+      const next = withGridAt(source, path, changes, at);
+      const pick = select || hooks.selectedPath?.() || '';
 
-      if (next !== html()) {
-        port.write(next, { select: select || hooks.selectedPath?.() || '' });
+      if (next === html()) {
+        return;
       }
+
+      // `group` written on the element above moves everything after it: the pick is kept by where it starts (writeMoved).
+      if (source !== html() && pick) {
+        port.writeMoved(next, pick);
+      } else {
+        port.write(next, { select: pick });
+      }
+    },
+    /** One of `names` (Order's first, last, none) on the picked element, per value of the field it follows (`placedAt`); null takes it off. */
+    setPlacedOneOf(names, name) {
+      const path = hooks.selectedPath?.() || '';
+      const at = port.placedAt(path);
+
+      if (!at.scope) {
+        return false;
+      }
+
+      const source = withGroup(html(), at.scope.from);
+      const node = findByPath(parseTemplateTree(source), path);
+
+      if (!node || node.kind) {
+        return false;
+      }
+
+      const next = writeClassValue(source, node, withOneOfUnder(readClassAttr(source, node.from, node.openTo)?.value || '', names, name, at.variants));
+
+      if (next === html()) {
+        return false;
+      }
+
+      return (source !== html() ? port.writeMoved(next, path) : port.write(next, { select: path })) !== false;
     },
     /** The grid at `path` set to one of Style's presets, its columns and rows in one write (grid.js `withPresetAt`); the pick stays. */
     setGridPresetAt(path, preset) {

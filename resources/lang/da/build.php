@@ -282,6 +282,7 @@ return [
     'content_remove_img' => 'Fjern billede',
     'content_remove_video' => 'Fjern video',
     'content_field_pick' => 'Indsæt data',
+    'placement_scoped' => 'Placeringen gemmes for :what',
     'attrs_data' => 'Data-attributter',
     'attrs_aria' => 'Aria-attributter',
     'attrs_role' => 'Role',
