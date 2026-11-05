@@ -33,6 +33,8 @@ export const LP_MODE_ID = '__sve-lp-mode';
 export const LP_TOGGLE_ID = '__sve-lp-toggle';
 export const LP_WIDTH_ID = '__sve-lp-width';
 export const LP_COVER_ID = 'sve-lp-cover';
+/** The Control Panel page a reload of the editor lands on, covered until the editor is back (host-cover.js). */
+export const HOST_COVER_ID = 'sve-host-cover';
 export const LP_MODE_KEY = 'sve-lp-panel-mode';
 export const LP_COLLAPSED_KEY = 'sve-lp-collapsed';
 export const LP_DOCKED_KEY = 'sve-lp-docked';

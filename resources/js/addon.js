@@ -67,6 +67,7 @@ import { initTemplateBoard } from './template-board-boot.js';
 import { registerContainerEvents } from './lib/publish-containers.js';
 import { registerEntryPublishForm } from './lib/entry-publish-form.js';
 import { livePreviewButton, livePreviewEditorEl, registerPanelConditions } from './lib/live-preview.js';
+import { coverHostUntilEditor } from './host-cover.js';
 
 // The entry form's publish state (public URL or not), for the close menu in
 // the cluster. A mixin, so it has to be in before Statamic mounts — the
@@ -166,8 +167,11 @@ function pageIsLivePreview() {
   );
 }
 
-// 1. Live Preview: load now.
+// 1. Live Preview: load now. A refresh of the editor lands on the entry's own
+//    screen with the Live Preview ask; that page stays covered until the
+//    cluster has opened the editor over it (host-cover.js).
 if (pageIsLivePreview()) {
+  coverHostUntilEditor(window);
   loadCluster().catch(() => {});
 }
 
