@@ -113,7 +113,7 @@ function ensureStyles(doc, inside = false) {
 #${LAYER_ID} [data-k="add"] button:hover{opacity:1}
 #${LAYER_ID} [data-col][data-picked]{box-shadow:inset 0 0 0 1px #3858e9}
 #${LAYER_ID} [data-grid-grip],#${LAYER_ID} [data-grid-corner]{position:absolute;pointer-events:auto;box-sizing:border-box;touch-action:none;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-#${LAYER_ID} [data-grid-grip]{left:.25rem;top:.25rem;display:inline-flex;align-items:center;gap:.25rem;height:1.375rem;padding:0 .5rem 0 .25rem;border-radius:999px;background:#3858e9;border:1px solid #3858e9;color:#fff;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;cursor:grab}
+#${LAYER_ID} [data-grid-grip]{left:.25rem;top:.25rem;display:inline-flex;align-items:center;gap:.25rem;height:1.375rem;padding:0 .5rem 0 .25rem;border-radius:.3rem;background:#3858e9;border:1px solid #3858e9;color:#fff;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;cursor:grab}
 #${LAYER_ID} [data-grid-grip]:hover{background:#4a68ee;border-color:#4a68ee}
 #${LAYER_ID} [data-grid-grip] svg{width:.875rem;height:.875rem;flex:none}
 #${LAYER_ID} [data-grid-grip] i{font-style:normal;font-weight:500;opacity:.75}
@@ -123,12 +123,12 @@ function ensureStyles(doc, inside = false) {
 #${LAYER_ID} [data-grid-corner]::after{content:"";position:absolute;right:.25rem;bottom:.25rem;width:.45rem;height:.45rem;box-sizing:border-box;border-right:.125rem solid #fff;border-bottom:.125rem solid #fff;border-bottom-right-radius:.1rem}
 #${LAYER_ID} [data-k="shield"]{inset:0;pointer-events:auto;cursor:grabbing}
 #${LAYER_ID} [data-k="shield"][data-kind="corner"]{cursor:nwse-resize}
-#${LAYER_ID} [data-k^="pill"]{pointer-events:auto;display:flex;align-items:center;gap:.125rem;padding:.125rem;border-radius:999px;background:#3858e9;color:#fff;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-#${LAYER_ID} [data-k^="pill"] button{width:1.25rem;height:1.25rem;background:transparent;box-shadow:none}
+#${LAYER_ID} [data-k^="pill"]{pointer-events:auto;display:flex;align-items:center;gap:.125rem;padding:.125rem;border-radius:.3rem;background:#3858e9;color:#fff;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+#${LAYER_ID} [data-k^="pill"] button{width:1.25rem;height:1.25rem;border-radius:.2rem;background:transparent;box-shadow:none}
 #${LAYER_ID} [data-k^="pill"] button:hover{background:rgba(255,255,255,.22)}
 #${LAYER_ID} [data-k^="pill"] button[aria-disabled="true"]{opacity:.4;cursor:default;background:transparent}
 #${LAYER_ID} [data-k^="pill"] span{padding:0 .25rem}
-#${LAYER_ID} [data-k^="pill"] [data-grid-size]{margin-right:.125rem;padding:.25rem .5rem;border-radius:999px;background:rgba(255,255,255,.2)}
+#${LAYER_ID} [data-k^="pill"] [data-grid-size]{margin-right:.125rem;padding:.25rem .5rem;border-radius:.2rem;background:rgba(255,255,255,.2)}
 #${LAYER_ID} [data-k="ghost"]{border:2px solid #3858e9;background:rgba(56,88,233,.16);border-radius:2px}
 #${LAYER_ID} [data-k="ghost"] span{position:absolute;left:.25rem;top:.25rem;padding:.125rem .375rem;border-radius:.25rem;background:#3858e9;color:#fff;font:600 .625rem/1.3 system-ui,sans-serif;white-space:nowrap}`
   );
