@@ -1146,6 +1146,7 @@ return [
     'code_dock_antlers_search' => 'Søg… fx if, collection, upper',
     'code_dock_visual_edit_search' => 'Søg… fx inline_edit',
     'tw_prose' => 'Prose',
+    'tw_state_data' => 'Data',
     'tw_state_search' => 'Søg… fx hover, prose-p',
     'code_dock_visual_edit_base' => 'Basis',
     'code_dock_visual_edit_field' => 'Felt',

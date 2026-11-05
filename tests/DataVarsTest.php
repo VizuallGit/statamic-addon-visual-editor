@@ -30,6 +30,21 @@ class DataVarsTest extends TestCase
         $this->assertSame('Headline', $rows['headline']['label']);
     }
 
+    public function test_a_choice_carries_its_option_keys_in_every_shape(): void
+    {
+        $rows = $this->walk([
+            ['handle' => 'image_position', 'field' => ['type' => 'button_group', 'options' => [['key' => 'left', 'value' => 'Left'], ['key' => 'right', 'value' => 'Right']]]],
+            ['handle' => 'size', 'field' => ['type' => 'select', 'options' => ['sm' => 'Small', 'lg' => 'Large']]],
+            ['handle' => 'tone', 'field' => ['type' => 'radio', 'options' => ['light', 'dark']]],
+            ['handle' => 'title', 'field' => ['type' => 'text']],
+        ]);
+
+        $this->assertSame(['left', 'right'], $rows['image_position']['options']);
+        $this->assertSame(['sm', 'lg'], $rows['size']['options']);
+        $this->assertSame(['light', 'dark'], $rows['tone']['options']);
+        $this->assertArrayNotHasKey('options', $rows['title']);
+    }
+
     public function test_bard_prints_rather_than_loops(): void
     {
         $rows = $this->walk([['handle' => 'text', 'field' => ['type' => 'bard']]]);

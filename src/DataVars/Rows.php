@@ -27,6 +27,9 @@ final class Rows
         'table',
     ];
 
+    /** Fields whose value is one key of their options. */
+    public const CHOICE_TYPES = ['select', 'button_group', 'radio'];
+
     /** A single asset field prints one file; the loop is still how you reach `url`. */
     public const ASSET_TYPES = ['assets'];
 
@@ -209,6 +212,31 @@ final class Rows
     }
 
     /** One pickable row: what to write, what it is, and what is in it. */
+    /**
+     * The keys of a choice field's options, in Statamic's every shape: a list of
+     * `{key, value}`, `key: label`, or a plain list of values.
+     *
+     * @return list<string>
+     */
+    protected static function optionKeys(mixed $options): array
+    {
+        if (! is_array($options)) {
+            return [];
+        }
+
+        $keys = [];
+
+        foreach ($options as $key => $option) {
+            $keys[] = (string) match (true) {
+                is_array($option) && array_key_exists('key', $option) => $option['key'],
+                is_int($key) && is_scalar($option) => $option,
+                default => $key,
+            };
+        }
+
+        return array_values(array_unique(array_filter($keys, fn (string $key) => $key !== '')));
+    }
+
     protected static function row(string $var, Field $field, mixed $value = null): array
     {
         $type = $field->type();
@@ -229,6 +257,16 @@ final class Rows
         // One file prints as one address; more print only in a loop.
         if ($type === 'assets' && (int) ($field->config()['max_files'] ?? 0) === 1) {
             $row['single'] = true;
+        }
+
+        // A choice prints one of its keys: Style's Data states offer each
+        // (`group-data-[position=left]`), as the field's own buttons do.
+        if (in_array($type, static::CHOICE_TYPES, true)) {
+            $options = static::optionKeys($field->config()['options'] ?? []);
+
+            if ($options !== []) {
+                $row['options'] = $options;
+            }
         }
 
         $preview = $value === null ? '' : static::preview($value);

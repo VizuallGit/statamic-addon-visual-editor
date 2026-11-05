@@ -38,7 +38,8 @@ import {
 } from './tw-parse.js';
 import { coveredBy } from './tw-covered.js';
 import { tagChoices, tagRefusal } from './lib/tag-choices.js';
-import { retag } from './lib/retag.js';
+import { retag, tagAt } from './lib/retag.js';
+import { dataStateLabel, dataStates, isDataState } from './lib/data-states.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
@@ -1431,14 +1432,39 @@ export function twContainerSize() {
 }
 
 /**
- * States and prose variants in one popup — the Insert data one, with a tab
- * for each and a search field. The first row of the states tab clears the
- * state; a prose variant is picked the same way and written the same way.
- * Exported for Build mode's state button (build-mode/boot.js).
+ * States, prose variants and Data states in one popup — the Insert data one,
+ * with a tab for each and a search field. The first row of the states tab
+ * clears the state; a prose variant is picked the same way and written the
+ * same way. Data (lib/data-states.js): the data attributes on the picked tag
+ * and around it, each value one can take — `group-data-[position=left]` — so
+ * a class holds only while the attribute says so; picked on an element around
+ * it, that element is given `group`. Exported for Build mode's state button
+ * (build-mode/boot.js).
  */
-export function openStateMenu(win, anchor) {
+export function openStateMenu(win, anchor, { write = null } = {}) {
+  const html = ask('dock:html');
+  const at = node && !node.component ? node.from : null;
+  const model = at === null || typeof html !== 'string' ? null : ask('dock:data-model', { at });
+
+  Promise.resolve(model)
+    .catch(() => null)
+    .then((resolved) => {
+      if (anchor?.isConnected === false) {
+        return;
+      }
+
+      showStateMenu(win, anchor, at === null || typeof html !== 'string' ? [] : dataStates(html, at, resolved), write);
+    });
+}
+
+function showStateMenu(win, anchor, states, write) {
   const none = t(win, 'tw_state_none');
   const known = new Set([...STATES.filter(Boolean), ...PROSE_VARIANTS]);
+  const dataTab = { id: 'data', label: t(win, 'tw_state_data') };
+  const tabs = [
+    { id: 'state', label: t(win, 'tw_state') },
+    { id: 'prose', label: t(win, 'tw_prose') },
+  ];
 
   openMenu(win, anchor, CodeDockDataVars, {
     title: t(win, 'tw_state'),
@@ -1446,25 +1472,71 @@ export function openStateMenu(win, anchor) {
     emptyText: t(win, 'data_vars_empty'),
     noSectionText: t(win, 'data_vars_empty'),
     loopText: '',
-    tabs: [
-      { id: 'state', label: t(win, 'tw_state') },
-      { id: 'prose', label: t(win, 'tw_prose') },
-    ],
+    // The tab the state picked is on, first: a Data state opens on Data.
+    tabs: isDataState(variantState) ? [dataTab, ...tabs] : [...tabs, dataTab],
     data: {
       state: [
         { var: none, id: '' },
         ...STATES.filter(Boolean).map((key) => ({ var: key, id: key, value: key === variantState ? '●' : '' })),
       ],
       prose: PROSE_VARIANTS.map((key) => ({ var: key, id: key, value: key === variantState ? '●' : '' })),
+      data: states.length
+        ? [
+            { var: none, id: '' },
+            ...states.map((state) => ({ var: dataStateLabel(state.id), id: state.id, value: state.id === variantState ? '●' : `<${state.tag}>` })),
+          ]
+        : [],
     },
     onPick: (row) => {
-      variantState = known.has(row.id) ? row.id : '';
+      const state = states.find((item) => item.id === row.id);
+
+      if (state && !state.own) {
+        giveGroup(state.from, write);
+      }
+
+      variantState = state ? state.id : known.has(row.id) ? row.id : '';
       closeTwMenu(win);
       render(win);
       emit('tw:changed');
     },
   });
   win.document.getElementById(MENU_ID)?.setAttribute('data-sve-data-menu', '');
+}
+
+/**
+ * The element starting at `from` given the class `group`, so a
+ * `group-data-[…]` state under it holds. Nothing when it has one, or the file
+ * is locked. It stands before the pick, so the pick's offsets move with it —
+ * or, `write` given (Build: `port.writeMoved`), the writer keeps the pick.
+ */
+function giveGroup(from, write = null) {
+  const html = ask('dock:html');
+  const el = typeof html === 'string' && !locked() ? tagAt(html, from) : null;
+  const value = el ? readClassAttr(html, el.from, el.openTo)?.value || '' : '';
+
+  if (!el || /(^|\s)group(\s|$)/.test(value)) {
+    return;
+  }
+
+  const next = writeClassValue(html, el, appendToken(value, 'group'));
+
+  if (next === html) {
+    return;
+  }
+
+  if (write) {
+    write(next);
+
+    return;
+  }
+
+  ask('dock:set-html', next);
+
+  if (node && node.from > from) {
+    const shift = next.length - html.length;
+
+    node = { ...node, from: node.from + shift, openTo: node.openTo + shift };
+  }
 }
 
 /**
@@ -2010,7 +2082,7 @@ function render(win) {
     active: item.all ? !filtering : filtering && item.key === activeBp(),
   }));
   twUi.state = variantState;
-  twUi.stateLabel = variantState || t(win, 'tw_state');
+  twUi.stateLabel = dataStateLabel(variantState) || variantState || t(win, 'tw_state');
   twUi.canEdit = !locked();
   twUi.picking = !!chipHost?.picking();
   twUi.onChip = (event, id) => onChip(win, event, id);

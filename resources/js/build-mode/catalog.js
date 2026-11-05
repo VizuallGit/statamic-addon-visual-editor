@@ -233,6 +233,13 @@ const color = (css, extra = {}) => ({ label: css, css, color: true, ...extra });
 const utility = (label, roots, extra = {}) => ({ label, roots: [].concat(roots), ...extra });
 
 /**
+ * Where a child of a grid or a flex row stands among its siblings: Layout's
+ * Order, drawn under Grid item (BuildStyle.vue). With a Data state picked it is
+ * the image first while `data-position` says left (lib/data-states.js).
+ */
+export const ORDER_FIELD = seg('order', [['order-first', '#first', 'first'], ['order-last', '#last', 'last'], ['order-none', 'x', 'none']], { wide: true });
+
+/**
  * The fields beyond the ones BuildStyle.vue draws by hand, by family. Every one
  * writes a Tailwind class through the pane's own functions, so a value set here
  * and one added with the dock's + are the same class in the same place.

@@ -1159,6 +1159,7 @@ return [
     'code_dock_antlers_search' => 'Search… e.g. if, collection, upper',
     'code_dock_visual_edit_search' => 'Search… e.g. inline_edit',
     'tw_prose' => 'Prose',
+    'tw_state_data' => 'Data',
     'tw_state_search' => 'Search… e.g. hover, prose-p',
     'code_dock_visual_edit_base' => 'Base',
     'code_dock_visual_edit_field' => 'Field',

@@ -35,7 +35,8 @@ import BuildFields from './BuildFields.vue';
 import BuildGapAxis from './BuildGapAxis.vue';
 import BuildGridStep from './BuildGridStep.vue';
 import BuildValueInput from './BuildValueInput.vue';
-import { BUILD_KIDS, GRID_GAP, GRID_PRESETS, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import { BUILD_KIDS, GRID_GAP, GRID_PRESETS, ORDER_FIELD, STYLE_FIELDS, STYLE_FRONT, fieldHas, inMore, kidsById, styleGroups } from '../../build-mode/catalog.js';
+import { dataStateLabel } from '../../lib/data-states.js';
 import { containerLength, isContainerVariant } from '../../build-mode/container-query.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape, presetOf, presetTooSmall } from '../../build-mode/grid.js';
@@ -91,6 +92,8 @@ const sizeMorePanel = ref(null);
 const sizeFit = useFitRow(sizeRow, sizeMoreBtn, sizeMorePanel);
 const sizesOut = computed(() => (sizeFit.hidden.value ? sizes.value.slice(-sizeFit.hidden.value) : []));
 const stateNow = computed(() => (port.rev.value, port.state()));
+/** The state as it reads: a Data state's attribute and value (`position = left`), any other as written. */
+const stateName = computed(() => dataStateLabel(stateNow.value) || stateNow.value);
 const deviceIcon = (name) => (name === 'all' ? ic('sidesAll') : port.lists.deviceIcons?.[name] || '');
 
 const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -99,7 +102,7 @@ const sizeHint = computed(() => {
 
   if (container) {
     const under = port.t('container_under', { size: container });
-    const what = stateNow.value ? port.t('size_hint_state', { size: under, state: stateNow.value }) : under;
+    const what = stateNow.value ? port.t('size_hint_state', { size: under, state: stateName.value }) : under;
     const name = port.containerAround(props.node.path)?.name;
 
     return name
@@ -114,7 +117,7 @@ const sizeHint = computed(() => {
     : !row.base && (row === rows[rows.length - 1] || row === rows[0])
       ? row.label
       : port.t(row.direction === 'mobile' ? 'size_hint_up' : 'size_hint_down', { size: row.label });
-  const what = stateNow.value ? port.t('size_hint_state', { size: where, state: stateNow.value }) : where;
+  const what = stateNow.value ? port.t('size_hint_state', { size: where, state: stateName.value }) : where;
 
   return port.t('size_hint', { size: `<b>${what}</b>` });
 });
@@ -629,7 +632,7 @@ function jump(group) {
             :title="port.t('state_title')"
             data-sve-build-state
             @click="port.openStateMenu(stateBtn)"
-          ><span>{{ stateNow || port.t('state') }}</span><span v-html="ic('chev')"></span></button>
+          ><span>{{ stateName || port.t('state') }}</span><span v-html="ic('chev')"></span></button>
         </span>
       </div>
       <BuildContainerRow v-if="containerTools" :path="node.path" />
@@ -806,6 +809,7 @@ function jump(group) {
               <BuildGridStep :path="node.path" part="rowStart" letter="R" :label="port.t('grid_row_start')" :hit="gridParts.rowStart" :seen="gridItem.row[0] + 1" auto />
             </div>
           </template>
+          <BuildFields v-if="gridItem || around.flex" :fields="[ORDER_FIELD]" data-sve-build-order />
 
           <label class="fg-check">
             <input type="checkbox" :checked="clip" data-sve-build-clip @change="port.setClass('overflow-hidden')" />

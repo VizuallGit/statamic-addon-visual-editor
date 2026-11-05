@@ -991,7 +991,8 @@ export function createEditorPort(win, hooks = {}) {
       if (hooks.openStateMenu) {
         hooks.openStateMenu(anchor);
       } else {
-        twOpenStateMenu(win, anchor);
+        // `group` written on an element above the pick: the pick stays where it is (writeMoved).
+        twOpenStateMenu(win, anchor, { write: (next) => port.writeMoved(next, port.selectedPath()) });
       }
     },
     setSize(handle) {
@@ -1151,8 +1152,10 @@ export function createEditorPort(win, hooks = {}) {
       const own = el && isGrid(el) ? read(el) : null;
       const up = el?.parentElement;
       const parent = up?.hasAttribute(CANVAS_PATH) && isGrid(up) ? read(up) : null;
+      // A child of a flex row has an order among its siblings as a grid's does (Style's Order).
+      const flex = !!up?.hasAttribute(CANVAS_PATH) && /flex/.test(up.ownerDocument.defaultView?.getComputedStyle(up).display || '');
 
-      return { own, parent, item: parent?.items.find((one) => one.path === path) || null };
+      return { own, parent, item: parent?.items.find((one) => one.path === path) || null, flex };
     },
 
     /* Container queries — the demo (container-query.js) */
