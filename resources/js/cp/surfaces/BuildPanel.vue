@@ -931,12 +931,6 @@ onBeforeUnmount(() => {
 .sve-build .fg-target { align-items: center; }
 .sve-build .fg-target__done { flex: none; margin-inline-start: auto; padding-inline: 0.6rem; color: var(--bm-ink); }
 .sve-build .fg-seg > .fg-more { flex: 0 0 1.5rem; padding: 0; white-space: nowrap; }
-/* A Container's width: six in two rows of three, each its name over its px. */
-.sve-build .bm-widths-field { display: grid; gap: 0.375rem; }
-.sve-build .bm-widths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.sve-build .bm-widths button { height: auto; min-height: 2.25rem; flex-direction: column; gap: 0.0625rem; padding: 0.25rem; }
-.sve-build .bm-widths .bm-widths__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.sve-build .bm-widths .bm-widths__px { font-size: 0.625rem; color: var(--bm-faint); font-variant-numeric: tabular-nums; }
 .sve-build .fg-fit { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 0.125rem; min-width: 0; height: 1.5rem; overflow: hidden; }
 .sve-build .fg-more__icon { display: inline-flex; flex: none; margin-inline-end: 0.35rem; vertical-align: middle; }
 .sve-build .fg-more__icon svg { width: 0.75rem; height: 0.75rem; }

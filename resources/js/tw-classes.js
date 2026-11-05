@@ -40,6 +40,7 @@ import { coveredBy } from './tw-covered.js';
 import { tagChoices, tagRefusal } from './lib/tag-choices.js';
 import { retag } from './lib/retag.js';
 import { dataStateLabel, dataStates, isDataState, withGroup } from './lib/data-states.js';
+import { GROUP_STATES, groupHost } from './lib/group-host.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
@@ -88,8 +89,9 @@ function BREAKPOINTS(win = window) {
  * `group-hover` and `group-focus` are the state of *another* tag: they answer
  * to a `group` class on an ancestor, not to the pointer on this one. They sit
  * here anyway, because from where you are standing — pick a tag, pick a
- * state, write a class — they work exactly like `hover`. The `group` itself
- * is a class you put on the parent, and the Add class search knows it.
+ * state, write a class — they work exactly like `hover`. Picking one gives
+ * `group` to the element around the tag that repeats — the card, the list
+ * item — or else its parent (lib/group-host.js), unless one there wears it.
  */
 const STATES = ['', 'dark', 'hover', 'focus', 'active', 'group-hover', 'group-focus', 'before', 'after'];
 
@@ -1492,6 +1494,8 @@ function showStateMenu(win, anchor, states, write) {
 
       if (state && !state.own) {
         giveGroup(state.from, write);
+      } else if (!state && GROUP_STATES.includes(row.id)) {
+        giveGroupAround(write);
       }
 
       variantState = state ? state.id : known.has(row.id) ? row.id : '';
@@ -1529,6 +1533,20 @@ function giveGroup(from, write = null) {
     const shift = next.length - html.length;
 
     node = { ...node, from: node.from + shift, openTo: node.openTo + shift };
+  }
+}
+
+/**
+ * `group-hover` / `group-focus` picked: `group` on the element around the
+ * picked tag that repeats, or its parent (lib/group-host.js). Nothing for a
+ * component call, or a tag with nothing around it.
+ */
+function giveGroupAround(write = null) {
+  const html = ask('dock:html');
+  const from = node && !node.component && typeof html === 'string' ? groupHost(html, node.from) : null;
+
+  if (from !== null) {
+    giveGroup(from, write);
   }
 }
 
