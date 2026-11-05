@@ -1,40 +1,36 @@
 /**
- * «Stille | Kører», and ▶ in Live Preview — Build's Animation tab talking to
- * the real preview document.
+ * Whether animations run in Live Preview, and ▶ — the Control Panel talking
+ * to the real preview document about animations.
  *
- * «Stille» holds every animation in Live Preview at its end frame; «Kører»
- * plays them as the public site does. The choice is this user's, kept between
- * visits (chrome-prefs). It holds the real preview only — Build's canvas has
- * its own playback — and only while Build is open: the preview is told when
- * Build opens, when a fresh preview's bridge asks (`animation-mode:sync`, from
- * the shell's message listener), and let go when Build closes, so Content
- * shows the page as a visitor gets it. The breakpoint overview's copies hear
- * the toggle with the preview (protocol MIRRORED); one opened later follows
- * at the next toggle.
+ * Live Preview settings → Top bar, «Animationer kører i Live Preview». Off
+ * unless this user turned it on: every animation in Live Preview stands at
+ * its end frame while the author moves about and scrolls the page, in Content
+ * and in Build alike. ▶ in Build's Animation tab still plays one. The public
+ * site is untouched. Stored per user (chrome-prefs syncs the key); only "on"
+ * is written. Build's canvas has its own playback and is not held.
+ *
+ * The preview is told when the setting changes, and when a fresh preview's
+ * bridge asks (`animation-mode:sync`, from the shell's message listener). The
+ * breakpoint overview's copies hear it with the preview (protocol MIRRORED);
+ * one opened later follows at the next change.
  *
  * ▶ names the element by the path the open file's rendering is stamped with
  * (html-pick-align.js): the preview finds every rendering of it and plays it
  * (bridge/animation-play.js).
  *
- * Owner: Build's Animation tab (BuildAnimation.vue).
- * May import: vue, cp/bus.js, cp/build-mode/store.js, chrome-prefs.js,
- *   lib/preview-frame.js, lib/protocol.js.
+ * Owner: Live Preview settings (lp-more-menu.js); ▶ is Build's Animation tab's.
+ * May import: cp/bus.js, chrome-prefs.js, lib/preview-frame.js, lib/protocol.js.
  * Bus: registers `animation-mode:sync`.
  */
-import { ref, watch } from 'vue';
 import { register } from './cp/bus.js';
-import { buildModeUi } from './cp/build-mode/store.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { previewCopies, previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
-const KEY = 'sve-anim-still';
+const KEY = 'sve-anim-run';
 
-/** Build's word for the preview: still while Build is open and the user chose it. */
-const still = ref(chromeGet(window, KEY) === 'on');
-
-export function animationStill() {
-  return still;
+export function animationsRun(win) {
+  return chromeGet(win, KEY) === 'on';
 }
 
 function post(target, message) {
@@ -47,14 +43,12 @@ function frames(win) {
 }
 
 function tell(win) {
-  const message = { type: MSG.SVE_ANIM_MODE, still: still.value && buildModeUi.mode !== 'content' };
+  const message = { type: MSG.SVE_ANIM_MODE, still: !animationsRun(win) };
 
   frames(win).forEach((target) => post(target, message));
 }
 
-export function setAnimationStill(win, on) {
-  still.value = !!on;
-
+export function setAnimationsRun(win, on) {
   if (on) {
     chromeSet(win, KEY, 'on');
   } else {
@@ -70,9 +64,6 @@ export function playInPreview(win, path) {
     post(previewFrame(win)?.contentWindow, { type: MSG.SVE_ANIM_PLAY, path });
   }
 }
-
-// Build opening or closing: the preview is told, with the choice or without it.
-watch(() => buildModeUi.mode !== 'content', () => tell(window), { immediate: true });
 
 // A fresh preview document asks at its bridge's boot (cp-shell's message listener).
 register('animation-mode:sync', ({ win } = {}) => {

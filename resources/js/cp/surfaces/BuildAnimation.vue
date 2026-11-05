@@ -39,7 +39,7 @@ import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMoun
 import PRESETS from '../../../animation/presets.json';
 import CANVAS_MOTION_CSS from '../../../animation/canvas-motion.css?raw';
 import RUNTIME_CSS from '../../../animation/runtime.css?raw';
-import { animationStill, playInPreview, setAnimationStill } from '../../animation-mode.js';
+import { playInPreview } from '../../animation-mode.js';
 import { statesInScope } from '../../build-mode/alpine.js';
 import {
   animationOf,
@@ -134,7 +134,6 @@ const PATHS = {
   minus: '<path d="M5 12h14"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   play: '<path d="M7 5l12 7-12 7z"/>',
-  pause: '<path d="M8 5v14M16 5v14"/>',
   dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   caret: '<path d="M6 9l6 6 6-6"/>',
   curve: '<path d="M4 20C10 20 14 4 20 4"/><circle cx="4" cy="20" r="1.5"/><circle cx="20" cy="4" r="1.5"/>',
@@ -458,10 +457,6 @@ function play(event) {
 
   playInPreview(window, path.value);
 }
-
-/** «Stille | Kører»: Live Preview's animations held at their end frame, or playing as the public site. */
-const still = animationStill();
-const setStill = (on) => setAnimationStill(window, on);
 
 /**
  * The element's animation as the canvas paints it. New values on an animation
@@ -962,16 +957,7 @@ const Num = defineComponent({
 
 <template>
   <div ref="root" class="bm-anim" data-sve-build-animation>
-    <section class="bm-anim-block is-first bm-anim-mode">
-      <div class="bm-anim-head"><span>{{ t('anim_preview') }}</span></div>
-      <span class="bm-seg" role="group" :aria-label="t('anim_preview')" data-sve-build-anim-mode>
-        <button type="button" :aria-pressed="still" data-sve-build-anim-still @click="setStill(true)"><span v-html="icon('pause', 12)"></span>{{ t('anim_still') }}</button>
-        <button type="button" :aria-pressed="!still" data-sve-build-anim-running @click="setStill(false)"><span v-html="icon('play', 12)"></span>{{ t('anim_running') }}</button>
-      </span>
-      <p class="bm-anim-hint">{{ t(still ? 'anim_still_note' : 'anim_running_note') }}</p>
-    </section>
-
-    <section class="bm-anim-block">
+    <section class="bm-anim-block is-first">
       <div class="bm-anim-head"><span>{{ t('anim_on_element') }}</span></div>
       <div v-if="anim" ref="menuEl" class="bm-anim-chipwrap">
         <button

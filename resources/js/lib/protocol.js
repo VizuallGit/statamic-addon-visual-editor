@@ -94,8 +94,8 @@ export const MSG = Object.freeze({
   SVE_ALPINE_STATE: 'sve-alpine-state',
   // Preview → CP, at boot: send me the remembered Alpine states.
   SVE_ALPINE_STATES_REQUEST: 'sve-alpine-states-request',
-  // CP → preview: Build's «Stille | Kører» — `still: true` shows every
-  // animated element at its end frame, false plays them as the public site.
+  // CP → preview: Live Preview settings' «Animationer kører» — `still: true`
+  // shows every animated element at its end frame, false plays them as the public site.
   SVE_ANIM_MODE: 'sve-anim-mode',
   // Preview → CP, at boot: send me the mode.
   SVE_ANIM_MODE_REQUEST: 'sve-anim-mode-request',

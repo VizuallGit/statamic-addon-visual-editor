@@ -59,9 +59,6 @@ const ALPINE_OFF =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6.5" width="20" height="11" rx="5.5"/><circle cx="7.5" cy="12" r="3" fill="currentColor" stroke="none"/></svg>';
 const ALPINE_ON =
   '<svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M7.5 5.5h9a6.5 6.5 0 0 1 0 13h-9a6.5 6.5 0 0 1 0-13ZM16.5 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6Z"/></svg>';
-/* The animation icon: a ▶ in a ring, the Animation tab's own sign. */
-const ANIM =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l5 3.5-5 3.5z" fill="currentColor" stroke="none"/></svg>';
 // A lock, drawn in the same band as the bin and the copy (4–20 of 24) so the
 // icons read as one size.
 const LOCK_ON =
@@ -160,8 +157,8 @@ function rowBind(row, dim) {
     bind['data-sve-ht-hidden'] = '';
   }
 
-  // A video, an Alpine state or an animation shows without the pointer on the row.
-  if (row.videoNth >= 0 || row.alpineNth >= 0 || row.anim) {
+  // A video or an Alpine state shows without the pointer on the row.
+  if (row.videoNth >= 0 || row.alpineNth >= 0) {
     bind['data-sve-ht-special'] = '';
   }
 
@@ -419,21 +416,6 @@ function figmaLook() {
         :title="ui.alpineTitle"
         v-html="row.alpineSet ? ALPINE_ON : ALPINE_OFF"
         @click.stop.prevent="ui.onAlpineState?.($event, row.id)"
-        @pointerdown.stop
-        @dblclick.stop
-      ></button>
-      <!--
-        An element with an animation (`data-anim`): the row selected and Build's
-        Animation tab opened on it. The file is not touched here either.
-      -->
-      <button
-        v-if="row.anim"
-        type="button"
-        data-sve-ht-anim
-        :data-sve-ht-anim-kind="row.anim"
-        :title="ui.animTitle"
-        v-html="ANIM"
-        @click.stop.prevent="ui.onAnimation?.(row.id)"
         @pointerdown.stop
         @dblclick.stop
       ></button>

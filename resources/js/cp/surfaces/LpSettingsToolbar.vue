@@ -41,6 +41,8 @@ const props = defineProps({
   classesDefault: { type: Object, default: () => ({ on: false, label: '' }) },
   // { on, label }: the toolbar on each page section (section-toolbar-pref.js).
   sectionToolbar: { type: Object, default: () => ({ on: false, label: '' }) },
+  // { on, label }: animations running in Live Preview (animation-mode.js).
+  animations: { type: Object, default: () => ({ on: false, label: '' }) },
   on: { type: Object, required: true },
 });
 
@@ -63,6 +65,13 @@ const sectionToolbarOn = ref(props.sectionToolbar.on);
 function setSectionToolbar(value) {
   sectionToolbarOn.value = value;
   props.on.sectionToolbar(value);
+}
+
+const animationsOn = ref(props.animations.on);
+
+function setAnimations(value) {
+  animationsOn.value = value;
+  props.on.animations(value);
 }
 
 const groups = ref([]);
@@ -353,6 +362,10 @@ function nudgeGroup(id, step) {
     <label class="sve-lp-settings__row" data-sve-section-toolbar-setting>
       <input type="checkbox" :checked="sectionToolbarOn" @change="setSectionToolbar($event.target.checked)">
       <span :title="sectionToolbar.label">{{ sectionToolbar.label }}</span>
+    </label>
+    <label class="sve-lp-settings__row" data-sve-animations-setting>
+      <input type="checkbox" :checked="animationsOn" @change="setAnimations($event.target.checked)">
+      <span :title="animations.label">{{ animations.label }}</span>
     </label>
     <div class="sve-lp-settings__line">
       <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{ modeLabel ? `${label} · ${modeLabel}` : label }}</span>

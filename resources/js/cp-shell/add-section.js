@@ -1788,9 +1788,8 @@ export function createMessageListener(doc = document, win = window) {
       return;
     }
 
-    // Build's «Stille | Kører» (animation-mode.js, over the bus): a fresh
-    // preview asks whether its animations are held still. Build not loaded:
-    // nobody answers, and the preview plays as the public site.
+    // Live Preview settings' «Animationer kører» (animation-mode.js, over the
+    // bus): a fresh preview asks whether its animations are held still.
     if (data.type === MSG.SVE_ANIM_MODE_REQUEST) {
       ask('animation-mode:sync', { win });
 

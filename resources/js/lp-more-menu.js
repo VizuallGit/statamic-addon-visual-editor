@@ -44,6 +44,7 @@ import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { buildSwitchTabOn, setBuildSwitchTab } from './build-switch-tab.js';
 import { buildClassesShownByDefault, setBuildClassesShownByDefault } from './build-classes-pref.js';
 import { applySectionToolbar, sectionToolbarOn, setSectionToolbarOn } from './section-toolbar-pref.js';
+import { animationsRun, setAnimationsRun } from './animation-mode.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
   deleteToolbarGroup,
@@ -338,6 +339,7 @@ function toolbarProps(win) {
     switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
     classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
     sectionToolbar: { on: sectionToolbarOn(win), label: t(win, 'lp_settings_section_toolbar') },
+    animations: { on: animationsRun(win), label: t(win, 'lp_settings_animations') },
     hint: t(win, 'lp_settings_toolbar_hint'),
     // Where the site says what each mode may have — only for someone who may edit it.
     editUrl: win.Statamic?.$config?.get?.('sveToolbarModesUrl') || '',
@@ -441,6 +443,7 @@ function bindSettingHandlers(win) {
       switchTab: (on) => setBuildSwitchTab(win, on),
       classesDefault: (on) => setBuildClassesShownByDefault(win, on),
       sectionToolbar: (on) => setSectionToolbarOn(win, on),
+      animations: (on) => setAnimationsRun(win, on),
       toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
       toolbarShowAll: () => showAllToolbarTools(win),
       // The tab counts places among what this mode has; these make them places among all.

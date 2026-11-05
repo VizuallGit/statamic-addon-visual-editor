@@ -1,7 +1,8 @@
 /**
- * Animations in the preview, on Build's word.
+ * Animations in the preview, on the Control Panel's word.
  *
- * «Stille | Kører» (setAnimationMode). Still, every animated element stands
+ * Live Preview settings' «Animationer kører» (setAnimationMode), off unless
+ * the user turned it on (animation-mode.js). Still, every animated element stands
  * at its end frame: one sheet in the head, which the morph's style sync
  * leaves alone (the `__sve-` prefix, preview.js isPreservedStyle), and a mark
  * on <html>, which no morph redraws. Build's canvas copies the preview's head
@@ -19,9 +20,9 @@
  * inside it. Played as runtime.js plays a repeat: `data-anim-off` on and off
  * across a style flush. An element out of sight is scrolled into view first,
  * so it can be watched, and so an element held until it is seen is let go.
- * One the file keeps off stays off. In «Stille» the element plays alone,
+ * One the file keeps off stays off. Held still, the element plays alone,
  * marked out of the sheet's rule while the animations it started run — a
- * ticker's never end, and it runs until Kører or the next ▶. A switch's
+ * ticker's never end, and it runs until animations are turned on or the next ▶. A switch's
  * animation plays when the switch turns on, which the Control Panel does
  * through the Alpine state (bridge/alpine-state.js), not here.
  *
@@ -72,7 +73,7 @@ function outOfSight(win, el) {
 /** Element → the play it is on; a ▶ pressed again cancels the last play's animations, whose end says nothing. */
 const plays = new WeakMap();
 
-/** The mark that lets the element play in «Stille» goes once the animations the play started are done. */
+/** The mark that lets the element play while held still goes once the animations the play started are done. */
 function untilDone(el) {
   const play = (plays.get(el) || 0) + 1;
   const running = el.getAnimations({ subtree: true });
