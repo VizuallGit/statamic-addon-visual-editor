@@ -156,14 +156,16 @@ const icon = (name, size = 14) =>
 
 /* ---------------- the tab ---------------- */
 
-/** [trigger, icon, word]: the five the runtime plays a preset on, and the mouse, which is the recipe of its own (RECIPES.mouse). */
+/**
+ * [trigger, icon, word]: the four the tab offers. A hover is Style's (State →
+ * hover); an element that has one from before keeps it, wears the hover icon
+ * and a note, until a trigger is picked or the animation removed.
+ */
 const TRIGGERS = [
   ['view', 'eye', 'anim_on_view'],
   ['scroll', 'scroll', 'anim_on_scroll'],
   ['load', 'bolt', 'anim_on_load'],
-  ['hover', 'hover', 'anim_on_hover'],
   ['switch', 'tap', 'anim_on_switch'],
-  ['mouse', 'move', 'anim_on_mouse'],
 ];
 
 const RECIPE_ICONS = { parallax: 'scroll', ticker: 'ticker', stack: 'stack', mouse: 'move' };
@@ -200,12 +202,6 @@ const TILES = [
     art: `<rect x="16" y="18" width="32" height="18" rx="3" ${framed(18)}/><rect x="19" y="11" width="26" height="18" rx="3" ${framed(30)}/><rect x="22" y="4" width="20" height="18" rx="3" ${framed(45)}/>`,
   },
   {
-    key: 'lift',
-    word: 'anim_r_lift',
-    recipe: 'lift',
-    art: `<rect x="16" y="6" width="26" height="20" rx="3" ${framed(35)}/><path d="M18 32h22" style="${stroke};stroke-dasharray:2 2"/><path d="M44 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>`,
-  },
-  {
     key: 'words',
     word: 'anim_r_words',
     target: 'words',
@@ -231,7 +227,15 @@ const recipe = computed(() => {
 
   return t(`anim_r_${now?.target || 'self'}`);
 });
-const chipIcon = computed(() => (plays.value ? TRIGGERS.find(([on]) => on === anim.value.on)[1] : RECIPE_ICONS[anim.value?.target]));
+/** A hover from before the tab stopped making them: shown, never offered. */
+const hoverGone = computed(() => anim.value?.on === 'hover');
+const chipIcon = computed(() => {
+  if (!plays.value) {
+    return RECIPE_ICONS[anim.value?.target];
+  }
+
+  return hoverGone.value ? 'hover' : TRIGGERS.find(([on]) => on === anim.value.on)[1];
+});
 const chipSub = computed(() => (plays.value ? label(preset.value) || anim.value.preset || t('anim_own') : ''));
 
 /** ▶ shows something only where the motion runs in time: not on hover, while scrolling, on a stack or toward the mouse. */
@@ -304,15 +308,8 @@ function withTrigger(now, on) {
   return { ...now, on, switch: on === 'switch' ? keep : null };
 }
 
-/** A trigger on the element's preset; the mouse is no trigger but the recipe of its own, and takes the preset's place. */
+/** A trigger on the element's preset. */
 function pickTrigger(on) {
-  if (on === 'mouse') {
-    write(recipeAnimation('mouse'));
-    open.value = true;
-
-    return;
-  }
-
   if (on === 'switch' && !switches.value.length) {
     port.toast('info', 'anim_no_switch');
 
@@ -980,6 +977,7 @@ const Num = defineComponent({
         </div>
       </div>
       <p v-else class="bm-anim-none" data-sve-build-anim-none>{{ t('anim_none') }}</p>
+      <p v-if="hoverGone" class="bm-anim-hint" data-sve-build-anim-hover-gone>{{ t('anim_hover_gone') }}</p>
     </section>
 
     <section v-if="plays" class="bm-anim-block" data-sve-build-anim-triggers>
@@ -1084,12 +1082,11 @@ const Num = defineComponent({
               class="bm-anim-stage__set"
               :data-anim="anim.target === 'words' ? 'children' : anim.target"
               :data-anim-preset="shown.preset || null"
-              :data-anim-on="anim.on === 'hover' ? 'hover' : null"
               :style="stageStyle"
             >
               <i v-for="n in 4" :key="n"></i>
             </div>
-            <span class="bm-anim-stage__note">{{ t(anim.on === 'hover' ? 'anim_stage_hover' : 'anim_stage_note') }}</span>
+            <span class="bm-anim-stage__note">{{ t('anim_stage_note') }}</span>
           </div>
           <p v-if="reduced" class="bm-anim-reduced" data-sve-build-anim-reduced>{{ t('anim_reduced_note') }}</p>
 
@@ -1102,6 +1099,7 @@ const Num = defineComponent({
                   <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
                   <select :value="anim.on" :disabled="section" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="pickTrigger($event.target.value)">
+                    <option v-if="hoverGone" value="hover" disabled>{{ t('anim_on_hover') }}</option>
                     <option v-for="[on, , word] in TRIGGERS" :key="on" :value="on" :disabled="on === 'switch' && !switches.length">
                       {{ t(word) }}
                     </option>

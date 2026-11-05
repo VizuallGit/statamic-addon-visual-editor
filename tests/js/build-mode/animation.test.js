@@ -259,10 +259,6 @@ test('each recipe reads back as it was written, and a recipe writes no trigger, 
   }
 
   assert.equal(
-    withAnimation('<a>x</a>', '0:a', recipeAnimation('lift')),
-    '<a data-anim="self" data-anim-on="hover" class="[--anim-duration:0.25s] [--anim-ease:ease-out] [--anim-y:-0.375rem]">x</a>\n\n{{ sve_animation }}'
-  );
-  assert.equal(
     withAnimation('<ul>x</ul>', '0:ul', { ...recipeAnimation('ticker'), on: 'view', preset: 'fade', repeat: true, pause: true }),
     '<ul data-anim="ticker" data-anim-pause="">x</ul>\n\n{{ sve_animation }}'
   );
@@ -292,6 +288,9 @@ test('every trigger the runtime knows reads back; anything else reads as scrolle
   for (const on of ['view', 'scroll', 'load', 'hover']) {
     assert.equal(read(withAnimation('<p>x</p>', '0:p', { ...newAnimation('fade'), on }), '0:p').on, on);
   }
+
+  assert.equal(read('<a data-anim="self" data-anim-on="hover" class="[--anim-y:-0.375rem]">x</a>', '0:a').on, 'hover', 'a hover made before stays a hover: nothing changes it unasked');
+  assert.ok(!('lift' in RECIPES), 'the library makes no hover any more');
 
   assert.equal(read('<p data-anim="self" data-anim-on="mouse">x</p>', '0:p').on, 'view');
 });

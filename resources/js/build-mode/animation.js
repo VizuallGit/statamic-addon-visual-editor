@@ -37,7 +37,12 @@ import { findByPath } from './place.js';
 
 export const TARGETS = ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse'];
 
-/** When the element, its children or its words play: the triggers runtime.css knows. */
+/**
+ * When the element, its children or its words play: the triggers runtime.css
+ * knows. `hover` is read, never offered: the Animation tab makes no hover any
+ * more (Style → State → hover does), but an element that has one keeps it
+ * until the author picks another trigger.
+ */
 export const TRIGGER_KEYS = ['view', 'scroll', 'load', 'hover', 'switch'];
 
 /** Whether the target plays a preset on a trigger; the recipes do one thing of their own. */
@@ -60,7 +65,6 @@ export const SETTINGS = { '--anim-gap': '2rem', '--anim-stack-top': '6rem', '--a
 
 /** The library's recipes beyond a preset: what each one writes on the element. */
 export const RECIPES = {
-  lift: { target: 'self', on: 'hover', duration: 250, vars: { '--anim-ease': 'ease-out', '--anim-y': '-0.375rem' } },
   parallax: { target: 'parallax', vars: { '--anim-y': '4rem' } },
   ticker: { target: 'ticker' },
   stack: { target: 'stack' },
