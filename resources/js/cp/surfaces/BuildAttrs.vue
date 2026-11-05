@@ -1,8 +1,8 @@
 <script setup>
 /**
- * An element's own attributes at the bottom of Build's Content, in two lists:
- * Data (`data-*`) and Accessibility (`aria-*` and `role`). As many of each as
- * the element needs; each a row (BuildAttrRow.vue) with its name, its value —
+ * An element's own attributes at the bottom of Build's Content, in three lists:
+ * Data (`data-*`), Aria (`aria-*`) and Role (one `role`). As many data and aria
+ * as the element needs; each a row (BuildAttrRow.vue) with its name, its value —
  * typed, or a field's through the data icon (`data-position="{{ image_position }}"`)
  * — and a bin. Read from the tag in the file and written into it by the
  * element's path (port `attrsAt`, `setAttrsAt`, `renameAttrAt`; attrs.js).
@@ -88,26 +88,11 @@ function create(name) {
 
     <section class="bm-attrs-group" data-sve-build-attrs-aria>
       <header class="bm-attrs-head">
-        <span class="fg-lab">{{ port.t('attrs_access') }}</span>
-        <span v-if="!locked" class="bm-attrs-adds">
-          <button type="button" class="bm-attrs-add" :title="port.t('attrs_add_aria')" data-sve-build-attrs-add="aria" @mousedown.prevent @click="add('aria')">
-            <span v-html="ic('plus')"></span>aria
-          </button>
-          <button v-if="!role" type="button" class="bm-attrs-add" :title="port.t('attrs_add_role')" data-sve-build-attrs-add="role" @mousedown.prevent @click="add('role')">
-            <span v-html="ic('plus')"></span>role
-          </button>
-        </span>
+        <span class="fg-lab">{{ port.t('attrs_aria') }}</span>
+        <button v-if="!locked" type="button" class="bm-attrs-add" :title="port.t('attrs_add_aria')" data-sve-build-attrs-add="aria" @mousedown.prevent @click="add('aria')">
+          <span v-html="ic('plus')"></span>aria
+        </button>
       </header>
-      <BuildAttrRow
-        v-if="role"
-        key="role"
-        :path="path"
-        name="role"
-        :value="role.value"
-        :values="ids.role"
-        :focus-value="fresh === 'role'"
-        :readonly="locked"
-      />
       <BuildAttrRow
         v-for="row in aria"
         :key="row.name"
@@ -120,6 +105,25 @@ function create(name) {
         :readonly="locked"
       />
       <BuildAttrRow v-if="draft === 'aria'" key="draft-aria" :path="path" prefix="aria-" :names="ids.aria" draft @create="create" @cancel="draft = ''" />
+    </section>
+
+    <section class="bm-attrs-group" data-sve-build-attrs-role>
+      <header class="bm-attrs-head">
+        <span class="fg-lab">{{ port.t('attrs_role') }}</span>
+        <button v-if="!locked && !role" type="button" class="bm-attrs-add" :title="port.t('attrs_add_role')" data-sve-build-attrs-add="role" @mousedown.prevent @click="add('role')">
+          <span v-html="ic('plus')"></span>role
+        </button>
+      </header>
+      <BuildAttrRow
+        v-if="role"
+        key="role"
+        :path="path"
+        name="role"
+        :value="role.value"
+        :values="ids.role"
+        :focus-value="fresh === 'role'"
+        :readonly="locked"
+      />
     </section>
 
     <datalist :id="ids.aria">

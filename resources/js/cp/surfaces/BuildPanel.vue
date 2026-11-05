@@ -738,12 +738,11 @@ onBeforeUnmount(() => {
 .sve-build .bm-pick-field .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 /* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */
 .sve-build .bm-field-host .sve-pv__label { font-size: 0.6875rem; font-weight: 450; color: var(--bm-muted); }
-/* Content's attributes (BuildAttrs.vue): Data, then Accessibility; a row is name | value | bin. */
+/* Content's attributes (BuildAttrs.vue): Data, Aria, Role; a row is name | value | bin. */
 .sve-build .bm-attrs { display: grid; gap: 0.875rem; padding-top: 0.875rem; border-top: 1px solid var(--bm-line); }
 .sve-build .bm-attrs-group { display: grid; gap: 0.375rem; }
 .sve-build .bm-attrs-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 1.375rem; }
 .sve-build .bm-attrs-head .fg-lab { margin: 0; }
-.sve-build .bm-attrs-adds { display: flex; gap: 0.25rem; }
 .sve-build .bm-attrs-add { display: inline-flex; align-items: center; gap: 0.2rem; height: 1.375rem; padding: 0 0.45rem 0 0.3rem; border: 1px solid var(--bm-line); border-radius: 999px; background: transparent; color: var(--bm-muted); font: 500 0.6875rem/1 var(--bm-mono); cursor: pointer; }
 .sve-build .bm-attrs-add:hover { background: var(--bm-raise); color: var(--bm-ink); border-color: var(--bm-edge); }
 .sve-build .bm-attrs-add span { display: grid; place-items: center; }
@@ -761,6 +760,17 @@ onBeforeUnmount(() => {
 .sve-build .bm-attr-bin:hover { background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .bm-attr-bin .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 .sve-build .bm-attr-error { margin: 0.25rem 0 0; font-size: 0.6875rem; color: var(--bm-lock); }
+.sve-build .bm-attr input::-webkit-calendar-picker-indicator { display: none !important; }
+.sve-build .bm-attr-open { flex: none; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; margin-right: -0.2rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: #9d9d9e; cursor: pointer; }
+.sve-build .bm-attr-open:hover { background: var(--bm-line); color: var(--bm-ink); }
+.sve-build .bm-attr-open svg { width: 0.55rem; height: auto; }
+.sve-build .bm-attr-value.has-list .bm-inp { padding-right: 3rem; }
+.sve-build .bm-attr-value.has-list .bm-attr-open { position: absolute; top: 0.3125rem; right: 1.6rem; margin: 0; }
+/* A layout's note in Content: one line beside its icon, not a page of its own (BuildContent `nothing`). */
+.sve-build .bm-empty.is-compact { display: flex; align-items: center; gap: 0.625rem; padding: 1rem 0; text-align: start; }
+.sve-build .bm-empty.is-compact > span { flex: none; display: grid; place-items: center; }
+.sve-build .bm-empty.is-compact .bm-ic { width: 1.125rem; height: 1.125rem; }
+.sve-build .bm-empty.is-compact p { margin: 0; font-size: 0.75rem; line-height: 1.45; }
 
 /* Style */
 .sve-build .bm-chip-tag { flex: none; font: 500 0.6875rem/1.3 var(--bm-mono); padding: 0.1rem 0.35rem; border-radius: 0.25rem; background: var(--bm-tag-bg); color: var(--bm-tag); }

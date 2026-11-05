@@ -564,7 +564,7 @@ onBeforeUnmount(() => {
 
     <p v-if="refused" class="bm-note is-top" data-sve-build-field-refused>{{ refused }}</p>
 
-    <div v-if="nothing" class="bm-empty" data-sve-build-content-soon>
+    <div v-if="nothing" class="bm-empty is-compact" data-sve-build-content-soon>
       <span v-html="ic('form')"></span>
       <p>{{ port.t(layout ? 'content_layout' : 'content_soon') }}</p>
     </div>

@@ -120,6 +120,24 @@ onMounted(() =>
   })
 );
 
+/** The panel's own chevron — the one every select in Build wears (`.fg-select`) — in place of the browser's list triangle. */
+const CHEVRON = '<svg viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** The box's suggestions, opened from the chevron: the box keeps the caret. */
+function openList(input) {
+  if (!input) {
+    return;
+  }
+
+  input.focus();
+
+  try {
+    input.showPicker?.();
+  } catch {
+    /* a browser that cannot open a list by hand: the box has the caret, and typing shows it */
+  }
+}
+
 onBeforeUnmount(() => value.done());
 </script>
 
@@ -144,9 +162,10 @@ onBeforeUnmount(() => value.done());
           @keydown.escape.prevent="draft ? emit('cancel') : (nameBox = short(name))"
           @blur="nameDone"
         />
+        <button v-if="names && !readonly" type="button" class="bm-attr-open" :title="port.t('attrs_suggest')" :aria-label="port.t('attrs_suggest')" tabindex="-1" data-sve-build-attr-open @mousedown.prevent @click="openList(nameInput)" v-html="CHEVRON"></button>
       </label>
       <span v-else class="bm-attr-name is-fixed">role</span>
-      <div class="bm-text-box bm-attr-value">
+      <div class="bm-text-box bm-attr-value" :class="{ 'has-list': values && !draft && !readonly }">
         <input
           ref="valueInput"
           v-model="value.value.value"
@@ -164,6 +183,7 @@ onBeforeUnmount(() => value.done());
           @keydown.enter.prevent="value.done"
           @blur="value.done"
         />
+        <button v-if="values && !draft && !readonly" type="button" class="bm-attr-open" :title="port.t('attrs_suggest')" :aria-label="port.t('attrs_suggest')" tabindex="-1" data-sve-build-attr-open @mousedown.prevent @click="openList(valueInput)" v-html="CHEVRON"></button>
         <BuildPickField v-if="!draft && !readonly" @pick="pick" />
       </div>
       <button
