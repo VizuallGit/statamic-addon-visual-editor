@@ -10,7 +10,7 @@ use MarioHamann\StatamicVisualEditor\Features;
 use Statamic\Facades\User;
 
 /**
- * The Animation tab's own presets: «Save as preset» and the × under My presets.
+ * The Animation tab's own presets: «Save as preset» and the × under «Mine» in a kind's gallery.
  *
  * Build writes the dock's file, so a user who may use the dock may keep the
  * looks it is written with. How many templates still name a preset is a GET
@@ -24,9 +24,15 @@ class AnimationPresetController extends Controller
         $this->authorizeBuild();
 
         $vars = $request->input('vars');
+        $timing = $request->input('timing');
 
         try {
-            $preset = AnimationPresets::save((string) $request->input('label', ''), is_array($vars) ? $vars : []);
+            $preset = AnimationPresets::save(
+                (string) $request->input('label', ''),
+                is_array($vars) ? $vars : [],
+                $request->input('kind'),
+                is_array($timing) ? $timing : [],
+            );
         } catch (InvalidArgumentException) {
             return response()->json(['error' => 'invalid_preset'], 422);
         }

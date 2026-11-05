@@ -164,7 +164,7 @@ class SveAnimation extends Tags
             return [];
         }
 
-        $all = [...static::presets(), ...AnimationPresets::all()];
+        $all = static::linked();
         $preset = collect($all)->firstWhere('handle', $handle);
 
         if (! $preset) {
@@ -204,8 +204,9 @@ class SveAnimation extends Tags
 
     /**
      * runtime.css, reduced-motion.css and a `[data-anim-preset="…"]` rule for
-     * each preset, the addon's and the site's own, its values under
-     * `--anim-preset-*` — the build panel's presetRules() writes the same.
+     * each preset an element can link, the addon's and the site's own, its
+     * values under `--anim-preset-*` — the build panel's presetRules() writes
+     * the same.
      */
     public static function css(): string
     {
@@ -217,19 +218,36 @@ class SveAnimation extends Tags
             }
 
             return '[data-anim-preset="'.$preset['handle'].'"] { '.implode(' ', $vars).' }';
-        }, [...static::presets(), ...AnimationPresets::all()]);
+        }, static::linked());
 
         return static::file('runtime.css')."\n".static::file('reduced-motion.css')."\n".implode("\n", $rules);
     }
 
     /**
-     * The addon's presets only.
+     * The addon's presets only, listed or not.
      *
-     * @return list<array{handle: string, group: string, label_da: string, label_en: string, vars: array<string, string>}>
+     * @return list<array{handle: string, kind: string, label_da: string, label_en: string, vars: array<string, string>, timing?: array<string, int>, listed?: bool}>
      */
     public static function presets(): array
     {
         return json_decode(static::file('presets.json'), true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The presets an element links by `data-anim-preset`: those of the kinds
+     * that play in time (self, children, words), the addon's — listed or
+     * not, a page may name one — and the site's own. A recipe's preset is a
+     * starting point written onto the element and has no rule. The build
+     * panel's presetRules() filters the same.
+     *
+     * @return list<array{handle: string, kind: string, vars: array<string, string>}>
+     */
+    public static function linked(): array
+    {
+        return array_values(array_filter(
+            [...static::presets(), ...AnimationPresets::all()],
+            fn (array $preset) => in_array($preset['kind'] ?? '', AnimationPresets::TIMED, true),
+        ));
     }
 
     protected static function file(string $name): string

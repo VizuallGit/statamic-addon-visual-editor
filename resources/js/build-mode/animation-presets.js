@@ -1,5 +1,6 @@
 /**
- * The site's own animation presets — My presets in Build's Animation tab.
+ * The site's own animation presets — «Mine» in each kind's gallery in Build's
+ * Animation tab.
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: vue, lib/csrf.js.
@@ -35,9 +36,9 @@ function post(win, url, body) {
   });
 }
 
-/** Saves a look under a name → the new preset, or null when the server said no. */
-export async function savePreset(label, vars, win = window) {
-  const res = await post(win, '/!/sve/animation-presets', { label, vars }).catch(() => null);
+/** Saves a kind's look and timing (presetToSave) under a name → the new preset, or null when the server said no. */
+export async function savePreset(label, { kind, vars, timing }, win = window) {
+  const res = await post(win, '/!/sve/animation-presets', { label, kind, vars, timing }).catch(() => null);
   const data = res?.ok ? await res.json() : null;
 
   if (!data?.preset) {

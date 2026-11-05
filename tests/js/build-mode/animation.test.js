@@ -1,6 +1,6 @@
 /**
  * build-mode/animation.js — an element's animation in the dock's file, and
- * resources/animation/presets.json, the one list of presets.
+ * resources/animation/presets.json, the one list of presets, a gallery per kind.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,17 +11,21 @@ import {
   bezierOf,
   easeKey,
   effectsOf,
-  groupPresets,
   isChanged,
+  KINDS,
   missingEffects,
   moves,
   newAnimation,
   onPreset,
+  pickPreset,
   presetLook,
   presetName,
   presetOf,
   presetRules,
+  presetsFor,
+  presetToSave,
   RECIPES,
+  recipePreset,
   recipeAnimation,
   RUNTIME_DEFAULTS,
   SETTINGS,
@@ -207,7 +211,7 @@ test('a reveal is one clip from the top, and a preset\'s other shape reads as wr
 });
 
 test('a value of the element\'s own goes when it is the preset\'s', () => {
-  const spring = PRESETS.find((preset) => preset.group === 'spring');
+  const spring = presetOf(PRESETS, 'bounce');
   const own = withVar(anim({ preset: spring.handle }), spring, '--anim-ease', 'linear');
 
   assert.deepEqual(own.vars, { '--anim-ease': 'linear' });
@@ -323,45 +327,158 @@ test('a path that is no element leaves the file alone', () => {
   assert.equal(withAnimation(SECTION, '9:div', newAnimation('fade')), SECTION);
 });
 
-test('all 25 presets have a handle, a group, both labels and only --anim-* vars', () => {
-  assert.equal(PRESETS.length, 25);
-  assert.equal(new Set(PRESETS.map((preset) => preset.handle)).size, 25);
+/** The handles pages may name from before kinds: every one stays in the file, values unchanged. */
+const OLD_HANDLES = [
+  'fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right', 'slide-up', 'slide-down', 'slide-left', 'slide-right',
+  'zoom-in', 'zoom-out', 'pop', 'blur', 'blur-up', 'tilt', 'spin', 'flip-up', 'flip-in', 'bounce', 'bounce-in', 'drop',
+  'draw-up', 'draw-left', 'circle', 'curtain',
+];
+
+test('every preset has a handle of its own, a kind, both labels and only --anim-* vars or a timing in ms', () => {
+  assert.equal(new Set(PRESETS.map((preset) => preset.handle)).size, PRESETS.length);
 
   for (const preset of PRESETS) {
     assert.match(preset.handle, /^[a-z][a-z0-9-]*$/, preset.handle);
-    assert.match(preset.group, /^[a-z]+$/, preset.handle);
+    assert.ok(KINDS.includes(preset.kind), `${preset.handle}: ${preset.kind}`);
+    assert.ok(!('group' in preset), `${preset.handle}: the kind took the group's place`);
     assert.ok(preset.label_da && preset.label_en, preset.handle);
-    assert.ok(Object.keys(preset.vars).length, preset.handle);
+    assert.ok(Object.keys(preset.vars).length || Object.keys(preset.timing || {}).length, preset.handle);
+    assert.ok(preset.listed === undefined || preset.listed === false, preset.handle);
 
     for (const name of Object.keys(preset.vars)) {
       assert.match(name, /^--anim-[a-z-]+$/, `${preset.handle}: ${name}`);
     }
+
+    for (const [key, ms] of Object.entries(preset.timing || {})) {
+      assert.ok(['duration', 'delay', 'step'].includes(key) && Number.isInteger(ms) && ms >= 0, `${preset.handle}: ${key}`);
+    }
   }
 });
 
-test('the presets fall in the canvas\'s 7 groups, in its order', () => {
-  assert.deepEqual(
-    groupPresets(PRESETS).map(([group, list]) => [group, list.length]),
-    [['fade', 5], ['slide', 4], ['zoom', 3], ['blur', 2], ['rotate', 4], ['spring', 3], ['reveal', 4]]
-  );
+test('the 25 handles from before kinds are all still there, as an element\'s; the 15 left out of Element in are kept unlisted', () => {
+  for (const handle of OLD_HANDLES) {
+    assert.equal(presetOf(PRESETS, handle)?.kind, 'self', handle);
+  }
+
+  assert.deepEqual(presetsFor('self', PRESETS, []).map((preset) => preset.handle), ['fade', 'fade-up', 'fade-down', 'fade-left', 'fade-right', 'zoom-in', 'pop', 'blur-up', 'draw-up', 'flip-up']);
+  assert.equal(PRESETS.filter((preset) => preset.listed === false).length, 15);
+  assert.ok(PRESETS.filter((preset) => preset.listed === false).every((preset) => preset.kind === 'self'));
+});
+
+test('each kind has its own gallery: 10 / 6 / 6 / 3 / 3 / 3 / 3', () => {
+  assert.deepEqual(KINDS, ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse']);
+  assert.deepEqual(KINDS.map((kind) => presetsFor(kind, PRESETS, []).length), [10, 6, 6, 3, 3, 3, 3]);
+});
+
+test('a gallery is the listed built-ins of its kind in the file\'s order, then the site\'s own of that kind', () => {
+  const own = [
+    { handle: 'my-a', kind: 'children', vars: { '--anim-y': '1rem' } },
+    { handle: 'my-b', kind: 'self', vars: { '--anim-y': '1rem' } },
+    { handle: 'my-c', kind: 'children', vars: { '--anim-x': '1rem' } },
+  ];
+
+  assert.deepEqual(presetsFor('children', PRESETS, own).map((preset) => preset.handle), ['cascade-up', 'cascade-left', 'cascade-zoom', 'cascade-pop', 'cascade-blur', 'cascade-flip', 'my-a', 'my-c']);
+  assert.deepEqual(presetsFor('mouse', PRESETS, own).map((preset) => preset.handle), ['mouse-soft', 'mouse-strong', 'mouse-away']);
+  assert.deepEqual(presetsFor('stack', [], own), []);
 });
 
 test('the spring presets carry a fixed linear() curve', () => {
-  for (const preset of PRESETS.filter((p) => p.group === 'spring')) {
-    assert.match(preset.vars['--anim-ease'], /^linear\(/, preset.handle);
+  for (const handle of ['bounce', 'bounce-in', 'drop', 'words-drop']) {
+    assert.match(presetOf(PRESETS, handle).vars['--anim-ease'], /^linear\(/, handle);
   }
+
+  assert.equal(presetOf(PRESETS, 'words-drop').vars['--anim-ease'], presetOf(PRESETS, 'bounce-in').vars['--anim-ease']);
 });
 
-test('a preset\'s values stand under --anim-preset-*, as SveAnimation::css writes them', () => {
+test('a preset\'s values stand under --anim-preset-*, as SveAnimation::css writes them — a rule for each a timed kind links, listed or not, none for a recipe\'s', () => {
   const rules = presetRules(PRESETS);
+  const linked = PRESETS.filter((preset) => timed(preset.kind));
 
-  assert.equal(rules.split('\n').length, 25);
+  assert.equal(linked.length, 37);
+  assert.equal(rules.split('\n').length, linked.length);
   assert.match(rules, /^\[data-anim-preset="fade-up"\] \{ --anim-preset-opacity: 0; --anim-preset-y: 2rem; \}$/m);
+  assert.match(rules, /^\[data-anim-preset="slide-up"\] /m, 'unlisted, still a page may name it');
+  assert.match(rules, /^\[data-anim-preset="cascade-up"\] \{ --anim-preset-opacity: 0; --anim-preset-y: 1.5rem; \}$/m, 'the timing is the element\'s own, not the rule\'s');
+  assert.doesNotMatch(rules, /parallax-|ticker-|stack-|mouse-/);
   assert.doesNotMatch(rules, /\s--anim-(?!preset-)[a-z-]+:/);
 });
 
-test('the runtime reads every value a preset can carry as the element\'s own first, its preset\'s after', () => {
-  const names = new Set(PRESETS.flatMap((preset) => Object.keys(preset.vars)));
+test('a timed kind\'s tile links its preset and writes its timing as the element\'s own, key by key', () => {
+  const cascade = presetOf(PRESETS, 'cascade-up');
+  const picked = pickPreset(null, cascade);
+
+  assert.deepEqual(picked, { ...newAnimation('cascade-up', 'children'), duration: 600, step: 80 });
+  assert.equal(
+    withAnimation('<ul>x</ul>', '0:ul', picked),
+    '<ul data-anim="children" data-anim-preset="cascade-up" data-anim-on="view" class="[--anim-duration:0.6s] [--anim-step:0.08s]">x</ul>\n\n{{ sve_animation }}'
+  );
+
+  // On an element that plays: its trigger and its own delay stay, its effects go, its step curve stays.
+  const playing = anim({ target: 'self', preset: 'fade', on: 'load', repeat: true, delay: 200, duration: 900, vars: { '--anim-y': '3rem', '--anim-step-curve': '1.5' } });
+  const next = pickPreset(playing, presetOf(PRESETS, 'words-rise'));
+
+  assert.equal(next.target, 'words');
+  assert.equal(next.preset, 'words-rise');
+  assert.equal(next.on, 'load');
+  assert.equal(next.repeat, true);
+  assert.equal(next.delay, 200);
+  assert.equal(next.duration, 600);
+  assert.equal(next.step, 60);
+  assert.deepEqual(next.vars, { '--anim-step-curve': '1.5' });
+
+  // A preset without timing leaves the element's timing as it is; a hover from before starts afresh.
+  assert.equal(pickPreset(playing, presetOf(PRESETS, 'pop')).duration, 900);
+  assert.equal(pickPreset({ ...playing, on: 'hover' }, presetOf(PRESETS, 'pop')).on, 'view');
+});
+
+test('a recipe\'s tile writes its values as the element\'s own — no data-anim-preset — and its gallery marks it while they still match', () => {
+  const soft = presetOf(PRESETS, 'parallax-soft');
+  const picked = pickPreset(null, soft);
+  const html = withAnimation('<img>', '0:img', picked);
+
+  assert.equal(picked.preset, '');
+  assert.deepEqual(picked.vars, { '--anim-y': '2rem' });
+  assert.doesNotMatch(html, /data-anim-preset/);
+  assert.match(html, /data-anim="parallax" class="\[--anim-y:2rem\]"/);
+  assert.equal(recipePreset(read(html, '0:img'), PRESETS)?.handle, 'parallax-soft');
+  assert.equal(recipePreset({ ...picked, vars: { '--anim-y': '3rem' } }, PRESETS), null, 'changed: its own');
+
+  const fast = pickPreset({ ...recipeAnimation('ticker'), pause: true, vars: { '--anim-gap': '3rem' } }, presetOf(PRESETS, 'ticker-fast'));
+
+  assert.equal(fast.duration, 10000);
+  assert.equal(fast.pause, true, 'the same recipe keeps what the preset says nothing about');
+  assert.deepEqual(fast.vars, { '--anim-gap': '3rem' });
+  assert.equal(recipePreset(recipeAnimation('ticker'), PRESETS)?.handle, 'ticker-normal', 'the runtime\'s own round is Normal');
+
+  const tight = pickPreset(read('<ul data-anim="ticker">x</ul>', '0:ul'), presetOf(PRESETS, 'stack-tight'));
+
+  assert.equal(tight.target, 'stack');
+  assert.deepEqual(tight.vars, { '--anim-stack-top': '6rem', '--anim-stack-gap': '0.5rem' });
+  assert.equal(recipePreset({ ...tight, vars: { '--anim-stack-gap': '.5rem' } }, PRESETS)?.handle, 'stack-tight', '.5rem is 0.5rem, the top the runtime\'s own');
+  assert.equal(recipePreset(pickPreset(null, presetOf(PRESETS, 'mouse-away')), PRESETS)?.handle, 'mouse-away');
+  assert.equal(recipePreset(anim(), PRESETS), null, 'a timed kind links instead');
+});
+
+test('«Save as preset» keeps what the kind\'s preset holds: the look, a stack\'s top and offset, the timing of children, words and a ticker', () => {
+  const self = anim({ duration: 900, vars: { '--anim-y': '3rem' } });
+
+  assert.deepEqual(presetToSave(self, presetOf(PRESETS, 'fade')), { kind: 'self', vars: { '--anim-opacity': '0', '--anim-y': '3rem' }, timing: {} });
+  assert.deepEqual(presetToSave(pickPreset(null, presetOf(PRESETS, 'cascade-zoom')), presetOf(PRESETS, 'cascade-zoom')), {
+    kind: 'children',
+    vars: { '--anim-opacity': '0', '--anim-scale': '.9' },
+    timing: { duration: 500, step: 70 },
+  });
+  assert.deepEqual(presetToSave(recipeAnimation('ticker'), null), { kind: 'ticker', vars: {}, timing: { duration: TICKER_DURATION } });
+  assert.deepEqual(presetToSave({ ...recipeAnimation('stack'), vars: { '--anim-stack-gap': '2rem' } }, null), {
+    kind: 'stack',
+    vars: { '--anim-stack-top': SETTINGS['--anim-stack-top'], '--anim-stack-gap': '2rem' },
+    timing: {},
+  });
+  assert.deepEqual(presetToSave(recipeAnimation('mouse'), null), { kind: 'mouse', vars: { '--anim-y': '1rem', '--anim-x': '1rem' }, timing: {} });
+});
+
+test('the runtime reads every value a linked preset can carry as the element\'s own first, its preset\'s after', () => {
+  const names = new Set(PRESETS.filter((preset) => timed(preset.kind)).flatMap((preset) => Object.keys(preset.vars)));
 
   for (const name of names) {
     assert.ok(RUNTIME.includes(`var(${name}, var(${presetName(name)}, `), name);

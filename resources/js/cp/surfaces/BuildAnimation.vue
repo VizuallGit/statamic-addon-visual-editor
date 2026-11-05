@@ -6,6 +6,11 @@
  * opens the editor over the panel, which dims under it; the editor's curve
  * button opens the curve beside the editor.
  *
+ * The library is the seven kinds; a kind opens its gallery of presets in the
+ * library's place (BuildAnimationGallery.vue), and a tile puts the element on
+ * it and opens the editor (pickPreset). The editor's Preset line opens the
+ * same gallery beside the editor.
+ *
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
  * animation with the page's own runtime.css and presets.json, so what it
@@ -19,9 +24,10 @@
  * A switch comes from Action: the trigger binds the nearest one in reach. The
  * canvas runs no Alpine, so there ▶ plays it as when the switch turns on.
  *
- * «Save as preset» keeps the animation's look (its effects and curve, not its
- * timing) under a name in the site's animations.yaml and puts the element on
- * it; My presets lists them beside the library and in the preset list.
+ * «Save as preset» keeps what the kind's preset holds (presetToSave: the look,
+ * and for children, words and a ticker their timing) under a name in the
+ * site's animations.yaml, as that kind's; «Mine» at the end of its gallery
+ * lists them. An element that plays in time is put on the new preset.
  *
  * Words in turn and the mouse are runtime.js's work on the page: the canvas
  * runs no scripts, so there a heading stands whole and an element stays
@@ -50,17 +56,18 @@ import {
   EASES,
   easeKey,
   effectsOf,
-  groupPresets,
   isChanged,
+  KINDS,
   missingEffects,
   moves,
-  newAnimation,
   onPreset,
   ownValues,
-  presetLook,
+  pickPreset,
   presetOf,
   presetRules,
-  recipeAnimation,
+  presetsFor,
+  presetToSave,
+  recipePreset,
   RUNTIME_DEFAULTS,
   SETTINGS,
   springEase,
@@ -86,13 +93,14 @@ import {
   withoutOverrideKey,
   withTemplateFlip,
 } from '../../build-mode/animation-override.js';
-import { deletePreset, ownPresets, presetUsage, savePreset } from '../../build-mode/animation-presets.js';
+import { ownPresets, savePreset } from '../../build-mode/animation-presets.js';
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { besideSpot, overSpot } from '../../lib/beside.js';
 import { playAlone } from '../../lib/anim-still.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
+import BuildAnimationGallery from './BuildAnimationGallery.vue';
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -174,8 +182,8 @@ const stroke = 'stroke:var(--bm-accent);stroke-width:1.3';
 const tint = (p) => `fill:color-mix(in srgb,var(--bm-accent) ${p}%,transparent)`;
 const framed = (p, more = '') => `style="${tint(p)};${stroke}${more}"`;
 
-/** The library's recipes, drawn as the canvas draws them: a `target` keeps the preset, a `recipe` is one of its own (RECIPES). */
-const TILES = [
+/** The library's kinds, drawn as the canvas draws them, in KINDS' order: each opens its gallery. */
+const ART = [
   { key: 'self', word: 'anim_r_self', target: 'self', art: `<rect x="20" y="10" width="24" height="22" rx="3" ${framed(30)}/><path d="M32 6V2M29 5l3-3 3 3" style="${stroke}"/>` },
   {
     key: 'children',
@@ -209,8 +217,8 @@ const TILES = [
   },
   { key: 'mouse', word: 'anim_r_mouse', recipe: 'mouse', art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
 ];
-
-const groups = computed(() => groupPresets(presets.value));
+const TILES = KINDS.map((kind) => ART.find((tile) => tile.key === kind));
+const counts = computed(() => Object.fromEntries(KINDS.map((kind) => [kind, presetsFor(kind, PRESETS, own.value).length])));
 const plays = computed(() => !!anim.value && timed(anim.value.target));
 
 /** The chip's and the editor's name: a recipe's own, else what the element or its children do. */
@@ -319,63 +327,41 @@ function pickTrigger(on) {
   write(withTrigger(anim.value, on));
 }
 
-/** A recipe replaces what was there; "Element in", "Children in turn" and "Words in turn" keep the preset, unless it was a hover's or a recipe's. */
-function useTile(tile) {
-  if (tile.recipe) {
-    write(recipeAnimation(tile.recipe));
-  } else {
-    const keep = plays.value && anim.value.on !== 'hover';
+/* ---------------- the galleries ---------------- */
 
-    write(keep ? { ...anim.value, target: tile.target } : newAnimation('fade-up', tile.target));
+/** The kind whose gallery stands in the library's place, or null: the library. */
+const gallery = ref(null);
+
+/** The preset the element is on, to mark in its kind's gallery: the one it links, or the recipe's its values still match. */
+const currentPreset = computed(() => {
+  const now = shown.value;
+
+  if (!now) {
+    return '';
   }
 
+  return plays.value ? now.preset : recipePreset(now, presets.value)?.handle || '';
+});
+
+/** A tile in the tab: the element takes the kind and the preset (in the template, where the kind lives), and the editor opens. */
+function useTile(p) {
+  write(pickPreset(anim.value, p));
   open.value = true;
 }
 
-/* ---------------- My presets ---------------- */
-
-const mineOpen = ref(false);
-/** The × asked to delete `handle`; Delete is offered once `used` says how many templates still name it. */
-const dropping = ref(null);
-
-/** An own preset, as the preset list sets one: on an animation that plays in time, else on the element in. */
-function useOwn(p) {
-  write(plays.value ? onPreset(anim.value, p.handle) : newAnimation(p.handle, 'self'));
-  open.value = true;
-}
-
-async function askDrop(p) {
-  dropping.value = { handle: p.handle, used: null };
-
-  const used = await presetUsage(p.handle);
-
-  if (dropping.value?.handle !== p.handle) {
-    return;
-  }
-
-  if (used === null) {
-    dropping.value = null;
-    port.toast('error', 'anim_mine_failed');
-  } else {
-    dropping.value = { handle: p.handle, used };
-  }
-}
-
-async function dropOwn(p) {
-  const done = await deletePreset(p.handle);
-
-  dropping.value = null;
-  port.toast(done ? 'success' : 'error', done ? 'anim_mine_deleted' : 'anim_mine_failed');
-}
+/** A tile beside the editor: the kind stays; the preset and its values go where the editor writes, the template or this section. */
+const usePreset = (p) => writeLook(pickPreset(base.value, p));
 
 /* «Save as preset»: the name typed in the editor's foot, then the element on the new preset. */
 const naming = ref(false);
 const newName = ref('');
 const saving = ref(false);
 const nameInput = ref(null);
+const toSave = computed(() => (base.value ? presetToSave(base.value, basePreset.value) : null));
+const SAVE_NOTES = { children: 'anim_save_note_timed', words: 'anim_save_note_timed', ticker: 'anim_save_note_ticker', stack: 'anim_save_note_stack', parallax: 'anim_save_note_moves', mouse: 'anim_save_note_moves' };
 
 function startNaming() {
-  if (!Object.keys(presetLook(base.value, basePreset.value)).length) {
+  if (!Object.keys(toSave.value.vars).length && !Object.keys(toSave.value.timing).length) {
     port.toast('info', 'anim_save_nothing');
 
     return;
@@ -395,7 +381,7 @@ async function saveLook() {
 
   saving.value = true;
 
-  const saved = await savePreset(name, presetLook(base.value, basePreset.value));
+  const saved = await savePreset(name, toSave.value);
 
   saving.value = false;
 
@@ -406,7 +392,12 @@ async function saveLook() {
   }
 
   naming.value = false;
-  writeLook(onPreset(base.value, saved.handle));
+
+  // A recipe's preset is a starting point: the element already has its values as its own.
+  if (plays.value) {
+    writeLook(onPreset(base.value, saved.handle));
+  }
+
   port.toast('success', 'anim_saved');
 }
 
@@ -592,11 +583,8 @@ const easeRaw = computed(() => valueOf(shown.value, shownPreset.value, '--anim-e
 const ease = computed(() => easeKey(easeRaw.value));
 const duration = computed(() => shown.value?.duration ?? RUNTIME_DEFAULTS.duration);
 
-function setPreset(handle) {
-  const keep = base.value.vars['--anim-step-curve'];
-
-  writeLook({ ...base.value, preset: handle, vars: keep ? { '--anim-step-curve': keep } : {} });
-}
+/** A recipe's Preset line: the preset its values still match, else its own. */
+const recipeText = computed(() => label(recipePreset(shown.value, presets.value)) || t('anim_preset_own'));
 
 const setEffect = (key, value) => writeLook(withEffect(base.value, basePreset.value, key, value));
 const addEffect = (effect) => setEffect(effect.key, effect.add);
@@ -638,6 +626,20 @@ const SPRING = [
 watch(curveOpen, (now) => {
   if (now) {
     curveMode.value = ease.value === 'spring' ? 'spring' : 'ease';
+    galleryOpen.value = false;
+  }
+});
+
+/* ---------------- the gallery beside the editor ---------------- */
+
+const galleryBtn = ref(null);
+const galleryPop = ref(null);
+const galleryOpen = ref(false);
+const gallerySpot = ref({ left: 0, top: 0 });
+
+watch(galleryOpen, (now) => {
+  if (now) {
+    curveOpen.value = false;
   }
 });
 
@@ -748,6 +750,10 @@ function placeCurve() {
   if (curvePop.value && curveBtn.value && editor.value) {
     curveSpot.value = besideSpot(curveBtn.value.getBoundingClientRect(), editor.value.getBoundingClientRect(), size(curvePop.value), view());
   }
+
+  if (galleryPop.value && galleryBtn.value && editor.value) {
+    gallerySpot.value = besideSpot(galleryBtn.value.getBoundingClientRect(), editor.value.getBoundingClientRect(), size(galleryPop.value), view());
+  }
 }
 
 function place() {
@@ -765,10 +771,10 @@ function place() {
 
 let sized = null;
 
-watch([editor, curvePop], ([e, c]) => {
+watch([editor, curvePop, galleryPop], ([e, c, g]) => {
   sized?.disconnect();
   sized = new ResizeObserver(place);
-  [e, c, e ? panelEl() : null].filter(Boolean).forEach((el) => sized.observe(el));
+  [e, c, g, e ? panelEl() : null].filter(Boolean).forEach((el) => sized.observe(el));
   place();
 }, { flush: 'post' });
 
@@ -781,6 +787,7 @@ watch(anim, (now) => {
 watch(open, (now) => {
   if (!now) {
     curveOpen.value = false;
+    galleryOpen.value = false;
     addMenu.value = false;
     naming.value = false;
   }
@@ -803,6 +810,8 @@ const onKey = (event) => {
     naming.value = false;
   } else if (curveOpen.value) {
     curveOpen.value = false;
+  } else if (galleryOpen.value) {
+    galleryOpen.value = false;
   } else {
     open.value = false;
   }
@@ -1003,44 +1012,24 @@ const Num = defineComponent({
     </section>
 
     <section class="bm-anim-block" data-sve-build-anim-library>
-      <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
-      <div class="bm-anim-lib">
-        <button
-          v-for="tile in TILES"
-          :key="tile.key"
-          type="button"
-          class="bm-anim-tile"
-          :data-sve-build-anim-tile="tile.key"
-          @click="useTile(tile)"
-        >
-          <svg viewBox="0 0 64 40" fill="none" aria-hidden="true" v-html="tile.art"></svg>
-          <span>{{ t(tile.word) }}</span>
-        </button>
-      </div>
-      <div class="bm-anim-mine">
-        <button type="button" class="bm-anim-btn" :aria-expanded="mineOpen" data-sve-build-anim-mine @click="mineOpen = !mineOpen">{{ t('anim_mine') }} · {{ own.length }}</button>
-      </div>
-      <div v-if="mineOpen" class="bm-anim-own" data-sve-build-anim-own-list>
-        <p v-if="!own.length" class="bm-anim-hint">{{ t('anim_mine_empty') }}</p>
-        <div v-for="p in own" :key="p.handle" class="bm-anim-own__row" :data-sve-build-anim-own="p.handle">
-          <button type="button" class="bm-anim-own__use" :aria-pressed="anim?.preset === p.handle" @click="useOwn(p)">{{ label(p) }}</button>
-          <template v-if="dropping?.handle === p.handle">
-            <span v-if="dropping.used" class="bm-anim-own__used">{{ port.t('anim_mine_used', { n: dropping.used }) }}</span>
-            <button type="button" class="bm-anim-own__sure" data-sve-build-anim-own-sure :disabled="dropping.used === null" @click="dropOwn(p)">{{ t(dropping.used ? 'anim_mine_delete_anyway' : 'anim_mine_delete') }}</button>
-            <button type="button" class="bm-anim-own__x" :aria-label="t('anim_cancel')" @click="dropping = null" v-html="icon('x', 12)"></button>
-          </template>
+      <BuildAnimationGallery v-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" />
+      <template v-else>
+        <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
+        <div class="bm-anim-lib">
           <button
-            v-else
+            v-for="tile in TILES"
+            :key="tile.key"
             type="button"
-            class="bm-anim-own__x"
-            :aria-label="t('anim_mine_delete')"
-            :title="t('anim_mine_delete')"
-            data-sve-build-anim-own-delete
-            @click="askDrop(p)"
-            v-html="icon('trash', 12)"
-          ></button>
+            class="bm-anim-tile"
+            :data-sve-build-anim-tile="tile.key"
+            @click="gallery = tile.key"
+          >
+            <svg viewBox="0 0 64 40" fill="none" aria-hidden="true" v-html="tile.art"></svg>
+            <span>{{ t(tile.word) }}</span>
+            <small class="bm-anim-tile__n">{{ port.t('anim_presets_count', { n: counts[tile.key] }) }}</small>
+          </button>
         </div>
-      </div>
+      </template>
     </section>
 
     <Teleport to="body">
@@ -1118,16 +1107,10 @@ const Num = defineComponent({
               </div>
               <div class="bm-anim-line">
                 <span>{{ t('anim_preset') }}<Dot :keys="['preset']" /></span>
-                <span class="bm-anim-box">
+                <button ref="galleryBtn" type="button" class="bm-anim-box" :aria-expanded="galleryOpen" :aria-label="t('anim_preset_pick')" data-sve-build-anim-preset @click="galleryOpen = !galleryOpen">
                   <span class="bm-anim-box__val">{{ presetText }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="shown.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
-                    <option v-if="!shown.preset" value="" disabled>{{ t('anim_own') }}</option>
-                    <optgroup v-for="[group, list] in groups" :key="group" :label="t(`anim_group_${group}`)">
-                      <option v-for="p in list" :key="p.handle" :value="p.handle">{{ label(p) }}</option>
-                    </optgroup>
-                  </select>
-                </span>
+                </button>
                 <Reset :keys="['preset']" />
               </div>
               <div v-if="anim.on === 'view'" class="bm-anim-line">
@@ -1135,6 +1118,13 @@ const Num = defineComponent({
                 <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :disabled="section" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
               </div>
             </template>
+            <div v-else class="bm-anim-line">
+              <span>{{ t('anim_preset') }}</span>
+              <button ref="galleryBtn" type="button" class="bm-anim-box" :aria-expanded="galleryOpen" :aria-label="t('anim_preset_pick')" data-sve-build-anim-preset @click="galleryOpen = !galleryOpen">
+                <span class="bm-anim-box__val">{{ recipeText }}</span>
+                <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
+              </button>
+            </div>
             <div class="bm-anim-line">
               <span>{{ t('anim_active') }}<Dot :keys="['off']" /></span>
               <button type="button" role="switch" class="bm-anim-switch" :aria-checked="!shown.off" :aria-label="t('anim_active')" data-sve-build-anim-active @click="toggleActive"></button>
@@ -1291,7 +1281,7 @@ const Num = defineComponent({
 
           <section v-if="naming" class="bm-anim-block bm-anim-naming" data-sve-build-anim-naming>
             <div class="bm-anim-head"><span>{{ t('anim_save_preset') }}</span></div>
-            <p class="bm-anim-hint">{{ t('anim_save_note') }}</p>
+            <p class="bm-anim-hint">{{ t(SAVE_NOTES[anim.target] || 'anim_save_note') }}</p>
             <input
               ref="nameInput"
               v-model="newName"
@@ -1310,7 +1300,27 @@ const Num = defineComponent({
           </section>
           <section v-else class="bm-anim-block bm-anim-foot">
             <button v-if="playable" type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
-            <button v-if="plays" type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{ t('anim_save_preset') }}</button>
+            <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{ t('anim_save_preset') }}</button>
+          </section>
+        </div>
+      </div>
+
+      <div
+        v-if="open && galleryOpen && anim"
+        ref="galleryPop"
+        class="sve-build bm-anim-pop is-gallery"
+        role="dialog"
+        :aria-label="t('anim_preset')"
+        data-sve-build-anim-gallery-pop
+        :style="{ left: `${gallerySpot.left}px`, top: `${gallerySpot.top}px` }"
+      >
+        <header class="bm-anim-pop__head">
+          <b>{{ recipe }}</b>
+          <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="galleryOpen = false" v-html="icon('x', 12)"></button>
+        </header>
+        <div class="bm-anim-pop__body">
+          <section class="bm-anim-block is-first">
+            <BuildAnimationGallery :kind="anim.target" :current="currentPreset" @pick="usePreset" />
           </section>
         </div>
       </div>
@@ -1463,19 +1473,7 @@ const Num = defineComponent({
 .sve-build .bm-anim-tile:hover { background: var(--bm-hover); }
 .sve-build .bm-anim-tile svg { width: 4rem; height: 2.5rem; }
 .sve-build .bm-anim-tile > span { color: var(--bm-muted); font-size: 0.625rem; line-height: 1.2; text-align: center; }
-.sve-build .bm-anim-mine { display: flex; justify-content: center; margin-top: 0.125rem; }
-
-/* My presets: a row each, its × asking first */
-.sve-build .bm-anim-own { display: flex; flex-direction: column; gap: 0.125rem; }
-.sve-build .bm-anim-own__row { display: flex; align-items: center; gap: 0.375rem; min-height: 1.625rem; padding: 0 0.25rem 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); }
-.sve-build .bm-anim-own__use { flex: 1; min-width: 0; padding: 0.3125rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
-.sve-build .bm-anim-own__use:hover { color: var(--bm-ink); text-decoration: underline; }
-.sve-build .bm-anim-own__use[aria-pressed='true'] { color: var(--bm-accent); font-weight: 600; }
-.sve-build .bm-anim-own__used { color: var(--bm-faint); font-size: 0.625rem; white-space: nowrap; }
-.sve-build .bm-anim-own__sure { padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.625rem; font-weight: 600; white-space: nowrap; }
-.sve-build .bm-anim-own__sure:disabled { opacity: 0.4; cursor: default; }
-.sve-build .bm-anim-own__x { display: flex; padding: 0.25rem; color: var(--bm-faint); }
-.sve-build .bm-anim-own__x:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-tile__n { margin-top: -0.25rem; color: var(--bm-faint); font-size: 0.5625rem; }
 
 /* SmallBtn */
 .sve-build .bm-anim-btn { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.625rem; padding: 0 0.625rem; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
@@ -1487,6 +1485,7 @@ const Num = defineComponent({
 /* Popover: the editor over the panel, the curve beside the editor (lib/beside.js) */
 .sve-build.bm-anim-pop { position: fixed; z-index: 99999; display: flex; flex-direction: column; width: 20rem; height: auto; max-height: calc(100vh - 1rem); border: 1px solid var(--bm-edge); border-radius: 0.75rem; box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45); overflow: hidden; }
 .sve-build.bm-anim-pop.is-curve { width: 16.875rem; }
+.sve-build.bm-anim-pop.is-gallery { width: 17.5rem; }
 .sve-build .bm-anim-pop__head { flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 0.75rem; }
 .sve-build .bm-anim-pop__head b { font-weight: 600; }
 .sve-build .bm-anim-pop__tag { padding: 0.0625rem 0.375rem; border-radius: 0.25rem; background: var(--bm-hover); color: var(--bm-muted); font-size: 0.625rem; }
@@ -1510,7 +1509,9 @@ const Num = defineComponent({
 .sve-build .bm-anim-box__val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sve-build .bm-anim-caret { display: flex; color: var(--bm-faint); }
 .sve-build .bm-anim-box select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.sve-build .bm-anim-box:has(select:focus-visible) { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
+.sve-build .bm-anim-box:has(select:focus-visible), .sve-build button.bm-anim-box:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
+.sve-build button.bm-anim-box { width: 100%; text-align: start; }
+.sve-build button.bm-anim-box[aria-expanded='true'] { background: var(--bm-hover); }
 .sve-build .bm-anim-num { position: relative; display: flex; align-items: center; min-width: 0; height: 1.625rem; padding: 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); overflow: hidden; cursor: ew-resize; touch-action: none; }
 .sve-build .bm-anim-num.is-raw { cursor: default; }
 .sve-build .bm-anim-num__fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--bm-hover); pointer-events: none; }

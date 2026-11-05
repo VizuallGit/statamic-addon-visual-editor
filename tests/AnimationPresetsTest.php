@@ -44,7 +44,7 @@ class AnimationPresetsTest extends TestCase
 
         $this->assertSame([
             'handle' => 'my-soft-rise',
-            'group' => 'own',
+            'kind' => 'self',
             'label_da' => 'Soft rise',
             'label_en' => 'Soft rise',
             'vars' => ['--anim-opacity' => '0', '--anim-y' => '3rem', '--anim-ease' => 'cubic-bezier(.22, 1, .36, 1)'],
@@ -133,9 +133,11 @@ class AnimationPresetsTest extends TestCase
         config(['statamic-visual-editor.features.template_dock' => true, 'statamic-visual-editor.features.build_mode' => true]);
         Features::flush();
 
-        $this->postJson('/!/sve/animation-presets', ['label' => 'Soft', 'vars' => ['--anim-y' => '1rem']])
+        $this->postJson('/!/sve/animation-presets', ['label' => 'Soft', 'kind' => 'children', 'vars' => ['--anim-y' => '1rem'], 'timing' => ['step' => 90]])
             ->assertOk()
-            ->assertJsonPath('preset.handle', 'my-soft');
+            ->assertJsonPath('preset.handle', 'my-soft')
+            ->assertJsonPath('preset.kind', 'children')
+            ->assertJsonPath('preset.timing', ['step' => 90]);
         $this->getJson('/!/sve/animation-presets/usage?handle=my-soft')->assertOk()->assertExactJson(['used' => 0]);
         $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertOk()->assertExactJson(['presets' => []]);
         $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertNotFound();
@@ -151,6 +153,57 @@ class AnimationPresetsTest extends TestCase
 
         $this->assertStringContainsString('[data-anim-preset="my-soft-rise"] { --anim-preset-opacity: 0; --anim-preset-y: 3rem; }', $css);
         $this->assertStringContainsString('[data-anim-preset="fade-up"]', $css);
-        $this->assertCount(25, SveAnimation::presets());
+        $this->assertCount(49, SveAnimation::presets());
+    }
+
+    public function test_a_preset_is_for_one_kind_and_one_from_before_kinds_is_an_elements(): void
+    {
+        $this->assertSame('children', AnimationPresets::save('Rise', ['--anim-y' => '1rem'], 'children')['kind']);
+        $this->assertSame('self', AnimationPresets::save('Odd', ['--anim-y' => '1rem'], 'hover')['kind']);
+        $this->assertSame('self', AnimationPresets::save('None', ['--anim-y' => '1rem'], null)['kind']);
+
+        file_put_contents(AnimationPresets::file(), Yaml::dump(['presets' => [
+            ['handle' => 'my-old', 'label' => 'Old', 'vars' => ['--anim-y' => '1rem']],
+            ['handle' => 'my-words', 'label' => 'Words', 'kind' => 'words', 'vars' => ['--anim-y' => '1rem']],
+        ]], 4, 2));
+
+        $this->assertSame(['self', 'words'], array_column(AnimationPresets::all(), 'kind'));
+    }
+
+    public function test_timing_is_whole_ms_from_0_to_60000_and_only_duration_delay_and_step(): void
+    {
+        $saved = AnimationPresets::save('Cascade', ['--anim-y' => '1rem'], 'children', ['duration' => 600, 'delay' => '120', 'step' => 80.5, 'wait' => 10]);
+
+        $this->assertSame(['duration' => 600, 'delay' => 120], $saved['timing']);
+
+        $bad = AnimationPresets::save('Bad', ['--anim-y' => '1rem'], 'words', ['duration' => 60001, 'delay' => -1, 'step' => '8; }']);
+
+        $this->assertArrayNotHasKey('timing', $bad, 'nothing left: no timing at all');
+
+        $rows = Yaml::parseFile(AnimationPresets::file())['presets'];
+
+        $this->assertSame(['handle', 'label', 'kind', 'vars', 'timing'], array_keys($rows[0]));
+        $this->assertSame(['handle', 'label', 'kind', 'vars'], array_keys($rows[1]));
+    }
+
+    public function test_a_ticker_keeps_only_its_round_and_a_stack_its_top_and_offset(): void
+    {
+        $ticker = AnimationPresets::save('Slow', [], 'ticker', ['duration' => 40000]);
+        $stack = AnimationPresets::save('Airy', ['--anim-stack-top' => '6rem', '--anim-stack-gap' => '2rem', '--anim-gap' => '3rem'], 'stack');
+
+        $this->assertSame(['handle' => 'my-slow', 'kind' => 'ticker', 'label_da' => 'Slow', 'label_en' => 'Slow', 'vars' => [], 'timing' => ['duration' => 40000]], $ticker);
+        $this->assertSame(['--anim-stack-top' => '6rem', '--anim-stack-gap' => '2rem'], $stack['vars']);
+        $this->assertSame(['my-slow', 'my-airy'], array_column(AnimationPresets::all(), 'handle'), 'a timing alone is a preset, read back too');
+    }
+
+    public function test_a_recipes_own_preset_is_written_onto_the_element_and_has_no_rule(): void
+    {
+        AnimationPresets::save('Far', ['--anim-y' => '6rem'], 'parallax');
+        AnimationPresets::save('Words up', ['--anim-y' => '6rem'], 'words', ['step' => 40]);
+
+        $css = SveAnimation::css();
+
+        $this->assertStringNotContainsString('my-far', $css);
+        $this->assertStringContainsString('[data-anim-preset="my-words-up"] { --anim-preset-y: 6rem; }', $css);
     }
 }

@@ -89,12 +89,13 @@ namespace MarioHamann\StatamicVisualEditor\Tests {
             $this->assertStringContainsString('data-in-view', $js[0]);
         }
 
-        public function test_every_preset_gets_one_rule_of_its_own_vars(): void
+        public function test_every_preset_a_timed_kind_links_gets_one_rule_of_its_own_vars(): void
         {
             $css = SveAnimation::css();
-            $presets = SveAnimation::presets();
+            $presets = array_filter(SveAnimation::presets(), fn (array $preset) => in_array($preset['kind'], ['self', 'children', 'words'], true));
 
-            $this->assertCount(25, $presets);
+            $this->assertCount(49, SveAnimation::presets());
+            $this->assertCount(37, $presets);
 
             foreach ($presets as $preset) {
                 $this->assertSame(1, substr_count($css, '[data-anim-preset="'.$preset['handle'].'"]'), $preset['handle']);
@@ -106,6 +107,19 @@ namespace MarioHamann\StatamicVisualEditor\Tests {
             }
 
             $this->assertStringContainsString('[data-anim-preset="fade-up"] { --anim-preset-opacity: 0; --anim-preset-y: 2rem; }', $css);
+        }
+
+        /* The build panel's presetRules() filters the same (tests/js/build-mode/animation.test.js). */
+        public function test_a_recipes_preset_has_no_rule_and_an_unlisted_one_keeps_its_own(): void
+        {
+            $css = SveAnimation::css();
+
+            $this->assertStringContainsString('[data-anim-preset="cascade-up"] { --anim-preset-opacity: 0; --anim-preset-y: 1.5rem; }', $css);
+            $this->assertStringContainsString('[data-anim-preset="slide-up"] { ', $css);
+            $this->assertStringNotContainsString('parallax-soft', $css);
+            $this->assertStringNotContainsString('stack-tight', $css);
+            $this->assertStringNotContainsString('--anim-preset-stack-', $css);
+            $this->assertSame('', SveAnimation::sectionCss('abc', ['elements' => ['0:section/0:div' => ['preset' => 'parallax-soft']]]));
         }
 
         public function test_a_visitor_who_asked_for_less_motion_gets_the_fade(): void

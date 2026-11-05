@@ -15,15 +15,23 @@ use Symfony\Component\Yaml\Yaml;
  *   presets:
  *     - handle: my-soft-rise
  *       label: Soft rise
+ *       kind: children
  *       vars:
  *         --anim-opacity: '0'
  *         --anim-y: 3rem
+ *       timing:
+ *         duration: 600
+ *         step: 80
  *
- * A preset is a look: the effects and the curve, never the timing, which stays
- * on the element. `{{ sve_animation }}` writes a rule for each beside the
- * addon's own (resources/animation/presets.json), and the panel lists them as
- * My presets. Their handles start with `my-`, so no preset the addon adds
- * later can take one.
+ * A preset is for one kind of animation (the element's `data-anim`), and the
+ * panel lists it under «Mine» in that kind's gallery; one saved before kinds
+ * existed is an element's (`self`). It holds a look — the effects and the
+ * curve, a stack's top and offset — and, for children, words and a ticker,
+ * their timing. A preset of a kind that plays in time is linked:
+ * `{{ sve_animation }}` writes a rule for each beside the addon's own
+ * (resources/animation/presets.json). A recipe's is written onto the element.
+ * Their handles start with `my-`, so no preset the addon adds later can take
+ * one.
  *
  * Every value lands in a `<style>` on the public page, so only the names and
  * the characters a length, a curve or a reveal is written with are kept.
@@ -32,9 +40,18 @@ final class AnimationPresets
 {
     public const PREFIX = 'my-';
 
-    public const GROUP = 'own';
+    /** The kinds, as resources/animation/presets.json and the panel's KINDS name them. */
+    public const KINDS = ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse'];
 
-    /** The names a preset may hold: the effects, the 3D turns and the curve. */
+    /** The kinds that play in time and link their preset by `data-anim-preset`. */
+    public const TIMED = ['self', 'children', 'words'];
+
+    /** A preset's timing, in ms. */
+    public const TIMING = ['duration', 'delay', 'step'];
+
+    public const MAX_MS = 60000;
+
+    /** The names a preset may hold: the effects, the 3D turns, the curve and a stack's top and offset. */
     public const VARS = [
         '--anim-opacity',
         '--anim-y',
@@ -47,6 +64,8 @@ final class AnimationPresets
         '--anim-clip',
         '--anim-clip-to',
         '--anim-ease',
+        '--anim-stack-top',
+        '--anim-stack-gap',
     ];
 
     public const MAX_LABEL = 40;
@@ -67,38 +86,42 @@ final class AnimationPresets
     /**
      * In the shape of presets.json, so the panel and the tag treat both alike.
      *
-     * @return list<array{handle: string, group: string, label_da: string, label_en: string, vars: array<string, string>}>
+     * @return list<array{handle: string, kind: string, label_da: string, label_en: string, vars: array<string, string>, timing?: array<string, int>}>
      */
     public static function all(): array
     {
         return array_map(fn (array $preset) => [
             'handle' => $preset['handle'],
-            'group' => self::GROUP,
+            'kind' => $preset['kind'],
             'label_da' => $preset['label'],
             'label_en' => $preset['label'],
             'vars' => $preset['vars'],
+            ...($preset['timing'] === [] ? [] : ['timing' => $preset['timing']]),
         ], static::stored());
     }
 
     /**
      * @param  array<mixed>  $vars
-     * @return array{handle: string, group: string, label_da: string, label_en: string, vars: array<string, string>}
+     * @param  array<mixed>  $timing
+     * @return array{handle: string, kind: string, label_da: string, label_en: string, vars: array<string, string>, timing?: array<string, int>}
      *
      * @throws InvalidArgumentException a label or values that cannot be saved
      */
-    public static function save(string $label, array $vars): array
+    public static function save(string $label, array $vars, mixed $kind = 'self', array $timing = []): array
     {
         $label = trim((string) preg_replace('/\s+/u', ' ', $label));
+        $kind = static::kind($kind);
         $vars = static::vars($vars);
+        $timing = static::timing($timing);
 
-        if ($label === '' || mb_strlen($label) > self::MAX_LABEL || $vars === []) {
+        if ($label === '' || mb_strlen($label) > self::MAX_LABEL || ($vars === [] && $timing === [])) {
             throw new InvalidArgumentException('An animation preset needs a name and at least one value.');
         }
 
         $presets = static::stored();
         $handle = static::handleFor($label, array_column($presets, 'handle'));
 
-        $presets[] = ['handle' => $handle, 'label' => $label, 'vars' => $vars];
+        $presets[] = ['handle' => $handle, 'label' => $label, 'kind' => $kind, 'vars' => $vars, 'timing' => $timing];
         static::write($presets);
 
         return collect(static::all())->firstWhere('handle', $handle);
@@ -140,7 +163,7 @@ final class AnimationPresets
         return $count;
     }
 
-    /** @return list<array{handle: string, label: string, vars: array<string, string>}> */
+    /** @return list<array{handle: string, label: string, kind: string, vars: array<string, string>, timing: array<string, int>}> */
     private static function stored(): array
     {
         $path = static::file();
@@ -161,9 +184,10 @@ final class AnimationPresets
             $handle = is_array($row) ? (string) ($row['handle'] ?? '') : '';
             $label = is_array($row) ? trim((string) ($row['label'] ?? '')) : '';
             $vars = is_array($row['vars'] ?? null) ? static::vars($row['vars']) : [];
+            $timing = is_array($row['timing'] ?? null) ? static::timing($row['timing']) : [];
 
-            if (preg_match(self::HANDLE, $handle) && $label !== '' && $vars !== []) {
-                $presets[] = ['handle' => $handle, 'label' => $label, 'vars' => $vars];
+            if (preg_match(self::HANDLE, $handle) && $label !== '' && ($vars !== [] || $timing !== [])) {
+                $presets[] = ['handle' => $handle, 'label' => $label, 'kind' => static::kind($row['kind'] ?? null), 'vars' => $vars, 'timing' => $timing];
             }
         }
 
@@ -193,6 +217,35 @@ final class AnimationPresets
         return $kept;
     }
 
+    /** One of KINDS; anything else — a preset saved before kinds, a stray value — is an element's. */
+    private static function kind(mixed $kind): string
+    {
+        return is_string($kind) && in_array($kind, self::KINDS, true) ? $kind : 'self';
+    }
+
+    /**
+     * @param  array<mixed>  $timing
+     * @return array<string, int> in the order of TIMING, whole ms from 0 to MAX_MS
+     */
+    private static function timing(array $timing): array
+    {
+        $kept = [];
+
+        foreach (self::TIMING as $key) {
+            $value = $timing[$key] ?? null;
+
+            if (is_string($value) && preg_match('/^\d+$/', trim($value))) {
+                $value = (int) trim($value);
+            }
+
+            if (is_int($value) && $value >= 0 && $value <= self::MAX_MS) {
+                $kept[$key] = $value;
+            }
+        }
+
+        return $kept;
+    }
+
     /** @param  list<string>  $taken */
     private static function handleFor(string $label, array $taken): string
     {
@@ -206,7 +259,7 @@ final class AnimationPresets
         return $handle;
     }
 
-    /** @param  list<array{handle: string, label: string, vars: array<string, string>}>  $presets */
+    /** @param  list<array{handle: string, label: string, kind: string, vars: array<string, string>, timing: array<string, int>}>  $presets */
     private static function write(array $presets): void
     {
         $path = static::file();
@@ -215,7 +268,9 @@ final class AnimationPresets
             mkdir(dirname($path), 0755, true);
         }
 
-        file_put_contents($path, Yaml::dump(['presets' => $presets], 4, 2));
+        $rows = array_map(fn (array $preset) => array_filter($preset, fn ($value) => $value !== []), $presets);
+
+        file_put_contents($path, Yaml::dump(['presets' => $rows], 4, 2));
 
         Persist::flushStaticCache();
         GitSync::after('animation preset');

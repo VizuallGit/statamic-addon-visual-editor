@@ -38,6 +38,14 @@ import { findByPath } from './place.js';
 export const TARGETS = ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse'];
 
 /**
+ * A preset's kind: the target it is for, each with its own gallery in the
+ * library, in this order. The timed kinds' presets are linked by
+ * `data-anim-preset` (a rule each, presetRules); a recipe's are a starting
+ * point, written onto the element as its own values (pickPreset).
+ */
+export const KINDS = TARGETS;
+
+/**
  * When the element, its children or its words play: the triggers runtime.css
  * knows. `hover` is read, never offered: the Animation tab makes no hover any
  * more (Style → State → hover does), but an element that has one keeps it
@@ -132,19 +140,70 @@ export function recipeAnimation(key) {
   return { ...newAnimation('', recipe.target), ...recipe, vars: { ...(recipe.vars || {}) } };
 }
 
-/** presets.json in its groups, in the order the file has them: [[group, [preset, …]], …]. */
-export function groupPresets(presets) {
-  const groups = new Map();
+/** A kind's gallery: the addon's listed presets of that kind, in the file's order, then the site's own of that kind. */
+export function presetsFor(kind, builtIn, own) {
+  return [
+    ...(builtIn || []).filter((preset) => preset.kind === kind && preset.listed !== false),
+    ...(own || []).filter((preset) => preset.kind === kind),
+  ];
+}
 
-  for (const preset of presets || []) {
-    if (!groups.has(preset.group)) {
-      groups.set(preset.group, []);
-    }
+/** A preset's timing, in ms, for only the keys it has. */
+function timingOf(preset) {
+  return Object.fromEntries(Object.keys(TIMING).filter((key) => Number.isFinite(preset?.timing?.[key])).map((key) => [key, preset.timing[key]]));
+}
 
-    groups.get(preset.group).push(preset);
+/**
+ * The animation a tile writes. A timed kind links the preset as the preset
+ * list always did — the element's trigger kept while it played one (not a
+ * hover's), its effects let go but its step curve — and its timing becomes
+ * the element's own, key by key. A recipe's values become the element's own
+ * on the recipe, kept as it was where the preset says nothing: no link.
+ */
+export function pickPreset(anim, preset) {
+  const kind = preset.kind;
+  const timing = timingOf(preset);
+
+  if (timed(kind)) {
+    const keep = !!anim && timed(anim.target) && anim.on !== 'hover';
+    const start = keep ? { ...anim, target: kind } : newAnimation('', kind);
+    const curve = start.vars?.['--anim-step-curve'];
+
+    return { ...start, preset: preset.handle, vars: curve ? { '--anim-step-curve': curve } : {}, ...timing };
   }
 
-  return [...groups];
+  const start = anim?.target === kind ? anim : recipeAnimation(kind);
+  const own = Object.entries(preset.vars || {}).reduce((now, [name, value]) => withVar(now, null, name, value), start);
+
+  return { ...own, ...timing };
+}
+
+/** A value as the recipe stands with it: its own, else the runtime's. */
+function recipeValue(anim, key) {
+  if (key in TIMING) {
+    return anim[key] ?? (key === 'duration' && anim.target === 'ticker' ? TICKER_DURATION : RUNTIME_DEFAULTS[key]);
+  }
+
+  return anim.vars?.[key] ?? SETTINGS[key] ?? null;
+}
+
+/** Two values as one: `.5rem` and `0.5rem`, `2rem` and `2.0rem`. */
+function sameValue(a, b) {
+  const parts = (value) => /^(-?\d*\.?\d+)([a-z%]*)$/.exec(String(value ?? '').trim());
+  const x = parts(a);
+  const y = parts(b);
+
+  return x && y ? Number(x[1]) === Number(y[1]) && x[2] === y[2] : String(a) === String(b);
+}
+
+/** The recipe's preset its values still match, every value the preset names, or null: the element's own then. */
+export function recipePreset(anim, presets) {
+  if (!anim || timed(anim.target)) {
+    return null;
+  }
+
+  return (presets || []).find((preset) => preset.kind === anim.target
+    && [...Object.entries(preset.vars || {}), ...Object.entries(timingOf(preset))].every(([key, value]) => sameValue(recipeValue(anim, key), value))) || null;
 }
 
 /** The name a preset's value stands under. */
@@ -152,9 +211,10 @@ export function presetName(name) {
   return name.replace(/^--anim-/, '--anim-preset-');
 }
 
-/** A rule per preset, as {{ sve_animation }} pushes them (SveAnimation::css writes the same). */
+/** A rule per preset of a timed kind, as {{ sve_animation }} pushes them (SveAnimation::css writes the same); a recipe's preset is never linked. */
 export function presetRules(presets) {
   return (presets || [])
+    .filter((preset) => timed(preset.kind))
     .map((preset) => `[data-anim-preset="${preset.handle}"] { ${Object.entries(preset.vars).map(([name, value]) => `${presetName(name)}: ${value};`).join(' ')} }`)
     .join('\n');
 }
@@ -331,6 +391,38 @@ export function presetLook(anim, preset) {
   }
 
   return vars;
+}
+
+/**
+ * What «Save as preset» saves, by the element's kind: the look as above; a
+ * stack's top and offset as they stand; the timing for children and words
+ * (their own, key by key) and for a ticker (its round as it stands) — their
+ * timing is what they are. An element in keeps its timing, as always.
+ */
+export function presetToSave(anim, preset) {
+  const kind = anim.target;
+  const vars = presetLook(anim, preset);
+  const timing = {};
+
+  if (kind === 'stack') {
+    for (const name of ['--anim-stack-top', '--anim-stack-gap']) {
+      vars[name] = valueOf(anim, null, name) ?? SETTINGS[name];
+    }
+  }
+
+  if (stepped(kind)) {
+    for (const key of Object.keys(TIMING)) {
+      if (Number.isFinite(anim[key])) {
+        timing[key] = anim[key];
+      }
+    }
+  }
+
+  if (kind === 'ticker') {
+    timing.duration = anim.duration ?? TICKER_DURATION;
+  }
+
+  return { kind, vars, timing };
 }
 
 /** The animation on a preset saved from it: the look is the preset's now, its other own values stay. */
