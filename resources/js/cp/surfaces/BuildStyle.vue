@@ -1040,7 +1040,7 @@ function jump(group) {
           </template>
         </template>
 
-        <!-- Under what is in front; on, above what it unfolded (the order is the stylesheet's). The class list's switch, a size down -->
+        <!-- Always last: under what is in front and, on, under what it unfolded (the order is the stylesheet's). The class list's switch, a size down -->
         <label v-if="STYLE_FRONT[group.id] && (moreIsOpen(group) || folded(group))" class="fg-sec__more-row">
           <span>{{ port.t('style_more') }}</span>
           <span class="fg-classes__count">{{ folded(group) }}</span>
