@@ -141,6 +141,7 @@ import { wholeOwner } from './whole.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldReady, mountElementField } from './element-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
+import { startDataStatePreview } from './canvas-data-state.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
 import BuildPanel from '../cp/surfaces/BuildPanel.vue';
@@ -170,11 +171,14 @@ export function mountBuildPanel(win, host, hooks = {}) {
   resized?.observe(page.frame());
   // The grids drawn over the canvas, and the builder on the pick's (columns-overlay.js).
   const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false } : {});
+  // A Data state picked in Style: the canvas says its value, so what is written under it shows (canvas-data-state.js).
+  const stopDataState = page ? startDataStatePreview(win, port, { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED }) : () => {};
 
   return () => {
     page?.frame()?.contentWindow?.removeEventListener(CANVAS_PAINTED, countPaint);
     resized?.disconnect();
     stopColumns();
+    stopDataState();
     detach?.();
     port.dispose();
     app.unmount();

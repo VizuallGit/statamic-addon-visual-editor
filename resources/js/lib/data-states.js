@@ -81,6 +81,13 @@ export function dataStates(html, at, model) {
   return out;
 }
 
+/** A Data state's parts — `{ own, key, value }` (`value` null for a bare one) — or null for any other state. */
+export function parseDataState(variant) {
+  const m = VARIANT.exec(String(variant || ''));
+
+  return m ? { own: !m[1], key: m[2], value: m[3] ?? null } : null;
+}
+
 /** Whether a state is a Data state (`data-[…]`, `group-data-[…]`). */
 export function isDataState(variant) {
   return VARIANT.test(String(variant || ''));

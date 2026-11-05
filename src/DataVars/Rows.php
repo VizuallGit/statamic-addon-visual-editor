@@ -28,7 +28,7 @@ final class Rows
     ];
 
     /** Fields whose value is one key of their options. */
-    public const CHOICE_TYPES = ['select', 'button_group', 'radio'];
+    public const CHOICE_TYPES = ['select', 'button_group', 'radio', 'icon_button_group'];
 
     /** A single asset field prints one file; the loop is still how you reach `url`. */
     public const ASSET_TYPES = ['assets'];
