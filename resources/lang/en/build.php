@@ -269,8 +269,6 @@ return [
     'grid_not_shown' => 'The grid is not in the preview at this size.',
     'grid_shape_title' => 'Columns × rows',
     'grid_reset' => '1 × 1',
-    'grid_more' => 'Load more',
-    'grid_less' => 'Show less',
     'grid_reset_title' => 'Back to one column and one row, its children without spans',
     'grid_preset_small' => 'Fewer columns or rows than what is in the grid spans',
     'gap_axis_all' => 'Gap between rows and columns',

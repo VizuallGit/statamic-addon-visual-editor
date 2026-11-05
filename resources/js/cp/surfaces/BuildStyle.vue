@@ -264,7 +264,7 @@ const pickPreset = (preset) => {
 const oneByOneNow = computed(() => (gridParts.value.cols?.n ?? 1) === 1 && (gridParts.value.rows?.n ?? 1) <= 1 && gridLeast.value.cols <= 1);
 const resetGrid = () => port.resetGridAt(props.node.path);
 
-/* The tiles in rows of three: two rows, the rest behind Load more — open until another element is picked */
+/* The tiles in rows of three: two rows, the rest behind Show more — on until another element is picked */
 const TILES_SHOWN = 6;
 const allTiles = ref(false);
 const tileCount = computed(() => tiles.value.length + (shape.value ? 1 : 0));
@@ -757,16 +757,20 @@ function jump(group) {
                 </button>
               </TransitionGroup>
             </div>
-            <button
-              v-if="tileCount > TILES_SHOWN"
-              type="button"
-              class="bm-sp-more"
-              :aria-expanded="allTiles"
-              data-sve-build-grid-more
-              @click="allTiles = !allTiles"
-            >
-              {{ port.t(allTiles ? 'grid_less' : 'grid_more') }}<span v-html="ic('chev')"></span>
-            </button>
+            <!-- The rest of the presets: the same switch as a family's Show more -->
+            <label v-if="tileCount > TILES_SHOWN" class="fg-sec__more-row bm-sp-more">
+              <span>{{ port.t('style_more') }}</span>
+              <span class="fg-classes__count">{{ tileCount - TILES_SHOWN }}</span>
+              <button
+                type="button"
+                class="bm-switch"
+                role="switch"
+                :aria-checked="allTiles"
+                :aria-label="port.t('style_more')"
+                data-sve-build-grid-more
+                @click="allTiles = !allTiles"
+              ></button>
+            </label>
             <div class="fg-grid">
               <BuildGridStep :path="node.path" part="cols" letter="C" :label="port.t('grid_columns')" :hit="gridParts.cols" :seen="ownGrid?.cols || null" :min="gridLeast.cols" :max="MAX_TRACKS" />
               <BuildGridStep :path="node.path" part="rows" letter="R" :label="port.t('grid_rows')" :hit="gridParts.rows" :seen="ownGrid?.rows || null" :min="gridLeast.rows" />

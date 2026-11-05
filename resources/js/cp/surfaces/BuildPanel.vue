@@ -643,13 +643,11 @@ onBeforeUnmount(() => {
 .sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: var(--bm-bar); }
 .sve-build .bm-pk:hover:not(:disabled) .bm-bars i { background: var(--bm-accent); }
 .sve-build .bm-pk-l { font-weight: 600; display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
-/* Style's grid tiles: three a row, two rows until Load more, the grid's own first */
+/* Style's grid tiles: three a row, two rows until Show more, the grid's own first */
 .sve-build .bm-sp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
 .sve-build .bm-sp > .bm-sp-o { min-width: 0; }
-.sve-build .bm-sp-more { display: flex; align-items: center; justify-content: flex-start; gap: 0.25rem; padding: 0.3rem 0; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 600; }
-.sve-build .bm-sp-more:hover { color: var(--bm-ink); background: none; }
-.sve-build .bm-sp-more svg { width: 0.75rem; height: 0.75rem; }
-.sve-build .bm-sp-more[aria-expanded='true'] svg { transform: rotate(180deg); }
+/* Its Show more is a family's (.fg-sec__more-row), right under the tiles */
+.sve-build .fg-sec__more-row.bm-sp-more { order: 0; }
 .sve-build .bm-sp-o { padding: 0.4rem; gap: 0.3rem; }
 .sve-build .bm-sp-o.is-on { border-color: var(--bm-accent); }
 .sve-build .bm-sp-o[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }

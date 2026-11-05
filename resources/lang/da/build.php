@@ -260,8 +260,6 @@ return [
     'grid_not_shown' => 'Griddet er ikke i previewet ved denne størrelse.',
     'grid_shape_title' => 'Kolonner × rækker',
     'grid_reset' => '1 × 1',
-    'grid_more' => 'Vis flere',
-    'grid_less' => 'Vis færre',
     'grid_reset_title' => 'Tilbage til én kolonne og én række, børnene uden span',
     'grid_preset_small' => 'Færre kolonner eller rækker end indholdet i gitteret spænder over',
     'gap_axis_all' => 'Afstand mellem rækker og kolonner',
