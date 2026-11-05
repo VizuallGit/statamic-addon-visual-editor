@@ -401,16 +401,17 @@ export function startColumnsOverlay(
       return;
     }
 
+    // Every grid is measured before any box is written. The frame's layout
+    // hangs on the Control Panel's — a read in the frame after a write here
+    // lays the whole Control Panel out again — so reading and writing grid by
+    // grid cost one layout of the Control Panel per grid, on every pick and
+    // every scrolled frame. Read first, and it is one.
+    const measured = grids.filter((grid) => grid.el.isConnected).map((grid) => [grid, measureGrid(grid.el, attr)]);
+
     // Nothing drawn past the frame's edges: a grid scrolled half out is cut where the page is.
     wrap.style.clipPath = `inset(${v.at.top}px ${win.innerWidth - v.at.right}px ${win.innerHeight - v.at.bottom}px ${v.at.left}px)`;
 
-    for (const grid of grids) {
-      if (!grid.el.isConnected) {
-        continue;
-      }
-
-      const m = measureGrid(grid.el, attr);
-
+    for (const [grid, m] of measured) {
       if (grid.faint) {
         placeCells(grid, m, v);
       } else {
