@@ -45,6 +45,16 @@ final class LivePreviewConfig
                 return;
             }
 
+            // The site's templates read `live_preview` to leave out what only the
+            // public page wants — components/image's blurred placeholder and its
+            // script. Statamic sets it on the entry the Control Panel previews; a
+            // page reached in Live Preview another way had none, its images came
+            // blurred, and the Build canvas (which runs none of the site's
+            // scripts) kept them blurred. A Live Preview request is one, always.
+            if (! $cascade->get('live_preview')) {
+                $cascade->set('live_preview', true);
+            }
+
             LivePreviewSectionScope::limitCascade(
                 $cascade,
                 LivePreviewSectionScope::idsFromRequest($request)
