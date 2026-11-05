@@ -55,9 +55,9 @@ export function measureGrid(el, attr) {
   const kids = [...el.children].filter(placed);
   const tracks = trackOffsets(parseTracks(cs.gridTemplateRows), parseGap(cs.rowGap), h, cs.alignContent);
   // A grid with nothing in it and no rows of its own has no row for the browser
-  // to name. It is one row — the one its first child would make — so its
-  // columns are cells, drawn and offered as any free cell is.
-  const rows = tracks.length || kids.length || !cols.length || h < 0.5 ? tracks : [{ start: 0, end: h }];
+  // to name. It is one row — never none — the one its first child would make,
+  // so its columns are cells, drawn and offered as any free cell is.
+  const rows = tracks.length || kids.length || !cols.length ? tracks : [{ start: 0, end: Math.max(0, h) }];
   const items = kids.map((kid) => {
     const k = kid.getBoundingClientRect();
 

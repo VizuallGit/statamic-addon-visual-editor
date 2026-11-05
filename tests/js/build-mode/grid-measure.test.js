@@ -42,9 +42,9 @@ test('an empty grid with no rows of its own is one row: each column a free cell'
   assert.deepEqual(m.empty, [[0, 0], [1, 0], [2, 0]]);
 });
 
-test('an empty grid with rows of its own keeps them; one with no height or no columns has none', () => {
+test('an empty grid with rows of its own keeps them; with no height still one; with no columns none', () => {
   assert.equal(measureGrid(fake({ gridTemplateColumns: '147px 147px', gridTemplateRows: '29px 29px' }, [0, 0, 300, 64]), 'data-p').empty.length, 4);
-  assert.deepEqual(measureGrid(fake({ gridTemplateColumns: '96px 96px 96px', gridTemplateRows: 'none' }, [0, 0, 300, 0]), 'data-p').rows, []);
+  assert.deepEqual(measureGrid(fake({ gridTemplateColumns: '96px 96px 96px', gridTemplateRows: 'none' }, [0, 0, 300, 0]), 'data-p').rows, [{ start: 0, end: 0 }], 'no height yet: still one row, never none');
   assert.deepEqual(measureGrid(fake({ gridTemplateColumns: 'none', gridTemplateRows: 'none' }, [0, 0, 300, 64]), 'data-p').rows, []);
 });
 

@@ -386,7 +386,7 @@ try {
   await click('[data-sve-build-structure="3"]');
   await sleep(250);
   step('+ on the wrapper, Grid ⅓ × 3: an empty grid at the end of the wrapper, no cell divs',
-    (await html()).includes('        <div class="grid grid-cols-3 max-md:grid-cols-1 gap-gutter"></div>\n    </div>'));
+    (await html()).includes('        <div class="grid grid-cols-3 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>\n    </div>'));
   const cols = await page.evaluate(() => {
     const grid = document.querySelector('.hx-frame').contentDocument.querySelector('.grid-cols-3');
     return grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0;

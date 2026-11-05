@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY_CSS, fitRows, ownHeight, roomOf, rowsSpanned } from '../../../resources/js/build-mode/canvas-empty.js';
+import { EMPTY_CSS, fitRows, gridRoomOf, ownHeight, roomOf, rowsSpanned } from '../../../resources/js/build-mode/canvas-empty.js';
 
 test('the rows a cell spans, as the browser computes its grid-row', () => {
   assert.equal(rowsSpanned('span 2', 'span 2'), 2);
@@ -50,14 +50,17 @@ function scopeOf(cells) {
   return { ownerDocument: { defaultView: view }, matches: () => false, querySelectorAll: () => cells };
 }
 
-test('an empty grid of more rows than one gets a row\'s room for each, the gaps between included', () => {
+test('an empty grid gets a grid row\'s room for each row, one at the least, the gaps between included', () => {
   const grid = box({ display: 'grid', gridTemplateRows: '29px 29px', rowGap: '24px' });
-  const one = box({ display: 'grid', gridTemplateRows: 'none', rowGap: '24px' });
+  const one = box({ display: 'grid', gridTemplateRows: '64px', rowGap: '24px' });
+  const none = box({ display: 'grid', gridTemplateRows: 'none', rowGap: '24px' });
 
-  fitRows(scopeOf([grid, one]));
+  fitRows(scopeOf([grid, one, none]));
 
-  assert.equal(grid.style.getPropertyValue('--sve-build-room'), 'calc(2 * 4rem + 1 * 24px)');
-  assert.equal(one.style.getPropertyValue('--sve-build-room'), '', 'one row: the plain placeholder');
+  assert.equal(grid.style.getPropertyValue('--sve-build-room'), 'calc(2 * 6rem + 1 * 24px)');
+  assert.equal(one.style.getPropertyValue('--sve-build-room'), '6rem');
+  assert.equal(none.style.getPropertyValue('--sve-build-room'), '6rem', 'no rows of its own: one');
+  assert.equal(gridRoomOf(3, 'normal'), 'calc(3 * 6rem + 2 * 0px)');
 });
 
 test('a cell spanning rows keeps its room; one back to a row of its own loses it', () => {

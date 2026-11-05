@@ -18,9 +18,9 @@
  * own (`data-sve-chrome`).
  *
  * A grid's empty cell has one row's room for each row it spans: a cell of two
- * rows stands as high as two cells of one, the gap between them included. An
- * empty grid has the same room for each row it has (`grid-rows-2`): its cells
- * stand as high as an empty cell, not squeezed into one placeholder's height.
+ * rows stands as high as two cells of one, the gap between them included. A
+ * grid with nothing in it has a taller row's room for each row it has, one at
+ * the least — the placeholder's, so it is gone with the first child.
  */
 
 import { parseTracks } from '../cp/xray/measure.js';
@@ -29,6 +29,8 @@ import { holdsElements } from './catalog.js';
 
 /** An empty box's height: one row of an empty grid. */
 const ROW = '4rem';
+/** A row of a grid with nothing in it yet: more room than an empty box, to drop into. Gone with its first child. */
+const GRID_ROW = '6rem';
 /** On a box found empty here, so the next look starts from the page again. */
 const FOUND = 'data-sve-build-found';
 /** An empty grid cell's room when it spans more than one row. */
@@ -64,6 +66,14 @@ export function roomOf(rows, gap) {
 /** A box's height without the gaps between the grid rows it spans (`gap` the computed `row-gap`): 0 for a cell folded to nothing. */
 export function ownHeight(height, rows = 1, gap = '') {
   return height - Math.max(0, rows - 1) * (Number.parseFloat(gap) || 0);
+}
+
+/** The room of a grid with nothing in it: a grid row's for each of its rows, one at the least, the computed `row-gap` between. */
+export function gridRoomOf(rows, gap) {
+  const n = Math.max(1, rows);
+  const between = /^\d/.test(String(gap ?? '')) ? gap : '0px';
+
+  return n > 1 ? `calc(${n} * ${GRID_ROW} + ${n - 1} * ${between})` : GRID_ROW;
 }
 
 /** The rows an empty grid has of its own, from its computed `grid-template-rows`: 0 when it is no grid or has none. */
@@ -137,10 +147,10 @@ export function fitRows(scope) {
   const cells = [...(scope.matches(`[${CANVAS_EMPTY}]`) ? [scope] : []), ...scope.querySelectorAll(`[${CANVAS_EMPTY}]`)];
   const rooms = cells.map((el) => {
     const own = view.getComputedStyle(el);
-    const rows = ownRows(own);
 
-    if (rows > 1) {
-      return roomOf(rows, own.rowGap);
+    // A grid with nothing in it: a grid row's room for each row. The placeholder goes with its first child.
+    if (/grid$/.test(own.display)) {
+      return gridRoomOf(ownRows(own), own.rowGap);
     }
 
     const grid = el.parentElement && view.getComputedStyle(el.parentElement);

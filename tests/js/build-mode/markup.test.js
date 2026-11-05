@@ -47,18 +47,18 @@ test('elements that hold text start with a word to see and click', () => {
   assert.equal(markupFor(tile('heading'), { text: { heading: 'A <b> & c' } }), '<h2>A &lt;b&gt; &amp; c</h2>');
 });
 
-test('a grid comes empty: its columns stacked at the narrowest size, the site\'s gutter between', () => {
-  assert.equal(columnsMarkup('3', 'max-md'), '<div class="grid grid-cols-3 max-md:grid-cols-1 gap-gutter"></div>');
-  assert.equal(columnsMarkup('1', 'max-md'), '<div class="grid grid-cols-1 gap-gutter"></div>');
-  assert.equal(columnsMarkup('21', 'max-sm'), '<div class="grid grid-cols-[2fr_1fr] max-sm:grid-cols-1 gap-gutter"></div>');
-  assert.equal(write('grid', { preset: '4', mobile: 'max-md' }), '<div class="grid grid-cols-4 max-md:grid-cols-1 gap-gutter"></div>');
+test('a grid comes empty with one row at the least: its columns stacked at the narrowest size, the site\'s gutter between', () => {
+  assert.equal(columnsMarkup('3', 'max-md'), '<div class="grid grid-cols-3 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>');
+  assert.equal(columnsMarkup('1', 'max-md'), '<div class="grid grid-cols-1 grid-rows-1 gap-gutter"></div>');
+  assert.equal(columnsMarkup('21', 'max-sm'), '<div class="grid grid-cols-[2fr_1fr] grid-rows-1 max-sm:grid-cols-1 gap-gutter"></div>');
+  assert.equal(write('grid', { preset: '4', mobile: 'max-md' }), '<div class="grid grid-cols-4 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>');
   assert.ok(!write('grid', { preset: '6', mobile: 'max-md' }).includes('<div></div>'), 'no cell divs');
 });
 
 test('a grid\'s rows are its class, back to one at the narrowest size; any preset Style has, the same classes', () => {
   assert.equal(columnsMarkup('2x2', 'max-md'), '<div class="grid grid-cols-2 grid-rows-2 max-md:grid-cols-1 max-md:grid-rows-1 gap-gutter"></div>');
   assert.equal(columnsMarkup('3x3', ''), '<div class="grid grid-cols-3 grid-rows-3 gap-gutter"></div>');
-  assert.equal(columnsMarkup('121', 'max-md'), '<div class="grid grid-cols-[1fr_2fr_1fr] max-md:grid-cols-1 gap-gutter"></div>');
-  assert.equal(write('grid', {}), '<div class="grid grid-cols-2 max-md:grid-cols-1 gap-gutter"></div>', 'no preset: two columns');
+  assert.equal(columnsMarkup('121', 'max-md'), '<div class="grid grid-cols-[1fr_2fr_1fr] grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>');
+  assert.equal(write('grid', {}), '<div class="grid grid-cols-2 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>', 'no preset: two columns, one row');
   assert.equal(columnsMarkup('nope', 'max-md'), columnsMarkup('2', 'max-md'));
 });

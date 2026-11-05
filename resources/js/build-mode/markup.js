@@ -115,14 +115,15 @@ function toolMarkup(entry, def, opts, text) {
 }
 
 /**
- * A grid and nothing in it: its columns and rows (a GRID_PRESETS key), both
- * back to one at the narrowest size, the site's gutter between. What goes in
- * it is picked after — the canvas and the HTML tree show it as room to fill.
+ * A grid and nothing in it: its columns and rows (a GRID_PRESETS key) — one
+ * row at the least, written, as Style's R + writes it — both back to one at
+ * the narrowest size, the site's gutter between. What goes in it is picked
+ * after: the canvas shows its cells as room to fill (canvas-empty.js).
  */
 export function columnsMarkup(key, mobile = 'max-md') {
   const preset = GRID_PRESETS.find((p) => p.key === key) || GRID_PRESETS[1];
-  const rows = preset.rows > 1 ? ` grid-rows-${preset.rows}` : '';
-  const stack = mobile ? `${preset.parts.length > 1 ? ` ${mobile}:grid-cols-1` : ''}${rows ? ` ${mobile}:grid-rows-1` : ''}` : '';
+  const rows = Math.max(1, preset.rows);
+  const stack = mobile ? `${preset.parts.length > 1 ? ` ${mobile}:grid-cols-1` : ''}${rows > 1 ? ` ${mobile}:grid-rows-1` : ''}` : '';
 
-  return `<div class="grid ${preset.cls}${rows}${stack} ${GRID_GAP}"></div>`;
+  return `<div class="grid ${preset.cls} grid-rows-${rows}${stack} ${GRID_GAP}"></div>`;
 }
