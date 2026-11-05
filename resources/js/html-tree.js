@@ -2021,6 +2021,14 @@ export function renderHtmlTree(win) {
 
       return null;
     };
+    const figma = htmlTreeUi.look === 'tags' && !htmlTreeUi.layers;
+    // The row drawn: exactly what it shows (HtmlTreeRow) — the Figma look's Heading, Text, or its name.
+    const drawn = htmlTreeUi.rows.find((row) => row.path === path && !row.kind);
+
+    if (drawn) {
+      return figma && drawn.display ? drawn.display : drawn.name;
+    }
+
     const node = walk(roots);
 
     if (!node) {
@@ -2029,8 +2037,10 @@ export function renderHtmlTree(win) {
 
     const isRoot = node.id === rootId;
     const base = isRoot && rootName ? rootName : node.klass;
+    const name = isRoot && openSection ? base : htmlTreeDisplayName(base, node.path, aliases);
 
-    return isRoot && openSection ? base : htmlTreeDisplayName(base, node.path, aliases);
+    // Folded away in the Figma look: a plain row there wears Build's own word, which the panel gives itself.
+    return figma && !isRoot && name === node.klass ? '' : name;
   };
 
   const held = heldVideos(win, String(ask('dock:current-type') || ''));

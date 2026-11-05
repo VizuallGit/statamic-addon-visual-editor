@@ -84,7 +84,7 @@ import { dataGet, findPathByUid } from '../lib/values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
-import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR } from '../lib/build-canvas-ids.js';
+import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR, BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
 import { CANVAS_CLOAK, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { EMPTY_CSS, findEmpties, fitRows } from './canvas-empty.js';
@@ -111,6 +111,17 @@ const morph = (() => {
 })();
 
 const FRAME_ID = BUILD_CANVAS_ID;
+
+/**
+ * The grid builder's layer (columns-overlay.js) is drawn inside the canvas, so
+ * it scrolls with the page: its tabs, corners, pills and +s are its own, and
+ * the canvas neither picks, grabs, hovers nor stops a click on them.
+ */
+function inGridLayer(event) {
+  const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+
+  return !!target?.closest?.(`#${BUILD_COLUMNS_LAYER_ID}`);
+}
 /** On the real preview's iframe while the canvas stands over it. */
 const HIDDEN_ATTR = 'data-sve-build-hidden';
 /** On the canvas until its stylesheets have loaded: until then the real preview is what shows. */
@@ -464,7 +475,7 @@ export function startCanvas(win) {
     page.addEventListener('submit', (event) => event.preventDefault(), true);
     page.addEventListener('mouseover', onHover);
     page.addEventListener('pointerdown', (event) => {
-      if (!edit.holds(event.target)) {
+      if (!edit.holds(event.target) && !inGridLayer(event)) {
         ui.grab(event);
       }
     }, true);
@@ -1251,6 +1262,10 @@ export function startCanvas(win) {
   }
 
   function onHover(event) {
+    if (inGridLayer(event)) {
+      return;
+    }
+
     bar.hover(event.target);
 
     // On a + or the section's toolbar, the element it belongs to stays hovered.
@@ -1280,6 +1295,10 @@ export function startCanvas(win) {
   }
 
   function onClick(event) {
+    if (inGridLayer(event)) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 

@@ -170,7 +170,8 @@ export function mountBuildPanel(win, host, hooks = {}) {
 
   resized?.observe(page.frame());
   // The grids drawn over the canvas, and the builder on the pick's (columns-overlay.js).
-  const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false } : {});
+  // Drawn inside the canvas (`inside`): it scrolls with the page, with nothing to catch up on.
+  const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false, inside: true } : {});
 
   return () => {
     page?.frame()?.contentWindow?.removeEventListener(CANVAS_PAINTED, countPaint);

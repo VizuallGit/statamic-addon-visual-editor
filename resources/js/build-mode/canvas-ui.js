@@ -57,11 +57,11 @@ const SLOP = 25;
 const EDGE = 14;
 
 /** The layer's looks, in the canvas's own sheet (canvas.js). */
-export const UI_CSS = `#${UI_ID}{position:fixed;inset:0;margin:0;padding:0;border:0;pointer-events:none;z-index:2147483647}
-#${UI_ID} [${ADD}]{all:unset;position:fixed;pointer-events:auto;box-sizing:border-box;width:1.5rem;height:1.5rem;margin:-.75rem 0 0 -.75rem;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#3858e9;color:#fff;cursor:pointer;box-shadow:0 .0625rem .1875rem rgba(0,0,0,.3)}
+export const UI_CSS = `#${UI_ID}{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;margin:0;padding:0;border:0;pointer-events:none;z-index:2147483647}
+#${UI_ID} [${ADD}]{all:unset;position:absolute;pointer-events:auto;box-sizing:border-box;width:1.5rem;height:1.5rem;margin:-.75rem 0 0 -.75rem;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#3858e9;color:#fff;cursor:pointer;box-shadow:0 .0625rem .1875rem rgba(0,0,0,.3)}
 #${UI_ID} [${ADD}]:hover{background:#4a68ee}
 #${UI_ID}[${BUSY}] [${ADD}]{display:none}
-#${UI_ID} [${DROP}]{position:fixed;box-sizing:border-box;pointer-events:none}
+#${UI_ID} [${DROP}]{position:absolute;box-sizing:border-box;pointer-events:none}
 #${UI_ID} [${DROP}][hidden]{display:none}
 #${UI_ID} [${DROP}="before"],#${UI_ID} [${DROP}="after"]{height:.1875rem;margin-top:-.09375rem;border-radius:999px;background:#3858e9}
 #${UI_ID} [${DROP}="inside"]{outline:.125rem solid #3858e9;outline-offset:-.125rem;background:rgba(56,88,233,.08)}
@@ -177,8 +177,12 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       return;
     }
 
-    // Read everything first.
+    // Read everything first. In the page's own coordinates: the layer scrolls with the page, and a + on an
+    // element's edge stays on it with no script on the scroll. One held at the screen's bottom (a tall element) is
+    // the only one a scroll moves (canvas.js redraws on scroll for it).
     const view = { w: doc.documentElement.clientWidth, h: doc.defaultView.innerHeight };
+    const sx = doc.defaultView.scrollX;
+    const sy = doc.defaultView.scrollY;
     const spots = [];
 
     for (const { el, path, middle } of plusTargets(doc)) {
@@ -188,8 +192,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
         continue;
       }
 
-      const x = Math.round(r.left + r.width / 2);
-      const y = Math.round(middle ? r.top + r.height / 2 : Math.min(r.bottom, view.h - EDGE));
+      const x = Math.round(r.left + r.width / 2 + sx);
+      const y = Math.round((middle ? r.top + r.height / 2 : Math.min(r.bottom, view.h - EDGE)) + sy);
 
       spots.push({ path, x, y, key: `${path}|${x}|${y}` });
     }
@@ -245,12 +249,14 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
 
     const { where, rect } = over;
     const line = where !== 'inside';
+    const sx = doc.defaultView?.scrollX || 0;
+    const sy = doc.defaultView?.scrollY || 0;
 
     box.setAttribute(DROP, where);
     box.hidden = false;
     Object.assign(box.style, {
-      left: `${rect.left}px`,
-      top: `${where === 'after' ? rect.bottom : rect.top}px`,
+      left: `${rect.left + sx}px`,
+      top: `${(where === 'after' ? rect.bottom : rect.top) + sy}px`,
       width: `${rect.width}px`,
       height: line ? '' : `${rect.height}px`,
     });

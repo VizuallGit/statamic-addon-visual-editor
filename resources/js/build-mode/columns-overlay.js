@@ -61,8 +61,41 @@ const CELL_CAP = 240;
 /** The least a cell is drawn: an empty row still has room for its +. */
 const MIN_CELL = 32;
 
-function ensureStyles(doc) {
-  injectStyle(
+/*
+ * Drawn inside the canvas (`inside`): the layer is a child of the canvas's
+ * <html>, after the body, in the page's own coordinates — it scrolls with the
+ * page by itself, with no script on the scroll, so nothing trails behind it.
+ * The canvas may be zoomed: what is held and read (tabs, pills, +s) is scaled
+ * back by --k so it keeps its size, and the lines keep their width.
+ */
+const INSIDE_CSS = `#${LAYER_ID}{position:absolute;inset:auto;left:0;top:0;width:0;height:0;overflow:visible;margin:0;padding:0;border:0}
+#${LAYER_ID} [data-k]{position:absolute}
+#${LAYER_ID} [data-k="cell"],#${LAYER_ID} [data-col]{border-width:calc(1px * var(--k,1))}
+#${LAYER_ID} [data-k="ghost"]{border-width:calc(2px * var(--k,1))}
+#${LAYER_ID} [data-k^="pill"]{transform-origin:0 0;scale:var(--k,1)}
+#${LAYER_ID} [data-k="pill-cols"]{transform-origin:100% 0}
+#${LAYER_ID} [data-grid-grip]{transform-origin:0 0;scale:var(--k,1)}
+#${LAYER_ID} [data-grid-corner]{transform-origin:100% 100%;scale:var(--k,1)}
+#${LAYER_ID} [data-k="add"] button,#${LAYER_ID} [data-col] > button{scale:var(--k,1)}
+#${LAYER_ID} [data-k="ghost"] span{transform-origin:0 0;scale:var(--k,1)}`;
+
+/** A style of the layer's on the canvas's <html>, not its <head>: the head is the page's, and is drawn again with it. */
+function ownStyle(doc, id, css) {
+  let el = doc.getElementById(id);
+
+  if (!el) {
+    el = doc.createElement('style');
+    el.id = id;
+    doc.documentElement.appendChild(el);
+  }
+
+  if (el.textContent !== css) {
+    el.textContent = css;
+  }
+}
+
+function ensureStyles(doc, inside = false) {
+  (inside ? ownStyle : injectStyle)(
     doc,
     STYLE_ID,
     // Above the canvas, so above Statamic's stacks too, which stand on z-index 2: gone while one is open.
@@ -80,11 +113,11 @@ function ensureStyles(doc) {
 #${LAYER_ID} [data-k="add"] button:hover{opacity:1}
 #${LAYER_ID} [data-col][data-picked]{box-shadow:inset 0 0 0 1px #3858e9}
 #${LAYER_ID} [data-grid-grip],#${LAYER_ID} [data-grid-corner]{position:absolute;pointer-events:auto;box-sizing:border-box;touch-action:none;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-#${LAYER_ID} [data-grid-grip]{left:.25rem;top:.25rem;display:inline-flex;align-items:center;gap:.25rem;height:1.375rem;padding:0 .5rem 0 .25rem;border-radius:999px;background:#fff;border:1px solid #3858e9;color:#3858e9;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;cursor:grab}
-#${LAYER_ID} [data-grid-grip]:hover{background:#eef1fd}
+#${LAYER_ID} [data-grid-grip]{left:.25rem;top:.25rem;display:inline-flex;align-items:center;gap:.25rem;height:1.375rem;padding:0 .5rem 0 .25rem;border-radius:999px;background:#3858e9;border:1px solid #3858e9;color:#fff;font:600 .6875rem/1 system-ui,sans-serif;white-space:nowrap;cursor:grab}
+#${LAYER_ID} [data-grid-grip]:hover{background:#4a68ee;border-color:#4a68ee}
 #${LAYER_ID} [data-grid-grip] svg{width:.875rem;height:.875rem;flex:none}
 #${LAYER_ID} [data-grid-grip] i{font-style:normal;font-weight:500;opacity:.75}
-#${LAYER_ID} [data-col][data-picked] [data-grid-grip]{background:#3858e9;color:#fff}
+#${LAYER_ID} [data-col][data-picked] [data-grid-grip]{box-shadow:0 0 0 .125rem #fff,0 1px 3px rgba(0,0,0,.3)}
 #${LAYER_ID} [data-grid-corner]{right:.25rem;bottom:.25rem;width:1.125rem;height:1.125rem;border-radius:.3rem;background:#3858e9;cursor:nwse-resize}
 #${LAYER_ID} [data-grid-corner]:hover{background:#4a68ee}
 #${LAYER_ID} [data-grid-corner]::after{content:"";position:absolute;right:.25rem;bottom:.25rem;width:.45rem;height:.45rem;box-sizing:border-box;border-right:.125rem solid #fff;border-bottom:.125rem solid #fff;border-bottom-right-radius:.1rem}
@@ -99,6 +132,10 @@ function ensureStyles(doc) {
 #${LAYER_ID} [data-k="ghost"]{border:2px solid #3858e9;background:rgba(56,88,233,.16);border-radius:2px}
 #${LAYER_ID} [data-k="ghost"] span{position:absolute;left:.25rem;top:.25rem;padding:.125rem .375rem;border-radius:.25rem;background:#3858e9;color:#fff;font:600 .625rem/1.3 system-ui,sans-serif;white-space:nowrap}`
   );
+
+  if (inside) {
+    ownStyle(doc, `${STYLE_ID}-inside`, INSIDE_CSS);
+  }
 }
 
 /** Exactly `n` children of a kind in `wrap`, made by `make` and kept while the count holds — a drag's grip with them. */
@@ -142,9 +179,11 @@ function box(el, left, top, width, height) {
 export function startColumnsOverlay(
   win,
   port,
-  { frame: frameOf = () => previewFrame(win), attr = HT_PATH_ATTR, updated = 'statamic:preview-updated', plus: withPlus = true } = {}
+  { frame: frameOf = () => previewFrame(win), attr = HT_PATH_ATTR, updated = 'statamic:preview-updated', plus: withPlus = true, inside = false } = {}
 ) {
   const doc = win.document;
+  /** The document the layer is drawn in: the canvas's own (`inside`), else the Control Panel's over the frame. */
+  const host = () => (inside ? frameOf()?.contentDocument || null : doc);
   // `{ el, path, wrap, faint, columns }` — `columns` the file's Columns (place.js) for a picked one.
   let grids = [];
   let observer = null;
@@ -153,7 +192,7 @@ export function startColumnsOverlay(
   let drag = null;
   let findAfterDrag = false;
 
-  const layer = () => doc.getElementById(LAYER_ID);
+  const layer = () => host()?.getElementById(LAYER_ID) || null;
   const active = () => grids.find((grid) => !grid.faint) || null;
   const t = (key, replace) => port.t?.(key, replace) ?? key;
 
@@ -175,7 +214,27 @@ export function startColumnsOverlay(
     const at = frame.getBoundingClientRect();
     const scale = frame.clientWidth ? at.width / frame.clientWidth : 1;
 
-    return { at, scale, x: (x) => at.left + x * scale, y: (y) => at.top + y * scale };
+    if (inside) {
+      // The page's own coordinates: a box read on screen in the frame, plus how far the page is scrolled.
+      const page = frame.contentWindow;
+      const root = frame.contentDocument?.documentElement;
+      const sx = page?.scrollX || 0;
+      const sy = page?.scrollY || 0;
+      const k = scale ? 1 / scale : 1;
+
+      return {
+        at: { left: 0, top: 0, right: root?.scrollWidth || 0, bottom: root?.scrollHeight || 0 },
+        scale: 1,
+        k,
+        min: MIN_CELL * k,
+        x: (x) => x + sx,
+        y: (y) => y + sy,
+        // Where a pointer read in the frame stands, as the boxes are measured.
+        fromEvent: (event) => ({ x: event.clientX, y: event.clientY }),
+      };
+    }
+
+    return { at, scale, k: 1, min: MIN_CELL, x: (x) => at.left + x * scale, y: (y) => at.top + y * scale, fromEvent: (event) => ({ x: (event.clientX - at.left) / scale, y: (event.clientY - at.top) / scale }) };
   };
 
   const sizeLabel = () => {
@@ -195,7 +254,7 @@ export function startColumnsOverlay(
 
     // A grid with no tracks to read (none resolved yet): its box, so it still shows.
     if (!count) {
-      box(pool(grid.wrap, 'cell', 1, () => doc.createElement('div'))[0], v.x(m.box.x), v.y(m.box.y), m.box.w * v.scale, Math.max(m.box.h * v.scale, MIN_CELL));
+      box(pool(grid.wrap, 'cell', 1, () => doc.createElement('div'))[0], v.x(m.box.x), v.y(m.box.y), m.box.w * v.scale, Math.max(m.box.h * v.scale, v.min));
     }
   };
 
@@ -207,7 +266,7 @@ export function startColumnsOverlay(
     const r0 = rows[Math.min(row[0], rows.length - 1)];
     const r1 = rows[Math.min(row[1], rows.length - 1)];
 
-    return [v.x(m.box.x + c0.start), v.y(m.box.y + r0.start), (c1.end - c0.start) * v.scale, Math.max((r1.end - r0.start) * v.scale, MIN_CELL)];
+    return [v.x(m.box.x + c0.start), v.y(m.box.y + r0.start), (c1.end - c0.start) * v.scale, Math.max((r1.end - r0.start) * v.scale, v.min)];
   };
 
   const pill = (wrap, n, make) => pool(wrap, `pill-${n}`, 1, make)[0];
@@ -275,7 +334,7 @@ export function startColumnsOverlay(
     placeCells(grid, m, v);
 
     const top = v.y(m.box.y);
-    const bottom = top + Math.max(m.box.h * v.scale, MIN_CELL);
+    const bottom = top + Math.max(m.box.h * v.scale, v.min);
     const right = v.x(m.box.x + m.box.w);
     const left = v.x(m.box.x);
     // Each pill outside its edge when the frame has room there, else just inside.
@@ -288,11 +347,15 @@ export function startColumnsOverlay(
     pillButtons(cols, 'cols', counts.cols, least.cols);
     pillButtons(rows, 'rows', counts.rows, least.rows);
 
-    const colsH = cols.offsetHeight || 24;
-    const colsTop = top - colsH - 6 >= v.at.top + 2 ? top - colsH - 6 : top + 4;
-    const rowsTop = bottom + 6 + (rows.offsetHeight || 24) <= v.at.bottom - 2 ? bottom + 6 : bottom - (rows.offsetHeight || 24) - 4;
+    // Sizes as they show: a pill scaled back on a zoomed canvas is `k` of its own box.
+    const k = v.k;
+    const colsH = (cols.offsetHeight || 24) * k;
+    const rowsH = (rows.offsetHeight || 24) * k;
+    const colsTop = top - colsH - 6 * k >= v.at.top + 2 * k ? top - colsH - 6 * k : top + 4 * k;
+    const rowsTop = bottom + 6 * k + rowsH <= v.at.bottom - 2 * k ? bottom + 6 * k : bottom - rowsH - 4 * k;
 
-    cols.style.left = `${Math.max(v.at.left + 2, right - (cols.offsetWidth || 160))}px`;
+    // The columns pill is scaled from its right edge, so its own box ends where the grid does.
+    cols.style.left = `${Math.max(v.at.left + 2 * k, right - (cols.offsetWidth || 160) * (inside ? 1 : k))}px`;
     cols.style.top = `${colsTop}px`;
     rows.style.left = `${left}px`;
     rows.style.top = `${rowsTop}px`;
@@ -401,8 +464,12 @@ export function startColumnsOverlay(
       return;
     }
 
-    // Nothing drawn past the frame's edges: a grid scrolled half out is cut where the page is.
-    wrap.style.clipPath = `inset(${v.at.top}px ${win.innerWidth - v.at.right}px ${win.innerHeight - v.at.bottom}px ${v.at.left}px)`;
+    if (inside) {
+      wrap.style.setProperty('--k', String(v.k));
+    } else {
+      // Nothing drawn past the frame's edges: a grid scrolled half out is cut where the page is.
+      wrap.style.clipPath = `inset(${v.at.top}px ${win.innerWidth - v.at.right}px ${win.innerHeight - v.at.bottom}px ${v.at.left}px)`;
+    }
 
     for (const grid of grids) {
       if (!grid.el.isConnected) {
@@ -459,17 +526,32 @@ export function startColumnsOverlay(
 
     event.preventDefault();
     event.stopPropagation();
-    drag = { kind, path, from: { col: item.col, row: item.row }, down: { x: event.clientX, y: event.clientY }, moved: false, target: null };
+    drag = { kind, path, from: { col: item.col, row: item.row }, down: { x: event.clientX, y: event.clientY }, moved: false, target: null, on: inside ? frameWin || win : win };
 
     // A sheet over the frame while the handle is held: the frame under the pointer would take its moves.
+    // Inside the canvas the handle holds the pointer itself (its moves are the page's), and the sheet keeps the cursor.
     const shield = doc.createElement('div');
 
     shield.dataset.k = 'shield';
     shield.dataset.kind = kind;
     layer()?.appendChild(shield);
-    win.addEventListener('pointermove', onMove, true);
-    win.addEventListener('pointerup', onUp, true);
-    win.addEventListener('pointercancel', endDrag, true);
+
+    if (inside) {
+      const page = frameOf()?.contentWindow;
+
+      box(shield, page?.scrollX || 0, page?.scrollY || 0, page?.innerWidth || 0, page?.innerHeight || 0);
+
+      try {
+        event.target.setPointerCapture?.(event.pointerId);
+      } catch {
+        /* a pointer already let go */
+      }
+    }
+
+    drag.on.addEventListener('pointermove', onMove, true);
+    drag.on.addEventListener('pointerup', onUp, true);
+    drag.on.addEventListener('pointercancel', endDrag, true);
+    drag.on.addEventListener('keydown', onKey, true);
     win.addEventListener('keydown', onKey, true);
   }
 
@@ -488,8 +570,9 @@ export function startColumnsOverlay(
     drag.moved = true;
 
     const m = measureGrid(grid.el, attr);
-    const fx = (event.clientX - v.at.left) / v.scale - m.box.x;
-    const fy = (event.clientY - v.at.top) / v.scale - m.box.y;
+    const point = v.fromEvent(event);
+    const fx = point.x - m.box.x;
+    const fy = point.y - m.box.y;
     const { col, row } = drag.from;
     const rows = m.rows.length ? m.rows : [{ start: 0, end: m.box.h }];
 
@@ -555,12 +638,21 @@ export function startColumnsOverlay(
   }
 
   function endDrag() {
+    const on = drag?.on;
+
     drag = null;
     layer()?.querySelector(':scope > [data-k="shield"]')?.remove();
-    win.removeEventListener('pointermove', onMove, true);
-    win.removeEventListener('pointerup', onUp, true);
-    win.removeEventListener('pointercancel', endDrag, true);
-    win.removeEventListener('keydown', onKey, true);
+
+    for (const target of new Set([on, win].filter(Boolean))) {
+      try {
+        target.removeEventListener('pointermove', onMove, true);
+        target.removeEventListener('pointerup', onUp, true);
+        target.removeEventListener('pointercancel', endDrag, true);
+        target.removeEventListener('keydown', onKey, true);
+      } catch {
+        /* the canvas's window is gone with its document */
+      }
+    }
     schedule();
 
     if (findAfterDrag) {
@@ -588,7 +680,11 @@ export function startColumnsOverlay(
     frameWin = next;
 
     try {
-      frameWin?.addEventListener('scroll', schedule, true);
+      // Inside the canvas the layer scrolls with the page: nothing to do on a scroll.
+      if (!inside) {
+        frameWin?.addEventListener('scroll', schedule, true);
+      }
+
       frameWin?.addEventListener(updated, find);
     } catch {
       frameWin = null;
@@ -626,12 +722,13 @@ export function startColumnsOverlay(
       return;
     }
 
-    ensureStyles(doc);
+    ensureStyles(inside ? inner : doc, inside);
 
     const wrap = doc.createElement('div');
 
     wrap.id = LAYER_ID;
-    doc.body.appendChild(wrap);
+    // Inside: after the canvas's body, where a repaint of the body never meets it (as canvas-ui.js's layer).
+    (inside ? inner.documentElement : doc.body).appendChild(wrap);
     observer = new win.ResizeObserver(schedule);
 
     grids = (pick && !all.includes(pick) ? [pick, ...all] : all).map((el) => {
