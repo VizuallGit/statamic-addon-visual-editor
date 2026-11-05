@@ -100,6 +100,7 @@ import { htmlTreeUi } from '../cp/html-tree/store.js';
 import { isEmptyMedia, mediaPlaceholderCss } from '../lib/media-placeholder.js';
 import { PLAYING_ATTR, STILL_ATTR } from '../lib/anim-still.js';
 import { holdCanvas } from '../animation-mode.js';
+import { scrollBehavior } from '../scroll-pref.js';
 
 const morph = (() => {
   const holder = {};
@@ -1164,7 +1165,11 @@ export function startCanvas(win) {
     focus.refresh();
   }
 
-  /** The section the dock opened, brought into view when it is off screen. */
+  /**
+   * The section the dock opened, brought into view when it is off screen.
+   * The behaviour is always named: left to `auto`, a site's own
+   * `scroll-behavior: smooth` glided the canvas even with «Smooth scrolling» off.
+   */
   function showRoot() {
     const root = cdoc()?.querySelector(`[${CANVAS_ROOT}]`);
 
@@ -1176,8 +1181,53 @@ export function startCanvas(win) {
     const height = frame.contentWindow.innerHeight;
 
     if (box.bottom < 0 || box.top > height) {
-      root.scrollIntoView({ block: 'start' });
+      root.scrollIntoView({ block: 'start', behavior: scrollBehavior(win) });
     }
+  }
+
+  /**
+   * A row in the HTML tree was clicked: what it names comes into view now, in
+   * the click's own frame — not when the dock has loaded the section, which
+   * is up to a second later and never for a second section of the same kind
+   * (one file, nothing loads). A jump, or a glide with «Smooth scrolling» on.
+   *
+   * A section's top goes to the top of the canvas, found by any of its ids —
+   * so of two sections of one kind it is the one clicked — or, for the open
+   * section's own row, by its path. An element moves only when it is not
+   * wholly on screen, and then to the top as well. False when the canvas has
+   * nothing for it.
+   */
+  function revealFromTree({ ids = [], path = '', section = false } = {}) {
+    const page = cdoc();
+
+    if (!page || !frame) {
+      return false;
+    }
+
+    let el = path ? page.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`) : null;
+
+    if (!el && ids.length) {
+      const sid = sidElement(page, ids[0], ids);
+
+      // The shell (`id="id-…"`) can sit around the element that carries the
+      // set's `data-sid`; its top is where the section starts.
+      el = sid ? sid.closest('[id^="id-"]') || sid : null;
+      section = true;
+    }
+
+    if (!el) {
+      return false;
+    }
+
+    const box = el.getBoundingClientRect();
+
+    if (!section && box.top >= 0 && box.bottom <= frame.contentWindow.innerHeight) {
+      return true;
+    }
+
+    el.scrollIntoView({ block: 'start', behavior: scrollBehavior(win) });
+
+    return true;
   }
 
   function setHover(el) {
@@ -1317,6 +1367,8 @@ export function startCanvas(win) {
     },
     /** A tile from Add pressed: dragged onto the canvas (canvas-ui.js). */
     dragNew: (event, item) => ui.dragNew(event, item),
+    /** A row clicked in the HTML tree: its section or element into view now. */
+    revealFromTree,
     /** The element at `path`, as the canvas draws it. */
     elementAt: (path) => cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`) || null,
     /**

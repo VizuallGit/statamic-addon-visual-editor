@@ -74,7 +74,7 @@
  */
 
 import { ref, watch } from 'vue';
-import { ask, on } from '../cp/bus.js';
+import { ask, on, register } from '../cp/bus.js';
 import { mountSurface } from '../cp/mount.js';
 import { buildModeUi } from '../cp/build-mode/store.js';
 import { t as sveT } from '../lib/i18n.js';
@@ -222,6 +222,10 @@ function createViewPort(hooks) {
 }
 
 let canvas = null;
+
+// The HTML tree's row click (html-tree.js): what the row names into view on the
+// canvas now. False without a canvas — in Content the real preview answers.
+register('build:reveal', (target) => canvas?.revealFromTree(target) === true);
 
 /** The canvas, started once for a Build and stopped when Live Preview goes back to Content. */
 function buildCanvas(win) {

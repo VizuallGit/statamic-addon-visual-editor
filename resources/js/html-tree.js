@@ -1368,6 +1368,12 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   closeHtmlTreeMenu();
   endHtmlTreeDrag();
 
+  // In Build the page on screen is the canvas: the section's top goes to its
+  // top in this frame, before the tree draws again — and it is this section,
+  // not another of its kind. In Content there is no canvas (false) and the
+  // real preview answers SVE_ACTIVATE below.
+  ask('build:reveal', { ids: section.ids });
+
   // The click answers now, not when the file lands: the row that was clicked
   // takes the mark and the box this instant, and unfolds into its tags a moment
   // later. A click that shows nothing until a fetch returns is the jump.
@@ -1848,6 +1854,13 @@ export function renderHtmlTree(win) {
     const opens = !!at && row?.kind === 'antlers' && !htmlTreeSuppressClick && helpOn(win);
 
     selectHtmlTreeRow(win, id, rows);
+
+    // The row's own click (`at`), not a pick that came from the canvas — that
+    // element is under the pointer already. The open section's root row is the
+    // section: its top to the top; any other element only when off screen.
+    if (at && row && !htmlTreeSuppressClick && !htmlTreeAheadOfDock()) {
+      ask('build:reveal', { path: row.path, section: !!row.sectionRoot });
+    }
 
     if (opens) {
       openLogicPopup(win, { path: row.path, at, beside: htmlTreePanel(win.document) });
