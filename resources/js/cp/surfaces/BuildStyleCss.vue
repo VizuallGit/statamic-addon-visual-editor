@@ -2,7 +2,9 @@
 /**
  * Style writing CSS: BuildStyle as it is, under a port of its own
  * (css-mode/port.js), with what is being edited above it: a class of the
- * element or its one ID, made here if it has none.
+ * element or its one ID, made here if it has none — or Data: the element under
+ * one of the data attributes on it or around it (Content's), picked in a list,
+ * the selector it writes shown under it.
  *
  * The fields stand as they do in Tailwind. A click with nothing to write in
  * writes nothing: the name field takes the caret. A new ID is unique per section
@@ -61,13 +63,17 @@ function onFieldsOff(event) {
 watch(blocked, applyBlocked, { flush: 'post' });
 
 const isId = computed(() => target.kind.value === 'id');
+const isData = computed(() => target.kind.value === 'data');
+const conditions = computed(() => (isData.value ? target.dataConditions() : []));
+/** `data-position = right`, and the element it stands on when it is not this one: `· section`. */
+const optionLabel = (cond) => (cond.on ? `${cond.label}  ·  ${cond.on}` : cond.label);
 const typed = ref('');
 const nameField = ref(null);
 const pulse = ref(false);
 const id = computed(() => target.id());
 const info = computed(() => target.idInfo());
 const renaming = ref(false);
-const canType = computed(() => target.usable() && (!isId.value || (!id.value && !target.isRoot())));
+const canType = computed(() => target.usable() && !isData.value && (!isId.value || (!id.value && !target.isRoot())));
 
 function submit() {
   if ((isId.value ? target.addId(typed.value) : target.addClass(typed.value))) {
@@ -127,13 +133,22 @@ onBeforeUnmount(() => {
       <div data-sve-style-bar>
         <BuildStyleSwitch />
         <div class="fg-seg" data-sve-css-target-kinds role="group" :aria-label="port.t('css_mode_target')">
-          <button type="button" :aria-pressed="!isId" data-sve-css-target-kind="class" @click="target.choose('class')">{{ port.t('css_mode_class') }}</button>
+          <button type="button" :aria-pressed="!isId && !isData" data-sve-css-target-kind="class" @click="target.choose('class')">{{ port.t('css_mode_class') }}</button>
           <button type="button" :aria-pressed="isId" data-sve-css-target-kind="id" @click="target.choose('id')">ID</button>
+          <button type="button" :aria-pressed="isData" data-sve-css-target-kind="data" :title="port.t('css_mode_data_note')" @click="target.choose('data')">{{ port.t('css_mode_data') }}</button>
         </div>
       </div>
 
       <div data-sve-css-target>
-        <div v-if="!isId && target.classes().length" data-sve-css-target-names>
+        <div v-if="isData && conditions.length" data-sve-css-data>
+          <label class="fg-field">
+            <select class="fg-select" :aria-label="port.t('css_mode_data')" :value="target.dataOpen()" data-sve-css-data-select @change="target.openData($event.target.value)">
+              <option v-for="cond in conditions" :key="cond.id" :value="cond.id">{{ optionLabel(cond) }}</option>
+            </select>
+          </label>
+          <code v-if="target.selector.value" class="fg-hint" data-sve-css-data-selector>{{ target.selector.value }}</code>
+        </div>
+        <div v-if="!isId && !isData && target.classes().length" data-sve-css-target-names>
           <button
             v-for="name in target.classes()"
             :key="name"

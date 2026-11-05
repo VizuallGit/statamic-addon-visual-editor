@@ -18,8 +18,12 @@
  * scale, the sizes and the value an element shows are the real port's. A state
  * (`:hover`) is the rule's own, and reads as Tailwind's `hover:` does to a field.
  *
- * What is edited is one selector: a `[ name ]` class of the element, or its one
- * ID. With neither, a click writes nothing and the panel asks for a name. An ID
+ * What is edited is one selector: a `[ name ]` class of the element, its one
+ * ID, or the element under one of its data attributes' values (Data): the
+ * section's `#id-{{ id }}`, then the attribute — on the element itself
+ * `#id-{{ id }} [data-image="left"]`, on one around it
+ * `#id-{{ id }}[data-position="right"] .name` with the element's own class or ID.
+ * With none, a click writes nothing and the panel asks for a name. An ID
  * is the section's own (`id-{{ id }}`), one made unique per section
  * (`name-{{ id }}`) or one of the author's (`name`). On the first two, whose
  * rule is this one section's alone, a style can take its value from a field. The
@@ -42,6 +46,7 @@ import { parseTemplateTree } from '../../html-tree-parse.js';
 import { loadFamilies } from '../../tw-families.js';
 import { splitClass, splitUtility } from '../../tw-parse.js';
 import { readAttribute, withAttribute } from '../attrs.js';
+import { dataStates } from '../../lib/data-states.js';
 import { BUILD_CANVAS_SHOWN_EVENT } from '../../lib/build-canvas-ids.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 import { fieldLookup } from '../canvas-paint.js';
@@ -118,7 +123,9 @@ function createCssPort(win, port) {
 
   function readKind() {
     try {
-      return win.localStorage.getItem(KIND_KEY) === 'id' ? 'id' : 'class';
+      const stored = win.localStorage.getItem(KIND_KEY);
+
+      return stored === 'id' || stored === 'data' ? stored : 'class';
     } catch {
       return 'class';
     }
@@ -241,8 +248,106 @@ function createCssPort(win, port) {
     return names.includes(kept) ? kept : names[0] || '';
   }
 
+  /* ---------------- Data: the element under a data attribute's value ---------------- */
+
+  /** The data model of the picked element's place: a field's options are the values its attribute can take. */
+  const dataModel = ref(null);
+  /** The Data condition picked per element, by path. */
+  const chosenData = ref(new Map());
+
+  watch(
+    () => [kind.value, port.selectedPath()],
+    ([now]) => {
+      const at = now === 'data' ? picked() : null;
+
+      dataModel.value = null;
+
+      if (at) {
+        Promise.resolve(ask('dock:data-model', { at: at.node.from }))
+          .then((model) => {
+            dataModel.value = model || null;
+          })
+          .catch(() => {});
+      }
+    },
+    { immediate: true }
+  );
+
+  /** The data attributes on the element and around it, each value one can take (lib/data-states.js). */
+  function dataConditions() {
+    const at = picked();
+
+    return at ? dataStates(at.html, at.node.from, dataModel.value) : [];
+  }
+
+  function dataOpen() {
+    const list = dataConditions();
+    const kept = chosenData.value.get(port.selectedPath());
+
+    return list.find((cond) => cond.id === kept) || list[0] || null;
+  }
+
+  /** The file's outermost element, and its ID as written when it is the section's own (`id-{{ id }}`). */
+  function sectionRoot() {
+    const at = picked();
+    const roots = at ? parseTemplateTree(at.html) : [];
+    const root = at ? findByPath(roots, at.path.split('/')[0]) : null;
+    const id = root && !root.kind ? readAttribute(at.html, root, 'id') || '' : '';
+
+    return root && SECTION_ID.test(id) ? { node: root, id } : null;
+  }
+
+  /** The element's own name, for a condition around it: its ID, else its open class. */
+  function ownName() {
+    const id = idOf();
+
+    if (id && idInfo()?.kind !== 'loop') {
+      return `#${id}`;
+    }
+
+    const name = classOpen();
+
+    return name ? `.${name}` : '';
+  }
+
+  /** Why Data cannot write now, as a language key; '' when it can. */
+  function dataBlocked() {
+    const cond = dataOpen();
+
+    if (!cond) {
+      return 'css_mode_data_none';
+    }
+
+    if (!sectionRoot()) {
+      return 'css_mode_data_need_section_id';
+    }
+
+    return cond.own || ownName() ? '' : 'css_mode_data_need_name';
+  }
+
+  function dataSelector() {
+    const cond = dataOpen();
+    const root = sectionRoot();
+
+    if (!cond || !root || dataBlocked()) {
+      return '';
+    }
+
+    const attr = cond.value === null ? `[data-${cond.key}]` : `[data-${cond.key}="${cond.value}"]`;
+    const on = cond.from === root.node.from ? `#${root.id}${attr}` : `#${root.id} ${attr}`;
+
+    return cond.own ? on : `${on} ${ownName()}`;
+  }
+
   const selector = computed(() => {
     rev.value;
+
+    if (kind.value === 'data') {
+      dataModel.value;
+      chosenData.value;
+
+      return dataSelector();
+    }
 
     if (kind.value === 'id') {
       const id = idOf();
@@ -851,7 +956,7 @@ function createCssPort(win, port) {
     asked,
     selector,
     choose(next) {
-      kind.value = next === 'id' ? 'id' : 'class';
+      kind.value = next === 'id' || next === 'data' ? next : 'class';
       notice.value = '';
 
       try {
@@ -902,12 +1007,46 @@ function createCssPort(win, port) {
     /** How a new ID is made: unique per section, or a name of the author's. */
     idMode,
     canBeDynamic: () => (rev.value, canBeDynamic()),
+    /** Data: the conditions on offer — `{ id, label, on, own }` — and the one open. */
+    dataConditions: () => {
+      rev.value;
+      dataModel.value;
+
+      return dataConditions().map((cond) => ({
+        id: cond.id,
+        label: cond.value === null ? `data-${cond.key}` : `data-${cond.key} = ${cond.value}`,
+        on: cond.own ? '' : cond.tag,
+        own: cond.own,
+      }));
+    },
+    dataOpen: () => {
+      rev.value;
+      dataModel.value;
+      chosenData.value;
+
+      return dataOpen()?.id || '';
+    },
+    openData(id) {
+      const next = new Map(chosenData.value);
+
+      next.set(port.selectedPath(), id);
+      chosenData.value = next;
+      notice.value = '';
+      own.value += 1;
+    },
     /** Why nothing can be written on the picked element right now, as a language key; '' when it can. */
     blocked: () => {
       rev.value;
 
       if (!picked()) {
         return 'css_mode_not_element';
+      }
+
+      if (kind.value === 'data') {
+        dataModel.value;
+        chosenData.value;
+
+        return dataBlocked();
       }
 
       if (kind.value === 'id') {
