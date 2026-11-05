@@ -425,6 +425,26 @@ export function presetToSave(anim, preset) {
   return { kind, vars, timing };
 }
 
+/**
+ * Whether «Update preset» has anything to say: the element's look — and for
+ * children and words their timing — no longer what its preset holds. Value
+ * by value, `.5rem` the same as `0.5rem`.
+ */
+export function presetDiffers(anim, preset) {
+  if (!anim || !preset) {
+    return false;
+  }
+
+  const now = presetToSave(anim, preset);
+  const same = (a, b) => {
+    const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+
+    return [...keys].every((key) => key in (a || {}) && key in (b || {}) && sameValue(a[key], b[key]));
+  };
+
+  return !same(now.vars, preset.vars) || (stepped(anim.target) && !same(now.timing, preset.timing));
+}
+
 /** The animation on a preset saved from it: the look is the preset's now, its other own values stay. */
 export function onPreset(anim, handle) {
   const vars = Object.fromEntries(Object.entries(anim.vars || {}).filter(([name]) => !LOOK.includes(name)));

@@ -98,7 +98,7 @@ import { canvasFields, fieldDomId } from './canvas-fields.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
 import { isEmptyMedia, mediaPlaceholderCss } from '../lib/media-placeholder.js';
-import { STILL_ATTR } from '../lib/anim-still.js';
+import { PLAYING_ATTR, STILL_ATTR } from '../lib/anim-still.js';
 import { holdCanvas } from '../animation-mode.js';
 
 const morph = (() => {
@@ -356,12 +356,18 @@ export function startCanvas(win) {
     paint: () => redraw(),
     find: (path) => cdoc()?.querySelector(`[${CANVAS_PATH}="${CSS.escape(path)}"]`) || null,
   });
-  // Every morph of the canvas steps round the element being typed in.
+  // Every morph of the canvas steps round the element being typed in, and
+  // lets an animation the Animation tab is playing (lib/anim-still.js) play
+  // on: the server's version arriving mid-play would take its mark and stop it.
   const morphing = {
     key: bySid,
     updating(from, to, childrenOnly, skip) {
       if (from === edit.editing()) {
         skip();
+      }
+
+      if (from.nodeType === 1 && to.nodeType === 1 && from.hasAttribute(PLAYING_ATTR)) {
+        to.setAttribute(PLAYING_ATTR, '');
       }
     },
   };

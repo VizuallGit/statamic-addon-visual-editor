@@ -18,6 +18,7 @@ import {
   newAnimation,
   onPreset,
   pickPreset,
+  presetDiffers,
   presetLook,
   presetName,
   presetOf,
@@ -457,6 +458,22 @@ test('a recipe\'s tile writes its values as the element\'s own — no data-anim-
   assert.equal(recipePreset({ ...tight, vars: { '--anim-stack-gap': '.5rem' } }, PRESETS)?.handle, 'stack-tight', '.5rem is 0.5rem, the top the runtime\'s own');
   assert.equal(recipePreset(pickPreset(null, presetOf(PRESETS, 'mouse-away')), PRESETS)?.handle, 'mouse-away');
   assert.equal(recipePreset(anim(), PRESETS), null, 'a timed kind links instead');
+});
+
+test('«Update preset» is offered once the element\'s look — and for children and words their timing — is no longer its preset\'s', () => {
+  const cascade = { handle: 'my-cascade', kind: 'children', vars: { '--anim-opacity': '0', '--anim-y': '1rem' }, timing: { duration: 600, step: 80 } };
+  const fresh = pickPreset(null, cascade);
+
+  assert.equal(presetDiffers(fresh, cascade), false, 'just picked: nothing to update');
+  assert.equal(presetDiffers(withEffect(fresh, cascade, 'y', 2), cascade), true);
+  assert.equal(presetDiffers({ ...fresh, step: 90 }, cascade), true);
+  assert.equal(presetDiffers({ ...fresh, vars: { '--anim-y': '1.0rem' } }, cascade), false, '1.0rem is 1rem');
+  assert.equal(presetDiffers(fresh, null), false);
+
+  const rise = { handle: 'my-rise', kind: 'self', vars: { '--anim-opacity': '0', '--anim-y': '2rem' } };
+
+  assert.equal(presetDiffers({ ...pickPreset(null, rise), duration: 900 }, rise), false, 'an element in keeps its timing on the element');
+  assert.equal(presetDiffers(withVar(pickPreset(null, rise), rise, '--anim-ease', 'linear'), rise), true, 'the curve is the look');
 });
 
 test('«Save as preset» keeps what the kind\'s preset holds: the look, a stack\'s top and offset, the timing of children, words and a ticker', () => {

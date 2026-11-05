@@ -7,9 +7,11 @@
  * button opens the curve beside the editor.
  *
  * The library is the seven kinds; a kind opens its gallery of presets in the
- * library's place (BuildAnimationGallery.vue), and a tile puts the element on
- * it and opens the editor (pickPreset). The editor's Preset line opens the
- * same gallery beside the editor.
+ * library's place (BuildAnimationGallery.vue): a tile puts the element on it
+ * (pickPreset), marks it, and plays it once on the page; the chip opens the
+ * editor. «Create preset» opens the editor with a name to give. The editor's
+ * Preset line opens the same gallery beside the editor. The addon's presets
+ * never change; one of the site's own takes «Update preset».
  *
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
@@ -63,6 +65,7 @@ import {
   onPreset,
   ownValues,
   pickPreset,
+  presetDiffers,
   presetOf,
   presetRules,
   presetsFor,
@@ -93,10 +96,12 @@ import {
   withoutOverrideKey,
   withTemplateFlip,
 } from '../../build-mode/animation-override.js';
-import { ownPresets, savePreset } from '../../build-mode/animation-presets.js';
+import { ownPresets, savePreset, updatePreset } from '../../build-mode/animation-presets.js';
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
+import { htmlTreeDisplayName, readHtmlTreeLabels } from '../../html-tree-labels.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
+import { ask } from '../bus.js';
 import { besideSpot, overSpot } from '../../lib/beside.js';
 import { playAlone } from '../../lib/anim-still.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
@@ -248,7 +253,21 @@ const chipSub = computed(() => (plays.value ? label(preset.value) || anim.value.
 
 /** ▶ shows something only where the motion runs in time: not on hover, while scrolling, on a stack or toward the mouse. */
 const playable = computed(() => (plays.value ? !['hover', 'scroll'].includes(anim.value.on) : anim.value?.target === 'ticker'));
+/**
+ * The editor's tag: the name the HTML tree gives the element, when it was
+ * given one (html-tree-labels.js, per template), else its tag and first
+ * class. Read again each time the editor opens: a rename in the tree is no
+ * change of the file.
+ */
 const tagName = computed(() => {
+  open.value;
+
+  const named = htmlTreeDisplayName('', path.value, readHtmlTreeLabels(ask('dock:current-type') || ''));
+
+  if (named) {
+    return named;
+  }
+
   const first = String(props.node.classes || '').split(/\s+/).find((name) => /^[a-z_-]/i.test(name) && !name.includes('{'));
 
   return first ? `${props.node.tag}.${first}` : props.node.tag;
@@ -343,22 +362,42 @@ const currentPreset = computed(() => {
   return plays.value ? now.preset : recipePreset(now, presets.value)?.handle || '';
 });
 
-/** A tile in the tab: the element takes the kind and the preset (in the template, where the kind lives), and the editor opens. */
-function useTile(p) {
-  write(pickPreset(anim.value, p));
-  open.value = true;
+/**
+ * A tile in the tab: the element takes the kind and the preset (in the
+ * template, where the kind lives) and plays it once on the page — the
+ * canvas's paint plays what changed (watch(port.painted)); the tile it is
+ * already on plays again. The chip opens the editor.
+ */
+function useTile(p, event) {
+  const now = port.html();
+  const next = withAnimation(now, path.value, pickPreset(anim.value, p));
+
+  if (next === now) {
+    play(event);
+  } else {
+    port.write(next, { select: path.value });
+  }
 }
 
 /** A tile beside the editor: the kind stays; the preset and its values go where the editor writes, the template or this section. */
 const usePreset = (p) => writeLook(pickPreset(base.value, p));
 
-/* «Save as preset»: the name typed in the editor's foot, then the element on the new preset. */
+/* «Save as preset» and «Create preset»: the name typed in the editor's foot, then the element on the new preset. */
 const naming = ref(false);
+/** The name is asked for by «Create preset», not «Save as preset»: the foot says so. */
+const creating = ref(false);
 const newName = ref('');
 const saving = ref(false);
 const nameInput = ref(null);
 const toSave = computed(() => (base.value ? presetToSave(base.value, basePreset.value) : null));
 const SAVE_NOTES = { children: 'anim_save_note_timed', words: 'anim_save_note_timed', ticker: 'anim_save_note_ticker', stack: 'anim_save_note_stack', parallax: 'anim_save_note_moves', mouse: 'anim_save_note_moves' };
+
+function askName(create) {
+  creating.value = create;
+  newName.value = '';
+  naming.value = true;
+  nextTick(() => nameInput.value?.focus());
+}
 
 function startNaming() {
   if (!Object.keys(toSave.value.vars).length && !Object.keys(toSave.value.timing).length) {
@@ -367,9 +406,51 @@ function startNaming() {
     return;
   }
 
-  newName.value = '';
-  naming.value = true;
-  nextTick(() => nameInput.value?.focus());
+  askName(false);
+}
+
+/**
+ * «Create preset» in a kind's gallery: the element on that kind — as it is,
+ * or from the kind's first preset — and the editor open with the name to
+ * give the new one; the values are changed there before Save.
+ */
+function createPreset(kind) {
+  if (anim.value?.target !== kind) {
+    write(pickPreset(anim.value, presetsFor(kind, PRESETS, [])[0]));
+  }
+
+  galleryOpen.value = false;
+  open.value = true;
+  askName(true);
+}
+
+/* «Update preset»: one of the site's own presets takes what the element now does; every element on it follows. The addon's own stay as they are. */
+const ownLinked = computed(() => (plays.value ? own.value.find((p) => p.handle === base.value?.preset) || null : null));
+const canUpdate = computed(() => !!ownLinked.value && presetDiffers(base.value, ownLinked.value));
+
+async function updateLook() {
+  const p = ownLinked.value;
+
+  if (!p || saving.value) {
+    return;
+  }
+
+  saving.value = true;
+
+  const { vars, timing } = presetToSave(base.value, p);
+  const done = await updatePreset(p.handle, { vars, timing });
+
+  saving.value = false;
+
+  if (!done) {
+    port.toast('error', 'anim_update_failed');
+
+    return;
+  }
+
+  // The look is the preset's now: the element's own copy of it goes.
+  writeLook(onPreset(base.value, p.handle));
+  port.toast('success', 'anim_updated');
 }
 
 async function saveLook() {
@@ -790,6 +871,7 @@ watch(open, (now) => {
     galleryOpen.value = false;
     addMenu.value = false;
     naming.value = false;
+    creating.value = false;
   }
 });
 
@@ -1012,7 +1094,7 @@ const Num = defineComponent({
     </section>
 
     <section class="bm-anim-block" data-sve-build-anim-library>
-      <BuildAnimationGallery v-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" />
+      <BuildAnimationGallery v-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" />
       <template v-else>
         <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
         <div class="bm-anim-lib">
@@ -1069,13 +1151,13 @@ const Num = defineComponent({
             <div
               :key="take"
               class="bm-anim-stage__set"
-              :data-anim="anim.target === 'words' ? 'children' : anim.target"
+              :class="`is-${anim.target}`"
+              :data-anim="anim.target === 'self' ? 'self' : 'children'"
               :data-anim-preset="shown.preset || null"
               :style="stageStyle"
             >
-              <i v-for="n in 4" :key="n"></i>
+              <i v-for="n in anim.target === 'self' ? 1 : 3" :key="n"></i>
             </div>
-            <span class="bm-anim-stage__note">{{ t('anim_stage_note') }}</span>
           </div>
           <p v-if="reduced" class="bm-anim-reduced" data-sve-build-anim-reduced>{{ t('anim_reduced_note') }}</p>
 
@@ -1280,7 +1362,7 @@ const Num = defineComponent({
           </section>
 
           <section v-if="naming" class="bm-anim-block bm-anim-naming" data-sve-build-anim-naming>
-            <div class="bm-anim-head"><span>{{ t('anim_save_preset') }}</span></div>
+            <div class="bm-anim-head"><span>{{ t(creating ? 'anim_create_preset' : 'anim_save_preset') }}</span></div>
             <p class="bm-anim-hint">{{ t(SAVE_NOTES[anim.target] || 'anim_save_note') }}</p>
             <input
               ref="nameInput"
@@ -1300,7 +1382,10 @@ const Num = defineComponent({
           </section>
           <section v-else class="bm-anim-block bm-anim-foot">
             <button v-if="playable" type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
-            <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{ t('anim_save_preset') }}</button>
+            <span class="bm-anim-foot__end">
+              <button v-if="canUpdate" type="button" class="bm-anim-btn" :disabled="saving" data-sve-build-anim-update @click="updateLook">{{ t('anim_update_preset') }}</button>
+              <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{ t('anim_save_preset') }}</button>
+            </span>
           </section>
         </div>
       </div>
@@ -1320,7 +1405,7 @@ const Num = defineComponent({
         </header>
         <div class="bm-anim-pop__body">
           <section class="bm-anim-block is-first">
-            <BuildAnimationGallery :kind="anim.target" :current="currentPreset" @pick="usePreset" />
+            <BuildAnimationGallery :kind="anim.target" :current="currentPreset" @pick="usePreset" @create="createPreset(anim.target)" />
           </section>
         </div>
       </div>
@@ -1493,11 +1578,18 @@ const Num = defineComponent({
 .sve-build .bm-anim-pop__x:hover { color: var(--bm-ink); }
 .sve-build .bm-anim-pop__body { min-height: 0; overflow: auto; }
 
-/* Stage: the page's own runtime.css on four bars */
+/* Stage: the page's own runtime.css on the kind's shape */
 .sve-build .bm-anim-stage { position: relative; display: flex; align-items: center; justify-content: center; height: 8rem; background: var(--bm-bg); overflow: hidden; }
-.sve-build .bm-anim-stage__set { display: flex; flex-direction: column; gap: 0.3125rem; }
-.sve-build .bm-anim-stage__set > i { display: block; width: 8.75rem; height: 1.25rem; border-radius: 0.3125rem; background: color-mix(in srgb, var(--bm-accent) 50%, transparent); border: 1px solid color-mix(in srgb, var(--bm-accent) 90%, transparent); }
-.sve-build .bm-anim-stage__note { position: absolute; right: 0.5rem; bottom: 0.375rem; color: var(--bm-faint); font-size: 0.625rem; }
+.sve-build .bm-anim-stage__set { display: flex; flex-direction: column; gap: 0.5rem; }
+.sve-build .bm-anim-stage__set > i { display: block; border-radius: 0.3125rem; background: color-mix(in srgb, var(--bm-accent) 50%, transparent); border: 1px solid color-mix(in srgb, var(--bm-accent) 90%, transparent); }
+/* The gallery's shapes (BuildAnimationGallery.vue), twice their size: one box for an element, three bars for children, three words for words */
+.sve-build .bm-anim-stage__set.is-self > i { width: 7rem; height: 3.5rem; }
+.sve-build .bm-anim-stage__set.is-children > i { width: 7.5rem; height: 1.25rem; }
+.sve-build .bm-anim-stage__set.is-words { flex-direction: row; }
+.sve-build .bm-anim-stage__set.is-words > i { height: 1.5rem; border-radius: 0.25rem; }
+.sve-build .bm-anim-stage__set.is-words > i:nth-child(1) { width: 2.75rem; }
+.sve-build .bm-anim-stage__set.is-words > i:nth-child(2) { width: 3.75rem; }
+.sve-build .bm-anim-stage__set.is-words > i:nth-child(3) { width: 2.25rem; }
 .sve-build .bm-anim-reduced { margin: 0; padding: 0.4375rem 0.75rem; border-top: 1px solid var(--bm-line); background: color-mix(in srgb, var(--bm-accent) 8%, transparent); color: var(--bm-faint); font-size: 0.6875rem; line-height: 1.4; }
 
 /* Line, Box, Select, Num, Seg, Switch */
@@ -1565,6 +1657,7 @@ const Num = defineComponent({
 .sve-build .bm-anim-strip__hint { color: var(--bm-faint); font-size: 0.625rem; text-align: center; }
 .sve-build .bm-anim-note { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
 .sve-build .bm-anim-foot { flex-direction: row; justify-content: space-between; }
+.sve-build .bm-anim-foot__end { display: flex; gap: 0.375rem; margin-left: auto; }
 .sve-build .bm-anim-foot:not(:has(> *)) { display: none; }
 .sve-build .bm-anim-naming .bm-anim-foot { display: flex; justify-content: flex-end; gap: 0.375rem; }
 .sve-build .bm-anim-name { height: 1.625rem; padding: 0 0.5rem; border: 0; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font: inherit; }

@@ -138,6 +138,12 @@ class AnimationPresetsTest extends TestCase
             ->assertJsonPath('preset.handle', 'my-soft')
             ->assertJsonPath('preset.kind', 'children')
             ->assertJsonPath('preset.timing', ['step' => 90]);
+        $this->postJson('/!/sve/animation-presets', ['handle' => 'my-soft', 'vars' => ['--anim-y' => '3rem'], 'timing' => ['step' => 70]])
+            ->assertOk()
+            ->assertJsonPath('preset.vars', ['--anim-y' => '3rem'])
+            ->assertJsonPath('preset.timing', ['step' => 70])
+            ->assertJsonPath('presets.0.kind', 'children');
+        $this->postJson('/!/sve/animation-presets', ['handle' => 'fade-up', 'vars' => ['--anim-y' => '3rem']])->assertNotFound();
         $this->getJson('/!/sve/animation-presets/usage?handle=my-soft')->assertOk()->assertExactJson(['used' => 0]);
         $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertOk()->assertExactJson(['presets' => []]);
         $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertNotFound();
@@ -194,6 +200,30 @@ class AnimationPresetsTest extends TestCase
         $this->assertSame(['handle' => 'my-slow', 'kind' => 'ticker', 'label_da' => 'Slow', 'label_en' => 'Slow', 'vars' => [], 'timing' => ['duration' => 40000]], $ticker);
         $this->assertSame(['--anim-stack-top' => '6rem', '--anim-stack-gap' => '2rem'], $stack['vars']);
         $this->assertSame(['my-slow', 'my-airy'], array_column(AnimationPresets::all(), 'handle'), 'a timing alone is a preset, read back too');
+    }
+
+    public function test_update_gives_an_own_preset_a_new_look_and_timing_and_keeps_its_name_and_kind(): void
+    {
+        AnimationPresets::save('Cascade', ['--anim-y' => '1rem'], 'children', ['duration' => 600, 'step' => 80]);
+
+        $updated = AnimationPresets::update('my-cascade', ['--anim-y' => '2rem', '--anim-x' => '1rem; }'], ['step' => 90]);
+
+        $this->assertSame(['handle' => 'my-cascade', 'kind' => 'children', 'label_da' => 'Cascade', 'label_en' => 'Cascade', 'vars' => ['--anim-y' => '2rem'], 'timing' => ['step' => 90]], $updated);
+        $this->assertSame([$updated], AnimationPresets::all());
+        $this->assertStringContainsString('[data-anim-preset="my-cascade"] { --anim-preset-y: 2rem; }', SveAnimation::css());
+    }
+
+    public function test_the_addons_presets_are_not_the_sites_to_update(): void
+    {
+        AnimationPresets::save('Cascade', ['--anim-y' => '1rem'], 'children');
+
+        $this->assertNull(AnimationPresets::update('fade-up', ['--anim-y' => '9rem']));
+        $this->assertNull(AnimationPresets::update('my-nothing', ['--anim-y' => '9rem']));
+        $this->assertStringContainsString('[data-anim-preset="fade-up"] { --anim-preset-opacity: 0; --anim-preset-y: 2rem; }', SveAnimation::css());
+
+        $this->expectException(InvalidArgumentException::class);
+
+        AnimationPresets::update('my-cascade', ['--anim-duration' => '2s']);
     }
 
     public function test_a_recipes_own_preset_is_written_onto_the_element_and_has_no_rule(): void

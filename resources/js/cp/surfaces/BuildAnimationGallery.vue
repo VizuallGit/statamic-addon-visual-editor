@@ -15,8 +15,10 @@
  * a stack shows its offset, the mouse's follows the pointer by its strength.
  * Reduce motion is not asked: like the stage, a tile shows the motion as set.
  *
- * A click picks (`pick`): what it writes is BuildAnimation.vue's. The own
- * tiles' × asks how many templates still name the preset before Delete.
+ * A click picks (`pick`): what it writes, and how it plays it on the page, is
+ * BuildAnimation.vue's. Custom presets open with «Create preset» (`create`);
+ * the own tiles' × asks how many templates still name the preset before
+ * Delete.
  */
 import { computed, inject, ref } from 'vue';
 import PRESETS from '../../../animation/presets.json';
@@ -31,7 +33,7 @@ const props = defineProps({
   back: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['pick', 'back']);
+const emit = defineEmits(['pick', 'create', 'back']);
 
 const port = inject('sveBuild');
 const t = (key, params) => port.t(key, params);
@@ -43,6 +45,7 @@ const isTimed = computed(() => timed(props.kind));
 
 const PATHS = {
   back: '<path d="M15 6l-6 6 6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
 };
@@ -158,15 +161,20 @@ async function dropOwn(p) {
 
     <template v-for="[list, isOwn] in [[builtIn, false], [mine, true]]" :key="isOwn ? 'mine' : 'built-in'">
       <div v-if="isOwn" class="bm-anim-head"><span>{{ t('anim_mine') }}</span></div>
-      <p v-if="isOwn && !list.length" class="bm-anim-hint">{{ t('anim_mine_empty') }}</p>
-      <div v-if="list.length" class="bm-anim-gal__grid">
+      <div v-if="list.length || isOwn" class="bm-anim-gal__grid">
+        <div v-if="isOwn" class="bm-anim-gal__cell">
+          <button type="button" class="bm-anim-gal__tile is-create" data-sve-build-anim-create @click="emit('create')">
+            <span class="bm-anim-gal__stage" v-html="icon('plus')"></span>
+            <span class="bm-anim-gal__label">{{ t('anim_create_preset') }}</span>
+          </button>
+        </div>
         <div v-for="p in list" :key="p.handle" class="bm-anim-gal__cell">
           <button
             type="button"
             class="bm-anim-gal__tile"
             :aria-pressed="current === p.handle"
             :data-sve-build-anim-preset-tile="p.handle"
-            @click="emit('pick', p)"
+            @click="emit('pick', p, $event)"
             @pointerenter="play(p)"
             @pointerleave="stop(p)"
             @pointermove="follow($event, p)"
@@ -213,6 +221,7 @@ async function dropOwn(p) {
           </template>
         </div>
       </div>
+      <p v-if="isOwn && !list.length" class="bm-anim-hint">{{ t('anim_mine_empty') }}</p>
     </template>
   </div>
 </template>
@@ -292,7 +301,12 @@ async function dropOwn(p) {
   75% { translate: 0 calc(var(--bm-sy, 0.5rem) * -1); }
 }
 
-/* «Mine»: the × over the stage's corner, its question under the tile */
+/* «Create preset»: a dashed stage with a plus, first among the custom presets */
+.sve-build .bm-anim-gal__tile.is-create .bm-anim-gal__stage { border: 1px dashed color-mix(in srgb, var(--bm-accent) 55%, transparent); background: transparent; color: var(--bm-accent); }
+.sve-build .bm-anim-gal__tile.is-create .bm-anim-ic { width: 1.25rem; height: 1.25rem; }
+.sve-build .bm-anim-gal__tile.is-create .bm-anim-gal__label { color: var(--bm-ink); }
+
+/* Custom presets: the × over the stage's corner, its question under the tile */
 .sve-build .bm-anim-gal__drop { position: absolute; top: 0.375rem; right: 0.375rem; display: grid; place-items: center; width: 1.125rem; height: 1.125rem; border-radius: 0.25rem; background: color-mix(in srgb, var(--bm-bg) 70%, transparent); color: var(--bm-faint); opacity: 0; transition: opacity 0.12s; }
 .sve-build .bm-anim-gal__cell:hover .bm-anim-gal__drop, .sve-build .bm-anim-gal__drop:focus-visible { opacity: 1; }
 .sve-build .bm-anim-gal__drop:hover { color: var(--bm-ink); }

@@ -127,6 +127,39 @@ final class AnimationPresets
         return collect(static::all())->firstWhere('handle', $handle);
     }
 
+    /**
+     * «Update preset»: one of the site's own presets takes a new look and
+     * timing; its name and kind stay, and every element that links it
+     * follows. The addon's presets are not the site's to change: null.
+     *
+     * @param  array<mixed>  $vars
+     * @param  array<mixed>  $timing
+     * @return array{handle: string, kind: string, label_da: string, label_en: string, vars: array<string, string>, timing?: array<string, int>}|null
+     *
+     * @throws InvalidArgumentException values that cannot be saved
+     */
+    public static function update(string $handle, array $vars, array $timing = []): ?array
+    {
+        $presets = static::stored();
+        $at = array_search($handle, array_column($presets, 'handle'), true);
+
+        if ($at === false) {
+            return null;
+        }
+
+        $vars = static::vars($vars);
+        $timing = static::timing($timing);
+
+        if ($vars === [] && $timing === []) {
+            throw new InvalidArgumentException('An animation preset needs at least one value.');
+        }
+
+        $presets[$at] = [...$presets[$at], 'vars' => $vars, 'timing' => $timing];
+        static::write($presets);
+
+        return collect(static::all())->firstWhere('handle', $handle);
+    }
+
     public static function delete(string $handle): bool
     {
         $presets = static::stored();

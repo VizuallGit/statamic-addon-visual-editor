@@ -50,6 +50,20 @@ export async function savePreset(label, { kind, vars, timing }, win = window) {
   return data.preset;
 }
 
+/** «Update preset»: one of the site's own takes the element's look and timing → the preset, or null when the server said no. */
+export async function updatePreset(handle, { vars, timing }, win = window) {
+  const res = await post(win, '/!/sve/animation-presets', { handle, vars, timing }).catch(() => null);
+  const data = res?.ok ? await res.json() : null;
+
+  if (!data?.preset) {
+    return null;
+  }
+
+  ownPresets(win).value = data.presets;
+
+  return data.preset;
+}
+
 /** How many templates still name a preset → a number, or null when the server could not say. */
 export async function presetUsage(handle, win = window) {
   const res = await win
