@@ -306,7 +306,7 @@ function createHost(win) {
 
   /** What the overlay's history entry should say for `page`, or null to leave the URL as it is. */
   function historyUrl() {
-    return overlayHistoryUrl({ origin: win.location.origin, cpHost: isCpHost(win), page });
+    return overlayHistoryUrl({ origin: win.location.origin, cpHost: isCpHost(win), page, here: win.location.href });
   }
 
   /** The open overlay's entry names the page being edited. Same entry, never another. */
@@ -557,6 +557,12 @@ function createHost(win) {
       if (win.history.state?.sveEditing) {
         win.history.replaceState({ sveEditing: true }, '', url);
       } else {
+        // On a Control Panel host the page underneath loses the Live Preview
+        // ask too (its own state kept): closed, a refresh lands on it plain.
+        if (isCpHost(win)) {
+          win.history.replaceState(win.history.state, '', url);
+        }
+
         win.history.pushState({ sveEditing: true }, '', url);
       }
     } catch {

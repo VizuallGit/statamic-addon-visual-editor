@@ -54,17 +54,23 @@ function sameOriginUrl(href, origin) {
  * @param {{url?: string, permalink?: string|null}|null} args.page  what the
  *   editor sent with `lp-ready`: its own URL (the entry's edit screen) and the
  *   entry's public URL, or null when it has none
+ * @param {string} [args.here]   the host document's own URL right now
  * @returns {string|null}
  */
-export function overlayHistoryUrl({ origin, cpHost, page }) {
+export function overlayHistoryUrl({ origin, cpHost, page, here = '' }) {
+  // A Control Panel host keeps its own URL (see above) — always without the
+  // Live Preview ask. Landed on with `?live-preview=1` (the top bar's button,
+  // a link, an older refresh), `autoOpenLivePreview` takes the ask off, but
+  // Statamic's router writes the page's URL back with it a moment later:
+  // carried into the entry, a refresh reopened the editor. Measured on the
+  // demo, 5 Nov 2026.
+  if (cpHost) {
+    return here ? withoutEditorMark(here, origin) : null;
+  }
+
   const edit = sameOriginUrl(page?.url, origin);
 
   if (!edit) {
-    return null;
-  }
-
-  // A Control Panel host keeps its own URL (see above).
-  if (cpHost) {
     return null;
   }
 
