@@ -182,3 +182,35 @@ test('a new attribute with `end` goes after the last one — before a visual_edi
   assert.equal(withAttribute(html, first(html), 'role', 'note', { end: true }), '<section id="a" class="b" data-flag role="note" {{ visual_edit x="1" }}>x</section>');
   assert.equal(withAttribute('<div>x</div>', first('<div>x</div>'), 'data-x', '1', { end: true }), '<div data-x="1">x</div>');
 });
+
+test('auto contrast is Content\'s switch, not a Data row: on in any form, its hover sibling stays a row', () => {
+  const bare = '<section class="a" data-x="1" data-auto-contrast>x</section>';
+  const gray = '<a data-auto-contrast="gray" data-auto-contrast-hover>x</a>';
+  const none = '<div data-x="1">x</div>';
+
+  assert.deepEqual(contentAttributes(bare, first(bare)).data, [{ name: 'data-x', value: '1' }]);
+  assert.deepEqual(contentAttributes(bare, first(bare)).contrast, { on: true, conditional: false });
+  assert.deepEqual(contentAttributes(gray, first(gray)).contrast, { on: true, conditional: false });
+  assert.deepEqual(contentAttributes(gray, first(gray)).data, [{ name: 'data-auto-contrast-hover', value: '' }]);
+  assert.deepEqual(contentAttributes(none, first(none)).contrast, { on: false, conditional: false });
+});
+
+test('auto contrast inside the tag\'s own condition is the page\'s to decide', () => {
+  const html = '<section id="id-{{ id }}" class="a"{{ unless text_color }} data-auto-contrast{{ /unless }} {{ visual_edit outline_inside="true" }}>x</section>';
+  const after = '<section {{ if x }}data-a="1"{{ /if }} data-auto-contrast>x</section>';
+
+  assert.deepEqual(contentAttributes(html, first(html)).contrast, { on: true, conditional: true });
+  assert.deepEqual(contentAttributes(after, first(after)).contrast, { on: true, conditional: false });
+});
+
+test('true writes the attribute bare: added after the last one, a value dropped, a bare one left as it is', () => {
+  const html = '<section id="a" class="b" {{ visual_edit x="1" }}>x</section>';
+  const valued = '<section data-auto-contrast="gray" class="b">x</section>';
+  const bare = '<section class="b" data-auto-contrast>x</section>';
+
+  assert.equal(withAttribute(html, first(html), 'data-auto-contrast', true, { end: true }), '<section id="a" class="b" data-auto-contrast {{ visual_edit x="1" }}>x</section>');
+  assert.equal(withAttribute(valued, first(valued), 'data-auto-contrast', true, { end: true }), '<section data-auto-contrast class="b">x</section>');
+  assert.equal(withAttribute(bare, first(bare), 'data-auto-contrast', true, { end: true }), bare);
+  assert.equal(withAttribute(bare, first(bare), 'data-auto-contrast', null), '<section class="b">x</section>');
+  assert.equal(withAttribute(valued, first(valued), 'data-auto-contrast', null), '<section class="b">x</section>');
+});

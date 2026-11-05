@@ -76,6 +76,24 @@ export function buttonSample(ui) {
 }
 
 /**
+ * The Button tab's second sample: the same button as an outline, as the site's
+ * links block draws one (`ring-1 ring-inset`, no fill). It stands on the
+ * panel's dark grey, so its text and ring are the theme's lightest grey — the
+ * one auto contrast gives a dark surface — not the primary, which a dark
+ * primary would make unreadable there.
+ */
+export function outlineButtonSample(ui) {
+  const light = sampleColor('var(--gray-50)', ui.families) || '#fafafa';
+
+  return {
+    ...buttonSample(ui),
+    background: 'transparent',
+    color: light,
+    boxShadow: `inset 0 0 0 1px ${light}`,
+  };
+}
+
+/**
  * The Forms tab's text field and textarea, as the site's input rule draws them
  * (site.css: `color-mix()` for the background's opacity, the border from its
  * width and color). The fallbacks are site.css's own defaults.

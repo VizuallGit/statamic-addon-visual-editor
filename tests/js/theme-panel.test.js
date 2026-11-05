@@ -4,7 +4,7 @@ import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/the
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
 import { BORDERS, CHECK_SIZES, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
 import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from '../../resources/js/cp/theme-panel/highlights.js';
-import { checkSample, fieldSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
+import { buttonSample, checkSample, fieldSample, outlineButtonSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
 import { CONTAINER_WIDTHS, WIDTH_CLASSES, widthOf, widthRem } from '../../resources/js/lib/container-widths.js';
 
 const CSS = `@import "tailwindcss";
@@ -318,4 +318,21 @@ test('the sample field reads the tokens the way the site\'s input rule does', ()
   assert.equal(field.borderRadius, '0.5rem');
   assert.equal(field.border, '1px solid #d4d4d4');
   assert.deepEqual([checkSample(ui).accentColor, checkSample(ui).width], ['#9e571e', '1.4em']);
+});
+
+test('the outline button is the solid one with no fill, its text and ring the theme\'s gray-50', () => {
+  const ui = {
+    families: FAMILIES.map((f) => (f.name === 'gray' ? { ...f, steps: [{ name: '50', value: '#f7f7f8' }, ...f.steps] } : f)),
+    sizes: [{ name: 'size-sm', min: 15, max: 15 }],
+    type: { 'font-base': 'Inter, sans-serif', 'font-heading': 'Inter, sans-serif' },
+    button: { 'button-font': 'var(--font-base)', 'button-size': 'var(--size-sm)', 'button-weight': '700', 'button-radius': '0.25rem', 'button-transform': 'none' },
+  };
+  const solid = buttonSample(ui);
+  const outline = outlineButtonSample(ui);
+
+  assert.equal(solid.background, '#bc6f35');
+  assert.equal(outline.background, 'transparent');
+  assert.equal(outline.color, '#f7f7f8');
+  assert.equal(outline.boxShadow, 'inset 0 0 0 1px #f7f7f8');
+  assert.deepEqual([outline.fontSize, outline.fontWeight, outline.borderRadius], [solid.fontSize, solid.fontWeight, solid.borderRadius]);
 });

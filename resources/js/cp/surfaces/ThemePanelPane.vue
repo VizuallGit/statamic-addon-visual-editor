@@ -206,10 +206,7 @@ function addFor(key) {
     return null;
   }
 
-  if (key === 'colors') {
-    return { attr: 'color', label: ui.labels.colors_add, run: props.onAddColor };
-  }
-
+  // Colors has its "new" under the palette (ThemeColorsTab.vue), not on the header.
   if (key === 'spacing') {
     return { attr: 'size', label: ui.labels.spacing_add, run: props.onAddSize };
   }

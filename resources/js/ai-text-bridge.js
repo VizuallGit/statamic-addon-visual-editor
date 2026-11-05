@@ -11,6 +11,7 @@
 
 import { aiTextIcon } from './ai-text-icon.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { PART_TAGS, collapse, lines, partKind, wordsKey } from './lib/bard-parts.js';
 
 const MARK_ATTR = 'data-sve-ai-mark';
 const LAYER_ID = '__sve-ai-text-layer';
@@ -257,6 +258,39 @@ const NON_TEXT = new Set(['assets', 'iconify', 'iconamic', 'link', 'toggle', 'se
 /** Marks are kept against their element, so a repaint reuses instead of rebuilds. */
 const marksByElement = new WeakMap();
 
+/**
+ * A Bard field's own blocks on the page — its headings, paragraphs, lists and
+ * quotes. Each gets a mark of its own, so one can be rewritten while the rest
+ * keep their tags and styling (lib/bard-parts.js). A list with a list inside
+ * it is left out: its items are more than lines. None for a field that is not
+ * Bard, or whose words are not in blocks — those keep one mark for the field.
+ */
+function bardParts(field) {
+  if ((field.getAttribute('data-sid-fieldtype') || '').toLowerCase() !== 'bard') {
+    return [];
+  }
+
+  return [...field.children].filter(
+    (el) =>
+      PART_TAGS.has(el.tagName) &&
+      collapse(el.textContent) !== '' &&
+      !((el.tagName === 'UL' || el.tagName === 'OL') && el.querySelector('ul, ol'))
+  );
+}
+
+/** The pointer the Control Panel finds a part's node by: its tag, its words, and which of the parts that look the same it is. */
+function partPointer(field, el) {
+  const key = wordsKey(el.textContent);
+  const same = bardParts(field).filter((other) => other.tagName === el.tagName && wordsKey(other.textContent) === key);
+
+  return { tag: el.tagName.toLowerCase(), text: collapse(el.textContent), nth: Math.max(0, same.indexOf(el)) };
+}
+
+/** A list's items, one line each — the way the AI reads and writes them. */
+function listLines(el) {
+  return [...el.children].filter((item) => item.tagName === 'LI').map((item) => collapse(item.textContent));
+}
+
 function makeMark(doc, el) {
   const mark = doc.createElement('button');
 
@@ -273,7 +307,7 @@ function makeMark(doc, el) {
       e.stopPropagation();
     });
   });
-  mark.addEventListener('click', () => openPopover(el, mark));
+  mark.addEventListener('click', () => openPopover(el, mark, mark.__sveAiField || el));
 
   return mark;
 }
@@ -312,29 +346,35 @@ function paintMarks() {
   const placements = [];
   const live = new Set();
 
-  doc.querySelectorAll(TEXT_SELECTOR).forEach((el) => {
-    if (!el.getAttribute('data-sid-field')) {
+  doc.querySelectorAll(TEXT_SELECTOR).forEach((field) => {
+    if (!field.getAttribute('data-sid-field')) {
       return;
     }
 
-    if (NON_TEXT.has((el.getAttribute('data-sid-fieldtype') || '').toLowerCase())) {
+    if (NON_TEXT.has((field.getAttribute('data-sid-fieldtype') || '').toLowerCase())) {
       return;
     }
 
-    const rect = el.getBoundingClientRect();
+    // A Bard field's heading, paragraphs and lists are marked one by one; any
+    // other text is one mark for the field.
+    const parts = bardParts(field);
 
-    // Nothing to point at: a closed accordion, a hidden tab, an empty inline
-    // element. A mark there belongs to text the user cannot see or check.
-    if (rect.width <= 0 || rect.height <= 0) {
-      return;
+    for (const el of parts.length ? parts : [field]) {
+      const rect = el.getBoundingClientRect();
+
+      // Nothing to point at: a closed accordion, a hidden tab, an empty inline
+      // element. A mark there belongs to text the user cannot see or check.
+      if (rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
+
+      placements.push({ el, field, left: rect.left + scrollX - 8, top: rect.top + scrollY - 8 });
+      live.add(el);
     }
-
-    placements.push({ el, left: rect.left + scrollX - 8, top: rect.top + scrollY - 8 });
-    live.add(el);
   });
 
   // --- pass 2: write ---
-  for (const { el, left, top } of placements) {
+  for (const { el, field, left, top } of placements) {
     let mark = marksByElement.get(el);
 
     if (!mark || !mark.isConnected) {
@@ -344,6 +384,7 @@ function paintMarks() {
     }
 
     mark.__sveAiTarget = el;
+    mark.__sveAiField = field;
 
     // Only touch the style when it actually moved. A preview re-render usually
     // leaves most of the page where it was, and an unchanged write still costs
@@ -427,7 +468,12 @@ function closePopover() {
   session = null;
 }
 
-function openPopover(target, mark) {
+/**
+ * `target` is what the mark sits on: the field's element, or one part of a
+ * Bard field (a heading, a paragraph, a list) inside `field`. A part is
+ * written alone, and the Control Panel is told which by `part`.
+ */
+function openPopover(target, mark, field = target) {
   const { win } = ctx;
 
   if (session?.target === target) {
@@ -440,9 +486,10 @@ function openPopover(target, mark) {
 
   const doc = win.document;
   const el = doc.createElement('div');
-  const fieldtype = (target.getAttribute('data-sid-fieldtype') || '').toLowerCase();
-  const kind = kindOf(target, fieldtype);
-  const current = normalize(target.textContent || '');
+  const fieldtype = (field.getAttribute('data-sid-fieldtype') || '').toLowerCase();
+  const part = target !== field ? partPointer(field, target) : null;
+  const kind = part ? partKind(part.tag) : kindOf(target, fieldtype);
+  const current = kind === 'list' ? listLines(target).join('\n') : normalize(target.textContent || '');
 
   el.id = POPOVER_ID;
   el.style.cssText =
@@ -469,6 +516,8 @@ function openPopover(target, mark) {
 
   session = {
     target,
+    field,
+    part,
     mark,
     el,
     kind,
@@ -482,7 +531,8 @@ function openPopover(target, mark) {
     error: '',
     keywords: { page: [], site: [] },
     resolved: false,
-    original: null, // the target's markup, while a suggestion is previewed
+    original: null, // the shown element's markup, while a suggestion is previewed
+    shown: null, // the element a suggestion is previewed in
   };
 
   target.setAttribute('data-sve-ai-target', '');
@@ -495,13 +545,21 @@ function openPopover(target, mark) {
   post({
     type: 'ai-text-open',
     requestId: session.requestId,
-    field: target.getAttribute('data-sid-field'),
-    scope: target.getAttribute('data-sid-field-uid') || undefined,
-    fieldtype,
-    as: target.getAttribute('data-sid-as') || '',
+    ...fieldOf(session),
+    as: field.getAttribute('data-sid-as') || '',
     kind,
     text: current,
   });
+}
+
+/** What every message says about the field and, on a Bard field, the part. */
+function fieldOf(s) {
+  return {
+    field: s.field.getAttribute('data-sid-field'),
+    scope: s.field.getAttribute('data-sid-field-uid') || undefined,
+    fieldtype: s.fieldtype,
+    ...(s.part ? { part: s.part } : {}),
+  };
 }
 
 function kindOf(el, fieldtype) {
@@ -658,7 +716,16 @@ function render() {
   const title = doc.createElement('div');
 
   title.textContent = t('ai_text_title');
-  title.style.cssText = 'flex:1 1 auto;font-weight:600;font-size:0.8125rem;';
+  title.style.cssText = 'flex:1 1 auto;display:flex;align-items:center;gap:0.375rem;font-weight:600;font-size:0.8125rem;';
+
+  // Which part of a Bard field the suggestions are for: its tag, as the page has it.
+  if (session.part) {
+    const tag = doc.createElement('span');
+
+    tag.textContent = session.part.tag;
+    tag.style.cssText = `${CHIP_STYLE}font-family:ui-monospace,SFMono-Regular,Menlo,monospace;`;
+    title.appendChild(tag);
+  }
 
   const close = doc.createElement('button');
 
@@ -698,8 +765,10 @@ function render() {
   // The text as it stands, so short fields can be nudged rather than retyped.
   // A long paragraph is left out: it is on the page next to the popover, and
   // filling the box with it hides what the box is for.
+  // A list's lines would run together in a one-line box, so it is left out too.
   input.value =
-    session.instruction ?? (session.current.length <= PREFILL_MAX ? session.current : '');
+    session.instruction ??
+    (session.current.length <= PREFILL_MAX && !session.current.includes('\n') ? session.current : '');
   input.style.cssText =
     'box-sizing:border-box;width:100%;padding:0.4375rem 0.5rem;border:1px solid var(--sve-ai-border);' +
     'border-radius:4px;font:inherit;color:var(--sve-ai-fg);background:var(--sve-ai-field);';
@@ -989,7 +1058,8 @@ function showPreview(text) {
 
   restorePreview();
 
-  const target = session.target;
+  // A part is shown in its own element; the whole field in the field's.
+  const target = session.part ? session.target : session.field;
 
   // Swapping the text is our edit, not the page's. Without this the observer
   // treats it as a re-render and schedules a repaint for every hover.
@@ -997,9 +1067,12 @@ function showPreview(text) {
 
   try {
     session.original = target.innerHTML;
+    session.shown = target;
     target.setAttribute('data-sve-ai-preview', '');
 
-    if (session.kind === 'rich' && text.includes('\n')) {
+    if (session.part) {
+      paintPart(target, text);
+    } else if (session.kind === 'rich' && text.includes('\n')) {
       target.textContent = '';
 
       text
@@ -1025,6 +1098,45 @@ function showPreview(text) {
   scheduleReflow({ now: true });
 }
 
+/**
+ * One part's new words, in the part's own element: a list keeps its first
+ * item's shape (`<li><p>…</p></li>` as Bard draws it) for every line, a quote
+ * its paragraph, and text that sits in one wrapper all the way through — a
+ * paragraph that is one link — stays in it.
+ */
+function paintPart(el, text) {
+  const doc = ctx.win.document;
+
+  if (el.tagName === 'UL' || el.tagName === 'OL') {
+    const first = el.querySelector(':scope > li');
+    const inner = first?.firstElementChild?.tagName === 'P';
+
+    el.textContent = '';
+    lines(text).forEach((line) => {
+      const item = first ? first.cloneNode(false) : doc.createElement('li');
+      const holder = inner ? doc.createElement('p') : item;
+
+      holder.textContent = line;
+
+      if (inner) {
+        item.appendChild(holder);
+      }
+
+      el.appendChild(item);
+    });
+
+    return;
+  }
+
+  let holder = el;
+
+  while (holder.children.length === 1 && wordsKey(holder.children[0].textContent) === wordsKey(holder.textContent)) {
+    holder = holder.children[0];
+  }
+
+  holder.textContent = collapse(text);
+}
+
 function restorePreview() {
   if (!session || session.original === null) {
     return;
@@ -1033,13 +1145,14 @@ function restorePreview() {
   selfEdit = true;
 
   try {
-    session.target.innerHTML = session.original;
-    session.target.removeAttribute('data-sve-ai-preview');
+    session.shown.innerHTML = session.original;
+    session.shown.removeAttribute('data-sve-ai-preview');
   } finally {
     selfEdit = false;
   }
 
   session.original = null;
+  session.shown = null;
   scheduleReflow({ now: true });
 }
 
@@ -1052,9 +1165,7 @@ function apply(text) {
   post({
     type: 'ai-text-apply',
     requestId: session.requestId,
-    field: session.target.getAttribute('data-sid-field'),
-    scope: session.target.getAttribute('data-sid-field-uid') || undefined,
-    fieldtype: session.fieldtype,
+    ...fieldOf(session),
     kind: session.kind,
     text,
   });
@@ -1078,9 +1189,7 @@ function generate({ fresh }) {
   post({
     type: 'ai-text-generate',
     requestId: session.requestId,
-    field: session.target.getAttribute('data-sid-field'),
-    scope: session.target.getAttribute('data-sid-field-uid') || undefined,
-    fieldtype: session.fieldtype,
+    ...fieldOf(session),
     kind: session.kind,
     text: session.current,
     instruction: (session.instruction ?? session.input?.value ?? '').trim(),
@@ -1130,6 +1239,12 @@ export function handleAiTextMessage(data) {
 
     if (data.kind) {
       session.kind = data.kind;
+    }
+
+    // The Bard field has no text yet: the page shows its placeholder, and a
+    // suggestion fills the field rather than one part of it.
+    if (data.whole) {
+      session.part = null;
     }
 
     render();

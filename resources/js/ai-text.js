@@ -22,6 +22,7 @@ import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from './lib/value
 import { activeContainers } from './lib/publish-containers.js';
 import { paintLpActiveControl } from './lp-panel.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { findPart, hasText, nodeText, partKind, partText, withPartText } from './lib/bard-parts.js';
 
 const ON_KEY = 'sve-ai-text-on';
 
@@ -311,24 +312,12 @@ function plainText(value) {
     // Bard: paragraphs and headings, separated the way the popover will send
     // them back.
     return value
-      .map((node) => bardText(node))
+      .map((node) => nodeText(node))
       .filter((text) => text.trim() !== '')
       .join('\n\n');
   }
 
   return '';
-}
-
-function bardText(node) {
-  if (!node || typeof node !== 'object') {
-    return '';
-  }
-
-  if (typeof node.text === 'string') {
-    return node.text;
-  }
-
-  return Array.isArray(node.content) ? node.content.map(bardText).join('') : '';
 }
 
 /* --------------------------------------------------------------------------
@@ -337,6 +326,23 @@ function bardText(node) {
 
 function reply(win, message) {
   sendToPreview({ source: SOURCE, ...message }, win);
+}
+
+/**
+ * The one node of a Bard field a mark on its heading, paragraph or list points
+ * at (lib/bard-parts.js): `{ index, node }`, or `{ missing: true }` when the
+ * field no longer has it. Null when the mark is the whole field's — no part
+ * asked for, or a field with no text yet, whose page shows a placeholder and
+ * whose suggestion fills the field.
+ */
+function partOf(data, found) {
+  if (!data.part || !Array.isArray(found.value) || !hasText(found.value)) {
+    return null;
+  }
+
+  const index = findPart(found.value, data.part);
+
+  return index === -1 ? { missing: true } : { index, node: found.value[index] };
 }
 
 export function handleAiTextOpen(data, doc, win) {
@@ -354,25 +360,32 @@ export function handleAiTextOpen(data, doc, win) {
     return;
   }
 
-  const page = pageKeywords(doc);
+  const part = partOf(data, found);
 
-  reply(win, {
+  if (part?.missing) {
+    reply(win, { type: 'ai-text-deny', requestId: data.requestId, message: t(win, 'ai_text_part_missing') });
+
+    return;
+  }
+
+  const page = pageKeywords(doc);
+  // A part's own words; `whole` tells the preview a part it asked for is the field's (an empty field).
+  const ready = () => ({
     type: 'ai-text-ready',
     requestId: data.requestId,
-    text: plainText(found.value),
+    text: part ? partText(part.node) : plainText(found.value),
+    ...(part ? { kind: partKind(data.part.tag) } : {}),
+    ...(data.part && !part ? { whole: true } : {}),
     keywords: { page, site: siteKeywords },
   });
+
+  reply(win, ready());
 
   // The site's list is a global — fetched once per Live Preview session, then
   // handed to every popover from memory.
   if (siteKeywords.length === 0 && !siteKeywordsLoaded) {
     loadSiteKeywords(win).then(() => {
-      reply(win, {
-        type: 'ai-text-ready',
-        requestId: data.requestId,
-        text: plainText(found.value),
-        keywords: { page, site: siteKeywords },
-      });
+      reply(win, ready());
     });
   }
 }
@@ -409,7 +422,15 @@ export async function handleAiTextGenerate(data, doc, win) {
     return;
   }
 
-  const stored = plainText(found.value);
+  const part = partOf(data, found);
+
+  if (part?.missing) {
+    reply(win, { type: 'ai-text-result', requestId: data.requestId, suggestions: [], message: t(win, 'ai_text_part_missing') });
+
+    return;
+  }
+
+  const stored = part ? partText(part.node) : plainText(found.value);
 
   try {
     const res = await win.fetch('/!/sve/ai-copy', {
@@ -514,6 +535,24 @@ export function handleAiTextApply(data, doc, win) {
 
   const text = data.text;
   const isBard = data.fieldtype === 'bard' || Array.isArray(found.value);
+  const part = partOf(data, found);
+
+  // A field that no longer has the part takes nothing: writing the whole field
+  // in its place is the very thing a part is there to prevent.
+  if (part?.missing) {
+    return;
+  }
+
+  // One heading, paragraph or list rewritten; every other node of the field as it was.
+  if (part) {
+    const nodes = found.value.slice();
+
+    nodes[part.index] = withPartText(part.node, text);
+    found.container.setFieldValue(found.path, nodes);
+    syncBardEditorFromValue(doc, data.field, data.scope, nodes);
+
+    return;
+  }
 
   if (isBard) {
     const nodes = bardNodes(text, found.value);

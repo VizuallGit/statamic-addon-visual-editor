@@ -425,7 +425,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="bm-tabs bm-tabs-scroll" :data-more-start="tabEdges.start || undefined" :data-more-end="tabEdges.end || undefined">
-        <div ref="tabRow" class="bm-tabs-row" role="tablist" @scroll.passive="readTabEdges" @wheel="tabsAcross">
+        <div ref="tabRow" class="bm-tabs-row bm-divided" role="tablist" @scroll.passive="readTabEdges" @wheel="tabsAcross">
           <button
             v-for="[value, word] in TABS"
             :key="value"
@@ -542,7 +542,7 @@ onBeforeUnmount(() => {
 .sve-build .bm-tabs button[aria-selected='true'] { background: var(--bm-accent); color: #fff; }
 /* The element's tabs keep their width; the row scrolls under the track, and an edge with more beyond it fades into the track (the canvas's TabBar). */
 .sve-build .bm-tabs.bm-tabs-scroll { position: relative; padding: 0; border-radius: 0.5rem; overflow: hidden; }
-.sve-build .bm-tabs-row { position: relative; display: flex; flex: 1; gap: 0.25rem; min-width: 0; padding: 0.1875rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.sve-build .bm-tabs-row { --bm-divided-gap: 0.25rem; --bm-divided-inset: 0.625rem; position: relative; display: flex; flex: 1; gap: 0.25rem; min-width: 0; padding: 0.1875rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .sve-build .bm-tabs-row::-webkit-scrollbar { display: none; }
 .sve-build .bm-tabs-row button { flex: none; padding: 0.4375rem 1rem; border-radius: 0.375rem; color: var(--bm-faint); letter-spacing: 0.06em; white-space: nowrap; user-select: none; }
 .sve-build .bm-tabs-scroll::before, .sve-build .bm-tabs-scroll::after { content: ''; position: absolute; top: 0; bottom: 0; z-index: 1; width: 2.5rem; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
@@ -734,6 +734,8 @@ onBeforeUnmount(() => {
 .sve-build .bm-switch::after { content: ''; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: #fff; transition: transform 0.12s ease; }
 .sve-build .bm-switch[aria-checked="true"] { background: var(--bm-accent); }
 .sve-build .bm-switch[aria-checked="true"]::after { transform: translateX(0.75rem); }
+/* A switch the file decides (Content's auto contrast inside an Antlers condition): shown, not turned. */
+.sve-build .bm-switch:disabled { opacity: 0.45; cursor: default; }
 .sve-build .bm-pick-field:hover { background: var(--bm-line); color: var(--bm-ink); }
 .sve-build .bm-pick-field .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 /* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */
@@ -969,10 +971,12 @@ onBeforeUnmount(() => {
 .sve-build .fg-cq-group__now { flex: none; color: var(--bm-faint); }
 .sve-build .fg-cq-group .fg-seg { background: var(--bm-bg); }
 .sve-build .fg-cq-group .fg-seg button[aria-pressed='true'] { background: var(--bm-hover); }
-.sve-build .fg-cq-group .fg-seg > button { position: relative; }
-.sve-build .fg-cq-group .fg-seg > button + button::before { content: ''; position: absolute; inset-block: 0.375rem; inset-inline-start: -0.0625rem; inline-size: 1px; translate: -50% 0; background: var(--bm-edge); }
-.sve-build .fg-cq-group .fg-seg > button[aria-pressed='true']::before,
-.sve-build .fg-cq-group .fg-seg > button[aria-pressed='true'] + button::before { opacity: 0; }
+/* A thin line between the buttons of a row — the element's tabs, Style's sizes, container queries
+   (`.bm-divided`): in the middle of the gap, a little faint, and gone on either side of the one picked. */
+.sve-build .bm-divided > button { position: relative; }
+.sve-build .bm-divided > button + button::before { content: ''; position: absolute; inset-block: var(--bm-divided-inset, 0.375rem); inset-inline-start: calc(var(--bm-divided-gap, 0.125rem) / -2); inline-size: 1px; translate: -50% 0; background: var(--bm-edge); opacity: 0.8; pointer-events: none; }
+.sve-build .bm-divided > button:is([aria-pressed='true'], [aria-selected='true'])::before,
+.sve-build .bm-divided > button:is([aria-pressed='true'], [aria-selected='true']) + button::before { opacity: 0; }
 .sve-build [data-sve-build-container] [data-now]::after { content: ''; flex: none; width: 0.3rem; height: 0.3rem; border-radius: 50%; background: var(--bm-accent-text); }
 .sve-build .fg-sizes .fg-fit button { flex: 1 0 auto; padding-inline: 0.625rem; font-size: 0.6875rem; }
 .sve-build .fg-sizes button span:last-child { overflow: hidden; text-overflow: ellipsis; }

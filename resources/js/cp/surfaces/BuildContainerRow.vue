@@ -126,7 +126,7 @@ function toggle() {
       <span v-if="on" class="fg-cq-group__now">{{ port.t('container_now', { size: `${around.rem}rem` }) }}</span>
       <span class="fg-cq__switch" aria-hidden="true"></span>
     </button>
-    <div v-if="on" class="fg-seg" role="group" :aria-label="port.t('container_queries')">
+    <div v-if="on" class="fg-seg bm-divided" role="group" :aria-label="port.t('container_queries')">
       <button
         type="button"
         :aria-pressed="!now"

@@ -90,10 +90,12 @@ class AiCopyTest extends TestCase
         $this->assertSame(3, AiCopy::count(['count' => 3]));
     }
 
-    public function test_only_the_three_known_shapes_are_accepted(): void
+    public function test_only_the_known_shapes_are_accepted(): void
     {
         $this->assertSame('heading', AiCopy::kindOf('heading'));
         $this->assertSame('rich', AiCopy::kindOf('RICH'));
+        $this->assertSame('paragraph', AiCopy::kindOf('paragraph'));
+        $this->assertSame('list', AiCopy::kindOf('list'));
         $this->assertSame('text', AiCopy::kindOf('nonsense'));
         $this->assertSame('text', AiCopy::kindOf(null));
     }

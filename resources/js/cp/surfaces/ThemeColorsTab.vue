@@ -170,15 +170,18 @@
     </div>
   </section>
 
+  <!-- A new color is made under the palette, where it will stand. -->
+  <button type="button" class="sve-theme__add-row" data-sve-theme-add data-sve-color-add @click="h.onAddColor">
+    <span class="sve-theme__add-row-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </span>
+    <span>{{ ui.labels.colors_add }}</span>
+  </button>
+
   <!-- Highlights: a name that points at a palette color. No steps, no color of
        its own — only the palette's colors to choose from. -->
   <div class="sve-theme__section sve-theme__highlights" data-sve-highlights>
-    <div class="sve-theme__highlights-head">
-      <span class="sve-theme__section-title">{{ ui.labels.colors_highlights }}</span>
-      <button type="button" class="sve-theme__add" data-sve-highlight-add :title="ui.labels.colors_highlight_add" :aria-label="ui.labels.colors_highlight_add" @click="h.onAddHighlight">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-    </div>
+    <span class="sve-theme__section-title">{{ ui.labels.colors_highlights }}</span>
     <p class="sve-theme__hint">{{ ui.labels.colors_highlight_hint }}</p>
     <div v-if="ui.highlights.length" class="sve-theme__highlight-list">
       <div v-for="x in ui.highlights" :key="x.key" class="sve-theme__highlight" data-sve-highlight>
@@ -192,6 +195,13 @@
         <span v-if="x.problem" class="sve-theme__hint sve-theme__highlight-problem">{{ ui.labels[`colors_name_${x.problem}`] || ui.labels.colors_name_format }}</span>
       </div>
     </div>
+    <!-- A new highlight is made under the list, where it will stand. -->
+    <button type="button" class="sve-theme__add-row is-compact" data-sve-highlight-add @click="h.onAddHighlight">
+      <span class="sve-theme__add-row-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      <span>{{ ui.labels.colors_highlight_add }}</span>
+    </button>
   </div>
 </template>
 

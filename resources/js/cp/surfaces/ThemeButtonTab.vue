@@ -1,7 +1,8 @@
 <template>
   <div class="sve-theme__section">
-    <div class="sve-theme__button-sample">
-      <span :style="sample">{{ ui.labels.button_sample }}</span>
+    <div class="sve-theme__button-sample" data-sve-button-sample>
+      <span :style="sample" data-sve-button-sample-solid>{{ ui.labels.button_sample }}</span>
+      <span :style="outline" data-sve-button-sample-outline>{{ ui.labels.button_sample }}</span>
     </div>
 
     <div class="sve-theme__field">
@@ -68,7 +69,7 @@
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { RADII, WEIGHTS, literalOf, sizeRef, withCurrent } from '../theme-panel/presets.js';
-import { buttonSample, sizeLabel } from '../theme-panel/samples.js';
+import { buttonSample, outlineButtonSample, sizeLabel } from '../theme-panel/samples.js';
 
 defineProps({ h: { type: Object, required: true } });
 
@@ -84,6 +85,7 @@ function radiiWith(value) {
   return withCurrent(RADII, value);
 }
 
-/** A button drawn with the chosen values, in the site's primary color, at its desktop size. */
+/** The button drawn with the chosen values at its desktop size: solid in the site's primary, and as an outline. */
 const sample = computed(() => buttonSample(ui));
+const outline = computed(() => outlineButtonSample(ui));
 </script>

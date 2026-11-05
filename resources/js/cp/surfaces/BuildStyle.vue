@@ -587,7 +587,7 @@ function jump(group) {
       <BuildClassList />
 
       <div class="fg-seg fg-sizes" data-sve-build-sizes>
-        <div ref="sizeRow" class="fg-fit">
+        <div ref="sizeRow" class="fg-fit bm-divided">
           <button
             v-for="row in sizes"
             :key="row.handle || 'all'"

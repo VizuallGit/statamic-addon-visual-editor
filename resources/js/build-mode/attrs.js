@@ -209,19 +209,44 @@ const ALPINE = /^(x-|@|:)/;
 const EDITOR = /^data-sve-/i;
 
 /**
+ * The site's auto contrast (color-scheme's auto-contrast.js): the text colour
+ * follows the element's background. Content's own switch, not a row of Data.
+ */
+export const AUTO_CONTRAST = 'data-auto-contrast';
+
+/**
+ * Is the attribute at `at` written inside an `{{ if }}` or `{{ unless }}` of
+ * its own tag — `{{ unless text_color }} data-auto-contrast{{ /unless }}`? Then
+ * the page decides when it is there, and a switch cannot say on or off.
+ */
+function inCondition(source, node, at) {
+  let depth = 0;
+
+  for (const m of String(source).slice(node.from, at).matchAll(/\{\{\s*(\/|end)?\s*(if|unless)\b/g)) {
+    depth += m[1] ? -1 : 1;
+  }
+
+  return depth > 0;
+}
+
+/**
  * Content's two lists of an element's attributes: its `data-*`, and its
  * accessibility — `aria-*` and `role`. A link's `aria-label` is the link's own
  * box in Content and is left out here; Alpine is Action's. `unreadable` when the
  * tag has a value written without quotes: the lists are shown, never written.
+ * Auto contrast is its own switch (`contrast`): on when the tag has it, in any
+ * form, and `conditional` when an Antlers condition in the tag decides.
  */
 export function contentAttributes(source, node) {
   const list = attributeList(source, node);
   const link = String(node?.tag || '').toLowerCase() === 'a';
   const rows = list.filter((attr) => !ALPINE.test(attr.name) && !EDITOR.test(attr.name));
   const plain = ({ name, value }) => ({ name, value });
+  const contrast = rows.find((attr) => attr.name.toLowerCase() === AUTO_CONTRAST);
 
   return {
-    data: rows.filter((attr) => /^data-/i.test(attr.name)).map(plain),
+    data: rows.filter((attr) => /^data-/i.test(attr.name) && attr !== contrast).map(plain),
+    contrast: { on: !!contrast, conditional: !!contrast && inCondition(source, node, contrast.from) },
     aria: rows
       .filter((attr) => {
         const name = attr.name.toLowerCase();
@@ -236,7 +261,8 @@ export function contentAttributes(source, node) {
 /**
  * The file with the attribute set — replaced where it stands; a new one after
  * the tag name, or, `end`, after the tag's last attribute (Content's own rows:
- * `id` and `class` stay first); null takes it out.
+ * `id` and `class` stay first); null takes it out, and `true` writes it bare,
+ * with no value (`data-auto-contrast`).
  */
 export function withAttribute(source, node, name, value, { end = false } = {}) {
   const text = String(source || '');
@@ -251,6 +277,10 @@ export function withAttribute(source, node, name, value, { end = false } = {}) {
   const bare = hit ? null : attributeList(text, node).find((attr) => attr.bare && attr.name.toLowerCase() === name.toLowerCase());
 
   if (bare) {
+    if (value === true) {
+      return text;
+    }
+
     return value === null ? text.slice(0, bare.from - 1) + text.slice(bare.to) : `${text.slice(0, bare.from)}${name}="${safe}"${text.slice(bare.to)}`;
   }
 
@@ -259,7 +289,8 @@ export function withAttribute(source, node, name, value, { end = false } = {}) {
   }
 
   if (hit) {
-    return text.slice(0, hit.from) + safe + text.slice(hit.to);
+    // `true` drops the value: the name stays where it stands, after its own space.
+    return value === true ? text.slice(0, hit.start + 1) + name + text.slice(hit.to + 1) : text.slice(0, hit.from) + safe + text.slice(hit.to);
   }
 
   const tag = /^<([a-zA-Z][a-zA-Z0-9:-]*)/.exec(text.slice(node.from, node.openTo));
@@ -271,5 +302,5 @@ export function withAttribute(source, node, name, value, { end = false } = {}) {
   const last = end ? attributeList(text, node).at(-1) : null;
   const at = last ? last.to : node.from + tag[0].length;
 
-  return `${text.slice(0, at)} ${name}="${safe}"${text.slice(at)}`;
+  return `${text.slice(0, at)} ${value === true ? name : `${name}="${safe}"`}${text.slice(at)}`;
 }

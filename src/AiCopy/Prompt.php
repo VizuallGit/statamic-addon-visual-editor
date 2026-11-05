@@ -25,18 +25,20 @@ final class Prompt
     }
 
     /**
-     * One of three shapes, because the brief differs and the length differs.
+     * One of five shapes, because the brief differs and the length differs.
      *
      * `rich` is a Bard field — it may answer in several paragraphs. `heading` is
-     * one line and has to stay one line. `text` is everything else: a lead, a
-     * button label, a short intro, where the field's own length is the only
-     * guide there is.
+     * one line and has to stay one line. `paragraph` and `list` are one part of
+     * a Bard field, rewritten on its own while the rest of the field stays: one
+     * paragraph, or a list's items one per line. `text` is everything else: a
+     * lead, a button label, a short intro, where the field's own length is the
+     * only guide there is.
      */
     public static function kindOf(mixed $kind): string
     {
         $kind = is_string($kind) ? strtolower(trim($kind)) : '';
 
-        return in_array($kind, ['heading', 'rich', 'text'], true) ? $kind : 'text';
+        return in_array($kind, ['heading', 'rich', 'paragraph', 'list', 'text'], true) ? $kind : 'text';
     }
 
     protected static function brief(string $kind, string $current, int $words = 0): string
@@ -60,6 +62,15 @@ TXT,
             'rich' => <<<TXT
 This is RICH TEXT — body copy. Several paragraphs are allowed: separate them with one blank line.
 Plain text only. No markdown, no HTML, no bullet characters, no headings inside it. {$length}
+TXT,
+            'paragraph' => <<<TXT
+This is ONE PARAGRAPH of body copy, inside a longer text that stays as it is around it.
+Exactly one paragraph: no blank lines, no headings, no bullet characters. Plain text only, no markdown, no HTML. {$length}
+TXT,
+            'list' => <<<TXT
+This is a LIST — its items, one item per line. Write the items only: no bullet characters, no numbers, no
+heading above them, no blank lines between them. Keep about as many items as it has now, unless the user
+asks for more or fewer. Plain text only, no markdown, no HTML. {$length}
 TXT,
             default => <<<TXT
 This is a SHORT TEXT field — a lead, an intro, a label. One or two sentences at most, and often less.
@@ -143,7 +154,7 @@ Never write a keyword list. Never write copy that reads as though it was written
 
 ANSWER FORMAT — this matters, the answer is read by a program.
 Reply with a JSON array of strings and nothing else. No prose before it, no explanation after it, no code fence.
-Each string is one complete suggestion. In rich text, separate paragraphs with \\n\\n inside the string.
+Each string is one complete suggestion. In rich text, separate paragraphs with \\n\\n inside the string; in a list, separate items with \\n.
 Exactly {$count} item(s).
 
 Example of the shape (not the content):
