@@ -119,7 +119,7 @@ import { containerLength, contentWidthRem, isContainerVariant, sizeContainerOf }
 import { elementLabel } from '../cp/xray/measure.js';
 import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
-import { fieldEditOf, readAttribute, withAttribute, withFieldEdit } from './attrs.js';
+import { contentAttributes, fieldEditOf, readAttribute, renameAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { classTargetFor } from '../dock/class-target.js';
 import { createComputedValues, hoverText, inherits } from './computed-values.js';
 import { previewFrame } from '../lib/preview-frame.js';
@@ -646,19 +646,34 @@ export function createEditorPort(win, hooks = {}) {
 
       return node ? readAttribute(html(), node, name) : null;
     },
-    /** Attributes of an element by its path (Content's src and alt, href), in one write — as `setText`, where it was typed. */
-    setAttrsAt(path, attrs) {
+    /** Attributes of an element by its path (Content's src and alt, href, its data and aria), in one write — as `setText`, where it was typed. `options.end`: a new one after the tag's last. */
+    setAttrsAt(path, attrs, options) {
       let next = html();
 
       for (const [name, value] of Object.entries(attrs || {})) {
         const node = path ? findByPath(parseTemplateTree(next), path) : null;
 
-        next = node ? withAttribute(next, node, name, value) : next;
+        next = node ? withAttribute(next, node, name, value, options) : next;
       }
 
       if (next !== html()) {
         port.write(next, { select: path });
       }
+    },
+    /** Content's data and accessibility attributes of the element at `path` (attrs.js); null for what is not a tag. */
+    attrsAt(path) {
+      rev.value;
+
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      return node && !node.kind ? contentAttributes(html(), node) : null;
+    },
+    /** One attribute of the element at `path` renamed where it stands; false when the name is taken or not a name. */
+    renameAttrAt(path, from, to) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const next = node ? renameAttribute(html(), node, from, to) : html();
+
+      return next !== html() && port.write(next, { select: path }) !== false;
     },
     /** The picked element's rich text — a block of prose Bard edits — or null (rich.js). */
     rich: () => {

@@ -107,3 +107,78 @@ test('the field a visual_edit points at', () => {
   assert.equal(fieldEditOf(html, first(html)), 'a');
   assert.equal(fieldEditOf(plain, first(plain)), '');
 });
+
+/* ---------------- Content's attributes: the list, renaming, bare and quoted values ---------------- */
+
+import { attributeList, contentAttributes, escapeAttrValue, renameAttribute } from '../../../resources/js/build-mode/attrs.js';
+
+test('lists every attribute in order, past a visual_edit tag and an Antlers value', () => {
+  const html = '<section id="id-{{ id }}" class="grid" data-position="{{ image_position }}" data-auto-contrast {{ visual_edit outline_inside="true" }}>x</section>';
+  const list = attributeList(html, first(html));
+
+  assert.deepEqual(list.map((a) => [a.name, a.value, a.bare]), [
+    ['id', 'id-{{ id }}', false],
+    ['class', 'grid', false],
+    ['data-position', '{{ image_position }}', false],
+    ['data-auto-contrast', '', true],
+  ]);
+});
+
+test('a name inside another value is not an attribute', () => {
+  const html = '<div class="x data-fake" title=\'a role b\'>x</div>';
+
+  assert.deepEqual(attributeList(html, first(html)).map((a) => a.name), ['class', 'title']);
+});
+
+test('Content sorts data from accessibility, and leaves Alpine, the editor and a link\'s aria-label out', () => {
+  const html = '<a href="/" data-x="1" data-sve-ht-path="0:a" x-data="{}" @click="go" :class="c" aria-label="Go" aria-hidden="true" role="button">Go</a>';
+  const got = contentAttributes(html, first(html));
+
+  assert.deepEqual(got.data, [{ name: 'data-x', value: '1' }]);
+  assert.deepEqual(got.aria, [{ name: 'aria-hidden', value: 'true' }, { name: 'role', value: 'button' }]);
+  assert.equal(got.unreadable, false);
+});
+
+test('a value without quotes makes the list read-only', () => {
+  const html = '<div data-x=1 data-y="2">x</div>';
+
+  assert.equal(contentAttributes(html, first(html)).unreadable, true);
+});
+
+test('renames where it stands, value and order kept; a taken or bad name changes nothing', () => {
+  const html = '<div data-a="1" data-b="2" data-flag>x</div>';
+
+  assert.equal(renameAttribute(html, first(html), 'data-a', 'data-c'), '<div data-c="1" data-b="2" data-flag>x</div>');
+  assert.equal(renameAttribute(html, first(html), 'data-flag', 'data-on'), '<div data-a="1" data-b="2" data-on>x</div>');
+  assert.equal(renameAttribute(html, first(html), 'data-a', 'data-b'), html);
+  assert.equal(renameAttribute(html, first(html), 'data-a', 'data a'), html);
+});
+
+test('a bare attribute is given a value, and taken out, whole', () => {
+  const html = '<section class="x" data-auto-contrast data-y="1">x</section>';
+
+  assert.equal(withAttribute(html, first(html), 'data-auto-contrast', 'on'), '<section class="x" data-auto-contrast="on" data-y="1">x</section>');
+  assert.equal(withAttribute(html, first(html), 'data-auto-contrast', null), '<section class="x" data-y="1">x</section>');
+});
+
+test('a value is escaped outside its Antlers only', () => {
+  assert.equal(escapeAttrValue('a "b" & {{ x | replace:"a" }}'), 'a &quot;b&quot; &amp; {{ x | replace:"a" }}');
+
+  const html = '<div>x</div>';
+
+  assert.equal(withAttribute(html, first(html), 'data-pos', '{{ pos | lower }}'), '<div data-pos="{{ pos | lower }}">x</div>');
+});
+
+test('names with an underscore or a dot are names', () => {
+  const html = '<div data-a.b="1">x</div>';
+
+  assert.equal(withAttribute(html, first(html), 'data-foo_bar', '2'), '<div data-foo_bar="2" data-a.b="1">x</div>');
+  assert.equal(withAttribute(html, first(html), 'data-a.b', '3'), '<div data-a.b="3">x</div>');
+});
+
+test('a new attribute with `end` goes after the last one — before a visual_edit tag, id and class first', () => {
+  const html = '<section id="a" class="b" data-flag {{ visual_edit x="1" }}>x</section>';
+
+  assert.equal(withAttribute(html, first(html), 'role', 'note', { end: true }), '<section id="a" class="b" data-flag role="note" {{ visual_edit x="1" }}>x</section>');
+  assert.equal(withAttribute('<div>x</div>', first('<div>x</div>'), 'data-x', '1', { end: true }), '<div data-x="1">x</div>');
+});

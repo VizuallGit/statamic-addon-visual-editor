@@ -738,6 +738,29 @@ onBeforeUnmount(() => {
 .sve-build .bm-pick-field .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 /* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */
 .sve-build .bm-field-host .sve-pv__label { font-size: 0.6875rem; font-weight: 450; color: var(--bm-muted); }
+/* Content's attributes (BuildAttrs.vue): Data, then Accessibility; a row is name | value | bin. */
+.sve-build .bm-attrs { display: grid; gap: 0.875rem; padding-top: 0.875rem; border-top: 1px solid var(--bm-line); }
+.sve-build .bm-attrs-group { display: grid; gap: 0.375rem; }
+.sve-build .bm-attrs-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 1.375rem; }
+.sve-build .bm-attrs-head .fg-lab { margin: 0; }
+.sve-build .bm-attrs-adds { display: flex; gap: 0.25rem; }
+.sve-build .bm-attrs-add { display: inline-flex; align-items: center; gap: 0.2rem; height: 1.375rem; padding: 0 0.45rem 0 0.3rem; border: 1px solid var(--bm-line); border-radius: 999px; background: transparent; color: var(--bm-muted); font: 500 0.6875rem/1 var(--bm-mono); cursor: pointer; }
+.sve-build .bm-attrs-add:hover { background: var(--bm-raise); color: var(--bm-ink); border-color: var(--bm-edge); }
+.sve-build .bm-attrs-add span { display: grid; place-items: center; }
+.sve-build .bm-attrs-add .bm-ic { width: 0.6875rem; height: 0.6875rem; }
+.sve-build .bm-attr-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 1.5rem; gap: 0.375rem; align-items: center; }
+.sve-build .bm-attr-name { display: flex; align-items: center; height: 1.875rem; min-width: 0; padding: 0 0.45rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid var(--bm-line); font: 450 0.75rem/1 var(--bm-mono); color: var(--bm-ink); }
+.sve-build .bm-attr-name:focus-within { border-color: var(--bm-accent); }
+.sve-build .bm-attr-name > span { flex: none; color: var(--bm-faint); }
+.sve-build .bm-attr-name input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
+.sve-build .bm-attr-name input::placeholder, .sve-build .bm-attr-value .bm-inp::placeholder { color: var(--bm-faint); }
+.sve-build .bm-attr-name.is-fixed { color: var(--bm-muted); }
+.sve-build .bm-attr-value .bm-inp { font: 450 0.75rem/1 var(--bm-mono); }
+.sve-build .bm-attr-value .bm-inp:disabled { opacity: 0.5; }
+.sve-build .bm-attr-bin { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 0.25rem; background: transparent; color: var(--bm-faint); cursor: pointer; }
+.sve-build .bm-attr-bin:hover { background: var(--bm-raise); color: var(--bm-ink); }
+.sve-build .bm-attr-bin .bm-ic { width: 0.8125rem; height: 0.8125rem; }
+.sve-build .bm-attr-error { margin: 0.25rem 0 0; font-size: 0.6875rem; color: var(--bm-lock); }
 
 /* Style */
 .sve-build .bm-chip-tag { flex: none; font: 500 0.6875rem/1.3 var(--bm-mono); padding: 0.1rem 0.35rem; border-radius: 0.25rem; background: var(--bm-tag-bg); color: var(--bm-tag); }

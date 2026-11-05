@@ -38,6 +38,7 @@
  * A link also has its target, rel and aria-label.
  *
  * Text and layout have their tag on top (build-mode/tags.js), as in Bricks.
+ * Every tag has its data and accessibility attributes at the bottom (BuildAttrs.vue).
  *
  * What is not the element's own says whose it is: the elements inside it, or —
  * for a div or a section — nothing, as a layout has no text of its own. A
@@ -50,6 +51,8 @@ import { tagFamily } from '../../lib/tag-families.js';
 import { browseButton } from '../../lib/browse-button.js';
 import BuildPickField from './BuildPickField.vue';
 import BuildEditable from './BuildEditable.vue';
+import BuildAttrs from './BuildAttrs.vue';
+import { typed } from './build-typed.js';
 import { ic } from '../../build-mode/icons.js';
 import { ADDRESS, altFromAsset } from '../../build-mode/attrs.js';
 import { halfTag, isOneLine } from '../../build-mode/text.js';
@@ -67,56 +70,6 @@ const svg = props.node.kind === 'svg';
 const ANTLERS = /\{\{[\s\S]*?\}\}/;
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const fromField = (expr) => port.t('content_antlers', { tag: `<code>${esc(expr.replace(/\s+/g, ' '))}</code>` });
-
-/**
- * A box typed into: the file's value until it is typed in, then the box's,
- * written once a frame — or, `live: false`, once typing is over (raw HTML,
- * where every keystroke on the way is half a tag). `typing` says the box is
- * being typed in: what is drawn from the file must not take the box away from
- * under the caret while the file holds only a keystroke's worth of it.
- */
-function typed(fromFile, write, { live = true } = {}) {
-  const value = ref(fromFile.value ?? '');
-  const typing = ref(false);
-  let frame = 0;
-  const flush = () => {
-    frame = 0;
-    write(value.value);
-  };
-
-  watch(fromFile, (next) => {
-    if (!typing.value && next !== null) {
-      value.value = next;
-    }
-  });
-
-  return {
-    value,
-    typing,
-    input() {
-      typing.value = true;
-
-      if (live && !frame) {
-        frame = window.requestAnimationFrame(flush);
-      }
-    },
-    /** Typing over: what is still on its way is written, and the box reads the file again. */
-    done() {
-      if (frame) {
-        window.cancelAnimationFrame(frame);
-        flush();
-      } else if (!live && typing.value) {
-        flush();
-      }
-
-      typing.value = false;
-
-      if (fromFile.value !== null) {
-        value.value = fromFile.value;
-      }
-    },
-  };
-}
 
 /* ---------------- the text ---------------- */
 
@@ -615,5 +568,7 @@ onBeforeUnmount(() => {
       <span v-html="ic('form')"></span>
       <p>{{ port.t(layout ? 'content_layout' : 'content_soon') }}</p>
     </div>
+
+    <BuildAttrs v-if="!svg" :path="path" />
   </div>
 </template>
