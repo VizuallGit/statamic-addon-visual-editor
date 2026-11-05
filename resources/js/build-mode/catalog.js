@@ -13,7 +13,7 @@
  * hands it the dock's live lists. A tool the dock gains later that no group
  * names lands in Other, in Build, by itself.
  *
- * Build adds only what the dock has no button for yet — Grid with its cells,
+ * Build adds only what the dock has no button for yet — Grid,
  * Button, Divider, Rich text, SVG, a numbered list, four more HTML tags, and grid-template-columns in Style —
  * each written in the dock's own shape (`{ id, classes }` like HTML_DIVS,
  * `{ id, title, css, tw }` like CSS_TOOLS), so moving one into the dock is a
@@ -47,24 +47,10 @@ export const BUILD_ELEMENTS = {
 };
 
 /**
- * Grid: one grid, its columns (a structure) and rows, an empty div per cell
- * — the cells are what the canvas outlines and drops into. The columns stack
- * on the narrowest size by themselves; that size's variant is the site's
- * (breakpoints()), handed to markup.js.
- */
-export const STRUCTURES = [
-  { key: '1', parts: [1], cls: 'grid-cols-1', label: '1' },
-  { key: '2', parts: [1, 1], cls: 'grid-cols-2', label: '½ + ½' },
-  { key: '3', parts: [1, 1, 1], cls: 'grid-cols-3', label: '⅓ × 3' },
-  { key: '21', parts: [2, 1], cls: 'grid-cols-[2fr_1fr]', label: '⅔ + ⅓', later: true },
-  { key: '12', parts: [1, 2], cls: 'grid-cols-[1fr_2fr]', label: '⅓ + ⅔', later: true },
-  { key: '4', parts: [1, 1, 1, 1], cls: 'grid-cols-4', label: '¼ × 4' },
-];
-export const ROWS = [1, 2, 3];
-/**
- * Style's grid tiles: a grid's columns and rows in one click, in the order
- * they stand behind the grid's own (BuildStyle.vue). One row is no rows class.
- * Add's Grid keeps STRUCTURES and its own rows.
+ * A grid's columns and rows in one click: Add's Grid picker (BuildGridPicker.vue)
+ * and Style's tiles (BuildStyle.vue), which stand them behind the grid's own.
+ * One row is no rows class. Add writes the grid empty (markup.js): what goes in
+ * it is picked after, and the columns stack on the narrowest size by themselves.
  */
 export const GRID_PRESETS = [
   { key: '1', parts: [1], cls: 'grid-cols-1', rows: 1, label: '1' },
@@ -85,7 +71,7 @@ export const GRID_GAP = 'gap-gutter';
 
 /**
  * The tiles, by group. `tool` names an HTML_TOOLS id, `div` an HTML_DIVS one,
- * `own` a BUILD_ELEMENTS one, `columns` the Grid picker (columns and rows).
+ * `own` a BUILD_ELEMENTS one, `columns` the Grid picker (GRID_PRESETS).
  */
 const ADD_LAYOUT = [
   { id: 'section', tool: 'section' },

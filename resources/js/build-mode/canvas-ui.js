@@ -3,7 +3,8 @@
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: lib/style.js, html-tree-parse.js, build-mode/canvas-paint.js,
- *   build-mode/drop.js, build-mode/place.js, build-mode/columns-overlay.js, cp/tip.js.
+ *   build-mode/drop.js, build-mode/place.js, build-mode/columns-overlay.js,
+ *   build-mode/grid-measure.js, cp/tip.js.
  * Bus: none. The file is written through the port (`write`, `openPlus`), as
  *   Add writes it.
  *
@@ -11,8 +12,9 @@
  *                cell of the picked Grid: a press makes it the place Add puts
  *                the next element, and the panel opens Add and flashes it
  *                (`port.openPlus`). An empty element wears
- *                it in its middle, any other on its bottom edge. Nothing
- *                locked wears one.
+ *                it in its middle, any other on its bottom edge — and an
+ *                empty grid too, whose cells wear their own (columns-overlay.js).
+ *                Nothing locked wears one.
  *   A drag       a tile from Add (`dragNew`, pressed in the panel) or an
  *                element of the section (`grab`, pressed on the canvas), once
  *                it has moved 5px, as a row in the HTML tree. A line before or
@@ -40,6 +42,7 @@ import { holdsElements } from './catalog.js';
 import { isWhole } from './whole.js';
 import { columnsFor, findByPath } from './place.js';
 import { PLUS } from './columns-overlay.js';
+import { isGrid } from './grid-measure.js';
 import { bindTips } from '../cp/tip.js';
 
 const UI_ID = '__sve-build-ui';
@@ -150,7 +153,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       // Only what can hold others: a link, a heading or an image has the panel's + to add after it.
       if (holdsElements(node) && !isWhole(p.html(), node)) {
         seen.add(el);
-        out.push({ el, path, middle: middle || el.hasAttribute(CANVAS_EMPTY) });
+        out.push({ el, path, middle: middle || (el.hasAttribute(CANVAS_EMPTY) && !isGrid(el)) });
       }
     };
     const picked = p.selectedPath();

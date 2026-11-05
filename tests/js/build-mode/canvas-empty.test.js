@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY_CSS, ownHeight, roomOf, rowsSpanned } from '../../../resources/js/build-mode/canvas-empty.js';
+import { EMPTY_CSS, fitRows, ownHeight, roomOf, rowsSpanned } from '../../../resources/js/build-mode/canvas-empty.js';
 
 test('the rows a cell spans, as the browser computes its grid-row', () => {
   assert.equal(rowsSpanned('span 2', 'span 2'), 2);
@@ -31,4 +31,43 @@ test('a cell spanning rows folds to the gaps between them: without those it has 
 
 test('the placeholder reads the room, else one row', () => {
   assert.match(EMPTY_CSS, /\[data-sve-build-empty\]\{min-height:var\(--sve-build-room,4rem\)!important/);
+});
+
+/* fitRows reads the canvas; stand-ins answer what it asks: their computed style, their parent, their own style. */
+function box(css, parent = null) {
+  const own = new Map();
+
+  return {
+    css,
+    parentElement: parent,
+    style: { getPropertyValue: (k) => own.get(k) || '', setProperty: (k, v) => own.set(k, v), removeProperty: (k) => own.delete(k) },
+  };
+}
+
+function scopeOf(cells) {
+  const view = { getComputedStyle: (el) => ({ display: 'block', gridTemplateRows: 'none', rowGap: 'normal', gridRowStart: 'auto', gridRowEnd: 'auto', ...el.css }) };
+
+  return { ownerDocument: { defaultView: view }, matches: () => false, querySelectorAll: () => cells };
+}
+
+test('an empty grid of more rows than one gets a row\'s room for each, the gaps between included', () => {
+  const grid = box({ display: 'grid', gridTemplateRows: '29px 29px', rowGap: '24px' });
+  const one = box({ display: 'grid', gridTemplateRows: 'none', rowGap: '24px' });
+
+  fitRows(scopeOf([grid, one]));
+
+  assert.equal(grid.style.getPropertyValue('--sve-build-room'), 'calc(2 * 4rem + 1 * 24px)');
+  assert.equal(one.style.getPropertyValue('--sve-build-room'), '', 'one row: the plain placeholder');
+});
+
+test('a cell spanning rows keeps its room; one back to a row of its own loses it', () => {
+  const parent = box({ display: 'grid', rowGap: '16px' });
+  const cell = box({ gridRowStart: 'span 2', gridRowEnd: 'span 2' }, parent);
+  const back = box({}, parent);
+
+  back.style.setProperty('--sve-build-room', 'calc(2 * 4rem + 1 * 16px)');
+  fitRows(scopeOf([cell, back]));
+
+  assert.equal(cell.style.getPropertyValue('--sve-build-room'), 'calc(2 * 4rem + 1 * 16px)');
+  assert.equal(back.style.getPropertyValue('--sve-build-room'), '');
 });

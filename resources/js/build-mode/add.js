@@ -29,14 +29,13 @@ export function tileLabel(port, entry) {
 /**
  * What a tile writes: the toolbar's markup for its element (markup.js).
  *
- * @param {{ structure?: string, rows?: number }} [grid]  a Grid's columns (STRUCTURES key) and rows
+ * @param {{ preset?: string }} [grid]  a Grid's columns and rows (GRID_PRESETS key)
  */
-export function tileMarkup(port, entry, { structure, rows } = {}) {
+export function tileMarkup(port, entry, { preset } = {}) {
   return markupFor(entry, {
     sectionTag: port.sectionTag(),
     mobile: port.mobileVariant(),
-    structure,
-    rows,
+    preset,
     text: {
       heading: port.t('new_heading'),
       text: port.t('new_text'),

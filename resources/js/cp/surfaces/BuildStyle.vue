@@ -17,7 +17,7 @@
  * browser: the box (BuildSpacingBox.vue, padding | margin as tabs — the
  * default) or the Figma fields (BuildBoxFields.vue, both at once).
  */
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BuildAlign from './BuildAlign.vue';
 import BuildAlignMatrix from './BuildAlignMatrix.vue';
 import BuildBoxFields from './BuildBoxFields.vue';
@@ -245,7 +245,7 @@ const placement = computed(() => port.placementScope?.(props.node.path) || null)
 const gridItem = computed(() => (around.value.item?.col && around.value.item?.row ? around.value.item : null));
 const gridLeast = computed(() => fewestTracks(ownGrid.value?.items || []));
 const spanOf = (range) => range[1] - range[0] + 1;
-/* Style's grid tiles on one line: the grid's own first — its preset, or its own shape when it is none of them — the other presets behind it in their order */
+/* Style's grid tiles: the grid's own first — its preset, or its own shape when it is none of them — the other presets behind it in their order */
 const gridPreset = computed(() => presetOf(gridParts.value, GRID_PRESETS));
 const shape = computed(() => gridShape(gridParts.value, ownGrid.value || {}, GRID_PRESETS));
 const presetInherited = computed(() => (gridParts.value.cols?.inherited ?? true) && (gridParts.value.rows?.inherited ?? true));
@@ -264,40 +264,17 @@ const pickPreset = (preset) => {
 const oneByOneNow = computed(() => (gridParts.value.cols?.n ?? 1) === 1 && (gridParts.value.rows?.n ?? 1) <= 1 && gridLeast.value.cols <= 1);
 const resetGrid = () => port.resetGridAt(props.node.path);
 
-/* The line of tiles: faded at an edge with more beyond it, turned along by a mouse's wheel, back at its start when the grid's own changes */
-const tileRow = ref(null);
-const tileEdges = ref({ start: false, end: false });
-// A function ref: the grid's fields stand inside the groups' v-for, where a named ref is a list.
-const setTileRow = (el) => {
-  tileRow.value = el;
-};
+/* The tiles in rows of three: two rows, the rest behind Load more — open until another element is picked */
+const TILES_SHOWN = 6;
+const allTiles = ref(false);
+const tileCount = computed(() => tiles.value.length + (shape.value ? 1 : 0));
+const shownTiles = computed(() => (allTiles.value ? tiles.value : tiles.value.slice(0, TILES_SHOWN - (shape.value ? 1 : 0))));
 
-function readTileEdges() {
-  const row = tileRow.value;
-
-  tileEdges.value = row ? { start: row.scrollLeft > 1, end: row.scrollLeft + row.clientWidth < row.scrollWidth - 1 } : { start: false, end: false };
-}
-
-function tilesAcross(event) {
-  const row = tileRow.value;
-
-  if (!row || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
-    return;
-  }
-
-  const next = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, row.scrollLeft + event.deltaY));
-
-  // At its end the wheel scrolls the panel on.
-  if (next !== row.scrollLeft) {
-    row.scrollLeft = next;
-    event.preventDefault();
-  }
-}
-
-watch([tileRow, () => tiles.value.length, () => !!shape.value], () => nextTick(readTileEdges));
 watch(
-  () => (shape.value ? 'own' : gridPreset.value?.key || ''),
-  () => nextTick(() => tileRow.value?.scrollTo({ left: 0, behavior: 'smooth' }))
+  () => props.node.path,
+  () => {
+    allTiles.value = false;
+  }
 );
 
 const clip = computed(() => eff('overflow')?.name === 'overflow-hidden');
@@ -756,22 +733,14 @@ function jump(group) {
                 <span v-html="ic('reset')"></span>{{ port.t('grid_reset') }}
               </button>
             </div>
-            <div
-              :ref="setTileRow"
-              class="bm-sp"
-              :data-more-start="tileEdges.start || undefined"
-              :data-more-end="tileEdges.end || undefined"
-              data-sve-build-structures
-              @scroll.passive="readTileEdges"
-              @wheel="tilesAcross"
-            >
+            <div class="bm-sp" data-sve-build-structures>
               <TransitionGroup name="bm-sp-mv">
                 <span v-if="shape" key="own" class="bm-sp-o is-on" :class="{ inh: shape.inherited }" :title="port.t('grid_shape_title')" data-sve-build-grid-shape>
                   <span class="bm-shape" :style="tileTracks(shape.fr, shape.rows)"><i v-for="n in Math.min(shape.cols, MAX_TRACKS) * Math.min(shape.rows, MAX_TRACKS)" :key="n"></i></span>
                   <span class="bm-sp-l">{{ shape.cols }} × {{ shape.rows }}</span>
                 </span>
                 <button
-                  v-for="p in tiles"
+                  v-for="p in shownTiles"
                   :key="p.key"
                   type="button"
                   class="bm-sp-o"
@@ -788,6 +757,16 @@ function jump(group) {
                 </button>
               </TransitionGroup>
             </div>
+            <button
+              v-if="tileCount > TILES_SHOWN"
+              type="button"
+              class="bm-sp-more"
+              :aria-expanded="allTiles"
+              data-sve-build-grid-more
+              @click="allTiles = !allTiles"
+            >
+              {{ port.t(allTiles ? 'grid_less' : 'grid_more') }}<span v-html="ic('chev')"></span>
+            </button>
             <div class="fg-grid">
               <BuildGridStep :path="node.path" part="cols" letter="C" :label="port.t('grid_columns')" :hit="gridParts.cols" :seen="ownGrid?.cols || null" :min="gridLeast.cols" :max="MAX_TRACKS" />
               <BuildGridStep :path="node.path" part="rows" letter="R" :label="port.t('grid_rows')" :hit="gridParts.rows" :seen="ownGrid?.rows || null" :min="gridLeast.rows" />

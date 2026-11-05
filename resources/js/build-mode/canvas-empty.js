@@ -7,7 +7,7 @@
  * cells while another is open.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: build-mode/canvas-paint.js, build-mode/catalog.js. The canvas's
+ * May import: build-mode/canvas-paint.js, build-mode/catalog.js, cp/xray/measure.js. The canvas's
  *   document is handed in; nothing else is read or written.
  * Bus messages: none.
  *
@@ -18,9 +18,12 @@
  * own (`data-sve-chrome`).
  *
  * A grid's empty cell has one row's room for each row it spans: a cell of two
- * rows stands as high as two cells of one, the gap between them included.
+ * rows stands as high as two cells of one, the gap between them included. An
+ * empty grid has the same room for each row it has (`grid-rows-2`): its cells
+ * stand as high as an empty cell, not squeezed into one placeholder's height.
  */
 
+import { parseTracks } from '../cp/xray/measure.js';
 import { CANVAS_EMPTY, CANVAS_ROOT } from './canvas-paint.js';
 import { holdsElements } from './catalog.js';
 
@@ -63,18 +66,28 @@ export function ownHeight(height, rows = 1, gap = '') {
   return height - Math.max(0, rows - 1) * (Number.parseFloat(gap) || 0);
 }
 
-/** What a box found on the page stands as high as, a grid cell without its gaps. */
+/** The rows an empty grid has of its own, from its computed `grid-template-rows`: 0 when it is no grid or has none. */
+function ownRows(own) {
+  return /grid$/.test(own.display) ? parseTracks(own.gridTemplateRows).length : 0;
+}
+
+/** What a box found on the page stands as high as: a grid cell without its gaps, an empty grid without the gaps between its rows. */
 function heightOf(el, view) {
   const height = el.getBoundingClientRect().height;
+  const self = height > 0 ? view.getComputedStyle(el) : null;
+  const rows = self ? ownRows(self) : 0;
+
+  if (rows > 1) {
+    return ownHeight(height, rows, self.rowGap);
+  }
+
   const grid = height > 0 && el.parentElement ? view.getComputedStyle(el.parentElement) : null;
 
   if (!grid || !/grid$/.test(grid.display)) {
     return height;
   }
 
-  const own = view.getComputedStyle(el);
-
-  return ownHeight(height, rowsSpanned(own.gridRowStart, own.gridRowEnd), grid.rowGap);
+  return ownHeight(height, rowsSpanned(self.gridRowStart, self.gridRowEnd), grid.rowGap);
 }
 
 /**
@@ -113,7 +126,7 @@ export function findEmpties(doc) {
   });
 }
 
-/** Each empty grid cell under `scope` (itself included) gets its rows' room; one of one row the plain placeholder. */
+/** Each empty grid cell and empty grid under `scope` (itself included) gets its rows' room; one of one row the plain placeholder. */
 export function fitRows(scope) {
   const view = scope?.ownerDocument?.defaultView;
 
@@ -123,13 +136,18 @@ export function fitRows(scope) {
 
   const cells = [...(scope.matches(`[${CANVAS_EMPTY}]`) ? [scope] : []), ...scope.querySelectorAll(`[${CANVAS_EMPTY}]`)];
   const rooms = cells.map((el) => {
+    const own = view.getComputedStyle(el);
+    const rows = ownRows(own);
+
+    if (rows > 1) {
+      return roomOf(rows, own.rowGap);
+    }
+
     const grid = el.parentElement && view.getComputedStyle(el.parentElement);
 
     if (!grid || !/grid$/.test(grid.display)) {
       return '';
     }
-
-    const own = view.getComputedStyle(el);
 
     return roomOf(rowsSpanned(own.gridRowStart, own.gridRowEnd), grid.rowGap);
   });

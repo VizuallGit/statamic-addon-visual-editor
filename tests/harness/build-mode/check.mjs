@@ -385,8 +385,8 @@ try {
   await sleep(150);
   await click('[data-sve-build-structure="3"]');
   await sleep(250);
-  step('+ on the wrapper, Grid ⅓ × 3: a grid with three empty cells at the end of the wrapper',
-    (await html()).includes('        <div class="grid grid-cols-3 max-md:grid-cols-1">\n            <div></div>\n            <div></div>\n            <div></div>\n        </div>\n    </div>'));
+  step('+ on the wrapper, Grid ⅓ × 3: an empty grid at the end of the wrapper, no cell divs',
+    (await html()).includes('        <div class="grid grid-cols-3 max-md:grid-cols-1 gap-gutter"></div>\n    </div>'));
   const cols = await page.evaluate(() => {
     const grid = document.querySelector('.hx-frame').contentDocument.querySelector('.grid-cols-3');
     return grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0;
@@ -394,10 +394,10 @@ try {
   step('…drawn as three columns in the preview', cols === 3, `${cols} tracks`);
   await shot('3-columns');
 
-  // A click on an empty column in the preview is "+ Add element" there.
+  // A click on the empty grid in the preview is "+ Add element" in it.
   await page.evaluate(() => document.querySelector('.hx-frame').contentDocument.querySelector('[data-sve-build-empty]').click());
   await sleep(200);
-  step('an empty column in the preview sets where Add inserts', /Cell 1/.test(await page.evaluate(() => document.querySelector('[data-sve-build-target]').textContent)));
+  step('the empty grid in the preview sets where Add inserts', /Grid/.test(await page.evaluate(() => document.querySelector('[data-sve-build-target]').textContent)));
 
   // All, Elements, Components — one tile for both, a grid or a list.
   const tiles = () => page.evaluate(() => {

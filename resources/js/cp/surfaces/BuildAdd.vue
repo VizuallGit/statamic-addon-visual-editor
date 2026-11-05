@@ -138,8 +138,8 @@ const target = computed(() => {
 const write = (markup) => writeAt(port, port.plusPath() || port.selectedPath(), markup);
 const markupOf = (entry, grid) => tileMarkup(port, entry, grid);
 
-function add(entry, structure, rows) {
-  if (entry.source === 'columns' && !structure) {
+function add(entry, preset) {
+  if (entry.source === 'columns' && !preset) {
     picker.value = true;
 
     return;
@@ -147,7 +147,7 @@ function add(entry, structure, rows) {
 
   picker.value = false;
 
-  const markup = markupOf(entry, { structure, rows });
+  const markup = markupOf(entry, { preset });
 
   // On a page built from sections, Section is a section of its own.
   if (!port.addSection?.(entry)) {
@@ -218,15 +218,15 @@ function grab(event, label, markup, entry = null) {
   port.drag?.(event, { label, markup, section: entry ? port.sectionKind?.(entry) || '' : '' });
 }
 
-/** A Grid structure pressed: dropped on the canvas, the picker has done its job. */
-function grabStructure(event, structure, rows) {
+/** A Grid preset pressed: dropped on the canvas, the picker has done its job. */
+function grabPreset(event, preset) {
   grab(
     event,
-    structure.label,
+    preset.label,
     () => {
       picker.value = false;
 
-      return markupOf(columnsEntry.value, { structure: structure.key, rows });
+      return markupOf(columnsEntry.value, { preset: preset.key });
     },
     columnsEntry.value
   );
@@ -242,7 +242,7 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
       <button type="button" class="bm-ib sm" :title="port.t('close')" :aria-label="port.t('close')" @click="picker = false" v-html="ic('x')"></button>
     </h3>
     <p>{{ port.t('columns_note') }}</p>
-    <BuildGridPicker :grab="grabStructure" @pick="(key, rows) => add(columnsEntry, key, rows)" />
+    <BuildGridPicker :grab="grabPreset" @pick="(key) => add(columnsEntry, key)" />
   </div>
 
   <template v-else>

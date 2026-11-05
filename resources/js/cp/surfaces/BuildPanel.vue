@@ -643,12 +643,13 @@ onBeforeUnmount(() => {
 .sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: var(--bm-bar); }
 .sve-build .bm-pk:hover:not(:disabled) .bm-bars i { background: var(--bm-accent); }
 .sve-build .bm-pk-l { font-weight: 600; display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
-/* Style's grid tiles: one line, three in view, the grid's own first; an edge with more beyond it fades */
-.sve-build .bm-sp { display: flex; gap: 0.35rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-block-end: 0.25rem; scrollbar-width: thin; scrollbar-color: var(--bm-edge) transparent; }
-.sve-build .bm-sp[data-more-end] { mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent); }
-.sve-build .bm-sp[data-more-start] { mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent); }
-.sve-build .bm-sp[data-more-start][data-more-end] { mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent); }
-.sve-build .bm-sp > .bm-sp-o { flex: 0 0 calc((100% - 0.7rem) / 3); min-width: 0; scroll-snap-align: start; }
+/* Style's grid tiles: three a row, two rows until Load more, the grid's own first */
+.sve-build .bm-sp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
+.sve-build .bm-sp > .bm-sp-o { min-width: 0; }
+.sve-build .bm-sp-more { display: flex; align-items: center; justify-content: center; gap: 0.25rem; width: 100%; padding: 0.3rem; border-radius: 0.3rem; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 600; }
+.sve-build .bm-sp-more:hover { color: var(--bm-ink); background: var(--bm-raise); }
+.sve-build .bm-sp-more svg { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-sp-more[aria-expanded='true'] svg { transform: rotate(180deg); }
 .sve-build .bm-sp-o { padding: 0.4rem; gap: 0.3rem; }
 .sve-build .bm-sp-o.is-on { border-color: var(--bm-accent); }
 .sve-build .bm-sp-o[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }
@@ -701,9 +702,7 @@ onBeforeUnmount(() => {
 .sve-build .bm-gb-corner { position: absolute; right: 0.15rem; bottom: 0.15rem; width: 0.55rem; height: 0.55rem; border-right: 0.125rem solid var(--bm-accent-text); border-bottom: 0.125rem solid var(--bm-accent-text); border-bottom-right-radius: 0.15rem; cursor: nwse-resize; }
 .sve-build .bm-gb-ghost { z-index: 2; border-radius: 0.3rem; border: 1px solid var(--bm-accent); background: var(--bm-accent-soft); pointer-events: none; }
 
-/* A Grid's rows and columns (BuildGridPicker.vue): each structure drawn as its cells */
-.sve-build .bm-gp h4 { margin: 0.75rem 0 0.4rem; font-size: 0.6875rem; font-weight: 600; color: var(--bm-muted); }
-.sve-build .bm-gp h4:first-child { margin-top: 0; }
+/* A Grid's columns and rows (BuildGridPicker.vue): each preset drawn as its cells */
 .sve-build .bm-cells { display: flex; flex-direction: column; gap: 0.2rem; height: 2.25rem; }
 .sve-build .bm-cells .bm-bars { flex: 1; height: auto; min-height: 0; }
 

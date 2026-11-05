@@ -16,7 +16,7 @@
  * a list item is indented one step of four spaces, as the site's files are.
  */
 
-import { GRID_GAP, STRUCTURES } from './catalog.js';
+import { GRID_GAP, GRID_PRESETS } from './catalog.js';
 
 export const INDENT = '    ';
 
@@ -28,12 +28,12 @@ function open(tag, classes = '', attrs = '') {
 
 /**
  * @param {object} entry  one item of addGroups()
- * @param {{ sectionTag?: string, text?: object, heading?: string, structure?: string, rows?: number, mobile?: string }} opts
+ * @param {{ sectionTag?: string, text?: object, heading?: string, preset?: string, mobile?: string }} opts
  *   `sectionTag` the site's section attributes (Statamic config `sveSectionTag`),
  *   `text` the words new elements start with ({ heading, text, button, link, item }),
- *   `heading` the heading level (h2), `structure` a STRUCTURES key for a Grid's
- *   columns and `rows` its rows (ROWS), `mobile` the narrowest size's Tailwind
- *   variant (breakpoints(), e.g. `max-md`)
+ *   `heading` the heading level (h2), `preset` a GRID_PRESETS key for a Grid's
+ *   columns and rows, `mobile` the narrowest size's Tailwind variant
+ *   (breakpoints(), e.g. `max-md`)
  * @returns {string} markup, not indented, children indented with INDENT
  */
 export function markupFor(entry, opts = {}) {
@@ -42,7 +42,7 @@ export function markupFor(entry, opts = {}) {
 
   switch (entry?.source) {
     case 'columns':
-      return columnsMarkup(opts.structure || '2', opts.mobile, opts.rows);
+      return columnsMarkup(opts.preset || '2', opts.mobile);
 
     case 'div':
       return `${open('div', def.classes)}</div>`;
@@ -114,12 +114,15 @@ function toolMarkup(entry, def, opts, text) {
   return `<${tag}></${tag}>`;
 }
 
-/** A grid with one empty div per cell — its columns times its rows — stacking at the narrowest size, the site's gutter between. */
-export function columnsMarkup(key, mobile = 'max-md', rows = 1) {
-  const structure = STRUCTURES.find((s) => s.key === key) || STRUCTURES[1];
-  const stack = structure.parts.length > 1 && mobile ? ` ${mobile}:grid-cols-1` : '';
-  const cells = structure.parts.length * Math.max(1, Math.floor(rows) || 1);
-  const kids = Array.from({ length: cells }, () => `${INDENT}<div></div>`).join('\n');
+/**
+ * A grid and nothing in it: its columns and rows (a GRID_PRESETS key), both
+ * back to one at the narrowest size, the site's gutter between. What goes in
+ * it is picked after — the canvas and the HTML tree show it as room to fill.
+ */
+export function columnsMarkup(key, mobile = 'max-md') {
+  const preset = GRID_PRESETS.find((p) => p.key === key) || GRID_PRESETS[1];
+  const rows = preset.rows > 1 ? ` grid-rows-${preset.rows}` : '';
+  const stack = mobile ? `${preset.parts.length > 1 ? ` ${mobile}:grid-cols-1` : ''}${rows ? ` ${mobile}:grid-rows-1` : ''}` : '';
 
-  return `<div class="grid ${structure.cls}${stack} ${GRID_GAP}">\n${kids}\n</div>`;
+  return `<div class="grid ${preset.cls}${rows}${stack} ${GRID_GAP}"></div>`;
 }

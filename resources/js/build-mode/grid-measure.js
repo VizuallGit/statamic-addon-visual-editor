@@ -40,7 +40,8 @@ function placed(kid) {
  *   empty: number[][], flow: string
  * }}
  *   `items` every child the grid places, `path` '' for one the file does not
- *   name (a loop's item); `empty` the cells no child covers, `[col, row]`.
+ *   name (a loop's item); `empty` the cells no child covers, `[col, row]` —
+ *   in an empty grid with no rows of its own, its one row's.
  */
 export function measureGrid(el, attr) {
   const cs = el.ownerDocument.defaultView.getComputedStyle(el);
@@ -51,8 +52,13 @@ export function measureGrid(el, attr) {
   const w = r.width - px(cs.borderLeftWidth) - px(cs.paddingLeft) - px(cs.paddingRight) - px(cs.borderRightWidth);
   const h = r.height - px(cs.borderTopWidth) - px(cs.paddingTop) - px(cs.paddingBottom) - px(cs.borderBottomWidth);
   const cols = trackOffsets(parseTracks(cs.gridTemplateColumns), parseGap(cs.columnGap), w, cs.justifyContent);
-  const rows = trackOffsets(parseTracks(cs.gridTemplateRows), parseGap(cs.rowGap), h, cs.alignContent);
-  const items = [...el.children].filter(placed).map((kid) => {
+  const kids = [...el.children].filter(placed);
+  const tracks = trackOffsets(parseTracks(cs.gridTemplateRows), parseGap(cs.rowGap), h, cs.alignContent);
+  // A grid with nothing in it and no rows of its own has no row for the browser
+  // to name. It is one row — the one its first child would make — so its
+  // columns are cells, drawn and offered as any free cell is.
+  const rows = tracks.length || kids.length || !cols.length || h < 0.5 ? tracks : [{ start: 0, end: h }];
+  const items = kids.map((kid) => {
     const k = kid.getBoundingClientRect();
 
     return {
