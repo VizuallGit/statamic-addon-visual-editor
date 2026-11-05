@@ -3,7 +3,7 @@
  * switches reach it, and writing an action in one go.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: alpine-behaviours.js, html-tree-parse.js, place.js. Pure — strings in, strings out.
+ * May import: alpine-behaviours.js, html-tree-parse.js, place.js, lib/group-host.js. Pure — strings in, strings out.
  * Bus messages: none.
  *
  * The list of behaviours and how a tag's attributes are read are the dock's
@@ -14,12 +14,16 @@
  *
  * A trigger and what follows it have to reach the same `x-data`, or nothing
  * ever happens and nothing says why. So an action does not ask where the switch
- * goes: it goes on the nearest element holding both, or into an `x-data` that
- * already stands above them.
+ * goes: up from the nearest element holding both, into an `x-data` already
+ * there, or onto the element that repeats — the card, the list item, so each
+ * one switches on its own — else onto the section, so a button anywhere in it
+ * reaches a panel anywhere in it (lib/group-host.js `stateHost`, the rule
+ * `group-hover` follows too).
  */
 
 import { fillName, stateNames, tagAttrs } from '../alpine-behaviours.js';
 import { maskAntlers, parseTemplateTree } from '../html-tree-parse.js';
+import { stateHost } from '../lib/group-host.js';
 import { findByPath } from './place.js';
 
 /** A tag's attributes: read past any `{{ … }}` in it, values as the file has them. */
@@ -131,8 +135,8 @@ export function freeName(html, paths) {
   return `open${n}`;
 }
 
-/** The nearest tag holding both elements (either may hold the other); null when only the file does. */
-function holderOf(roots, a, b) {
+/** The nodes from the top of the file down to the nearest one holding both elements (either may hold the other). */
+function sharedChain(roots, a, b) {
   const one = chainTo(roots, a);
   const two = chainTo(roots, b);
   let shared = 0;
@@ -141,7 +145,21 @@ function holderOf(roots, a, b) {
     shared += 1;
   }
 
-  return one.slice(0, shared).reverse();
+  return one.slice(0, shared);
+}
+
+const xDataOf = (html, node) => elementAttrs(html, node).find((attr) => attr.name === 'x-data') || null;
+
+/**
+ * Where a switch for `a` and `b` lives (lib/group-host.js `stateHost`):
+ * `{ node, data }` — the element, and its `x-data` attribute when it has one.
+ * Null when no tag holds both.
+ */
+export function stateHolder(html, a, b) {
+  const roots = parseTemplateTree(html);
+  const node = stateHost(html, roots, sharedChain(roots, a, b), (el) => !!xDataOf(html, el));
+
+  return node ? { node, data: xDataOf(html, node) } : null;
 }
 
 /** `{ a: 1 }` with `name: false` in it. Null when the value is not an object written out (`dropdown()`). */
@@ -169,27 +187,26 @@ function withState(value, name) {
  * @returns {string|null} null when no tag can hold it
  */
 export function withStateFor(html, a, b, name) {
-  const shared = holderOf(parseTemplateTree(html), a, b).filter((node) => !node.kind);
+  const roots = parseTemplateTree(html);
 
-  if (!shared.length) {
+  // Already declared where both reach it — at any height: written again lower down, it would hide that one.
+  if (sharedChain(roots, a, b).some((node) => !node.kind && stateNames(xDataOf(html, node)?.value || '').includes(name))) {
+    return html;
+  }
+
+  const holder = stateHolder(html, a, b);
+
+  if (!holder) {
     return null;
   }
 
-  for (const node of shared) {
-    const data = elementAttrs(html, node).find((attr) => attr.name === 'x-data');
+  if (holder.data) {
+    const value = withState(holder.data.value, name);
 
-    if (data) {
-      if (stateNames(data.value).includes(name)) {
-        return html;
-      }
-
-      const value = withState(data.value, name);
-
-      return value === null ? null : withAlpineAttr(html, node.path, 'x-data', value);
-    }
+    return value === null ? null : withAlpineAttr(html, holder.node.path, 'x-data', value);
   }
 
-  return withAlpineAttr(html, shared[0].path, 'x-data', `{ ${name}: false }`);
+  return withAlpineAttr(html, holder.node.path, 'x-data', `{ ${name}: false }`);
 }
 
 /** What the switch does when the trigger fires. */

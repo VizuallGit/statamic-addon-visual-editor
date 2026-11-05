@@ -15,7 +15,7 @@
  */
 import { ALPINE_BEHAVIOURS } from '../alpine-behaviours.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
-import { alpineAttrs, chainTo, elementAttrs, freeName, statesInScope, STATEMENT, withAction, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
+import { alpineAttrs, freeName, stateHolder, statesInScope, STATEMENT, withAction, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
 import { findByPath } from './place.js';
 
 /** The dock's triggers, each once, in the dock's order: a trigger added there is a trigger here. */
@@ -222,43 +222,30 @@ function freeValue(html, paths, base) {
 }
 
 /**
- * `name: first` in the nearest `x-data` holding both, or a new one on the
- * nearest tag holding both. Null when only the file holds both, or the
+ * `name: first` where a switch for both lives (alpine.js `stateHolder`): in
+ * the `x-data` there, or a new one. Null when only the file holds both, or the
  * `x-data` is not an object written out.
  */
 function withValueState(html, a, b, name, first) {
-  const roots = parseTemplateTree(html);
-  const one = chainTo(roots, a);
-  const two = chainTo(roots, b);
-  let shared = 0;
+  const holder = stateHolder(html, a, b);
 
-  while (shared < one.length && shared < two.length && one[shared].path === two[shared].path) {
-    shared += 1;
-  }
-
-  const holders = one.slice(0, shared).reverse().filter((node) => !node.kind);
-
-  if (!holders.length) {
+  if (!holder) {
     return null;
   }
 
-  for (const node of holders) {
-    const data = elementAttrs(html, node).find((attr) => attr.name === 'x-data');
-
-    if (data) {
-      const inner = /^\{([\s\S]*)\}$/.exec(String(data.value).trim());
-
-      if (!inner) {
-        return null;
-      }
-
-      const body = inner[1].trim().replace(/,$/, '');
-
-      return withAlpineAttr(html, node.path, 'x-data', body ? `{ ${body}, ${name}: ${first} }` : `{ ${name}: ${first} }`);
-    }
+  if (!holder.data) {
+    return withAlpineAttr(html, holder.node.path, 'x-data', `{ ${name}: ${first} }`);
   }
 
-  return withAlpineAttr(html, holders[0].path, 'x-data', `{ ${name}: ${first} }`);
+  const inner = /^\{([\s\S]*)\}$/.exec(String(holder.data.value).trim());
+
+  if (!inner) {
+    return null;
+  }
+
+  const body = inner[1].trim().replace(/,$/, '');
+
+  return withAlpineAttr(html, holder.node.path, 'x-data', body ? `{ ${body}, ${name}: ${first} }` : `{ ${name}: ${first} }`);
 }
 
 /** One more statement on the element's `@click`, beside the ones it runs. */

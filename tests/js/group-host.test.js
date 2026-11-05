@@ -84,3 +84,9 @@ test('a tag with nothing around it, or no tag there: null', () => {
   assert.equal(groupHost(html, 0), null);
   assert.equal(groupHost(html, 2), null);
 });
+
+test('an x-for template repeats what stands in it', () => {
+  const html = '<section><ul><template x-for="item in items"><li class="i"><span id="s" x-text="item"></span></li></template></ul></section>';
+
+  assert.equal(groupHost(html, at(html, '<span id="s"')), at(html, '<li class="i">'));
+});

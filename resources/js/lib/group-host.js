@@ -1,7 +1,8 @@
 /**
- * Where a `group-hover` / `group-focus` class finds its `group`: the element
- * around the pick that repeats — the card, the list item — so hovering one
- * card answers in that card, not in the whole section.
+ * The element around a pick that repeats — the card, the list item — and the
+ * two things that go on it so one card answers on its own, not the whole
+ * section: the `group` a `group-hover` class answers to, and the `x-data` an
+ * Action's switch lives in.
  *
  *   <ul>
  *     <li class="card">                          ← `group`: a sibling <li class="card"> stands beside it
@@ -12,26 +13,33 @@
  *     </li>
  *     <li class="card">…</li>
  *
- * Up from the pick's parent, the first element that
- *  - already wears `group` — nothing to write, it is the one; or
- *  - repeats: a sibling of the same tag and the same first class (`li.card`
- *    beside `li.card`, two bare `<div>` columns), or it stands straight inside
- *    a loop (`{{ collection }}` — one in the file, many on the page).
- * The pick's own siblings do not count: only the elements it stands in.
- * A condition (`{{ if }}`) is see-through — what it holds counts as its
- * parent's children. The walk stops at a <section>, <main> or <body>: sections
- * stand side by side on a layout, and a section's `group` (a Data state's)
- * would answer to the pointer anywhere in it. Nothing repeats: the pick's own
- * parent, as before there was a rule.
+ * An element repeats when a sibling of the same tag and the same first class
+ * stands beside it (`li.card` beside `li.card`, two bare `<div>` columns), or
+ * it stands straight inside a loop — `{{ collection }}`, or a `<template x-for>`
+ * — one in the file, many on the page. A condition (`{{ if }}`) is
+ * see-through: what it holds counts as its parent's children. The walk up
+ * stops at a <section>, <main>, <body> or <html>: sections stand side by side
+ * on a layout, so they are never taken as a repeat.
+ *
+ * `group` (groupHost): up from the pick's parent — the pick's own siblings do
+ * not count — the first element that wears `group` or repeats. A section's own
+ * `group` (a Data state's) is not taken: it would answer to the pointer
+ * anywhere in the section. Nothing repeats: the pick's own parent.
+ *
+ * `x-data` (stateHost): up from the nearest element holding both the trigger
+ * and what follows it, the first element that has an `x-data` or repeats.
+ * Nothing repeats: the section — one switch for the whole section, so a button
+ * anywhere in it reaches a panel anywhere in it. No section in the file (a
+ * header, a component): its outermost element holding both.
  *
  * Owner: shared by the dock's Tailwind pane and Build's Style (tw-classes.js,
- * the State menu) — one engine.
+ * the State menu) and Build's Action (build-mode/alpine.js) — one rule.
  * May import: html-tree-parse.js, tw-parse.js. Pure — no editor, no bus, no DOM.
  */
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { readClassAttr, tokenizeClassValue } from '../tw-parse.js';
 
-/** Where the walk stops: never taken as a repeat, and a `group` on them is not the pick's. */
+/** Where the walk stops: never taken as a repeat. */
 const STOP = new Set(['section', 'main', 'body', 'html']);
 
 /** The states that answer to a `group` around the pick. */
@@ -72,8 +80,13 @@ function hasGroup(source, node) {
   return tokenizeClassValue(value).some((token) => token.text === 'group');
 }
 
+/** A `<template x-for>`: what stands in it is drawn once per item. */
+function isTemplateLoop(source, node) {
+  return isTag(node) && tagOf(node) === 'template' && /\sx-for\s*=/.test(source.slice(node.from, node.openTo));
+}
+
 /** Whether `chain[i]` repeats: straight inside a loop, or beside a sibling of its tag and first class. */
-function repeats(chain, i, roots) {
+function repeats(source, chain, i, roots) {
   const self = chain[i];
   let j = i - 1;
 
@@ -83,13 +96,43 @@ function repeats(chain, i, roots) {
 
   const parent = j >= 0 ? chain[j] : null;
 
-  if (parent && isLoop(parent)) {
+  if (parent && (isLoop(parent) || isTemplateLoop(source, parent))) {
     return true;
   }
 
   return openConditions(parent ? parent.children : roots).some(
     (other) => other !== self && isTag(other) && tagOf(other) === tagOf(self) && (other.klass || '') === (self.klass || '')
   );
+}
+
+/**
+ * Up `chain` (root first) from index `from`: `{ host }` — the first tag that
+ * `held` says is the one, or that repeats — or `{ stop, below }`: the first
+ * section/main/body/html met, and the outermost tag passed before it. `{ below }`
+ * alone when the top of the file was reached.
+ */
+function climb(source, roots, chain, from, held) {
+  let below = null;
+
+  for (let i = from; i >= 0; i--) {
+    const el = chain[i];
+
+    if (!isTag(el)) {
+      continue;
+    }
+
+    if (STOP.has(tagOf(el))) {
+      return { stop: el, below };
+    }
+
+    if (held(el) || repeats(source, chain, i, roots)) {
+      return { host: el };
+    }
+
+    below = el;
+  }
+
+  return { below };
 }
 
 /**
@@ -108,25 +151,28 @@ export function groupHost(html, at) {
     return null;
   }
 
-  let parent = null;
+  const { host } = climb(source, roots, chain, chain.length - 2, (el) => hasGroup(source, el));
+  const parent = chain.slice(0, -1).reverse().find(isTag);
 
-  for (let i = chain.length - 2; i >= 0; i--) {
-    const el = chain[i];
+  return host ? host.from : parent ? parent.from : null;
+}
 
-    if (!isTag(el)) {
-      continue;
-    }
+/**
+ * Where an Action's switch lives (build-mode/alpine.js): `chain` is the file's
+ * parsed nodes (`roots`, parseTemplateTree) from the top down to the nearest
+ * element holding both the trigger and what follows it — loops and conditions
+ * included. The first element up from there that `hasData` (an `x-data`
+ * already there) or that repeats; else the section; else, with no section
+ * above, the outermost element holding both. Null when no tag holds both.
+ */
+export function stateHost(html, roots, chain, hasData) {
+  const source = String(html || '');
+  const { host, stop, below } = climb(source, roots, chain || [], (chain || []).length - 1, hasData);
 
-    parent ??= el;
-
-    if (STOP.has(tagOf(el))) {
-      break;
-    }
-
-    if (hasGroup(source, el) || repeats(chain, i, roots)) {
-      return el.from;
-    }
+  if (host) {
+    return host;
   }
 
-  return parent ? parent.from : null;
+  // A layout's <main>, <body> or <html>: the element under it holding both, else it.
+  return stop && (tagOf(stop) === 'section' || !below) ? stop : below;
 }

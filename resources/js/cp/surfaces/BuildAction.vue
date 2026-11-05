@@ -32,7 +32,7 @@ import {
   withPattern,
   withStatement,
 } from '../../build-mode/action-flow.js';
-import { alpineAttrs, freeName, statesInScope, withAction, withAlpineAttr, withoutAlpineAttr } from '../../build-mode/alpine.js';
+import { alpineAttrs, freeName, stateHolder, statesInScope, withAction, withAlpineAttr, withoutAlpineAttr } from '../../build-mode/alpine.js';
 import { animationOf, newAnimation, timed, withAnimation } from '../../build-mode/animation.js';
 import { ic } from '../../build-mode/icons.js';
 import { findByPath } from '../../build-mode/place.js';
@@ -148,11 +148,22 @@ const classes = ref('');
 const target = ref('');
 const picking = ref('');
 
-/** The typed name, else the nearest switch that also reaches the target, else a new one. */
+/**
+ * The typed name, else the nearest switch that also reaches the target and
+ * lives where a new one would go or below it (alpine.js `stateHolder`) — a
+ * card's button does not borrow the section's switch, or every card would
+ * open at once — else a new one.
+ */
 const nameNow = computed(() => {
-  const reaches = (name) => !target.value || statesInScope(html.value, target.value).some((state) => state.name === name);
+  const reaches = (state) => !target.value || statesInScope(html.value, target.value).some((other) => other.name === state.name);
+  const home = target.value ? stateHolder(html.value, path.value, target.value)?.node.path : null;
+  const own = (state) => !home || state.path === home || state.path.startsWith(`${home}/`);
 
-  return typedName.value.trim().replace(/[^\w$]/g, '') || names.value.find(reaches) || freeName(html.value, [path.value, target.value || path.value]);
+  return (
+    typedName.value.trim().replace(/[^\w$]/g, '') ||
+    states.value.find((state) => reaches(state) && own(state))?.name ||
+    freeName(html.value, [path.value, target.value || path.value])
+  );
 });
 const targetNode = computed(() => (target.value ? nodeAt(target.value) : null));
 const needsClass = computed(() => thenId.value === 'class_when');

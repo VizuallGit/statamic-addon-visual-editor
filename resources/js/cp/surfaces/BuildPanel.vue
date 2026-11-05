@@ -349,8 +349,10 @@ onBeforeUnmount(() => {
         :aria-pressed="side === 'add' && !componentView"
         data-sve-build-add
         @click="toggleAdd"
-        v-html="ic('plus')"
-      ></button>
+      >
+        <span class="sve-build-bar-add__ic" v-html="ic('plus')"></span>
+        <span class="sve-build-bar-add__word">{{ port.t('add_element') }}</span>
+      </button>
     </Teleport>
     <div v-if="componentPropsUi.open" class="fg-head bm-chead" data-sve-build-chead>
       <span class="bm-chip-tag bm-chip-comp">{{ port.t('el_component') }}</span>
@@ -1062,12 +1064,15 @@ onBeforeUnmount(() => {
 .sve-build .fg-classes__h .fg-ib { height: 1.5rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-ink); }
 .sve-build .fg-classes__h button.fg-ib:hover:not(:disabled), .sve-build .fg-classes__h .fg-classes__new:hover { background: var(--bm-accent-soft); color: var(--bm-accent-text); }
 /*
- * The panel's + in the pane's bar, outside the panel's root (Teleport), so in
- * the editor's blue by value: soft until the pointer comes or Add is open.
+ * The panel's + in the pane's bar, with its word, outside the panel's root
+ * (Teleport), so its colours are written by value: the grey of the element's
+ * own buttons (the bin's --bm-raise, --bm-muted) — Add open or not — and the
+ * editor's blue, whole, under the pointer.
  */
-.sve-build-bar-add { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; flex: none; margin-inline-start: auto; padding: 0; border: 0; border-radius: 0.3rem; background: rgba(56, 88, 233, 0.28); color: #b4c1ff; cursor: pointer; }
-.sve-build-bar-add svg { width: 0.9375rem; height: 0.9375rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.sve-build-bar-add:hover, .sve-build-bar-add[aria-pressed='true'] { background: #3858e9; color: #fff; }
+.sve-build-bar-add { display: inline-flex; align-items: center; gap: 0.3rem; flex: none; height: 1.5rem; margin-inline-start: auto; padding: 0 0.5rem 0 0.35rem; border: 0; border-radius: 0.3rem; background: #2e2e30; color: #9d9d9e; font: 500 0.6875rem/1 Inter, ui-sans-serif, system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
+.sve-build-bar-add__ic { display: grid; place-items: center; }
+.sve-build-bar-add svg { width: 0.875rem; height: 0.875rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.sve-build-bar-add:hover { background: #3858e9; color: #fff; }
 /* Add a class is the line's main action: full blue, under the pointer too. */
 .sve-build .fg-classes__h button[data-sve-build-classes-add],
 .sve-build .fg-classes__h button[data-sve-build-classes-add]:hover:not(:disabled) { background: var(--bm-accent); color: #fff; }
