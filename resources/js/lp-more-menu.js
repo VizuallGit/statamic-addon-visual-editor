@@ -1,8 +1,9 @@
 /**
- * Overflow menu to the right of Close: Live Preview defaults + reset in four
- * tabs (sidebars, HTML tree, top bar icons, keyboard shortcuts). Sidebars,
- * Top bar and Shortcuts list what the mode Live Preview is in may have
- * (Content or Build — toolbar-visibility.js). Does not import the kernel.
+ * Overflow menu to the right of Close: Live Preview defaults + reset in five
+ * tabs (general on/off settings, sidebars, HTML tree, top bar icons, keyboard
+ * shortcuts). Sidebars, Top bar and Shortcuts list what the mode Live Preview
+ * is in may have (Content or Build — toolbar-visibility.js). Does not import
+ * the kernel.
  */
 import { t } from './lib/i18n.js';
 import { applyZones } from './panel-zones.js';
@@ -88,7 +89,7 @@ let menuApp = null;
 let menuHost = null;
 let awayHandler = null;
 // The tab the menu opens on: the one it was left on, for this page load.
-let lastTab = 'sidebars';
+let lastTab = 'general';
 
 function parseJson(win, key, fallback) {
   try {
@@ -208,6 +209,19 @@ function sidebarState(win) {
   const label = (key) => tools.find((tool) => tool.key === key)?.label || key;
 
   return { tools: sidebarPanes(win).map((key) => ({ id: key, label: label(key), on: paneOn(win, key) })) };
+}
+
+/** The General tab: what Live Preview does, and how Build starts. */
+function generalProps(win) {
+  return {
+    previewLabel: t(win, 'lp_settings_general_preview'),
+    buildLabel: t(win, 'lp_settings_general_build'),
+    sectionToolbar: { on: sectionToolbarOn(win), label: t(win, 'lp_settings_section_toolbar') },
+    animations: { on: animationsRun(win), label: t(win, 'lp_settings_animations') },
+    // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
+    switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
+    classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
+  };
 }
 
 function sidebarsProps(win) {
@@ -335,11 +349,6 @@ function toolbarProps(win) {
   return {
     label: t(win, 'lp_settings_toolbar'),
     modeLabel: modeLabel(win),
-    // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
-    switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
-    classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
-    sectionToolbar: { on: sectionToolbarOn(win), label: t(win, 'lp_settings_section_toolbar') },
-    animations: { on: animationsRun(win), label: t(win, 'lp_settings_animations') },
     hint: t(win, 'lp_settings_toolbar_hint'),
     // Where the site says what each mode may have — only for someone who may edit it.
     editUrl: win.Statamic?.$config?.get?.('sveToolbarModesUrl') || '',
@@ -397,12 +406,14 @@ function settingsProps(win, rect) {
     right: Math.round(win.innerWidth - rect.right),
     title: t(win, 'lp_settings_title'),
     tabs: [
+      { id: 'general', label: t(win, 'lp_settings_tab_general') },
       { id: 'sidebars', label: t(win, 'lp_settings_tab_sidebars') },
       hasTree ? { id: 'tree', label: t(win, 'lp_settings_tab_tree') } : null,
       { id: 'toolbar', label: t(win, 'lp_settings_tab_toolbar') },
       { id: 'shortcuts', label: t(win, 'lp_settings_tab_shortcuts') },
     ].filter(Boolean),
     tab: lastTab,
+    general: generalProps(win),
     sidebars: sidebarsProps(win),
     tree,
     toolbar: toolbarProps(win),

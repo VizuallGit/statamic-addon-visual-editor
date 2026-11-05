@@ -1,7 +1,7 @@
 /**
  * Whether the Content | Vizuall Build | HTML Build switch stands on a tab of
  * the top bar that hangs into the preview (cp-shell/build-switch.js draws both looks).
- * On unless this user turned it off in Live Preview settings → Top bar; off,
+ * On unless this user turned it off in Live Preview settings → General; off,
  * the switch is a group like the bar's others, as it was before the tab.
  *
  * Its own file so the settings menu reads and writes it without importing the

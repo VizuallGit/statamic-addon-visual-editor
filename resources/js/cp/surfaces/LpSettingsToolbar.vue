@@ -35,44 +35,8 @@ const props = defineProps({
   groupDeleteLabel: { type: String, required: true },
   groupDropHint: { type: String, required: true },
   nameMax: { type: Number, required: true },
-  // { show, on, label }: the mode switch on a tab of the bar (build-switch-tab.js).
-  switchTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
-  // { on, label }: Style's class list, shown when a Build starts (build-classes-pref.js).
-  classesDefault: { type: Object, default: () => ({ on: false, label: '' }) },
-  // { on, label }: the toolbar on each page section (section-toolbar-pref.js).
-  sectionToolbar: { type: Object, default: () => ({ on: false, label: '' }) },
-  // { on, label }: animations running in Live Preview (animation-mode.js).
-  animations: { type: Object, default: () => ({ on: false, label: '' }) },
   on: { type: Object, required: true },
 });
-
-const switchTabOn = ref(props.switchTab.on);
-
-function setSwitchTab(value) {
-  switchTabOn.value = value;
-  props.on.switchTab(value);
-}
-
-const classesDefaultOn = ref(props.classesDefault.on);
-
-function setClassesDefault(value) {
-  classesDefaultOn.value = value;
-  props.on.classesDefault(value);
-}
-
-const sectionToolbarOn = ref(props.sectionToolbar.on);
-
-function setSectionToolbar(value) {
-  sectionToolbarOn.value = value;
-  props.on.sectionToolbar(value);
-}
-
-const animationsOn = ref(props.animations.on);
-
-function setAnimations(value) {
-  animationsOn.value = value;
-  props.on.animations(value);
-}
 
 const groups = ref([]);
 const grouped = ref(false);
@@ -351,22 +315,6 @@ function nudgeGroup(id, step) {
 
 <template>
   <div class="sve-lp-settings__section is-tight">
-    <label v-if="switchTab.show" class="sve-lp-settings__row" data-sve-switch-tab-setting>
-      <input type="checkbox" :checked="switchTabOn" @change="setSwitchTab($event.target.checked)">
-      <span :title="switchTab.label">{{ switchTab.label }}</span>
-    </label>
-    <label class="sve-lp-settings__row" data-sve-classes-default-setting>
-      <input type="checkbox" :checked="classesDefaultOn" @change="setClassesDefault($event.target.checked)">
-      <span :title="classesDefault.label">{{ classesDefault.label }}</span>
-    </label>
-    <label class="sve-lp-settings__row" data-sve-section-toolbar-setting>
-      <input type="checkbox" :checked="sectionToolbarOn" @change="setSectionToolbar($event.target.checked)">
-      <span :title="sectionToolbar.label">{{ sectionToolbar.label }}</span>
-    </label>
-    <label class="sve-lp-settings__row" data-sve-animations-setting>
-      <input type="checkbox" :checked="animationsOn" @change="setAnimations($event.target.checked)">
-      <span :title="animations.label">{{ animations.label }}</span>
-    </label>
     <div class="sve-lp-settings__line">
       <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{ modeLabel ? `${label} · ${modeLabel}` : label }}</span>
       <a

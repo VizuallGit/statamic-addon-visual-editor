@@ -1,15 +1,16 @@
 <script setup>
 import { ref } from 'vue';
+import LpSettingsGeneral from './LpSettingsGeneral.vue';
 import LpSettingsSidebars from './LpSettingsSidebars.vue';
 import LpSettingsTree from './LpSettingsTree.vue';
 import LpSettingsToolbar from './LpSettingsToolbar.vue';
 import LpSettingsShortcuts from './LpSettingsShortcuts.vue';
 
-// The ⋮ menu: four tabs, one job each. Sidebars = what is open and how wide;
-// HTML tree = the tree's face and the tag colours; Top bar = which icons show,
-// in the mode Live Preview is in; Shortcuts = this user's own keyboard
-// shortcuts. lp-more-menu.js builds the props and owns every write; the tabs
-// only report.
+// The ⋮ menu: five tabs, one job each. General = the on/off settings that are
+// none of the others' own; Sidebars = what is open and how wide; HTML tree =
+// the tree's face and the tag colours; Top bar = which icons show, in the mode
+// Live Preview is in; Shortcuts = this user's own keyboard shortcuts.
+// lp-more-menu.js builds the props and owns every write; the tabs only report.
 const props = defineProps({
   top: { type: Number, required: true },
   right: { type: Number, required: true },
@@ -17,6 +18,7 @@ const props = defineProps({
   // [{ id, label }] — only the tabs that have something to show.
   tabs: { type: Array, required: true },
   tab: { type: String, required: true },
+  general: { type: Object, required: true },
   sidebars: { type: Object, required: true },
   tree: { type: Object, required: true },
   toolbar: { type: Object, required: true },
@@ -67,7 +69,8 @@ function pick(id) {
     </nav>
 
     <div class="sve-lp-settings__body" role="tabpanel">
-      <LpSettingsSidebars v-if="current === 'sidebars'" v-bind="sidebars" :on="on" />
+      <LpSettingsGeneral v-if="current === 'general'" v-bind="general" :on="on" />
+      <LpSettingsSidebars v-else-if="current === 'sidebars'" v-bind="sidebars" :on="on" />
       <LpSettingsTree v-else-if="current === 'tree'" v-bind="tree" :on="on" />
       <LpSettingsToolbar v-else-if="current === 'toolbar'" v-bind="toolbar" :on="on" />
       <LpSettingsShortcuts v-else-if="current === 'shortcuts'" v-bind="shortcuts" :on="on" />
@@ -114,16 +117,17 @@ function pick(id) {
   background: #2a2a2d;
   flex: none;
 }
-/* Equal parts that never push each other out: a long label ends in … */
+/* Each as wide as its label, the rest shared out; they never push each other
+   out: when five long labels do not fit, a long one ends in … */
 .sve-lp-settings__tab {
   all: unset;
   box-sizing: border-box;
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   height: 1.75rem;
-  padding: 0 0.5rem;
+  padding: 0 0.375rem;
   border-radius: 0.25rem;
   text-align: center;
   font-size: 0.75rem;
@@ -220,14 +224,73 @@ function pick(id) {
   opacity: 0.6;
   cursor: default;
 }
-/* A row that belongs to the one above it (how the help behaves, under its tick). */
-.sve-lp-settings__row--sub {
-  padding-left: 1.375rem;
-}
 .sve-lp-settings__row input {
   margin: 0;
   flex: none;
   accent-color: var(--theme-color-primary, #4f46e5);
+}
+/* A list of on/off rows: one card, a hairline between the rows. */
+.sve-lp-settings__section.is-list {
+  gap: 0;
+  padding: 0.375rem 0.75rem;
+}
+.sve-lp-settings__section.is-list > .sve-lp-settings__label {
+  padding: 0.25rem 0 0.375rem;
+}
+.sve-lp-settings__section.is-list > .sve-lp-settings__hint {
+  padding: 0 0 0.5rem;
+}
+.sve-lp-settings__switch-row {
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.25rem;
+  padding: 0.5rem 0;
+}
+.sve-lp-settings__switch-row + .sve-lp-settings__switch-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+/* A row that belongs to the one above it (how the help behaves, under its
+   switch): indented, its hairline too. */
+.sve-lp-settings__switch-row.is-sub {
+  margin-left: 1rem;
+}
+.sve-lp-settings__switch-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+/* The switch is the checkbox: the track is its background colour, the knob a
+   circle drawn on it that slides from left to right. */
+.sve-lp-settings__row input.sve-lp-settings__switch {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 2rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.18);
+  background-image: radial-gradient(circle closest-side, #fff calc(100% - 0.125rem), transparent calc(100% - 0.0625rem));
+  background-size: 1.125rem 1.125rem;
+  background-repeat: no-repeat;
+  background-position: left center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, background-position 0.15s ease;
+}
+.sve-lp-settings__switch-row:hover input.sve-lp-settings__switch:not(:checked) {
+  background-color: rgba(255, 255, 255, 0.26);
+}
+.sve-lp-settings__row input.sve-lp-settings__switch:checked {
+  background-color: var(--theme-color-primary, #4f46e5);
+  background-position: right center;
+}
+.sve-lp-settings__row input.sve-lp-settings__switch:focus-visible {
+  outline: 2px solid var(--theme-color-primary, #4f46e5);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sve-lp-settings__row input.sve-lp-settings__switch {
+    transition: none;
+  }
 }
 /* Two columns of names; a long one ends in … and says itself in the tooltip. */
 .sve-lp-settings__grid {

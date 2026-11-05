@@ -461,8 +461,14 @@ try {
 
   const tabs = await cp.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-lp-settings-tab]`)].map((el) => el.dataset.sveLpSettingsTab), MENU);
 
-  step('four tabs: sidebars, HTML tree, top bar, shortcuts', tabs.join() === 'sidebars,tree,toolbar,shortcuts', tabs.join());
-  step('Sidebars first: the mode as one small row, two width sliders',
+  step('five tabs: general, sidebars, HTML tree, top bar, shortcuts', tabs.join() === 'general,sidebars,tree,toolbar,shortcuts', tabs.join());
+  step('General first: the section toolbar and animations as switches',
+    (await cp.evaluate((m) => document.querySelector(`${m} [data-sve-lp-settings-tab="general"]`)?.classList.contains('is-on')
+      && document.querySelectorAll(`${m} [data-sve-section-toolbar-setting] input[role="switch"], ${m} [data-sve-animations-setting] input[role="switch"]`).length === 2, MENU)));
+  await shot(page, '0-general');
+
+  await openMenuTab(page, cp, 'sidebars');
+  step('Sidebars: the mode as one small row, two width sliders',
     (await cp.evaluate((m) => document.querySelectorAll(`${m} .sve-lp-settings__modes button`).length === 3
       && document.querySelectorAll(`${m} input[type="range"]`).length === 2, MENU)));
 

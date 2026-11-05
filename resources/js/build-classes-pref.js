@@ -1,6 +1,6 @@
 /**
  * Whether Style's class list starts open. Off unless this user turned it on in
- * Live Preview settings → Top bar; the switch on the list itself shows or hides
+ * Live Preview settings → General; the switch on the list itself shows or hides
  * it for the moment, and a Build that starts again starts from this.
  *
  * Its own file so the settings menu reads and writes it without loading Build.

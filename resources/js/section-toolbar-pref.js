@@ -1,7 +1,7 @@
 /**
  * Whether a page section wears its toolbar in Live Preview: drag, up and down,
  * save, a section below, duplicate, remove. Off unless this user turned it on
- * in Live Preview settings → Top bar.
+ * in Live Preview settings → General.
  *
  * The answer lives on the Control Panel's <html>, where the bridge (Content) and
  * Build's canvas read it on every hover: neither has to be told, and a preview
