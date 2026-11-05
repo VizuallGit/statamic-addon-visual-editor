@@ -9,9 +9,11 @@
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
  * animation with the page's own runtime.css and presets.json, so what it
- * shows is what the page does; ▶ and every change also replay it on Build's
- * canvas. On a computer set to reduce motion, the stage leaves
- * reduced-motion.css out and the canvas reverts it while the tab is open
+ * shows is what the page does; ▶ and every change also replay the picked
+ * element, once, on Build's canvas — alone, while the canvas stands still as
+ * Live Preview settings → General says (animation-mode.js, lib/anim-still.js).
+ * On a computer set to reduce motion, the stage leaves reduced-motion.css out
+ * and the canvas reverts it, while the tab is open, for what plays
  * (canvas-motion.css): the author sees the motion as set, such visitors a fade.
  *
  * A switch comes from Action: the trigger binds the nearest one in reach. The
@@ -89,6 +91,7 @@ import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { besideSpot, overSpot } from '../../lib/beside.js';
+import { playAlone } from '../../lib/anim-still.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 
 const props = defineProps({
@@ -417,10 +420,9 @@ function canvasEl() {
 }
 
 /**
- * A finished CSS animation is gone from getAnimations(): the runtime's own off
- * switch, on and off again across a style flush, starts it from its first
- * frame. The canvas runs no Alpine, so a switch is turned on there, until the
- * next paint.
+ * The picked element from its first frame, alone (lib/anim-still.js): it
+ * plays while the canvas is held, and stands still again once done. The
+ * canvas runs no Alpine, so a switch is turned on there, until the next paint.
  */
 function replay(el) {
   if (!el || anim.value?.off) {
@@ -431,9 +433,7 @@ function replay(el) {
     el.setAttribute('data-anim-active', '');
   }
 
-  el.setAttribute('data-anim-off', '');
-  void el.offsetWidth;
-  el.removeAttribute('data-anim-off');
+  playAlone(el);
 }
 
 /**
@@ -476,7 +476,7 @@ const drawn = (el) => (el
 
 const MOTION_ID = 'sve-anim-canvas-motion';
 
-/** Hung on the canvas's root after its body, as the canvas hangs its own sheets: a read of the page again never meets it. */
+/** Hung on the canvas's root after its body, as the canvas hangs its own sheets: a read of the page again never meets it. It reverts reduce motion for what plays and nothing else. */
 function showMotion() {
   const doc = buildCanvasFrame(window)?.contentDocument;
 

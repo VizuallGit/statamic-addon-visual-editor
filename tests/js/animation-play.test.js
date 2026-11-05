@@ -1,12 +1,17 @@
 /**
- * bridge/animation-play.js — Build's «Stille | Kører» and ▶ in the real
- * preview document. Run against a small fake of the preview's DOM: which
- * elements a play reaches, how a play is made (the runtime's own off switch,
- * across a style flush), and what «Stille» puts on the document.
+ * bridge/animation-play.js and lib/anim-still.js — Live Preview settings'
+ * «Animationer kører» and ▶, in the real preview document and on Build's
+ * canvas. Run against a small fake of the DOM: which elements a play reaches,
+ * how a play is made (the runtime's own off switch, across a style flush, the
+ * element marked to play alone until its animations are done), and what
+ * «held still» puts on a document. Plus canvas-motion.css: it reverts reduce
+ * motion for what plays and for nothing else.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { playAnimation, setAnimationMode } from '../../resources/js/bridge/animation-play.js';
+import { applyStill, playAlone, PLAYING_ATTR, STILL_ATTR } from '../../resources/js/lib/anim-still.js';
 
 globalThis.CSS ??= { escape: (value) => value };
 
@@ -99,6 +104,9 @@ class El {
   }
 }
 
+/** A play that starts no animation: marked, restarted, and let go at once. */
+const PLAYED = ['+data-sve-anim-playing', '+data-anim-off', 'flush', '-data-anim-off', '-data-sve-anim-playing'];
+
 function makeWindow(body) {
   const head = new El({}, []);
   const html = new El({}, [head, body]);
@@ -119,7 +127,7 @@ test('▶ plays the stamped element itself when it animates: off, flush, on — 
 
   playAnimation(win, { path: '0.1' });
 
-  assert.deepEqual(el.log, ['+data-anim-off', 'flush', '-data-anim-off']);
+  assert.deepEqual(el.log, PLAYED);
   assert.equal(el.scrolled, 0, 'in sight already: not scrolled');
 });
 
@@ -136,9 +144,9 @@ test('▶ on an element without an animation of its own plays every animated ele
 
   playAnimation(win, { path: '0' });
 
-  assert.deepEqual(a.log, ['+data-anim-off', 'flush', '-data-anim-off']);
-  assert.deepEqual(b.log, ['+data-anim-off', 'flush', '-data-anim-off']);
-  assert.deepEqual(second.log, ['+data-anim-off', 'flush', '-data-anim-off']);
+  assert.deepEqual(a.log, PLAYED);
+  assert.deepEqual(b.log, PLAYED);
+  assert.deepEqual(second.log, PLAYED);
   assert.deepEqual(plain.log, []);
 });
 
@@ -152,7 +160,7 @@ test('an element the file keeps off stays off; one out of sight is scrolled into
 
   assert.deepEqual(off.log, []);
   assert.equal(below.scrolled, 1);
-  assert.deepEqual(below.log, ['+data-anim-off', 'flush', '-data-anim-off']);
+  assert.deepEqual(below.log, PLAYED);
 });
 
 test('a message without a path does nothing', () => {
@@ -165,11 +173,15 @@ test('a message without a path does nothing', () => {
   assert.deepEqual(el.log, []);
 });
 
-test('«Stille» marks the document and hangs one unlayered sheet in the head, once; «Kører» takes the mark and the playing marks off', () => {
+test('held still: the document is marked and one unlayered sheet hangs in the head, once; let go, the mark goes; either way no play stays singled out', () => {
   const playing = new El({ 'data-anim': 'self', 'data-sve-anim-playing': '' });
   const win = makeWindow(new El({}, [playing]));
 
   setAnimationMode(win, { still: true });
+
+  assert.ok(!playing.hasAttribute('data-sve-anim-playing'), 'held: an earlier play is not let run on');
+
+  playing.setAttribute('data-sve-anim-playing', '');
   setAnimationMode(win, { still: true });
 
   assert.ok(win.html.hasAttribute('data-sve-anim-still'));
@@ -184,11 +196,11 @@ test('«Stille» marks the document and hangs one unlayered sheet in the head, o
   setAnimationMode(win, { still: false });
 
   assert.ok(!win.html.hasAttribute('data-sve-anim-still'));
-  assert.ok(!playing.hasAttribute('data-sve-anim-playing'), 'Kører: nothing is singled out any more');
+  assert.ok(!playing.hasAttribute('data-sve-anim-playing'), 'running: nothing is singled out any more');
   assert.equal(win.head.children.length, 1, 'the sheet stays; the mark on <html> is the switch');
 });
 
-test('in «Stille» ▶ lets the element play alone, and the mark goes when the animations it started are done — not when an earlier play’s are', async () => {
+test('held still, ▶ lets the element play alone, and the mark goes when the animations it started are done — not when an earlier play’s are', async () => {
   const first = new Anim();
   const el = new El({ 'data-sve-ht-path': '0', 'data-anim': 'self' }, [], { animations: [first] });
   const win = makeWindow(new El({}, [el]));
@@ -214,7 +226,7 @@ test('in «Stille» ▶ lets the element play alone, and the mark goes when the 
   assert.ok(!el.hasAttribute('data-sve-anim-playing'));
 });
 
-test('in «Stille» an element whose play starts no animation is not left singled out', () => {
+test('held still, an element whose play starts no animation is not left singled out', () => {
   const el = new El({ 'data-sve-ht-path': '0', 'data-anim': 'self' });
   const win = makeWindow(new El({}, [el]));
 
@@ -222,4 +234,84 @@ test('in «Stille» an element whose play starts no animation is not left single
   playAnimation(win, { path: '0' });
 
   assert.ok(!el.hasAttribute('data-sve-anim-playing'));
+});
+
+test('Build\'s canvas: its own sheet, under its own id, where it is put; the mark on its own <html>', () => {
+  const el = new El({ 'data-anim': 'self' });
+  const win = makeWindow(new El({}, [el]));
+  const after = [];
+  const doc = { ...win.document, getElementById: (id) => after.find((sheet) => sheet.id === id) || null };
+
+  applyStill(doc, true, { id: '__sve-build-canvas-still', into: { appendChild: (sheet) => after.push(sheet) } });
+  applyStill(doc, true, { id: '__sve-build-canvas-still', into: { appendChild: (sheet) => after.push(sheet) } });
+
+  assert.equal(after.length, 1);
+  assert.equal(after[0].id, '__sve-build-canvas-still');
+  assert.match(after[0].textContent, new RegExp(`^html\\[${STILL_ATTR}\\] `));
+  assert.equal(win.head.children.length, 0, 'nothing in the head, which the canvas morphs from the preview\'s');
+  assert.ok(win.html.hasAttribute(STILL_ATTR));
+
+  applyStill(doc, false, { id: '__sve-build-canvas-still', into: { appendChild: (sheet) => after.push(sheet) } });
+
+  assert.ok(!win.html.hasAttribute(STILL_ATTR), 'the setting on: the canvas plays');
+});
+
+test('playAlone: marked, restarted across a flush, and the mark goes when the animations it started are done', async () => {
+  const run = new Anim();
+  const el = new El({ 'data-anim': 'children' }, [], { animations: [run] });
+
+  playAlone(el);
+
+  assert.deepEqual(el.log, ['+data-sve-anim-playing', '+data-anim-off', 'flush', '-data-anim-off']);
+  assert.ok(el.hasAttribute(PLAYING_ATTR), 'while it runs');
+
+  run.end();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.ok(!el.hasAttribute(PLAYING_ATTR), 'done: it stands still again');
+});
+
+/** Every alternative of a selector list, the commas inside :is() / :not() left whole. */
+function alternatives(list) {
+  const out = [];
+  let depth = 0;
+  let from = 0;
+
+  for (let i = 0; i < list.length; i += 1) {
+    if (list[i] === '(') {
+      depth += 1;
+    } else if (list[i] === ')') {
+      depth -= 1;
+    } else if (list[i] === ',' && depth === 0) {
+      out.push(list.slice(from, i).trim());
+      from = i + 1;
+    }
+  }
+
+  out.push(list.slice(from).trim());
+
+  return out;
+}
+
+/** `:is(a, b) > c` → `a > c`, `b > c`: what each alternative names, one by one. */
+function expand(selector) {
+  const match = /^:is\((.*)\)$/.exec(selector);
+
+  return match ? alternatives(match[1]).flatMap(expand) : [selector];
+}
+
+test('canvas-motion.css reverts reduce motion only under [data-sve-anim-playing]: the element, its children, its words — nothing else moves', () => {
+  const css = readFileSync(new URL('../../resources/animation/canvas-motion.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const inner = css.slice(css.indexOf('{') + 1, css.lastIndexOf('}'));
+  const selectors = [...inner.matchAll(/([^{}]+)\{[^{}]*\}/g)].map((m) => m[1].trim());
+
+  assert.ok(selectors.length >= 2, 'the timed kinds and parallax / ticker');
+
+  for (const list of selectors) {
+    for (const one of alternatives(list).flatMap(expand)) {
+      const head = one.split(/\s*[> ]\s*(?![^(]*\))/)[0];
+
+      assert.ok(head.includes(`[${PLAYING_ATTR}]`), `${one} — its animated element carries the mark`);
+    }
+  }
 });

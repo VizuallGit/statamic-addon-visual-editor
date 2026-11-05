@@ -1,19 +1,18 @@
 /*
  * The build canvas while its Animation tab is open: reduced-motion.css
- * reverted, so the runtime's own motion plays on a computer set to reduce
- * motion too. The same selectors as there, in the same order, after it in
- * the cascade.
+ * reverted for what plays — the element ▶ or a change plays
+ * (`data-sve-anim-playing`, lib/anim-still.js), its children, its words — so
+ * the runtime's own motion shows on a computer set to reduce motion too.
+ * Nothing else on the canvas: every selector sits under the mark. The same
+ * selectors as there, in the same order, after it in the cascade. A hover is
+ * never played, so its rule has no counterpart here.
  */
 @layer anim-reduced {
-  :is([data-anim="self"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *, [data-anim="words"]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) [data-anim-word]) {
+  :is([data-anim="self"][data-sve-anim-playing]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])), [data-anim="children"][data-sve-anim-playing]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) > *, [data-anim="words"][data-sve-anim-playing]:not([data-anim-off], [data-anim-on="hover"], [data-anim-on="switch"]:not([data-anim-active])) [data-anim-word]) {
     animation: revert-layer;
   }
 
-  :is([data-anim="parallax"], [data-anim="ticker"]) {
+  :is([data-anim="parallax"][data-sve-anim-playing], [data-anim="ticker"][data-sve-anim-playing]) {
     animation: revert-layer;
-  }
-
-  :is([data-anim="self"][data-anim-on="hover"], [data-anim="children"][data-anim-on="hover"] > *, [data-anim="words"][data-anim-on="hover"] [data-anim-word]) {
-    --anim-motion: revert-layer;
   }
 }

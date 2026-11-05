@@ -414,14 +414,15 @@ test('an element that follows the mouse moves by its x and y times where the poi
   assert.doesNotMatch(RUNTIME, /\[data-anim="mouse"\][^{]*\{[^}]*animation:/, 'the mouse is a transition, never an animation');
 });
 
-test('less motion stands over the runtime, and the canvas reverts each of its rules with the same selector', () => {
+test('less motion stands over the runtime, and the canvas reverts its animations for what plays, with the same selectors under the play mark', () => {
   const rules = (css) => [...css.matchAll(/\n\s*(:is\([^{]+\))\s*\{\s*([a-z-]+):/g)].map((match) => [match[1], match[2]]);
+  const unmarked = rules(CANVAS_MOTION).map(([selector, property]) => [selector.replaceAll('[data-sve-anim-playing]', ''), property]);
 
   assert.match(RUNTIME, /^@layer anim-runtime, anim-reduced;$/m);
   assert.match(REDUCED, /@layer anim-reduced \{\s*@media \(prefers-reduced-motion: reduce\)/);
   assert.equal(rules(REDUCED).length, 3);
-  assert.deepEqual(rules(CANVAS_MOTION), rules(REDUCED));
-  assert.equal(CANVAS_MOTION.match(/: revert-layer;/g).length, 3);
+  assert.deepEqual(unmarked, rules(REDUCED).slice(0, 2), 'the timed kinds, then parallax and ticker; a hover is never played');
+  assert.equal(CANVAS_MOTION.match(/: revert-layer;/g).length, 2);
 });
 
 test('while scrolling and a parallax follow a view() timeline, only where the browser has one', () => {

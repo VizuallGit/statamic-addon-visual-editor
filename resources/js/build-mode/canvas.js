@@ -98,6 +98,8 @@ import { canvasFields, fieldDomId } from './canvas-fields.js';
 import { followReal, sectionKeyOf } from './canvas-live.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
 import { isEmptyMedia, mediaPlaceholderCss } from '../lib/media-placeholder.js';
+import { STILL_ATTR } from '../lib/anim-still.js';
+import { holdCanvas } from '../animation-mode.js';
 
 const morph = (() => {
   const holder = {};
@@ -205,15 +207,16 @@ function counterpart(el, fromRoot, toRoot) {
   return steps.reduce((node, i) => node?.children[i] || null, toRoot);
 }
 
+/** The page's <html> onto the canvas's; the still mark is the canvas's own (animation-mode.js holdCanvas), not the preview's. */
 function copyAttributes(from, to) {
   for (const { name } of [...to.attributes]) {
-    if (!from.hasAttribute(name)) {
+    if (!from.hasAttribute(name) && name !== STILL_ATTR) {
       to.removeAttribute(name);
     }
   }
 
   for (const { name, value } of [...from.attributes]) {
-    if (!inertAttr(name) && to.getAttribute(name) !== value) {
+    if (!inertAttr(name) && name !== STILL_ATTR && to.getAttribute(name) !== value) {
       to.setAttribute(name, value);
     }
   }
@@ -446,6 +449,8 @@ export function startCanvas(win) {
     twSheet = page.createElement('style');
     twSheet.id = TW_ID;
     page.documentElement.append(twSheet, own);
+    // Animations stand still or run as Live Preview settings say, here too.
+    holdCanvas(win, page);
 
     page.addEventListener('click', onClick, true);
     page.addEventListener('auxclick', (event) => event.preventDefault(), true);
