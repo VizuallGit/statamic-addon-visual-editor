@@ -122,10 +122,6 @@ export const MSG = Object.freeze({
   SVE_GLOBALS_VALUES: 'sve-globals-values',
   SVE_GRID_SPAN: 'sve-grid-span',
   SVE_HTML_PICK: 'sve-html-pick',
-  // CP → preview: outline the element stamped `path` (or every rendering of
-  // the component `src`). `scroll: true` — a click on the row in the HTML
-  // tree — also brings it into view and pulses it (bridge/scroll-mode.js
-  // revealOptions says whether and where to).
   SVE_HTML_PICK_FOCUS: 'sve-html-pick-focus',
   // CP → a copy of the preview (mirror.js, the breakpoint overview's frames):
   // the preview just morphed to this render — do the same, without fetching.

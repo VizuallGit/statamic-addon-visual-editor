@@ -23,7 +23,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './video-hold.js';
 import { applyAlpineStates, guardDialogs, setAlpineState, watchAlpineStart } from './alpine-state.js';
 import { playAnimation, setAnimationMode } from './animation-play.js';
-import { revealOptions, scrollBehavior, setScrollMode } from './scroll-mode.js';
+import { scrollBehavior, setScrollMode } from './scroll-mode.js';
 import { installShortcuts, setShortcuts } from './shortcuts.js';
 import { installSiteInert } from './site-inert.js';
 
@@ -79,21 +79,6 @@ function pulseElement(el) {
   void el.offsetWidth; // force reflow to restart animation
   el.classList.add('sve-cp-pulse');
   setTimeout(() => el.classList.remove('sve-cp-pulse'), PULSE_DURATION);
-}
-
-/**
- * A row in the CP was clicked and this is its element: brought into view
- * (bridge/scroll-mode.js says whether, where to and how) and pulsed, so the
- * click lands somewhere the author can see.
- */
-function revealElement(win, el) {
-  const options = revealOptions(el.getBoundingClientRect(), win.innerHeight);
-
-  if (options) {
-    el.scrollIntoView({ behavior: scrollBehavior(), ...options });
-  }
-
-  pulseElement(el);
 }
 
 // --- External drag (dragging a section in from the CP's library panel) ----------
@@ -374,15 +359,6 @@ export function createMessageReceiver(win) {
       for (const el of marked) {
         applyOutlineTone(win, el);
         el.setAttribute(ACTIVE_ATTR, '');
-      }
-
-      // `scroll` is a click on the row in the HTML tree (html-tree.js
-      // selectHtmlTreeRow): the preview goes to the element. A pick that came
-      // from the preview itself, or a write keeping its pick, only outlines —
-      // the page must not move under the author's pointer or keystrokes. A
-      // component row stands for every rendering; the first is the one shown.
-      if (data.scroll && marked[0]) {
-        revealElement(win, marked[0]);
       }
 
       return;
@@ -695,7 +671,8 @@ function activateByUid(win, data) {
   doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((node) => node.removeAttribute(ACTIVE_ATTR));
   applyOutlineTone(win, el);
   el.setAttribute(ACTIVE_ATTR, '');
-  revealElement(win, el);
+  el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+  pulseElement(el);
 
   const fields = el.matches(`[${SID_FIELD_ATTR}]`)
     ? [el]

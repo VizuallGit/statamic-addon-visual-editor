@@ -657,7 +657,7 @@ export function findLpCloseButton(header) {
     return null;
   }
 
-  const marked = header.querySelector(`[${LP_CLOSE_HIDDEN_ATTR}]`);
+  const marked = header.querySelector('[data-sve-statamic-lp-close]');
 
   if (marked) {
     return marked;
@@ -697,36 +697,12 @@ export function collectStatamicLpCloseButtons(header) {
   });
 }
 
-const LP_CLOSE_HIDDEN_ATTR = 'data-sve-statamic-lp-close';
-
-/**
- * True while Statamic's × still wears the hiding this put on it. A Vue
- * re-render can take the class and style back while the mark stays, so the
- * mark alone does not say the button is gone.
- */
-function isStatamicLpCloseHidden(close) {
-  return (
-    close.hasAttribute(LP_CLOSE_HIDDEN_ATTR) &&
-    close.classList.contains('sve-off') &&
-    close.style.getPropertyValue('display') === 'none'
-  );
-}
-
 export function markStatamicLpCloseHidden(close) {
   if (!close || close.id === LP_BACK_ID || isOurLpChromeButton(close)) {
     return;
   }
 
-  // Already hidden: writing the same class and style again is still a
-  // mutation, and the observer in watchStatamicLpClose hears every one of
-  // them. It used to answer this write with another pass, and that pass with
-  // this write — a loop at frame rate, scanning every button in Live Preview
-  // each time, for as long as the editor was open.
-  if (isStatamicLpCloseHidden(close)) {
-    return;
-  }
-
-  close.setAttribute(LP_CLOSE_HIDDEN_ATTR, '');
+  close.setAttribute('data-sve-statamic-lp-close', '');
   close.classList.add('sve-off');
   close.style.setProperty('display', 'none', 'important');
   close.style.setProperty('visibility', 'hidden', 'important');
@@ -771,24 +747,6 @@ export function hideStatamicLpClose(header) {
     .forEach(markStatamicLpCloseHidden);
 }
 
-/**
- * A mutation in the header that can mean a × to hide: an element arriving
- * (Vue drawing the bar again), or a button's class or style changing — the ×
- * being shown again, or a button becoming one. Our own hiding of a × that is
- * already hidden is neither, and neither is a hover or a state on anything
- * that is not a button; a pass over every button in Live Preview is not owed
- * to those.
- */
-function lpCloseMutationMatters(record) {
-  if (record.type === 'childList') {
-    return record.addedNodes.length > 0;
-  }
-
-  const { target } = record;
-
-  return target.tagName === 'BUTTON' && !isStatamicLpCloseHidden(target);
-}
-
 /** Keep Statamic’s × gone across Vue re-renders of the Live Preview header. */
 export function watchStatamicLpClose(win) {
   const header = lpHeader(win.document);
@@ -808,8 +766,8 @@ export function watchStatamicLpClose(win) {
 
   let scheduled = false;
 
-  sveState.lpCloseHideObserver = new win.MutationObserver((records) => {
-    if (scheduled || !records.some(lpCloseMutationMatters)) {
+  sveState.lpCloseHideObserver = new win.MutationObserver(() => {
+    if (scheduled) {
       return;
     }
 
