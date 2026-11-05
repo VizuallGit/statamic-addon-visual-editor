@@ -58,8 +58,8 @@ function sameOriginUrl(href, origin) {
  * @returns {string|null}
  */
 export function overlayHistoryUrl({ origin, cpHost, page, here = '' }) {
-  // A Control Panel host keeps its own URL (see above) — always without the
-  // Live Preview ask. Landed on with `?live-preview=1` (the top bar's button,
+  // A Control Panel host keeps its own URL (see above).
+  // Always without the Live Preview ask. Landed on with `?live-preview=1` (the top bar's button,
   // a link, an older refresh), `autoOpenLivePreview` takes the ask off, but
   // Statamic's router writes the page's URL back with it a moment later:
   // carried into the entry, a refresh reopened the editor. Measured on the
