@@ -1277,7 +1277,7 @@ return [
     'theme_containers_wide' => 'Wide',
     'theme_containers_ultra_wide' => 'Ultra wide',
     'theme_containers_full' => 'Full width',
-    'theme_containers_hint' => 'The widths a Container can have: pick one on the Container in Build, under Content. Normal is wrapper on its own, and Full width fills the line inside the gutter. Values in px.',
+    'theme_containers_hint' => 'The widths a Container can have: pick one on the Container in Build, under Content. Normal is container on its own, and Full width fills the line inside the gutter. Values in px.',
     'theme_spacing_gutter' => 'Gutter',
     'theme_spacing_gutter_hint' => 'The space at the edge of the content. Pick a size from the scale.',
     'theme_spacing_remove' => 'Delete size',

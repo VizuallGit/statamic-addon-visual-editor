@@ -1,7 +1,8 @@
 <script setup>
 /**
  * A Container's width, on top of its Content: the six the theme has
- * (lib/container-widths.js), each a class beside `wrapper` — Normal none.
+ * (lib/container-widths.js), each a class beside `container` — Normal none —
+ * or, on an older Container, beside `wrapper` under that name.
  * One select in a row of its own, as the tag below it: the panel's chevron
  * (`.fg-select`), the browser's list. One at a time and at every size, as
  * the tag is: the size picked in Style does not come into it. The widths' px
@@ -9,11 +10,12 @@
  * panel shows here as it paints.
  */
 import { computed, inject } from 'vue';
-import { CONTAINER_WIDTHS, FULL_WIDTH, WIDTH_CLASSES, widthOf } from '../../lib/container-widths.js';
+import { CONTAINER_CLASS, CONTAINER_WIDTHS, FULL_WIDTH, WIDTH_CLASSES, containerBase, widthClass, widthOf } from '../../lib/container-widths.js';
 
 const port = inject('sveBuild');
 
-const current = computed(() => widthOf(String(port.tagClasses() || '').split(/\s+/)));
+const classes = computed(() => String(port.tagClasses() || '').split(/\s+/));
+const current = computed(() => widthOf(classes.value));
 
 const options = computed(() => [...CONTAINER_WIDTHS, FULL_WIDTH].map((w) => {
   const px = w.token ? port.themePx(w.token) : null;
@@ -27,7 +29,7 @@ function pick(key) {
   const w = options.value.find((item) => item.key === key);
 
   if (w) {
-    port.setOneOf(WIDTH_CLASSES, w.cls);
+    port.setOneOf(WIDTH_CLASSES, widthClass(w, containerBase(classes.value) || CONTAINER_CLASS));
   }
 }
 </script>

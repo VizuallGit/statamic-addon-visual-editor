@@ -4,7 +4,7 @@
  *
  * Owner: shared by the HTML tree (its row names) and Build mode (its panel's
  * names) — one answer for one element, wherever it is shown.
- * May import: tw-parse.js. Pure — no editor, no bus, no DOM.
+ * May import: tw-parse.js, lib/container-widths.js. Pure — no editor, no bus, no DOM.
  * Bus messages: none.
  *
  * Read from the file, so markup written by hand is named the same way as
@@ -12,6 +12,7 @@
  */
 
 import { readClassAttr } from '../tw-parse.js';
+import { containerBase } from './container-widths.js';
 
 const has = (classes, name) => String(classes || '').split(/\s+/).includes(name);
 
@@ -48,7 +49,8 @@ export function elementKind(node, classes = '', parent = null, parentClasses = '
   }
 
   if (tag === 'div') {
-    if (has(classes, 'wrapper')) {
+    // `container`, as Build writes one — or `wrapper`, as one was written before.
+    if (containerBase(String(classes || '').split(/\s+/))) {
       return 'container';
     }
 

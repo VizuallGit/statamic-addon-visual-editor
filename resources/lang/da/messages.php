@@ -1264,7 +1264,7 @@ return [
     'theme_containers_wide' => 'Bred',
     'theme_containers_ultra_wide' => 'Ultra bred',
     'theme_containers_full' => 'Fuld bredde',
-    'theme_containers_hint' => 'De bredder en Container kan have: vælg én på Containeren i Build under Content. Normal er wrapper alene, og Fuld bredde fylder linjen inden for gutteren. Tal i px.',
+    'theme_containers_hint' => 'De bredder en Container kan have: vælg én på Containeren i Build under Content. Normal er container alene, og Fuld bredde fylder linjen inden for gutteren. Tal i px.',
     'theme_spacing_gutter' => 'Gutter',
     'theme_spacing_gutter_hint' => 'Afstanden ud til kanten. Vælg en størrelse fra skalaen.',
     'theme_spacing_remove' => 'Slet størrelse',

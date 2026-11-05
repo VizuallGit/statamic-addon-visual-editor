@@ -60,3 +60,10 @@ test('the tree and Build name a row the same way', () => {
     assert.equal(node.index, it.index, path);
   }
 });
+
+test('a Container is a div with `container`, as Build writes one — or `wrapper`, as one was written before', () => {
+  const html = '<section><div class="container container-narrow"><p>a</p></div><div class="wrapper"><p>b</p></div><div class="flex"><p>c</p></div></section>';
+  const kinds = [...elementNames(html, parseTemplateTree(html)).values()].map((it) => it.kind);
+
+  assert.deepEqual(kinds, ['section', 'container', 'text', 'container', 'text', 'flex', 'text']);
+});

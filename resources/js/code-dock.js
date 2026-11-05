@@ -190,7 +190,8 @@ export const HTML_DIVS = [
   { id: 'flex', classes: 'flex', lang: 'code_dock_div_flex' },
   { id: 'flex-col', classes: 'flex flex-col', lang: 'code_dock_div_flex_col' },
   { id: 'flex-row', classes: 'flex flex-row', lang: 'code_dock_div_flex_row' },
-  { id: 'container', classes: 'wrapper', lang: 'code_dock_div_container' },
+  // The site's `@utility container` (lib/container-widths.js); `wrapper` is the class it had before.
+  { id: 'container', classes: 'container', lang: 'code_dock_div_container' },
 ];
 export const HTML_TOOLS = [
   { id: 'section', title: 'section', tag: 'section' },

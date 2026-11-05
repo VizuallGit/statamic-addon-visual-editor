@@ -14,7 +14,7 @@
       <template v-for="row in rows" :key="row.key">
         <span class="sve-theme__widths-name">
           <span class="sve-theme__grid-name">{{ ui.labels[`containers_${row.key.replace('-', '_')}`] }}</span>
-          <span class="sve-theme__widths-class">{{ row.cls || 'wrapper' }}</span>
+          <span class="sve-theme__widths-class">{{ row.cls || CONTAINER_CLASS }}</span>
         </span>
         <span v-if="row.full" class="sve-theme__widths-full">100%</span>
         <label v-else class="sve-theme__input" :title="row.px ? widthRem(row.px) : ''">
@@ -53,7 +53,7 @@
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { sizeRef } from '../theme-panel/presets.js';
-import { CONTAINER_WIDTHS, FULL_WIDTH, widthRem } from '../../lib/container-widths.js';
+import { CONTAINER_CLASS, CONTAINER_WIDTHS, FULL_WIDTH, widthRem } from '../../lib/container-widths.js';
 
 defineProps({ h: { type: Object, required: true } });
 

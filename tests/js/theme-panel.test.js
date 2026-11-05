@@ -5,7 +5,7 @@ import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resourc
 import { BORDERS, CHECK_SIZES, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
 import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from '../../resources/js/cp/theme-panel/highlights.js';
 import { buttonSample, checkSample, fieldSample, outlineButtonSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
-import { CONTAINER_WIDTHS, WIDTH_CLASSES, widthOf, widthRem } from '../../resources/js/lib/container-widths.js';
+import { CONTAINER_WIDTHS, FULL_WIDTH, WIDTH_CLASSES, containerBase, widthClass, widthOf, widthRem } from '../../resources/js/lib/container-widths.js';
 
 const CSS = `@import "tailwindcss";
 
@@ -154,10 +154,27 @@ test('every container width reaches the page on every render', () => {
 });
 
 test('a Container wears one width class, Normal none', () => {
+  assert.equal(widthOf(['container']), 'normal');
+  assert.equal(widthOf(['container', 'container-narrow']), 'narrow');
+  assert.equal(widthOf(['container', 'container-full', 'py-400']), 'full');
+  assert.ok(!WIDTH_CLASSES.includes('') && WIDTH_CLASSES.length === 10);
+  assert.ok(WIDTH_CLASSES.includes('container-ultra-wide') && WIDTH_CLASSES.includes('wrapper-ultra-wide'));
+  assert.equal(widthRem(720), '45rem');
+  assert.equal(widthRem(1366), '85.375rem');
+});
+
+test('an older Container is `wrapper`, and its widths keep that name', () => {
   assert.equal(widthOf(['wrapper']), 'normal');
   assert.equal(widthOf(['wrapper', 'wrapper-ultra-narrow']), 'ultra-narrow');
   assert.equal(widthOf(['wrapper', 'wrapper-full', 'py-400']), 'full');
-  assert.ok(!WIDTH_CLASSES.includes('') && WIDTH_CLASSES.length === 5);
+  assert.equal(containerBase(['wrapper', 'py-400']), 'wrapper');
+  assert.equal(containerBase('container wrapper'), 'container');
+  assert.equal(containerBase(['flex']), '');
+  const narrow = CONTAINER_WIDTHS.find((w) => w.key === 'narrow');
+  assert.equal(widthClass(narrow), 'container-narrow');
+  assert.equal(widthClass(narrow, 'wrapper'), 'wrapper-narrow');
+  assert.equal(widthClass(CONTAINER_WIDTHS.find((w) => w.key === 'normal'), 'wrapper'), '');
+  assert.equal(widthClass(FULL_WIDTH, 'wrapper'), 'wrapper-full');
   assert.equal(widthRem(720), '45rem');
   assert.equal(widthRem(1366), '85.375rem');
 });

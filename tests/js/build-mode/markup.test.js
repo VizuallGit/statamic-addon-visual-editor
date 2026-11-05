@@ -20,7 +20,7 @@ test('the dock\'s snippets, exactly', () => {
 });
 
 test('the div menu\'s classes, and nothing of Build\'s own', () => {
-  assert.equal(write('container'), '<div class="wrapper"></div>');
+  assert.equal(write('container'), '<div class="container"></div>');
   assert.equal(write('flex'), '<div class="flex"></div>');
   assert.equal(write('div'), '<div></div>');
   assert.equal(markupFor(items.find((i) => i.id === 'div:flex-col'), {}), '<div class="flex flex-col"></div>');
