@@ -643,11 +643,14 @@ onBeforeUnmount(() => {
 .sve-build .bm-bars i { display: block; border-radius: 0.2rem; background: var(--bm-bar); }
 .sve-build .bm-pk:hover:not(:disabled) .bm-bars i { background: var(--bm-accent); }
 .sve-build .bm-pk-l { font-weight: 600; display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
-/* Style's grid tiles: three a row, two rows until Show more, the grid's own first */
+/* Style's grid tiles: three a row, two rows until Load more, the grid's own first */
 .sve-build .bm-sp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
 .sve-build .bm-sp > .bm-sp-o { min-width: 0; }
-/* Its Show more is a family's (.fg-sec__more-row), right under the tiles */
-.sve-build .fg-sec__more-row.bm-sp-more { order: 0; }
+/* The panel's one Load more / Show less: the grid's tiles and every family's More. On the left, as the rest; hovered, only the words go full. */
+.sve-build .bm-load-more { display: flex; align-items: center; gap: 0.25rem; width: fit-content; padding: 0.3rem 0; background: none; color: var(--bm-muted); font-size: 0.6875rem; font-weight: 600; cursor: pointer; }
+.sve-build .bm-load-more:hover { color: var(--bm-ink); background: none; }
+.sve-build .bm-load-more svg { width: 0.75rem; height: 0.75rem; }
+.sve-build .bm-load-more[aria-expanded='true'] svg { transform: rotate(180deg); }
 .sve-build .bm-sp-o { padding: 0.4rem; gap: 0.3rem; }
 .sve-build .bm-sp-o.is-on { border-color: var(--bm-accent); }
 .sve-build .bm-sp-o[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }
@@ -1027,14 +1030,7 @@ onBeforeUnmount(() => {
 /* A family's More: what it unfolds goes under what stands in front, and its switch always last, under both. */
 .sve-build .fg-sec__more { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .sve-build .fg-sec__more.is-open { order: 1; }
-.sve-build .fg-sec__more-row { order: 2; display: flex; align-items: center; gap: 0.4rem; width: fit-content; margin-top: 0.5rem; font-size: 0.75rem; font-weight: 500; color: var(--bm-muted); cursor: pointer; }
-.sve-build .fg-sec__more-row:hover { color: var(--bm-ink); }
-/* The class list's count and switch (.fg-classes), a size down. */
-.sve-build .fg-sec__more-row .fg-classes__count { min-width: 0.875rem; height: 0.875rem; }
-.sve-build .fg-sec__more-row .bm-switch { width: 1.375rem; height: 0.875rem; border-radius: 0.2rem; background: var(--bm-edge); }
-.sve-build .fg-sec__more-row .bm-switch::after { top: 0.125rem; left: 0.125rem; width: 0.625rem; height: 0.625rem; border-radius: 0.125rem; }
-.sve-build .fg-sec__more-row .bm-switch[aria-checked='true'] { background: var(--bm-accent); }
-.sve-build .fg-sec__more-row .bm-switch[aria-checked='true']::after { transform: translateX(0.5rem); }
+.sve-build .fg-sec__more-row { order: 2; margin-top: 0.25rem; }
 /* The Tailwind pane's own class list, in the panel: its tag, sizes and state are the panel's sticky top. */
 .sve-build .fg-classes .sve-tw { padding: 0; }
 .sve-build .fg-classes .sve-tw-head { display: none; }
@@ -1046,10 +1042,11 @@ onBeforeUnmount(() => {
 .sve-build .fg-classes .fg-sec__acts { flex: none; }
 .sve-build .fg-classes .fg-ib { width: 1.5rem; height: 1.5rem; border-radius: 0.25rem; }
 /* The switch in the count's box: the same height and corners, and a square knob to match. */
-.sve-build .fg-classes .bm-switch { width: 1.625rem; height: 1.05rem; border-radius: 0.25rem; background: var(--bm-edge); }
-.sve-build .fg-classes .bm-switch::after { top: 0.15rem; left: 0.15rem; width: 0.75rem; height: 0.75rem; border-radius: 0.15rem; }
-.sve-build .fg-classes .bm-switch[aria-checked='true'] { background: var(--bm-accent); }
-.sve-build .fg-classes .bm-switch[aria-checked='true']::after { transform: translateX(0.575rem); }
+/* The knob 0.75rem with 0.1875rem round it on every side: height 0.75 + 2 × 0.1875, its way across 1.875 − 0.75 − 2 × 0.1875. On, the editor's blue, soft. */
+.sve-build .fg-classes .bm-switch { box-sizing: border-box; width: 1.875rem; height: 1.125rem; border: 0; border-radius: 0.25rem; background: var(--bm-edge); }
+.sve-build .fg-classes .bm-switch::after { top: 0.1875rem; left: 0.1875rem; width: 0.75rem; height: 0.75rem; border-radius: 0.15rem; }
+.sve-build .fg-classes .bm-switch[aria-checked='true'] { background: var(--bm-accent-soft); }
+.sve-build .fg-classes .bm-switch[aria-checked='true']::after { transform: translateX(0.75rem); }
 /* One line in the sticky top: each size's name, then its classes, scrolling sideways. Room above and beside for the minus. */
 .sve-build .fg-classes .sve-tw { flex-direction: row; align-items: center; gap: 0.75rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; padding-block: 0.5em 0.25rem; padding-inline-end: 0.5em; scrollbar-width: thin; scrollbar-color: var(--bm-edge) transparent; }
 .sve-build .fg-classes .sve-tw-group { flex: none; flex-direction: row; align-items: center; gap: 0.4rem; }
