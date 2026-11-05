@@ -1994,6 +1994,45 @@ export function renderHtmlTree(win) {
   // deleted the page section.
   const openSection = openUid && !inComponent ? sections.find((item) => item.uid === openUid) : null;
 
+  /*
+   * Build's panel names the picked element as its row is named here
+   * (BuildPanel's head, port `treeName`): the section's name on its root, else
+   * the row's own name or its first class — the two lines the rows below use,
+   * for any element of this file, folded away or not. Asked with the file it
+   * is about: another file, or this one changed since, answers ''.
+   */
+  htmlTreeUi.nameAt = (path, about) => {
+    if (about !== html || !path) {
+      return '';
+    }
+
+    const walk = (nodes) => {
+      for (const item of nodes || []) {
+        if (item.path === path) {
+          return item;
+        }
+
+        const inner = path.startsWith(`${item.path}/`) ? walk(item.children) : null;
+
+        if (inner) {
+          return inner;
+        }
+      }
+
+      return null;
+    };
+    const node = walk(roots);
+
+    if (!node) {
+      return '';
+    }
+
+    const isRoot = node.id === rootId;
+    const base = isRoot && rootName ? rootName : node.klass;
+
+    return isRoot && openSection ? base : htmlTreeDisplayName(base, node.path, aliases);
+  };
+
   const held = heldVideos(win, String(ask('dock:current-type') || ''));
   let videoIndex = 0;
   // The preview counts a half's components inside the element carrying

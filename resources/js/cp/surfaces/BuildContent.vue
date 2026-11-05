@@ -37,7 +37,8 @@
  * a button to take its file away, as the asset field's own shows only on a hover.
  * A link also has its target, rel and aria-label.
  *
- * Text and layout have their tag on top (build-mode/tags.js), as in Bricks.
+ * Every tag has its tag on top, as in Bricks: the tag menu of the HTML tree (tw-classes.js,
+ * lib/tag-choices.js) — what it may become, and Custom. Rich text and a Grid's columns show theirs.
  * Every tag has its data and accessibility attributes at the bottom (BuildAttrs.vue).
  *
  * What is not the element's own says whose it is: the elements inside it, or —
@@ -56,7 +57,6 @@ import { typed } from './build-typed.js';
 import { ic } from '../../build-mode/icons.js';
 import { ADDRESS, altFromAsset } from '../../build-mode/attrs.js';
 import { halfTag, isOneLine } from '../../build-mode/text.js';
-import { tagChoices } from '../../build-mode/tags.js';
 import { TEXT_FIELDS, wholeTag, withoutFields } from '../../data-var-types.js';
 
 const props = defineProps({
@@ -385,10 +385,8 @@ function richOff() {
 
 const container = props.node.kind === 'container';
 const nothing = computed(() => !svg && !container && !read.value && !address && !rich.value && richField.value === null);
-/* Rich text is a div by what it is, and a Grid's columns are divs for the Grid to stay one. */
-const tags = computed(() =>
-  rich.value || richField.value !== null || ['column', 'columns'].includes(props.node.kind) ? [] : tagChoices(tag.value)
-);
+/* Rich text is a div by what it is, and a Grid's columns are divs for the Grid to stay one: their tag is shown, not changed. */
+const tagLocked = computed(() => !!rich.value || richField.value !== null || ['column', 'columns'].includes(props.node.kind));
 const layout = computed(() => tagFamily(tag.value) === 'layout');
 
 onBeforeUnmount(() => {
@@ -407,13 +405,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="bm-content">
     <BuildContainerWidth v-if="container" />
-    <div v-if="tags.length" class="fg-row" data-sve-build-tag>
+    <div v-if="!svg && tag" class="fg-row" data-sve-build-tag>
       <span class="fg-rlab">tag</span>
-      <label class="fg-field">
-        <select class="fg-select" aria-label="tag" :value="tag" @change="port.setTag($event.target.value)">
-          <option v-for="name in tags" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </label>
+      <div class="fg-field">
+        <span v-if="tagLocked" class="bm-tag-now is-locked" data-sve-build-tag-locked>{{ tag }}</span>
+        <button v-else type="button" class="fg-select bm-tag-now" aria-label="tag" aria-haspopup="listbox" data-sve-build-tag-open @click="port.openTagMenu($event.currentTarget)">{{ tag }}</button>
+      </div>
     </div>
     <div v-if="read?.kind === 'text'" class="bm-text">
       <label class="fg-lab" :for="`sve-build-text-${path}`">{{ port.t('content_text') }}</label>

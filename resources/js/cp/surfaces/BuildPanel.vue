@@ -414,7 +414,7 @@ onBeforeUnmount(() => {
     <template v-else>
       <div class="fg-head bm-el-head">
         <span class="bm-chip-tag" :class="{ 'bm-chip-comp': picked.kind === 'component' }">{{ picked.kind === 'component' ? 'component' : picked.tag }}</span>
-        <b>{{ isRich ? port.t('content_rich') : isGallery ? port.t('content_gallery') : nameOf(picked) }}</b>
+        <b data-sve-build-name>{{ isRich ? port.t('content_rich') : isGallery ? port.t('content_gallery') : port.treeName?.(picked.path) || nameOf(picked) }}</b>
         <span class="fg-head__acts">
           <button v-if="!bar" type="button" class="fg-ib" :title="port.t('tab_add')" :aria-label="port.t('tab_add')" data-sve-build-add @click="port.panel.value = 'add'" v-html="ic('plus')"></button>
           <template v-if="styled">
@@ -738,6 +738,9 @@ onBeforeUnmount(() => {
 .sve-build .bm-pick-field .bm-ic { width: 0.8125rem; height: 0.8125rem; }
 /* The Control Panel's own field (an image, a video, a link — PropValues.vue): its label as the panel's labels are. */
 .sve-build .bm-field-host .sve-pv__label { font-size: 0.6875rem; font-weight: 450; color: var(--bm-muted); }
+/* Content's tag (BuildContent.vue): the tag menu's button, dressed as the panel's selects. */
+.sve-build button.bm-tag-now { text-align: start; cursor: pointer; }
+.sve-build .bm-tag-now.is-locked { display: flex; align-items: center; width: 100%; height: 100%; color: var(--bm-muted); font: 450 0.75rem Inter, ui-sans-serif, system-ui, sans-serif; }
 /* Content's attributes (BuildAttrs.vue): Data, Aria, Role; a row is name | value | bin. */
 .sve-build .bm-attrs { display: grid; gap: 0.875rem; padding-top: 0.875rem; border-top: 1px solid var(--bm-line); }
 .sve-build .bm-attrs-group { display: grid; gap: 0.375rem; }

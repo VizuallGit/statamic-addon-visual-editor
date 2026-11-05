@@ -98,6 +98,7 @@ import {
   twSetContainerSize,
   twSetFieldClass,
   twSetOneOf,
+  twOpenTagMenuAt,
   twSetTag,
   twSizePicked,
   twSortClasses,
@@ -641,6 +642,14 @@ export function createEditorPort(win, hooks = {}) {
 
       twSetTag(win, name);
     },
+    /** The tag menu of the HTML tree (tw-classes.js) for the picked element, under `anchor`: what it picks is `setTag`'s. */
+    openTagMenu(anchor) {
+      const node = picked();
+
+      if (node && anchor) {
+        twOpenTagMenuAt(win, anchor, node, (name) => port.setTag(name));
+      }
+    },
     attr: (name) => {
       const node = picked();
 
@@ -660,6 +669,8 @@ export function createEditorPort(win, hooks = {}) {
         port.write(next, { select: path });
       }
     },
+    /** What the HTML tree calls the element at `path` — the section's name, a renamed row, its first class — or ''. */
+    treeName: (path) => htmlTreeUi.nameAt?.(path, html()) || '',
     /** Content's data and accessibility attributes of the element at `path` (attrs.js); null for what is not a tag. */
     attrsAt(path) {
       rev.value;

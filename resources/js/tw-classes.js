@@ -30,7 +30,6 @@ import {
   buildClass,
   groupClassTokens,
   readClassAttr,
-  renameTag,
   reorderTokens,
   replaceToken,
   splitClass,
@@ -38,6 +37,8 @@ import {
   writeClassValue,
 } from './tw-parse.js';
 import { coveredBy } from './tw-covered.js';
+import { tagChoices, tagRefusal } from './lib/tag-choices.js';
+import { retag } from './lib/retag.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
@@ -120,14 +121,6 @@ function deviceBpMap(win = window) {
 
   return out;
 }
-
-/** The tags worth offering. Anything else can still be typed. */
-const TAGS = [
-  'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'button', 'label',
-  'ul', 'ol', 'li', 'figure', 'figcaption', 'blockquote', 'strong', 'em',
-  'small', 'picture', 'img', 'video', 'form', 'table', 'tr', 'td', 'th',
-];
 
 /**
  * What new classes are written under: a screen size, a state, or both —
@@ -308,6 +301,22 @@ function ensureStyles(doc) {
     }
     #${MENU_ID} [data-sve-tw-option][data-cursor] {
       background: rgba(255,255,255,.1);
+    }
+    /* The tag menu's Custom: under a line, in the menu's words, not a tag. */
+    #${MENU_ID} [data-sve-tw-custom] {
+      margin-top: 0.25rem;
+      border-top: 1px solid rgba(255,255,255,.08);
+      border-radius: 0 0 0.4em 0.4em;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    #${MENU_ID} [data-sve-tw-note] {
+      margin: 0.25rem 0;
+      padding: 0.4em 0.5em;
+      border-radius: 0.4em;
+      background: rgba(240,179,126,.12);
+      color: #f0b37e;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.4;
     }
     #${MENU_ID} [data-sve-tw-option][data-sve-tw-off] [data-sve-tw-label] {
       opacity: .45;
@@ -1245,7 +1254,7 @@ export function twSetTag(win, name) {
     return;
   }
 
-  const next = renameTag(html, node, name);
+  const next = retag(html, node.from, name);
 
   if (next === html) {
     return;
@@ -1267,27 +1276,45 @@ export function twSetTag(win, name) {
 }
 
 /**
+ * The menu's words and rule for a tag: the tags it may become (lib/tag-choices.js)
+ * and Custom, a name typed by hand, refused with a reason when it cannot be.
+ */
+function tagMenuProps(win, tag, pick) {
+  const current = String(tag || '').toLowerCase();
+
+  return {
+    label: t(win, 'tw_tag'),
+    placeholder: t(win, 'tw_tag_placeholder'),
+    customLabel: t(win, 'tw_tag_custom'),
+    customPlaceholder: t(win, 'tw_tag_custom_placeholder'),
+    current,
+    tags: tagChoices(current),
+    check: (name) => {
+      const why = tagRefusal(current, name);
+
+      return why ? t(win, `tw_tag_refused_${why}`) : '';
+    },
+    onPick: (name) => {
+      pick(name);
+      closeTwMenu(win);
+    },
+  };
+}
+
+/**
  * The same menu for a row in the tree.
  *
  * It works on the row it was opened from and leaves the panel's own picked
  * tag alone — changing a tag in the tree should not move what the class list
- * is looking at.
+ * is looking at. `pick`: who writes the name instead (Build's Content, which
+ * keeps its pick on the renamed element).
  */
-export function twOpenTagMenuAt(win, anchor, target) {
+export function twOpenTagMenuAt(win, anchor, target, pick = null) {
   if (!target?.tag) {
     return;
   }
 
-  openMenu(win, anchor, TwTagMenu, {
-    label: t(win, 'tw_tag'),
-    placeholder: t(win, 'tw_tag_placeholder'),
-    current: String(target.tag).toLowerCase(),
-    tags: TAGS,
-    onPick: (name) => {
-      renameAt(win, target, name);
-      closeTwMenu(win);
-    },
-  });
+  openMenu(win, anchor, TwTagMenu, tagMenuProps(win, target.tag, pick || ((name) => renameAt(win, target, name))));
 }
 
 function renameAt(win, target, name) {
@@ -1301,7 +1328,7 @@ function renameAt(win, target, name) {
     return;
   }
 
-  const next = renameTag(html, target, name);
+  const next = retag(html, target.from, name);
 
   if (next !== html) {
     ask('dock:set-html', next);
@@ -1309,16 +1336,7 @@ function renameAt(win, target, name) {
 }
 
 export function twOpenTagMenu(win, anchor) {
-  openMenu(win, anchor, TwTagMenu, {
-    label: t(win, 'tw_tag'),
-    placeholder: t(win, 'tw_tag_placeholder'),
-    current: (node?.tag || '').toLowerCase(),
-    tags: TAGS,
-    onPick: (name) => {
-      twSetTag(win, name);
-      closeTwMenu(win);
-    },
-  });
+  openMenu(win, anchor, TwTagMenu, tagMenuProps(win, node?.tag, (name) => twSetTag(win, name)));
 }
 
 export function twHasNode() {
