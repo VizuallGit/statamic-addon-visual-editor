@@ -13,12 +13,17 @@
  *                       URL with the Live Preview ask taken off, so a refresh
  *                       or a Back lands on the page and not in the editor.
  *
- * On a Control Panel host the entry is the entry's own screen asking for Live
- * Preview (`?live-preview=1`): landing there reopens the editor through
- * `autoOpenLivePreview`. On a site host it is the entry's public URL, as the
- * server names it (`permalink`, Statamic's `$entry->absoluteUrl()`); a page
- * with none — a template, a saved section — leaves the host's URL alone. A
- * URL on another origin cannot be written into this history at all.
+ * On a Control Panel host the entry keeps the host's own URL — the CP screen
+ * Live Preview was opened from (the Pages listing, an entry's publish form, …).
+ * A refresh lands there, plain, and the editor is not reopened: the behaviour
+ * of v1.1.652, which the owner asked for back on 5 Nov 2026. Writing the
+ * entry's screen with `?live-preview=1` here made a refresh show that screen
+ * for ~3 s before `autoOpenLivePreview` brought the editor back.
+ *
+ * On a site host it is the entry's public URL, as the server names it
+ * (`permalink`, Statamic's `$entry->absoluteUrl()`); a page with none — a
+ * template, a saved section — leaves the host's URL alone. A URL on another
+ * origin cannot be written into this history at all.
  *
  * May import: nothing.
  */
@@ -58,10 +63,9 @@ export function overlayHistoryUrl({ origin, cpHost, page }) {
     return null;
   }
 
+  // A Control Panel host keeps its own URL (see above).
   if (cpHost) {
-    edit.searchParams.set(LIVE_PREVIEW_PARAM, '1');
-
-    return edit.href;
+    return null;
   }
 
   const link = sameOriginUrl(page?.permalink, origin);

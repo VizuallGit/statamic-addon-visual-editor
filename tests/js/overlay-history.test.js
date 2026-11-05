@@ -9,23 +9,13 @@ import { overlayHistoryUrl, withoutEditorMark } from '../../resources/js/lib/ove
 const origin = 'https://site.test';
 const edit = `${origin}/cp/collections/pages/entries/kontakt-id`;
 
-test('a Control Panel host names the entry screen asking for Live Preview', () => {
+test('a Control Panel host keeps its own URL — a refresh lands on the CP screen Live Preview was opened from, plain', () => {
+  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: { url: edit, permalink: `${origin}/kontakt` } }), null);
+  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: { url: `${edit}?live-preview=1`, permalink: null } }), null);
   assert.equal(
-    overlayHistoryUrl({ origin, cpHost: true, page: { url: edit, permalink: `${origin}/kontakt` } }),
-    `${edit}?live-preview=1`
+    overlayHistoryUrl({ origin, cpHost: true, page: { url: `${origin}/cp/collections/templates/entries/t1`, permalink: null } }),
+    null
   );
-
-  // The ask is set once, whatever the editor's own URL carried.
-  assert.equal(
-    overlayHistoryUrl({ origin, cpHost: true, page: { url: `${edit}?live-preview=1`, permalink: null } }),
-    `${edit}?live-preview=1`
-  );
-});
-
-test('a Control Panel host names a page with no public URL too — its screen still opens in Live Preview', () => {
-  const template = `${origin}/cp/collections/templates/entries/t1`;
-
-  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: { url: template, permalink: null } }), `${template}?live-preview=1`);
 });
 
 test('a site host names the public URL the server gave the entry', () => {
