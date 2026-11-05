@@ -925,6 +925,15 @@ export function syncCodeDock(win, doc, uid) {
 
   if (type === dockState.lastType && doc.getElementById(DOCK_ID)) {
     debugLog('dock same type, dock open: nothing to do');
+
+    // Another section of the same file: nothing loads, so nothing else says
+    // the dock now names another section. The Build canvas reads which one it
+    // shows from here (build-mode/canvas.js); without this it went on drawing
+    // the old one and, at the next unrelated read, took the page back to it.
+    if (uidChanged) {
+      emit('dock:section-changed', { uid });
+    }
+
     return;
   }
 

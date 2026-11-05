@@ -1326,6 +1326,9 @@ export function startCanvas(win) {
 
   const unhooks = [
     on('dock:html-changed', paint),
+    // Another section of the same kind in the dock (dock-api.js): no file
+    // loads, so this is how the canvas hears it — read again (draw → truth).
+    on('dock:section-changed', paint),
     on('tw:changed', paint),
     // The form typed in: the plan reads the fields the file names (`fieldLookup`
     // — the row's, then the page's) and nothing else of the page's values, so
