@@ -18,6 +18,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { t } from './lib/i18n.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { MSG } from './lib/protocol.js';
+import { scrollBehavior } from './scroll-pref.js';
 
 export function initComments() {
   // Settings toggle `comments` (and who may see it) — do not start the
@@ -1264,7 +1265,7 @@ export function initComments() {
     const ctx = previewCtx();
     const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
 
-    section?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    section?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
     paintUi();
     focusComposer();
   }

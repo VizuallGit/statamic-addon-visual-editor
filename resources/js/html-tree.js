@@ -92,6 +92,7 @@ import { confirmCloseDiscard, navigateFromLp } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { hasToken } from './dock-partials.js';
 import { componentSrcFromType } from './component-signature.js';
+import { scrollBehavior } from './scroll-pref.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -2413,7 +2414,7 @@ function scrollPreviewToFrame(win, kind) {
     ? pdoc?.querySelector('main')
     : pdoc?.querySelector(`[data-sve-chrome="${kind}"]`);
 
-  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
 }
 
 /**

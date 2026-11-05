@@ -99,6 +99,11 @@ export const MSG = Object.freeze({
   SVE_ANIM_MODE: 'sve-anim-mode',
   // Preview → CP, at boot: send me the mode.
   SVE_ANIM_MODE_REQUEST: 'sve-anim-mode-request',
+  // CP → preview: Live Preview settings' «Smooth scrolling» — `smooth: true`
+  // glides to what the CP asks the preview to focus, false jumps there.
+  SVE_SCROLL_MODE: 'sve-scroll-mode',
+  // Preview → CP, at boot: send me the scroll mode.
+  SVE_SCROLL_MODE_REQUEST: 'sve-scroll-mode-request',
   // CP → preview: play the animation of the element stamped `path` (the
   // open file's rendering, html-pick-align.js) again, in the real document;
   // on an element with none of its own, every animated element inside it.

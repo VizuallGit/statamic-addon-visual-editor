@@ -46,6 +46,7 @@ import { buildSwitchTabOn, setBuildSwitchTab } from './build-switch-tab.js';
 import { buildClassesShownByDefault, setBuildClassesShownByDefault } from './build-classes-pref.js';
 import { applySectionToolbar, sectionToolbarOn, setSectionToolbarOn } from './section-toolbar-pref.js';
 import { animationsRun, setAnimationsRun } from './animation-mode.js';
+import { setSmoothScrollOn, smoothScrollOn, tellScrollMode } from './scroll-pref.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
   deleteToolbarGroup,
@@ -218,6 +219,7 @@ function generalProps(win) {
     buildLabel: t(win, 'lp_settings_general_build'),
     sectionToolbar: { on: sectionToolbarOn(win), label: t(win, 'lp_settings_section_toolbar') },
     animations: { on: animationsRun(win), label: t(win, 'lp_settings_animations') },
+    smoothScroll: { on: smoothScrollOn(win), label: t(win, 'lp_settings_smooth_scroll') },
     // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
     switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
     classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
@@ -455,6 +457,7 @@ function bindSettingHandlers(win) {
       classesDefault: (on) => setBuildClassesShownByDefault(win, on),
       sectionToolbar: (on) => setSectionToolbarOn(win, on),
       animations: (on) => setAnimationsRun(win, on),
+      smoothScroll: (on) => setSmoothScrollOn(win, on),
       toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
       toolbarShowAll: () => showAllToolbarTools(win),
       // The tab counts places among what this mode has; these make them places among all.
@@ -483,6 +486,8 @@ function bindSettingHandlers(win) {
       // The reset took this user's own shortcuts with the rest of the layout;
       // said here, so the preview hears the site's apply again.
       resetUserShortcuts(win);
+      // And «Smooth scrolling» with it: the preview jumps again from now on.
+      tellScrollMode(win);
     },
     onClose: dismissLpMoreMenu,
   };

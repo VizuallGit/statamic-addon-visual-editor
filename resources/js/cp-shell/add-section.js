@@ -15,6 +15,7 @@ import { isEmbeddedInSite, livePreviewButton, livePreviewEditorEl } from '../lib
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
 import { syncStoredVideoHolds } from '../video-holds.js';
 import { syncStoredAlpineStates } from '../alpine-states.js';
+import { scrollBehavior, tellScrollMode } from '../scroll-pref.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, openSectionPicker, overlaySidTemplate, pageSectionRow, rowDuplicable, watchNewRow } from '../section-library.js';
@@ -1796,6 +1797,14 @@ export function createMessageListener(doc = document, win = window) {
       return;
     }
 
+    // Live Preview settings' «Smooth scrolling» (scroll-pref.js): a fresh
+    // preview asks whether it glides or jumps to what the CP focuses.
+    if (data.type === MSG.SVE_SCROLL_MODE_REQUEST) {
+      tellScrollMode(win);
+
+      return;
+    }
+
     // The keyboard shortcuts (toolbar-shortcuts.js, over the bus): a fresh
     // preview asks for the list; a press in the preview runs as one here would.
     if (data.type === MSG.SVE_SHORTCUTS_REQUEST) {
@@ -2525,12 +2534,12 @@ export function scrollToWithBardOffset(targetEl) {
     const original = targetEl.style.scrollMarginTop;
 
     targetEl.style.scrollMarginTop = `${offset + 4}px`;
-    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    targetEl.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
     requestAnimationFrame(() => {
       targetEl.style.scrollMarginTop = original;
     });
   } else {
-    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    targetEl.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   }
 }
 

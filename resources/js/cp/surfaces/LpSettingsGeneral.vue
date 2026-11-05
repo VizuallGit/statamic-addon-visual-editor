@@ -4,9 +4,9 @@ import LpSettingsSwitch from './LpSettingsSwitch.vue';
 
 // General tab: the on/off settings that are not a sidebar's, the tree's or the
 // top bar's own. What Live Preview does (the toolbar on each section,
-// animations) and how Build starts (the mode switch's tab, Style's class
-// list). lp-more-menu.js owns every write (`on.*`); this keeps the switches in
-// step.
+// animations, smooth scrolling) and how Build starts (the mode switch's tab,
+// Style's class list). lp-more-menu.js owns every write (`on.*`); this keeps
+// the switches in step.
 const props = defineProps({
   previewLabel: { type: String, required: true },
   buildLabel: { type: String, required: true },
@@ -14,6 +14,8 @@ const props = defineProps({
   sectionToolbar: { type: Object, default: () => ({ on: false, label: '' }) },
   // { on, label }: animations running in Live Preview (animation-mode.js).
   animations: { type: Object, default: () => ({ on: false, label: '' }) },
+  // { on, label }: glide to a section instead of jumping (scroll-pref.js).
+  smoothScroll: { type: Object, default: () => ({ on: false, label: '' }) },
   // { show, on, label }: the mode switch on a tab of the bar (build-switch-tab.js).
   switchTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
   // { on, label }: Style's class list, shown when a Build starts (build-classes-pref.js).
@@ -33,6 +35,13 @@ const animationsOn = ref(props.animations.on);
 function setAnimations(value) {
   animationsOn.value = value;
   props.on.animations(value);
+}
+
+const smoothScrollOn = ref(props.smoothScroll.on);
+
+function setSmoothScroll(value) {
+  smoothScrollOn.value = value;
+  props.on.smoothScroll(value);
 }
 
 const switchTabOn = ref(props.switchTab.on);
@@ -64,6 +73,12 @@ function setClassesDefault(value) {
       :on="animationsOn"
       data-sve-animations-setting
       @change="setAnimations"
+    />
+    <LpSettingsSwitch
+      :label="smoothScroll.label"
+      :on="smoothScrollOn"
+      data-sve-smooth-scroll-setting
+      @change="setSmoothScroll"
     />
   </div>
 

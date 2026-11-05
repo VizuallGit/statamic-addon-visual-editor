@@ -8,6 +8,7 @@ import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { setGridRowCollapsed } from './grid-rows.js';
 import { scrollBardToTextAfterSet } from './add-section.js';
+import { scrollBehavior } from '../scroll-pref.js';
 
 // ===== sets =====
 export function findSetByUid(uid, doc = document, index = 0) {
@@ -428,7 +429,8 @@ export function getGridHeaderOffset(targetEl) {
  * Scrolls a set into view. For grid rows in table mode, adds a temporary
  * scroll-margin-top equal to the sticky grid header height (+ a small gap) so
  * the row lands below the header instead of being hidden behind it. The margin
- * is read by the browser when the smooth scroll begins, then restored.
+ * is read by the browser when the scroll begins (a jump, or a glide with
+ * «Smooth scrolling» on — scroll-pref.js), then restored.
  */
 export function scrollSetIntoView(setEl) {
   const offset = setEl.hasAttribute('data-grid-row') ? getGridHeaderOffset(setEl) : 0;
@@ -437,12 +439,12 @@ export function scrollSetIntoView(setEl) {
     const original = setEl.style.scrollMarginTop;
 
     setEl.style.scrollMarginTop = `${offset + GRID_HEADER_GAP}px`;
-    setEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setEl.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
     requestAnimationFrame(() => {
       setEl.style.scrollMarginTop = original;
     });
   } else {
-    setEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setEl.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   }
 }
 
@@ -710,7 +712,7 @@ export function handleFieldFocus(fieldPath, doc = document, { animate = true, sc
 
     const applyFocus = () => {
       const doScroll = () => {
-        fieldEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        fieldEl.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
 
         if (animate) {
           fieldEl.classList.add('sve-field-highlight');

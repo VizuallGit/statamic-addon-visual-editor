@@ -750,6 +750,7 @@ return [
     'lp_settings_classes_default' => 'Vis klasselisten i Style fra start',
     'lp_settings_section_toolbar' => 'Vis værktøjslinjen på hver sektion',
     'lp_settings_animations' => 'Animationer kører i Live Preview (fra = de står stille; ▶ i Animation afspiller stadig)',
+    'lp_settings_smooth_scroll' => 'Blød scrolling til en sektion (fra = den hopper)',
     'lp_settings_toolbar_hint' => 'Træk i ⠿ for at flytte et værktøj — også over i en anden gruppe. Et skjult værktøj ligger stadig her: åbn det med Åbn.',
     'lp_settings_toolbar_groups_reset' => 'Nulstil grupper',
     'lp_settings_toolbar_group_new' => 'Ny gruppe',

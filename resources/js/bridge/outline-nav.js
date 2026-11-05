@@ -23,6 +23,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './video-hold.js';
 import { applyAlpineStates, guardDialogs, setAlpineState, watchAlpineStart } from './alpine-state.js';
 import { playAnimation, setAnimationMode } from './animation-play.js';
+import { scrollBehavior, setScrollMode } from './scroll-mode.js';
 import { installShortcuts, setShortcuts } from './shortcuts.js';
 import { installSiteInert } from './site-inert.js';
 
@@ -268,7 +269,7 @@ function focusOutlineEntry(win, index) {
   el.setAttribute(ACTIVE_ATTR, '');
   // Centred rather than aligned to the top: a heading is the start of something,
   // and the point of jumping to it is seeing what it heads.
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
   pulseElement(el);
 }
 
@@ -377,6 +378,12 @@ export function createMessageReceiver(win) {
 
     if (data.type === MSG.SVE_ANIM_MODE) {
       setAnimationMode(win, data);
+
+      return;
+    }
+
+    if (data.type === MSG.SVE_SCROLL_MODE) {
+      setScrollMode(data);
 
       return;
     }
@@ -583,7 +590,7 @@ export function createMessageReceiver(win) {
           // a column popup) resolves to the first match in the document and
           // would yank the preview to the top of the page mid-edit.
           if (data.scope) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
             pulseElement(el);
           }
         }
@@ -606,7 +613,7 @@ export function createMessageReceiver(win) {
           // the user. Set-level focus (no afterSetUid) still scrolls, so
           // clicking a section in the CP locates it in the preview.
           if (!('afterSetUid' in data)) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
             pulseElement(el);
           }
         }
@@ -664,7 +671,7 @@ function activateByUid(win, data) {
   doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((node) => node.removeAttribute(ACTIVE_ATTR));
   applyOutlineTone(win, el);
   el.setAttribute(ACTIVE_ATTR, '');
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
   pulseElement(el);
 
   const fields = el.matches(`[${SID_FIELD_ATTR}]`)
@@ -837,6 +844,8 @@ export function initBridge(win = window) {
   win.parent.postMessage({ source: SOURCE, type: MSG.SVE_ALPINE_STATES_REQUEST }, win.location.origin);
   // Nor whether its animations are held still (bridge/animation-play.js).
   win.parent.postMessage({ source: SOURCE, type: MSG.SVE_ANIM_MODE_REQUEST }, win.location.origin);
+  // Nor whether it glides or jumps to what the CP focuses (bridge/scroll-mode.js).
+  win.parent.postMessage({ source: SOURCE, type: MSG.SVE_SCROLL_MODE_REQUEST }, win.location.origin);
   // Nor the keyboard shortcuts: a keypress here must be kept from the browser
   // before the CP can hear of it (bridge/shortcuts.js asks for the list).
   installShortcuts(win);

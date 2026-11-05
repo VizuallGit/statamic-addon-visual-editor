@@ -32,6 +32,7 @@ import { buildSectionRow, fetchSetMeta, globalSectionSet, libraryWentStale, newR
 import { flushPendingSectionRefresh, globalSectionEditorOpen } from './global-section.js';
 import { discardChanges } from './open-in-preview.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { scrollBehavior } from './scroll-pref.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -2081,7 +2082,7 @@ export function handleLinkEdit(data, doc, win) {
     collectAncestorSets(target).forEach(expandSet);
 
     setTimeout(() => {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
       target.classList.add('sve-field-highlight');
       setTimeout(() => target.classList.remove('sve-field-highlight'), 2000);
     }, COLLAPSE_SETTLE_MS);

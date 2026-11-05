@@ -45,6 +45,7 @@ import { featureOn } from './lib/config.js';
 import { PERF_PANEL_ID } from './lib/ids.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { closeRightPanels, syncPreviewInset } from './section-library.js';
+import { scrollBehavior } from './scroll-pref.js';
 
 
 const STYLE_ID = '__sve-perf-style';
@@ -317,7 +318,7 @@ function flashInPreview(win, url) {
     return;
   }
 
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
 
   const before = target.style.outline;
 

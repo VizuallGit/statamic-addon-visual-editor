@@ -28,6 +28,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { autoOpenPanel } from './lp-panel.js';
 import { selectFromPreview, selectRow } from './selection-panel.js';
+import { scrollBehavior } from './scroll-pref.js';
 
 const OVERLAY_ID = '__sve-a11y-overlay';
 const STYLE_ID = '__sve-a11y-style';
@@ -468,7 +469,7 @@ function renderTree(win) {
 
 /** Scroll the preview to an element and open whatever owns it in the panel. */
 function focusElement(win, el) {
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
   scheduleLayout(win);
 
   if (!autoOpenPanel(win)) {
