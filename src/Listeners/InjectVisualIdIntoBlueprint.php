@@ -149,8 +149,10 @@ class InjectVisualIdIntoBlueprint
      * `_visual_id` is the click-target the preview uses. `_sve_label` is the
      * name a block wears in the tree when someone has renamed it — hidden so
      * it is not a field to fill in, but still a real field so a save keeps it.
-     * `_sve_sync` remembers which sibling field is the source. Grids skip the
-     * label: their tree row already names itself from content.
+     * `_sve_sync` remembers which sibling field is the source. `_anim` holds a
+     * section's own animation values over its template's (SveAnimation::sectionCss).
+     * Grids skip the label and `_anim`: their tree row already names itself
+     * from content, and an animation override belongs to a section.
      *
      * `block_order_*` is the per-breakpoint block order. It lives on the set
      * the same way, never in the fieldset YAML — Edit Fieldset must not grow
@@ -179,6 +181,15 @@ class InjectVisualIdIntoBlueprint
 
         if (! in_array(SiblingSync::STATE_HANDLE, $handles, true)) {
             $fields[] = ['handle' => SiblingSync::STATE_HANDLE, 'field' => [
+                'type' => 'hidden',
+                'visibility' => 'hidden',
+                'replicator_preview' => false,
+                'listable' => false,
+            ]];
+        }
+
+        if ($withLabel && ! in_array('_anim', $handles, true)) {
+            $fields[] = ['handle' => '_anim', 'field' => [
                 'type' => 'hidden',
                 'visibility' => 'hidden',
                 'replicator_preview' => false,

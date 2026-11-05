@@ -129,6 +129,9 @@ import { isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
 import { canEditFields, currentSetHandle, refreshFieldsForType } from '../section-fields.js';
+import { panelValues } from '../cp/panel/store.js';
+import { containerContext } from '../lib/publish-containers.js';
+import { dataGet, findPathByUid } from '../lib/values.js';
 import { pageBuilderQuery } from '../lib/config.js';
 import { csrfToken } from '../lib/csrf.js';
 import { isRichBlock, readRich, readRichField, sameRich, withRich, withRichField } from './rich.js';
@@ -249,6 +252,13 @@ function buildCanvas(win) {
 /** Is the element at `path` inside a loop: an item of many, not one thing on the page? */
 function inLoop(nodes, path) {
   return (nodes || []).some((row) => path.startsWith(`${row.path}/`) && ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children, path)));
+}
+
+/** Where the dock's section is in the form, or null: the dock holds the header, the footer, a component, or nothing. */
+function sectionRowPath() {
+  const uid = fileOfItsOwn() ? '' : String(ask('dock:current-uid') || '');
+
+  return uid ? findPathByUid(panelValues() || {}, uid) : null;
 }
 
 export function createEditorPort(win, hooks = {}) {
@@ -773,6 +783,27 @@ export function createEditorPort(win, hooks = {}) {
      */
     canMakeField(path) {
       return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && ask('dock:is-locked') !== true && !inLoop(parseTemplateTree(html()), path);
+    },
+    /**
+     * A field of the dock's section's own set on this page, as the form holds
+     * it (`_anim`); false when there is no such set.
+     */
+    sectionValue(handle) {
+      const row = sectionRowPath();
+
+      return row === null ? false : dataGet(panelValues() || {}, `${row}.${handle}`);
+    },
+    /** The field set on the dock's section's own set; false when there is no such set. */
+    setSectionValue(handle, value) {
+      const row = sectionRowPath();
+
+      if (row === null) {
+        return false;
+      }
+
+      containerContext()?.setFieldValue(`${row}.${handle}`, value);
+
+      return true;
     },
     /** The fields of the open section, by name: what makes a tag in an element "its own". */
     sectionFieldNames(path) {

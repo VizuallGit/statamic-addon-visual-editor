@@ -26,6 +26,14 @@
  * put; the stage shows the words as children, Live Preview shows both as
  * the page does. Picking children stands as the canvas draws it and says so
  * when pressed.
+ *
+ * «Gælder» at the top of the editor: Alle writes the template every section
+ * of its style shares, Kun denne sektion keeps a difference in this page's
+ * set (`_anim`, build-mode/animation-override.js) that {{ sve_animation }}
+ * pushes under the section's id. The editor shows the element as this
+ * section does; a line whose value is the section's own wears a blue dot and
+ * Nulstil. Target and trigger live in the template only. The canvas draws
+ * the template; Live Preview shows the section.
  */
 import { computed, defineComponent, h, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PRESETS from '../../../animation/presets.json';
@@ -63,6 +71,19 @@ import {
   withEffect,
   withVar,
 } from '../../build-mode/animation.js';
+import {
+  applyOverride,
+  overriddenKeys,
+  overrideFor,
+  overrideTo,
+  prune,
+  readOverride,
+  storedOverride,
+  templateFlips,
+  withFlip,
+  withoutOverrideKey,
+  withTemplateFlip,
+} from '../../build-mode/animation-override.js';
 import { deletePreset, ownPresets, presetUsage, savePreset } from '../../build-mode/animation-presets.js';
 import { CANVAS_PATH } from '../../build-mode/canvas-paint.js';
 import { findByPath } from '../../build-mode/place.js';
@@ -82,6 +103,27 @@ const anim = computed(() => animationOf(html.value, findByPath(parseTemplateTree
 const own = ownPresets();
 const presets = computed(() => [...PRESETS, ...own.value]);
 const preset = computed(() => presetOf(presets.value, anim.value?.preset));
+
+/*
+ * The section's own: `shown` is the element as this section shows it, what
+ * the editor's lines read; `base` is what a change starts from, the template
+ * under Alle, `shown` under Kun denne sektion. The set's value is read again
+ * when the dock's file is: the open section is the bus's, not reactive.
+ */
+const scope = ref('all');
+const stored = computed(() => (port.rev.value, port.sectionValue('_anim')));
+const hasRow = computed(() => stored.value !== false);
+const section = computed(() => hasRow.value && scope.value === 'section');
+const override = computed(() => readOverride(stored.value));
+const over = computed(() => overrideFor(override.value, path.value));
+const shown = computed(() => applyOverride(anim.value, over.value));
+const shownPreset = computed(() => presetOf(presets.value, shown.value?.preset));
+const base = computed(() => (section.value ? shown.value : anim.value));
+const basePreset = computed(() => (section.value ? shownPreset.value : preset.value));
+const dots = computed(() => new Set([...overriddenKeys(over.value), ...(override.value.flip ? ['flip'] : [])]));
+const flipped = computed(() => override.value.flip || templateFlips(html.value));
+const effectKeys = (effect) => (effect.key === 'clip' ? [effect.name, '--anim-clip-to'] : [effect.name]);
+
 const label = (p) => (p ? p[t('anim_label')] : '');
 const decimal = computed(() => t('anim_decimal'));
 
@@ -203,6 +245,54 @@ function write(next) {
   port.write(withAnimation(port.html(), path.value, next), { select: path.value });
 }
 
+/** The section's difference into its set, the elements the file no longer has left out; nothing left is `{}`. */
+function writeOverride(next) {
+  port.setSectionValue('_anim', storedOverride(prune(next, port.html())));
+}
+
+/** A change of the look (effects, timing, curve, preset, Active): into the template, or into this section's difference from it. */
+function writeLook(next) {
+  if (section.value) {
+    writeOverride(overrideTo(override.value, path.value, anim.value, next));
+  } else {
+    write(next);
+  }
+}
+
+/** Nulstil: the line's keys out of the section's difference, so the template's value shows again. */
+const reset = (keys) => writeOverride(keys.reduce((now, key) => withoutOverrideKey(now, path.value, key), override.value));
+
+/** Spejlvend: the class on the template's root under Alle, the section's flip under Kun denne sektion. */
+function toggleFlip() {
+  if (section.value) {
+    writeOverride(withFlip(override.value, !override.value.flip));
+  } else {
+    port.write(withTemplateFlip(port.html(), !templateFlips(port.html())), { select: path.value });
+  }
+}
+
+const toggleActive = () => writeLook({ ...base.value, off: !base.value.off });
+
+/** The blue dot beside a line's name, while one of `keys` comes from this section. */
+const Dot = defineComponent({
+  name: 'BuildAnimationDot',
+  props: { keys: { type: Array, required: true } },
+  setup(own) {
+    return () => (own.keys.some((key) => dots.value.has(key)) ? h('i', { class: 'bm-anim-dot', 'data-sve-build-anim-dot': '', title: t('anim_override') }) : null);
+  },
+});
+
+/** Nulstil under a line's value, while one of `keys` comes from this section; the first names it. */
+const Reset = defineComponent({
+  name: 'BuildAnimationReset',
+  props: { keys: { type: Array, required: true } },
+  setup(own) {
+    return () => (own.keys.some((key) => dots.value.has(key))
+      ? h('button', { type: 'button', class: 'bm-anim-reset', 'data-sve-build-anim-reset': own.keys[0], onClick: () => reset(own.keys) }, t('anim_reset'))
+      : null);
+  },
+});
+
 const soon = () => port.toast('info', 'anim_coming');
 
 /** On a switch, the one it had while it is still in reach, else the nearest. */
@@ -286,7 +376,7 @@ const saving = ref(false);
 const nameInput = ref(null);
 
 function startNaming() {
-  if (!Object.keys(presetLook(anim.value, preset.value)).length) {
+  if (!Object.keys(presetLook(base.value, basePreset.value)).length) {
     port.toast('info', 'anim_save_nothing');
 
     return;
@@ -306,7 +396,7 @@ async function saveLook() {
 
   saving.value = true;
 
-  const saved = await savePreset(name, presetLook(anim.value, preset.value));
+  const saved = await savePreset(name, presetLook(base.value, basePreset.value));
 
   saving.value = false;
 
@@ -317,7 +407,7 @@ async function saveLook() {
   }
 
   naming.value = false;
-  write(onPreset(anim.value, saved.handle));
+  writeLook(onPreset(base.value, saved.handle));
   port.toast('success', 'anim_saved');
 }
 
@@ -444,11 +534,11 @@ const panelEl = () => root.value?.closest('.sve-build');
 
 /** The stage plays again on every change, as the canvas promises ("spiller når du ændrer noget"). */
 const take = ref(0);
-watch(() => JSON.stringify(anim.value), () => {
+watch(() => JSON.stringify(shown.value), () => {
   take.value += 1;
 });
 
-const stageStyle = computed(() => Object.fromEntries(ownValues(anim.value)));
+const stageStyle = computed(() => Object.fromEntries(ownValues(shown.value)));
 
 /** runtime.css and a rule per preset, as {{ sve_animation }} pushes them onto the page, in the Control Panel for the stage; again when My presets change. */
 function stageSheet() {
@@ -472,12 +562,12 @@ const onMotion = (event) => {
 };
 
 const presetText = computed(() => {
-  const name = label(preset.value) || anim.value?.preset;
+  const name = label(shownPreset.value) || shown.value?.preset;
 
-  return name ? `${name}${isChanged(anim.value) ? ` · ${t('anim_changed')}` : ''}` : t('anim_own');
+  return name ? `${name}${isChanged(shown.value) ? ` · ${t('anim_changed')}` : ''}` : t('anim_own');
 });
-const effects = computed(() => (anim.value ? effectsOf(anim.value, preset.value) : []));
-const missing = computed(() => (anim.value ? missingEffects(anim.value, preset.value) : []));
+const effects = computed(() => (shown.value ? effectsOf(shown.value, shownPreset.value) : []));
+const missing = computed(() => (shown.value ? missingEffects(shown.value, shownPreset.value) : []));
 const hasEffects = computed(() => plays.value || moves(anim.value?.target));
 /** What the effects mean here: on a hover, while scrolling, for a parallax or the mouse, and for words, where the page cuts the heading. */
 const NOTES = { parallax: 'anim_parallax_note', mouse: 'anim_mouse_note', words: 'anim_words_note' };
@@ -494,7 +584,7 @@ const timing = computed(() => (anim.value?.on === 'scroll'
 const staggers = computed(() => stepped(anim.value?.target) && anim.value.on !== 'scroll');
 
 /* A ticker's and a stack's own lengths, in rem; the runtime's own is written as nothing. */
-const remOf = (name) => parseFloat(valueOf(anim.value, null, name) ?? SETTINGS[name]);
+const remOf = (name) => parseFloat(valueOf(shown.value, null, name) ?? SETTINGS[name]);
 const setRem = (name, rem) => setVar(name, rem === null || `${rem}rem` === SETTINGS[name] ? null : `${rem}rem`);
 const SETTING_FIELDS = {
   ticker: [['--anim-gap', 'anim_ticker_gap', { max: 8, step: 0.25 }]],
@@ -503,20 +593,20 @@ const SETTING_FIELDS = {
     ['--anim-stack-gap', 'anim_stack_gap', { max: 4, step: 0.125 }],
   ],
 };
-const tickerSeconds = computed(() => (anim.value?.duration ?? TICKER_DURATION) / 1000);
-const reversed = computed(() => valueOf(anim.value, null, '--anim-dir') === 'reverse');
-const stepCurve = computed(() => valueOf(anim.value, preset.value, '--anim-step-curve') ?? '1');
-const easeRaw = computed(() => valueOf(anim.value, preset.value, '--anim-ease') ?? 'ease');
+const tickerSeconds = computed(() => (shown.value?.duration ?? TICKER_DURATION) / 1000);
+const reversed = computed(() => valueOf(shown.value, null, '--anim-dir') === 'reverse');
+const stepCurve = computed(() => valueOf(shown.value, shownPreset.value, '--anim-step-curve') ?? '1');
+const easeRaw = computed(() => valueOf(shown.value, shownPreset.value, '--anim-ease') ?? 'ease');
 const ease = computed(() => easeKey(easeRaw.value));
-const duration = computed(() => anim.value?.duration ?? RUNTIME_DEFAULTS.duration);
+const duration = computed(() => shown.value?.duration ?? RUNTIME_DEFAULTS.duration);
 
 function setPreset(handle) {
-  const keep = anim.value.vars['--anim-step-curve'];
+  const keep = base.value.vars['--anim-step-curve'];
 
-  write({ ...anim.value, preset: handle, vars: keep ? { '--anim-step-curve': keep } : {} });
+  writeLook({ ...base.value, preset: handle, vars: keep ? { '--anim-step-curve': keep } : {} });
 }
 
-const setEffect = (key, value) => write(withEffect(anim.value, preset.value, key, value));
+const setEffect = (key, value) => writeLook(withEffect(base.value, basePreset.value, key, value));
 const addEffect = (effect) => setEffect(effect.key, effect.add);
 
 /* The effects' + menu: the effect to add, by name. */
@@ -527,12 +617,12 @@ function pickEffect(effect) {
   addMenu.value = false;
   addEffect(effect);
 }
-const setTime = (key, ms) => write({ ...anim.value, [key]: ms === null ? null : Math.round(ms) });
-const setVar = (name, value) => write(withVar(anim.value, preset.value, name, value));
+const setTime = (key, ms) => writeLook({ ...base.value, [key]: ms === null ? null : Math.round(ms) });
+const setVar = (name, value) => writeLook(withVar(base.value, basePreset.value, name, value));
 
 /** The runtime's own curve is `ease`: written only where the preset has another. */
 function setEaseCss(css) {
-  setVar('--anim-ease', css === 'ease' && !preset.value?.vars?.['--anim-ease'] ? null : css);
+  setVar('--anim-ease', css === 'ease' && !basePreset.value?.vars?.['--anim-ease'] ? null : css);
 }
 
 function setEase(key) {
@@ -994,12 +1084,20 @@ const Num = defineComponent({
           <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="open = false" v-html="icon('x', 12)"></button>
         </header>
         <div class="bm-anim-pop__body">
+          <section v-if="hasRow" class="bm-anim-block is-first">
+            <div class="bm-anim-head"><span>{{ t('anim_scope') }}</span></div>
+            <span class="bm-seg" role="group" :aria-label="t('anim_scope')" data-sve-build-anim-scope>
+              <button type="button" :aria-pressed="scope === 'all'" data-sve-build-anim-scope-all @click="scope = 'all'">{{ t('anim_scope_all') }}</button>
+              <button type="button" :aria-pressed="scope === 'section'" data-sve-build-anim-scope-section @click="scope = 'section'">{{ t('anim_scope_section') }}</button>
+            </span>
+            <p class="bm-anim-hint">{{ t('anim_scope_note') }}</p>
+          </section>
           <div v-if="plays" class="bm-anim-stage" data-sve-build-anim-stage>
             <div
               :key="take"
               class="bm-anim-stage__set"
               :data-anim="anim.target === 'words' ? 'children' : anim.target"
-              :data-anim-preset="anim.preset || null"
+              :data-anim-preset="shown.preset || null"
               :data-anim-on="anim.on === 'hover' ? 'hover' : null"
               :style="stageStyle"
             >
@@ -1010,13 +1108,14 @@ const Num = defineComponent({
           <p v-if="reduced" class="bm-anim-reduced" data-sve-build-anim-reduced>{{ t('anim_reduced_note') }}</p>
 
           <section class="bm-anim-block is-first">
+            <p v-if="section" class="bm-anim-hint" data-sve-build-anim-template-only>{{ t('anim_scope_template_only') }}</p>
             <template v-if="plays">
               <div class="bm-anim-line">
                 <span>{{ t('anim_trigger') }}</span>
                 <span class="bm-anim-box">
                   <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="anim.on" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="pickTrigger($event.target.value)">
+                  <select :value="anim.on" :disabled="section" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="pickTrigger($event.target.value)">
                     <option v-for="[on, , word] in TRIGGERS" :key="on" :value="on" :disabled="on === 'switch' && !switches.length">
                       {{ t(word) }}
                     </option>
@@ -1028,32 +1127,39 @@ const Num = defineComponent({
                 <span class="bm-anim-box">
                   <code class="bm-anim-box__val">{{ anim.switch }}</code>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="anim.switch" :aria-label="t('anim_switch')" data-sve-build-anim-switch @change="write({ ...anim, switch: $event.target.value })">
+                  <select :value="anim.switch" :disabled="section" :aria-label="t('anim_switch')" data-sve-build-anim-switch @change="write({ ...anim, switch: $event.target.value })">
                     <option v-for="name in switches" :key="name" :value="name">{{ name }}</option>
                   </select>
                 </span>
               </div>
               <div class="bm-anim-line">
-                <span>{{ t('anim_preset') }}</span>
+                <span>{{ t('anim_preset') }}<Dot :keys="['preset']" /></span>
                 <span class="bm-anim-box">
                   <span class="bm-anim-box__val">{{ presetText }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="anim.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
-                    <option v-if="!anim.preset" value="" disabled>{{ t('anim_own') }}</option>
+                  <select :value="shown.preset" :aria-label="t('anim_preset')" data-sve-build-anim-preset @change="setPreset($event.target.value)">
+                    <option v-if="!shown.preset" value="" disabled>{{ t('anim_own') }}</option>
                     <optgroup v-for="[group, list] in groups" :key="group" :label="t(`anim_group_${group}`)">
                       <option v-for="p in list" :key="p.handle" :value="p.handle">{{ label(p) }}</option>
                     </optgroup>
                   </select>
                 </span>
+                <Reset :keys="['preset']" />
               </div>
               <div v-if="anim.on === 'view'" class="bm-anim-line">
                 <span>{{ t('anim_repeat') }}</span>
-                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
+                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :disabled="section" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
               </div>
             </template>
             <div class="bm-anim-line">
-              <span>{{ t('anim_active') }}</span>
-              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="!anim.off" :aria-label="t('anim_active')" data-sve-build-anim-active @click="write({ ...anim, off: !anim.off })"></button>
+              <span>{{ t('anim_active') }}<Dot :keys="['off']" /></span>
+              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="!shown.off" :aria-label="t('anim_active')" data-sve-build-anim-active @click="toggleActive"></button>
+              <Reset :keys="['off']" />
+            </div>
+            <div class="bm-anim-line">
+              <span>{{ t('anim_flip') }}<Dot :keys="['flip']" /></span>
+              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="flipped" :aria-label="t('anim_flip')" data-sve-build-anim-flip @click="toggleFlip"></button>
+              <Reset :keys="['flip']" />
             </div>
           </section>
 
@@ -1081,7 +1187,7 @@ const Num = defineComponent({
             </div>
             <p v-if="effectsNote" class="bm-anim-hint" data-sve-build-anim-effects-note>{{ t(effectsNote) }}</p>
             <div v-for="effect in effects" :key="effect.key" class="bm-anim-line is-effect" :data-sve-build-anim-effect="effect.key">
-              <span>{{ t(`anim_fx_${effect.key}`) }}</span>
+              <span>{{ t(`anim_fx_${effect.key}`) }}<Dot :keys="effectKeys(effect)" /></span>
               <Num
                 :value="effect.value"
                 :raw="effect.raw"
@@ -1094,6 +1200,7 @@ const Num = defineComponent({
                 @set="(v) => setEffect(effect.key, v)"
               />
               <button type="button" class="bm-anim-minus" :aria-label="t('anim_remove')" @click="setEffect(effect.key, null)" v-html="icon('minus', 12)"></button>
+              <Reset :keys="effectKeys(effect)" />
             </div>
             <div v-if="missing.length" class="bm-anim-more">
               <span>+</span>
@@ -1107,9 +1214,9 @@ const Num = defineComponent({
           <section v-if="plays" class="bm-anim-block" data-sve-build-anim-timing>
             <div class="bm-anim-head"><span>{{ t('anim_timing') }}</span></div>
             <div v-for="[key, word] in timing" :key="key" class="bm-anim-line" :data-sve-build-anim-time="key">
-              <span>{{ t(word) }}</span>
+              <span>{{ t(word) }}<Dot :keys="[`--anim-${key}`]" /></span>
               <Num
-                :value="anim[key] ?? RUNTIME_DEFAULTS[key]"
+                :value="shown[key] ?? RUNTIME_DEFAULTS[key]"
                 unit="ms"
                 :max="TIMING_RANGE[key].max"
                 :step="TIMING_RANGE[key].step"
@@ -1117,9 +1224,10 @@ const Num = defineComponent({
                 :decimal="decimal"
                 @set="(v) => setTime(key, v)"
               />
+              <Reset :keys="[`--anim-${key}`]" />
             </div>
             <div v-if="staggers" class="bm-anim-line">
-              <span>{{ t('anim_step_curve') }}</span>
+              <span>{{ t('anim_step_curve') }}<Dot :keys="['--anim-step-curve']" /></span>
               <span class="bm-anim-box">
                 <span class="bm-anim-box__val">{{ stepCurve === '1.5' ? t('anim_step_faster') : stepCurve === '1' ? t('anim_step_linear') : stepCurve }}</span>
                 <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
@@ -1129,9 +1237,10 @@ const Num = defineComponent({
                   <option v-if="stepCurve !== '1' && stepCurve !== '1.5'" :value="stepCurve">{{ stepCurve }}</option>
                 </select>
               </span>
+              <Reset :keys="['--anim-step-curve']" />
             </div>
             <div class="bm-anim-line">
-              <span>{{ t('anim_ease') }}</span>
+              <span>{{ t('anim_ease') }}<Dot :keys="['--anim-ease']" /></span>
               <span class="bm-anim-ease">
                 <span class="bm-anim-box">
                   <span class="bm-anim-box__val">{{ t(`anim_ease_${ease}`) }}</span>
@@ -1154,6 +1263,7 @@ const Num = defineComponent({
                   v-html="icon('curve', 13)"
                 ></button>
               </span>
+              <Reset :keys="['--anim-ease']" />
             </div>
             <div v-if="anim.target === 'children'" class="bm-anim-line">
               <span>{{ t('anim_target') }}</span>
@@ -1169,25 +1279,28 @@ const Num = defineComponent({
             <p class="bm-anim-hint">{{ t(`anim_${anim.target}_note`) }}</p>
             <template v-if="anim.target === 'ticker'">
               <div class="bm-anim-line" data-sve-build-anim-ticker-time>
-                <span>{{ t('anim_ticker_time') }}</span>
+                <span>{{ t('anim_ticker_time') }}<Dot :keys="['--anim-duration']" /></span>
                 <Num :value="tickerSeconds" unit="s" :max="60" :min="1" :step="0.5" blank :decimal="decimal" @set="(v) => setTime('duration', v === null ? null : v * 1000)" />
+                <Reset :keys="['--anim-duration']" />
               </div>
             </template>
             <div v-for="[name, word, range] in SETTING_FIELDS[anim.target]" :key="name" class="bm-anim-line" :data-sve-build-anim-setting="name">
-              <span>{{ t(word) }}</span>
+              <span>{{ t(word) }}<Dot :keys="[name]" /></span>
               <Num :value="remOf(name)" unit="rem" :max="range.max" :step="range.step" blank :decimal="decimal" @set="(v) => setRem(name, v)" />
+              <Reset :keys="[name]" />
             </div>
             <template v-if="anim.target === 'ticker'">
               <div class="bm-anim-line">
-                <span>{{ t('anim_ticker_dir') }}</span>
+                <span>{{ t('anim_ticker_dir') }}<Dot :keys="['--anim-dir']" /></span>
                 <span class="bm-anim-seg" data-sve-build-anim-ticker-dir>
                   <button type="button" :aria-pressed="!reversed" @click="setVar('--anim-dir', null)">{{ t('anim_dir_left') }}</button>
                   <button type="button" :aria-pressed="reversed" @click="setVar('--anim-dir', 'reverse')">{{ t('anim_dir_right') }}</button>
                 </span>
+                <Reset :keys="['--anim-dir']" />
               </div>
               <div class="bm-anim-line">
                 <span>{{ t('anim_ticker_pause') }}</span>
-                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.pause" :aria-label="t('anim_ticker_pause')" data-sve-build-anim-pause @click="write({ ...anim, pause: !anim.pause })"></button>
+                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.pause" :disabled="section" :aria-label="t('anim_ticker_pause')" data-sve-build-anim-pause @click="write({ ...anim, pause: !anim.pause })"></button>
               </div>
             </template>
           </section>
@@ -1429,6 +1542,13 @@ const Num = defineComponent({
 .sve-build .bm-anim-switch::after { content: ''; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--bm-ink); transition: left 0.15s; }
 .sve-build .bm-anim-switch[aria-checked='true'] { background: var(--bm-accent); }
 .sve-build .bm-anim-switch[aria-checked='true']::after { left: 0.875rem; }
+.sve-build .bm-anim-switch:disabled, .sve-build .bm-anim-box:has(select:disabled) { opacity: 0.5; }
+.sve-build .bm-anim-box select:disabled { cursor: default; }
+
+/* This section's own: the dot beside the name, Nulstil under the value */
+.sve-build .bm-anim-dot { display: inline-block; width: 0.375rem; height: 0.375rem; margin-left: 0.3125rem; border-radius: 50%; background: var(--bm-accent); vertical-align: middle; }
+.sve-build .bm-anim-reset { grid-column: 2 / -1; justify-self: start; margin-top: -0.25rem; color: var(--bm-accent); font-size: 0.625rem; }
+.sve-build .bm-anim-reset:hover { text-decoration: underline; }
 
 /* Effects */
 .sve-build .bm-anim-minus { display: flex; color: var(--bm-faint); }

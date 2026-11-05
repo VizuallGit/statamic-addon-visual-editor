@@ -148,6 +148,26 @@ class InjectVisualIdIntoBlueprintTest extends TestCase
         $this->assertContains('_sve_sync', array_column($fields, 'handle'));
     }
 
+    public function test_replicator_sets_gain_a_hidden_animation_override_field(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'text_block' => $this->textSet('text_block'),
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $fields = $this->getSetsFields($blueprint, 'content', 'main', 'text_block');
+        $anim = collect($fields)->firstWhere('handle', '_anim');
+
+        $this->assertNotNull($anim);
+        $this->assertSame('hidden', $anim['field']['type']);
+        $this->assertSame('hidden', $anim['field']['visibility']);
+        $this->assertFalse($anim['field']['replicator_preview']);
+        $this->assertFalse($anim['field']['listable']);
+    }
+
     public function test_bard_sets_gain_visual_id_on_entry_blueprint_found(): void
     {
         $blueprint = $this->makeBlueprint([
@@ -517,6 +537,7 @@ class InjectVisualIdIntoBlueprintTest extends TestCase
 
         $this->assertContains('_visual_id', array_column($fields, 'handle'));
         $this->assertNotContains('_sve_label', array_column($fields, 'handle'));
+        $this->assertNotContains('_anim', array_column($fields, 'handle'));
     }
 
     // -------------------------------------------------------------------------
