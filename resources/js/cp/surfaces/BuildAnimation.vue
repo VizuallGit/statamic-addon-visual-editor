@@ -11,7 +11,8 @@
  * (pickPreset), marks it, and plays it once on the page; the chip opens the
  * editor. «Create preset» opens the editor with a name to give. The editor's
  * Preset line opens the same gallery beside the editor. The addon's presets
- * never change; one of the site's own takes «Update preset».
+ * never change: «Start from this» makes a new one from one. The site's own
+ * change in place, by the pencil or «Update preset».
  *
  * Everything is read from the dock's file and written back through the port
  * in one write (build-mode/animation.js). The editor's stage plays the
@@ -382,21 +383,41 @@ function useTile(p, event) {
 /** A tile beside the editor: the kind stays; the preset and its values go where the editor writes, the template or this section. */
 const usePreset = (p) => writeLook(pickPreset(base.value, p));
 
-/* «Save as preset» and «Create preset»: the name typed in the editor's foot, then the element on the new preset. */
-const naming = ref(false);
-/** The name is asked for by «Create preset», not «Save as preset»: the foot says so. */
-const creating = ref(false);
+/*
+ * The name the editor's foot asks for, and what for (`asking.mode`): «Save as
+ * preset» (save) and «Create preset» (create) make a new preset from the
+ * element; «Start from this» (start) makes a new one from one of the addon's,
+ * which never changes; the pencil (edit) changes one of the site's own in
+ * place, name and all. Start and edit put the element on the preset first and
+ * keep what it had (`before`): Cancel, Escape or closing the editor puts that
+ * back. Saved, the element is on the preset.
+ */
+const asking = ref(null);
+const naming = computed(() => !!asking.value);
 const newName = ref('');
 const saving = ref(false);
 const nameInput = ref(null);
 const toSave = computed(() => (base.value ? presetToSave(base.value, basePreset.value) : null));
 const SAVE_NOTES = { children: 'anim_save_note_timed', words: 'anim_save_note_timed', ticker: 'anim_save_note_ticker', stack: 'anim_save_note_stack', parallax: 'anim_save_note_moves', mouse: 'anim_save_note_moves' };
 
-function askName(create) {
-  creating.value = create;
-  newName.value = '';
-  naming.value = true;
-  nextTick(() => nameInput.value?.focus());
+/** Save and create ask for the name at once; start and edit leave the focus on the values, which come first. */
+function askName(ask, name = '') {
+  asking.value = ask;
+  newName.value = name;
+
+  if (ask.mode === 'save' || ask.mode === 'create') {
+    nextTick(() => nameInput.value?.focus());
+  }
+}
+
+function cancelNaming() {
+  const ask = asking.value;
+
+  asking.value = null;
+
+  if (ask && 'before' in ask) {
+    write(ask.before);
+  }
 }
 
 function startNaming() {
@@ -406,8 +427,26 @@ function startNaming() {
     return;
   }
 
-  askName(false);
+  askName({ mode: 'save' });
 }
+
+/** The pencil on one of the site's own presets (edit), or «Start from this» on one of the addon's (start): the element on it as saved, the editor open. */
+function presetFrom(p, mode) {
+  const before = anim.value;
+
+  write(pickPreset(anim.value, p));
+  galleryOpen.value = false;
+  open.value = true;
+  askName({ mode, preset: p, before }, mode === 'edit' ? label(p) : '');
+}
+
+/** The editor's title while it makes or changes a preset from a gallery's tile. */
+const editorTitle = computed(() => {
+  const mode = asking.value?.mode;
+
+  return mode === 'edit' || mode === 'start' ? port.t(`anim_${mode === 'edit' ? 'edit_preset' : 'start_from'}`, { name: label(asking.value.preset) }) : recipe.value;
+});
+const NAME_HEADS = { save: 'anim_save_preset', create: 'anim_create_preset' };
 
 /**
  * «Create preset» in a kind's gallery: the element on that kind — as it is,
@@ -421,7 +460,7 @@ function createPreset(kind) {
 
   galleryOpen.value = false;
   open.value = true;
-  askName(true);
+  askName({ mode: 'create' });
 }
 
 /* «Update preset»: one of the site's own presets takes what the element now does; every element on it follows. The addon's own stay as they are. */
@@ -455,31 +494,34 @@ async function updateLook() {
 
 async function saveLook() {
   const name = newName.value.trim();
+  const ask = asking.value;
 
-  if (!name || saving.value) {
+  if (!name || saving.value || !ask) {
     return;
   }
 
   saving.value = true;
 
-  const saved = await savePreset(name, toSave.value);
+  const look = toSave.value;
+  const edit = ask.mode === 'edit';
+  const saved = edit ? await updatePreset(ask.preset.handle, { vars: look.vars, timing: look.timing, label: name }) : await savePreset(name, look);
 
   saving.value = false;
 
   if (!saved) {
-    port.toast('error', 'anim_save_failed');
+    port.toast('error', edit ? 'anim_update_failed' : 'anim_save_failed');
 
     return;
   }
 
-  naming.value = false;
+  asking.value = null;
 
   // A recipe's preset is a starting point: the element already has its values as its own.
   if (plays.value) {
     writeLook(onPreset(base.value, saved.handle));
   }
 
-  port.toast('success', 'anim_saved');
+  port.toast('success', edit ? 'anim_updated' : 'anim_saved');
 }
 
 function canvasEl() {
@@ -870,8 +912,10 @@ watch(open, (now) => {
     curveOpen.value = false;
     galleryOpen.value = false;
     addMenu.value = false;
-    naming.value = false;
-    creating.value = false;
+
+    if (naming.value) {
+      cancelNaming();
+    }
   }
 });
 
@@ -889,7 +933,7 @@ const onKey = (event) => {
   } else if (addMenu.value) {
     addMenu.value = false;
   } else if (naming.value) {
-    naming.value = false;
+    cancelNaming();
   } else if (curveOpen.value) {
     curveOpen.value = false;
   } else if (galleryOpen.value) {
@@ -1094,7 +1138,7 @@ const Num = defineComponent({
     </section>
 
     <section class="bm-anim-block" data-sve-build-anim-library>
-      <BuildAnimationGallery v-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" />
+      <BuildAnimationGallery v-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
       <template v-else>
         <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
         <div class="bm-anim-lib">
@@ -1134,7 +1178,7 @@ const Num = defineComponent({
         :style="{ left: `${editorSpot.left}px`, top: `${editorSpot.top}px`, width: editorSpot.width ? `${editorSpot.width}px` : null }"
       >
         <header class="bm-anim-pop__head">
-          <b>{{ recipe }}</b>
+          <b>{{ editorTitle }}</b>
           <span class="bm-anim-pop__tag">{{ tagName }}</span>
           <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="open = false" v-html="icon('x', 12)"></button>
         </header>
@@ -1362,8 +1406,8 @@ const Num = defineComponent({
           </section>
 
           <section v-if="naming" class="bm-anim-block bm-anim-naming" data-sve-build-anim-naming>
-            <div class="bm-anim-head"><span>{{ t(creating ? 'anim_create_preset' : 'anim_save_preset') }}</span></div>
-            <p class="bm-anim-hint">{{ t(SAVE_NOTES[anim.target] || 'anim_save_note') }}</p>
+            <div class="bm-anim-head"><span>{{ asking.preset ? editorTitle : t(NAME_HEADS[asking.mode]) }}</span></div>
+            <p class="bm-anim-hint">{{ t(asking.mode === 'edit' ? 'anim_edit_note' : SAVE_NOTES[anim.target] || 'anim_save_note') }}</p>
             <input
               ref="nameInput"
               v-model="newName"
@@ -1376,8 +1420,8 @@ const Num = defineComponent({
               @keydown.enter.prevent="saveLook"
             />
             <div class="bm-anim-foot">
-              <button type="button" class="bm-anim-btn" @click="naming = false">{{ t('anim_cancel') }}</button>
-              <button type="button" class="bm-anim-btn is-primary" :disabled="!newName.trim() || saving" data-sve-build-anim-save-confirm @click="saveLook">{{ t('anim_save') }}</button>
+              <button type="button" class="bm-anim-btn" data-sve-build-anim-save-cancel @click="cancelNaming">{{ t('anim_cancel') }}</button>
+              <button type="button" class="bm-anim-btn is-primary" :disabled="!newName.trim() || saving" data-sve-build-anim-save-confirm @click="saveLook">{{ t(asking.mode === 'edit' ? 'anim_save_changes' : 'anim_save') }}</button>
             </div>
           </section>
           <section v-else class="bm-anim-block bm-anim-foot">
@@ -1405,7 +1449,7 @@ const Num = defineComponent({
         </header>
         <div class="bm-anim-pop__body">
           <section class="bm-anim-block is-first">
-            <BuildAnimationGallery :kind="anim.target" :current="currentPreset" @pick="usePreset" @create="createPreset(anim.target)" />
+            <BuildAnimationGallery :kind="anim.target" :current="currentPreset" @pick="usePreset" @create="createPreset(anim.target)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
           </section>
         </div>
       </div>

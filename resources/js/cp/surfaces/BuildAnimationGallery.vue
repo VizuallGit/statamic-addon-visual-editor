@@ -17,8 +17,14 @@
  *
  * A click picks (`pick`): what it writes, and how it plays it on the page, is
  * BuildAnimation.vue's. Custom presets open with «Create preset» (`create`);
- * the own tiles' × asks how many templates still name the preset before
- * Delete.
+ * each own tile has a pencil (`edit`: the preset changed in place) and a ×
+ * that asks how many templates still name the preset before Delete. The
+ * addon's own are never changed: their «Start from this» (`start`) makes a
+ * new preset from one.
+ *
+ * A tile plays on the pointer, or on the keyboard's focus — never on the
+ * focus a mouse press gives it: playing rebuilds the tile's inside, and a
+ * press whose element is gone before the button comes up is no click.
  */
 import { computed, inject, ref } from 'vue';
 import PRESETS from '../../../animation/presets.json';
@@ -33,7 +39,7 @@ const props = defineProps({
   back: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['pick', 'create', 'back']);
+const emit = defineEmits(['pick', 'create', 'edit', 'start', 'back']);
 
 const port = inject('sveBuild');
 const t = (key, params) => port.t(key, params);
@@ -47,6 +53,7 @@ const PATHS = {
   back: '<path d="M15 6l-6 6 6 6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
 };
 const icon = (name) => `<svg class="bm-anim-ic" viewBox="0 0 24 24" aria-hidden="true">${PATHS[name]}</svg>`;
@@ -63,6 +70,13 @@ function play(p) {
   hot.value = p.handle;
   take.value += 1;
   pointer.value = null;
+}
+
+/** Tab onto a tile plays it; the focus a mouse press gives does not (see above), nor does a focus on the tile already playing. */
+function onFocus(event, p) {
+  if (event.target.matches(':focus-visible') && hot.value !== p.handle) {
+    play(p);
+  }
 }
 
 /** A timed tile's one play runs out by itself; a recipe's loop stops when the pointer or the focus leaves. */
@@ -178,7 +192,7 @@ async function dropOwn(p) {
             @pointerenter="play(p)"
             @pointerleave="stop(p)"
             @pointermove="follow($event, p)"
-            @focus="play(p)"
+            @focus="onFocus($event, p)"
             @blur="stop(p)"
           >
             <span v-if="isTimed" class="bm-anim-gal__stage" :class="`is-${kind}`">
@@ -202,22 +216,38 @@ async function dropOwn(p) {
             <span class="bm-anim-gal__label">{{ label(p) }}</span>
           </button>
 
+          <button
+            v-if="!isOwn"
+            type="button"
+            class="bm-anim-gal__start"
+            :title="t('anim_start_from_hint')"
+            :data-sve-build-anim-start="p.handle"
+            @click="emit('start', p)"
+          >{{ t('anim_start_from_btn') }}</button>
           <template v-if="isOwn">
             <div v-if="dropping?.handle === p.handle" class="bm-anim-gal__ask" :data-sve-build-anim-own="p.handle">
               <span v-if="dropping.used" class="bm-anim-gal__used">{{ t('anim_mine_used', { n: dropping.used }) }}</span>
               <button type="button" class="bm-anim-gal__sure" data-sve-build-anim-own-sure :disabled="dropping.used === null" @click="dropOwn(p)">{{ t(dropping.used ? 'anim_mine_delete_anyway' : 'anim_mine_delete') }}</button>
               <button type="button" class="bm-anim-gal__x" :aria-label="t('anim_cancel')" @click="dropping = null" v-html="icon('x')"></button>
             </div>
-            <button
-              v-else
-              type="button"
-              class="bm-anim-gal__drop"
-              :aria-label="t('anim_mine_delete')"
-              :title="t('anim_mine_delete')"
-              data-sve-build-anim-own-delete
-              @click="askDrop(p)"
-              v-html="icon('trash')"
-            ></button>
+            <span v-else class="bm-anim-gal__tools">
+              <button
+                type="button"
+                :aria-label="t('anim_edit_preset_btn')"
+                :title="t('anim_edit_preset_btn')"
+                :data-sve-build-anim-own-edit="p.handle"
+                @click="emit('edit', p)"
+                v-html="icon('pencil')"
+              ></button>
+              <button
+                type="button"
+                :aria-label="t('anim_mine_delete')"
+                :title="t('anim_mine_delete')"
+                data-sve-build-anim-own-delete
+                @click="askDrop(p)"
+                v-html="icon('trash')"
+              ></button>
+            </span>
           </template>
         </div>
       </div>
@@ -307,9 +337,15 @@ async function dropOwn(p) {
 .sve-build .bm-anim-gal__tile.is-create .bm-anim-gal__label { color: var(--bm-ink); }
 
 /* Custom presets: the × over the stage's corner, its question under the tile */
-.sve-build .bm-anim-gal__drop { position: absolute; top: 0.375rem; right: 0.375rem; display: grid; place-items: center; width: 1.125rem; height: 1.125rem; border-radius: 0.25rem; background: color-mix(in srgb, var(--bm-bg) 70%, transparent); color: var(--bm-faint); opacity: 0; transition: opacity 0.12s; }
-.sve-build .bm-anim-gal__cell:hover .bm-anim-gal__drop, .sve-build .bm-anim-gal__drop:focus-visible { opacity: 1; }
-.sve-build .bm-anim-gal__drop:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-gal__tools { position: absolute; top: 0.375rem; right: 0.375rem; display: flex; gap: 0.125rem; opacity: 0; transition: opacity 0.12s; }
+.sve-build .bm-anim-gal__tools button { display: grid; place-items: center; width: 1.125rem; height: 1.125rem; border-radius: 0.25rem; background: color-mix(in srgb, var(--bm-bg) 70%, transparent); color: var(--bm-faint); }
+.sve-build .bm-anim-gal__tools button:hover { color: var(--bm-ink); }
+.sve-build .bm-anim-gal__cell:hover .bm-anim-gal__tools, .sve-build .bm-anim-gal__tools:focus-within { opacity: 1; }
+
+/* The addon's own: «Start from this», small, in the stage's corner while the pointer or the keyboard is on the tile */
+.sve-build .bm-anim-gal__start { position: absolute; top: 0.375rem; left: 0.375rem; padding: 0.0625rem 0.3125rem; border-radius: 0.25rem; background: color-mix(in srgb, var(--bm-bg) 75%, transparent); color: var(--bm-muted); font-size: 0.5625rem; line-height: 1.4; white-space: nowrap; opacity: 0; transition: opacity 0.12s; }
+.sve-build .bm-anim-gal__start:hover { background: var(--bm-accent); color: #fff; }
+.sve-build .bm-anim-gal__cell:hover .bm-anim-gal__start, .sve-build .bm-anim-gal__cell:focus-within .bm-anim-gal__start { opacity: 1; }
 .sve-build .bm-anim-gal__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 .sve-build .bm-anim-gal__used { width: 100%; color: var(--bm-faint); font-size: 0.625rem; }
 .sve-build .bm-anim-gal__sure { padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: var(--bm-accent); color: #fff; font-size: 0.625rem; font-weight: 600; white-space: nowrap; }

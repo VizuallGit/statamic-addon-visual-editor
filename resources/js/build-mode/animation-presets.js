@@ -50,9 +50,9 @@ export async function savePreset(label, { kind, vars, timing }, win = window) {
   return data.preset;
 }
 
-/** «Update preset»: one of the site's own takes the element's look and timing → the preset, or null when the server said no. */
-export async function updatePreset(handle, { vars, timing }, win = window) {
-  const res = await post(win, '/!/sve/animation-presets', { handle, vars, timing }).catch(() => null);
+/** «Update preset» and the pencil: one of the site's own takes the element's look and timing, and a new name when given → the preset, or null when the server said no. */
+export async function updatePreset(handle, { vars, timing, label = null }, win = window) {
+  const res = await post(win, '/!/sve/animation-presets', { handle, vars, timing, ...(label === null ? {} : { label }) }).catch(() => null);
   const data = res?.ok ? await res.json() : null;
 
   if (!data?.preset) {

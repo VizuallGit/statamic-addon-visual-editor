@@ -31,7 +31,8 @@ class AnimationPresetController extends Controller
 
         if (is_string($handle) && $handle !== '') {
             try {
-                $preset = AnimationPresets::update($handle, is_array($vars) ? $vars : [], is_array($timing) ? $timing : []);
+                $label = $request->input('label');
+                $preset = AnimationPresets::update($handle, is_array($vars) ? $vars : [], is_array($timing) ? $timing : [], is_string($label) ? $label : null);
             } catch (InvalidArgumentException) {
                 return response()->json(['error' => 'invalid_preset'], 422);
             }

@@ -143,6 +143,10 @@ class AnimationPresetsTest extends TestCase
             ->assertJsonPath('preset.vars', ['--anim-y' => '3rem'])
             ->assertJsonPath('preset.timing', ['step' => 70])
             ->assertJsonPath('presets.0.kind', 'children');
+        $this->postJson('/!/sve/animation-presets', ['handle' => 'my-soft', 'label' => 'Softer', 'vars' => ['--anim-y' => '3rem']])
+            ->assertOk()
+            ->assertJsonPath('preset.label_en', 'Softer')
+            ->assertJsonPath('preset.handle', 'my-soft');
         $this->postJson('/!/sve/animation-presets', ['handle' => 'fade-up', 'vars' => ['--anim-y' => '3rem']])->assertNotFound();
         $this->getJson('/!/sve/animation-presets/usage?handle=my-soft')->assertOk()->assertExactJson(['used' => 0]);
         $this->postJson('/!/sve/animation-presets/delete', ['handle' => 'my-soft'])->assertOk()->assertExactJson(['presets' => []]);
@@ -211,6 +215,22 @@ class AnimationPresetsTest extends TestCase
         $this->assertSame(['handle' => 'my-cascade', 'kind' => 'children', 'label_da' => 'Cascade', 'label_en' => 'Cascade', 'vars' => ['--anim-y' => '2rem'], 'timing' => ['step' => 90]], $updated);
         $this->assertSame([$updated], AnimationPresets::all());
         $this->assertStringContainsString('[data-anim-preset="my-cascade"] { --anim-preset-y: 2rem; }', SveAnimation::css());
+    }
+
+    public function test_the_pencil_renames_an_own_preset_and_keeps_its_handle_so_elements_follow(): void
+    {
+        AnimationPresets::save('Soft', ['--anim-y' => '1rem'], 'self');
+
+        $renamed = AnimationPresets::update('my-soft', ['--anim-y' => '2rem'], [], '  Softer   rise ');
+
+        $this->assertSame('my-soft', $renamed['handle']);
+        $this->assertSame('Softer rise', $renamed['label_en']);
+        $this->assertSame('Softer rise', $renamed['label_da']);
+        $this->assertSame('Softer rise', AnimationPresets::update('my-soft', ['--anim-y' => '3rem'])['label_en'], 'no name given: the name stays');
+
+        $this->expectException(InvalidArgumentException::class);
+
+        AnimationPresets::update('my-soft', ['--anim-y' => '3rem'], [], '   ');
     }
 
     public function test_the_addons_presets_are_not_the_sites_to_update(): void

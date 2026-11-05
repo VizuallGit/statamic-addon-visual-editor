@@ -128,17 +128,18 @@ final class AnimationPresets
     }
 
     /**
-     * «Update preset»: one of the site's own presets takes a new look and
-     * timing; its name and kind stay, and every element that links it
-     * follows. The addon's presets are not the site's to change: null.
+     * «Update preset» and the pencil's «Save changes»: one of the site's own
+     * presets takes a new look and timing, and a new name when one is given;
+     * its handle and kind stay, so every element that links it follows. The
+     * addon's presets are not the site's to change: null.
      *
      * @param  array<mixed>  $vars
      * @param  array<mixed>  $timing
      * @return array{handle: string, kind: string, label_da: string, label_en: string, vars: array<string, string>, timing?: array<string, int>}|null
      *
-     * @throws InvalidArgumentException values that cannot be saved
+     * @throws InvalidArgumentException values or a name that cannot be saved
      */
-    public static function update(string $handle, array $vars, array $timing = []): ?array
+    public static function update(string $handle, array $vars, array $timing = [], ?string $label = null): ?array
     {
         $presets = static::stored();
         $at = array_search($handle, array_column($presets, 'handle'), true);
@@ -150,11 +151,13 @@ final class AnimationPresets
         $vars = static::vars($vars);
         $timing = static::timing($timing);
 
-        if ($vars === [] && $timing === []) {
-            throw new InvalidArgumentException('An animation preset needs at least one value.');
+        $label = $label === null ? $presets[$at]['label'] : trim((string) preg_replace('/\s+/u', ' ', $label));
+
+        if ($label === '' || mb_strlen($label) > self::MAX_LABEL || ($vars === [] && $timing === [])) {
+            throw new InvalidArgumentException('An animation preset needs a name and at least one value.');
         }
 
-        $presets[$at] = [...$presets[$at], 'vars' => $vars, 'timing' => $timing];
+        $presets[$at] = [...$presets[$at], 'label' => $label, 'vars' => $vars, 'timing' => $timing];
         static::write($presets);
 
         return collect(static::all())->firstWhere('handle', $handle);
