@@ -1847,7 +1847,9 @@ export function renderHtmlTree(win) {
     // Not on the release of a drag: that click is suppressed, nothing is picked.
     const opens = !!at && row?.kind === 'antlers' && !htmlTreeSuppressClick && helpOn(win);
 
-    selectHtmlTreeRow(win, id, rows);
+    // The row itself was clicked (`at`): the preview goes to the element.
+    // Build's + on the row picks the row to add into and leaves the page be.
+    selectHtmlTreeRow(win, id, rows, { scroll: !!at });
 
     if (opens) {
       openLogicPopup(win, { path: row.path, at, beside: htmlTreePanel(win.document) });
@@ -4283,8 +4285,14 @@ function insertPointFor(html, row) {
  * tag and the editor takes focus. `reveal: false` is a write keeping its pick
  * (Build's boxes write the file on every keystroke): the dock is not touched,
  * so nothing is laid out or focused for a cursor nobody moved.
+ *
+ * `scroll: true` is a click on the row itself (onSelect): the preview goes to
+ * the element and pulses it (bridge/outline-nav.js), so the click lands
+ * somewhere the author can see. A pick that came from the preview, from a
+ * menu or from a write only outlines — the page must not move under the
+ * author's pointer.
  */
-function selectHtmlTreeRow(win, id, rows, { reveal = true } = {}) {
+function selectHtmlTreeRow(win, id, rows, { reveal = true, scroll = false } = {}) {
   if (htmlTreeSuppressClick) {
     return;
   }
@@ -4330,6 +4338,7 @@ function selectHtmlTreeRow(win, id, rows, { reveal = true } = {}) {
       type: MSG.SVE_HTML_PICK_FOCUS,
       path: row.path,
       src: row.kind === 'component' ? row.src || '' : '',
+      scroll,
     },
     win
   );
