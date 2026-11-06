@@ -750,8 +750,8 @@ onBeforeUnmount(() => {
 .sve-build .bm-attrs-group { display: grid; gap: 0.375rem; }
 .sve-build .bm-attrs-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 1.375rem; }
 .sve-build .bm-attrs-head .fg-lab { margin: 0; }
-.sve-build .bm-attrs-add { display: inline-flex; align-items: center; gap: 0.2rem; height: 1.375rem; padding: 0 0.45rem 0 0.3rem; border: 1px solid var(--bm-line); border-radius: 999px; background: transparent; color: var(--bm-muted); font: 500 0.6875rem/1 var(--bm-mono); cursor: pointer; }
-.sve-build .bm-attrs-add:hover { background: var(--bm-raise); color: var(--bm-ink); border-color: var(--bm-edge); }
+.sve-build .bm-attrs-add { display: inline-flex; align-items: center; gap: 0.2rem; height: 1.375rem; padding: 0 0.45rem 0 0.3rem; border: 0; border-radius: 0.3rem; background: var(--bm-raise); color: var(--bm-muted); font: 500 0.6875rem/1 var(--bm-mono); cursor: pointer; }
+.sve-build .bm-attrs-add:hover { background: var(--bm-accent); color: #fff; }
 .sve-build .bm-attrs-add span { display: grid; place-items: center; }
 .sve-build .bm-attrs-add .bm-ic { width: 0.6875rem; height: 0.6875rem; }
 .sve-build .bm-attr-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 1.5rem; gap: 0.375rem; align-items: center; }
