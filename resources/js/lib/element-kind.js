@@ -2,8 +2,8 @@
  * What an element in a template is, in a designer's words: a Heading, a
  * Container, Column 2.
  *
- * Owner: shared by the HTML tree (its row names) and Build mode (its panel's
- * names) — one answer for one element, wherever it is shown.
+ * Owner: Build mode (its panel's names). The HTML tree names a row by its
+ * given name or first class instead (6 Nov 2026, the owner's call).
  * May import: tw-parse.js, lib/container-widths.js. Pure — no editor, no bus, no DOM.
  * Bus messages: none.
  *
@@ -96,35 +96,4 @@ export function classesOf(source, node) {
 /** A row's place among its plain-tag siblings, from 1 — Column 2 is the second. */
 export function siblingIndex(roots, parent, node) {
   return (parent ? parent.children : roots).filter((row) => !row.kind || row.kind === node.kind).indexOf(node) + 1;
-}
-
-/**
- * Every plain tag in a parsed file at once, by tree path: what it is, its
- * place among its siblings and its classes. One walk, no second parse — the
- * HTML tree hands in the roots it drew from.
- *
- * @returns {Map<string, { kind: string, index: number, classes: string }>}
- */
-export function elementNames(source, roots) {
-  const html = String(source || '');
-  const out = new Map();
-  const walk = (nodes, parent, parentClasses) => {
-    for (const node of nodes || []) {
-      const classes = classesOf(html, node);
-
-      if (!node.kind) {
-        out.set(node.path, {
-          kind: elementKind(node, classes, parent, parentClasses),
-          index: siblingIndex(roots, parent, node),
-          classes: classes.replace(/\s+/g, ' ').trim(),
-        });
-      }
-
-      walk(node.children, node, classes);
-    }
-  };
-
-  walk(roots, null, '');
-
-  return out;
 }

@@ -53,7 +53,6 @@ import {
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
 import { familyCssVars, tagFamily } from './lib/tag-families.js';
-import { elementNames } from './lib/element-kind.js';
 import { applyFamilyColors } from './family-colors.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { firstPickNode } from './html-pick-first.js';
@@ -845,30 +844,23 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
 
     /* ===== The Figma look ==================================================
-       The tags look with the layers switch off — the one the tree opens in.
-       Since 6 Nov 2026 it draws the tree as Etch's structure panel does.
-       Every rule hangs off :not([data-sve-ht-layers]), so the layers look
-       above — the tags rules plus its own — is exactly what it was.
-       1. Every element is a card; an open one is a box, and its children
-          sit inside it one level in. The rows are flat, so each row paints
-          its share of the boxes it is inside: one <i> per level in its
-          spacer (HtmlTreeRow levelBind), reaching left to that level's
-          edge and up across the gap above the row; the last row in a box
-          rounds it off below (cp/html-tree/boxes.js says which). Every
-          layer is the same grey at a low alpha, so where they stack the
-          deeper box reads lighter, whatever order they paint in.
-       2. An empty div, section or list shows its room — the dashed slot an
-          empty loop shows — inside its box, and folds like a parent.
-       3. <div> first, then the name, in the panel's sans; the classes
-          after the name, faint, the first to give way. The icon keeps its
-          family's colour (Live Preview settings).
+       The tags look with the layers switch off: the one the tree opens in,
+       after Etch's structure panel (6 Nov 2026). Every rule hangs off
+       :not([data-sve-ht-layers]), so the layers look above (the tags rules
+       plus its own) is exactly what it was.
+       1. Every row is a card of its own, stepped in by its depth. Nothing
+          is drawn around a parent's children but the step: one background,
+          the row's (the owner's call; a box behind them as well was two).
+       2. An empty div, section or list shows its room (the dashed slot an
+          empty loop shows) one level in, and folds like a parent.
+       3. The tag in its family's colour (Live Preview settings), as the icon
+          is, then the name: the one given, else the first class, else none
+          (HtmlTreeRow shownName). No list of classes.
        4. The picked row in the search field's grey; the arrow a filled
           triangle. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
       --sve-ht-gap: 0.25rem;
-      --sve-ht-pad: 0.3125rem;
       --sve-ht-radius: 0.3125rem;
-      --sve-ht-box: rgba(128,128,128,.05);
       --sve-ht-card: rgba(128,128,128,.07);
       --sve-ht-card-hover: rgba(128,128,128,.11);
       /* The search field's and the top buttons' own grey (HtmlTreePane.vue). */
@@ -888,87 +880,27 @@ export function ensureHtmlTreeStyles(doc) {
       padding: 0;
       box-shadow: none;
     }
-    /* Main's box: the frame body holds the sections main holds. It tucks up
-       under main's row across the gap, so main's card heads the box. */
+    /* The level under main, only with a main row above to be under. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-body][data-sve-ht-under-main] {
       --sve-ht-base: 1;
-      margin: calc(-1 * var(--sve-ht-gap)) 0 var(--sve-ht-gap);
-      padding: var(--sve-ht-gap) 0 0;
-      background: var(--sve-ht-box);
-      border-radius: 0 0 var(--sve-ht-radius) var(--sve-ht-radius);
     }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] + [data-sve-ht-row],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] {
-      /* Below only, so two rows' gaps never collapse into one: the gap, and
-         the room at the foot of every box that closes after this row. */
-      margin: 0 0 calc(var(--sve-ht-gap) + var(--sve-ht-pad) * var(--sve-ht-ends, 0)) calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      margin: 0 0 var(--sve-ht-gap) calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
       padding: 0.0625rem 0.375rem 0.0625rem var(--sve-ht-inset);
       min-height: 1.75rem;
       border-radius: var(--sve-ht-radius);
-      /* The spacer's layers paint under the row's content, over nothing else. */
-      isolation: isolate;
-    }
-    /* The card is the spacer's (below), so the row itself wears nothing. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover,
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current]:hover {
-      background: none;
+      background: var(--sve-ht-card);
       box-shadow: none;
     }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] {
-      display: block;
-      position: absolute;
-      inset: 0;
-      width: auto;
-      z-index: -1;
-      pointer-events: none;
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover { background: var(--sve-ht-card-hover); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current]:hover {
+      background: var(--sve-ht-card-pick);
+      box-shadow: none;
     }
-    /* The slot's spacer covers its border too. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot] > [data-sve-ht-indent] { inset: -1px; }
-    /* One box the row is inside, --sve-ht-up levels out. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] i,
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) + [data-sve-ht-row] [data-sve-ht-indent] i:last-child {
-      position: absolute;
-      display: block;
-      width: auto;
-      margin: 0;
-      opacity: 1;
-      top: calc(-1 * (var(--sve-ht-gap) + var(--sve-ht-pad) * var(--sve-ht-after, 0)));
-      bottom: 0;
-      left: calc(-1 * var(--sve-ht-up, 0) * var(--sve-ht-step));
-      right: 0;
-      background: var(--sve-ht-box);
-    }
-    /* The box closes after this row: down past the row, one pad per box
-       nested inside it, and round. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] i[data-sve-ht-end] {
-      bottom: calc(-1 * var(--sve-ht-pad) * var(--sve-ht-up, 0));
-      border-radius: 0 0 var(--sve-ht-radius) var(--sve-ht-radius);
-    }
-    /* The row's own box starts at the row (open, so children or a room
-       follow), and its card sits on top. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] > [data-sve-ht-indent]::before,
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] > [data-sve-ht-indent]::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: var(--sve-ht-radius);
-    }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) > [data-sve-ht-indent]::before {
-      background: var(--sve-ht-box);
-      border-radius: var(--sve-ht-radius) var(--sve-ht-radius) 0 0;
-    }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] > [data-sve-ht-indent]::after { background: var(--sve-ht-card); }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover > [data-sve-ht-indent]::after { background: var(--sve-ht-card-hover); }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] > [data-sve-ht-indent]::after { background: var(--sve-ht-card-pick); }
-    /* Held back — hidden, or only the way to a search match: the content
-       fades, not the row, whose layers are part of the boxes around it. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-hidden],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-dim] { opacity: 1; }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-hidden] > :not([data-sve-ht-indent]) { filter: opacity(.5); }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-dim] > :not([data-sve-ht-indent]) { filter: opacity(.45); }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="before"]::before {
       top: calc(-0.5 * var(--sve-ht-gap) - 1px);
       left: 0.25rem;
@@ -983,13 +915,11 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
       left: calc(0.25rem + var(--sve-ht-base, 0) * var(--sve-ht-step));
     }
-    /* The room inside an empty element: one level in, in its row's box. */
+    /* The room inside an empty element: one level in, under its row. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot][data-sve-ht-id] {
-      position: relative;
-      isolation: isolate;
       display: flex;
       align-items: center;
-      margin: 0 0 calc(var(--sve-ht-gap) + var(--sve-ht-pad) * var(--sve-ht-ends, 0)) calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      margin: 0 0 var(--sve-ht-gap) calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
       min-height: 2.25rem;
       padding: 0 0.625rem;
       border-color: rgba(128,128,128,.4);
@@ -1019,25 +949,22 @@ export function ensureHtmlTreeStyles(doc) {
       font-size: 0.75rem;
       gap: 0.3125rem;
     }
-    /* <div>, then the name: one face, the tag a shade back. Still the
-       button a double-click changes. */
+    /* The tag in its family's colour, as the icon is: no chip, one face with
+       the name. Still the button a double-click changes. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-kind] {
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-kind],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag]:hover,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-kind] {
       flex: none;
       padding: 0;
       background: none;
       opacity: 1;
-      color: color-mix(in srgb, currentColor 55%, transparent);
+      color: var(--sve-ht-c);
       font: inherit;
       font-weight: 400;
       letter-spacing: 0;
     }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag]:hover {
-      background: none;
-      color: inherit;
-    }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-tag],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-kind] { background: none; }
     /* Brackets on what is a tag: a tag row's, a shut section's, the frame's. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-tag]::before,
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] [data-sve-ht-kind]::before,
@@ -1045,19 +972,14 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-tag]::after,
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] [data-sve-ht-kind]::after,
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-frame] [data-sve-ht-kind]::after { content: '>'; }
-    /* The name keeps its room; the classes after it give way first. */
+    /* The name, in the panel's own colour; an empty one takes no room. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-name],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-rename] {
       flex: 0 1 auto;
-      min-width: 1.5em;
+      min-width: 0;
       opacity: 1;
       font-weight: inherit;
-    }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-name][data-sve-ht-classes]::after {
-      content: " · " attr(data-sve-ht-classes);
-      color: color-mix(in srgb, currentColor 45%, transparent);
-      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
   `);
 }
@@ -2138,12 +2060,11 @@ export function renderHtmlTree(win) {
 
       return null;
     };
-    const figma = htmlTreeUi.look === 'tags' && !htmlTreeUi.layers;
-    // The row drawn: exactly what it shows (HtmlTreeRow) — the Figma look's Heading, Text, or its name.
+    // The row drawn: its name, which is what it shows (HtmlTreeRow).
     const drawn = htmlTreeUi.rows.find((row) => row.path === path && !row.kind);
 
     if (drawn) {
-      return figma && drawn.display ? drawn.display : drawn.name;
+      return drawn.name;
     }
 
     const node = walk(roots);
@@ -2154,10 +2075,7 @@ export function renderHtmlTree(win) {
 
     const isRoot = node.id === rootId;
     const base = isRoot && rootName ? rootName : node.klass;
-    const name = isRoot && openSection ? base : htmlTreeDisplayName(base, node.path, aliases);
-
-    // Folded away in the Figma look: a plain row there wears Build's own word, which the panel gives itself.
-    return figma && !isRoot && name === node.klass ? '' : name;
+    return isRoot && openSection ? base : htmlTreeDisplayName(base, node.path, aliases);
   };
 
   const held = heldVideos(win, String(ask('dock:current-type') || ''));
@@ -2304,27 +2222,6 @@ export function renderHtmlTree(win) {
       alpineSet: alpineKeys.some((item) => item.value !== item.file),
     };
   });
-
-  // The name a plain tag row wears in the Figma look — Heading, Container,
-  // Column 2, the words Build's panel uses (lib/element-kind.js) — and its
-  // classes, shown faint after the tag. A renamed row, the open section, the
-  // frame, and every loop, condition and component keep their own name. The
-  // layers look and the classic look show neither (HtmlTreeRow).
-  const kinds = elementNames(html, roots);
-
-  for (const row of htmlTreeUi.rows) {
-    const it = row.kind ? null : kinds.get(row.path);
-
-    if (!it) {
-      continue;
-    }
-
-    row.classes = it.classes;
-
-    if (it.kind !== 'tag' && !row.frame && !row.fixed && !row.sectionRoot && row.name === row.klass) {
-      row.display = it.kind === 'column' ? t(win, 'el_column', { n: it.index }) : t(win, `el_${it.kind}`);
-    }
-  }
 
   syncStoredVideoHolds(win);
   syncStoredAlpineStates(win);
