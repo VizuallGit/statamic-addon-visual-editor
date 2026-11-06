@@ -10,8 +10,8 @@
  *   Vizuall Build  the Build panel, the canvas, the HTML tree (build-mode-host.js).
  *   HTML icon      Build's dock on or off, kept for this user. The tree stays.
  *
- * The top bar's icons are the ones the site gave Build; with the dock showing,
- * all of them (`html` in lib/toolbar-modes.js), as a developer wants.
+ * In Build the top bar has all its icons (`html` in lib/toolbar-modes.js),
+ * less those the user hid, whether the dock shows or not.
  *
  * On a tab it hangs under the bar and takes no room in it (placeTab). Otherwise
  * it stands in the bar's flow, between the icon row and the right-hand
@@ -270,17 +270,15 @@ function paint(holder) {
   }
 }
 
-/** The bar's icons as the mode has them: all of them while the dock shows. */
-function barMode(win) {
-  const mode = editorMode();
-
-  return mode === 'content' ? 'content' : buildDockShown(win) ? 'html' : 'visual';
+/** The bar's icons as the mode has them: in Build all of them, the dock shown or not. */
+function barMode() {
+  return editorMode() === 'content' ? 'content' : 'html';
 }
 
+/** The dock on or off, and nothing else: the bar's icons stay as they are. */
 function toggleDock(win, holder) {
   setBuildDockShown(win, !buildDockShown(win));
   paint(holder);
-  leaveToolbarToolsOutsideMode(win);
 }
 
 function choose(win, holder, mode) {
@@ -343,7 +341,7 @@ export function ensureBuildSwitch(win) {
     return;
   }
 
-  followToolbarMode(() => barMode(win));
+  followToolbarMode(barMode);
 
   const doc = win.document;
   const header = lpHeader(doc);
