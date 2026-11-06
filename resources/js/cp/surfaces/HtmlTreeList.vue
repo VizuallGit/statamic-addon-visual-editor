@@ -9,8 +9,9 @@
  * row, not a second row.
  */
 import { computed } from 'vue';
-import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { figmaLook, htmlTreeUi as ui, rowShowsRoom } from '../html-tree/store.js';
 import { matchesHtmlTreeRow, normalizeHtmlTreeQuery, searchHtmlTreeRows } from '../html-tree/search.js';
+import { treeBoxes } from '../html-tree/boxes.js';
 import HtmlTreeRow from './HtmlTreeRow.vue';
 
 /**
@@ -23,6 +24,14 @@ import HtmlTreeRow from './HtmlTreeRow.vue';
 const query = computed(() => normalizeHtmlTreeQuery(ui.query));
 const found = computed(() => searchHtmlTreeRows(ui.rows, query.value));
 const shownRows = computed(() => found.value.rows);
+/**
+ * The Figma look's boxes: where each closes, over the rows as they are shown.
+ * On the layout, <main>'s rows are followed by the page's sections in the
+ * frame body — still inside <main> — so its box stays open past its last row.
+ */
+const boxes = computed(() => (figmaLook()
+  ? treeBoxes(shownRows.value, rowShowsRoom, ui.frame?.kind === 'main' && !ui.mainShut ? 1 : 0)
+  : new Map()));
 const shownSections = computed(() => {
   if (!query.value) {
     return ui.sections;
@@ -143,7 +152,7 @@ function wrapBind(sec) {
     <template v-if="ui.frame || ui.sections.length">
       <template v-if="ui.frame">
         <div v-if="ui.frame.kind === 'header'" data-sve-ht-branch data-sve-ht-cat="header">
-          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
@@ -156,14 +165,14 @@ function wrapBind(sec) {
       -->
       <div v-if="!halfOnly" v-bind="ui.frame?.kind === 'main' ? { 'data-sve-ht-branch': '', 'data-sve-ht-cat': 'main' } : {}">
         <template v-if="ui.frame?.kind === 'main'">
-          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </template>
         <HtmlTreeRow v-else-if="ui.frame && frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
         <div v-if="ui.frame?.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body :data-sve-ht-under-main="underMain ? '' : null">
           <div data-sve-ht-branch data-sve-ht-cat="main">
-            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
             <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
           </div>
         </div>
@@ -187,7 +196,7 @@ function wrapBind(sec) {
             states say the same thing. Shut: that row, with nothing under it yet.
           -->
           <template v-if="sec.ready">
-            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
             <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
           </template>
           <!-- Inside a component, or another part of the frame, every section fades. -->
@@ -197,7 +206,7 @@ function wrapBind(sec) {
       </div>
       <template v-if="ui.frame">
         <div v-if="ui.frame.kind === 'footer'" data-sve-ht-branch data-sve-ht-cat="footer">
-          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="frameDim('footer')" />
@@ -209,10 +218,10 @@ function wrapBind(sec) {
       the header's. No frame, no sections (html-tree.js leaves both out).
     -->
     <div v-else-if="ui.inComponent && ui.rows.length" data-sve-ht-branch data-sve-ht-cat="component">
-      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
     </div>
     <template v-else-if="ui.rows.length">
-      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" :box="boxes.get(row.id)" />
     </template>
   </div>
 </template>

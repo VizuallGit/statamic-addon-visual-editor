@@ -44,6 +44,38 @@ export function setHtmlTreeLayers(win, on) {
   htmlTreeUi.layers = readHtmlTreeLayers(win);
 }
 
+/**
+ * The Figma look: the tags look with the layers switch off — the one the
+ * tree opens in. Since 6 Nov 2026 it draws the tree as Etch does: every
+ * element a box, its children inside it, an empty one showing its room.
+ */
+export function figmaLook() {
+  return htmlTreeUi.look === 'tags' && !htmlTreeUi.layers;
+}
+
+/**
+ * Room for children and none in it: an empty loop or condition in every look,
+ * and in the Figma look an empty div, section or list as well (`emptyTag`,
+ * html-tree-parse.js). Such a row folds like a parent, and open it shows the
+ * dashed room where the first child goes.
+ */
+export function rowCanHold(row) {
+  return !row.hasChildren && (!!row.emptyBlock || (figmaLook() && !!row.emptyTag));
+}
+
+/**
+ * Folded. An empty row folds only in the Figma look (html-tree.js
+ * `foldedIds`); in the others its room shows whatever the fold says, as it
+ * always did — so a fold made in one look does not hide a room in another.
+ */
+export function rowShut(row) {
+  return !!row.shut && (!!row.hasChildren || figmaLook());
+}
+
+export function rowShowsRoom(row) {
+  return rowCanHold(row) && !rowShut(row);
+}
+
 export const htmlTreeUi = reactive({
   // Counts a click on a row itself: one on the row already picked changes no path.
   rowClicks: 0,

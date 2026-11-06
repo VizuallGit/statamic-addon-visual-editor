@@ -26,10 +26,12 @@ const canFields = canEditFields(window);
  * lock that holds), then hide, duplicate and delete. Everything else is behind
  * the three dots (html-tree.js `openHtmlTreeRowMore`).
  */
-import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { figmaLook, htmlTreeUi as ui, rowCanHold, rowShowsRoom, rowShut } from '../html-tree/store.js';
 
 defineProps({
   row: { type: Object, required: true },
+  // The Figma look's boxes around this row (cp/html-tree/boxes.js); none in the other looks.
+  box: { type: Object, default: null },
   // During a search: the row is here only because something under it
   // matched. Drawn, so the path to the match reads, but held back.
   dim: { type: Boolean, default: false },
@@ -257,13 +259,33 @@ function canAct(row) {
   return (ui.canEdit && !isHeld(row)) || pageLevel(row);
 }
 
-/**
- * The Figma look (the tags look with the layers switch off): a row is named by
- * what it is and wears its classes after the tag (html-tree.js). The layers
- * look and the classic look show the row exactly as before.
+/*
+ * The Figma look (store.js `figmaLook`) draws the tree as Etch does: each
+ * element a box with its children inside it. The rows are flat, so a row
+ * paints its share of every box it sits in — one `<i>` per level in its
+ * spacer, reaching left to that level's edge and up across the gap above
+ * it — and the last row inside a box rounds the box off below (`box`, from
+ * HtmlTreeList: how many boxes close after the row). The layers and classic
+ * looks get none of these attributes; their rows are what they were.
  */
-function figmaLook() {
-  return ui.look === 'tags' && !ui.layers;
+function rowStyle(row, box) {
+  if (!figmaLook()) {
+    return { '--sve-ht-depth': row.depth };
+  }
+
+  return { '--sve-ht-depth': row.depth, '--sve-ht-ends': box?.ends || 0, '--sve-ht-after': box?.after || 0 };
+}
+
+/** One box the row sits in: `up` levels out from the row, and whether it closes after it. */
+function levelBind(depth, ends, i) {
+  if (!figmaLook()) {
+    return {};
+  }
+
+  return {
+    style: { '--sve-ht-up': depth - i },
+    'data-sve-ht-end': i >= depth - ends ? '' : null,
+  };
 }
 </script>
 
@@ -274,7 +296,7 @@ function figmaLook() {
     role="button"
     tabindex="0"
     :title="rowTitle(row)"
-    :style="{ '--sve-ht-depth': row.depth }"
+    :style="rowStyle(row, box)"
     @click="onRowClick(row, $event.currentTarget)"
     @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row, $event.currentTarget)"
@@ -292,12 +314,12 @@ function figmaLook() {
       gap below. Neither carries text, so nothing that reads a row's
       textContent sees them.
     -->
-    <span data-sve-ht-indent aria-hidden="true"><i v-for="(cat, i) in row.guides || []" :key="i" :data-sve-ht-cat="cat"></i></span>
+    <span data-sve-ht-indent aria-hidden="true"><i v-for="(cat, i) in row.guides || []" :key="i" :data-sve-ht-cat="cat" v-bind="levelBind(row.depth, box?.ends || 0, i)"></i></span>
     <button
-      v-if="row.hasChildren || row.emptyBlock"
+      v-if="row.hasChildren || rowCanHold(row)"
       type="button"
       data-sve-ht-twist
-      v-bind="(row.synthetic ? ui.mainShut : row.shut) ? { 'data-sve-ht-shut': '' } : {}"
+      v-bind="(row.synthetic ? ui.mainShut : rowShut(row)) ? { 'data-sve-ht-shut': '' } : {}"
       v-html="TWIST"
       @click.stop.prevent="row.synthetic ? ui.onFrameTwist?.() : isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)"
       @pointerdown.stop
@@ -320,7 +342,6 @@ function figmaLook() {
         v-if="!row.kind && !isShutSection(row) && !isFrame(row)"
         type="button"
         data-sve-ht-tag
-        :data-sve-ht-classes="figmaLook() && row.classes ? row.classes : null"
         :title="ui.tagTitle"
         @click.stop.prevent
         @pointerdown.stop
@@ -345,7 +366,8 @@ function figmaLook() {
         @keydown.escape.prevent="ui.onRenameCancel?.()"
         @blur="ui.onRenameCommit?.()"
       >
-      <span v-else data-sve-ht-name>{{ figmaLook() && row.display ? row.display : row.name }}</span>
+      <!-- The Figma look: `<div> Div · flow-y` — the classes after the name, the first to give way. -->
+      <span v-else data-sve-ht-name :data-sve-ht-classes="figmaLook() && row.classes ? row.classes : null">{{ figmaLook() && row.display ? row.display : row.name }}</span>
     </span>
     <!--
       The row's icons do not come and go with the lock. A locked file is a
@@ -487,12 +509,20 @@ function figmaLook() {
     </span>
   </div>
   <div
-    v-if="row.emptyBlock && !row.shut"
+    v-if="rowShowsRoom(row)"
     data-sve-ht-slot
     :data-sve-ht-id="row.id"
     v-bind="ui.dropId === row.id && ui.dropPlace === 'inside' ? { 'data-sve-ht-over': '' } : {}"
-    :style="{ '--sve-ht-depth': row.depth + 1 }"
-  >{{ ui.slotText }}</div>
+    :style="figmaLook() ? { '--sve-ht-depth': row.depth + 1, '--sve-ht-ends': box?.roomEnds || 0 } : { '--sve-ht-depth': row.depth + 1 }"
+  ><!--
+      Inside its row's box in the Figma look, one level in: it paints its share
+      of that box and of every box around it, as a row does.
+    --><span v-if="figmaLook()" data-sve-ht-indent aria-hidden="true"><i
+      v-for="(cat, i) in [...(row.guides || []), row.cat]"
+      :key="i"
+      :data-sve-ht-cat="cat"
+      v-bind="levelBind(row.depth + 1, box?.roomEnds || 0, i)"
+    ></i></span>{{ ui.slotText }}</div>
 </template>
 
 <style scoped>

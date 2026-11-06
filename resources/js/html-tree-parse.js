@@ -20,6 +20,7 @@
 
 import { findPartials } from './dock-partials.js';
 import { findAntlersBlocks } from './antlers-blocks.js';
+import { HOLDER_TAGS } from './lib/tag-families.js';
 
 const VOID = new Set([
   'area',
@@ -535,11 +536,36 @@ export function parseTemplateTree(html, options = {}) {
   const source = String(html || '');
 
   return markLocks(
-    emptySectionSlots(
-      addSlots(addSvgs(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source), source)
+    markHollow(
+      emptySectionSlots(
+        addSlots(addSvgs(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source), source)
+      ),
+      source
     ),
     source
   );
+}
+
+/**
+ * `hollow`: a div, a section, a list — a box the page is built from — with
+ * nothing in it at all. Not a child, not a word, not a `{{ value }}`; only
+ * whitespace and comments, which render nothing. The tree shows the room
+ * inside such an element, the way it shows an empty loop's, so there is
+ * somewhere to drop the first child.
+ */
+function markHollow(nodes, source) {
+  for (const node of nodes) {
+    if (node.children.length) {
+      markHollow(node.children, source);
+    } else if (!node.kind && HOLDER_TAGS.has(node.tag) && node.to > node.openTo) {
+      const close = source.lastIndexOf('</', node.to - 1);
+      const inside = close >= node.openTo ? source.slice(node.openTo, close) : '';
+
+      node.hollow = close >= node.openTo && !inside.replace(/<!--[\s\S]*?-->|\{\{#[\s\S]*?#\}\}/g, '').trim();
+    }
+  }
+
+  return nodes;
 }
 
 /**
@@ -706,6 +732,9 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       // and it still shows where content goes — an empty block that looked
       // like a leaf would read as somewhere you cannot put anything.
       emptyBlock: node.kind === 'antlers' && !hasChildren,
+      // An element with room for children and none in it (markHollow). Only
+      // the Figma look shows that room; the others draw it as a leaf.
+      emptyTag: !!node.hollow && !hasChildren,
       shut,
     });
 

@@ -68,6 +68,12 @@ export function familyCssVars(theme = 'dark') {
 /** The tags the tree draws with the section mark, and the toolbar's Text button writes. */
 export const SECTION_TAGS = ['section', 'article', 'header', 'footer', 'main', 'nav', 'aside'];
 export const TEXT_TAGS = ['p', 'span', 'strong', 'em'];
+/**
+ * The tags the tree shows an empty one of as a place to put something: the
+ * boxes a page is built from. Not a heading or a paragraph — an empty `<p>`
+ * is unfinished text, not a room waiting for children.
+ */
+export const HOLDER_TAGS = new Set(['div', ...SECTION_TAGS, 'ul', 'ol', 'li']);
 
 const LAYOUT_TAGS = new Set([
   'div',

@@ -18,7 +18,7 @@ import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import HtmlTreePane from './cp/surfaces/HtmlTreePane.vue';
 import HtmlTreeList from './cp/surfaces/HtmlTreeList.vue';
-import { htmlTreeUi, readHtmlTreeLook } from './cp/html-tree/store.js';
+import { figmaLook, htmlTreeUi, readHtmlTreeLook } from './cp/html-tree/store.js';
 import { componentName, flattenHtmlTree, isTaglessRow, isVoidTag, parseTemplateTree } from './html-tree-parse.js';
 import {
   componentPropsOn,
@@ -39,10 +39,12 @@ import { fieldTypesFor, wholeTag } from './data-var-types.js';
 const callValues = createPropValues('sve-call-values');
 
 import {
+  blockRange,
   closingTagIndex,
   dropPlace,
   duplicateHtml,
   deleteHtml,
+  findNode,
   lockHtml,
   moveHtml,
   toggleHiddenHtml,
@@ -843,27 +845,35 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
 
     /* ===== The Figma look ==================================================
-       The tags look as the owner uses it from 27 Oct 2026: Figma's layer
-       list. Every rule hangs off :not([data-sve-ht-layers]), so the layers
-       look above — the tags rules plus its own — is exactly what it was.
-       1. No box around the open section and no guide lines.
-       2. Every row runs the full width; only what is in it steps in with its
-          depth (the layers look's way of indenting), so a hover or a pick is
-          one band.
-       3. The row's name first, in the panel's sans — Heading, Container,
-          Column 2 (html-tree.js, lib/element-kind.js) — and after it the tag
-          and the classes, faint and in mono, without a chip. The tag is still
-          the button a double-click changes.
-       4. The picked row in the editor's blue, without a bar at the edge. */
+       The tags look with the layers switch off — the one the tree opens in.
+       Since 6 Nov 2026 it draws the tree as Etch's structure panel does.
+       Every rule hangs off :not([data-sve-ht-layers]), so the layers look
+       above — the tags rules plus its own — is exactly what it was.
+       1. Every element is a card; an open one is a box, and its children
+          sit inside it one level in. The rows are flat, so each row paints
+          its share of the boxes it is inside: one <i> per level in its
+          spacer (HtmlTreeRow levelBind), reaching left to that level's
+          edge and up across the gap above the row; the last row in a box
+          rounds it off below (cp/html-tree/boxes.js says which). Every
+          layer is the same grey at a low alpha, so where they stack the
+          deeper box reads lighter, whatever order they paint in.
+       2. An empty div, section or list shows its room — the dashed slot an
+          empty loop shows — inside its box, and folds like a parent.
+       3. <div> first, then the name, in the panel's sans; the classes
+          after the name, faint, the first to give way. The icon keeps its
+          family's colour (Live Preview settings).
+       4. The picked row in the search field's grey; the arrow a filled
+          triangle. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
-      --sve-ht-figma-pick: rgba(56,88,233,.18);
-      --sve-ht-figma-pick-ink: #3858e9;
+      --sve-ht-gap: 0.25rem;
+      --sve-ht-pad: 0.3125rem;
+      --sve-ht-radius: 0.3125rem;
+      --sve-ht-box: rgba(128,128,128,.05);
+      --sve-ht-card: rgba(128,128,128,.07);
+      --sve-ht-card-hover: rgba(128,128,128,.11);
+      /* The search field's and the top buttons' own grey (HtmlTreePane.vue). */
+      --sve-ht-card-pick: rgba(128,128,128,.14);
       font: 450 0.75rem/1.35 Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-    }
-    html.dark [data-sve-ht-look="tags"]:not([data-sve-ht-layers]),
-    .dark [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
-      --sve-ht-figma-pick: rgba(56,88,233,.28);
-      --sve-ht-figma-pick-ink: #b4c1ff;
     }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-branch] {
       border: 0;
@@ -878,76 +888,176 @@ export function ensureHtmlTreeStyles(doc) {
       padding: 0;
       box-shadow: none;
     }
+    /* Main's box: the frame body holds the sections main holds. It tucks up
+       under main's row across the gap, so main's card heads the box. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-body][data-sve-ht-under-main] {
       --sve-ht-base: 1;
+      margin: calc(-1 * var(--sve-ht-gap)) 0 var(--sve-ht-gap);
+      padding: var(--sve-ht-gap) 0 0;
+      background: var(--sve-ht-box);
+      border-radius: 0 0 var(--sve-ht-radius) var(--sve-ht-radius);
     }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] { display: none; }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] {
-      margin: 0;
-      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
-      border-radius: 0.3125rem;
-    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] + [data-sve-ht-row],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] { margin-top: 0; margin-bottom: 0; }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover { background: rgba(128,128,128,.16); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] {
+      /* Below only, so two rows' gaps never collapse into one: the gap, and
+         the room at the foot of every box that closes after this row. */
+      margin: 0 0 calc(var(--sve-ht-gap) + var(--sve-ht-pad) * var(--sve-ht-ends, 0)) calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      padding: 0.0625rem 0.375rem 0.0625rem var(--sve-ht-inset);
+      min-height: 1.75rem;
+      border-radius: var(--sve-ht-radius);
+      /* The spacer's layers paint under the row's content, over nothing else. */
+      isolation: isolate;
+    }
+    /* The card is the spacer's (below), so the row itself wears nothing. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover,
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current]:hover {
-      background: var(--sve-ht-figma-pick);
+      background: none;
       box-shadow: none;
     }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: auto;
+      z-index: -1;
+      pointer-events: none;
+    }
+    /* The slot's spacer covers its border too. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot] > [data-sve-ht-indent] { inset: -1px; }
+    /* One box the row is inside, --sve-ht-up levels out. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] i,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) + [data-sve-ht-row] [data-sve-ht-indent] i:last-child {
+      position: absolute;
+      display: block;
+      width: auto;
+      margin: 0;
+      opacity: 1;
+      top: calc(-1 * (var(--sve-ht-gap) + var(--sve-ht-pad) * var(--sve-ht-after, 0)));
+      bottom: 0;
+      left: calc(-1 * var(--sve-ht-up, 0) * var(--sve-ht-step));
+      right: 0;
+      background: var(--sve-ht-box);
+    }
+    /* The box closes after this row: down past the row, one pad per box
+       nested inside it, and round. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-indent] i[data-sve-ht-end] {
+      bottom: calc(-1 * var(--sve-ht-pad) * var(--sve-ht-up, 0));
+      border-radius: 0 0 var(--sve-ht-radius) var(--sve-ht-radius);
+    }
+    /* The row's own box starts at the row (open, so children or a room
+       follow), and its card sits on top. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] > [data-sve-ht-indent]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] > [data-sve-ht-indent]::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--sve-ht-radius);
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) > [data-sve-ht-indent]::before {
+      background: var(--sve-ht-box);
+      border-radius: var(--sve-ht-radius) var(--sve-ht-radius) 0 0;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] > [data-sve-ht-indent]::after { background: var(--sve-ht-card); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row]:hover > [data-sve-ht-indent]::after { background: var(--sve-ht-card-hover); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] > [data-sve-ht-indent]::after { background: var(--sve-ht-card-pick); }
+    /* Held back — hidden, or only the way to a search match: the content
+       fades, not the row, whose layers are part of the boxes around it. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-hidden],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-dim] { opacity: 1; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-hidden] > :not([data-sve-ht-indent]) { filter: opacity(.5); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-dim] > :not([data-sve-ht-indent]) { filter: opacity(.45); }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="before"]::before {
+      top: calc(-0.5 * var(--sve-ht-gap) - 1px);
+      left: 0.25rem;
+      right: 0.25rem;
+    }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-drop="after"]::after {
-      left: calc(var(--sve-ht-inset) + 0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      bottom: calc(-0.5 * var(--sve-ht-gap) - 1px);
+      left: 0.25rem;
+      right: 0.25rem;
     }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
-      left: calc(var(--sve-ht-inset) + 0.25rem + var(--sve-ht-base, 0) * var(--sve-ht-step));
+      left: calc(0.25rem + var(--sve-ht-base, 0) * var(--sve-ht-step));
     }
+    /* The room inside an empty element: one level in, in its row's box. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot][data-sve-ht-id] {
-      margin-left: calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      position: relative;
+      isolation: isolate;
+      display: flex;
+      align-items: center;
+      margin: 0 0 calc(var(--sve-ht-gap) + var(--sve-ht-pad) * var(--sve-ht-ends, 0)) calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
+      min-height: 2.25rem;
+      padding: 0 0.625rem;
+      border-color: rgba(128,128,128,.4);
+      border-radius: var(--sve-ht-radius);
+      font-size: 0.6875rem;
+      opacity: 1;
+      color: color-mix(in srgb, currentColor 45%, transparent);
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-slot][data-sve-ht-id][data-sve-ht-over] {
+      border-color: #93c5fd;
+      border-style: solid;
+      color: inherit;
     }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-slot] {
       margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
     }
+    /* A filled triangle, as Etch draws it; it turns as the chevron did. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist] svg { display: none; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist]::before {
+      content: '';
+      border-style: solid;
+      border-width: 0.3125rem 0.25rem 0;
+      border-color: currentColor transparent transparent;
+    }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-text] {
       font-family: inherit;
       font-size: 0.75rem;
-      gap: 0.4rem;
+      gap: 0.3125rem;
     }
-    /* The name keeps its room; the tag and the classes after it give way first. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-name],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-rename] {
-      order: -1;
-      flex: 0 1 auto;
-      min-width: 1.5em;
-      opacity: 1;
-    }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name] { font-weight: 600; }
+    /* <div>, then the name: one face, the tag a shade back. Still the
+       button a double-click changes. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag],
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-kind] {
-      flex: 0 100 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      flex: none;
       padding: 0;
       background: none;
       opacity: 1;
-      color: color-mix(in srgb, currentColor 45%, transparent);
-      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: color-mix(in srgb, currentColor 55%, transparent);
+      font: inherit;
+      font-weight: 400;
       letter-spacing: 0;
     }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag]:hover {
       background: none;
-      color: color-mix(in srgb, currentColor 70%, transparent);
-    }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-tag][data-sve-ht-classes]::after {
-      content: " · " attr(data-sve-ht-classes);
+      color: inherit;
     }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-tag],
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-kind] {
-      color: var(--sve-ht-figma-pick-ink);
-      background: none;
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-kind] { background: none; }
+    /* Brackets on what is a tag: a tag row's, a shut section's, the frame's. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-tag]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] [data-sve-ht-kind]::before,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-frame] [data-sve-ht-kind]::before { content: '<'; }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-tag]::after,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-sec] [data-sve-ht-kind]::after,
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-frame] [data-sve-ht-kind]::after { content: '>'; }
+    /* The name keeps its room; the classes after it give way first. */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-name],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name],
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-row] [data-sve-ht-rename] {
+      flex: 0 1 auto;
+      min-width: 1.5em;
+      opacity: 1;
+      font-weight: inherit;
+    }
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-name][data-sve-ht-classes]::after {
+      content: " · " attr(data-sve-ht-classes);
+      color: color-mix(in srgb, currentColor 45%, transparent);
+      font: 400 0.6875rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
   `);
 }
@@ -1493,10 +1603,17 @@ function htmlTreeShut(node, depth) {
  */
 function foldedIds(roots) {
   const shut = new Set();
+  // An empty loop, condition or box (rowCanHold) starts open — its room is
+  // the point of it, a new <div> shows where its first child goes — and in
+  // the Figma look it folds shut when twisted. The other looks never folded
+  // one, and still do not.
+  const emptyFolds = figmaLook();
 
   const walk = (nodes, depth) => {
     for (const node of nodes) {
-      if (node.children.length && htmlTreeShut(node, depth)) {
+      if (node.children.length
+        ? htmlTreeShut(node, depth)
+        : emptyFolds && (node.kind === 'antlers' || node.hollow) && htmlTreeFolds.has(node.path)) {
         shut.add(node.id);
       }
 
@@ -3749,8 +3866,71 @@ function finishHtmlTreePointer(win, event) {
   const next = moveHtml(html, htmlTreeRoots, sourceId, targetId, place);
 
   if (next !== html) {
-    writeDockHtml(next);
+    const undo = place === 'inside' && figmaLook() ? keepRoomOpen(win, html, next, sourceId, targetId) : null;
+
+    if (!writeDockHtml(next)) {
+      undo?.();
+    }
   }
+}
+
+/**
+ * Dropped into an empty element's room (the Figma look). The element has a
+ * child now, and a parent below the top starts folded — it would shut on the
+ * drop and take what was dropped with it. So it is opened: found in the new
+ * markup by where its tag starts there, which is one moved block further up
+ * when the block came from above it. Returns how to take the fold back, for a
+ * write the dock refuses.
+ */
+function keepRoomOpen(win, html, next, sourceId, targetId) {
+  const source = findNode(htmlTreeRoots, sourceId);
+  const target = findNode(htmlTreeRoots, targetId);
+
+  if (!source || !target || target.children.length || !(target.kind === 'antlers' || target.hollow)) {
+    return null;
+  }
+
+  const moved = blockRange(html, source);
+  const from = moved.from < target.from ? target.from - (moved.to - moved.from) : target.from;
+  const find = (nodes, depth) => {
+    for (const node of nodes) {
+      if (node.from === from && node.tag === target.tag) {
+        return { node, depth };
+      }
+
+      const found = find(node.children, depth + 1);
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  };
+  const hit = find(parseTemplateTree(next, treeOptions(win)), 0);
+
+  if (!hit) {
+    return null;
+  }
+
+  // Open is "not flipped" at the top and "flipped" below it (htmlTreeShut).
+  const { path } = hit.node;
+  const top = hit.depth === 0 || path === htmlTreeTopPath;
+  const had = htmlTreeFolds.has(path);
+
+  if (top) {
+    htmlTreeFolds.delete(path);
+  } else {
+    htmlTreeFolds.add(path);
+  }
+
+  return () => {
+    if (had) {
+      htmlTreeFolds.add(path);
+    } else {
+      htmlTreeFolds.delete(path);
+    }
+  };
 }
 
 function endHtmlTreeDrag() {
