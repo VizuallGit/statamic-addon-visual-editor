@@ -133,7 +133,6 @@ const OWN_CSS_ID = '__sve-build-canvas-css';
 const TW_ID = '__sve-build-canvas-tw';
 const SELECTED = 'data-sve-build-sel';
 const HOVERED = 'data-sve-build-hover';
-const TARGET = 'data-sve-build-plus';
 /** The page's own looks among the editor's styles: the theme's scale. */
 const PAGE_STYLES = new Set(['__sve-theme-scale']);
 /** Left off the canvas: what runs there (scripts and their preloads — the canvas runs none) and what the editor puts on the page. */
@@ -147,7 +146,6 @@ export const CANVAS_PAINTED = 'sve:build-canvas-painted';
 const OWN_CSS = `${EMPTY_CSS}
 [${HOVERED}]:not([${SELECTED}]){outline:1px dashed rgba(56,88,233,.75);outline-offset:-1px}
 [${SELECTED}]{outline:.125rem solid #3858e9;outline-offset:-.125rem}
-[${TARGET}]{outline:.125rem dashed #3858e9;outline-offset:-.125rem}
 ${ISLAND_WAIT}{display:inline-block;vertical-align:middle;min-width:2em;min-height:1em;border-radius:.25rem;background:rgba(56,88,233,.12)}
 video:not([controls])::-webkit-media-controls{display:none!important}
 [${CANVAS_CLOAK}]{display:none!important}
@@ -1145,7 +1143,11 @@ export function startCanvas(win) {
     frame?.contentWindow?.dispatchEvent(new Event(CANVAS_PAINTED));
   }
 
-  /* Picks and the + target */
+  /*
+   * Picks. The + target wears no mark of its own (the owner, 7 Nov 2026): the
+   * Add panel opening is the answer to the click, and a dashed outline on the
+   * element it adds into only drew over the page.
+   */
 
   function marks() {
     const page = cdoc();
@@ -1154,21 +1156,16 @@ export function startCanvas(win) {
       return;
     }
 
-    const want = [
-      [SELECTED, port?.selectedPath() || ''],
-      [TARGET, port?.plusPath() || ''],
-    ];
+    const path = port?.selectedPath() || '';
 
-    for (const [attr, path] of want) {
-      page.querySelectorAll(`[${attr}]`).forEach((el) => {
-        if (el.getAttribute(CANVAS_PATH) !== path) {
-          el.removeAttribute(attr);
-        }
-      });
-
-      if (path) {
-        page.querySelectorAll(`[${CANVAS_PATH}="${CSS.escape(path)}"]`).forEach((el) => el.setAttribute(attr, ''));
+    page.querySelectorAll(`[${SELECTED}]`).forEach((el) => {
+      if (el.getAttribute(CANVAS_PATH) !== path) {
+        el.removeAttribute(SELECTED);
       }
+    });
+
+    if (path) {
+      page.querySelectorAll(`[${CANVAS_PATH}="${CSS.escape(path)}"]`).forEach((el) => el.setAttribute(SELECTED, ''));
     }
 
     ui.draw();
