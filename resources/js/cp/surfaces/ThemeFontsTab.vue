@@ -17,6 +17,14 @@
         <span class="sve-theme__font-meta">{{ summary(family) }}</span>
       </div>
     </div>
+
+    <!-- A new font is added under the installed ones, where it will stand — as a new color under the palette. -->
+    <button type="button" class="sve-theme__add-row" data-sve-theme-add data-sve-font-add :disabled="!ui.fontsWritable" @click="h.onAddFont">
+      <span class="sve-theme__add-row-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      <span>{{ ui.labels.fonts_add }}</span>
+    </button>
   </div>
 
   <div v-if="ui.kits.length" class="sve-theme__section">

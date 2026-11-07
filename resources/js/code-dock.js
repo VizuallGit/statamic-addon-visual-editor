@@ -207,7 +207,8 @@ export const HTML_TOOLS = [
   { id: 'picture', title: 'picture', snippet: '<picture>\n    <img src="" alt="">\n</picture>', caret: 24, images: true },
   { id: 'gallery', title: 'gallery', snippet: '<div class="grid grid-cols-3 gap-4">\n    <img src="" alt="" class="w-full">\n</div>', caret: 52 },
   { id: 'svg', title: 'svg', snippet: '{{ svg src="" class="" }}', caret: 12 },
-  { id: 'video', title: 'video', snippet: '<video src="" controls playsinline></video>', caret: 12 },
+  // Loads only its length and size before it plays (Build's Content: Preload).
+  { id: 'video', title: 'video', snippet: '<video src="" controls playsinline preload="metadata"></video>', caret: 12 },
   { id: 'ul', title: 'list', tag: 'ul' },
   { id: 'li', title: 'list item', tag: 'li' },
   { id: 'hr', title: 'divider', snippet: '<hr>', caret: 4 },

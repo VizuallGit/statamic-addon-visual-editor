@@ -5,7 +5,7 @@ import LpSettingsSwitch from './LpSettingsSwitch.vue';
 // General tab: the on/off settings that are not a sidebar's, the tree's or the
 // top bar's own. What Live Preview does (the toolbar on each section,
 // animations, smooth scrolling) and how Build starts (the mode switch's tab,
-// Style's class list). lp-more-menu.js owns every write (`on.*`); this keeps
+// the Style tab, Style's class list). lp-more-menu.js owns every write (`on.*`); this keeps
 // the switches in step.
 const props = defineProps({
   previewLabel: { type: String, required: true },
@@ -18,6 +18,8 @@ const props = defineProps({
   smoothScroll: { type: Object, default: () => ({ on: false, label: '' }) },
   // { show, on, label }: the mode switch on a tab of the bar (build-switch-tab.js).
   switchTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
+  // { show, on, label }: Build's Style tab in the element panel (build-style-pref.js).
+  styleTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
   // { on, label }: Style's class list, shown when a Build starts (build-classes-pref.js).
   classesDefault: { type: Object, default: () => ({ on: false, label: '' }) },
   on: { type: Object, required: true },
@@ -49,6 +51,13 @@ const switchTabOn = ref(props.switchTab.on);
 function setSwitchTab(value) {
   switchTabOn.value = value;
   props.on.switchTab(value);
+}
+
+const styleTabOn = ref(props.styleTab.on);
+
+function setStyleTab(value) {
+  styleTabOn.value = value;
+  props.on.styleTab(value);
 }
 
 const classesDefaultOn = ref(props.classesDefault.on);
@@ -90,6 +99,13 @@ function setClassesDefault(value) {
       :on="switchTabOn"
       data-sve-switch-tab-setting
       @change="setSwitchTab"
+    />
+    <LpSettingsSwitch
+      v-if="styleTab.show"
+      :label="styleTab.label"
+      :on="styleTabOn"
+      data-sve-style-tab-setting
+      @change="setStyleTab"
     />
     <LpSettingsSwitch
       :label="classesDefault.label"

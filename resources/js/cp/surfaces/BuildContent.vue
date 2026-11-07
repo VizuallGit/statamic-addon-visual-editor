@@ -35,7 +35,9 @@
  * field until the data icon beside its label picks a field of theirs: then a box
  * shows the tag, and emptying it brings the field back. An image or a video has
  * a button to take its file away, as the asset field's own shows only on a hover.
- * A link also has its target, rel and aria-label.
+ * A link also has its target, rel and aria-label; an image its size, format,
+ * blur and loading (BuildImage.vue); a video its shape, playing, preload and
+ * poster (BuildVideo.vue).
  *
  * Every tag has its tag on top, as in Bricks: the tag menu of the HTML tree (tw-classes.js,
  * lib/tag-choices.js) — what it may become, and Custom. Rich text and a Grid's columns show theirs.
@@ -54,10 +56,12 @@ import BuildPickField from './BuildPickField.vue';
 import BuildEditable from './BuildEditable.vue';
 import BuildAttrs from './BuildAttrs.vue';
 import BuildImage from './BuildImage.vue';
+import BuildVideo from './BuildVideo.vue';
 import { typed } from './build-typed.js';
 import { ic } from '../../build-mode/icons.js';
 import { ADDRESS, altFromAsset, readAttribute } from '../../build-mode/attrs.js';
 import { imageAt } from '../../build-mode/image.js';
+import { posterOnNewFile } from '../../build-mode/video.js';
 import { siteImageOptions } from '../../build-mode/site-images.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
@@ -149,11 +153,26 @@ const addressNow = computed(() => {
 });
 const addressExpr = computed(() => ANTLERS.exec(addressNow.value || '')?.[0] || '');
 
-/** The address written — an image's alt with it, read off the asset it now points at. */
+/** A video's poster with its file (video.js): the frame follows the file, a first file brings it. */
+const videoPosters = addressTag === 'video' && !!window.Statamic?.$config?.get?.('sveVideoPoster');
+
+/** The address written — an image's alt with it, read off the asset it now points at; a video's poster with it. */
 function writeAddress(value) {
-  if (!halfTag(value)) {
-    port.setAttrsAt(addressPath, address.alt ? { [address.attr]: value, alt: altFromAsset(value) } : { [address.attr]: value });
+  if (halfTag(value)) {
+    return;
   }
+
+  const attrs = address.alt ? { [address.attr]: value, alt: altFromAsset(value) } : { [address.attr]: value };
+
+  if (videoPosters) {
+    const poster = posterOnNewFile(value, addressNow.value, port.attr('poster'));
+
+    if (poster !== undefined) {
+      attrs.poster = poster;
+    }
+  }
+
+  port.setAttrsAt(addressPath, attrs);
 }
 
 const addressBox = typed(addressNow, writeAddress);
@@ -515,6 +534,7 @@ onBeforeUnmount(() => {
         @off="addressOff"
       />
       <BuildImage v-if="imageOptions" :path="path" />
+      <BuildVideo v-if="addressTag === 'video'" :path="path" />
       <div v-if="isLink" class="bm-link-more" data-sve-build-link-more>
         <div class="bm-link-row">
           <span>{{ port.t('content_new_tab') }}</span>

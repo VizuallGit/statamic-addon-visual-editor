@@ -206,13 +206,9 @@ function addFor(key) {
     return null;
   }
 
-  // Colors has its "new" under the palette (ThemeColorsTab.vue), not on the header.
+  // Colors and Fonts have their "new" under their list (ThemeColorsTab.vue, ThemeFontsTab.vue), not on the header.
   if (key === 'spacing') {
     return { attr: 'size', label: ui.labels.spacing_add, run: props.onAddSize };
-  }
-
-  if (key === 'fonts') {
-    return { attr: 'font', label: ui.labels.fonts_add, run: props.onAddFont, off: !ui.fontsWritable };
   }
 
   if (key === 'styles' && ui.classChip === 'class') {

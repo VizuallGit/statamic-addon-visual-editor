@@ -139,7 +139,13 @@ final class ControlPanelScript
             // Build mode's own words (resources/lang/*/build.php), only for a
             // user who has Build: without it the key is not there at all.
             if (Features::visible()['build_mode'] ?? false) {
-                Statamic::provideToScript(['sveBuildStrings' => static::buildStrings()]);
+                Statamic::provideToScript([
+                    'sveBuildStrings' => static::buildStrings(),
+                    // A video's poster from its own frame: only where a `video_poster`
+                    // modifier is installed (statamic-addon/upload-video). Build offers
+                    // the poster switch then; the editor never requires it.
+                    'sveVideoPoster' => static fn () => app('statamic.modifiers')->has('video_poster'),
+                ]);
             }
         });
     }

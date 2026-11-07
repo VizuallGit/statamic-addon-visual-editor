@@ -42,6 +42,7 @@ import BuildAction from './BuildAction.vue';
 import BuildAnimation from './BuildAnimation.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
+import { STYLE_TAB_EVENT, buildStyleTabShown } from '../../build-style-pref.js';
 import BuildStyleMode from './BuildStyleMode.vue';
 import { describeAt } from '../../build-mode/place.js';
 import { ic } from '../../build-mode/icons.js';
@@ -111,7 +112,16 @@ function readTab() {
 }
 
 const chosen = ref(readTab());
-const tab = computed(() => (styled.value ? chosen.value : 'content'));
+/* Style can be switched off in Live Preview settings (build-style-pref.js): then Content stands where Style would. */
+const styleShown = ref(buildStyleTabShown(window));
+const followStyleSetting = () => {
+  styleShown.value = buildStyleTabShown(window);
+};
+
+window.addEventListener(STYLE_TAB_EVENT, followStyleSetting);
+onBeforeUnmount(() => window.removeEventListener(STYLE_TAB_EVENT, followStyleSetting));
+
+const tab = computed(() => (!styled.value || (chosen.value === 'style' && !styleShown.value) ? 'content' : chosen.value));
 
 watch(port.contentAsked, () => {
   chosen.value = 'content';
@@ -193,7 +203,7 @@ const TABS = computed(() => {
       ['style', 'tab_style'],
       ['action', 'tab_action'],
       ['animation', 'anim_tab'],
-    ];
+    ].filter(([value]) => value !== 'style' || styleShown.value);
   }
 
   return content.value === 'fields' ? [['content', 'tab_content']] : [['content', 'tab_settings']];

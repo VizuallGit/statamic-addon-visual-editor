@@ -45,6 +45,7 @@ class ChromePrefsController
         'sve-build-switch-tab',
         'sve-build-dock',
         'sve-build-style-more',
+        'sve-build-style-tab',
         'sve-panel-zones',
         'sve-editor-mode',
         'sve-toolbar-hidden-html',

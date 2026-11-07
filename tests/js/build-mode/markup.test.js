@@ -14,7 +14,7 @@ const write = (id, opts = {}) => markupFor(tile(id), { text: TEXT, ...opts });
 
 test('the dock\'s snippets, exactly', () => {
   assert.equal(write('image'), '<img src="" alt="">');
-  assert.equal(write('video'), '<video src="" controls playsinline></video>');
+  assert.equal(write('video'), '<video src="" controls playsinline preload="metadata"></video>');
   assert.equal(write('loop'), '{{ items }}\n\n{{ /items }}');
   assert.equal(write('if'), '{{ if true }}\n\n{{ /if }}');
 });

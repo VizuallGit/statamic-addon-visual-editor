@@ -44,6 +44,7 @@ import { closeThemePanel } from './theme-panel-lazy.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { buildSwitchTabOn, setBuildSwitchTab } from './build-switch-tab.js';
 import { buildClassesShownByDefault, setBuildClassesShownByDefault } from './build-classes-pref.js';
+import { buildStyleTabShown, setBuildStyleTabShown } from './build-style-pref.js';
 import { applySectionToolbar, sectionToolbarOn, setSectionToolbarOn } from './section-toolbar-pref.js';
 import { animationsRun, setAnimationsRun } from './animation-mode.js';
 import { setSmoothScrollOn, smoothScrollOn, tellScrollMode } from './scroll-pref.js';
@@ -222,6 +223,8 @@ function generalProps(win) {
     smoothScroll: { on: smoothScrollOn(win), label: t(win, 'lp_settings_smooth_scroll') },
     // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
     switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
+    // Build's Style tab, or Content, Action and Animation without it — only with Build.
+    styleTab: { show: featureSaidOn(win, 'build_mode'), on: buildStyleTabShown(win), label: t(win, 'lp_settings_style_tab') },
     classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
   };
 }
@@ -454,6 +457,7 @@ function bindSettingHandlers(win) {
       familyReset: () => resetFamilyColors(win),
       toolbarState: () => toolbarState(win),
       switchTab: (on) => setBuildSwitchTab(win, on),
+      styleTab: (on) => setBuildStyleTabShown(win, on),
       classesDefault: (on) => setBuildClassesShownByDefault(win, on),
       sectionToolbar: (on) => setSectionToolbarOn(win, on),
       animations: (on) => setAnimationsRun(win, on),

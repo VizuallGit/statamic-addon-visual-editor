@@ -426,6 +426,12 @@
   width: 0.875rem;
   height: 0.875rem;
 }
+.sve-theme__add-row:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.14);
+}
 .sve-theme__add-row.is-compact {
   gap: 0.5rem;
   padding: 0.25rem;
