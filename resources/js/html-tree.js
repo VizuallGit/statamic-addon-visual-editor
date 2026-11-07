@@ -856,8 +856,8 @@ export function ensureHtmlTreeStyles(doc) {
        3. The tag in its family's colour (Live Preview settings), as the icon
           is, then the name: the one given, else the first class, else none
           (HtmlTreeRow shownName). No list of classes.
-       4. The picked row in the search field's grey; the arrow a filled
-          triangle. */
+       4. The picked row in the search field's grey; the arrow the layers
+          look's chevron, at its size. */
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) {
       --sve-ht-gap: 0.25rem;
       --sve-ht-radius: 0.3125rem;
@@ -936,14 +936,8 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-frame-slot] {
       margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
     }
-    /* A filled triangle, as Etch draws it; it turns as the chevron did. */
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist] svg { display: none; }
-    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist]::before {
-      content: '';
-      border-style: solid;
-      border-width: 0.3125rem 0.25rem 0;
-      border-color: currentColor transparent transparent;
-    }
+    /* The arrow the layers look wears, at its size (the owner's call, 7 Nov). */
+    [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-twist] svg { width: 0.625rem; height: 0.625rem; }
     [data-sve-ht-look="tags"]:not([data-sve-ht-layers]) [data-sve-ht-text] {
       font-family: inherit;
       font-size: 0.75rem;
