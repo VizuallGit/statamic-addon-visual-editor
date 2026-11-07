@@ -197,6 +197,7 @@ return [
     'el_link' => 'Link',
     'el_image' => 'Billede',
     'el_video' => 'Video',
+    'el_picture' => 'Picture',
     'el_list' => 'Liste',
     'el_divider' => 'Skillelinje',
     'el_loop' => 'Løkke',

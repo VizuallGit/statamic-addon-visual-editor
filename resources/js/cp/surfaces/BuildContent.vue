@@ -53,9 +53,14 @@ import { browseButton } from '../../lib/browse-button.js';
 import BuildPickField from './BuildPickField.vue';
 import BuildEditable from './BuildEditable.vue';
 import BuildAttrs from './BuildAttrs.vue';
+import BuildImage from './BuildImage.vue';
 import { typed } from './build-typed.js';
 import { ic } from '../../build-mode/icons.js';
-import { ADDRESS, altFromAsset } from '../../build-mode/attrs.js';
+import { ADDRESS, altFromAsset, readAttribute } from '../../build-mode/attrs.js';
+import { imageAt } from '../../build-mode/image.js';
+import { siteImageOptions } from '../../build-mode/site-images.js';
+import { findByPath } from '../../build-mode/place.js';
+import { parseTemplateTree } from '../../html-tree-parse.js';
 import { halfTag, isOneLine } from '../../build-mode/text.js';
 import { TEXT_FIELDS, wholeTag, withoutFields } from '../../data-var-types.js';
 
@@ -122,14 +127,32 @@ function lineBreak(event) {
 
 /* ---------------- the address: src, href ---------------- */
 
-const address = ADDRESS[tag.value] || null;
-const addressNow = computed(() => (port.rev.value, address ? port.attr(address.attr) ?? '' : null));
+/*
+ * A `<picture>` or one of its `<source>`s is its image's: Content shows the
+ * `<img>` inside — its file, and its options (BuildImage.vue) — and writes there.
+ */
+const imageNode = ['picture', 'source'].includes(tag.value) ? imageAt(parseTemplateTree(port.html()), path)?.img || null : null;
+const addressTag = imageNode ? 'img' : tag.value;
+const addressPath = imageNode?.path || path;
+const imageOptions = addressTag === 'img' && !!siteImageOptions(window);
+const address = ADDRESS[addressTag] || null;
+const addressNow = computed(() => {
+  port.rev.value;
+
+  if (!address) {
+    return null;
+  }
+
+  const value = addressPath === path ? port.attr(address.attr) : readAttribute(port.html(), findByPath(parseTemplateTree(port.html()), addressPath), address.attr);
+
+  return value ?? '';
+});
 const addressExpr = computed(() => ANTLERS.exec(addressNow.value || '')?.[0] || '');
 
 /** The address written — an image's alt with it, read off the asset it now points at. */
 function writeAddress(value) {
   if (!halfTag(value)) {
-    port.setAttrsAt(path, address.alt ? { [address.attr]: value, alt: altFromAsset(value) } : { [address.attr]: value });
+    port.setAttrsAt(addressPath, address.alt ? { [address.attr]: value, alt: altFromAsset(value) } : { [address.attr]: value });
   }
 }
 
@@ -146,13 +169,13 @@ const fieldKey = ref(0);
 function pickAddress(anchor) {
   port.pickField(
     anchor,
-    path,
+    addressPath,
     addressFields,
     (expression) => {
       addressBox.done();
       refused.value = '';
       writeAddress(expression);
-      port.syncFieldEdit(path, expression, { types: addressFields, inline: false });
+      port.syncFieldEdit(addressPath, expression, { types: addressFields, inline: false });
     },
     addressOne
   );
@@ -165,7 +188,7 @@ function addressDone() {
     const now = addressNow.value;
 
     refuseWrong(now, addressTakes, (wrong) => writeAddress(withoutFields(now, wrong)), addressOne);
-    port.syncFieldEdit(path, now, { types: addressFields, inline: false });
+    port.syncFieldEdit(addressPath, now, { types: addressFields, inline: false });
   }
 }
 
@@ -173,7 +196,7 @@ function addressDone() {
 function removeFile() {
   addressBox.done();
   writeAddress('');
-  port.syncFieldEdit(path, '', { types: addressFields, inline: false });
+  port.syncFieldEdit(addressPath, '', { types: addressFields, inline: false });
   fieldKey.value += 1;
 }
 
@@ -227,7 +250,7 @@ const richBox = typed(richNow, writeRich, { live: false });
 
 /* ---------------- the Control Panel's own field, for either ---------------- */
 
-const kind = address ? tag.value : 'rich';
+const kind = address ? addressTag : 'rich';
 const statamic = !!port.fieldReady?.(kind);
 const host = ref(null);
 let unmountField = null;
@@ -292,6 +315,7 @@ watch(
 /* ---------------- editable in Edit Content ---------------- */
 
 const canMake = !!port.canMakeField?.(path);
+const canMakeAddress = addressPath === path ? canMake : !!port.canMakeField?.(addressPath);
 const ownFields = ref([]);
 const loadOwn = () => {
   if (canMake) {
@@ -345,11 +369,11 @@ function addressMade(handle) {
   loadOwn();
   addressBox.done();
   writeAddress(tagText);
-  port.syncFieldEdit(path, tagText, { types: addressFields, inline: false });
+  port.syncFieldEdit(addressPath, tagText, { types: addressFields, inline: false });
 }
 
 function addressOff() {
-  const url = port.shownAt(path, address.attr);
+  const url = port.shownAt(addressPath, address.attr);
 
   if (url === null) {
     return;
@@ -357,7 +381,7 @@ function addressOff() {
 
   addressBox.done();
   writeAddress(url);
-  port.syncFieldEdit(path, url, { types: addressFields, inline: false });
+  port.syncFieldEdit(addressPath, url, { types: addressFields, inline: false });
   fieldKey.value += 1;
 }
 
@@ -458,7 +482,7 @@ onBeforeUnmount(() => {
     <div v-if="address" class="bm-text" :data-sve-build-address="address.attr">
       <!-- The box stays while it is typed in: a tag's first `{` is in the file before the tag is. -->
       <template v-if="addressExpr || !statamic || addressBox.typing.value">
-        <span class="fg-lab">{{ port.t(`content_${tag}`) }}</span>
+        <span class="fg-lab">{{ port.t(`content_${addressTag}`) }}</span>
         <div class="bm-text-box">
           <input
             v-model="addressBox.value.value"
@@ -477,19 +501,20 @@ onBeforeUnmount(() => {
       </template>
       <div v-else :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
       <button v-if="address.attr === 'src' && addressNow && !addressExpr && !addressBox.typing.value" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
-        <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${tag}`) }}
+        <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${addressTag}`) }}
       </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
       <BuildEditable
-        v-if="canMake && (isOwnText(addressNow) || ownOf(addressNow))"
-        :path="path"
+        v-if="canMakeAddress && (isOwnText(addressNow) || ownOf(addressNow))"
+        :path="addressPath"
         :kind="isLink ? 'link' : 'assets'"
-        :suggest="SUGGEST[tag]"
+        :suggest="SUGGEST[addressTag]"
         :value="addressNow || ''"
         :own="ownOf(addressNow)"
         @made="addressMade"
         @off="addressOff"
       />
+      <BuildImage v-if="imageOptions" :path="path" />
       <div v-if="isLink" class="bm-link-more" data-sve-build-link-more>
         <div class="bm-link-row">
           <span>{{ port.t('content_new_tab') }}</span>

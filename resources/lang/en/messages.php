@@ -200,6 +200,7 @@ return [
     'el_link' => 'Link',
     'el_image' => 'Image',
     'el_video' => 'Video',
+    'el_picture' => 'Picture',
     'el_list' => 'List',
     'el_divider' => 'Divider',
     'el_loop' => 'Loop',

@@ -203,6 +203,8 @@ export const HTML_TOOLS = [
   { id: 'a', title: 'link', tag: 'a' },
   { id: 'button', title: 'button', snippet: '<a href="" class="btn">Button</a>', caret: 9 },
   { id: 'img', title: 'image', snippet: '<img src="" alt="">', caret: 10 },
+  // The site's image work (build-mode/image.js): a crop per screen size. Only where the site makes images (`images`).
+  { id: 'picture', title: 'picture', snippet: '<picture>\n    <img src="" alt="">\n</picture>', caret: 24, images: true },
   { id: 'gallery', title: 'gallery', snippet: '<div class="grid grid-cols-3 gap-4">\n    <img src="" alt="" class="w-full">\n</div>', caret: 52 },
   { id: 'svg', title: 'svg', snippet: '{{ svg src="" class="" }}', caret: 12 },
   { id: 'video', title: 'video', snippet: '<video src="" controls playsinline></video>', caret: 12 },

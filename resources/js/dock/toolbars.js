@@ -18,6 +18,7 @@ import { paintAll } from './all.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
 import { paintCssHead } from './css-sizes.js';
 import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlDivMenu, openHtmlTagMenu, tidyHtmlPane, toggleHtmlPagination } from './html-tools.js';
+import { toolElement, toolbarTools } from './element-markup.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
 import { bindHelpToggle } from './help-toggle.js';
@@ -298,7 +299,7 @@ export function bindHtmlTools(win, dock) {
   host._sveBound = true;
 
   mountPane(host, CodeDockHtmlTools, {
-    tools: HTML_TOOLS.map((tool) => ({
+    tools: toolbarTools(win).map((tool) => ({
       ...tool,
       icon: HTML_ICONS[tool.id] || '',
     })),
@@ -350,11 +351,16 @@ export function bindHtmlTools(win, dock) {
       }
 
       if (tool.snippet) {
-        insertHtmlElement(tool.snippet, tool.caret ?? tool.snippet.length, tool.select);
+        // The element Build's Add tile writes for the same button (dock/element-markup.js).
+        const element = toolElement(win, tool.id) || { markup: tool.snippet, caret: tool.caret ?? tool.snippet.length, select: tool.select };
+
+        insertHtmlElement(element.markup, element.caret, element.select);
         finishHtmlEdit();
 
         return;
       }
+
+      // A tag button (section, link, list): applyHtmlTag wraps a selection, or writes Build's element.
 
       applyHtmlTag(tool.tag);
     },

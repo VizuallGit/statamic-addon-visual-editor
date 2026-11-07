@@ -13,6 +13,7 @@ import { definedElsewhere, importClassCss, loadClassDefs, siteClassOptions } fro
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { elementInsertPoint } from './insert-point.js';
+import { tagElement } from './element-markup.js';
 import { findHtmlClose, readHtmlTag, skipHtmlNoise, tagAtCursor } from './tag-scan.js';
 import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
 import { onEditorInput } from './save.js';
@@ -141,6 +142,16 @@ export function insertHtmlSnippet(snippet, cursorFromStart, selectLength) {
   const indent = line.text.trim()
     ? lineIndentOf(line.text)
     : indentFromPrevious(view, line) || lineIndentOf(line.text);
+
+  // Every line of a snippet of several stands at the line's indent, not the margin;
+  // the caret moves along by what was put in front of it.
+  if (indent && snippet.includes('\n')) {
+    const shift = (text) => text.replace(/\n(?=[^\n])/g, `\n${indent}`);
+
+    cursorFromStart = shift(snippet.slice(0, cursorFromStart)).length;
+    snippet = shift(snippet);
+  }
+
   let insert = snippet;
   let extra = 0;
 
@@ -386,13 +397,21 @@ export function applyHtmlTag(tag, classes = '') {
 
   leaveTag(view);
 
-  const line = view.state.doc.lineAt(view.state.selection.main.head);
-  const indent = (line.text.match(/^\s*/) || [''])[0];
+  // A new element is the one Build's Add tile writes for it (element-markup.js).
+  const element = tagElement(dockState.lastWin, tag, classes);
+
+  if (element) {
+    insertHtmlSnippet(element.markup, element.caret, element.select);
+    finishHtmlEdit();
+
+    return;
+  }
 
   if (tag === 'ul') {
-    const snippet = `<ul>\n${indent}  <li></li>\n${indent}</ul>`;
+    // insertHtmlSnippet puts the line's indent in front of the lines after the first.
+    const snippet = '<ul>\n  <li></li>\n</ul>';
 
-    insertHtmlSnippet(snippet, `<ul>\n${indent}  <li>`.length);
+    insertHtmlSnippet(snippet, '<ul>\n  <li>'.length);
   } else {
     const open = openTagFor(tag, classes);
     const snippet = `${open}</${tag}>`;

@@ -2,7 +2,7 @@
  * How Build's two tabs arrange the dock's own tools.
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: lib/tag-families.js, lib/element-kind.js. Pure — no editor, no bus, no DOM.
+ * May import: lib/tag-families.js, lib/element-kind.js, build-mode/site-images.js. Pure — no editor, no bus, no DOM (the site's config read for the Picture tile).
  * Bus messages: none.
  *
  * Nothing is defined here that the dock already defines. Add's tiles are the
@@ -21,6 +21,7 @@
  */
 
 import { tagFamily } from '../lib/tag-families.js';
+import { siteImageOptions } from './site-images.js';
 
 /* ------------------------------------------------------------------ *
  * Add
@@ -89,6 +90,7 @@ const ADD_BASIC = [
   { id: 'button', own: 'button' },
   { id: 'link', tool: 'a' },
   { id: 'image', tool: 'img' },
+  { id: 'picture', tool: 'picture' },
   { id: 'gallery', own: 'gallery' },
   { id: 'svg', own: 'svg' },
   { id: 'video', tool: 'video' },
@@ -122,6 +124,11 @@ export function addGroups(dock = {}) {
       named.add(entry.tool);
 
       const tool = tools.get(entry.tool);
+
+      // A picture is the site's image work (image.js): no tile where the site does not do it.
+      if (tool?.images && !siteImageOptions()) {
+        return null;
+      }
 
       return tool ? { ...entry, source: 'tool', def: tool, headings: entry.tool === 'heading' ? dock.headings || [] : undefined } : null;
     }
@@ -161,6 +168,28 @@ export function addGroups(dock = {}) {
   }
 
   return groups.filter((group) => group.items.length);
+}
+
+/** Dock buttons Build writes with a tile of its own (NOT_ELEMENTS): the tile's id. */
+const TOOL_TILES = { grid: 'grid', richtext: 'richtext', gallery: 'gallery', button: 'button', hr: 'divider' };
+
+/**
+ * The Add tile a dock HTML button writes the same element as — so the button
+ * and the tile write one markup (dock/element-markup.js). Null for a button
+ * that is no element to add (component, pagination) or has its own way (svg).
+ */
+export function tileForTool(dock, toolId) {
+  const want = TOOL_TILES[toolId];
+
+  for (const group of addGroups(dock)) {
+    const hit = group.items.find((entry) => (want ? entry.id === want : entry.tool === toolId));
+
+    if (hit) {
+      return hit;
+    }
+  }
+
+  return null;
 }
 
 /**

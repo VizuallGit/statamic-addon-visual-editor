@@ -34,7 +34,7 @@ test('off writes nothing when there is nothing shown: text, address and rich tex
   const handler = (name) => content.slice(content.indexOf(`function ${name}() {`), content.indexOf('\n}\n', content.indexOf(`function ${name}() {`)));
 
   assert.match(handler('textOff'), /const words = port\.shownAt\(path\);\n\n\s+if \(words === null\) \{\n\s+return;\n\s+\}/);
-  assert.match(handler('addressOff'), /const url = port\.shownAt\(path, address\.attr\);\n\n\s+if \(url === null\) \{\n\s+return;\n\s+\}/);
+  assert.match(handler('addressOff'), /const url = port\.shownAt\(addressPath, address\.attr\);\n\n\s+if \(url === null\) \{\n\s+return;\n\s+\}/);
   assert.match(handler('richOff'), /const markup = port\.shownAt\(path, 'html'\);\n\n\s+if \(markup === null\) \{\n\s+return;\n\s+\}/);
 });
 

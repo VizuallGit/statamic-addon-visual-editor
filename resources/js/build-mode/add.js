@@ -8,6 +8,8 @@
  */
 
 import { markupFor } from './markup.js';
+import { imageMarkup, pictureMarkup, pictureSizes } from './image.js';
+import { siteImageOptions } from './site-images.js';
 import { addAt } from './place.js';
 
 /** A tile's name: the dock's lang key, its title, Build's `el_` word, or its id. */
@@ -32,10 +34,13 @@ export function tileLabel(port, entry) {
  * @param {{ preset?: string }} [grid]  a Grid's columns and rows (GRID_PRESETS key)
  */
 export function tileMarkup(port, entry, { preset } = {}) {
+  const images = siteImageOptions();
+
   return markupFor(entry, {
     sectionTag: port.sectionTag(),
     mobile: port.mobileVariant(),
     preset,
+    images: images ? { img: imageMarkup(images.quality), picture: pictureMarkup(pictureSizes(port.sizes?.() || []), images.quality) } : null,
     text: {
       heading: port.t('new_heading'),
       text: port.t('new_text'),

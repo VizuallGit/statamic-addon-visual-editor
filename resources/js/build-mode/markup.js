@@ -1,6 +1,7 @@
 /**
- * The markup one Add tile writes — what the dock's HTML toolbar writes for
- * the same element.
+ * The markup one Add tile writes — and the dock's HTML toolbar button for the
+ * same element (dock/element-markup.js): one element, one markup, wherever it
+ * is added from.
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: build-mode/catalog.js. Pure — no editor, no bus, no DOM.
@@ -10,10 +11,10 @@
  * dock/html-tools.js): a section opens with the attributes the site
  * configures (`sveSectionTag`); a link opens with `href=""`; an HTML_DIVS
  * entry carries its classes; a snippet tool (image, video, loop, if) is its
- * snippet; a list is a `ul` with one `li`. Build differs only where it puts a
- * finished element somewhere instead of leaving a caret in it: an element
- * that holds text gets a word, so there is something to see and click, and
- * a list item is indented one step of four spaces, as the site's files are.
+ * snippet; a list is a `ul` with one `li`. An element that holds text gets a
+ * word, so there is something to see and click — in the dock the word is
+ * selected (`caretIn`), so typing replaces it — and a list item is indented
+ * one step of four spaces, as the site's files are.
  */
 
 import { GRID_GAP, GRID_PRESETS } from './catalog.js';
@@ -28,12 +29,13 @@ function open(tag, classes = '', attrs = '') {
 
 /**
  * @param {object} entry  one item of addGroups()
- * @param {{ sectionTag?: string, text?: object, heading?: string, preset?: string, mobile?: string }} opts
+ * @param {{ sectionTag?: string, text?: object, heading?: string, textTag?: string, preset?: string, mobile?: string, images?: object }} opts
  *   `sectionTag` the site's section attributes (Statamic config `sveSectionTag`),
  *   `text` the words new elements start with ({ heading, text, button, link, item }),
  *   `heading` the heading level (h2), `preset` a GRID_PRESETS key for a Grid's
  *   columns and rows, `mobile` the narrowest size's Tailwind variant
- *   (breakpoints(), e.g. `max-md`)
+ *   (breakpoints(), e.g. `max-md`), `textTag` the text menu's tag (p),
+ *   `images` a tool's markup where the site makes images ({ img, picture }, image.js)
  * @returns {string} markup, not indented, children indented with INDENT
  */
 export function markupFor(entry, opts = {}) {
@@ -77,6 +79,11 @@ export function markupFor(entry, opts = {}) {
 }
 
 function toolMarkup(entry, def, opts, text) {
+  // An image or a picture the site makes (image.js): its options with it, from the start.
+  if (opts.images?.[def.id]) {
+    return opts.images[def.id];
+  }
+
   if (def.snippet) {
     return String(def.snippet).replace(/\n+$/, '');
   }
@@ -88,7 +95,9 @@ function toolMarkup(entry, def, opts, text) {
   }
 
   if (def.menu === 'text') {
-    return `<p>${esc(text.text)}</p>`;
+    const tag = /^[a-z][a-z0-9]*$/.test(opts.textTag || '') ? opts.textTag : 'p';
+
+    return `<${tag}>${esc(text.text)}</${tag}>`;
   }
 
   const tag = def.tag || 'div';
@@ -112,6 +121,40 @@ function toolMarkup(entry, def, opts, text) {
   }
 
   return `<${tag}></${tag}>`;
+}
+
+/**
+ * Where the caret goes in an element just written into the dock's HTML pane:
+ * into its first empty attribute (a link's `href=""`, an image's `src=""`),
+ * else over the word it was given (selected, so typing replaces it), else
+ * where the snippet says (a loop's name), else inside an empty element, else
+ * after it. The same markup as Build's tile; only the caret is the dock's.
+ *
+ * @returns {{ at: number, select: number }}
+ */
+export function caretIn(markup, words = [], def = {}) {
+  const text = String(markup || '');
+  const empty = text.indexOf('=""');
+
+  if (empty !== -1) {
+    return { at: empty + 2, select: 0 };
+  }
+
+  for (const word of words) {
+    const at = word ? text.indexOf(`>${esc(word)}<`) : -1;
+
+    if (at !== -1) {
+      return { at: at + 1, select: esc(word).length };
+    }
+  }
+
+  if (def.snippet && text === String(def.snippet).replace(/\n+$/, '') && def.caret !== undefined) {
+    return { at: def.caret, select: def.select || 0 };
+  }
+
+  const open = /^<([a-z][a-z0-9-]*)\b[^>]*>(?=<\/\1>)/i.exec(text);
+
+  return { at: open ? open[0].length : text.length, select: 0 };
 }
 
 /**
