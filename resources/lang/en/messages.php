@@ -462,6 +462,13 @@ return [
     'tw_add_placeholder' => 'Search… e.g. text-400',
     'tw_add_empty' => 'No match — press Enter to add it anyway.',
     'tw_filter_placeholder' => 'Search the list…',
+    // A value menu's own-value mode (TwClassMenu): the switch, the field, what it offers.
+    'tw_value_mode_list' => 'Search the list',
+    'tw_value_mode_custom' => 'Write your own value — calc(), clamp(), var(--…)',
+    'tw_value_custom_placeholder' => 'Own value, e.g. clamp(1rem, 2vw, 3rem)',
+    'tw_value_functions' => 'Functions',
+    'tw_value_variables' => 'Site variables',
+    'tw_value_custom_invalid' => 'Not a value this property takes yet',
     'tw_state' => 'State',
     'tw_state_none' => 'No state',
     'tw_classes_pick' => 'Put the cursor in a tag in the HTML pane — or click the tag in the preview.',

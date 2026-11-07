@@ -181,6 +181,15 @@ export function loadTailwindDesign(win) {
 }
 
 /**
+ * The site's own `@theme` / `@utility` blocks as fetched — the same answer
+ * the design system above is built from, so what the catalog calls the
+ * site's own (lib/own-theme.js) is exactly what it compiled.
+ */
+export function loadTailwindSite(win) {
+  return loadSite(win);
+}
+
+/**
  * Forget the site's theme once site.css was saved (the theme panel, the
  * stylesheet editor): the next compile, suggestion or paint fetches it again,
  * so a color or size made a moment ago is a class the dock knows at once.

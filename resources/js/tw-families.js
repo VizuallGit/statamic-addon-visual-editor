@@ -18,6 +18,7 @@
  */
 
 import { loadCatalog } from './tailwind-complete.js';
+import { varsForProperty } from './lib/own-theme.js';
 
 /** How many classes one warming pass compiles before yielding. */
 const SLICE = 2000;
@@ -68,6 +69,10 @@ function warm(win, model) {
 
   const step = () => {
     if (model.index.at >= model.catalog.names.length) {
+      // Every class is compiled now, so which are the site's own is a pass
+      // of lookups — done here, while nothing waits for it.
+      model.catalog.isOwn('');
+
       return;
     }
 
@@ -144,7 +149,9 @@ export function optionsForProperty(property, model) {
     ]
     : roots.slice().sort();
 
-  return chosen.flatMap((root) => groupsFor(model, root)?.get(property) || []);
+  // The site's own scale first (`py-500` before `py-0`) — every Style list,
+  // Build's scale and the CSS row's values read this order.
+  return model.catalog.ownFirst(chosen.flatMap((root) => groupsFor(model, root)?.get(property) || []));
 }
 
 /** A single declaration is a family; `truncate` and friends are not. */
@@ -231,7 +238,7 @@ export function familyFor(name, model) {
     return null;
   }
 
-  return { label: property || root, options };
+  return { label: property || root, options: model.catalog.ownFirst(options) };
 }
 
 /** What the chip says this class does, for the hover title. */
@@ -241,4 +248,33 @@ export function cssFor(name, model) {
 
 export function colorFor(name, model) {
   return model?.catalog?.color(name) || '';
+}
+
+/**
+ * The site's own variables for a value menu's own-value mode (TwClassMenu):
+ * the property's kind first, each with its swatch when it is a colour. Both
+ * menus — the Tailwind pane's and CSS mode's — offer these, from here.
+ *
+ * @returns {Array<{ name: string, color: string }>}
+ */
+export function ownVariables(model, property) {
+  const catalog = model?.catalog;
+
+  if (!catalog) {
+    return [];
+  }
+
+  return varsForProperty(catalog.ownVars, property).map((name) => ({ name, color: catalog.varColor(name) }));
+}
+
+/** The words of a value menu's own-value mode, in the editor's language. */
+export function ownValueLabels(translate) {
+  return {
+    list: translate('tw_value_mode_list'),
+    custom: translate('tw_value_mode_custom'),
+    placeholder: translate('tw_value_custom_placeholder'),
+    functions: translate('tw_value_functions'),
+    variables: translate('tw_value_variables'),
+    invalid: translate('tw_value_custom_invalid'),
+  };
 }

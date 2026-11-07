@@ -43,7 +43,7 @@ import { cssStateSuffix, newSizeQuery } from '../../dock/css-sizes.js';
 import { currentSectionValues } from '../../dock/scope.js';
 import { CSS_STATES } from '../../dock/style-modes.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
-import { loadFamilies } from '../../tw-families.js';
+import { loadFamilies, ownValueLabels, ownVariables } from '../../tw-families.js';
 import { splitClass, splitUtility } from '../../tw-parse.js';
 import { readAttribute, withAttribute } from '../attrs.js';
 import { dataStates } from '../../lib/data-states.js';
@@ -707,6 +707,7 @@ function createCssPort(win, port) {
     const root = rootOf(list);
     const byLabel = new Map();
     const options = [];
+    const planCss = (plan) => (plan ? [...plan.decls.filter((decl) => !decl.soft), ...plan.parts].map((one) => `${one.prop}: ${one.value}`).join('; ') : '');
 
     for (const name of list) {
       const plan = planFor(name);
@@ -718,7 +719,7 @@ function createCssPort(win, port) {
         byLabel.set(label, name);
         options.push({
           label,
-          css: [...plan.decls.filter((decl) => !decl.soft), ...plan.parts].map((one) => `${one.prop}: ${one.value}`).join('; '),
+          css: planCss(plan),
           color: port.colorOf(name) || '',
           active: name === mine?.name,
         });
@@ -762,6 +763,10 @@ function createCssPort(win, port) {
             return typed && planFor(typed) ? typed : '';
           }
         : null,
+      // The own-value mode, as the Tailwind pane's menu has it (tw-families.js).
+      vars: free ? ownVariables(model.value, property) : [],
+      labels: free ? ownValueLabels((key) => port.t(key)) : null,
+      cssOf: (name) => planCss(planFor(name)),
       onPreview: selector.value ? preview : null,
       onPick(label) {
         closeMenu();

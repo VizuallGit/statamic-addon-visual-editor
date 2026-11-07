@@ -459,6 +459,13 @@ return [
     'tw_add_placeholder' => 'Søg… fx text-400',
     'tw_add_empty' => 'Ingen match — tryk Enter for at tilføje alligevel.',
     'tw_filter_placeholder' => 'Søg i listen…',
+    // En værdi-menus egen værdi-tilstand (TwClassMenu): kontakten, feltet, hvad den tilbyder.
+    'tw_value_mode_list' => 'Søg i listen',
+    'tw_value_mode_custom' => 'Skriv din egen værdi — calc(), clamp(), var(--…)',
+    'tw_value_custom_placeholder' => 'Egen værdi, fx clamp(1rem, 2vw, 3rem)',
+    'tw_value_functions' => 'Funktioner',
+    'tw_value_variables' => 'Sitets variabler',
+    'tw_value_custom_invalid' => 'Ikke en værdi egenskaben kan tage endnu',
     'tw_state' => 'Tilstand',
     'tw_state_none' => 'Ingen tilstand',
     'tw_classes_pick' => 'Sæt markøren i et tag i HTML-ruden — eller klik tagget i previewet.',

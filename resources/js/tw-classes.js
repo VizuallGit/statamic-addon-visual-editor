@@ -41,7 +41,7 @@ import { tagChoices, tagRefusal } from './lib/tag-choices.js';
 import { retag } from './lib/retag.js';
 import { dataStateLabel, dataStates, isDataState, withGroup } from './lib/data-states.js';
 import { GROUP_STATES, groupHost } from './lib/group-host.js';
-import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
+import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty, ownValueLabels, ownVariables } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
 import { twUi } from './cp/tailwind/store.js';
@@ -1786,6 +1786,11 @@ export function twOpenValueMenu(win, anchor, { property, names = null, title = '
         return name && model?.catalog?.resolve(name) ? name : '';
       }
       : null,
+    // The own-value mode: the site's variables to reach for, its words, and
+    // the CSS a typed value comes to (TwClassMenu).
+    vars: free ? ownVariables(model, property) : [],
+    labels: free ? ownValueLabels((key) => t(win, key)) : null,
+    cssOf: (name) => model?.catalog?.css(name) || '',
     onPreview: (label) => {
       const change = label ? next(label) : null;
 
@@ -1934,6 +1939,8 @@ export function twOpenAddMenu(win, anchor) {
       // `p` has to reach `p-100` before `uppercase`: a name that starts with
       // what was typed comes first, and only then the ones that merely
       // contain it. Without that the cut at 40 was all coincidence.
+      // Within each, the site's own first (`py-500` before `py-0`), and the
+      // cut at 40 after that order, so the site's scale never falls off.
       const starts = [];
       const contains = [];
 
@@ -1941,17 +1948,15 @@ export function twOpenAddMenu(win, anchor) {
         const name = catalog.lower[i];
 
         if (name.startsWith(query)) {
-          if (starts.length < 40) {
-            starts.push(catalog.names[i]);
-          }
-        } else if (contains.length < 40 && name.includes(query)) {
+          starts.push(catalog.names[i]);
+        } else if (name.includes(query)) {
           contains.push(catalog.names[i]);
         }
       }
 
       starts.sort((a, b) => a.length - b.length);
 
-      const names = [...starts, ...contains].slice(0, 40);
+      const names = [...catalog.ownFirst(starts), ...catalog.ownFirst(contains)].slice(0, 40);
 
       // Tailwind's grammar reaches past any list: `w-[37px]`, `bg-primary/50`,
       // `md:flex`, `grid-cols-5!`. When what was typed compiles, it belongs at

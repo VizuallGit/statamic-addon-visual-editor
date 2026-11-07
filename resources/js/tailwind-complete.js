@@ -20,6 +20,8 @@
  * dock stays instant and Live Preview never loads a byte of this.
  */
 
+import { ownFirst, ownTheme, varsIn } from './lib/own-theme.js';
+
 /** Variants nobody types: the `*` and `**` child selectors. */
 const HIDDEN_VARIANTS = new Set(['*', '**']);
 
@@ -125,8 +127,8 @@ export function tailwindHoverExtension(hoverTooltip, win) {
 export function loadCatalog(win) {
   if (!catalogPromise) {
     catalogPromise = import('./tw-compile.js')
-      .then((mod) => mod.loadTailwindDesign(win))
-      .then(makeCatalog)
+      .then((mod) => Promise.all([mod.loadTailwindDesign(win), mod.loadTailwindSite(win)]))
+      .then(([design, site]) => makeCatalog(design, ownTheme(site?.css)))
       .catch((error) => {
         // Not remembered: a theme fetch that failed once must not leave the
         // dock without the site's classes for the rest of the session. The
@@ -145,7 +147,7 @@ export function loadCatalog(win) {
  * The catalog
  * ------------------------------------------------------------------ */
 
-function makeCatalog(design) {
+function makeCatalog(design, own = ownTheme('')) {
   const names = [...MARKER_CLASSES, ...design.getClassList().map(([name]) => name)];
   const lower = names.map((name) => name.toLowerCase());
   const known = new Set(names);
@@ -251,6 +253,70 @@ function makeCatalog(design) {
     return value;
   }
 
+  /*
+   * The site's own (lib/own-theme.js): a class that reads one of its `@theme`
+   * variables, or one of its `@utility` names. Every list offers these first.
+   * Worked out once for the whole catalog, the first time a list asks: the
+   * names whose value could be a theme key are compiled in one batch and
+   * kept, and a list's order is then a set lookup per row.
+   */
+  let ownNames = null;
+
+  function ownSet() {
+    if (ownNames) {
+      return ownNames;
+    }
+
+    const set = new Set();
+    const ask = [];
+
+    names.forEach((name) => {
+      const bare = name.startsWith('-') ? name.slice(1) : name;
+
+      if (own.utilities.has(bare)) {
+        set.add(name);
+
+        return;
+      }
+
+      const key = statics.has(name) ? '' : root(name);
+
+      if (!key) {
+        return;
+      }
+
+      if (own.prefixes.has(key.replace(/^-/, ''))) {
+        set.add(name);
+      } else if (own.tails.has(name.slice(key.length + 1))) {
+        ask.push(name);
+      }
+    });
+
+    fill(ask);
+    ask.forEach((name) => {
+      if (varsIn(css(name)).some((variable) => own.vars.has(variable))) {
+        set.add(name);
+      }
+    });
+
+    ownNames = set;
+
+    return set;
+  }
+
+  /** A colour a site variable paints with, for a swatch; '' when it is not one. */
+  function varColor(variable) {
+    let value = '';
+
+    try {
+      value = design?.resolveThemeValue?.(variable) || '';
+    } catch {
+      value = '';
+    }
+
+    return hexColor(value);
+  }
+
   const items = new Map();
 
   function item(name) {
@@ -283,6 +349,13 @@ function makeCatalog(design) {
     rule,
     css,
     color,
+    /** The site's own class — see ownSet. */
+    isOwn: (name) => ownSet().has(name),
+    /** A list, the site's own first; rows by their label, names as they are. */
+    ownFirst: (list) => ownFirst(list, (name) => ownSet().has(name)),
+    /** Every variable the site's `@theme` sets, in the order it sets them. */
+    ownVars: [...own.vars],
+    varColor,
     /** Rows for a list of names, compiled in one go. */
     rows(list) {
       fill(list);
@@ -325,6 +398,10 @@ function emptyCatalog() {
     rule: nothing,
     css: nothing,
     color: nothing,
+    isOwn: () => false,
+    ownFirst: (list) => list || [],
+    ownVars: [],
+    varColor: nothing,
     rows: () => [],
     byUtility: { get: () => undefined },
     resolve: () => null,
@@ -461,43 +538,36 @@ function suggestions(typed, catalog) {
   }
 
   // A name that starts with what was typed comes first, and only then the
-  // ones that merely contain it. Both lists are capped, so the walk over
-  // 15,000 strings costs a pass and nothing else.
+  // ones that merely contain it — and within each, the site's own first
+  // (`py-500` before `py-0`). The cut at 80 comes after that order, so the
+  // site's scale is never the part that falls off. The walk over 15,000
+  // strings costs a pass and nothing else.
   const starts = [];
   const contains = [];
 
   for (let i = 0; i < catalog.names.length; i++) {
-    if (!query) {
-      if (starts.length >= 80) {
-        break;
-      }
-
-      starts.push(catalog.names[i]);
-
-      continue;
-    }
-
     const name = catalog.lower[i];
 
-    if (name.startsWith(query)) {
-      if (starts.length < 80) {
-        starts.push(catalog.names[i]);
-      }
-    } else if (contains.length < 80 && name.includes(query)) {
+    if (!query || name.startsWith(query)) {
+      starts.push(catalog.names[i]);
+    } else if (name.includes(query)) {
       contains.push(catalog.names[i]);
     }
   }
 
-  const ordered = [...starts, ...contains].slice(0, 80);
+  const first = new Set(starts);
+  const ordered = [...catalog.ownFirst(starts), ...catalog.ownFirst(contains)].slice(0, 80);
 
   catalog.fill(ordered);
 
-  ordered.forEach((name, index) => {
+  ordered.forEach((name) => {
+    const own = catalog.isOwn(name);
+
     options.push({
       label: `${prefix}${name}`,
       type: 'property',
       detail: catalog.css(name),
-      boost: index < starts.length ? 1 : 0,
+      boost: first.has(name) ? (own ? 3 : 1) : own ? 0.5 : 0,
     });
   });
 
