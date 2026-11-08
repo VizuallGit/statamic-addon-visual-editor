@@ -232,12 +232,40 @@ class SectionTypesController
             $set,
             $kind,
             mb_substr(trim((string) $request->input('name', '')), 0, 60),
-            (string) $request->input('value', '')
+            (string) $request->input('value', ''),
+            $request->boolean('hidden')
         );
 
         return $handle === null
             ? response()->json(['error' => 'no_fieldset'], 422)
             : response()->json(['ok' => true, 'handle' => $handle]);
+    }
+
+    /**
+     * A field of a section's own fieldset shown in Edit Content or kept out of
+     * it (SectionTypeMaker\AddField::setHidden): "Editable in Edit Content" on
+     * an element whose content is already its section's own.
+     */
+    public function fieldVisibility(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $set = trim((string) $request->input('handle', ''));
+        $field = trim((string) $request->input('field', ''));
+
+        abort_if($set === '' || ! preg_match('/^[a-z][a-z0-9_]*$/', $field), 400);
+
+        $done = AddField::setHidden(
+            static::list($request),
+            $set,
+            $field,
+            $request->boolean('hidden'),
+            mb_substr(trim((string) $request->input('display', '')), 0, 60)
+        );
+
+        return $done
+            ? response()->json(['ok' => true])
+            : response()->json(['error' => 'not_found'], 404);
     }
 
     public function update(Request $request)

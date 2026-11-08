@@ -5,6 +5,12 @@
  * with its value per page and a content editor's way to it (`port.makeField`);
  * the parent writes the tag. Off, the parent writes the value back as the
  * element's own, and the field stays: pages may hold values in it.
+ *
+ * An element whose content is already its section's own (`hidden`: a field
+ * kept out of Edit Content, BuildOwn.vue) has its field: on shows that one,
+ * under the name typed here, rather than making a second — a second would
+ * leave every other section's content behind in the first. The parent hears
+ * `shown`.
  */
 import { inject, nextTick, ref } from 'vue';
 
@@ -13,9 +19,10 @@ const props = defineProps({
   kind: { type: String, required: true }, // SectionTypeMaker\AddField::KINDS
   suggest: { type: String, required: true },
   value: { type: String, default: '' },
-  own: { type: String, default: '' }, // the field it holds now
+  own: { type: String, default: '' }, // the field it holds now, shown in Edit Content
+  hidden: { type: String, default: '' }, // the field it holds now, kept out of Edit Content
 });
-const emit = defineEmits(['made', 'off']);
+const emit = defineEmits(['made', 'shown', 'off']);
 
 const port = inject('sveBuild');
 const naming = ref(false);
@@ -46,6 +53,20 @@ async function make() {
   }
 
   busy.value = true;
+
+  if (props.hidden) {
+    const shown = await port.setFieldHidden(props.hidden, false, name.value.trim());
+
+    busy.value = false;
+    failed.value = !shown;
+
+    if (shown) {
+      naming.value = false;
+      emit('shown', props.hidden);
+    }
+
+    return;
+  }
 
   const handle = await port.makeField(props.path, { kind: props.kind, name: name.value, value: props.value });
 

@@ -6,7 +6,6 @@
 import { t } from './lib/i18n.js';
 import { canCreateSections, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
 import { canEditFields, openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.js';
-import { blueprintAllowed, openEntryBlueprint } from './lp-blueprint.js';
 import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
@@ -3230,7 +3229,6 @@ const MORE_ICONS = {
   down: MENU_ICON('<path d="M12 5v14M6 13l6 6 6-6"/>'),
   save: MENU_ICON('<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/>'),
   add: MENU_ICON('<path d="M12 5v14M5 12h14"/>'),
-  blueprint: MENU_ICON('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>'),
   fieldset: MENU_ICON('<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/>'),
   lock: MENU_ICON('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
   unlock: MENU_ICON('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-.9"/>'),
@@ -3255,17 +3253,6 @@ function sectionMoreItems(win, section) {
     { label: t(win, 'html_tree_save_section'), icon: MORE_ICONS.save, onPick: post(MSG.SAVE_SECTION) },
     { label: t(win, 'add_section_below'), icon: MORE_ICONS.add, onPick: post(MSG.ADD_SET) },
   ];
-
-  if (blueprintAllowed(win)) {
-    items.push({
-      label: t(win, 'blueprint'),
-      icon: MORE_ICONS.blueprint,
-      onPick: () => {
-        closeHtmlTreeMenu();
-        openEntryBlueprint(win);
-      },
-    });
-  }
 
   // A static section has no fieldset: its right-click menu offers to add one.
   if (canEditFields(win) && section.type && !section.static) {

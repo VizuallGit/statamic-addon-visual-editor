@@ -30,6 +30,18 @@ class DataVarsTest extends TestCase
         $this->assertSame('Headline', $rows['headline']['label']);
     }
 
+    /** A section's own content (a hidden field) says so: Build tells it from one editable in Edit Content. */
+    public function test_a_hidden_field_says_it_is_hidden(): void
+    {
+        $rows = $this->walk([
+            ['handle' => 'heading', 'field' => ['type' => 'text', 'visibility' => 'hidden']],
+            ['handle' => 'text', 'field' => ['type' => 'text']],
+        ]);
+
+        $this->assertTrue($rows['heading']['hidden']);
+        $this->assertArrayNotHasKey('hidden', $rows['text']);
+    }
+
     public function test_a_choice_carries_its_option_keys_in_every_shape(): void
     {
         $rows = $this->walk([

@@ -115,6 +115,9 @@ final class EditorRoutes
             // One field more in its fieldset, from an element made editable in Vizuall Build.
             Route::post('/!/sve/section-types/fields', [SectionTypesController::class, 'addField'])
                 ->name('sve.section-types.fields.store');
+            // Such a field shown in Edit Content, or kept to Build (own content).
+            Route::patch('/!/sve/section-types/fields', [SectionTypesController::class, 'fieldVisibility'])
+                ->name('sve.section-types.fields.update');
             Route::patch('/!/sve/section-types', [SectionTypesController::class, 'update'])
                 ->name('sve.section-types.update');
 

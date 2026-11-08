@@ -6,10 +6,14 @@
  * May import: nothing.
  * Bus: none. The file is written through the port (`inlineTarget`, `setText`).
  *
- * Words of the file's own go to the file. A field alone in its element —
- * `{{ headline }}` — goes to the field: the form is that value's one source,
- * and the tag stays in the file. What cannot be typed over here (`Hej {{ x }}`,
- * Rich text, a loop's item) keeps the panel's Content.
+ * Words of the file's own go to the file — except in a section that can hold
+ * them as its own content (`target.own`): every section of the type renders
+ * the one file, so there the first change makes them a field of the section
+ * (port.makeOwn) and what is typed goes to that, this section's alone. A field
+ * alone in its element — `{{ headline }}` — goes to the field: the form is
+ * that value's one source, and the tag stays in the file. What cannot be
+ * typed over here (`Hej {{ x }}`, Rich text, a loop's item) keeps the panel's
+ * Content.
  *
  * No attribute is added to the file: `contenteditable` lives on the canvas's
  * element while it is typed in, and the canvas's morphs step round that element
@@ -66,16 +70,37 @@ export function canvasEdit({ port, setField, paint, find }) {
   let session = null;
   let ticket = 0;
 
+  /**
+   * The words where they belong: the field's value, the file, or — own words in
+   * a section that can hold them — the section's own field, made on the first
+   * change. Until that field has landed nothing is written; then what has been
+   * typed by then goes into it, keystrokes made meanwhile included.
+   */
+  function store(now, text) {
+    now.latest = text;
+
+    if (now.owning) {
+      return;
+    }
+
+    if (now.target.field) {
+      setField(now.target.field, text);
+    } else if (!now.target.own) {
+      port().setText(now.path, text);
+    } else if (text !== now.before) {
+      now.owning = Promise.resolve(port().makeOwn(now.path, { value: () => now.latest })).then((field) => {
+        now.target = { ...now.target, own: false, ...(field ? { field } : {}) };
+        now.owning = null;
+        store(now, now.latest);
+      });
+    }
+  }
+
   const write = () => {
     const now = session;
 
     now.frame = 0;
-
-    if (now.target.field) {
-      setField(now.target.field, editedText(now.el));
-    } else {
-      port().setText(now.path, editedText(now.el));
-    }
+    store(now, editedText(now.el));
   };
 
   function onInput() {
@@ -158,24 +183,21 @@ export function canvasEdit({ port, setField, paint, find }) {
       return;
     }
 
-    const { el, path, target, before, style } = session;
+    const now = session;
+    const { el, before, style } = now;
 
-    session.ending = true;
+    now.ending = true;
 
-    if (session.frame) {
-      el.ownerDocument.defaultView.cancelAnimationFrame(session.frame);
-      session.frame = 0;
+    if (now.frame) {
+      el.ownerDocument.defaultView.cancelAnimationFrame(now.frame);
+      now.frame = 0;
     }
 
     if (revert) {
       el.innerHTML = before.split('<br>').map((part) => part.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])).join('<br>');
     }
 
-    if (target.field) {
-      setField(target.field, editedText(el));
-    } else {
-      port().setText(path, editedText(el));
-    }
+    store(now, editedText(el));
 
     el.removeEventListener('beforeinput', onBeforeInput);
     el.removeEventListener('input', onInput);

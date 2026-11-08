@@ -127,7 +127,7 @@ import { createComputedValues, hoverText, inherits } from './computed-values.js'
 import { previewFrame } from '../lib/preview-frame.js';
 import { armElementPick, cancelComponentBind, disarmComponentBind } from '../component-bind.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
-import { isOneLine, readText, withText } from './text.js';
+import { escapeWords, fieldNameFor, isOneLine, readText, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
 import { canEditFields, currentSetHandle, refreshFieldsForType } from '../section-fields.js';
@@ -282,6 +282,8 @@ export function createEditorPort(win, hooks = {}) {
   let modelWanted = false;
   /** A scale's root → its property, for a typed class the catalog has never compiled. */
   const byRoot = new Map();
+  /** Own content on its way, by section type and path: one field per element, however often it is asked. */
+  const owning = new Map();
 
   const bump = () => {
     rev.value += 1;
@@ -791,8 +793,10 @@ export function createEditorPort(win, hooks = {}) {
         return null;
       }
 
+      // The file's own words. Typed into, they become the section's own
+      // content (`own`, port.makeOwn) where the section can hold it.
       if (!read.text.includes('{{')) {
-        return { oneLine: isOneLine(node.tag) };
+        return { oneLine: isOneLine(node.tag), own: port.canMakeField(path) };
       }
 
       const field = wholeTag(read.text);
@@ -837,6 +841,113 @@ export function createEditorPort(win, hooks = {}) {
 
       return true;
     },
+    /**
+     * The element's own words as its section's own content.
+     *
+     * Every section of a type renders the type's one file, so words written
+     * into the file are every section's — on this page and every other. Own
+     * content is a field of the section's fieldset instead (SectionTypeMaker\
+     * AddField, `hidden`): kept out of Edit Content's form, saved per section
+     * on every page all the same. The words become its default, so every other
+     * section of the type goes on showing them, and the file holds
+     * `{{ field }}` with no `visual_edit`: "Editable in Edit Content" is what
+     * shows the field and gives it one.
+     *
+     * `value` is what this section holds — a string, or a function asked when
+     * the field lands (what has been typed by then). It is written before the
+     * tag, so the paint the tag sets off shows it and not the default for a
+     * frame. Asked again while the first is on its way, the same field comes
+     * back; a later caller writes its own value once it has it.
+     *
+     * @returns {Promise<string|null>} the field; null when the element's words cannot be its section's own
+     */
+    makeOwn(path, { value } = {}) {
+      const set = currentSetHandle();
+      const key = `${set}|${path}`;
+
+      if (owning.has(key)) {
+        return owning.get(key);
+      }
+
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+      const read = node ? readText(html(), node) : null;
+
+      if (!node || !port.canMakeField(path) || read?.kind !== 'text' || read.text.includes('{{')) {
+        return Promise.resolve(null);
+      }
+
+      const job = port
+        .makeField(path, { kind: isOneLine(node.tag) ? 'text' : 'textarea', name: fieldNameFor(node.tag), value: read.text, hidden: true })
+        .then((handle) => {
+          if (handle) {
+            const now = typeof value === 'function' ? value() : value;
+
+            if (typeof now === 'string') {
+              port.setSectionValue(handle, now);
+            }
+
+            // Written where the element is, the pick left where it is: by now
+            // another element may have been clicked, and setText would pick
+            // this one again. The tree knows its rows by where they start in
+            // the file, so a pick after this element moves with the words
+            // written here: the tree is told where it starts now (`keepPickAt`).
+            const picked = hooks.selectedPath?.() || '';
+            const at = findByPath(parseTemplateTree(html()), path);
+            const next = at ? withText(html(), at, `{{ ${handle} }}`) : html();
+
+            if (next !== html()) {
+              const moved = picked && picked !== path ? findByPath(parseTemplateTree(next), picked) : null;
+
+              if (moved) {
+                hooks.keepPickAt?.(moved.from);
+              }
+
+              port.write(next, { select: picked === path ? path : '' });
+            }
+          }
+
+          return handle;
+        })
+        .finally(() => owning.delete(key));
+
+      owning.set(key, job);
+
+      return job;
+    },
+    /**
+     * A field of the open section shown in Edit Content, under the name given,
+     * or kept out of it again — the section's own content either way. The form
+     * gets the field's new settings (refreshFieldsForType), as after making one.
+     *
+     * @returns {Promise<boolean>} done, and the dock still holds that section
+     */
+    async setFieldHidden(field, hidden, display = '') {
+      const handle = currentSetHandle();
+      const res = await win
+        .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
+          method: 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+          body: JSON.stringify({ handle, field, hidden, display }),
+        })
+        .catch(() => null);
+
+      if (!res?.ok) {
+        return false;
+      }
+
+      await refreshFieldsForType(win, handle);
+
+      return currentSetHandle() === handle;
+    },
+    /** The open section's fields kept out of Edit Content: its own content, written in Build. */
+    hiddenFieldNames(path) {
+      const node = path ? findByPath(parseTemplateTree(html()), path) : null;
+
+      return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) =>
+        (model?.section || []).filter((row) => !row.parent && row.hidden).map((row) => row.var)
+      );
+    },
     /** The fields of the open section, by name: what makes a tag in an element "its own". */
     sectionFieldNames(path) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
@@ -852,14 +963,14 @@ export function createEditorPort(win, hooks = {}) {
      *   be made, or the dock has moved to another section since: the file the
      *   field was for is not the one open, and no tag may be written to that one.
      */
-    async makeField(path, { kind, name, value }) {
+    async makeField(path, { kind, name, value, hidden = false }) {
       const handle = currentSetHandle();
       const res = await win
         .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
-          body: JSON.stringify({ handle, kind, name, value }),
+          body: JSON.stringify({ handle, kind, name, value, hidden }),
         })
         .catch(() => null);
       const made = res?.ok ? await res.json() : null;
@@ -902,7 +1013,9 @@ export function createEditorPort(win, hooks = {}) {
       }
 
       return Promise.resolve(name ? ask('dock:data-model', { at: at.from }) : null).then((model) => {
-        const own = (model?.section || []).some((row) => row.var === name && !row.parent && types.includes(row.type));
+        // A hidden field is the section's own content, kept out of Edit Content:
+        // nothing there to edit it, so no `visual_edit` points at it.
+        const own = (model?.section || []).some((row) => row.var === name && !row.parent && !row.hidden && types.includes(row.type));
         const node = findByPath(parseTemplateTree(html()), path);
         const now = fieldEditOf(html(), node);
 
@@ -951,6 +1064,8 @@ export function createEditorPort(win, hooks = {}) {
     },
     /** What Bard holds as it is typed, on the canvas; the server's HTML follows (element-fields.js). */
     paintRich: (path, markup) => canvas?.paintInner(path, markup),
+    /** Words on the canvas as they are typed, before they are anywhere: own content whose field is on its way. */
+    paintWords: (path, words) => canvas?.paintInner(path, escapeWords(words)),
     /** An image's, a video's, a link's or rich text's content as the Control Panel's own field (element-fields.js) → unmount. */
     fieldReady: (kind) => elementFieldReady(kind),
     mountField: (el, options) => mountElementField(win, el, options),

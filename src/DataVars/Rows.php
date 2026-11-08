@@ -254,6 +254,13 @@ final class Rows
             $row['loop'] = true;
         }
 
+        // Kept out of Edit Content's form: a section's own content, written in
+        // Vizuall Build (SectionTypeMaker\AddField). Build's Content reads it to
+        // tell "own content" from "editable in Edit Content".
+        if ($field->visibility() === 'hidden') {
+            $row['hidden'] = true;
+        }
+
         // One file prints as one address; more print only in a loop.
         if ($type === 'assets' && (int) ($field->config()['max_files'] ?? 0) === 1) {
             $row['single'] = true;

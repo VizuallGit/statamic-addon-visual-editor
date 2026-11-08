@@ -201,4 +201,56 @@ class SectionTypeMakerAddFieldTest extends TestCase
         $this->assertNull(AddField::run('page_sections', 'content/nope', 'text', 'Heading', 'Hello'));
         $this->assertNull(SectionTypeMaker::readFieldset('content.nope'));
     }
+
+    /**
+     * "Own content in each section": the field is made as before, kept out of
+     * Edit Content's form. Statamic still saves a hidden field's value, so each
+     * section on each page holds its own words.
+     */
+    public function test_own_content_is_a_hidden_field_with_the_text_as_its_default(): void
+    {
+        $this->assertSame('heading_2', AddField::run('page_sections', 'content/plain', 'text', 'Heading', 'Hello', hidden: true));
+
+        $this->assertSame(
+            ['type' => 'text', 'display' => 'Heading 2', 'visibility' => 'hidden', 'default' => 'Hello'],
+            end($this->onDisk('content', 'plain')['fields'])['field']
+        );
+    }
+
+    /**
+     * "Editable in Edit Content" on own content shows the same field — with the
+     * name typed for it — rather than making a second one, which would leave
+     * every other section's words behind in the first. Off hides it again.
+     */
+    public function test_a_hidden_field_is_shown_with_its_new_name_and_hidden_again(): void
+    {
+        AddField::run('page_sections', 'content/grouped', 'text', 'Heading', 'Hello', hidden: true);
+
+        $this->assertTrue(AddField::setHidden('page_sections', 'content/grouped', 'heading', false, 'Hero heading'));
+
+        $field = $this->onDisk('content', 'grouped')['sections'][1]['fields'][1];
+
+        $this->assertSame('heading', $field['handle']);
+        $this->assertSame(['type' => 'text', 'display' => 'Hero heading', 'default' => 'Hello'], $field['field']);
+
+        $this->assertTrue(AddField::setHidden('page_sections', 'content/grouped', 'heading', true));
+        $this->assertSame('hidden', $this->onDisk('content', 'grouped')['sections'][1]['fields'][1]['field']['visibility']);
+        $this->assertSame('Hero heading', $this->onDisk('content', 'grouped')['sections'][1]['fields'][1]['field']['display']);
+    }
+
+    /**
+     * Only a field written in the section's own fieldset. An imported one is
+     * shared with other sections, and a section without a fieldset is not given
+     * one to look in.
+     */
+    public function test_only_the_sections_own_fields_can_be_shown_or_hidden(): void
+    {
+        $before = file_get_contents(Names::fieldsetPath('content', 'plain'));
+
+        $this->assertFalse(AddField::setHidden('page_sections', 'content/plain', 'heading', false));
+        $this->assertFalse(AddField::setHidden('page_sections', 'content/plain', 'nope', true));
+        $this->assertFalse(AddField::setHidden('page_sections', 'content/inline', 'words', true));
+        $this->assertFalse(AddField::setHidden('page_sections', 'content/prefixed', 'text', true));
+        $this->assertSame($before, file_get_contents(Names::fieldsetPath('content', 'plain')));
+    }
 }

@@ -31,6 +31,12 @@
  * in Content mode. A heading or a link is one line (an input); other text gets a
  * taller box, which grows with it, and Enter writes the `<br>` it means.
  *
+ * Text in a section is its section's own content (BuildOwn.vue): every section
+ * of a type renders the one file, so the first change made here to an
+ * element's own words makes them a field of the section (port.makeOwn), kept
+ * out of Edit Content, and the box writes this section's value from then on.
+ * "Editable in Edit Content" shows that field to a content editor.
+ *
  * Rich text and an image's, a video's or a link's address are the Control Panel's
  * field until the data icon beside its label picks a field of theirs: then a box
  * shows the tag, and emptying it brings the field back. An image or a video has
@@ -54,6 +60,7 @@ import { tagFamily } from '../../lib/tag-families.js';
 import { browseButton } from '../../lib/browse-button.js';
 import BuildPickField from './BuildPickField.vue';
 import BuildEditable from './BuildEditable.vue';
+import BuildOwn from './BuildOwn.vue';
 import BuildAttrs from './BuildAttrs.vue';
 import BuildImage from './BuildImage.vue';
 import BuildVideo from './BuildVideo.vue';
@@ -65,7 +72,7 @@ import { posterOnNewFile } from '../../build-mode/video.js';
 import { siteImageOptions } from '../../build-mode/site-images.js';
 import { findByPath } from '../../build-mode/place.js';
 import { parseTemplateTree } from '../../html-tree-parse.js';
-import { halfTag, isOneLine } from '../../build-mode/text.js';
+import { fieldNameFor, halfTag, isOneLine } from '../../build-mode/text.js';
 import { TEXT_FIELDS, wholeTag, withoutFields } from '../../data-var-types.js';
 
 const props = defineProps({
@@ -83,12 +90,121 @@ const fromField = (expr) => port.t('content_antlers', { tag: `<code>${esc(expr.r
 /* ---------------- the text ---------------- */
 
 const read = computed(() => (port.rev.value, svg ? null : port.text()));
+/** The fields of this section, by name (`port.sectionFieldNames`): what makes a tag in an element its own. */
+const ownFields = ref([]);
+/** The section's fields kept out of Edit Content: its own content (BuildOwn.vue). */
+const hiddenFields = ref([]);
+/** The field of this section a value is, whole; '' when it is the element's own, or something else's. */
+const ownOf = (value) => {
+  const name = wholeTag(value ?? '');
+
+  return name && ownFields.value.includes(name) ? name : '';
+};
+const isOwnText = (value) => !String(value ?? '').includes('{{');
+/** The field of this section the text is, whole; '' for words of the file's own. */
+const textField = computed(() => (read.value?.kind === 'text' ? ownOf(read.value.text) : ''));
+/** The text is the section's own content, kept out of Edit Content: the box writes this section's value. */
+const textHidden = computed(() => !!textField.value && hiddenFields.value.includes(textField.value));
+/** Own content on its way for the first change typed here, and the words typed since: they go into it when it lands. */
+let owningText = null;
+let owningWords = '';
+/**
+ * What the element held when this round of typing began. Only words that were
+ * the element's own before it become its section's own: typing words over a
+ * field (`{{ title }}` → "Our team") writes them into the file for the whole
+ * round, as before — else its first keystroke, written there, would be the
+ * own words the second one made a field of.
+ */
+let textBase = '';
+
+function textInput() {
+  if (!text.typing.value) {
+    textBase = read.value?.text ?? '';
+  }
+
+  text.input();
+  refused.value = '';
+}
 const text = typed(
-  computed(() => (read.value?.kind === 'text' ? read.value.text : null)),
-  (value) => port.setText(path, value)
+  computed(() => {
+    if (read.value?.kind !== 'text') {
+      return null;
+    }
+
+    if (textHidden.value) {
+      const value = port.sectionValue(textField.value);
+
+      return typeof value === 'string' ? value : '';
+    }
+
+    return read.value.text;
+  }),
+  (value) => writeText(value)
 );
 const oneLine = isOneLine(tag.value);
 const refused = ref('');
+
+/**
+ * The box's words where they belong: this section's own field, the file — or,
+ * for the file's own words in a section that can hold them, a field made for
+ * them on this first change (port.makeOwn). Nothing is written while it is on
+ * its way; when it lands, what the box holds by then is this section's value.
+ */
+function writeText(value) {
+  if (textHidden.value) {
+    port.setSectionValue(textField.value, value);
+
+    return;
+  }
+
+  // Kept here, not read off the box: the box reads the file again when it
+  // loses focus (typed.js `done`), and the field may land after that.
+  // The canvas shows the words meanwhile: nothing it paints from is written yet.
+  if (owningText) {
+    owningWords = value;
+    port.paintWords(path, value);
+
+    return;
+  }
+
+  if (!canMake || !isOwnText(textBase) || !isOwnText(read.value?.text) || value === read.value?.text) {
+    port.setText(path, value);
+
+    return;
+  }
+
+  owningWords = value;
+  port.paintWords(path, value);
+  owningText = port.makeOwn(path, { value: () => owningWords }).then((handle) => {
+    owningText = null;
+
+    if (handle) {
+      ownLanded(handle);
+      port.setSectionValue(handle, owningWords);
+    } else {
+      port.setText(path, owningWords);
+    }
+  });
+}
+
+/**
+ * A field made for own content: known at once as the section's and as hidden,
+ * so the box reads its value and the next keystroke goes into it. Until the
+ * lists are read again it would be neither: the box would show the tag, and a
+ * keystroke would write the words over it in the file — and the one after that
+ * would make a second field of them.
+ */
+function ownLanded(handle) {
+  if (!ownFields.value.includes(handle)) {
+    ownFields.value = [...ownFields.value, handle];
+  }
+
+  if (!hiddenFields.value.includes(handle)) {
+    hiddenFields.value = [...hiddenFields.value, handle];
+  }
+
+  loadOwn();
+}
 
 /** A field of the wrong type typed by hand comes out again (`clear`), and the panel says why. */
 function refuseWrong(value, types, clear, options) {
@@ -126,7 +242,7 @@ function lineBreak(event) {
 
   box.setRangeText('<br>', box.selectionStart, box.selectionEnd, 'end');
   text.value.value = box.value;
-  text.input();
+  textInput();
 }
 
 /* ---------------- the address: src, href ---------------- */
@@ -335,26 +451,85 @@ watch(
 
 const canMake = !!port.canMakeField?.(path);
 const canMakeAddress = addressPath === path ? canMake : !!port.canMakeField?.(addressPath);
-const ownFields = ref([]);
-const loadOwn = () => {
-  if (canMake) {
-    port.sectionFieldNames(path).then((names) => {
-      ownFields.value = names;
-    });
+/** Which read of the lists is the latest: one sent before a field was made must not take it away again. */
+let ownRead = 0;
+
+function loadOwn() {
+  if (!canMake) {
+    return;
   }
-};
+
+  const mine = ++ownRead;
+
+  Promise.all([port.sectionFieldNames(path), port.hiddenFieldNames(path)]).then(([names, hidden]) => {
+    if (mine === ownRead) {
+      ownFields.value = names;
+      hiddenFields.value = hidden;
+    }
+  });
+}
 
 loadOwn();
 
-/** The field of this section a value is, whole; '' when it is the element's own, or something else's. */
-const ownOf = (value) => {
-  const name = wholeTag(value ?? '');
+// A field this list has not heard of: one made a moment ago somewhere else —
+// typing on the canvas makes the section's own field (canvas-edit.js), and
+// the dock's undo can put back a tag. The lists are read again, so the box
+// shows the field's value and the switches stand as they are.
+watch(
+  () => wholeTag(read.value?.text ?? ''),
+  (name) => {
+    if (name && !ownFields.value.includes(name)) {
+      loadOwn();
+    }
+  }
+);
 
-  return name && ownFields.value.includes(name) ? name : '';
-};
-const isOwnText = (value) => !String(value ?? '').includes('{{');
 const SUGGEST = { img: 'image', video: 'video', a: 'link' };
-const textSuggest = computed(() => (/^h[1-6]$/.test(tag.value) ? 'heading' : tag.value === 'a' ? 'link_text' : 'text'));
+const textSuggest = computed(() => fieldNameFor(tag.value));
+const owningSwitch = ref(false);
+
+/** "Own content in each section" on: the words become the section's own, as they stand. */
+function ownOn() {
+  owningSwitch.value = true;
+  text.done();
+  port.makeOwn(path).then((handle) => {
+    owningSwitch.value = false;
+
+    if (handle) {
+      ownLanded(handle);
+    }
+  });
+}
+
+/** "Editable in Edit Content" on own content: the field is shown, and the element gets its `visual_edit`. */
+function textShown(handle) {
+  hiddenFields.value = hiddenFields.value.filter((name) => name !== handle);
+  loadOwn();
+  text.done();
+  port.syncFieldEdit(path, `{{ ${handle} }}`, { types: TEXT_FIELDS });
+}
+
+/**
+ * "Editable in Edit Content" off: the field is kept out of Edit Content again
+ * and the content stays this section's own. A field the section's own
+ * fieldset does not hold (one picked from the data icon, an imported one)
+ * cannot be hidden: its words go back into the file, as before.
+ */
+function textEditableOff() {
+  const handle = textField.value;
+
+  port.setFieldHidden(handle, true).then((hidden) => {
+    if (!hidden) {
+      textOff();
+
+      return;
+    }
+
+    ownLanded(handle);
+    text.done();
+    port.syncFieldEdit(path, `{{ ${handle} }}`, { types: TEXT_FIELDS });
+  });
+}
 
 function textMade(handle) {
   const tagText = `{{ ${handle} }}`;
@@ -467,7 +642,7 @@ onBeforeUnmount(() => {
           spellcheck="true"
           :placeholder="port.t('content_text_placeholder')"
           data-sve-build-text
-          @input="text.input(); refused = ''"
+          @input="textInput"
           @keydown.enter.prevent
           @blur="textDone"
         />
@@ -479,21 +654,30 @@ onBeforeUnmount(() => {
           spellcheck="true"
           :placeholder="port.t('content_text_placeholder')"
           data-sve-build-text
-          @input="text.input(); refused = ''"
+          @input="textInput"
           @keydown.enter.prevent="lineBreak"
           @blur="textDone"
         ></textarea>
         <BuildPickField @pick="pickText" />
       </div>
+      <BuildOwn
+        v-if="canMake && (isOwnText(read.text) || textField)"
+        :on="!!textField"
+        :busy="owningSwitch"
+        @on="ownOn"
+        @off="textOff"
+      />
       <BuildEditable
-        v-if="canMake && (isOwnText(read.text) || ownOf(read.text))"
+        v-if="canMake && (isOwnText(read.text) || textField)"
         :path="path"
         :kind="oneLine ? 'text' : 'textarea'"
         :suggest="textSuggest"
         :value="read.text"
-        :own="ownOf(read.text)"
+        :own="textHidden ? '' : textField"
+        :hidden="textHidden ? textField : ''"
         @made="textMade"
-        @off="textOff"
+        @shown="textShown"
+        @off="textEditableOff"
       />
     </div>
     <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{ port.t('content_markup') }}</p>

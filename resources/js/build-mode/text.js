@@ -37,6 +37,17 @@ export function isOneLine(tag) {
   return ONE_LINE.has(String(tag || '').toLowerCase());
 }
 
+/**
+ * The name offered for a field made of an element's own words: a heading's
+ * `heading`, a link's `link_text`, any other `text`. One list for "Editable in
+ * Edit Content" and own content, so the two suggest the same.
+ */
+export function fieldNameFor(tag) {
+  const name = String(tag || '').toLowerCase();
+
+  return /^h[1-6]$/.test(name) ? 'heading' : name === 'a' ? 'link_text' : 'text';
+}
+
 /** Whether an element of this tag holds text — a heading, a paragraph, a link, a list item. */
 export function holdsText(tag) {
   const name = String(tag || '').toLowerCase();
@@ -91,7 +102,7 @@ export function halfTag(text) {
  * element it is — with what it carries: `readText` lets a `<br>` through with
  * any attributes, so `<br class="hidden md:block">` has to come back the same.
  */
-function escapeWords(text) {
+export function escapeWords(text) {
   return String(text ?? '')
     .split(/(\{\{[\s\S]*?\}\}|<br\b[^<>]*>)/i)
     .map((part, at) => (at % 2 ? part : part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')))

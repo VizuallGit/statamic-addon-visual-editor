@@ -25,6 +25,13 @@ use Statamic\Fields\Fields;
  * Both of Statamic's shapes are kept (FieldsetFields): flat `fields`, or
  * `sections` — the field joins the last section. An existing field is never
  * touched: a name already taken gets a number.
+ *
+ * "Own content in each section": the same field, made `visibility: hidden`.
+ * Statamic keeps a hidden field out of the publish form and still saves its
+ * value, so each section on each page holds its own content without a content
+ * editor seeing a field. "Editable in Edit Content" on such an element shows
+ * the field ({@see setHidden()}) rather than making a second one: a second
+ * field would leave every other section's content behind in the first.
  */
 class AddField
 {
@@ -38,11 +45,12 @@ class AddField
      * @param  string  $kind  one of KINDS
      * @param  string  $name  the name asked for; made into a handle
      * @param  string  $value  what the element holds: text, HTML or a URL
+     * @param  bool  $hidden  own content only: kept out of Edit Content's form
      * @return ?string the field's handle; null when nothing was made — the section has
      *                 no fieldset to add to, imports it with a prefix, or the value is
      *                 no default (an image that is no asset)
      */
-    public static function run(SectionList|string $list, string $set, string $kind, string $name, string $value): ?string
+    public static function run(SectionList|string $list, string $set, string $kind, string $name, string $value, bool $hidden = false): ?string
     {
         $config = static::config($kind, $value);
 
@@ -51,25 +59,17 @@ class AddField
             return null;
         }
 
-        $type = SectionTypeMaker::addFields($list, $set);
-        $imported = $type['fieldset'] ?? null;
-        $folderAndName = is_string($imported) ? explode('.', $imported, 2) : [];
+        $found = static::fieldsetFile(SectionTypeMaker::addFields($list, $set));
 
-        // A set importing with a prefix reads the fieldset's `heading` as
-        // `hero_heading`; `{{ heading }}` in the file would print nothing on every page.
-        if (count($folderAndName) !== 2 || ($type['prefix'] ?? '') !== '') {
+        if ($found === null) {
             return null;
         }
 
-        $path = Names::fieldsetPath($folderAndName[0], $folderAndName[1]);
-
-        if (! is_file($path)) {
-            return null;
-        }
-
+        [$imported, $path] = $found;
         $contents = YAML::file($path)->parse();
         $handle = static::handle($name, FieldsetFields::flatten($contents));
-        $field = ['handle' => $handle, 'field' => ['type' => $kind, 'display' => Str::title(str_replace('_', ' ', $handle))] + $config];
+        $display = ['type' => $kind, 'display' => Str::title(str_replace('_', ' ', $handle))];
+        $field = ['handle' => $handle, 'field' => $display + ($hidden ? ['visibility' => 'hidden'] : []) + $config];
 
         if (is_array($contents['sections'] ?? null) && $contents['sections'] !== []) {
             $last = array_key_last($contents['sections']);
@@ -81,6 +81,114 @@ class AddField
         Fieldset::make($imported)->setContents($contents)->save();
 
         return $handle;
+    }
+
+    /**
+     * Shows or hides a field of the section's own fieldset: "Editable in Edit
+     * Content" on an element whose content is already its section's own.
+     *
+     * Only a field written in the fieldset itself — one this class made, or one
+     * like it. An imported or referenced field belongs to a fieldset other
+     * sections share, and is left alone. Nothing is created: a section without
+     * a fieldset has no field to show.
+     *
+     * @param  string  $display  the name a content editor sees, when one is given on showing it
+     * @return bool whether the field was found and written
+     */
+    public static function setHidden(SectionList|string $list, string $set, string $handle, bool $hidden, string $display = ''): bool
+    {
+        $found = static::fieldsetFile(static::existingType($list, $set));
+
+        if ($found === null) {
+            return false;
+        }
+
+        [$imported, $path] = $found;
+        $contents = YAML::file($path)->parse();
+        $written = false;
+
+        $edit = function (array $fields) use ($handle, $hidden, $display, &$written): array {
+            foreach ($fields as $index => $field) {
+                if (! is_array($field) || ($field['handle'] ?? null) !== $handle || ! is_array($field['field'] ?? null)) {
+                    continue;
+                }
+
+                if ($hidden) {
+                    $field['field']['visibility'] = 'hidden';
+                } else {
+                    unset($field['field']['visibility']);
+
+                    // A name left as offered (`heading`) reads as a field's
+                    // display does when this class makes one: "Heading".
+                    if ($display !== '') {
+                        $field['field']['display'] = preg_match('/^[a-z][a-z0-9_]*$/', $display)
+                            ? Str::title(str_replace('_', ' ', $display))
+                            : $display;
+                    }
+                }
+
+                $fields[$index] = $field;
+                $written = true;
+            }
+
+            return $fields;
+        };
+
+        if (is_array($contents['sections'] ?? null)) {
+            foreach ($contents['sections'] as $key => $section) {
+                if (is_array($section['fields'] ?? null)) {
+                    $contents['sections'][$key]['fields'] = $edit($section['fields']);
+                }
+            }
+        }
+
+        if (is_array($contents['fields'] ?? null)) {
+            $contents['fields'] = $edit($contents['fields']);
+        }
+
+        if (! $written) {
+            return false;
+        }
+
+        Fieldset::make($imported)->setContents($contents)->save();
+
+        return true;
+    }
+
+    /**
+     * The section's type as the list describes it, without writing anything —
+     * {@see SectionTypeMaker::addFields()} gives a static section a fieldset first.
+     */
+    protected static function existingType(SectionList|string $list, string $set): ?array
+    {
+        $list = $list instanceof SectionList ? $list : SectionList::fieldset($list);
+        $contents = $list->read();
+        $groups = $contents === null ? null : $list->sets($contents);
+        $group = $groups === null ? null : SectionTypeMaker::groupOf($groups, $set);
+
+        return $group === null ? null : SectionTypeMaker::describe($set, $group, $groups[$group]['sets'][$set]);
+    }
+
+    /**
+     * The fieldset a type imports and its file on disk; null when there is none
+     * a field can join. A set importing with a prefix reads the fieldset's
+     * `heading` as `hero_heading`: `{{ heading }}` in the file would print
+     * nothing on every page.
+     *
+     * @return ?array{0: string, 1: string}
+     */
+    protected static function fieldsetFile(?array $type): ?array
+    {
+        $imported = $type['fieldset'] ?? null;
+        $folderAndName = is_string($imported) ? explode('.', $imported, 2) : [];
+
+        if (count($folderAndName) !== 2 || ($type['prefix'] ?? '') !== '') {
+            return null;
+        }
+
+        $path = Names::fieldsetPath($folderAndName[0], $folderAndName[1]);
+
+        return is_file($path) ? [$imported, $path] : null;
     }
 
     /**
