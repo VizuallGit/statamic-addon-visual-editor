@@ -1522,6 +1522,8 @@ return [
     'ai_text' => 'AI-tekst',
     'ai_text_on' => 'AI-tekst er tændt — klik et mærke for forslag',
     'ai_text_off' => 'AI-tekst',
+    // Et værktøjs fil er væk efter en udgivelse: fanen er ældre end editoren (lib/stale-chunk.js).
+    'editor_updated_reload' => 'Visual Editor er blevet opdateret. Genindlæs siden for at bruge værktøjet.',
     // Røntgen: grid, flex og bokse tegnet over Live Preview. col/row er
     // CSS' egne ord (col-start-2, row-span-2) og står derfor på engelsk.
     'xray' => 'Røntgen',

@@ -14,6 +14,7 @@ import {
   showInRightShell,
 } from './right-dock.js';
 import { injectStyle } from './lib/style.js';
+import { reportStaleChunk } from './lib/stale-chunk.js';
 import { aiTextStoredOn } from './lazy/ai-text.js';
 import { COMMENTS_PANEL_ID, HTML_TREE_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
 import { mountSectionPicker } from './section-library.js';
@@ -239,6 +240,8 @@ export function ensurePanel(key) {
       .catch((err) => {
         delete inflight[key];
         console.error('[sve] load panel', key, err);
+        // A tab older than the last release asks for files that are gone: say so, or the click does nothing.
+        reportStaleChunk(window, err);
         throw err;
       });
   }

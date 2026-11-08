@@ -1535,6 +1535,8 @@ return [
     'ai_text' => 'AI text',
     'ai_text_on' => 'AI text on — click a mark to get suggestions',
     'ai_text_off' => 'AI text',
+    // A tool's file gone after a release: the tab is older than the editor (lib/stale-chunk.js).
+    'editor_updated_reload' => 'Visual Editor has been updated. Reload the page to use this tool.',
     // X-ray: grid, flex and box outlines over Live Preview.
     'xray' => 'X-ray',
     'xray_tip' => 'X-ray — show grids, flex and boxes',
