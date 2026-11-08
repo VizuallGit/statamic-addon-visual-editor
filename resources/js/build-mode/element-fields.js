@@ -45,9 +45,15 @@ export function elementFieldReady(kind) {
  * wears the data icon beside its label (`pickTitle` is what it says). With
  * `paint(html)`, rich text is handed over as it is typed, ahead of the server.
  *
+ * Own content (BuildOwn.vue) is a field of the section, and its value is the
+ * fieldtype's own — an asset's id, `entry::…`, Bard's nodes — not a URL or
+ * HTML. `native` opens the field on such a value (the row's), and
+ * `writeRaw(raw)` is asked first with the field's own value once it settles:
+ * answering true, it has taken it, and nothing is converted or written.
+ *
  * @returns {() => void} unmount — a change still on its way is sent first
  */
-export function mountElementField(win, el, { kind, value, display, write, pick = null, pickTitle = '', paint = null }) {
+export function mountElementField(win, el, { kind, value, display, write, pick = null, pickTitle = '', paint = null, native, writeRaw = null }) {
   const ui = reactive({
     ready: false,
     name: `sve-build-${kind}`,
@@ -82,7 +88,7 @@ export function mountElementField(win, el, { kind, value, display, write, pick =
   let pending = false;
   let gone = false;
 
-  post('/!/sve/element-fields/form', { kind, value, display })
+  post('/!/sve/element-fields/form', native === undefined ? { kind, value, display } : { kind, value, display, native })
     .then((data) => {
       if (gone || !data?.blueprint) {
         return;
@@ -119,8 +125,29 @@ export function mountElementField(win, el, { kind, value, display, write, pick =
       return;
     }
 
-    saving = true;
     loaded = JSON.stringify(ui.values);
+
+    // The field's own value, where the element's content is its section's own.
+    // A promise is a field on its way: false when none could be made, and the
+    // change goes into the file after all.
+    const taken = writeRaw?.(ui.values[ui.fields[0]?.handle] ?? null);
+
+    if (taken === true) {
+      return;
+    }
+
+    if (taken && typeof taken.then === 'function') {
+      taken.then((made) => {
+        if (!made) {
+          loaded = '';
+          flush();
+        }
+      });
+
+      return;
+    }
+
+    saving = true;
 
     // Written even when the panel has moved on: `write` is bound to the
     // element the field was opened for, not to whatever is picked now.
@@ -161,6 +188,32 @@ export function mountElementField(win, el, { kind, value, display, write, pick =
       /* already gone with its host */
     }
   };
+}
+
+/**
+ * A field's own value as the element's — an asset's URL, a link's address,
+ * Bard's HTML — the way the mounted field writes it (`/!/sve/element-fields`).
+ * Own content going back into the file is this section's value, converted.
+ *
+ * @returns {Promise<string|null>}
+ */
+export function elementFieldParam(win, kind, raw) {
+  const handle = { img: 'src', video: 'src', a: 'href', rich: 'html' }[kind];
+
+  if (!handle) {
+    return Promise.resolve(null);
+  }
+
+  return win
+    .fetch('/!/sve/element-fields', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+      body: JSON.stringify({ kind, value: '', values: { [handle]: raw } }),
+    })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => (typeof data?.value === 'string' ? data.value : null))
+    .catch(() => null);
 }
 
 /**

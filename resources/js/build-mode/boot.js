@@ -140,7 +140,8 @@ import { isRichBlock, readRich, readRichField, sameRich, withRich, withRichField
 import { isGallery, readGallery, withGalleryField, withGalleryImages } from './gallery.js';
 import { wholeOwner } from './whole.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
-import { elementFieldReady, mountElementField } from './element-fields.js';
+import { elementFieldParam, elementFieldReady, mountElementField } from './element-fields.js';
+import { fieldDomId } from './canvas-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
 import { CANVAS_PATH } from './canvas-paint.js';
@@ -940,13 +941,19 @@ export function createEditorPort(win, hooks = {}) {
 
       return currentSetHandle() === handle;
     },
-    /** The open section's fields kept out of Edit Content: its own content, written in Build. */
-    hiddenFieldNames(path) {
+    /**
+     * The open section's fields, by name, in one ask: `names` all of them (what
+     * makes a tag in an element its own), `hidden` those kept out of Edit
+     * Content — its own content, written in Build.
+     */
+    sectionFieldLists(path) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
-      return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) =>
-        (model?.section || []).filter((row) => !row.parent && row.hidden).map((row) => row.var)
-      );
+      return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) => {
+        const rows = (model?.section || []).filter((row) => !row.parent);
+
+        return { names: rows.map((row) => row.var), hidden: rows.filter((row) => row.hidden).map((row) => row.var) };
+      });
     },
     /** The fields of the open section, by name: what makes a tag in an element "its own". */
     sectionFieldNames(path) {
@@ -1069,6 +1076,19 @@ export function createEditorPort(win, hooks = {}) {
     /** An image's, a video's, a link's or rich text's content as the Control Panel's own field (element-fields.js) → unmount. */
     fieldReady: (kind) => elementFieldReady(kind),
     mountField: (el, options) => mountElementField(win, el, options),
+    /**
+     * The id Statamic would give the open section's field here — the one the
+     * canvas looks for a field's editor by (canvas-fields.js). A hidden field
+     * has no element in the form: Content's own Bard wears it instead, so the
+     * canvas paints what is typed there and holds it until it is left.
+     */
+    fieldElementId(handle) {
+      const row = sectionRowPath();
+
+      return row && handle ? fieldDomId(`${row}.${handle}`) : '';
+    },
+    /** A field's own value as the element's: an asset's URL, a link's address, Bard's HTML (element-fields.js). */
+    fieldParam: (kind, raw) => elementFieldParam(win, kind, raw),
     mountFields: hooks.mountFields || ((el) => unmounter(mountStatamicSurface(ComponentSidebar, el))),
     /** The open component's own props: the panel without its head, which is the Build panel's here. */
     mountProps: (el) => unmounter(mountStatamicSurface(ComponentPropsPane, el)),

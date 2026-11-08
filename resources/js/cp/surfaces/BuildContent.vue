@@ -195,12 +195,21 @@ function writeText(value) {
  * would make a second field of them.
  */
 function ownLanded(handle) {
-  if (!ownFields.value.includes(handle)) {
-    ownFields.value = [...ownFields.value, handle];
-  }
-
   if (!hiddenFields.value.includes(handle)) {
     hiddenFields.value = [...hiddenFields.value, handle];
+  }
+
+  fieldKnown(handle);
+}
+
+/**
+ * A field made a moment ago, known as the section's at once: until the lists
+ * are read again the element's tag would be no field of its own, and the
+ * switches under it would step away for that while.
+ */
+function fieldKnown(handle) {
+  if (!ownFields.value.includes(handle)) {
+    ownFields.value = [...ownFields.value, handle];
   }
 
   loadOwn();
@@ -268,6 +277,10 @@ const addressNow = computed(() => {
   return value ?? '';
 });
 const addressExpr = computed(() => ANTLERS.exec(addressNow.value || '')?.[0] || '');
+/** The field of this section the address is, whole; '' for an address of the file's own. */
+const addressField = computed(() => (address ? ownOf(addressNow.value) : ''));
+/** The address is the section's own content, kept out of Edit Content: the field edits this section's value. */
+const addressHidden = computed(() => !!addressField.value && hiddenFields.value.includes(addressField.value));
 
 /** A video's poster with its file (video.js): the frame follows the file, a first file brings it. */
 const videoPosters = addressTag === 'video' && !!window.Statamic?.$config?.get?.('sveVideoPoster');
@@ -327,8 +340,15 @@ function addressDone() {
   }
 }
 
-/** The image or video taken away; the field opens again, empty. */
+/** The image or video taken away; the field opens again, empty. Own content: this section's alone. */
 function removeFile() {
+  if (addressHidden.value) {
+    port.setSectionValue(addressField.value, []);
+    fieldKey.value += 1;
+
+    return;
+  }
+
   addressBox.done();
   writeAddress('');
   port.syncFieldEdit(addressPath, '', { types: addressFields, inline: false });
@@ -355,6 +375,10 @@ const rich = computed(() => (port.rev.value, svg || address || read.value ? null
 const richNow = computed(() => rich.value?.html ?? null);
 const RICH_FIELDS = ['bard'];
 const richField = computed(() => (port.rev.value, svg || address || read.value ? null : port.richField()));
+/** The field of this section the rich text is, whole; '' when it is HTML of the file's own. */
+const richName = computed(() => (richField.value !== null ? ownOf(richField.value) : ''));
+/** The rich text is the section's own content, kept out of Edit Content: Bard edits this section's value. */
+const richHidden = computed(() => !!richName.value && hiddenFields.value.includes(richName.value));
 
 function pickRich(anchor) {
   port.pickField(anchor, path, RICH_FIELDS, (expression) => {
@@ -399,6 +423,9 @@ watch(
       ? port.mountField(el, {
           kind,
           value: (address ? addressNow.value : richNow.value) || '',
+          // Own content opens on this section's value, as the fieldtype holds it.
+          ...(ownHandle() ? { native: port.sectionValue(ownHandle()) ?? null } : {}),
+          writeRaw: writeOwnRaw,
           display: port.t(`content_${kind}`),
           write: address ? writeAddress : writeRich,
           pick: address ? pickAddress : pickRich,
@@ -461,7 +488,7 @@ function loadOwn() {
 
   const mine = ++ownRead;
 
-  Promise.all([port.sectionFieldNames(path), port.hiddenFieldNames(path)]).then(([names, hidden]) => {
+  port.sectionFieldLists(path).then(({ names, hidden }) => {
     if (mine === ownRead) {
       ownFields.value = names;
       hiddenFields.value = hidden;
@@ -534,7 +561,7 @@ function textEditableOff() {
 function textMade(handle) {
   const tagText = `{{ ${handle} }}`;
 
-  loadOwn();
+  fieldKnown(handle);
   text.done();
   port.setText(path, tagText);
   port.syncFieldEdit(path, tagText, { types: TEXT_FIELDS });
@@ -557,10 +584,201 @@ function textOff() {
   port.syncFieldEdit(path, words, { types: TEXT_FIELDS });
 }
 
+/* ---------------- own content: an address, rich text ---------------- */
+
+/** The hidden field the address or rich text is now — this section's own content — or ''. */
+function ownHandle() {
+  if (address) {
+    return addressHidden.value ? addressField.value : '';
+  }
+
+  return richHidden.value ? richName.value : '';
+}
+
+/** A field on its way for the first change, the field's value meanwhile, and whether one could not be made here. */
+let owningField = null;
+let owningRaw = null;
+let ownRefused = false;
+
+/** Whether the element's address or rich text is the file's own, in a section that can hold it as its own. */
+function canOwn() {
+  if (ownRefused) {
+    return false;
+  }
+
+  return address ? canMakeAddress && isOwnText(addressNow.value) : canMake && rich.value !== null;
+}
+
+/**
+ * A field of the section for the address or rich text, hidden, what the file
+ * holds now its default — so every other section of the type goes on showing
+ * it. Known at once (ownLanded); the tag is the caller's to write.
+ */
+function makeOwnField() {
+  return port
+    .makeField(address ? addressPath : path, {
+      kind: address ? (isLink ? 'link' : 'assets') : 'bard',
+      name: address ? SUGGEST[addressTag] : 'rich_text',
+      value: (address ? addressNow.value : richNow.value) || '',
+      hidden: true,
+    })
+    .then((handle) => {
+      if (handle) {
+        ownLanded(handle);
+      }
+
+      return handle;
+    });
+}
+
+/** The tag in the file where the address or rich text was: `src="{{ image }}"` with its alt, a block of `{{ rich_text }}`. */
+function writeOwnTag(handle) {
+  const tagText = `{{ ${handle} }}`;
+
+  if (address) {
+    addressBox.done();
+    writeAddress(tagText);
+  } else {
+    richBox.done();
+    port.setRichField(path, tagText);
+  }
+}
+
+/**
+ * The mounted field's own value (element-fields.js `writeRaw`) — an asset's
+ * id, `entry::…`, Bard's nodes. Own content takes it as this section's value.
+ * The first change to an address or rich text of the file's own makes its
+ * field first: the value goes in when it lands, the tag after it. A section
+ * that cannot hold it (an image that is no asset has no default to keep)
+ * answers false, and the change goes into the file as before.
+ *
+ * @returns {boolean|Promise<boolean>} taken
+ */
+function writeOwnRaw(raw) {
+  const handle = ownHandle();
+
+  if (handle) {
+    port.setSectionValue(handle, raw);
+
+    return true;
+  }
+
+  if (owningField) {
+    owningRaw = raw;
+
+    return owningField;
+  }
+
+  if (!canOwn()) {
+    return false;
+  }
+
+  owningRaw = raw;
+  owningField = makeOwnField().then((made) => {
+    owningField = null;
+
+    if (!made) {
+      ownRefused = true;
+
+      return false;
+    }
+
+    port.setSectionValue(made, owningRaw);
+    writeOwnTag(made);
+
+    return true;
+  });
+
+  return owningField;
+}
+
+/** "Own content in each section" on, for the address or rich text: as it stands, the section's own. */
+function fieldOwnOn() {
+  owningSwitch.value = true;
+  makeOwnField().then((handle) => {
+    owningSwitch.value = false;
+
+    if (handle) {
+      writeOwnTag(handle);
+      fieldKey.value += 1;
+    }
+  });
+}
+
+/**
+ * "Own content in each section" off: this section's value goes back into the
+ * file as the element's own — the asset's URL, the link's address, Bard's
+ * HTML, converted as the field writes them — the same in every section again.
+ * The field stays: pages may hold content in it.
+ */
+function fieldOwnOff() {
+  const handle = address ? addressField.value : richName.value;
+
+  port.fieldParam(address ? addressTag : 'rich', port.sectionValue(handle) ?? null).then((value) => {
+    if (value === null) {
+      return;
+    }
+
+    if (address) {
+      addressBox.done();
+      writeAddress(value);
+      port.syncFieldEdit(addressPath, value, { types: addressFields, inline: false });
+    } else {
+      richFieldBox.done();
+      port.setRichField(path, '');
+      port.setRichAt(path, value.replace(/&#39;/g, "'"));
+      port.syncFieldEdit(path, '', { types: RICH_FIELDS });
+    }
+
+    fieldKey.value += 1;
+  });
+}
+
+/** "Editable in Edit Content" on own content: the field is shown, and the element gets its `visual_edit`. */
+function fieldShown(handle) {
+  hiddenFields.value = hiddenFields.value.filter((name) => name !== handle);
+  loadOwn();
+
+  if (address) {
+    port.syncFieldEdit(addressPath, `{{ ${handle} }}`, { types: addressFields, inline: false });
+  } else {
+    port.syncFieldEdit(path, `{{ ${handle} }}`, { types: RICH_FIELDS });
+  }
+
+  fieldKey.value += 1;
+}
+
+/** "Editable in Edit Content" off: hidden again, the content still the section's own; a field it cannot hide goes back into the file. */
+function fieldEditableOff() {
+  const handle = address ? addressField.value : richName.value;
+
+  port.setFieldHidden(handle, true).then((hidden) => {
+    if (!hidden) {
+      if (address) {
+        addressOff();
+      } else {
+        richOff();
+      }
+
+      return;
+    }
+
+    ownLanded(handle);
+
+    if (address) {
+      port.syncFieldEdit(addressPath, `{{ ${handle} }}`, { types: addressFields, inline: false });
+    } else {
+      port.syncFieldEdit(path, `{{ ${handle} }}`, { types: RICH_FIELDS });
+    }
+
+    fieldKey.value += 1;
+  });
+}
+
 function addressMade(handle) {
   const tagText = `{{ ${handle} }}`;
 
-  loadOwn();
+  fieldKnown(handle);
   addressBox.done();
   writeAddress(tagText);
   port.syncFieldEdit(addressPath, tagText, { types: addressFields, inline: false });
@@ -582,7 +800,7 @@ function addressOff() {
 function richMade(handle) {
   const tagText = `{{ ${handle} }}`;
 
-  loadOwn();
+  fieldKnown(handle);
   richBox.done();
   port.setRichField(path, tagText);
   port.syncFieldEdit(path, tagText, { types: RICH_FIELDS });
@@ -684,7 +902,8 @@ onBeforeUnmount(() => {
 
     <div v-if="address" class="bm-text" :data-sve-build-address="address.attr">
       <!-- The box stays while it is typed in: a tag's first `{` is in the file before the tag is. -->
-      <template v-if="addressExpr || !statamic || addressBox.typing.value">
+      <!-- Own content (a hidden field) is edited in the field, on this section's value. -->
+      <template v-if="(addressExpr && !addressHidden) || !statamic || addressBox.typing.value">
         <span class="fg-lab">{{ port.t(`content_${addressTag}`) }}</span>
         <div class="bm-text-box">
           <input
@@ -703,19 +922,28 @@ onBeforeUnmount(() => {
         </div>
       </template>
       <div v-else :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
-      <button v-if="address.attr === 'src' && addressNow && !addressExpr && !addressBox.typing.value" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
+      <button v-if="address.attr === 'src' && ((addressNow && !addressExpr) || addressHidden) && !addressBox.typing.value" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
         <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${addressTag}`) }}
       </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
+      <BuildOwn
+        v-if="canMakeAddress && (isOwnText(addressNow) || addressField)"
+        :on="!!addressField"
+        :busy="owningSwitch"
+        @on="fieldOwnOn"
+        @off="fieldOwnOff"
+      />
       <BuildEditable
-        v-if="canMakeAddress && (isOwnText(addressNow) || ownOf(addressNow))"
+        v-if="canMakeAddress && (isOwnText(addressNow) || addressField)"
         :path="addressPath"
         :kind="isLink ? 'link' : 'assets'"
         :suggest="SUGGEST[addressTag]"
         :value="addressNow || ''"
-        :own="ownOf(addressNow)"
+        :own="addressHidden ? '' : addressField"
+        :hidden="addressHidden ? addressField : ''"
         @made="addressMade"
-        @off="addressOff"
+        @shown="fieldShown"
+        @off="fieldEditableOff"
       />
       <BuildImage v-if="imageOptions" :path="path" />
       <BuildVideo v-if="addressTag === 'video'" :path="path" />
@@ -735,7 +963,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="richField !== null" class="bm-text" data-sve-build-rich-field>
+    <div v-if="richField !== null && !richHidden" class="bm-text" data-sve-build-rich-field>
       <span class="fg-lab">{{ port.t('content_rich') }}</span>
       <div class="bm-text-box">
         <input
@@ -750,17 +978,19 @@ onBeforeUnmount(() => {
         />
         <BuildPickField @pick="pickRich" />
       </div>
+      <BuildOwn v-if="canMake && richName" :on="true" :busy="owningSwitch" @off="fieldOwnOff" />
       <BuildEditable
-        v-if="canMake && ownOf(richField)"
+        v-if="canMake && richName"
         :path="path"
         kind="bard"
         suggest="rich_text"
-        :own="ownOf(richField)"
-        @off="richOff"
+        :own="richName"
+        @off="fieldEditableOff"
       />
     </div>
 
-    <div v-if="rich" class="bm-text" data-sve-build-rich>
+    <!-- Rich text of the file's own, or the section's own (a hidden field): one Bard, kept as the one becomes the other. -->
+    <div v-if="rich || richHidden" class="bm-text" data-sve-build-rich>
       <template v-if="!statamic">
         <span class="fg-lab">{{ port.t('content_rich') }}</span>
         <div class="bm-text-box">
@@ -775,8 +1005,18 @@ onBeforeUnmount(() => {
           <BuildPickField @pick="pickRich" />
         </div>
       </template>
-      <div v-else ref="host" class="bm-field-host" data-sve-build-field></div>
-      <BuildEditable v-if="canMake" :path="path" kind="bard" suggest="rich_text" :value="richNow || ''" @made="richMade" />
+      <div v-else :id="richHidden ? port.fieldElementId(richName) || null : null" :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
+      <BuildOwn v-if="canMake" :on="richHidden" :busy="owningSwitch" @on="fieldOwnOn" @off="fieldOwnOff" />
+      <BuildEditable
+        v-if="canMake"
+        :path="path"
+        kind="bard"
+        suggest="rich_text"
+        :value="richNow || ''"
+        :hidden="richHidden ? richName : ''"
+        @made="richMade"
+        @shown="fieldShown"
+      />
     </div>
 
     <div v-if="svg" class="bm-text" data-sve-build-svg-content>

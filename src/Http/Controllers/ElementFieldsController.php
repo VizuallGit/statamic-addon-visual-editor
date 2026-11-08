@@ -7,6 +7,7 @@ use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\PropFields;
 use MarioHamann\StatamicVisualEditor\SiteCss;
 use MarioHamann\StatamicVisualEditor\SiteCss\Root;
+use Statamic\Facades\Asset;
 use Statamic\Facades\User;
 
 /**
@@ -42,9 +43,24 @@ class ElementFieldsController
             return response()->json(['blueprint' => null, 'fields' => [], 'values' => [], 'meta' => []]);
         }
 
+        // Own content opens on the section's value as its fieldtype holds it
+        // (`native`: an asset's id, `entry::…`, Bard's nodes), not on a URL or
+        // HTML. An asset's own container is the field's.
+        if ($request->has('native')) {
+            $value = $request->input('native');
+            $first = is_array($value) ? ($value[0] ?? null) : $value;
+            $asset = $prop['type'] === 'media' && is_string($first) && str_contains($first, '::') ? Asset::find($first) : null;
+
+            if ($asset) {
+                $prop['default'] = (string) $asset->url();
+            }
+        } else {
+            $value = PropFields::toPublish($prop, trim((string) $request->input('value', '')));
+        }
+
         $blueprint = PropFields::blueprint([$prop]);
         $fields = $blueprint->fields()
-            ->addValues([$prop['handle'] => PropFields::toPublish($prop, trim((string) $request->input('value', '')))])
+            ->addValues([$prop['handle'] => $value])
             ->preProcess();
         $publish = $blueprint->toPublishArray();
 

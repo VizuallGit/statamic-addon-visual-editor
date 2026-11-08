@@ -9,6 +9,13 @@
  */
 
 const cache = new Map();
+/**
+ * Counts the resets. A list asked for before one and answered after it is the
+ * old list: it goes back to whoever asked, but is not kept — kept, it would
+ * stand in for the new list until the next reset (a field made a moment ago
+ * missing from it, so Build's Content would not know it as the section's).
+ */
+let generation = 0;
 
 /** Nothing to offer — a failed fetch reads the same as a section with no fields. */
 const EMPTY = { scope: null, section: [], page: [], site: [] };
@@ -79,6 +86,8 @@ export function fetchDataVars(win, { collection, set, view, scope }) {
     query.set('scope', scope);
   }
 
+  const asked = generation;
+
   return win
     .fetch(`/!/sve/data-vars?${query.toString()}`, {
       credentials: 'same-origin',
@@ -88,7 +97,9 @@ export function fetchDataVars(win, { collection, set, view, scope }) {
     .then((json) => {
       const data = json && typeof json === 'object' ? json : EMPTY;
 
-      cache.set(key, data);
+      if (asked === generation) {
+        cache.set(key, data);
+      }
 
       return data;
     })
@@ -103,6 +114,8 @@ export function fetchDataVars(win, { collection, set, view, scope }) {
  * change on the page itself needs.
  */
 export function resetDataVars(setHandle) {
+  generation += 1;
+
   if (!setHandle) {
     cache.clear();
 

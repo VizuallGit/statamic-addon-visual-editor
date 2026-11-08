@@ -282,6 +282,12 @@ export function startCanvas(win) {
   const painted = { uid: null, html: null, sheet: null, rootKey: '' };
   // The open section's uid as a ref, so the form watch follows the dock to its next section.
   const current = shallowRef('');
+  // Counts the file's changes, so the form watch reads the plan again: it
+  // follows the fields the file names, and a file that names one more — a tag
+  // written a moment ago, own content made of the element's words — would
+  // otherwise go unheard when that field is typed into.
+  const fileRev = shallowRef(0);
+  let followedRev = 0;
   const rowCache = { uid: '', path: '' };
   const stats = { paints: 0, lastMs: 0, maxMs: 0, truths: 0, truthMs: 0, waiting: 0 };
   const queued = new Set();
@@ -1341,7 +1347,10 @@ export function startCanvas(win) {
   }
 
   const unhooks = [
-    on('dock:html-changed', paint),
+    on('dock:html-changed', () => {
+      fileRev.value += 1;
+      paint();
+    }),
     // Another section of the same kind in the dock (dock-api.js): no file
     // loads, so this is how the canvas hears it — read again (draw → truth).
     on('dock:section-changed', paint),
@@ -1351,9 +1360,20 @@ export function startCanvas(win) {
     // the plan is the source. It is built again the frame one of those fields
     // changes, and the section is painted from it the same frame. `current` is
     // read first so the watch follows the dock to its next section.
+    // `fileRev` only has the watch read the plan again, to follow the fields
+    // the changed file names: the file's change itself is painted by
+    // `dock:html-changed` above, and is not drawn a second time here.
     watch(
-      () => (current.value, currentSection()?.plan),
-      () => schedule(redraw)
+      () => (current.value, fileRev.value, currentSection()?.plan),
+      () => {
+        if (fileRev.value !== followedRev) {
+          followedRev = fileRev.value;
+
+          return;
+        }
+
+        schedule(redraw);
+      }
     ),
     // The toggle lit or put out: the section is read from the real preview, or painted again.
     watch(alpineLive, () => {
