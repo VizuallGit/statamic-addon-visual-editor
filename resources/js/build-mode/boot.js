@@ -47,7 +47,7 @@
  * from sections the Section tile is a section of its own instead
  * (`addSection`, `dropSection` — new-section.js). `openPlus(path)`
  * is a + pressed on the canvas: Add's target, shown in the panel — Add opens
- * and flashes (`pointed` counts the presses; BuildPanel.vue).
+ * at its top (`pointed` counts the presses; BuildPanel.vue).
  * `panel` is the side the panel shows, 'add' or 'element': a click on an
  * element — on the canvas (`select`) or on a row of the HTML tree — opens the
  * element, and `escape()` puts Add back (true when it did, and the key is

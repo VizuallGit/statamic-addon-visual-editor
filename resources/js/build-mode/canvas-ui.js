@@ -10,7 +10,7 @@
  *
  *   The +        on the hovered and the picked element, and in each empty
  *                cell of the picked Grid: a press makes it the place Add puts
- *                the next element, and the panel opens Add and flashes it
+ *                the next element, and the panel opens Add
  *                (`port.openPlus`). An empty element wears
  *                it in its middle, any other on its bottom edge — and an
  *                empty grid too, whose cells wear their own (columns-overlay.js).

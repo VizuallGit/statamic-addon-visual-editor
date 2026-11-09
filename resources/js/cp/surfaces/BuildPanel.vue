@@ -19,8 +19,8 @@
  * through one object, the port (`provide('sveBuild')`), which
  * build-mode/boot.js builds from the editor: the dock's file and lists, the
  * HTML tree's pick, the Tailwind pane's class functions and its state menu.
- * The panel holds only what it shows: which tab, and the flash a + on the
- * canvas sets off. A write bumps `port.rev`,
+ * The panel holds only what it shows: which tab, and Add opened by a + on
+ * the canvas. A write bumps `port.rev`,
  * and everything drawn from the file reads it.
  *
  * Fields and Settings are not drawn here: a component's fields are the props
@@ -245,34 +245,23 @@ watch(
 );
 
 /*
- * A + pressed on the canvas (`port.pointed` counts them) opens Add at its top,
- * and Add's place and tiles flash once — the same + pressed again too.
+ * A + pressed on the canvas (`port.pointed` counts them) opens Add at its top —
+ * the same + pressed again too. No flash round it (the owner, 9 Nov 2026): Add
+ * opening is the answer to the click.
  */
 const scroller = ref(null);
-const nudged = ref(false);
 
 watch(
   () => port.pointed?.value,
   async () => {
     port.panel.value = 'add';
-    nudged.value = false;
     await nextTick();
 
     if (scroller.value) {
       scroller.value.scrollTop = 0;
-      // Read once the class is off, so a second + starts the flash over.
-      void scroller.value.offsetWidth;
     }
-
-    nudged.value = true;
   }
 );
-
-function nudgeEnd(event) {
-  if (event.animationName === 'sve-bm-nudge') {
-    nudged.value = false;
-  }
-}
 
 /* Fields / Settings: the editor's own panels, mounted into our host. */
 const host = ref(null);
@@ -418,7 +407,7 @@ onBeforeUnmount(() => {
         >{{ port.t(word) }}</button>
       </div>
 
-      <div ref="scroller" class="bm-scroll" :class="{ 'is-nudged': nudged }" @animationend="nudgeEnd">
+      <div ref="scroller" class="bm-scroll">
         <BuildAdd :here="here" :name-of="nameOf" :sub="sub" />
       </div>
     </template>
@@ -614,12 +603,6 @@ onBeforeUnmount(() => {
 .sve-build .bm-tiles.is-list .bm-tile svg { width: 1.125rem; height: 1.125rem; }
 .sve-build .bm-tiles.is-list .bm-tile > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sve-build .bm-tiles.is-list .bm-tile > code { display: block; }
-/* A + pressed on the canvas: one blue outline round the whole of Add, fading as the tiles' flash did (BuildPanel `nudged`). */
-.sve-build .bm-scroll.is-nudged { outline: 0.125rem solid transparent; outline-offset: -0.125rem; animation: sve-bm-nudge 0.9s ease-out; }
-@keyframes sve-bm-nudge {
-  0%, 35% { outline-color: var(--bm-accent); }
-  100% { outline-color: transparent; }
-}
 .sve-build .bm-note { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--bm-line); font-size: 0.6875rem; line-height: 1.55; color: var(--bm-faint); }
 .sve-build .bm-note + .bm-note { margin-top: 0.5rem; padding-top: 0; border-top: 0; }
 .sve-build .bm-note.is-top { margin: 0 0 0.5rem; padding: 0; border: 0; }
