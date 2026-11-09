@@ -21,6 +21,8 @@ class OwnPageController
         $entry = $id !== '' ? Entry::find($id) : null;
 
         abort_unless($entry, 404);
+        // The page itself is changed (its blueprint and template): editing it is the editor's right, not only fields'.
+        abort_unless(User::current()->can('edit', $entry), 403);
 
         $made = OwnPage::make($entry);
 

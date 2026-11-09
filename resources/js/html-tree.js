@@ -158,7 +158,11 @@ function pageTemplateUi(win, entry) {
     }
 
     // The page's own template: the dock opens it on the page, and the tree
-    // draws its rows instead of naming it.
+    // draws its rows instead of naming it. Drawn straight away; the dock's
+    // load draws it again when the file lands. (Waiting for the load first,
+    // `await dock:load-settled` as enterFrame does, lost Build's pick: Style
+    // then wrote on the file's root instead of the element picked — measured
+    // with probe-own-page-canvas, 2 of 2 runs, 9 Nov 2026.)
     if (usage.own_page && usage.view) {
       rememberOwnPage(entry, usage.view);
       ask('dock:open-file', `view:${usage.view}`);

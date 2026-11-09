@@ -968,7 +968,8 @@ export function startCanvas(win) {
    * footer's marked half. A template's file (a collection's, an own page's)
    * has no mark — it is what `{{ template_content }}` printed — so its root is
    * found by the bridge's own rule (`findPickRoot`: the first element with the
-   * file's root tag outside the header and footer), and the canvas stamps its
+   * file's root tag and first class outside the header and footer — what the
+   * tree sends the bridge, html-tree.js `sendPick`), and the canvas stamps its
    * copy itself, as for a half. Waiting on the bridge's stamps instead left
    * an own page's canvas without paths: they land after the canvas has read
    * the page, and nothing reads it again for an attribute.
@@ -980,7 +981,9 @@ export function startCanvas(win) {
       return marked;
     }
 
-    return findPickRoot(realDoc, { tag: section.plan.node?.tag || '' });
+    const root = section.plan.node;
+
+    return findPickRoot(realDoc, { tag: root?.tag || '', klass: root?.klass || '' });
   }
 
   function truth() {

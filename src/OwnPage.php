@@ -65,7 +65,8 @@ final class OwnPage
             return null;
         }
 
-        $view = $entry->get('template');
+        // A localization takes its origin's template (Entry::template()): the root names it.
+        $view = $entry->root()->get('template');
 
         return is_string($view) && $view !== '' && TemplateBoard::safeView(trim($view, '/')) ? trim($view, '/') : null;
     }
@@ -161,14 +162,18 @@ final class OwnPage
 
         $file = resource_path('views/'.$view.'.antlers.html');
 
-        File::ensureDirectoryExists(dirname($file));
-        File::put($file, static::starter());
-
         try {
+            File::ensureDirectoryExists(dirname($file));
+
+            if (File::put($file, static::starter()) === false) {
+                throw new \RuntimeException("The view {$view} could not be written.");
+            }
+
             // `blueprint:` is in the page's data too, read from its file; the data wins on save.
             $entry->blueprint($handle)->set('blueprint', $handle)->set('template', $view)->save();
         } catch (\Throwable $error) {
             // Nothing half-made is left behind: the page stays as it was.
+            // (names() made sure neither file was there before.)
             File::delete([$written, $file]);
 
             throw $error;

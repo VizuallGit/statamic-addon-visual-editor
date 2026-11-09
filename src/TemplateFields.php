@@ -63,7 +63,8 @@ final class TemplateFields
             return [];
         }
 
-        if ($entry && $entry->get('template') === $view && ! in_array($entry->collectionHandle(), $stores, true)) {
+        // A localization takes its origin's template: the root names it (as OwnPage::viewOf reads it).
+        if ($entry && $entry->root()->get('template') === $view && ! in_array($entry->collectionHandle(), $stores, true)) {
             $blueprint = $entry->blueprint();
 
             if ($blueprint && static::onlyFor($entry, $blueprint->handle())) {
@@ -172,8 +173,12 @@ final class TemplateFields
 
         $written = [];
 
+        // Every file written so far, with its copy: one that does not read back
+        // right puts all of them back, so no blueprint is left with the field alone.
+        $copies = [];
+
         foreach ($planned as [$blueprint, $path, $next, $before]) {
-            $copy = static::keep($path, $blueprint);
+            $copies[$path] = static::keep($path, $blueprint);
             $hidden = Arr::pull($next, 'hide');
             $order = Arr::pull($next, 'order');
 
@@ -184,9 +189,11 @@ final class TemplateFields
                 ->setContents($next)
                 ->save();
 
-            // What landed on disk, read back: one field more and nothing less, or the copy goes back.
+            // What landed on disk, read back: one field more and nothing less, or every copy goes back.
             if (count(static::fields(YAML::file($path)->parse())) !== $before + 1) {
-                File::copy($copy, $path);
+                foreach ($copies as $file => $copy) {
+                    File::copy($copy, $file);
+                }
 
                 return null;
             }
