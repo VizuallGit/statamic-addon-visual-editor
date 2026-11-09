@@ -7,7 +7,7 @@
  *   lib/preview-frame.js, lib/style.js, lib/debug.js, html-pick-align.js,
  *   tw-compile.js (lazily), build-mode/canvas-paint.js, build-mode/canvas-ui.js,
  *   build-mode/canvas-hold.js, build-mode/canvas-fields.js, build-mode/canvas-card-drop.js,
- *   build-mode/canvas-live.js, cp/html-tree/store.js,
+ *   build-mode/canvas-live.js, cp/html-tree/store.js, lib/own-page.js,
  *   Alpine's morph (its ES build under a query of Build's own — see below).
  * Bus: asks `dock:html`, `dock:current-uid`, `dock:component-src`,
  *   `dock:chrome-kind`, `html-tree:open-section`; listens to
@@ -78,6 +78,7 @@ import { shallowRef, watch } from 'vue';
 import morphPlugin from '@alpinejs/morph/dist/module.esm.js?build-canvas';
 import { ask, emit, on, register } from '../cp/bus.js';
 import { panelValues } from '../cp/panel/store.js';
+import { ownPageType } from '../lib/own-page.js';
 import { containerContext } from '../lib/publish-containers.js';
 import { canvasEdit, editedText } from './canvas-edit.js';
 import { dataGet, findPathByUid } from '../lib/values.js';
@@ -85,7 +86,7 @@ import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR, BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
-import { HT_PATH_ATTR, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
+import { HT_PATH_ATTR, findPickRoot, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
 import { CANVAS_CLOAK, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { EMPTY_CSS, findEmpties, fitRows } from './canvas-empty.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
@@ -744,12 +745,15 @@ export function startCanvas(win) {
 
     // The header or the footer: the real preview's drawing, stamped with the
     // file's paths so picks, + and drags work on it (syncBody) — never painted,
-    // its fields are the global's and not this form's.
+    // its fields are the global's and not this form's. A collection's template
+    // is drawn the same way; so is an own page's file (lib/own-page.js), whose
+    // fields are this form's: the page's own values.
     if (chrome) {
       if (typeof html !== 'string' || !html) {
         return null;
       }
 
+      const values = chrome === 'template' && ask('dock:current-type') === ownPageType(win) ? panelValues() || {} : {};
       let plan;
 
       return {
@@ -758,7 +762,7 @@ export function startCanvas(win) {
         ids: [],
         html,
         get plan() {
-          plan ??= planTemplate(html, fieldLookup({}, {}));
+          plan ??= planTemplate(html, fieldLookup(values, values));
 
           return plan;
         },
@@ -959,6 +963,26 @@ export function startCanvas(win) {
     morph(page.body, next, morphing);
   }
 
+  /**
+   * Where a file of its own is drawn in the real preview: the header's or the
+   * footer's marked half. A template's file (a collection's, an own page's)
+   * has no mark — it is what `{{ template_content }}` printed — so its root is
+   * found by the bridge's own rule (`findPickRoot`: the first element with the
+   * file's root tag outside the header and footer), and the canvas stamps its
+   * copy itself, as for a half. Waiting on the bridge's stamps instead left
+   * an own page's canvas without paths: they land after the canvas has read
+   * the page, and nothing reads it again for an attribute.
+   */
+  function chromeRoot(section) {
+    const marked = realDoc.querySelector(`[data-sve-chrome="${CSS.escape(section.chrome)}"]`);
+
+    if (marked || section.chrome !== 'template') {
+      return marked;
+    }
+
+    return findPickRoot(realDoc, { tag: section.plan.node?.tag || '' });
+  }
+
   function truth() {
     if (!ensure() || !settled(truth)) {
       return;
@@ -976,7 +1000,7 @@ export function startCanvas(win) {
     const realRoot = !section?.plan
       ? null
       : section.chrome
-        ? realDoc.querySelector(`[data-sve-chrome="${CSS.escape(section.chrome)}"]`)
+        ? chromeRoot(section)
         : sidElement(realDoc, section.uid, section.ids);
 
     if (realRoot) {

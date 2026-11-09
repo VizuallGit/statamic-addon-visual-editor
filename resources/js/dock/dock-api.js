@@ -755,8 +755,10 @@ function frameKindOnDock() {
     return 'main';
   }
 
-  // A collection's own template: the page's content, inside main.
-  if (dockState.lastWin && type === collectionViewType(dockState.lastWin)) {
+  // A collection's own template: the page's content, inside main. An own
+  // page's file (lib/own-page.js) is the same thing for one page: a file of
+  // its own, drawn in the real preview, that tiles and picks go into.
+  if (dockState.lastWin && (type === collectionViewType(dockState.lastWin) || type === ownPageType(dockState.lastWin))) {
     return 'template';
   }
 
