@@ -70,7 +70,9 @@ use MarioHamann\StatamicVisualEditor\Tags\SveCache;
 use MarioHamann\StatamicVisualEditor\Tags\SveComponent;
 use MarioHamann\StatamicVisualEditor\Tags\SveDefaults;
 use Statamic\Events\AddonSettingsSaved;
+use Statamic\Events\BlueprintDeleting;
 use Statamic\Events\BlueprintSaved;
+use Statamic\Events\BlueprintSaving;
 use Statamic\Events\CollectionCreating;
 use Statamic\Events\CollectionDeleted;
 use Statamic\Events\CollectionSaved;
@@ -78,7 +80,9 @@ use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\EntryDeleted;
 use Statamic\Events\EntrySaved;
 use Statamic\Events\EntrySaving;
+use Statamic\Events\FieldsetDeleting;
 use Statamic\Events\FieldsetSaved;
+use Statamic\Events\FieldsetSaving;
 use Statamic\Events\GlobalVariablesBlueprintFound;
 use Statamic\Events\GlobalVariablesSaved;
 use Statamic\Events\GlobalVariablesSaving;
@@ -187,6 +191,21 @@ class ServiceProvider extends AddonServiceProvider
         ],
         BlueprintSaved::class => [
             RefreshPreviews::class,
+        ],
+        // A page builder taken away from pages that use it: warned once, then
+        // let through (SectionFieldGuard). Not a class in src/Listeners —
+        // Statamic would find it there and run it a second time.
+        BlueprintSaving::class => [
+            [SectionFieldGuard::class, 'blueprintSaving'],
+        ],
+        BlueprintDeleting::class => [
+            [SectionFieldGuard::class, 'blueprintDeleting'],
+        ],
+        FieldsetSaving::class => [
+            [SectionFieldGuard::class, 'fieldsetSaving'],
+        ],
+        FieldsetDeleting::class => [
+            [SectionFieldGuard::class, 'fieldsetDeleting'],
         ],
         GlobalVariablesSaved::class => [
             RefreshPreviews::class,

@@ -124,6 +124,7 @@
             'font:normal 0.875rem/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}',
             '.sve-save-error__head{display:flex;align-items:center;gap:.5em;font-weight:600;font-size:1em;margin:0 0 .5em}',
             '.sve-save-error__dot{width:.6em;height:.6em;border-radius:50%;background:#e5484d;flex:0 0 auto}',
+            '.sve-save-error--warning .sve-save-error__dot{background:#e5a23b}',
             '.sve-save-error__lead{margin:0 0 .5em;color:#5b6172}',
             '.sve-save-error__list{margin:0 0 .75em;padding:0;list-style:none}',
             '.sve-save-error__item{padding:.4em 0;border-top:1px solid rgba(0,0,0,.06)}',
@@ -251,6 +252,45 @@
         doc.body.appendChild(host);
     }
 
+    /* The warning alone: its sentence and Close — no field, no path, nothing to
+     * send to a developer. */
+    function warn(message) {
+        var doc = window.document;
+
+        close();
+        styles(doc);
+
+        host = doc.createElement('div');
+        host.className = 'sve-save-error sve-save-error--warning';
+        host.setAttribute('role', 'alert');
+
+        var head = doc.createElement('p');
+
+        head.className = 'sve-save-error__head';
+
+        var dot = doc.createElement('span');
+
+        dot.className = 'sve-save-error__dot';
+        head.appendChild(dot);
+        head.appendChild(doc.createTextNode(message));
+        host.appendChild(head);
+
+        var buttons = doc.createElement('div');
+
+        buttons.className = 'sve-save-error__buttons';
+
+        var dismiss = doc.createElement('button');
+
+        dismiss.type = 'button';
+        dismiss.className = 'sve-save-error__btn sve-save-error__btn--primary';
+        dismiss.textContent = TEXT.close;
+        dismiss.addEventListener('click', close);
+        buttons.appendChild(dismiss);
+        host.appendChild(buttons);
+
+        doc.body.appendChild(host);
+    }
+
     /* A rejected *save*, not every failed request. GETs fail for reasons a
      * person cannot act on (a poll, a prefetch, a screen that went away), and a
      * box about those would be noise on top of noise. */
@@ -282,6 +322,17 @@
         }
 
         if (!body || typeof body !== 'object') {
+            return;
+        }
+
+        /* A page builder about to be taken away from pages that use it
+         * (SectionFieldGuard.php): not a field to fix but a warning, said as it
+         * stands — the same Save again goes through. */
+        var warning = body.errors && Object.keys(body.errors).length === 1 ? [].concat(body.errors.sve_sections || [])[0] : '';
+
+        if (warning) {
+            warn(String(warning));
+
             return;
         }
 
