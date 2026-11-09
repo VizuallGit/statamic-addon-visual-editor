@@ -23,6 +23,11 @@ import HtmlTreeRow from './HtmlTreeRow.vue';
 const query = computed(() => normalizeHtmlTreeQuery(ui.query));
 const found = computed(() => searchHtmlTreeRows(ui.rows, query.value));
 const shownRows = computed(() => found.value.rows);
+/** A shut section's row, one level in under the loop row that draws it. */
+function inLoop(sectionRow, loopRow) {
+  return { ...sectionRow, depth: loopRow.depth + 1, guides: [...(loopRow.guides || []), loopRow.cat] };
+}
+
 /** The sections fields the open template draws no loop over — not while searching. */
 const shownMissing = computed(() => (query.value ? [] : ui.sectionsMissing || []));
 const shownSections = computed(() => {
@@ -142,7 +147,7 @@ function wrapBind(sec) {
       page under them are not drawn). Without a frame (a collection's
       template, a component) the list is the file's rows, as it always was.
     -->
-    <template v-if="ui.frame || ui.sections.length">
+    <template v-if="(ui.frame || ui.sections.length) && !ui.sectionsInLoop">
       <!-- An own page's file, above the sections it draws: the way back to it. -->
       <HtmlTreeRow v-if="ui.ownFile && !query" :row="ui.ownFile" />
       <template v-if="ui.frame">
@@ -216,7 +221,13 @@ function wrapBind(sec) {
       <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
     </div>
     <template v-else-if="ui.rows.length">
-      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+      <template v-for="row in shownRows" :key="row.id">
+        <HtmlTreeRow :row="row" :dim="isDim(row)" />
+        <!-- An own page's file: the page's sections under the loop that draws them. -->
+        <template v-if="!query && ui.sectionsInLoop && row.kind === 'sections' && row.tag === ui.sectionsInLoop">
+          <HtmlTreeRow v-for="sec in ui.sections" :key="sec.uid" :row="inLoop(sec.row, row)" />
+        </template>
+      </template>
     </template>
     <!--
       The template's pages keep sections in a field this file draws no loop

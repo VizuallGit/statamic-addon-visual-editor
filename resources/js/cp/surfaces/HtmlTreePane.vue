@@ -191,7 +191,7 @@ function onNewSection(event) {
   // A template (a service, a product) is not built from sections: the plus
   // adds an element to the file. Its fields, if any, are the page's
   // blueprint — the top bar's.
-  if (!(ui.sections.length || ui.pageBuilder)) {
+  if (!((ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder)) {
     openElementMenu(event.currentTarget);
 
     return;
@@ -245,7 +245,7 @@ function onImport() {
 
   creating.value = true;
 
-  const onPage = !!(ui.sections.length || ui.pageBuilder);
+  const onPage = !!((ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder);
 
   openImportDialog(window, {
     intoTemplate: !onPage,
@@ -387,11 +387,11 @@ function setQuery(value) {
       ></button>
     </label>
     <button
-      v-if="canCreate && (ui.sections.length || ui.pageBuilder || (ui.rows.length && !ui.layoutFile) || ui.emptyFile)"
+      v-if="canCreate && ((ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder || (ui.rows.length && !ui.layoutFile) || ui.emptyFile)"
       type="button"
       class="sve-ht-new"
-      :title="ui.sections.length || ui.pageBuilder ? newSectionLabel : addElementLabel"
-      :aria-label="ui.sections.length || ui.pageBuilder ? newSectionLabel : addElementLabel"
+      :title="(ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder ? newSectionLabel : addElementLabel"
+      :aria-label="(ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder ? newSectionLabel : addElementLabel"
       v-html="PLUS"
       @click="onNewSection"
     ></button>
@@ -402,7 +402,7 @@ function setQuery(value) {
       one arrives with the markup already in it.
     -->
     <button
-      v-if="canCreate && (ui.sections.length || ui.pageBuilder || (ui.rows.length && !ui.layoutFile) || ui.emptyFile)"
+      v-if="canCreate && ((ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder || (ui.rows.length && !ui.layoutFile) || ui.emptyFile)"
       type="button"
       class="sve-ht-import"
       :title="importLabel"

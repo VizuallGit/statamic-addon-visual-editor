@@ -5,7 +5,7 @@
  *
  * Owner: Build mode (resources/js/build-mode/).
  * May import: vue, cp/bus.js, cp/html-tree/store.js, lib/publish-containers.js,
- *   section-create.js.
+ *   lib/config.js, html-tree-parse.js, build-mode/place.js, section-create.js.
  * Bus: asks `dock:current-uid`, `dock:chrome-kind`, `dock:component-src`,
  *   `html-tree:open-section`.
  *
@@ -23,12 +23,20 @@
  *
  * A page not built from sections (a template) has none of this: every tile
  * goes into the file, as before.
+ *
+ * An own page built from sections has its file in the dock, and the file's
+ * loop over the page's sections stands for them: with Add pointed at that
+ * loop, Section is the page's next section and nothing else goes there —
+ * markup written into the loop would repeat inside every section.
  */
 
 import { nextTick } from 'vue';
 import { ask } from '../cp/bus.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
 import { pageHasSectionField, pageSectionRows } from '../lib/publish-containers.js';
+import { sectionField, sectionLoopFields } from '../lib/config.js';
+import { parseTemplateTree } from '../html-tree-parse.js';
+import { findByPath } from './place.js';
 import { t } from '../lib/i18n.js';
 import { canCreateSections, chooseSectionKind, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../section-create.js';
 
@@ -46,8 +54,25 @@ export function inPageSections(win) {
  *
  * @param {object} entry  one item of addGroups()
  */
-export function sectionKind(win, entry) {
-  return entry?.source === 'tool' && entry.def?.tag === 'section' && inPageSections(win) ? 'always' : '';
+export function sectionKind(win, entry, onLoop = false) {
+  return entry?.source === 'tool' && entry.def?.tag === 'section' && (inPageSections(win) || onLoop) ? 'always' : '';
+}
+
+/**
+ * Whether Add points at the open file's loop over the page's sections — an
+ * own page built from sections, its file in the dock, the loop row picked or
+ * its + pressed (`path`). There a tile is the page's next section or nothing.
+ */
+export function onSectionsLoop(win, html, path) {
+  if (!path || !fileOfItsOwn() || !pageHasSectionField(win, win.document)) {
+    return false;
+  }
+
+  const field = sectionField(win);
+  const loops = [...new Set([...sectionLoopFields(win), ...htmlTreeUi.templateSections, field].filter(Boolean))];
+  const node = findByPath(parseTemplateTree(String(html || ''), { sectionLoops: loops }), path);
+
+  return node?.kind === 'sections' && node.tag === field;
 }
 
 /** The page's section open in the dock, or ''. */
@@ -61,8 +86,8 @@ function hasParent() {
 }
 
 /** A page built from sections with no file in the dock: only a section of its own has anywhere to go. */
-export function onlySections(win) {
-  return pageHasSectionField(win, win.document) && !hasParent();
+export function onlySections(win, onLoop = false) {
+  return pageHasSectionField(win, win.document) && (!hasParent() || onLoop);
 }
 
 /** Any other page with no file in the dock: nothing has anywhere to go until one is opened. */

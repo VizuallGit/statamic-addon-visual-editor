@@ -135,6 +135,10 @@ export const htmlTreeUi = reactive({
   // new section too, after the page's last (`lastSectionUid`, '' for the top).
   newSectionToo: false,
   lastSectionUid: '',
+  // The same page, its file holding the loop over the page's sections: that
+  // field's handle, and `sections` are drawn under the loop's row instead of
+  // as the page's list. '' anywhere else.
+  sectionsInLoop: '',
   // A page not built from sections: its markup is a template it shares with
   // others. The tree names that template and opens it instead of drawing the
   // file — `{ text, note, openLabel, canOpen, onOpen(anchor) }`, or null.

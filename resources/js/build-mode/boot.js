@@ -119,7 +119,7 @@ import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from 
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
 import { containerLength, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
 import { elementLabel } from '../cp/xray/measure.js';
-import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onlySections, sectionKind, sectionRows } from './new-section.js';
+import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onSectionsLoop, onlySections, sectionKind, sectionRows } from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
 import { contentAttributes, fieldEditOf, readAttribute, renameAttribute, withAttribute, withFieldEdit } from './attrs.js';
 import { classTargetFor } from '../dock/class-target.js';
@@ -444,6 +444,9 @@ export function createEditorPort(win, hooks = {}) {
     classesShown.value = buildClassesShownByDefault(win);
   });
 
+  // Add points at an own page's loop over its sections: a tile there is the page's next section (new-section.js).
+  const onLoop = () => onSectionsLoop(win, html(), port.plusPath() || port.selectedPath());
+
   const port = {
     rev,
     lists: {
@@ -548,17 +551,17 @@ export function createEditorPort(win, hooks = {}) {
     mobileVariant: () => rows()[rows().length - 1]?.tw || 'max-md',
 
     /* A section of its own (new-section.js): what a tile makes on a page built from sections, and where */
-    sectionKind: (entry) => (rev.value, sectionKind(win, entry)),
+    sectionKind: (entry) => (rev.value, sectionKind(win, entry, onLoop())),
     /** A page built from sections, with one of them or nothing in the dock: what has no parent can only be a Section. */
     inPageSections: () => (rev.value, inPageSections(win)),
     sectionRows: () => sectionRows(win),
     /** No file in the dock on a page built from sections: Add's place is a new section at the end of the page. */
-    onlySections: () => (rev.value, onlySections(win)),
+    onlySections: () => (rev.value, onlySections(win, onLoop())),
     /** No file in the dock on any other page: a tile has nowhere to go until one is opened. */
     noFile: () => (rev.value, noFile(win)),
     /** A tile clicked: true when it became a section of its own (the popup is up), false when Add writes it. */
     addSection(entry) {
-      if (!sectionKind(win, entry)) {
+      if (!sectionKind(win, entry, onLoop())) {
         return false;
       }
 

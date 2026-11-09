@@ -86,7 +86,7 @@ import { bindTips } from './cp/tip.js';
 import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { setMeta } from './lib/row-meta.js';
-import { selectRow } from './selection-panel.js';
+import { leaveSelection, selectRow } from './selection-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, handleRemoveRow, renderedSectionType, syncPreviewInset } from './section-library.js';
 import { GLOBAL_SECTION_CONTAINER } from './global-section.js';
 import { confirmCloseDiscard, navigateFromLp } from './pages.js';
@@ -287,7 +287,7 @@ function paintUsedBy(win, collectionView) {
  * — each a row "Page sections — not shown yet · Add here" at the end of the
  * tree. Read off the whole file, folds and all.
  */
-function missingSectionLoops(roots) {
+function missingSectionLoops(roots, fields = htmlTreeUi.templateSections) {
   const looped = new Set();
   const walk = (nodes) => {
     for (const node of nodes || []) {
@@ -301,7 +301,7 @@ function missingSectionLoops(roots) {
 
   walk(roots);
 
-  return htmlTreeUi.templateSections.filter((field) => !looped.has(field));
+  return fields.filter((field) => !looped.has(field));
 }
 
 /**
@@ -1714,6 +1714,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.sectionsMissing = [];
     htmlTreeUi.ownFile = null;
     htmlTreeUi.newSectionToo = false;
+    htmlTreeUi.sectionsInLoop = '';
     htmlTreeUi.usedBy = null;
     htmlTreeUi.emptyText = '';
 
@@ -1756,6 +1757,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.sectionsMissing = [];
     htmlTreeUi.ownFile = null;
     htmlTreeUi.newSectionToo = false;
+    htmlTreeUi.sectionsInLoop = '';
     htmlTreeUi.emptyText = t(win, 'html_tree_page_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
@@ -2386,10 +2388,19 @@ export function renderHtmlTree(win) {
     }
   }
 
+  // An own page built from sections, its file open: the page's sections are
+  // listed under the file's loop over them (the row "The page's sections"),
+  // where they are drawn — a section dropped from Patterns shows there, and a
+  // click opens it, as on any page. '' when the file has no such loop.
+  const loopField = pageBuilder && !inComponent && dockKind === 'template' ? sectionField(win) || '' : '';
+  const sectionsInLoop = loopField && missingSectionLoops(roots, [loopField]).length === 0 ? loopField : '';
+
+  htmlTreeUi.sectionsInLoop = sectionsInLoop;
+
   // The page's sections: listed under main on a section's file, and — dimmed,
   // to click back out to — around the header's, the footer's or the layout's.
   // Not inside a component: there the tree is the component alone.
-  htmlTreeUi.sections = pageBuilder && !inComponent && (inSections || frameKind || pageView)
+  htmlTreeUi.sections = pageBuilder && !inComponent && (inSections || frameKind || pageView || sectionsInLoop)
     ? sections.map((section) => {
         const current = !!openUid && section.uid === openUid;
         // Tags are drawn as soon as there are tags: from the cache the moment
@@ -2424,7 +2435,7 @@ export function renderHtmlTree(win) {
       })
     : [];
   htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind, false, !!bodyRaw);
-  htmlTreeUi.ownFile = ownFileRow(win, htmlTreeUi.sections.length > 0);
+  htmlTreeUi.ownFile = ownFileRow(win, htmlTreeUi.sections.length > 0 && !sectionsInLoop);
   htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
   bindFrame(win, frameKind);
 
@@ -2725,11 +2736,20 @@ function enterFrame(win, kind) {
 
   if (kind === 'template') {
     // A collection's template on its own entry, or the page's own file.
-    const view = String(ask('dock:collection-view') || '') || ownPageType(win);
+    const collectionView = String(ask('dock:collection-view') || '');
+    const view = collectionView || ownPageType(win);
 
     if (view) {
       leaveChrome(win);
       ask('dock:open-file', view);
+
+      // Out of the section, the way back to the page's file: the section is
+      // no longer the selection either. Left selected, a click on the same
+      // section — on the canvas, in the tree — selected nothing new, and the
+      // dock stayed on the file.
+      if (!collectionView) {
+        leaveSelection(win, 'tree');
+      }
     }
 
     return;

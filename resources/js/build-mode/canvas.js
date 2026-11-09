@@ -942,6 +942,12 @@ export function startCanvas(win) {
     const next = page.importNode(realDoc.body, true);
     const slot = realRoot && section?.plan ? counterpart(realRoot, realDoc.body, next) : null;
 
+    // The real preview can still carry the paths of the file open before this
+    // one (the bridge's stamps): a section opened and left on an own page kept
+    // its tags' paths, and a click on it picked a tag of the page's file
+    // instead of opening it. Only the open file's paths are stamped, below.
+    next.querySelectorAll(`[${HT_PATH_ATTR}]`).forEach((el) => el.removeAttribute(HT_PATH_ATTR));
+
     if (slot && (alpineLive() || section.chrome)) {
       // The real preview's drawing stays, stamped with the file's paths so picks, + and hover work on it.
       stampHtmlPickAll([slot], serializePickTree([section.plan.node]), page);
