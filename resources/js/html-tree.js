@@ -2435,7 +2435,12 @@ export function renderHtmlTree(win) {
       })
     : [];
   htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind, false, !!bodyRaw);
-  htmlTreeUi.ownFile = ownFileRow(win, htmlTreeUi.sections.length > 0 && !sectionsInLoop);
+  htmlTreeUi.ownFile = ownFileRow(win, htmlTreeUi.sections.length > 0);
+
+  // The page's file is open, its sections under the loop: no way back to show.
+  if (sectionsInLoop) {
+    htmlTreeUi.ownFile = null;
+  }
   htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
   bindFrame(win, frameKind);
 
