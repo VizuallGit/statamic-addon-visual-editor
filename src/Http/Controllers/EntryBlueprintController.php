@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\OwnPage;
-use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -64,7 +63,6 @@ class EntryBlueprintController
             'own_page' => [
                 'can' => OwnPage::canMake($entry),
                 'is' => OwnPage::is($entry),
-                'sections' => count((array) $entry->get(SectionField::of($entry->blueprint()))),
             ],
             'url' => cp_route('blueprints.collections.edit', [
                 'collection' => $collection->handle(),

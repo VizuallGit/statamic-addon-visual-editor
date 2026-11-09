@@ -185,6 +185,9 @@ return [
     'html_tree_sections_remove_body' => 'The pages drawn with this template show no sections until the loop is put back. Nothing on the pages is deleted.',
     'html_tree_sections_remove_confirm' => 'Remove',
     'html_tree_sections_no_field' => 'The loop is in. The pages show sections once their blueprint has a sections field.',
+    'html_tree_sections_missing' => 'The page\'s sections — not shown yet',
+    'html_tree_sections_add_here' => 'Add here',
+    'html_tree_own_file' => 'This page\'s template',
     'html_tree_need_dock' => 'Open the HTML dock to see this file’s tags.',
     'html_tree_rename' => 'Double-click to rename in the tree (does not change the HTML)',
     // What an element is: the HTML tree's row names and Build's panel (lib/element-kind.js).
@@ -297,7 +300,6 @@ return [
     'blueprint_open_failed' => 'The blueprint could not be opened.',
     'own_page_make' => 'Give this page its own blueprint and template',
     'own_page_make_title' => 'A blueprint and a template for this page alone. Its texts become fields of its own; it is edited in HTML Build and on Build\'s canvas.',
-    'own_page_sections' => 'This page has :count sections. With a template of its own it no longer shows them (they stay saved in the page). Continue?',
     'own_page_failed' => 'The page could not get its own blueprint and template.',
 
     'component_make' => 'Make component',

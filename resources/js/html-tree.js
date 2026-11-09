@@ -4,7 +4,7 @@
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { t } from './lib/i18n.js';
-import { canCreateSections, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
+import { canCreateSections, insertTemplateElement, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
 import { canEditFields, openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.js';
 import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
@@ -78,7 +78,7 @@ import { injectStyle } from './lib/style.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields, sectionRootTag } from './lib/config.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
-import { ownPageType, rememberOwnPage } from './lib/own-page.js';
+import { ownPageSections, ownPageType, rememberOwnPage } from './lib/own-page.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
 import { openCollections } from './lp-collections.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE, CHROME_CONTAINER } from './lib/ids.js';
@@ -136,7 +136,45 @@ function pageOnSharedTemplate(win, pageBuilder, inComponent) {
  * "Sidens sektioner" (html-tree-parse.js, addAntlersBlocks).
  */
 function treeOptions(win) {
-  return { sectionLoops: sectionLoopFields(win), sectionsLabel: t(win, 'html_tree_sections_slot') };
+  // The fields the open template's pages keep their sections in, too: a field
+  // made since the Control Panel loaded is not in the site's list yet.
+  const loops = [...new Set([...sectionLoopFields(win), ...ownPageSections(win), ...htmlTreeUi.templateSections])];
+
+  return { sectionLoops: loops, sectionsLabel: t(win, 'html_tree_sections_slot') };
+}
+
+/** Entries asked whether they have a template of their own, on a page built from sections: once each. */
+const ownPageAsked = new Set();
+
+/**
+ * A page built from sections may have a template of its own too — an own page
+ * whose blueprint has a sections field. Asked once; when it has, the page's
+ * file is what the dock holds while no section is chosen, as on any own page,
+ * and the tree draws it (the sections are drawn by its loop).
+ */
+function learnOwnPage(win) {
+  const entry = currentEntryId(win);
+
+  if (!entry || entry === 'create' || ownPageAsked.has(entry) || ownPageType(win)) {
+    return;
+  }
+
+  ownPageAsked.add(entry);
+
+  void templateUsage(win, { entry }).then((usage) => {
+    if (!usage?.own_page || !usage.view || currentEntryId(win) !== entry) {
+      return;
+    }
+
+    rememberOwnPage(entry, usage.view, usage.sections_fields);
+
+    // The dock stood empty for want of a section: now there is the page's file.
+    if (!ask('dock:current-type')) {
+      ask('dock:open-file', `view:${usage.view}`);
+    }
+
+    renderHtmlTree(win);
+  });
 }
 
 /** What the tree says in place of a shared template's rows (`htmlTreeUi.pageTemplate`). */
@@ -164,7 +202,7 @@ function pageTemplateUi(win, entry) {
     // then wrote on the file's root instead of the element picked — measured
     // with probe-own-page-canvas, 2 of 2 runs, 9 Nov 2026.)
     if (usage.own_page && usage.view) {
-      rememberOwnPage(entry, usage.view);
+      rememberOwnPage(entry, usage.view, usage.sections_fields);
       ask('dock:open-file', `view:${usage.view}`);
       renderHtmlTree(win);
 
@@ -188,6 +226,17 @@ function pageTemplateUi(win, entry) {
  * opened from it is not what the line is about.
  */
 function paintUsedBy(win, collectionView) {
+  // An own page's file is the page's alone: nobody else to name, and the loop
+  // it may draw is over the page's own sections field.
+  const own = ownPageType(win);
+
+  if (own && ask('dock:current-type') === own) {
+    htmlTreeUi.usedBy = null;
+    htmlTreeUi.templateSections = ownPageSections(win);
+
+    return;
+  }
+
   const view = collectionView.replace(/^view:/, '');
 
   if (!view || ask('dock:current-type') !== collectionView) {
@@ -214,7 +263,10 @@ function paintUsedBy(win, collectionView) {
       ? [{ name: t(win, 'html_tree_used_by_everything'), kind: 'everything', url: null }]
       : usage.used_by.map((item) => ({ ...item, ...usedByOpener(win, item) }));
 
-    htmlTreeUi.templateSections = Array.isArray(usage.sections_fields) ? usage.sections_fields : [];
+    const fields = Array.isArray(usage.sections_fields) ? usage.sections_fields : [];
+    const fieldsChanged = fields.join() !== htmlTreeUi.templateSections.join();
+
+    htmlTreeUi.templateSections = fields;
     htmlTreeUi.usedBy = {
       view,
       label: t(win, 'html_tree_used_by'),
@@ -222,7 +274,34 @@ function paintUsedBy(win, collectionView) {
       empty: items.length ? '' : t(win, 'html_tree_used_by_nobody'),
       hint: items.length ? t(win, 'html_tree_used_by_hint', { list: items.map((item) => item.name).join(', ') }) : '',
     };
+
+    // The loops the file is read for, and the "not shown yet" rows, go by these fields: drawn again with them.
+    if (fieldsChanged) {
+      renderHtmlTree(win);
+    }
   });
+}
+
+/**
+ * The sections fields of the open template's pages that it draws no loop over
+ * — each a row "Page sections — not shown yet · Add here" at the end of the
+ * tree. Read off the whole file, folds and all.
+ */
+function missingSectionLoops(roots) {
+  const looped = new Set();
+  const walk = (nodes) => {
+    for (const node of nodes || []) {
+      if (node.kind === 'sections') {
+        looped.add(node.tag);
+      }
+
+      walk(node.children);
+    }
+  };
+
+  walk(roots);
+
+  return htmlTreeUi.templateSections.filter((field) => !looped.has(field));
 }
 
 /**
@@ -1599,6 +1678,10 @@ export function renderHtmlTree(win) {
   const type = ask('dock:current-type') || '';
   const aliases = readHtmlTreeLabels(type);
   const pageBuilder = pageHasSectionField(win, doc);
+
+  if (pageBuilder) {
+    learnOwnPage(win);
+  }
   const component = ask('dock:component-exit-state') || {};
   const inComponent = !!component.open;
 
@@ -1628,6 +1711,8 @@ export function renderHtmlTree(win) {
     htmlTreeUi.pageBuilder = false;
     htmlTreeUi.layoutFile = false;
     htmlTreeUi.emptyFile = false;
+    htmlTreeUi.sectionsMissing = [];
+    htmlTreeUi.ownFile = null;
     htmlTreeUi.usedBy = null;
     htmlTreeUi.emptyText = '';
 
@@ -1667,6 +1752,8 @@ export function renderHtmlTree(win) {
     htmlTreeUi.pageBuilder = true;
     htmlTreeUi.layoutFile = false;
     htmlTreeUi.emptyFile = false;
+    htmlTreeUi.sectionsMissing = [];
+    htmlTreeUi.ownFile = null;
     htmlTreeUi.emptyText = t(win, 'html_tree_page_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
@@ -1762,6 +1849,12 @@ export function renderHtmlTree(win) {
   // so the rows and the frame around them can never disagree. '' on a
   // section, a component, a template.
   const dockKind = inSections || inComponent ? '' : String(ask('dock:chrome-kind') || '');
+
+  // A template's file — an own page's, a collection's — is built from
+  // markup even on a page built from sections: the plus adds an element to it.
+  if (dockKind === 'template') {
+    htmlTreeUi.pageBuilder = false;
+  }
 
   /*
    * The layout is the dock's answer to two different questions.
@@ -1862,6 +1955,16 @@ export function renderHtmlTree(win) {
   // A page's own file or a collection's template emptied of every element is
   // a page with nothing on it yet — said so, and the plus stays to add to it.
   htmlTreeUi.emptyFile = !html.trim() && dockKind === 'template' && dockIsOpen(doc);
+  htmlTreeUi.sectionsMissing = dockKind === 'template' ? missingSectionLoops(roots) : [];
+  htmlTreeUi.sectionsMissingText = t(win, 'html_tree_sections_missing');
+  htmlTreeUi.sectionsAddText = t(win, 'html_tree_sections_add_here');
+  htmlTreeUi.onAddSections = (field) => {
+    const at = insertTemplateElement(win, `sections:${field}`, null, t(win, 'html_tree_sections_slot'));
+
+    if (at !== null) {
+      htmlTreeUi.selectFrom = { at, left: 4 };
+    }
+  };
 
   if (!html.trim() && !dockIsOpen(doc)) {
     htmlTreeUi.emptyText = t(win, 'html_tree_need_dock');
@@ -2314,6 +2417,7 @@ export function renderHtmlTree(win) {
       })
     : [];
   htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind, false, !!bodyRaw);
+  htmlTreeUi.ownFile = ownFileRow(win, htmlTreeUi.sections.length > 0);
   htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
   bindFrame(win, frameKind);
 
@@ -2445,6 +2549,34 @@ function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage
   }
 
   return frame;
+}
+
+/**
+ * On an own page built from sections, standing in one of its sections: the
+ * page's own file, the way back to it. Its loop draws the sections; it is
+ * the file the dock holds when no section is chosen. Null anywhere else.
+ */
+function ownFileRow(win, listingSections) {
+  if (!listingSections || !ownPageType(win)) {
+    return null;
+  }
+
+  return {
+    id: 'frame:own',
+    frame: 'template',
+    synthetic: true,
+    tag: 'template',
+    name: t(win, 'html_tree_own_file'),
+    kind: '',
+    svg: HTML_ICONS.section || '',
+    cat: 'main',
+    letter: '',
+    depth: 0,
+    hasChildren: false,
+    shut: true,
+    current: false,
+    hidden: false,
+  };
 }
 
 /** The first node with this tag, wherever it sits in the tree. */
@@ -2585,7 +2717,8 @@ function enterFrame(win, kind) {
   }
 
   if (kind === 'template') {
-    const view = String(ask('dock:collection-view') || '');
+    // A collection's template on its own entry, or the page's own file.
+    const view = String(ask('dock:collection-view') || '') || ownPageType(win);
 
     if (view) {
       leaveChrome(win);

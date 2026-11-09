@@ -23,6 +23,8 @@ import HtmlTreeRow from './HtmlTreeRow.vue';
 const query = computed(() => normalizeHtmlTreeQuery(ui.query));
 const found = computed(() => searchHtmlTreeRows(ui.rows, query.value));
 const shownRows = computed(() => found.value.rows);
+/** The sections fields the open template draws no loop over — not while searching. */
+const shownMissing = computed(() => (query.value ? [] : ui.sectionsMissing || []));
 const shownSections = computed(() => {
   if (!query.value) {
     return ui.sections;
@@ -141,6 +143,8 @@ function wrapBind(sec) {
       template, a component) the list is the file's rows, as it always was.
     -->
     <template v-if="ui.frame || ui.sections.length">
+      <!-- An own page's file, above the sections it draws: the way back to it. -->
+      <HtmlTreeRow v-if="ui.ownFile && !query" :row="ui.ownFile" />
       <template v-if="ui.frame">
         <div v-if="ui.frame.kind === 'header'" data-sve-ht-branch data-sve-ht-cat="header">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
@@ -214,6 +218,15 @@ function wrapBind(sec) {
     <template v-else-if="ui.rows.length">
       <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
     </template>
+    <!--
+      The template's pages keep sections in a field this file draws no loop
+      over, so they are not on the page. One click writes the loop at the end
+      of the file, and its row — the page's sections — takes this one's place.
+    -->
+    <div v-for="field in shownMissing" :key="field" data-sve-ht-sections-missing :data-sve-ht-field="field">
+      <span>{{ ui.sectionsMissingText }}<template v-if="ui.sectionsMissing.length > 1"> · <code>{{ field }}</code></template></span>
+      <button type="button" data-sve-ht-sections-add @click="ui.onAddSections?.(field)">{{ ui.sectionsAddText }}</button>
+    </div>
   </div>
 </template>
 
@@ -233,6 +246,37 @@ function wrapBind(sec) {
 }
 [data-sve-ht-frame-slot][data-dim] {
   opacity: 0.3;
+}
+/* Where the page's sections would be: the same dashed slot, with its one action. */
+[data-sve-ht-sections-missing] {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.2rem;
+  padding: 0.4em 0.4em 0.4em 0.6em;
+  border: 1px dashed rgba(128, 128, 128, 0.45);
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+[data-sve-ht-sections-missing] > span {
+  opacity: 0.65;
+}
+[data-sve-ht-sections-add] {
+  flex: none;
+  padding: 0.25em 0.6em;
+  border: 0;
+  border-radius: 0.3rem;
+  background: rgba(56, 88, 233, 0.16);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+[data-sve-ht-sections-add]:hover {
+  background: rgba(56, 88, 233, 0.28);
 }
 .sve-ht-empty {
   padding: 28px 6px;

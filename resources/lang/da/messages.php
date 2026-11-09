@@ -182,6 +182,9 @@ return [
     'html_tree_sections_remove_body' => 'Siderne, der bruger skabelonen, viser ingen sektioner, før løkken sættes ind igen. Indholdet på siderne slettes ikke.',
     'html_tree_sections_remove_confirm' => 'Fjern',
     'html_tree_sections_no_field' => 'Løkken er sat ind. Siderne viser først sektioner, når deres blueprint har et sektionsfelt.',
+    'html_tree_sections_missing' => 'Sidens sektioner — vises ikke endnu',
+    'html_tree_sections_add_here' => 'Tilføj her',
+    'html_tree_own_file' => 'Sidens skabelon',
     'html_tree_need_dock' => 'Åbn HTML-docken for at se filens tags.',
     'html_tree_rename' => 'Dobbeltklik for at omdøbe i træet (ændrer ikke HTML)',
     // Hvad et element er: HTML-træets rækkenavne og Build-panelet (lib/element-kind.js).
@@ -294,7 +297,6 @@ return [
     'blueprint_open_failed' => 'Blueprintet kunne ikke åbnes.',
     'own_page_make' => 'Giv siden sit eget blueprint og sin egen skabelon',
     'own_page_make_title' => 'Et blueprint og en skabelon kun til denne side. Dens tekster bliver dens egne felter; den redigeres i HTML Build og på Builds lærred.',
-    'own_page_sections' => 'Siden har :count sektioner. Med sin egen skabelon viser den dem ikke længere (de bliver gemt i siden). Fortsæt?',
     'own_page_failed' => 'Siden kunne ikke få sit eget blueprint og sin egen skabelon.',
 
     'component_make' => 'Gør til komponent',

@@ -80,7 +80,7 @@ export function openEntryBlueprint(win, { onClose } = {}) {
 
       let saved = false;
       const ownPage = found.own_page?.can
-        ? { label: t(win, 'own_page_make'), title: t(win, 'own_page_make_title'), run: () => makeOwnPage(win, Number(found.own_page.sections) || 0) }
+        ? { label: t(win, 'own_page_make'), title: t(win, 'own_page_make_title'), run: () => makeOwnPage(win) }
         : null;
 
       drawer = openCpOverlay(win.document, FieldsetOverlay, {
@@ -113,16 +113,11 @@ export function openEntryBlueprint(win, { onClose } = {}) {
 
 /**
  * "Give this page its own blueprint and template" (OwnPage.php): a page out of
- * the shared page blueprint. Its sections stop being drawn — they stay saved
- * in the page — so that is asked first when it has any. Then the page is
- * loaded again: its form is built from the new blueprint, and the dock opens
- * its own file on it.
+ * the shared page blueprint. A page with sections keeps them — its file starts
+ * with the loop that draws them. Then the page is loaded again: its form is
+ * built from the new blueprint, and the dock opens its own file on it.
  */
-async function makeOwnPage(win, sections) {
-  if (sections > 0 && !win.confirm(t(win, 'own_page_sections', { count: sections }))) {
-    return;
-  }
-
+async function makeOwnPage(win) {
   const res = await win
     .fetch('/!/sve/own-page', {
       method: 'POST',

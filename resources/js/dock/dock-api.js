@@ -1255,6 +1255,12 @@ register('dock:open-file', (type) => {
   // want of one — the layout opened from an empty page is drawn as the layout.
   dockState.onEmptyPage = false;
 
+  // The page's own file: no section of the page is chosen any more. Left
+  // chosen, the next sync took the dock back to it (a chosen section wins).
+  if (type === ownPageType(dockState.lastWin)) {
+    dockState.lastUid = null;
+  }
+
   if (type === dockState.lastType) {
     return true;
   }

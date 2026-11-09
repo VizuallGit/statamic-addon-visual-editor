@@ -20,12 +20,11 @@ use Statamic\Facades\YAML;
  * visible ones: the page is its own entry.
  *
  * Made from the top bar's Blueprint drawer (lp-blueprint.js). The blueprint is
- * a copy of the one the page has, read off disk, without the sections field
- * (the page no longer draws sections), hidden from Create; the template starts
- * with the page's title. The entry names both: Statamic's own rule then draws
- * it with them (`Entry::template()`: the entry's `template:` wins). Its
- * sections stay in its file — Statamic merges a form's values into an entry
- * and keeps what the blueprint no longer has — so nothing is lost.
+ * a copy of the one the page has, read off disk, hidden from Create. A page
+ * with sections keeps its sections field and its file starts with the loop
+ * that draws them, so they stay on the page; any other page loses the field
+ * and its file starts empty. The entry names both: Statamic's own rule then
+ * draws it with them (`Entry::template()`: the entry's `template:` wins).
  *
  * Shown on the Templates board in a "Pages" row of its own and on the site
  * canvas beside the templates, and opened in the dock on the page itself.
@@ -126,7 +125,11 @@ final class OwnPage
         $from = $entry->blueprint();
         $contents = YAML::file($from->path())->parse();
         $sections = SectionField::of($from);
-        $stripped = static::withoutField($contents, $sections);
+        // A page with sections keeps them: the field stays and the file draws
+        // them, with the loop the pages' own template has. Without any, the
+        // field goes and the file starts empty.
+        $keeps = SectionField::in($from) && count((array) $entry->get($sections)) > 0;
+        $stripped = $keeps ? $contents : static::withoutField($contents, $sections);
 
         if ($stripped === null) {
             return null;
@@ -165,7 +168,7 @@ final class OwnPage
         try {
             File::ensureDirectoryExists(dirname($file));
 
-            if (File::put($file, static::starter()) === false) {
+            if (File::put($file, $keeps ? static::sectionsLoop($sections) : static::starter()) === false) {
                 throw new \RuntimeException("The view {$view} could not be written.");
             }
 
@@ -284,6 +287,19 @@ final class OwnPage
         }
 
         return $count;
+    }
+
+    /**
+     * The loop that draws a page's sections, over its field — the four lines
+     * of the pages' own template (`default.antlers.html`), as the HTML tree's
+     * "Add here" writes them (template-elements.js `sectionsLoop`).
+     */
+    public static function sectionsLoop(string $field): string
+    {
+        return "{{ {$field} }}\n"
+            ."    {{ _class = type | replace('/', '-') | replace('_', '-') }}\n"
+            ."    {{ partial src=\"partials/page_sections/{ type }\" id=\"{{ id }}\" :class=\"_class\" :_class=\"_class\" }}\n"
+            ."{{ /{$field} }}\n";
     }
 
     /**

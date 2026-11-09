@@ -122,6 +122,15 @@ export const htmlTreeUi = reactive({
   // The dock holds a page's own file or a collection's template, and it is
   // empty: no rows, and the plus is how the first element goes in.
   emptyFile: false,
+  // The sections fields of the open template's pages it draws no loop over:
+  // a row each at the end, "not shown yet", with the action that adds it.
+  sectionsMissing: [],
+  sectionsMissingText: '',
+  sectionsAddText: '',
+  onAddSections: null,
+  // On an own page built from sections, in one of them: the page's own file,
+  // a row above the sections, the way back to it (html-tree.js ownFileRow).
+  ownFile: null,
   // A page not built from sections: its markup is a template it shares with
   // others. The tree names that template and opens it instead of drawing the
   // file — `{ text, note, openLabel, canOpen, onOpen(anchor) }`, or null.

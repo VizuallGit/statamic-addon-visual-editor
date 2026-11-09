@@ -54,8 +54,19 @@ final class TemplateUsage
 
         $view = $entry->template();
 
-        // An own page's file is the page's alone (OwnPage): the dock opens it on the page.
-        return is_string($view) && $view !== '' ? static::of($view) + ['own_page' => OwnPage::is($entry)] : null;
+        if (! is_string($view) || $view === '') {
+            return null;
+        }
+
+        // An own page's file is the page's alone (OwnPage): the dock opens it on
+        // the page, and the loop it may draw is over the page's own sections field.
+        if (OwnPage::is($entry)) {
+            $blueprint = $entry->blueprint();
+
+            return ['own_page' => true, 'sections_fields' => $blueprint && SectionField::in($blueprint) ? [SectionField::of($blueprint)] : []] + static::of($view);
+        }
+
+        return static::of($view) + ['own_page' => false];
     }
 
     /**
