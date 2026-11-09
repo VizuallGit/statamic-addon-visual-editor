@@ -87,7 +87,7 @@ import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR, BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, findPickRoot, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_CLOAK, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { CANVAS_CLOAK, CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
 import { EMPTY_CSS, findEmpties, fitRows } from './canvas-empty.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
@@ -946,6 +946,7 @@ export function startCanvas(win) {
       // The real preview's drawing stays, stamped with the file's paths so picks, + and hover work on it.
       stampHtmlPickAll([slot], serializePickTree([section.plan.node]), page);
       slot.setAttribute(CANVAS_ROOT, '');
+      markEmpties(slot, section.plan);
       stats.waiting = 0;
     } else if (slot) {
       const { html, waiting } = paintPlan(section.plan, known);
@@ -961,6 +962,30 @@ export function startCanvas(win) {
     cleanTree(next);
     copyAttributes(realDoc.documentElement, page.documentElement);
     morph(page.body, next, morphing);
+  }
+
+  /**
+   * What the file leaves empty, open and dashed (`CANVAS_EMPTY`), as the paint
+   * leaves it — on the real preview's drawing, which draws an empty element
+   * as nothing. An own page's grid had cells of no height: nothing to drop
+   * into, and the grid's overlay took them for free cells and put a second +
+   * in each. Only where the drawing is empty too: what Alpine or a field
+   * filled is left as it stands.
+   */
+  function markEmpties(slot, plan) {
+    const empty = new Map(plan.elements.filter((el) => el.empty).map((el) => [el.path, el.empty]));
+
+    if (!empty.size) {
+      return;
+    }
+
+    for (const el of [slot, ...slot.querySelectorAll(`[${HT_PATH_ATTR}]`)]) {
+      const kind = empty.get(el.getAttribute(HT_PATH_ATTR));
+
+      if (kind && !el.firstElementChild && !el.textContent.trim()) {
+        el.setAttribute(CANVAS_EMPTY, kind);
+      }
+    }
   }
 
   /**
