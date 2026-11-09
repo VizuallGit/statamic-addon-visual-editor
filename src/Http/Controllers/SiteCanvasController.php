@@ -179,20 +179,9 @@ class SiteCanvasController extends Controller
             $rows[] = ['key' => 'site', 'title' => trans('sve::messages.site_canvas_site', [], $locale), 'columns' => array_map(fn ($frame) => [$frame], $frames)];
         }
 
-        // Pages with a template of their own (OwnPage): the template is drawn on
-        // the page alone, so its frame is the page — opened, its file is in the dock.
-        $frames = [];
-
-        foreach (OwnPage::all() as $own) {
-            if ($own['entry']->locale() === $site && ($frame = $this->frame($own['entry']))) {
-                $frames[] = $frame + ['note' => trans('sve::messages.site_canvas_note_own_page', [], $locale), 'view' => $own['view']];
-            }
-        }
-
-        if ($frames !== []) {
-            $rows[] = ['key' => '_own_pages', 'title' => trans('sve::messages.site_canvas_own_pages', [], $locale), 'columns' => array_map(fn ($frame) => [$frame], $frames)];
-        }
-
+        // A page with a template of its own (OwnPage) is still a page of the
+        // pages collection: it stands with the pages, in its place in the tree,
+        // its note saying so (pageNote) — not a second time among the templates.
         return $rows;
     }
 
@@ -395,6 +384,25 @@ class SiteCanvasController extends Controller
             }
 
             $units[(string) $entry->id()] = $unit;
+        }
+
+        // A page the tree does not hold is still a page — one made outside it,
+        // an own page (OwnPage) on the demo, 9 Nov 2026: after the tree's, each
+        // a unit of its own, by title.
+        $placed = [];
+
+        foreach ($units as $unit) {
+            foreach ($unit as [$entry]) {
+                $placed[(string) $entry->id()] = true;
+            }
+        }
+
+        $loose = Entry::query()->where('collection', $handle)->where('site', $site)->get()
+            ->reject(fn (EntryContract $entry) => isset($placed[(string) $entry->id()]))
+            ->sortBy(fn (EntryContract $entry) => $entry->value('title') ?: $entry->slug(), SORT_NATURAL | SORT_FLAG_CASE);
+
+        foreach ($loose as $entry) {
+            $units[(string) $entry->id()] = [[$entry, 0]];
         }
 
         return $units;

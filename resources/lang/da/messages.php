@@ -873,7 +873,6 @@ return [
     'site_canvas_templates' => 'Skabeloner',
     'site_canvas_pages' => 'Sider',
     'site_canvas_site' => 'Sitet',
-    'site_canvas_own_pages' => 'Egne sider',
     'site_canvas_note_own_page' => 'Sin egen skabelon',
     'site_canvas_current' => 'Den side du redigerer',
     'site_canvas_open' => 'Åbn :title til redigering',

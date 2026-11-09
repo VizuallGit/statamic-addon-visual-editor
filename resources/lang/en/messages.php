@@ -883,7 +883,6 @@ return [
     'site_canvas_templates' => 'Templates',
     'site_canvas_pages' => 'Pages',
     'site_canvas_site' => 'Site',
-    'site_canvas_own_pages' => 'Own pages',
     'site_canvas_note_own_page' => 'Its own template',
     'site_canvas_current' => 'The page you are editing',
     'site_canvas_open' => 'Open :title for editing',

@@ -49,11 +49,13 @@ import { featureSaidOn } from '../lib/config.js';
 import { remToPx } from '../lib/dom.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
-import { HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
+import { CODE_DOCK_ID, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
 import { EDITOR_MODES, buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
 import { isCodeDockArmed } from '../code-dock-state.js';
+import { syncCodeDock } from '../code-dock-lazy.js';
+import { currentSelection } from '../lib/selection.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { paintLpActiveControl, setLpCollapsed } from '../lp-panel.js';
 import { FRAMED_CONTROL_STYLE, LP_TOOLBAR_ICON_STYLE, TOOLBAR_ICONS, toggleCodeDockButton } from './header-toolbar.js';
@@ -145,6 +147,17 @@ function openDockAndTree(win) {
         void openHtmlTreePanel(win);
       }
     });
+
+    return;
+  }
+
+  // Armed, and not open: a page where nothing is chosen — no sections, a
+  // template or a page of its own — has nothing else that opens it, and the
+  // tree only opens beside an open dock (it stayed shut, Add said "Open the
+  // template", on the demo 9 Nov 2026). Opened as the dock's own button opens
+  // it; building the dock opens the tree.
+  if (!win.document.getElementById(CODE_DOCK_ID)) {
+    syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
 
     return;
   }
