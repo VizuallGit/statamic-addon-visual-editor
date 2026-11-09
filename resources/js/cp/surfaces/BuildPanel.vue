@@ -603,6 +603,11 @@ onBeforeUnmount(() => {
 .sve-build .bm-tiles.is-list .bm-tile svg { width: 1.125rem; height: 1.125rem; }
 .sve-build .bm-tiles.is-list .bm-tile > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sve-build .bm-tiles.is-list .bm-tile > code { display: block; }
+/* A tile being dragged (BuildAdd.vue `ghostOf`): a copy of it outside the panel, see-through and tipped, the pointer where it was pressed. */
+.sve-build.bm-ghost { position: fixed; left: 0; top: 0; z-index: 2147483647; display: block; height: auto; min-height: 0; background: none; pointer-events: none; opacity: 0.4; will-change: transform; }
+.sve-build.bm-ghost .bm-tiles { display: block; }
+.sve-build.bm-ghost .bm-tile { width: 100%; rotate: 3deg; border-color: var(--bm-accent); box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35); }
+.sve-build.bm-ghost .bm-tiles.is-list .bm-tile { rotate: 1.5deg; }
 .sve-build .bm-note { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--bm-line); font-size: 0.6875rem; line-height: 1.55; color: var(--bm-faint); }
 .sve-build .bm-note + .bm-note { margin-top: 0.5rem; padding-top: 0; border-top: 0; }
 .sve-build .bm-note.is-top { margin: 0 0 0.5rem; padding: 0; border: 0; }

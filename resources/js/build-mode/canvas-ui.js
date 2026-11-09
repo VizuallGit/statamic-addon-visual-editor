@@ -430,7 +430,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
    * A press that becomes a drag once it has moved. `events` is the document
    * the pointer is followed in, `capture` the element that keeps it.
    */
-  function press(event, { events, capture, toCanvas, moving = '', label = '', source = null, section = '', tree = false, land }) {
+  function press(event, { events, capture, toCanvas, moving = '', label = '', ghost = null, source = null, section = '', tree = false, land }) {
     const origin = { x: event.clientX, y: event.clientY };
     const pointerId = event.pointerId;
     let started = false;
@@ -463,11 +463,17 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       ensureLayer(page()).setAttribute(BUSY, '');
       source?.setAttribute(DRAGGING, '');
 
-      if (label) {
+      // The panel's own copy of what was pressed (`ghost`), or a pill with its name.
+      drag.ghost = ghost?.() || null;
+
+      if (!drag.ghost && label) {
         injectStyle(win.document, GHOST_CSS_ID, GHOST_CSS);
         drag.ghost = win.document.createElement('div');
         drag.ghost.id = GHOST_ID;
         drag.ghost.textContent = label;
+      }
+
+      if (drag.ghost) {
         win.document.body.append(drag.ghost);
       }
     };
@@ -620,8 +626,9 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
    * pointer lets go. False when there is nothing to drop on.
    *
    * @param {PointerEvent} event  the tile's pointerdown
-   * @param {{ label: string, markup: () => string, section?: string }} item
-   *   `section` the tile's kind on a page built from sections (new-section.js)
+   * @param {{ label: string, markup: () => string, section?: string, ghost?: () => Element }} item
+   *   `section` the tile's kind on a page built from sections (new-section.js);
+   *   `ghost` what follows the pointer — the panel's copy of the tile — made as the drag starts
    */
   function dragNew(event, item) {
     if (event.button !== 0 || drag || !page() || !writer() || !frame()) {
@@ -634,6 +641,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       events: win.document,
       capture: tile,
       label: item.label,
+      ghost: item.ghost || null,
       section: item.section || '',
       tree: true,
       // The frame's box, read once as the drag starts: from the panel's

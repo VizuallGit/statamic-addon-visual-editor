@@ -215,7 +215,41 @@ const draggable = (entry) => !entry.logic && entry.source !== 'columns' && !entr
  * asked for when it lands; `entry` says whether it may be a section of its own.
  */
 function grab(event, label, markup, entry = null) {
-  port.drag?.(event, { label, markup, section: entry ? port.sectionKind?.(entry) || '' : '' });
+  const tile = event.currentTarget;
+  const ghost = tile?.classList?.contains('bm-tile') ? ghostOf(tile, event) : null;
+
+  port.drag?.(event, { label, markup, section: entry ? port.sectionKind?.(entry) || '' : '', ghost });
+}
+
+/**
+ * What follows the pointer while a tile is dragged: a copy of the tile — a
+ * card in the grid, a row in the list — held where it was pressed. Made when
+ * the drag starts, not on the press. The panel's root and the tiles' row go
+ * round the copy, so the panel's rules still find it outside the panel; the
+ * look of being picked up (see-through, tipped) is BuildPanel.vue's `bm-ghost`.
+ */
+function ghostOf(tile, event) {
+  const box = tile.getBoundingClientRect();
+  const grabX = event.clientX - box.left;
+  const grabY = event.clientY - box.top;
+
+  return () => {
+    const doc = tile.ownerDocument;
+    const root = doc.createElement('div');
+    const row = doc.createElement('div');
+    const copy = tile.cloneNode(true);
+
+    root.className = 'sve-build bm-ghost';
+    root.setAttribute('aria-hidden', 'true');
+    root.style.width = `${box.width}px`;
+    root.style.margin = `${-grabY}px 0 0 ${-grabX}px`;
+    row.className = tile.parentElement?.className || 'bm-tiles';
+    ['title', 'disabled', 'data-sve-build-tile', 'data-sve-build-component'].forEach((name) => copy.removeAttribute(name));
+    row.append(copy);
+    root.append(row);
+
+    return root;
+  };
 }
 
 /** A Grid preset pressed: dropped on the canvas, the picker has done its job. */
