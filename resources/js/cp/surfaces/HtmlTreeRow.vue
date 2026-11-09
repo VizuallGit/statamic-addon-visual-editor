@@ -186,6 +186,11 @@ function rowBind(row, dim) {
     bind['data-sve-ht-drop'] = ui.dropPlace;
   }
 
+  // Under an own page's loop a section is its row alone, with no box round it to wear the line.
+  if (ui.sectionsInLoop && isShutSection(row) && ui.sectionDrop?.uid === row.section) {
+    bind['data-sve-ht-drop'] = ui.sectionDrop.place;
+  }
+
   return bind;
 }
 

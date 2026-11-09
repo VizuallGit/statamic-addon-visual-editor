@@ -24,6 +24,13 @@
  *                The tile that makes a section of its own (new-section.js),
  *                Section, is a line before or after the page's section under the pointer,
  *                and letting go asks for the section (`port.dropSection`).
+ *                A tile lands on the HTML tree as well: over the tree, the
+ *                tree says what is under the pointer (`port.treeHit`) and
+ *                drop.js `treeLanding` where that is, with the canvas's rules.
+ *                Where it lands is shown in both places at once: the tree
+ *                wears its own line for it (`port.treeMark`) and the canvas
+ *                the same line on the element, each scrolled to it when the
+ *                pointer is on the other — once per place, not per frame.
  *
  * Both are for a port that writes — Visual Build's. HTML Build's port only
  * shows and picks (boot.js `mountBuildView`): no +, and nothing is dragged.
@@ -37,7 +44,7 @@
 import { injectStyle } from '../lib/style.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_EMPTY, CANVAS_PATH } from './canvas-paint.js';
-import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding } from './drop.js';
+import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding, treeLanding } from './drop.js';
 import { holdsElements } from './catalog.js';
 import { isWhole } from './whole.js';
 import { columnsFor, findByPath } from './place.js';
@@ -273,37 +280,17 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       return;
     }
 
-    let over = null;
-    const at = drag.point ? drag.toCanvas(drag.point) : null;
-    const hit = at ? elementOf(doc.elementFromPoint(at.x, at.y)) : null;
-    const el = hit?.closest(`[${CANVAS_PATH}]`) || null;
-
-    if (drag.section && (drag.section === 'always' || !el)) {
-      over = besideSection(hit, at);
-    } else if (el) {
-      const path = el.getAttribute(CANVAS_PATH);
-      const r = el.getBoundingClientRect();
-      const where = dropWhere(dropZones(roots(), path, drag.moving), at.y - r.top, r.height);
-
-      if (where) {
-        let rect = r;
-
-        if (where === 'inside') {
-          if (!drag.into.has(path)) {
-            drag.into.set(path, dropInto(tree.html, path, drag.moving));
-          }
-
-          const into = drag.into.get(path);
-
-          rect = (into === path ? el : byPath(el, into) || el).getBoundingClientRect();
-        }
-
-        over = { path, where, rect };
-      }
-    }
+    // The tree first: a panel may float over the canvas, and the pointer is then on the panel.
+    const inTree = drag.tree && drag.point ? port()?.treeHit?.(drag.point) || null : null;
+    const over = inTree ? treeOver(doc, inTree) : canvasOver(doc);
 
     drag.over = over;
-    showDrop(doc, over);
+    showDrop(doc, over?.rect ? over : null);
+
+    // Then the other side's mark — and, once per place, the side the pointer is not on scrolled to it.
+    if (markTree(over, !inTree) && inTree && over?.rect) {
+      revealOnCanvas(doc, over);
+    }
 
     // The real preview may render mid-drag, and its morph takes the mark off — or puts a new element in its place.
     if (drag.moving) {
@@ -317,6 +304,96 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     // The ghost is the Control Panel's: moved last, after every read.
     if (drag.ghost && drag.point) {
       drag.ghost.style.transform = `translate(${drag.point.x}px, ${drag.point.y}px)`;
+    }
+  }
+
+  /** Where the pointer on the canvas would drop, with the box the line or outline is drawn on; null off every place. */
+  function canvasOver(doc) {
+    const at = drag.point ? drag.toCanvas(drag.point) : null;
+    const hit = at ? elementOf(doc.elementFromPoint(at.x, at.y)) : null;
+    const el = hit?.closest(`[${CANVAS_PATH}]`) || null;
+
+    if (drag.section && (drag.section === 'always' || !el)) {
+      return besideSection(hit, at);
+    }
+
+    if (!el) {
+      return null;
+    }
+
+    const path = el.getAttribute(CANVAS_PATH);
+    const r = el.getBoundingClientRect();
+    const where = dropWhere(dropZones(roots(), path, drag.moving), at.y - r.top, r.height);
+
+    if (!where) {
+      return null;
+    }
+
+    return { path, where, rect: (where === 'inside' ? intoEl(el, path) : el).getBoundingClientRect() };
+  }
+
+  /** The element a drop inside `path` lands in, which the outline goes round (dropInto) — worked out once a drag. */
+  function intoEl(el, path) {
+    if (!drag.into.has(path)) {
+      drag.into.set(path, dropInto(tree.html, path, drag.moving));
+    }
+
+    const into = drag.into.get(path);
+
+    return into === path ? el : byPath(el, into) || el;
+  }
+
+  /**
+   * Where the pointer on the tree would drop (drop.js `treeLanding`), with the
+   * canvas's box for the same place: the element at the row's path — or the
+   * page's section, its outermost element — so the line shows on the page as
+   * well. No box when the canvas does not draw it; the drop is the same.
+   */
+  function treeOver(doc, hit) {
+    const over = treeLanding(roots(), hit, drag);
+
+    if (!over) {
+      return null;
+    }
+
+    let el = null;
+
+    if (over.section) {
+      el = doc.querySelector(over.ids.map((id) => `[data-sid="${CSS.escape(id)}"]`).join(','));
+    } else {
+      el = byPath(doc, over.path);
+      el = el && over.where === 'inside' ? intoEl(el, over.path) : el;
+    }
+
+    return { ...over, rect: el?.getBoundingClientRect() || null };
+  }
+
+  /**
+   * The tree's line for where the drag lands, said only when the place
+   * changes; `reveal`: the pointer is on the canvas, so the tree scrolls to the
+   * row. True when the place changed.
+   */
+  function markTree(over, reveal) {
+    const key = over ? `${over.section ? over.ids[0] : over.path}|${over.where}` : '';
+
+    if (key === drag.marked) {
+      return false;
+    }
+
+    drag.marked = key;
+    port()?.treeMark?.(over ? { ...(over.section ? { ids: over.ids } : { path: over.path }), where: over.where, reveal } : null);
+
+    return true;
+  }
+
+  /** The place a tile over the tree lands, on the canvas: scrolled to when its line is off the page's view. */
+  function revealOnCanvas(doc, { where, rect }) {
+    const view = doc.defaultView;
+    const y = where === 'after' ? rect.bottom : rect.top;
+
+    // Instant: a site's `scroll-behavior: smooth` would glide the page under the pointer's next move (canvas.js).
+    if (view && (y < 0 || y > view.innerHeight)) {
+      view.scrollBy({ top: y - view.innerHeight / 2, behavior: 'instant' });
     }
   }
 
@@ -346,14 +423,14 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     const rect = section.getBoundingClientRect();
     const where = at.y - rect.top < rect.height / 2 ? 'before' : 'after';
 
-    return { where, rect, section: true, afterUid: sectionLanding(drag.rows, ids, where) };
+    return { where, rect, section: true, ids, afterUid: sectionLanding(drag.rows, ids, where) };
   }
 
   /**
    * A press that becomes a drag once it has moved. `events` is the document
    * the pointer is followed in, `capture` the element that keeps it.
    */
-  function press(event, { events, capture, toCanvas, moving = '', label = '', source = null, section = '', land }) {
+  function press(event, { events, capture, toCanvas, moving = '', label = '', source = null, section = '', tree = false, land }) {
     const origin = { x: event.clientX, y: event.clientY };
     const pointerId = event.pointerId;
     let started = false;
@@ -368,7 +445,20 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       }
 
       // `section`: the tile's kind (new-section.js); `rows`: the page's sections, read once for the drag.
-      drag = { moving, toCanvas: toCanvas(), point: null, over: null, into: new Map(), ghost: null, source, section, rows: section ? port()?.sectionRows?.() || [] : [] };
+      // `tree`: the pointer may land on the HTML tree too; `marked`: the place the tree was last told.
+      drag = {
+        moving,
+        toCanvas: toCanvas(),
+        point: null,
+        over: null,
+        into: new Map(),
+        ghost: null,
+        source,
+        section,
+        rows: section ? port()?.sectionRows?.() || [] : [],
+        tree,
+        marked: '',
+      };
       roots();
       ensureLayer(page()).setAttribute(BUSY, '');
       source?.setAttribute(DRAGGING, '');
@@ -430,6 +520,10 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       if (doc) {
         layerIn(doc)?.removeAttribute(BUSY);
         showDrop(doc, null);
+      }
+
+      if (done.marked) {
+        port()?.treeMark?.(null);
       }
 
       // The click that ends a drag is not a pick (click), nor a tile's add (swallowClick).
@@ -541,6 +635,7 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
       capture: tile,
       label: item.label,
       section: item.section || '',
+      tree: true,
       // The frame's box, read once as the drag starts: from the panel's
       // pointer to the canvas's own coordinates (Live Preview may scale it).
       toCanvas() {

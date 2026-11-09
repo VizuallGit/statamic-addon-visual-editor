@@ -149,6 +149,46 @@ export function sectionLanding(rows, ids, where) {
   return at > 0 ? rows[at - 1][0] : null;
 }
 
+/**
+ * Where a tile from Add lands when the pointer is over the HTML tree, not the
+ * canvas. The tree says what is under the pointer (`html-tree:drop-hit`); a
+ * row of the file is the element at the same `path`, so the rules are the
+ * canvas's: top half before it, bottom half after, the middle third inside
+ * when it holds others, and an empty element's room (`slot`) inside. A row
+ * with no room (`closed`: the loop the page's sections are drawn by) takes
+ * nothing inside. A tile that makes a section of its own lands beside the
+ * page's section the pointer is in — always for Section, for the others only
+ * off the file's rows, as on the canvas.
+ *
+ * @param {Array} roots  parseTemplateTree(...)
+ * @param {{ row?: { path: string, y: number, height: number, slot?: boolean, closed?: boolean }|null,
+ *           section?: { uid: string, y: number, height: number }|null }|null} hit
+ * @param {{ section?: string, rows?: Array<string[]> }} drag  the tile's kind and the page's sections (sectionRows)
+ * @returns {{ path: string, where: string }|{ where: string, section: true, ids: string[], afterUid: string|null }|null}
+ */
+export function treeLanding(roots, hit, { section = '', rows = [] } = {}) {
+  const row = hit?.row;
+
+  if (row?.path && section !== 'always') {
+    const zones = dropZones(roots, row.path);
+    const room = zones && row.closed ? { ...zones, inside: false } : zones;
+    const where = row.slot ? (room?.inside ? 'inside' : null) : dropWhere(room, row.y, row.height);
+
+    return where ? { path: row.path, where } : null;
+  }
+
+  const sec = hit?.section;
+  const ids = section && sec?.uid ? rows.find((item) => item.includes(sec.uid)) : null;
+
+  if (!ids) {
+    return null;
+  }
+
+  const where = sec.y < sec.height / 2 ? 'before' : 'after';
+
+  return { where, section: true, ids, afterUid: sectionLanding(rows, ids, where) };
+}
+
 /** Whether the row at `path` can be picked up: an element of the section, not its own, not locked. */
 export function movable(roots, path) {
   const node = path ? findByPath(roots, path) : null;

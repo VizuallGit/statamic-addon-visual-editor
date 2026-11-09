@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding } from '../../../resources/js/build-mode/drop.js';
+import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding, treeLanding } from '../../../resources/js/build-mode/drop.js';
 import { findByPath } from '../../../resources/js/build-mode/place.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
@@ -176,4 +176,50 @@ test('a section of its own beside one of the page’s: after it, or after the on
   assert.equal(sectionLanding(rows, rows[0], 'before'), null);
   // Not one of the page's sections.
   assert.equal(sectionLanding(rows, ['x'], 'after'), undefined);
+});
+
+test('a tile over the HTML tree lands as it would over the same element on the canvas', () => {
+  const at = (path, y, height = 30, more = {}) => treeLanding(ROOTS, { row: { path, y, height, ...more }, section: null });
+
+  // A box: before, inside, after by the row's thirds.
+  assert.deepEqual(at(WRAPPER, 2), { path: WRAPPER, where: 'before' });
+  assert.deepEqual(at(WRAPPER, 15), { path: WRAPPER, where: 'inside' });
+  assert.deepEqual(at(WRAPPER, 28), { path: WRAPPER, where: 'after' });
+  // A heading holds nothing: its halves only.
+  assert.deepEqual(at(H2, 14), { path: H2, where: 'before' });
+  assert.deepEqual(at(H2, 16), { path: H2, where: 'after' });
+  // The section's own element takes things inside only.
+  assert.deepEqual(at('0:section', 2), { path: '0:section', where: 'inside' });
+  // An empty element's room is its inside; a heading has none.
+  assert.deepEqual(at(COL2, 0, 20, { slot: true }), { path: COL2, where: 'inside' });
+  assert.equal(at(H2, 0, 20, { slot: true }), null);
+  // A row with no room (the page's sections loop) takes nothing inside.
+  assert.deepEqual(at(WRAPPER, 12, 30, { closed: true }), { path: WRAPPER, where: 'before' });
+  assert.deepEqual(at(WRAPPER, 18, 30, { closed: true }), { path: WRAPPER, where: 'after' });
+  // Not one of the file's elements.
+  assert.equal(at('0:section/9:div', 15), null);
+  assert.equal(treeLanding(ROOTS, null), null);
+  assert.equal(treeLanding(ROOTS, { row: null, section: null }), null);
+
+  // What the tree writes is what the canvas writes for the same place.
+  const landed = at(H2, 25);
+  assert.deepEqual(dropNew(FILE, landed.path, landed.where, P), dropNew(FILE, H2, 'after', P));
+});
+
+test('a section tile over the tree lands beside the page’s section it is in', () => {
+  const rows = [['a', 'a-id'], ['b'], ['c', 'c-id']];
+  const hit = (uid, y, row = null) => ({ row, section: { uid, y, height: 100 } });
+
+  assert.deepEqual(treeLanding(ROOTS, hit('b', 10), { section: 'always', rows }), { where: 'before', section: true, ids: rows[1], afterUid: 'a' });
+  assert.deepEqual(treeLanding(ROOTS, hit('c-id', 90), { section: 'always', rows }), { where: 'after', section: true, ids: rows[2], afterUid: 'c' });
+  assert.deepEqual(treeLanding(ROOTS, hit('a', 10), { section: 'always', rows }).afterUid, null);
+  // Section goes beside the section even over one of the file's rows.
+  assert.equal(treeLanding(ROOTS, hit('b', 90, { path: WRAPPER, y: 15, height: 30 }), { section: 'always', rows }).section, true);
+  // Another tile over a row of the file goes into the file; off its rows, beside the section.
+  assert.deepEqual(treeLanding(ROOTS, hit('b', 90, { path: WRAPPER, y: 15, height: 30 }), { section: 'container', rows }), { path: WRAPPER, where: 'inside' });
+  assert.equal(treeLanding(ROOTS, hit('b', 90), { section: 'container', rows }).afterUid, 'b');
+  // A tile that is never a section: nothing beside a section.
+  assert.equal(treeLanding(ROOTS, hit('b', 90), { rows }), null);
+  // A section the page does not have.
+  assert.equal(treeLanding(ROOTS, hit('x', 90), { section: 'always', rows }), null);
 });

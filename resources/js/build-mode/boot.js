@@ -11,7 +11,8 @@
  *   code-dock.js (constants only — Build writes the dock's file, so the dock
  *   is loaded in Build anyway), tw-classes.js, tw-tool.js, tw-families.js,
  *   logic-popup.js, data-vars.js, data-var-types.js, build-mode/*, cp/surfaces/BuildPanel.vue.
- * Bus: asks `dock:html`, `dock:set-html`, `dock:data-menu`, `dock:data-model`, `lp:set-device`; listens to
+ * Bus: asks `dock:html`, `dock:set-html`, `dock:data-menu`, `dock:data-model`, `lp:set-device`,
+ *   `html-tree:drop-hit`, `html-tree:drop-mark` (a tile from Add over the tree); listens to
  *   `dock:html-changed`, `tw:changed`, `lp:device`. The canvas (canvas.js)
  *   asks and listens for itself.
  *
@@ -523,6 +524,10 @@ export function createEditorPort(win, hooks = {}) {
     },
     justWrote: (path) => path === wrote,
     drag: (event, item) => !!canvas?.dragNew(event, item),
+    /** A tile dragged over the HTML tree (canvas-ui.js): what the tree has under the pointer, null off the tree. */
+    treeHit: ({ x, y }) => ask('html-tree:drop-hit', { x, y }) || null,
+    /** Where a drag lands, marked in the HTML tree too ({ path | ids, where, reveal }); null takes the mark off. */
+    treeMark: (mark) => ask('html-tree:drop-mark', mark),
     /** Which side of the panel shows; Escape lets go of the element when it is the one shown. */
     panel,
     escape() {

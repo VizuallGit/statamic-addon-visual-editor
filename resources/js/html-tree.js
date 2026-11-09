@@ -5035,6 +5035,86 @@ register('html-tree:arm-pick', (on) => {
 
   return true;
 });
+
+/**
+ * A tile from Build's Add dragged over the tree (build-mode/canvas-ui.js).
+ *
+ * The tree only says what is under the pointer: the row of the file (its
+ * `path` — the element's on the canvas too — where in its height the pointer
+ * is, or its empty room) and the page's section around it. Build works out
+ * where that lands with the canvas's own rules (drop.js `treeLanding`) and
+ * writes it the canvas's way, so a drop here is the drop there. Null when the
+ * pointer is not on the tree; nothing under it while the tree draws a file the
+ * dock does not hold yet, or a row is being renamed — nothing writes then.
+ * Read on each frame of the drag only: a lookup and two boxes, no render.
+ */
+register('html-tree:drop-hit', ({ x, y } = {}) => {
+  const doc = window.document;
+  const panel = htmlTreePanel(doc);
+  const under = panel ? doc.elementFromPoint(x, y) : null;
+
+  if (!under || !panel.contains(under)) {
+    return null;
+  }
+
+  const hit = { row: null, section: null };
+
+  if (htmlTreeAheadOfDock() || htmlTreeUi.editingId) {
+    return hit;
+  }
+
+  const slot = under.closest('[data-sve-ht-slot]');
+  const el = slot || under.closest('[data-sve-ht-row]');
+  const id = el?.getAttribute('data-sve-ht-id');
+  const row = id ? htmlTreeUi.rows.find((item) => item.id === id) : null;
+
+  if (row?.path && !row.section) {
+    const box = el.getBoundingClientRect();
+
+    hit.row = { path: row.path, y: y - box.top, height: box.height, slot: !!slot, closed: row.kind === 'sections' };
+  }
+
+  // The section's box; under an own page's loop the sections are rows (`sec:<uid>`) with no box round them.
+  const wrap = under.closest('[data-sve-ht-sec-uid]');
+  const uid = wrap ? wrap.getAttribute('data-sve-ht-sec-uid') : id?.startsWith('sec:') ? id.slice(4) : '';
+
+  if (uid) {
+    const box = (wrap || el).getBoundingClientRect();
+
+    hit.section = { uid, y: y - box.top, height: box.height };
+  }
+
+  return hit;
+});
+
+/**
+ * Where Build's drag lands, marked in the tree: the same line or box a row
+ * dragged in the tree wears — on the file's row at `path`, or beside the
+ * page's section that answers to one of `ids`. `reveal`: the pointer is on
+ * the canvas, so the row is scrolled into the tree's view. Null takes the
+ * mark off. Build says it once per place, not once per frame.
+ */
+register('html-tree:drop-mark', (mark) => {
+  const row = mark?.path ? htmlTreeUi.rows.find((item) => item.path === mark.path && !item.section) : null;
+  const section = !row && mark?.ids ? htmlTreeUi.sections.find((item) => mark.ids.includes(item.uid)) : null;
+
+  htmlTreeUi.dropId = row ? row.id : null;
+  htmlTreeUi.dropPlace = row ? mark.where : null;
+  htmlTreeUi.sectionDrop = section ? { uid: section.uid, place: mark.where } : null;
+
+  if (mark?.reveal && (row || section)) {
+    const panel = htmlTreePanel(window.document);
+    const id = row ? row.id : `sec:${section.uid}`;
+    const el =
+      (section && panel?.querySelector(`[data-sve-ht-sec-uid="${CSS.escape(section.uid)}"]`)) ||
+      panel?.querySelector(`[data-sve-ht-row][data-sve-ht-id="${CSS.escape(id)}"]`);
+
+    el?.scrollIntoView({ block: 'nearest' });
+  }
+
+  return !!(row || section);
+});
+
 /**
  * Forget every section template held in memory.
  *
