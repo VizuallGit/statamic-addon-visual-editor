@@ -141,6 +141,7 @@ import { isGallery, readGallery, withGalleryField, withGalleryImages } from './g
 import { wholeOwner } from './whole.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldParam, elementFieldReady, mountElementField } from './element-fields.js';
+import { isTemplateField, makeTemplateField, templateFieldNames, templateFields, templateView } from './template-fields.js';
 import { fieldDomId } from './canvas-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
@@ -797,7 +798,7 @@ export function createEditorPort(win, hooks = {}) {
       // The file's own words. Typed into, they become the section's own
       // content (`own`, port.makeOwn) where the section can hold it.
       if (!read.text.includes('{{')) {
-        return { oneLine: isOneLine(node.tag), own: port.canMakeField(path) };
+        return { oneLine: isOneLine(node.tag), own: port.canOwnContent(path) };
       }
 
       const field = wholeTag(read.text);
@@ -813,13 +814,27 @@ export function createEditorPort(win, hooks = {}) {
       });
     },
     /**
-     * May this element's content become a field of its section? A section is
-     * open in the dock (not a component, not the header), its file is not
-     * locked, the element is not an item of a loop, and the user may change
-     * fieldsets.
+     * May this element's content become its section's own (a hidden field,
+     * port.makeOwn)? A section is open in the dock (not a component, not the
+     * header, not a template's file), its file is not locked, the element is
+     * not an item of a loop, and the user may change fieldsets.
+     */
+    canOwnContent(path) {
+      return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && ask('dock:is-locked') !== true && !inLoop(parseTemplateTree(html()), path);
+    },
+    /**
+     * May this element's content become a field ("Editable in Edit Content")?
+     * Wherever it may be a section's own — and in a template's file whose
+     * entries' blueprints can take one (template-fields.js): a cases template,
+     * an own page. Read in a computed, it answers again when the server's
+     * answer for the template lands.
      */
     canMakeField(path) {
-      return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && ask('dock:is-locked') !== true && !inLoop(parseTemplateTree(html()), path);
+      if (port.canOwnContent(path)) {
+        return true;
+      }
+
+      return !!path && canEditFields(win) && ask('dock:is-locked') !== true && templateFields(win)?.can === true && !inLoop(parseTemplateTree(html()), path);
     },
     /**
      * A field of the dock's section's own set on this page, as the form holds
@@ -873,7 +888,7 @@ export function createEditorPort(win, hooks = {}) {
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
       const read = node ? readText(html(), node) : null;
 
-      if (!node || !port.canMakeField(path) || read?.kind !== 'text' || read.text.includes('{{')) {
+      if (!node || !port.canOwnContent(path) || read?.kind !== 'text' || read.text.includes('{{')) {
         return Promise.resolve(null);
       }
 
@@ -924,6 +939,12 @@ export function createEditorPort(win, hooks = {}) {
      */
     async setFieldHidden(field, hidden, display = '') {
       const handle = currentSetHandle();
+
+      // A template's field is its entries' own, never hidden: nothing to show or hide.
+      if (!handle) {
+        return false;
+      }
+
       const res = await win
         .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
           method: 'PATCH',
@@ -947,6 +968,10 @@ export function createEditorPort(win, hooks = {}) {
      * Content — its own content, written in Build.
      */
     sectionFieldLists(path) {
+      if (!currentSetHandle() && templateView()) {
+        return Promise.resolve({ names: templateFieldNames(win), hidden: [] });
+      }
+
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
       return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) => {
@@ -957,6 +982,10 @@ export function createEditorPort(win, hooks = {}) {
     },
     /** The fields of the open section, by name: what makes a tag in an element "its own". */
     sectionFieldNames(path) {
+      if (!currentSetHandle() && templateView()) {
+        return Promise.resolve(templateFieldNames(win));
+      }
+
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
       return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) => (model?.section || []).filter((row) => !row.parent).map((row) => row.var));
@@ -972,6 +1001,12 @@ export function createEditorPort(win, hooks = {}) {
      */
     async makeField(path, { kind, name, value, hidden = false }) {
       const handle = currentSetHandle();
+
+      // A template's file: a field of the entries it draws, a normal one.
+      if (!handle) {
+        return hidden || !templateView() ? null : makeTemplateField(win, { kind, name, value });
+      }
+
       const res = await win
         .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
           method: 'POST',
@@ -1021,8 +1056,9 @@ export function createEditorPort(win, hooks = {}) {
 
       return Promise.resolve(name ? ask('dock:data-model', { at: at.from }) : null).then((model) => {
         // A hidden field is the section's own content, kept out of Edit Content:
-        // nothing there to edit it, so no `visual_edit` points at it.
-        const own = (model?.section || []).some((row) => row.var === name && !row.parent && !row.hidden && types.includes(row.type));
+        // nothing there to edit it, so no `visual_edit` points at it. In a
+        // template's file, the field is the entries' own (template-fields.js).
+        const own = (model?.section || []).some((row) => row.var === name && !row.parent && !row.hidden && types.includes(row.type)) || (!currentSetHandle() && isTemplateField(win, name, types));
         const node = findByPath(parseTemplateTree(html()), path);
         const now = fieldEditOf(html(), node);
 

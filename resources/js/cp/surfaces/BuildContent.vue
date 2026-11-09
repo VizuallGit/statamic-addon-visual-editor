@@ -167,7 +167,7 @@ function writeText(value) {
     return;
   }
 
-  if (!canMake || !isOwnText(textBase) || !isOwnText(read.value?.text) || value === read.value?.text) {
+  if (!canOwnHere || !isOwnText(textBase) || !isOwnText(read.value?.text) || value === read.value?.text) {
     port.setText(path, value);
 
     return;
@@ -476,13 +476,21 @@ watch(
 
 /* ---------------- editable in Edit Content ---------------- */
 
-const canMake = !!port.canMakeField?.(path);
-const canMakeAddress = addressPath === path ? canMake : !!port.canMakeField?.(addressPath);
+/*
+ * Two questions. Own content (a section's hidden field, made on the first
+ * change) is a section's alone. "Editable in Edit Content" is a section's and a
+ * template's too — a cases template, an own page — and a template's answer is
+ * the server's, so it is a computed that answers again when that lands.
+ */
+const canOwnHere = !!port.canOwnContent?.(path);
+const canOwnAddress = addressPath === path ? canOwnHere : !!port.canOwnContent?.(addressPath);
+const canMake = computed(() => !!port.canMakeField?.(path));
+const canMakeAddress = computed(() => (addressPath === path ? canMake.value : !!port.canMakeField?.(addressPath)));
 /** Which read of the lists is the latest: one sent before a field was made must not take it away again. */
 let ownRead = 0;
 
 function loadOwn() {
-  if (!canMake) {
+  if (!canMake.value) {
     return;
   }
 
@@ -497,6 +505,12 @@ function loadOwn() {
 }
 
 loadOwn();
+// A template's answer lands after the panel is drawn: its fields are read then.
+watch(canMake, (now) => {
+  if (now) {
+    loadOwn();
+  }
+});
 
 // A field this list has not heard of: one made a moment ago somewhere else —
 // typing on the canvas makes the section's own field (canvas-edit.js), and
@@ -606,7 +620,7 @@ function canOwn() {
     return false;
   }
 
-  return address ? canMakeAddress && isOwnText(addressNow.value) : canMake && rich.value !== null;
+  return address ? canOwnAddress && isOwnText(addressNow.value) : canOwnHere && rich.value !== null;
 }
 
 /**
@@ -879,7 +893,7 @@ onBeforeUnmount(() => {
         <BuildPickField @pick="pickText" />
       </div>
       <BuildOwn
-        v-if="canMake && (isOwnText(read.text) || textField)"
+        v-if="canOwnHere && (isOwnText(read.text) || textField)"
         :on="!!textField"
         :busy="owningSwitch"
         @on="ownOn"
@@ -927,7 +941,7 @@ onBeforeUnmount(() => {
       </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
       <BuildOwn
-        v-if="canMakeAddress && (isOwnText(addressNow) || addressField)"
+        v-if="canOwnAddress && (isOwnText(addressNow) || addressField)"
         :on="!!addressField"
         :busy="owningSwitch"
         @on="fieldOwnOn"
@@ -978,7 +992,7 @@ onBeforeUnmount(() => {
         />
         <BuildPickField @pick="pickRich" />
       </div>
-      <BuildOwn v-if="canMake && richName" :on="true" :busy="owningSwitch" @off="fieldOwnOff" />
+      <BuildOwn v-if="canOwnHere && richName" :on="true" :busy="owningSwitch" @off="fieldOwnOff" />
       <BuildEditable
         v-if="canMake && richName"
         :path="path"
@@ -1006,7 +1020,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
       <div v-else :id="richHidden ? port.fieldElementId(richName) || null : null" :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
-      <BuildOwn v-if="canMake" :on="richHidden" :busy="owningSwitch" @on="fieldOwnOn" @off="fieldOwnOff" />
+      <BuildOwn v-if="canOwnHere" :on="richHidden" :busy="owningSwitch" @on="fieldOwnOn" @off="fieldOwnOff" />
       <BuildEditable
         v-if="canMake"
         :path="path"

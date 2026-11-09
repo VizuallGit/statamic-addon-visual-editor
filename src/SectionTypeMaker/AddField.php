@@ -199,13 +199,14 @@ class AddField
      * with their handles. Statamic keys a section's fields by handle and the
      * later wins (`Fields::setItems`): a new field named after an imported one
      * would stand in for it, and every page's value in it would be read
-     * through the new type.
+     * through the new type. `$reserved`: the names the data already uses for
+     * itself — a section row's, or an entry's (TemplateFields).
      */
-    protected static function handle(string $name, array $fields): string
+    public static function handle(string $name, array $fields, array $reserved = self::RESERVED): string
     {
         $base = Str::snake(preg_replace('/[^\pL\pN]+/u', ' ', Str::ascii($name)) ?: 'field');
         $base = preg_match('/^[a-z]/', $base) ? $base : 'field_'.$base;
-        $taken = array_merge(self::RESERVED, (new Fields($fields))->all()->keys()->all());
+        $taken = array_merge($reserved, (new Fields($fields))->all()->keys()->all());
         $handle = $base;
 
         for ($number = 2; in_array($handle, $taken, true); $number++) {
@@ -221,7 +222,7 @@ class AddField
      * (a file under `public/`, a Glide URL) has nothing a field could hold, and
      * `{{ image }}` would print nothing on every page.
      */
-    protected static function config(string $kind, string $value): ?array
+    public static function config(string $kind, string $value): ?array
     {
         $config = [];
 

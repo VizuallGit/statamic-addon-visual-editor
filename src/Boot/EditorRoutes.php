@@ -41,6 +41,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SnippetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
 use Statamic\Facades\Site;
@@ -118,6 +119,11 @@ final class EditorRoutes
             // Such a field shown in Edit Content, or kept to Build (own content).
             Route::patch('/!/sve/section-types/fields', [SectionTypesController::class, 'fieldVisibility'])
                 ->name('sve.section-types.fields.update');
+            // The same from a template's file: a field of the entries it draws (TemplateFields).
+            Route::get('/!/sve/template-fields', [TemplateFieldsController::class, 'index'])
+                ->name('sve.template-fields.index');
+            Route::post('/!/sve/template-fields', [TemplateFieldsController::class, 'store'])
+                ->name('sve.template-fields.store');
             Route::patch('/!/sve/section-types', [SectionTypesController::class, 'update'])
                 ->name('sve.section-types.update');
 
