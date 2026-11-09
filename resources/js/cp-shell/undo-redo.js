@@ -65,7 +65,9 @@ export function startUndoRedo(win, changed) {
         read() {
           const html = ask('dock:html');
 
-          if (typeof html !== 'string' || html === '') {
+          // Empty panes are a step only when they are the file: one emptied
+          // on purpose. Not a dock holding no file, nor one still loading.
+          if (typeof html !== 'string' || (html === '' && (!ask('dock:current-type') || ask('dock:load-settled')))) {
             return null;
           }
 

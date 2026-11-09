@@ -1288,8 +1288,9 @@ register('dock:set-html', (payload) => {
   // The HTML tree's padlock: whatever writes here — the tree, the class
   // strip, a component made from a row — leaves a locked element as it was.
   // Unlocking is the one edit that changes one, and only someone who may
-  // configure fields may make it.
-  if (html !== '' && !locksKept(currentFullHtml(), html)) {
+  // configure fields may make it. An empty file keeps nothing, so a file with
+  // a locked element in it cannot be emptied either.
+  if (!locksKept(currentFullHtml(), html)) {
     const win = dockState.lastWin;
     const mayUnlock = options?.unlock === true && win?.Statamic?.$permissions?.has?.('configure fields') === true;
 
@@ -1306,53 +1307,11 @@ register('dock:set-html', (payload) => {
     return false;
   }
 
-  // Empty string = detach view (last section gone). Never autosave an empty file.
-  if (html === '') {
-    if (dockState.saveTimer) {
-      clearTimeout(dockState.saveTimer);
-      dockState.saveTimer = null;
-    }
-
-    // Drop any in-flight Tailwind compile save; it would post empty HTML.
-    dockState.twDirty = false;
-    dockState.twCss = null;
-    dockState.twKey = '';
-
-    // Detach before clearing panes — flushSave no-ops without lastType, and
-    // readParts reads cssFull (not the CSS editor), so clear that too.
-    dockState.lastType = null;
-    dockState.lastUid = null;
-    dockState.lastParts = { html: '', css: '', js: '' };
-    dockState.cssFull = '';
-    dockState.htmlFull = '';
-
-    dockState.applying = true;
-
-    try {
-      clearHtmlScopeRange();
-
-      for (const handle of HANDLES) {
-        const ed = editors[handle];
-
-        if (!ed) {
-          continue;
-        }
-
-        const current = ed.state.doc.toString();
-
-        if (current !== '') {
-          ed.dispatch({
-            changes: { from: 0, to: current.length, insert: '' },
-          });
-        }
-      }
-    } finally {
-      dockState.applying = false;
-    }
-
-    return true;
-  }
-
+  // An empty string is an edit like any other: the file is emptied and saved.
+  // An empty file is a valid page (an own page, a collection's template) —
+  // letting go of the file instead left it on disk as it was while the panes,
+  // the tree and the canvas each showed something else. Letting go is
+  // `dock:show-empty`, said when the last section leaves the page.
   const before = dockState.htmlFull;
 
   dockState.htmlFull = html;
@@ -1462,7 +1421,60 @@ register('dock:take-file', (payload) => {
  * Empty the dock panes without saving. Used when the last page section is
  * removed — `dock:set-html ''` would autosave an empty Antlers file.
  */
-register('dock:show-empty', () => ask('dock:set-html', ''));
+/**
+ * The dock lets go of its file: the last section left the page, and the file
+ * it showed is no longer on it. The panes empty and nothing is saved — the
+ * file stays on disk as it is.
+ */
+register('dock:show-empty', () => {
+  if (isCodeDockLocked() || !editors.html || !dockState.lastWin) {
+    return false;
+  }
+
+  if (dockState.saveTimer) {
+    clearTimeout(dockState.saveTimer);
+    dockState.saveTimer = null;
+  }
+
+  // Drop any in-flight Tailwind compile save; it would post empty HTML.
+  dockState.twDirty = false;
+  dockState.twCss = null;
+  dockState.twKey = '';
+
+  // Detach before clearing panes — flushSave no-ops without lastType, and
+  // readParts reads cssFull (not the CSS editor), so clear that too.
+  dockState.lastType = null;
+  dockState.lastUid = null;
+  dockState.lastParts = { html: '', css: '', js: '' };
+  dockState.cssFull = '';
+  dockState.htmlFull = '';
+
+  dockState.applying = true;
+
+  try {
+    clearHtmlScopeRange();
+
+    for (const handle of HANDLES) {
+      const ed = editors[handle];
+
+      if (!ed) {
+        continue;
+      }
+
+      const current = ed.state.doc.toString();
+
+      if (current !== '') {
+        ed.dispatch({
+          changes: { from: 0, to: current.length, insert: '' },
+        });
+      }
+    }
+  } finally {
+    dockState.applying = false;
+  }
+
+  return true;
+});
 
 // The last page section left the page (removed from the tree, the preview or
 // the block tree): the file it showed is no longer on this page.

@@ -161,6 +161,7 @@ return [
     'html_tree_hint' => 'Click a tag to jump to it in the HTML pane. Drag to move it. Eye hides it, duplicate copies it, delete removes it. Double-click an item to rename it — only in this tree.',
     'html_tree_empty' => 'This file has no HTML tags yet.',
     'html_tree_page_empty' => 'The page sections are empty. Click the plus icon to add new sections.',
+    'html_tree_page_no_html' => 'There is no HTML on this page yet. Add some with + or Add element.',
     'html_tree_used_by' => 'Used by',
     'html_tree_used_by_everything' => 'Every page',
     'html_tree_used_by_nobody' => 'Nothing right now',

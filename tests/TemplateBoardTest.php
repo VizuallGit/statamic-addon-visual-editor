@@ -197,4 +197,28 @@ class TemplateBoardTest extends TestCase
         $this->assertTrue($card['broken'], 'a row pointing at nothing has to say so');
         $this->assertSame($entry->id(), $card['entry']);
     }
+
+    /**
+     * A new template starts as the site's preset for its slot, else empty: an
+     * empty file is a valid page, and the editor adds the first element.
+     */
+    public function test_a_new_template_starts_empty_unless_the_site_has_a_preset(): void
+    {
+        $presets = sys_get_temp_dir().'/sve-board-presets-'.uniqid();
+        @mkdir($presets, 0755, true);
+        file_put_contents($presets.'/search.antlers.html', "<h1>{collection}</h1>\n");
+        config(['statamic-visual-editor.template_board.presets' => $presets]);
+
+        $controller = new \MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
+        $starter = new \ReflectionMethod($controller, 'starter');
+
+        try {
+            $this->assertSame('', $starter->invoke($controller, 'cases', 'show'));
+            $this->assertSame('', $starter->invoke($controller, 'cases', 'index'));
+            $this->assertSame("<h1>_site</h1>\n", $starter->invoke($controller, '_site', 'search'));
+        } finally {
+            @unlink($presets.'/search.antlers.html');
+            @rmdir($presets);
+        }
+    }
 }

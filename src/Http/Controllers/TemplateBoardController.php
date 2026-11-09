@@ -242,13 +242,7 @@ class TemplateBoardController extends Controller
         $collection->template($view)->save();
     }
 
-    /**
-     * A starting point, not a design.
-     *
-     * Enough that the slot renders something the moment it is opened in Live
-     * Preview — an empty file renders an empty page, and an empty page reads
-     * as a broken editor rather than a new template.
-     */
+    /** The new template's file: the site's preset for the slot, else empty. */
     protected function write(string $view, string $handle, string $slot): void
     {
         $path = resource_path('views/'.$view.'.antlers.html');
@@ -266,12 +260,13 @@ class TemplateBoardController extends Controller
      * in VS Code like the collection presets are — not buried in this class.
      * `{collection}` is replaced with the source's handle.
      *
-     * The built-ins below are a floor, not a design: enough that a new
-     * template renders something the moment it opens, and worth replacing.
+     * Without a preset the file starts empty: an empty file is a valid page,
+     * the HTML tree says there is nothing on it yet, and Build adds the first
+     * element at the top.
      */
     protected function starter(string $handle, string $slot): string
     {
-        return $this->preset($slot, $handle) ?? $this->builtIn($handle, $slot);
+        return $this->preset($slot, $handle) ?? '';
     }
 
     public static function presetDirectory(): string
@@ -301,14 +296,4 @@ class TemplateBoardController extends Controller
             ? str_replace(CollectionPresets::PLACEHOLDER, $handle, str_replace('{collection}', $handle, $body))
             : null;
     }
-
-    protected function builtIn(string $handle, string $slot): string
-    {
-        return match ($slot) {
-            'index' => "{{ collection:{$handle} }}\n    <article>\n        <h2><a href=\"{{ url }}\">{{ title }}</a></h2>\n    </article>\n{{ /collection:{$handle} }}\n",
-            'show' => "<article>\n    <h1>{{ title }}</h1>\n\n    {{ content }}\n</article>\n",
-            default => "<h1>{{ title }}</h1>\n",
-        };
-    }
-
 }

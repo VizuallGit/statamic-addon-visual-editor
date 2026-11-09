@@ -286,14 +286,13 @@ final class OwnPage
         return $count;
     }
 
-    /** What the page's file starts with: its title, editable in Edit Content. */
+    /**
+     * What the page's file starts with: nothing. An empty file is a page with
+     * nothing on it yet — the HTML tree says so and Build adds the first
+     * element at the top of the file.
+     */
     protected static function starter(): string
     {
-        return <<<'ANTLERS'
-<section>
-    <h1 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h1>
-</section>
-
-ANTLERS;
+        return '';
     }
 }

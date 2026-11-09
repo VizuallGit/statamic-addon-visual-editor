@@ -158,6 +158,7 @@ return [
     'html_tree_hint' => 'Klik på et tag for at hoppe til det i HTML-fanen. Træk for at flytte det. Øjet skjuler, dupliker kopierer, slet fjerner. Dobbeltklik på et element for at omdøbe det — kun i træet.',
     'html_tree_empty' => 'Filen har ingen HTML-tags endnu.',
     'html_tree_page_empty' => 'Sidens sektioner er tomme. Klik på plus-ikonet for at tilføje nye sektioner.',
+    'html_tree_page_no_html' => 'Der er ingen HTML på siden endnu. Tilføj noget med + eller Tilføj element.',
     'html_tree_used_by' => 'Bruges af',
     'html_tree_used_by_everything' => 'Alle sider',
     'html_tree_used_by_nobody' => 'Ingen lige nu',

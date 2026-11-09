@@ -1627,6 +1627,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.frame = null;
     htmlTreeUi.pageBuilder = false;
     htmlTreeUi.layoutFile = false;
+    htmlTreeUi.emptyFile = false;
     htmlTreeUi.usedBy = null;
     htmlTreeUi.emptyText = '';
 
@@ -1665,6 +1666,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.frame = null;
     htmlTreeUi.pageBuilder = true;
     htmlTreeUi.layoutFile = false;
+    htmlTreeUi.emptyFile = false;
     htmlTreeUi.emptyText = t(win, 'html_tree_page_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
@@ -1857,8 +1859,14 @@ export function renderHtmlTree(win) {
     ? []
     : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
 
+  // A page's own file or a collection's template emptied of every element is
+  // a page with nothing on it yet — said so, and the plus stays to add to it.
+  htmlTreeUi.emptyFile = !html.trim() && dockKind === 'template' && dockIsOpen(doc);
+
   if (!html.trim() && !dockIsOpen(doc)) {
     htmlTreeUi.emptyText = t(win, 'html_tree_need_dock');
+  } else if (htmlTreeUi.emptyFile) {
+    htmlTreeUi.emptyText = t(win, 'html_tree_page_no_html');
   } else {
     htmlTreeUi.emptyText = t(win, 'html_tree_empty');
   }

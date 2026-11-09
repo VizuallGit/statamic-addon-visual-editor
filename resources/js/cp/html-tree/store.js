@@ -119,6 +119,9 @@ export const htmlTreeUi = reactive({
   // its body — not the layout standing in for a page with nothing chosen. The
   // layout is not built from sections, so the plus does not write into it.
   layoutFile: false,
+  // The dock holds a page's own file or a collection's template, and it is
+  // empty: no rows, and the plus is how the first element goes in.
+  emptyFile: false,
   // A page not built from sections: its markup is a template it shares with
   // others. The tree names that template and opens it instead of drawing the
   // file — `{ text, note, openLabel, canOpen, onOpen(anchor) }`, or null.
