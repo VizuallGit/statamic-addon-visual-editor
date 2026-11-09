@@ -18,6 +18,7 @@ import { topLevelSectionUid } from '../cp.js';
 import { isCodeDockArmed, templateDockAllowed } from '../code-dock-state.js';
 import { componentSrcFromType } from '../component-signature.js';
 import { ask, emit, on, register } from '../cp/bus.js';
+import { ownPageType } from '../lib/own-page.js';
 import { mountPane } from '../cp/mount-pane.js';
 import CodeDockChrome from '../cp/surfaces/CodeDockChrome.vue';
 import { resetDataVars } from '../data-vars.js';
@@ -877,7 +878,8 @@ export function syncCodeDock(win, doc, uid) {
     !chromeHost(doc) &&
     !chromeEditorOpen(doc) &&
     !globalSectionHost(doc) &&
-    !pageHasType(win, dockState.lastType);
+    !pageHasType(win, dockState.lastType) &&
+    dockState.lastType !== ownPageType(win);
 
   // The header or the footer closed: back to where the dock stood before it.
   if (leftBehind && returnFromPart(win, doc)) {
@@ -894,6 +896,8 @@ export function syncCodeDock(win, doc, uid) {
     globalSectionTemplateType(doc) ||
     (chosen ? pageSectionType(win, doc, chosen) : '') ||
     collectionViewType(win) ||
+    // A page with a template of its own (lib/own-page.js): its file is the page's.
+    ownPageType(win) ||
     (!uid && !leftBehind ? dockState.lastType : '');
   // Nothing chosen — on opening, after a part of the frame closed, with the
   // chosen section gone. The dock then holds no file. On a page built from

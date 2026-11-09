@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Collection as LaravelCollection;
 use MarioHamann\StatamicVisualEditor\CollectionViewTemplates;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\OwnPage;
 use MarioHamann\StatamicVisualEditor\SiteCanvasArrangement;
 use MarioHamann\StatamicVisualEditor\TemplateBoard;
 use MarioHamann\StatamicVisualEditor\TemplateUsage;
@@ -176,6 +177,20 @@ class SiteCanvasController extends Controller
 
         if ($frames !== []) {
             $rows[] = ['key' => 'site', 'title' => trans('sve::messages.site_canvas_site', [], $locale), 'columns' => array_map(fn ($frame) => [$frame], $frames)];
+        }
+
+        // Pages with a template of their own (OwnPage): the template is drawn on
+        // the page alone, so its frame is the page — opened, its file is in the dock.
+        $frames = [];
+
+        foreach (OwnPage::all() as $own) {
+            if ($own['entry']->locale() === $site && ($frame = $this->frame($own['entry']))) {
+                $frames[] = $frame + ['note' => trans('sve::messages.site_canvas_note_own_page', [], $locale), 'view' => $own['view']];
+            }
+        }
+
+        if ($frames !== []) {
+            $rows[] = ['key' => '_own_pages', 'title' => trans('sve::messages.site_canvas_own_pages', [], $locale), 'columns' => array_map(fn ($frame) => [$frame], $frames)];
         }
 
         return $rows;
@@ -394,6 +409,10 @@ class SiteCanvasController extends Controller
     protected function pageNote(EntryContract $entry): string
     {
         $view = $entry->template();
+
+        if (OwnPage::is($entry)) {
+            return trans('sve::messages.site_canvas_note_own_page');
+        }
 
         return is_string($view) && $view !== '' && $view !== TemplateBoard::SITE_SLOTS['default']
             ? TemplateUsage::name($view)

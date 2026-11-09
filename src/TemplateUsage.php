@@ -54,7 +54,8 @@ final class TemplateUsage
 
         $view = $entry->template();
 
-        return is_string($view) && $view !== '' ? static::of($view) : null;
+        // An own page's file is the page's alone (OwnPage): the dock opens it on the page.
+        return is_string($view) && $view !== '' ? static::of($view) + ['own_page' => OwnPage::is($entry)] : null;
     }
 
     /**

@@ -78,6 +78,7 @@ import { injectStyle } from './lib/style.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields, sectionRootTag } from './lib/config.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
+import { ownPageType, rememberOwnPage } from './lib/own-page.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
 import { openCollections } from './lp-collections.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE, CHROME_CONTAINER } from './lib/ids.js';
@@ -121,6 +122,12 @@ function pageOnSharedTemplate(win, pageBuilder, inComponent) {
 
   const entry = currentEntryId(win);
 
+  // A page with a template of its own (OwnPage): the file is the page's alone,
+  // so it is drawn and edited right here.
+  if (ownPageType(win)) {
+    return false;
+  }
+
   return !!entry && entry !== 'create' && currentCollection(win) !== collectionTemplatesCollection(win);
 }
 
@@ -147,6 +154,16 @@ function pageTemplateUi(win, entry) {
   // is still the one on screen.
   void templateUsage(win, { entry }).then((usage) => {
     if (!usage || htmlTreeUi.pageTemplate?.entry !== entry) {
+      return;
+    }
+
+    // The page's own template: the dock opens it on the page, and the tree
+    // draws its rows instead of naming it.
+    if (usage.own_page && usage.view) {
+      rememberOwnPage(entry, usage.view);
+      ask('dock:open-file', `view:${usage.view}`);
+      renderHtmlTree(win);
+
       return;
     }
 

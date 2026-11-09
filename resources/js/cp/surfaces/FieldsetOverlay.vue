@@ -27,7 +27,26 @@ const props = defineProps({
   // Asked about every page the framed screen moves to, with its URL. True
   // keeps the frame where it is: the caller has taken the visit elsewhere.
   onNavigate: { type: Function, default: null },
+  // One more thing the screen can do, as a button in its bar beside Close:
+  // `{ label, title, run }` — `run()` may return a promise; the button waits.
+  action: { type: Object, default: null },
 });
+
+const acting = ref(false);
+
+async function runAction() {
+  if (acting.value || !props.action?.run) {
+    return;
+  }
+
+  acting.value = true;
+
+  try {
+    await props.action.run();
+  } finally {
+    acting.value = false;
+  }
+}
 
 const loading = ref(true);
 const frame = ref(null);
@@ -253,6 +272,17 @@ function onOverlay(event) {
           {{ heading }}
           <span v-if="subtitle" class="sve-fs__sub">{{ subtitle }}</span>
         </div>
+        <button
+          v-if="action"
+          type="button"
+          class="sve-fs__action"
+          :title="action.title || action.label"
+          :disabled="acting"
+          data-sve-fs-action
+          @click="runAction"
+        >
+          {{ action.label }}
+        </button>
         <button type="button" :aria-label="closeLabel" :title="closeLabel" @click="onClose">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
@@ -386,6 +416,20 @@ html.dark .sve-fs__grip,
 .sve-fs__bar button:hover {
   opacity: 1;
   background: rgba(128, 128, 128, 0.18);
+}
+/* The screen's one extra action: words, not an icon, pushed to the right beside Close. */
+.sve-fs__bar .sve-fs__action {
+  width: auto;
+  margin-left: auto;
+  padding: 0 0.8em;
+  font-size: 0.85em;
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+}
+.sve-fs__bar .sve-fs__action:disabled {
+  opacity: 0.45;
+  cursor: progress;
 }
 .sve-fs__body {
   position: relative;

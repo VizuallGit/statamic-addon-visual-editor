@@ -3,6 +3,8 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\OwnPage;
+use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -56,6 +58,14 @@ class EntryBlueprintController
             // The view that renders the page (`default` for a page built from
             // sections): where static markup for the page goes.
             'template' => (string) $entry->template(),
+            // The drawer's "Give this page its own blueprint and template" (OwnPage):
+            // offered on a page that shares its blueprint, and how many sections it
+            // would stop drawing (they stay in its file).
+            'own_page' => [
+                'can' => OwnPage::canMake($entry),
+                'is' => OwnPage::is($entry),
+                'sections' => count((array) $entry->get(SectionField::of($entry->blueprint()))),
+            ],
             'url' => cp_route('blueprints.collections.edit', [
                 'collection' => $collection->handle(),
                 'blueprint' => $blueprint->handle(),

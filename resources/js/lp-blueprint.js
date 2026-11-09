@@ -14,6 +14,7 @@
 import { t } from './lib/i18n.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { reloadEverything } from './lp-reload.js';
+import { csrfToken } from './lib/csrf.js';
 
 const API = '/!/sve/entry-blueprint';
 
@@ -78,6 +79,9 @@ export function openEntryBlueprint(win, { onClose } = {}) {
       }
 
       let saved = false;
+      const ownPage = found.own_page?.can
+        ? { label: t(win, 'own_page_make'), title: t(win, 'own_page_make_title'), run: () => makeOwnPage(win, Number(found.own_page.sections) || 0) }
+        : null;
 
       drawer = openCpOverlay(win.document, FieldsetOverlay, {
         heading: t(win, 'blueprint'),
@@ -85,6 +89,7 @@ export function openEntryBlueprint(win, { onClose } = {}) {
         src: found.url.startsWith('http') ? found.url : `${cpRoot(win)}${found.url.replace(/^\/cp/, '')}`,
         closeLabel: t(win, 'close'),
         saveMatch: /\/blueprints\//,
+        action: ownPage,
         onSaved: () => {
           saved = true;
         },
@@ -104,6 +109,37 @@ export function openEntryBlueprint(win, { onClose } = {}) {
       opening = false;
     }
   })();
+}
+
+/**
+ * "Give this page its own blueprint and template" (OwnPage.php): a page out of
+ * the shared page blueprint. Its sections stop being drawn — they stay saved
+ * in the page — so that is asked first when it has any. Then the page is
+ * loaded again: its form is built from the new blueprint, and the dock opens
+ * its own file on it.
+ */
+async function makeOwnPage(win, sections) {
+  if (sections > 0 && !win.confirm(t(win, 'own_page_sections', { count: sections }))) {
+    return;
+  }
+
+  const res = await win
+    .fetch('/!/sve/own-page', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+      body: JSON.stringify({ id: currentEntryId(win) }),
+    })
+    .catch(() => null);
+
+  if (!res?.ok) {
+    win.Statamic?.$toast?.error(t(win, 'own_page_failed'));
+
+    return;
+  }
+
+  drawer?.close();
+  reloadEverything(win);
 }
 
 /**

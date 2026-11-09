@@ -54,6 +54,8 @@ function columns(win, rows) {
 
   return [
     { id: 'site', title: t(win, 'template_board_group_site'), rows: of('site') },
+    // Pages with a template of their own (OwnPage), each card the page's title.
+    { id: '_pages', title: t(win, 'template_board_group_pages'), rows: of('pages'), none: 'template_board_none_pages' },
     ...of('collection').map(column),
     // A site with no taxonomies still gets the column. Without it the screen
     // says taxonomies cannot have templates, when the truth is only that none
@@ -190,7 +192,8 @@ const slotLabel = (win, slot) => t(win, `template_board_slot_${slot}`);
  * called "Show" says nothing.
  */
 function cardLabel(win, row, card) {
-  return slotLabel(win, card.slot);
+  // An own page's card is the page: its title.
+  return card.title || slotLabel(win, card.slot);
 }
 
 // ===== the add menu =====
@@ -371,7 +374,7 @@ function columnNode(win, group) {
   if (!here.length) {
     const none = el(win, 'div', { 'data-sve-tb-none': '' });
 
-    none.appendChild(el(win, 'span', {}, t(win, missing.length ? 'template_board_none' : 'template_board_none_source')));
+    none.appendChild(el(win, 'span', {}, t(win, missing.length ? 'template_board_none' : group.none || 'template_board_none_source')));
 
     // No + when there is nothing it could make: an empty taxonomy column is
     // waiting for a taxonomy, not for a template.

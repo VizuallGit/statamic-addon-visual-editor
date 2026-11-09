@@ -26,6 +26,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\LayoutPatternsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ElementFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\OwnPageController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\RenderProfileController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PreviewTickController;
@@ -124,6 +125,9 @@ final class EditorRoutes
                 ->name('sve.template-fields.index');
             Route::post('/!/sve/template-fields', [TemplateFieldsController::class, 'store'])
                 ->name('sve.template-fields.store');
+            // A page out of the shared page blueprint: its own blueprint and template (OwnPage).
+            Route::post('/!/sve/own-page', [OwnPageController::class, 'store'])
+                ->name('sve.own-page.store');
             Route::patch('/!/sve/section-types', [SectionTypesController::class, 'update'])
                 ->name('sve.section-types.update');
 

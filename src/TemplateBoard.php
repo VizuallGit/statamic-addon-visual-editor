@@ -55,7 +55,7 @@ final class TemplateBoard
     {
         return [
             'rows' => array_values(array_filter(array_merge(
-                [static::siteRow()],
+                [static::siteRow(), static::pagesRow()],
                 static::sourceRows(),
             ))),
         ];
@@ -81,6 +81,32 @@ final class TemplateBoard
             'handle' => '_site',
             'title' => __('sve::messages.template_board_site'),
             'kind' => 'site',
+            'cards' => $cards,
+        ];
+    }
+
+    /**
+     * The pages with a template of their own (OwnPage), one card a page, named
+     * by its title. Always present, so the column says where such a page would
+     * appear. A card opens the page itself: its file is edited on it, the dock
+     * opening it there, not on a template entry of its own.
+     */
+    public static function pagesRow(): array
+    {
+        $cards = [];
+
+        foreach (OwnPage::all() as $own) {
+            $card = static::card('page', $own['view'], null);
+            $card['title'] = (string) ($own['entry']->value('title') ?: $own['entry']->slug());
+            $card['edit'] = $own['entry']->editUrl();
+            $card['broken'] = ! $card['exists'];
+            $cards[] = $card;
+        }
+
+        return [
+            'handle' => '_pages',
+            'title' => __('sve::messages.template_board_group_pages'),
+            'kind' => 'pages',
             'cards' => $cards,
         ];
     }
