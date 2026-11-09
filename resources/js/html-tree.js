@@ -1713,6 +1713,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.emptyFile = false;
     htmlTreeUi.sectionsMissing = [];
     htmlTreeUi.ownFile = null;
+    htmlTreeUi.newSectionToo = false;
     htmlTreeUi.usedBy = null;
     htmlTreeUi.emptyText = '';
 
@@ -1754,6 +1755,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.emptyFile = false;
     htmlTreeUi.sectionsMissing = [];
     htmlTreeUi.ownFile = null;
+    htmlTreeUi.newSectionToo = false;
     htmlTreeUi.emptyText = t(win, 'html_tree_page_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
@@ -1855,6 +1857,11 @@ export function renderHtmlTree(win) {
   if (dockKind === 'template') {
     htmlTreeUi.pageBuilder = false;
   }
+
+  // An own page built from sections, its file open: the plus offers a new
+  // section as well, placed after the page's last.
+  htmlTreeUi.newSectionToo = pageBuilder && dockKind === 'template' && !inComponent;
+  htmlTreeUi.lastSectionUid = sections.length ? sections[sections.length - 1].uid : '';
 
   /*
    * The layout is the dock's answer to two different questions.

@@ -131,6 +131,10 @@ export const htmlTreeUi = reactive({
   // On an own page built from sections, in one of them: the page's own file,
   // a row above the sections, the way back to it (html-tree.js ownFileRow).
   ownFile: null,
+  // An own page built from sections, its file open: the plus's menu offers a
+  // new section too, after the page's last (`lastSectionUid`, '' for the top).
+  newSectionToo: false,
+  lastSectionUid: '',
   // A page not built from sections: its markup is a template it shares with
   // others. The tree names that template and opens it instead of drawing the
   // file — `{ text, note, openLabel, canOpen, onOpen(anchor) }`, or null.

@@ -153,6 +153,19 @@ function openElementMenu(anchor) {
 
   menu = openCpOverlay(document, HtmlTreeMenu, {
     items: [
+      // A page of its own built from sections: its file is open, and a new
+      // section for it is made here too — with a list of its own, there is no
+      // other way to the first one.
+      ...(ui.newSectionToo
+        ? [{
+            label: newSectionLabel,
+            onPick: () => {
+              menu?.dismiss();
+              menu = null;
+              makePageSection(ui.lastSectionUid || null);
+            },
+          }]
+        : []),
       ...TEMPLATE_TAGS.map((tag) => ({ label: tag, onPick: add(tag, `<${tag}>`) })),
       ...sectionsItems().map((item) => ({
         label: item.label,
@@ -184,8 +197,18 @@ function onNewSection(event) {
     return;
   }
 
+  // The new section lands after the last one on the page — the end of the
+  // list the button sits above.
+  makePageSection(ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null);
+}
+
+/**
+ * A new section on a page built from sections: static markup, or a section
+ * with fields; placed after `afterUid` (null: the top) and opened. Static: a
+ * set with markup and no fieldset, placed and opened like any other.
+ */
+function makePageSection(afterUid) {
   void (async () => {
-    // A page built from sections: static markup, or a section with fields.
     const kind = await chooseSectionKind(window);
 
     if (!kind) {
@@ -194,10 +217,6 @@ function onNewSection(event) {
       return;
     }
 
-    // The new section lands after the last one on the page — the end of the
-    // list the button sits above. Static: a set with markup and no fieldset,
-    // placed and opened like any other.
-    const afterUid = ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null;
     const done = (data) => {
       release();
       void openNewlyMade(data?.uid);
