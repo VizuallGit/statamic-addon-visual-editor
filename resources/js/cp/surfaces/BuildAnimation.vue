@@ -1152,7 +1152,7 @@ const Num = defineComponent({
     </section>
 
     <section class="bm-anim-block" data-sve-build-anim-library>
-      <BuildPageTransition v-if="gallery === 'page'" :node="node" @back="gallery = null" />
+      <BuildPageTransition v-if="gallery === 'page'" :node="node" back @back="gallery = null" />
       <BuildAnimationGallery v-else-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
       <template v-else>
         <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>

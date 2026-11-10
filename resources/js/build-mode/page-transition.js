@@ -3,7 +3,8 @@
  * Animation tab, «Page transition».
  *
  * Owner: Build mode (resources/js/build-mode/).
- * May import: html-tree-parse.js, build-mode/attrs.js, build-mode/place.js. Pure.
+ * May import: html-tree-parse.js, component-props.js, build-mode/attrs.js,
+ * build-mode/place.js. Pure.
  * Bus messages: none.
  *
  * An element flies from one page to the next when it has the same
@@ -12,17 +13,27 @@
  *
  *   style="view-transition-name: image-{{ id }}; view-transition-class: spring"
  *
+ * On a component it is the call's `style` parameter, which the component puts
+ * on its element: `{{ partial:components/image … style="view-transition-name:
+ * image-{page:id}" }}`. There the id is written with Antlers' single braces,
+ * which a parameter fills in the same way: a `{{ … }}` inside the call would
+ * end it early for every reader that looks for its `}}` (the HTML tree among
+ * them). One written that way before is read across its whole length and
+ * written back the short way.
+ *
  * `{{ id }}` inside a loop over entries (the list), `{{ page:id }}` outside
  * one (the entry's own page): inside a page section `{{ id }}` is the set's
  * id, not the entry's. The pair name in front keeps the name valid (an id can
  * start with a digit) and lets one page pair more than one element (image,
- * title). The motion is one of the three classes the tag styles.
+ * title); one page holds a pair name once, or the browser plays nothing. The
+ * motion is one of the three classes the tag styles.
  *
  * The template carries `{{ sve_page_transition }}` while any element in it
  * has a name: the tag turns cross-document view transitions on for the page
  * and pushes the three motions, once however many sections ask. A page
  * transition plays between two pages that both ask for one.
  */
+import { readCallParams, writeCallParam } from '../component-props.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { findByPath, parentOf } from './place.js';
@@ -40,6 +51,9 @@ const TAG_RE = /\s*\{\{\s*sve_page_transition\s*\}\}/;
 const NAME = 'view-transition-name';
 const CLASS = 'view-transition-class';
 
+/** Whether a row can carry a page transition: an element, or a component's call. */
+export const carries = (node) => !!node && (!node.kind || node.kind === 'component');
+
 /** The style attribute's declarations, in order. A `{{ … }}` holds no `;`. */
 function declarations(style) {
   return String(style || '')
@@ -53,12 +67,59 @@ function declarations(style) {
     });
 }
 
+/**
+ * A component call's whole length: to its first `}}` outside a quoted
+ * parameter. The tree's row ends at the first `}}` of all, which a
+ * `{{ id }}` inside a parameter comes before.
+ */
+function callOf(source, node) {
+  let quote = '';
+
+  for (let i = node.from + 2; i < source.length; i += 1) {
+    const c = source[i];
+
+    if (quote) {
+      quote = c === quote ? '' : quote;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === '}' && source[i + 1] === '}') {
+      return { ...node, to: i + 2, openTo: i + 2 };
+    }
+  }
+
+  return node;
+}
+
+/** The row's style: the element's attribute, or the component call's parameter. */
+function styleOf(source, node) {
+  if (node.kind === 'component') {
+    const call = callOf(source, node);
+
+    return readCallParams(source.slice(call.from, call.to)).get('style')?.value ?? null;
+  }
+
+  return readAttribute(source, node, 'style');
+}
+
+function withStyle(source, node, style) {
+  if (node.kind === 'component') {
+    return writeCallParam(source, callOf(source, node), 'style', style);
+  }
+
+  return withAttribute(source, node, 'style', style || null, { end: true });
+}
+
 function keyOf(raw) {
-  if (/^\{\{\s*id\s*\}\}$/.test(raw)) {
+  if (/^\{\{?\s*id\s*\}?\}$/.test(raw)) {
     return KEYS.loop;
   }
 
-  return /^\{\{\s*page:id\s*\}\}$/.test(raw) ? KEYS.page : raw;
+  return /^\{\{?\s*page:id\s*\}?\}$/.test(raw) ? KEYS.page : raw;
+}
+
+/** The key as the row writes it: `{{ id }}` in an element's attribute, `{id}` in a component's call. */
+function keyText(key, node) {
+  return node.kind === 'component' ? String(key).replace(/^\{\{\s*/, '{').replace(/\s*\}\}$/, '}') : key;
 }
 
 /** A pair name as a name can take it: small letters, digits and dashes, a letter first. */
@@ -72,6 +133,10 @@ export function cleanPair(raw) {
 
 /** The pair name a new one starts with: what the element shows. */
 export function defaultPair(node) {
+  if (node?.kind === 'component') {
+    return /image|picture|photo|media|video/i.test(`${node.src || ''} ${node.label || ''}`) ? 'image' : 'element';
+  }
+
   const tag = String(node?.tag || '').toLowerCase();
 
   if (['img', 'picture', 'figure', 'video', 'svg'].includes(tag)) {
@@ -85,36 +150,50 @@ export function defaultPair(node) {
   return tag === 'p' ? 'text' : 'element';
 }
 
-/** `{{ id }}` when the element stands in a loop over entries, else `{{ page:id }}`. */
-export function keyFor(html, path) {
-  const roots = parseTemplateTree(html);
-  let row = findByPath(roots, path);
+/** The loop over entries the row stands in — the nearest — or null. */
+function entryLoop(roots, node) {
+  let row = node;
 
   while (row) {
     row = parentOf(roots, row) || null;
 
     if (row?.kind === 'antlers' && (row.loopKind === 'collection' || row.loopKind === 'nav')) {
-      return KEYS.loop;
+      return row;
     }
   }
 
-  return KEYS.page;
+  return null;
 }
 
-/** The element's page transition — `{ pair, key, motion }` — or null when it has none. */
+/** `{{ id }}` when the element stands in a loop over entries, else `{{ page:id }}`. */
+export function keyFor(html, path) {
+  const roots = parseTemplateTree(html);
+
+  return entryLoop(roots, findByPath(roots, path)) ? KEYS.loop : KEYS.page;
+}
+
+/** The collection the loop around the element draws from (`cases`), or '' outside one. */
+export function loopCollectionOf(html, path) {
+  const roots = parseTemplateTree(html);
+  const loop = entryLoop(roots, findByPath(roots, path));
+
+  return loop ? String(loop.handle || '').replace(/^collection::/, '').split('|')[0].trim() : '';
+}
+
+/** The row's page transition — `{ pair, key, motion }` — or null when it has none. */
 export function pageTransitionOf(html, node) {
-  if (!node || node.kind) {
+  if (!carries(node)) {
     return null;
   }
 
-  const decls = declarations(readAttribute(html, node, 'style'));
+  const decls = declarations(styleOf(String(html ?? ''), node));
   const name = decls.find((decl) => decl.name === NAME)?.value || '';
 
   if (!name || name === 'none') {
     return null;
   }
 
-  const split = /^([a-z][a-z0-9-]*?)-(\{\{[\s\S]*\}\})$/i.exec(name);
+  const split = /^([a-z][a-z0-9-]*?)-(\{[\s\S]*\})$/i.exec(name);
   const classes = (decls.find((decl) => decl.name === CLASS)?.value || '').split(/\s+/);
 
   return {
@@ -124,16 +203,29 @@ export function pageTransitionOf(html, node) {
   };
 }
 
-function named(source) {
-  const any = (nodes) => nodes.some((node) => (!node.kind && pageTransitionOf(source, node)) || any(node.children || []));
+/** Every row of the file that carries something or could, in document order, with how deep it stands. */
+export function transitionRows(html) {
+  const source = String(html ?? '');
+  const out = [];
+  const walk = (nodes, depth) => {
+    for (const node of nodes || []) {
+      if (carries(node)) {
+        out.push({ node, depth, pt: pageTransitionOf(source, node) });
+      }
 
-  return any(parseTemplateTree(source));
+      walk(node.children, carries(node) ? depth + 1 : depth);
+    }
+  };
+
+  walk(parseTemplateTree(source), 0);
+
+  return out;
 }
 
-/** `{{ sve_page_transition }}` after the markup while an element has a name; gone once none does. */
+/** `{{ sve_page_transition }}` after the markup while a row has a name; gone once none does. */
 function withTag(source) {
   const has = TAG_RE.test(source);
-  const needs = named(source);
+  const needs = transitionRows(source).some((row) => row.pt);
 
   if (needs && !has) {
     const body = source.replace(/\s+$/, '');
@@ -144,26 +236,59 @@ function withTag(source) {
   return !needs && has ? source.replace(TAG_RE, '') : source;
 }
 
+/** The row's own style with its name and motion set to `pt`, or taken out when it is null. */
+function writeOne(source, node, pt) {
+  const rest = declarations(styleOf(source, node))
+    .filter((decl) => decl.name !== NAME && decl.name !== CLASS)
+    .map((decl) => decl.text);
+  const pair = pt ? cleanPair(pt.pair) || defaultPair(node) : '';
+  const own = pt ? [`${NAME}: ${pair}-${keyText(pt.key || KEYS.page, node)}`, ...(MOTIONS.includes(pt.motion) ? [`${CLASS}: ${pt.motion}`] : [])] : [];
+
+  return withStyle(source, node, [...rest, ...own].join('; '));
+}
+
 /**
- * The file with the element at `path` on the page transition `pt`; null takes
- * its name and motion back out. The element's other declarations stay.
+ * The file with the row at `path` on the page transition `pt`; null takes its
+ * name and motion back out. Its other declarations stay.
  */
 export function withPageTransition(html, path, pt) {
   const source = String(html ?? '');
   const node = findByPath(parseTemplateTree(source), path);
 
-  if (!node || node.kind) {
+  if (!carries(node)) {
     return source;
   }
 
-  const rest = declarations(readAttribute(source, node, 'style'))
-    .filter((decl) => decl.name !== NAME && decl.name !== CLASS)
-    .map((decl) => decl.text);
-  const pair = pt ? cleanPair(pt.pair) || defaultPair(node) : '';
-  const own = pt ? [`${NAME}: ${pair}-${pt.key || KEYS.page}`, ...(MOTIONS.includes(pt.motion) ? [`${CLASS}: ${pt.motion}`] : [])] : [];
-  const style = [...rest, ...own].join('; ');
+  return withTag(writeOne(source, node, pt));
+}
 
-  return withTag(withAttribute(source, node, 'style', style || null, { end: true }));
+/**
+ * The page an element lands on: the row at `path` takes `pt`, and any other
+ * row of the file that had the same pair name lets it go — a page holds a
+ * pair once.
+ */
+export function withLanding(html, path, pt) {
+  let source = String(html ?? '');
+  const pair = cleanPair(pt?.pair);
+
+  for (;;) {
+    const other = transitionRows(source).find((row) => row.node.path !== path && row.pt && row.pt.pair === pair);
+
+    if (!other) {
+      break;
+    }
+
+    source = writeOne(source, other.node, null);
+  }
+
+  return withPageTransition(source, path, pt);
+}
+
+/** The other rows of the file that already use this pair name. */
+export function samePair(html, path, pair) {
+  const clean = cleanPair(pair);
+
+  return transitionRows(html).filter((row) => row.node.path !== path && row.pt && row.pt.pair === clean);
 }
 
 const SPRING = [0, 0.043, 0.15, 0.292, 0.447, 0.598, 0.734, 0.849, 0.941, 1.008, 1.054, 1.081, 1.093, 1.094, 1.087, 1.075, 1.061, 1.046, 1.032, 1.02, 1.01, 1.003, 0.997, 0.994, 0.992, 0.991, 0.991, 0.992, 0.993, 0.995, 0.996, 0.997, 1];

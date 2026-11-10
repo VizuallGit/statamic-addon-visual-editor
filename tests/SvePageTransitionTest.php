@@ -26,6 +26,11 @@ class SvePageTransitionTest extends TestCase
         $this->assertStringNotContainsString('{{', $css);
     }
 
+    public function test_the_landing_route_is_registered(): void
+    {
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('sve.page-transition.landing'));
+    }
+
     public function test_live_preview_still_turns_them_off_after_it(): void
     {
         $this->assertStringContainsString('navigation: none', InjectBridgeScript::pageTransitionGuardFor(null));

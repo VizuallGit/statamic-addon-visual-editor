@@ -42,6 +42,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SnippetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionLandingController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
@@ -124,6 +125,9 @@ final class EditorRoutes
             Route::delete('/!/sve/section-types/fields', [SectionTypesController::class, 'removeField'])
                 ->name('sve.section-types.fields.destroy');
             // The same from a template's file: a field of the entries it draws (TemplateFields).
+            // Where an element in a list lands: the template its collection's pages use (Build → Animation → Page transition).
+            Route::get('/!/sve/page-transition/landing', PageTransitionLandingController::class)
+                ->name('sve.page-transition.landing');
             Route::get('/!/sve/template-fields', [TemplateFieldsController::class, 'index'])
                 ->name('sve.template-fields.index');
             Route::post('/!/sve/template-fields', [TemplateFieldsController::class, 'store'])

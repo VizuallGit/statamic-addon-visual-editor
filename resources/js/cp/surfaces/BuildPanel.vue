@@ -40,6 +40,7 @@ import BuildAdd from './BuildAdd.vue';
 import BuildComponentInfo from './BuildComponentInfo.vue';
 import BuildAction from './BuildAction.vue';
 import BuildAnimation from './BuildAnimation.vue';
+import BuildPageTransition from './BuildPageTransition.vue';
 import BuildContent from './BuildContent.vue';
 import BuildGallery from './BuildGallery.vue';
 import { STYLE_TAB_EVENT, buildStyleTabShown } from '../../build-style-pref.js';
@@ -121,7 +122,14 @@ const followStyleSetting = () => {
 window.addEventListener(STYLE_TAB_EVENT, followStyleSetting);
 onBeforeUnmount(() => window.removeEventListener(STYLE_TAB_EVENT, followStyleSetting));
 
-const tab = computed(() => (!styled.value || (chosen.value === 'style' && !styleShown.value) ? 'content' : chosen.value));
+// A component's Animation tab holds its page transition, the one thing that works on a call.
+const tab = computed(() => {
+  if (!styled.value) {
+    return content.value === 'fields' && chosen.value === 'animation' ? 'animation' : 'content';
+  }
+
+  return (chosen.value === 'style' && !styleShown.value) ? 'content' : chosen.value;
+});
 
 watch(port.contentAsked, () => {
   chosen.value = 'content';
@@ -206,7 +214,12 @@ const TABS = computed(() => {
     ].filter(([value]) => value !== 'style' || styleShown.value);
   }
 
-  return content.value === 'fields' ? [['content', 'tab_content']] : [['content', 'tab_settings']];
+  return content.value === 'fields'
+    ? [
+        ['content', 'tab_content'],
+        ['animation', 'anim_tab'],
+      ]
+    : [['content', 'tab_settings']];
 });
 watch(() => TABS.value.length, readTabEdges, { flush: 'post' });
 
@@ -442,6 +455,7 @@ onBeforeUnmount(() => {
       <div ref="scroller" class="bm-scroll">
         <BuildStyleMode v-if="tab === 'style'" :key="picked.path" :node="picked" />
         <BuildAction v-else-if="tab === 'action'" :key="`action-${picked.path}`" :node="picked" />
+        <BuildPageTransition v-else-if="tab === 'animation' && picked.kind === 'component'" :key="`page-transition-${picked.path}`" :node="picked" />
         <BuildAnimation v-else-if="tab === 'animation'" :key="`animation-${picked.path}`" :node="picked" />
 
         <div v-else-if="!styled" class="bm-content">

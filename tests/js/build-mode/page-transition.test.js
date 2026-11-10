@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
-import { KEYS, MOTION_BASE, TAG, cleanPair, defaultPair, keyFor, motionPath, pageTransitionOf, withPageTransition } from '../../../resources/js/build-mode/page-transition.js';
+import { KEYS, MOTION_BASE, TAG, cleanPair, defaultPair, keyFor, loopCollectionOf, motionPath, pageTransitionOf, samePair, transitionRows, withLanding, withPageTransition } from '../../../resources/js/build-mode/page-transition.js';
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../../../${path}`, import.meta.url)), 'utf8');
 
@@ -133,4 +133,84 @@ test('the tile stands after Follow the mouse, and the tag is registered with the
   }
 
   assert.match(css, /@media \(prefers-reduced-motion\)/);
+});
+
+/* The demo site's own two files, as they stand: the list's box around the
+   image already named by hand, the case page's image a component whose call
+   carries a `{{ id }}` inside its style parameter. */
+const DEMO_LIST = `<ul class="grid">
+  {{ collection from="cases" limit="12" }}
+  <li class="flow-y relative group">
+  <div class="overflow-clip" style="view-transition-name: case-{{ id }}; view-transition-class: spring">
+    {{ partial:components/image :props_image="main_image" props_width="800" class="w-full" }}
+  </div>
+  <h3 class="text-400"><a class="link-parent" href="{{ url }}">{{ title }}</a></h3>
+</li>
+{{ /collection }}
+</ul>
+`;
+
+const DEMO_SHOW = `<section class="wrapper py-900">
+    <h1>{{ title }}</h1>
+    {{ partial:components/image :imagePath="main_image" props_width="1400" priority="true" style="view-transition-name: case-{{ id }}; view-transition-class: spring" }}
+  <div>{{ title }}</div>
+</section>
+
+{{ sve_tw handle="view/cases/show" }}
+`;
+
+const component = (html) => transitionRows(html).find((row) => row.node.kind === 'component');
+
+test('the loop names its collection, whichever way the loop is written', () => {
+  const h3 = transitionRows(DEMO_LIST).find((row) => row.node.tag === 'h3');
+
+  assert.equal(loopCollectionOf(DEMO_LIST, h3.node.path), 'cases');
+  assert.equal(loopCollectionOf(LIST, find(LIST, 'h3').path), 'cases');
+  assert.equal(loopCollectionOf(PAGE, find(PAGE, 'h1').path), '');
+});
+
+test('a component call with a {{ id }} in its style is read across its whole length', () => {
+  assert.deepEqual(component(DEMO_SHOW).pt, { pair: 'case', key: KEYS.loop, motion: 'spring' });
+  assert.equal(defaultPair(component(DEMO_SHOW).node), 'image');
+});
+
+test('a component is written with single braces, the rest of its call untouched', () => {
+  const next = withPageTransition(DEMO_SHOW, component(DEMO_SHOW).node.path, { pair: 'case', key: KEYS.page, motion: 'snappy' });
+
+  assert.ok(next.includes('{{ partial:components/image :imagePath="main_image" props_width="1400" priority="true" style="view-transition-name: case-{page:id}; view-transition-class: snappy" }}'));
+  assert.deepEqual(component(next).pt, { pair: 'case', key: KEYS.page, motion: 'snappy' });
+  assert.ok(next.includes(TAG));
+  assert.ok(next.includes('{{ sve_tw handle="view/cases/show" }}'));
+
+  const off = withPageTransition(next, component(next).node.path, null);
+
+  assert.ok(off.includes('{{ partial:components/image :imagePath="main_image" props_width="1400" priority="true" }}'));
+  assert.ok(!off.includes('sve_page_transition'));
+});
+
+test('landing on an element takes the pair from the one that had it: a page holds a pair once', () => {
+  const h1 = transitionRows(DEMO_SHOW).find((row) => row.node.tag === 'h1');
+  const next = withLanding(DEMO_SHOW, h1.node.path, { pair: 'case', key: keyFor(DEMO_SHOW, h1.node.path), motion: 'spring' });
+  const named = transitionRows(next).filter((row) => row.pt);
+
+  assert.equal(named.length, 1);
+  assert.equal(named[0].node.tag, 'h1');
+  assert.deepEqual(named[0].pt, { pair: 'case', key: KEYS.page, motion: 'spring' });
+  assert.ok(next.includes('priority="true" }}'));
+  assert.deepEqual(samePair(next, h1.node.path, 'case'), []);
+  assert.equal(samePair(next, component(next).node.path, 'case').length, 1);
+});
+
+test('the rows a landing can be picked from: elements and components, with their depth', () => {
+  const rows = transitionRows(DEMO_SHOW).map((row) => `${row.node.kind || row.node.tag}:${row.depth}`);
+
+  assert.deepEqual(rows, ['section:0', 'h1:1', 'component:1', 'div:1']);
+});
+
+test('a component\'s Animation tab holds its page transition', () => {
+  const panel = read('resources/js/cp/surfaces/BuildPanel.vue');
+
+  assert.match(panel, /\['animation', 'anim_tab'\],\s*\]\s*: \[\['content', 'tab_settings'\]\]/);
+  assert.match(panel, /<BuildPageTransition v-else-if="tab === 'animation' && picked.kind === 'component'"/);
+  assert.match(read('src/Boot/EditorRoutes.php'), /'\/!\/sve\/page-transition\/landing', PageTransitionLandingController::class/);
 });
