@@ -65,6 +65,7 @@ use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
 use MarioHamann\StatamicVisualEditor\Tags\SveTw;
 use MarioHamann\StatamicVisualEditor\Tags\SveAnimation;
+use MarioHamann\StatamicVisualEditor\Tags\SvePageTransition;
 use MarioHamann\StatamicVisualEditor\Tags\SveProp;
 use MarioHamann\StatamicVisualEditor\Tags\SveCache;
 use MarioHamann\StatamicVisualEditor\Tags\SveComponent;
@@ -118,6 +119,7 @@ class ServiceProvider extends AddonServiceProvider
         ResponsiveCss::class,
         SveTw::class,
         SveAnimation::class,
+        SvePageTransition::class,
         SveProp::class,
         SveDefaults::class,
         SveCache::class,

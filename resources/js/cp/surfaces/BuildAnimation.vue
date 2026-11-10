@@ -107,6 +107,8 @@ import { besideSpot, overSpot } from '../../lib/beside.js';
 import { playAlone } from '../../lib/anim-still.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 import BuildAnimationGallery from './BuildAnimationGallery.vue';
+import BuildPageTransition from './BuildPageTransition.vue';
+import { MOTIONS, pageTransitionOf } from '../../build-mode/page-transition.js';
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -222,9 +224,21 @@ const ART = [
     art: `<rect x="6" y="15" width="14" height="10" rx="2" style="${tint(50)}"/><rect x="23" y="15" width="18" height="10" rx="2" style="${tint(30)}"/><rect x="44" y="15" width="14" height="10" rx="2" style="${tint(12)}"/>`,
   },
   { key: 'mouse', word: 'anim_r_mouse', recipe: 'mouse', art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
+  // Not a kind of data-anim: the element flies to the next page (BuildPageTransition.vue).
+  {
+    key: 'page',
+    word: 'anim_r_page',
+    art: `<rect x="6" y="6" width="20" height="28" rx="3" ${framed(10)}/><rect x="9" y="9" width="14" height="9" rx="2" ${framed(45)}/><rect x="38" y="6" width="20" height="28" rx="3" ${framed(10)}/><rect x="40" y="8" width="16" height="14" rx="2" ${framed(45)}/><path d="M23 12Q31 2 40 10M36 8.5l4 1.5-.8 4" style="${stroke}"/>`,
+  },
 ];
-const TILES = KINDS.map((kind) => ART.find((tile) => tile.key === kind));
-const counts = computed(() => Object.fromEntries(KINDS.map((kind) => [kind, presetsFor(kind, PRESETS, own.value).length])));
+const TILES = [...KINDS, 'page'].map((kind) => ART.find((tile) => tile.key === kind));
+const counts = computed(() => ({ ...Object.fromEntries(KINDS.map((kind) => [kind, presetsFor(kind, PRESETS, own.value).length])), page: MOTIONS.length }));
+/** The element's page transition, said on its tile instead of the count. */
+const pageTransition = computed(() => pageTransitionOf(html.value, findByPath(parseTemplateTree(html.value), path.value)));
+const tileNote = (key) =>
+  key === 'page' && pageTransition.value
+    ? `${t('pt_on')} · ${t(`pt_${pageTransition.value.motion || 'spring'}`)}`
+    : port.t('anim_presets_count', { n: counts.value[key] });
 const plays = computed(() => !!anim.value && timed(anim.value.target));
 
 /** The chip's and the editor's name: a recipe's own, else what the element or its children do. */
@@ -1138,7 +1152,8 @@ const Num = defineComponent({
     </section>
 
     <section class="bm-anim-block" data-sve-build-anim-library>
-      <BuildAnimationGallery v-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
+      <BuildPageTransition v-if="gallery === 'page'" :node="node" @back="gallery = null" />
+      <BuildAnimationGallery v-else-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
       <template v-else>
         <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
         <div class="bm-anim-lib">
@@ -1152,7 +1167,7 @@ const Num = defineComponent({
           >
             <svg viewBox="0 0 64 40" fill="none" aria-hidden="true" v-html="tile.art"></svg>
             <span>{{ t(tile.word) }}</span>
-            <small class="bm-anim-tile__n">{{ port.t('anim_presets_count', { n: counts[tile.key] }) }}</small>
+            <small class="bm-anim-tile__n">{{ tileNote(tile.key) }}</small>
           </button>
         </div>
       </template>

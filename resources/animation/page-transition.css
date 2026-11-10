@@ -1,0 +1,46 @@
+/*
+ * Page transitions — pushed by the sve_page_transition tag onto a page with an
+ * element that has a `view-transition-name` (Build → Animation → Page transition).
+ *
+ * The page asks for cross-document view transitions; an element flies to the
+ * element with the same name on the next page, which must ask too. Live
+ * Preview leaves them out unless the user turned them on there
+ * (InjectBridgeScript::pageTransitionGuard, after this in <head>).
+ */
+@view-transition {
+  navigation: auto;
+}
+
+/* An image cut differently on the two pages fills its frame instead of stretching. */
+::view-transition-old(*),
+::view-transition-new(*) {
+  height: 100%;
+  object-fit: cover;
+  overflow: clip;
+}
+
+/* Smooth: a soft stop. */
+::view-transition-group(*.smooth) {
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Spring: about 9 % past, then back into place. */
+::view-transition-group(*.spring) {
+  animation-duration: 0.9s;
+  animation-timing-function: linear(0, 0.043, 0.15, 0.292, 0.447, 0.598, 0.734, 0.849, 0.941, 1.008, 1.054, 1.081, 1.093, 1.094, 1.087, 1.075, 1.061, 1.046, 1.032, 1.02, 1.01, 1.003, 0.997, 0.994, 0.992, 0.991, 0.991, 0.992, 0.993, 0.995, 0.996, 0.997, 1);
+}
+
+/* Snappy: quick and direct. */
+::view-transition-group(*.snappy) {
+  animation-duration: 0.25s;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
