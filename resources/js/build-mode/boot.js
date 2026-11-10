@@ -128,7 +128,7 @@ import { createComputedValues, hoverText, inherits } from './computed-values.js'
 import { previewFrame } from '../lib/preview-frame.js';
 import { armElementPick, cancelComponentBind, disarmComponentBind } from '../component-bind.js';
 import { htmlTreeUi } from '../cp/html-tree/store.js';
-import { escapeWords, fieldNameFor, isOneLine, readText, withText } from './text.js';
+import { escapeWords, fieldNameFor, isOneLine, readText, readsField, withText } from './text.js';
 import { dataVarSnippet } from '../data-vars.js';
 import { TEXT_FIELDS, wholeTag, wrongFields } from '../data-var-types.js';
 import { canEditFields, currentSetHandle, refreshFieldsForType } from '../section-fields.js';
@@ -969,6 +969,59 @@ export function createEditorPort(win, hooks = {}) {
       await refreshFieldsForType(win, handle);
 
       return currentSetHandle() === handle;
+    },
+    /**
+     * "Own content in each section" off: its hidden field taken out of the
+     * section's fieldset, once the file that no longer reads it is saved — the
+     * content is back in the file, the same in every section. Saved now, as a
+     * switch is (`dock:save-now`); a save that did not go through, a file
+     * that still reads the field anywhere (another element, the CSS, a
+     * condition), or another section in the dock by then keeps the field. The
+     * server takes only a hidden field of the section's own fieldset
+     * (SectionTypeMaker\AddField::remove).
+     *
+     * @returns {Promise<boolean>} taken out
+     */
+    async dropOwnField(field) {
+      const handle = currentSetHandle();
+      const inFile = () => readsField([html(), ask('dock:css'), ask('dock:js')].join('\n'), field);
+
+      if (!handle || !field || inFile()) {
+        return false;
+      }
+
+      let saved = null;
+      const stop = on('dock:saved', (payload) => {
+        saved = payload?.html ?? null;
+      });
+
+      try {
+        ask('dock:save-now');
+        await Promise.resolve(ask('dock:save-settled')).catch(() => null);
+      } finally {
+        stop();
+      }
+
+      if (typeof saved !== 'string' || readsField(saved, field) || currentSetHandle() !== handle || inFile()) {
+        return false;
+      }
+
+      const res = await win
+        .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+          body: JSON.stringify({ handle, field }),
+        })
+        .catch(() => null);
+
+      if (!res?.ok) {
+        return false;
+      }
+
+      await refreshFieldsForType(win, handle);
+
+      return true;
     },
     /**
      * The open section's fields, by name, in one ask: `names` all of them (what

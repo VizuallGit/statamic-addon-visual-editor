@@ -215,6 +215,18 @@ const EDITOR = /^data-sve-/i;
 export const AUTO_CONTRAST = 'data-auto-contrast';
 
 /**
+ * The boxes auto contrast is offered on: what holds other elements and may
+ * have a background of its own. A heading, a paragraph, an image, a link take
+ * the colour of the box around them.
+ */
+const CONTRAST_BOXES = new Set(['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'figure', 'form', 'li']);
+
+/** Is auto contrast offered on this tag? */
+export function contrastFits(tag) {
+  return CONTRAST_BOXES.has(String(tag || '').toLowerCase());
+}
+
+/**
  * Is the attribute at `at` written inside an `{{ if }}` or `{{ unless }}` of
  * its own tag — `{{ unless text_color }} data-auto-contrast{{ /unless }}`? Then
  * the page decides when it is there, and a switch cannot say on or off.

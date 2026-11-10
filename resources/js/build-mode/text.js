@@ -125,3 +125,21 @@ export function withText(source, node, value) {
 
   return html.slice(0, inner.from) + lead + escapeWords(value) + trail + html.slice(inner.to);
 }
+
+/**
+ * Does the file still read the field — `{{ heading }}`, `{{ heading | upper }}`,
+ * `{{ if heading }}`, `src="{{ image }}"`? Any Antlers tag naming it counts, a
+ * sub-key (`{{ heading:url }}`) too: a field the file still reads is never taken
+ * out of the fieldset. A longer name (`heading_2`) is another field.
+ */
+export function readsField(source, handle) {
+  const name = String(handle || '');
+
+  if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+    return false;
+  }
+
+  const word = new RegExp(`(^|[^\\w-])${name}(?![\\w-])`);
+
+  return [...String(source || '').matchAll(/\{\{([\s\S]*?)\}\}/g)].some((tag) => word.test(tag[1]));
+}

@@ -584,7 +584,8 @@ function textMade(handle) {
 /*
  * Off writes what the canvas shows back as the element's own. Nothing shown
  * yet (null: the canvas has not got it, or an island inside still waits for
- * the real preview) writes nothing, and the switch stays on.
+ * the real preview) writes nothing, and the switch stays on. Own content's
+ * hidden field then leaves the fieldset (dropOwn).
  */
 function textOff() {
   const words = port.shownAt(path);
@@ -593,9 +594,27 @@ function textOff() {
     return;
   }
 
+  const own = textHidden.value ? textField.value : '';
+
   text.done();
   port.setText(path, words);
   port.syncFieldEdit(path, words, { types: TEXT_FIELDS });
+  dropOwn(own);
+}
+
+/**
+ * "Own content in each section" off: the hidden field it was is taken out of
+ * the section's fieldset once the file no longer reads it (port.dropOwnField).
+ * A field shown in Edit Content is not own content, and stays.
+ */
+function dropOwn(field) {
+  if (field) {
+    port.dropOwnField(field).then((gone) => {
+      if (gone) {
+        loadOwn();
+      }
+    });
+  }
 }
 
 /* ---------------- own content: an address, rich text ---------------- */
@@ -723,10 +742,11 @@ function fieldOwnOn() {
  * "Own content in each section" off: this section's value goes back into the
  * file as the element's own — the asset's URL, the link's address, Bard's
  * HTML, converted as the field writes them — the same in every section again.
- * The field stays: pages may hold content in it.
+ * Own content's hidden field then leaves the fieldset (dropOwn).
  */
 function fieldOwnOff() {
   const handle = address ? addressField.value : richName.value;
+  const own = (address ? addressHidden.value : richHidden.value) ? handle : '';
 
   port.fieldParam(address ? addressTag : 'rich', port.sectionValue(handle) ?? null).then((value) => {
     if (value === null) {
@@ -745,6 +765,7 @@ function fieldOwnOff() {
     }
 
     fieldKey.value += 1;
+    dropOwn(own);
   });
 }
 
@@ -1049,6 +1070,6 @@ onBeforeUnmount(() => {
       <p>{{ port.t(layout ? 'content_layout' : 'content_soon') }}</p>
     </div>
 
-    <BuildAttrs v-if="!svg" :path="path" />
+    <BuildAttrs v-if="!svg" :path="path" :tag="tag" />
   </div>
 </template>

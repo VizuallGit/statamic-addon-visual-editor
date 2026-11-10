@@ -10,7 +10,9 @@
  * Above them, Auto contrast: a switch that writes `data-auto-contrast` bare on
  * the tag, or takes it off — the site's script then gives the text the colour
  * its background needs. It is not a row of Data. Written inside an Antlers
- * condition of the tag, the page decides, and the switch only says so.
+ * condition of the tag, the page decides, and the switch only says so. It is
+ * offered on boxes (attrs.js `contrastFits`: a div, a section …), not on a
+ * heading or an image; one that has it already keeps the switch to take it off.
  *
  * Alpine's attributes are Action's, a link's aria-label is the link's own box
  * above, and the editor's `data-sve-*` are never shown. A tag with a value
@@ -22,10 +24,12 @@
 import { computed, inject, ref } from 'vue';
 import BuildAttrRow from './BuildAttrRow.vue';
 import { ic } from '../../build-mode/icons.js';
-import { AUTO_CONTRAST } from '../../build-mode/attrs.js';
+import { AUTO_CONTRAST, contrastFits } from '../../build-mode/attrs.js';
 
 const props = defineProps({
   path: { type: String, required: true },
+  /** The element's tag: auto contrast is offered on boxes. */
+  tag: { type: String, default: '' },
 });
 
 const port = inject('sveBuild');
@@ -34,6 +38,7 @@ const aria = computed(() => (now.value?.aria || []).filter((row) => row.name.toL
 const role = computed(() => (now.value?.aria || []).find((row) => row.name.toLowerCase() === 'role') || null);
 const locked = computed(() => !!now.value?.unreadable);
 const contrast = computed(() => now.value?.contrast || { on: false, conditional: false });
+const contrastShown = computed(() => contrast.value.on || contrastFits(props.tag));
 /** 'data' or 'aria' while a new row is being named. */
 const draft = ref('');
 /** The attribute whose value takes the caret when its row comes: one just made. */
@@ -87,7 +92,7 @@ function toggleContrast() {
   <div v-if="now" class="bm-attrs" data-sve-build-attrs>
     <p v-if="locked" class="bm-note is-top" data-sve-build-attrs-locked>{{ port.t('attrs_unquoted') }}</p>
 
-    <section class="bm-attrs-group" data-sve-build-contrast>
+    <section v-if="contrastShown" class="bm-attrs-group" data-sve-build-contrast>
       <header class="bm-attrs-head">
         <span class="fg-lab">{{ port.t('attrs_contrast') }}</span>
         <button

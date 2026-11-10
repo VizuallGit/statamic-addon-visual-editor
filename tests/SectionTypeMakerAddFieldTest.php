@@ -253,4 +253,45 @@ class SectionTypeMakerAddFieldTest extends TestCase
         $this->assertFalse(AddField::setHidden('page_sections', 'content/prefixed', 'text', true));
         $this->assertSame($before, file_get_contents(Names::fieldsetPath('content', 'plain')));
     }
+
+    /**
+     * "Own content in each section" off: the hidden field is taken out of the
+     * fieldset — the content is back in the file. Only that one: a field shown
+     * in Edit Content, an imported one, one of a section without a fieldset
+     * is left where it is.
+     */
+    public function test_own_content_off_takes_the_hidden_field_out_and_nothing_else(): void
+    {
+        AddField::run('page_sections', 'content/grouped', 'text', 'Heading', 'Hello', hidden: true);
+        AddField::run('page_sections', 'content/grouped', 'text', 'Shown', 'Seen');
+
+        $this->assertSame(['bg_color', 'heading', 'shown'], array_column($this->onDisk('content', 'grouped')['sections'][1]['fields'], 'handle'));
+
+        $this->assertTrue(AddField::remove('page_sections', 'content/grouped', 'heading'));
+        $this->assertSame(['bg_color', 'shown'], array_column($this->onDisk('content', 'grouped')['sections'][1]['fields'], 'handle'));
+        $this->assertSame(['text'], array_column($this->onDisk('content', 'grouped')['sections'][0]['fields'], 'handle'));
+
+        $before = file_get_contents(Names::fieldsetPath('content', 'grouped'));
+
+        $this->assertFalse(AddField::remove('page_sections', 'content/grouped', 'heading'));
+        $this->assertFalse(AddField::remove('page_sections', 'content/grouped', 'shown'));
+        $this->assertFalse(AddField::remove('page_sections', 'content/grouped', 'bg_color'));
+        $this->assertSame($before, file_get_contents(Names::fieldsetPath('content', 'grouped')));
+
+        $plain = file_get_contents(Names::fieldsetPath('content', 'plain'));
+
+        $this->assertFalse(AddField::remove('page_sections', 'content/plain', 'heading'));
+        $this->assertFalse(AddField::remove('page_sections', 'content/inline', 'words'));
+        $this->assertFalse(AddField::remove('page_sections', 'content/prefixed', 'text'));
+        $this->assertSame($plain, file_get_contents(Names::fieldsetPath('content', 'plain')));
+    }
+
+    /** A flat fieldset loses the one field, its list kept a list. */
+    public function test_own_content_off_in_a_flat_fieldset(): void
+    {
+        $handle = AddField::run('page_sections', 'content/plain', 'text', 'Intro', 'Hello', hidden: true);
+
+        $this->assertTrue(AddField::remove('page_sections', 'content/plain', $handle));
+        $this->assertSame([['handle' => 'text', 'field' => ['type' => 'textarea']], ['import' => 'common.settings']], $this->onDisk('content', 'plain')['fields']);
+    }
 }

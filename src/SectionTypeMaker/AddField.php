@@ -156,6 +156,61 @@ class AddField
     }
 
     /**
+     * Takes own content's field out of the section's fieldset again: "Own
+     * content in each section" switched off. The content is back in the file,
+     * the same in every section, and nothing reads the field any more.
+     *
+     * Only a hidden field written in the fieldset itself — own content, never
+     * shown to a content editor. A field shown in Edit Content holds what
+     * editors wrote on other pages, an imported one is shared with other
+     * sections, and a field a developer wrote is not Build's to take. What a
+     * page holds in it stays in the page: Statamic leaves a row's value alone
+     * when no field reads it.
+     *
+     * @return bool whether the field was found and taken out
+     */
+    public static function remove(SectionList|string $list, string $set, string $handle): bool
+    {
+        $found = static::fieldsetFile(static::existingType($list, $set));
+
+        if ($found === null) {
+            return false;
+        }
+
+        [$imported, $path] = $found;
+        $contents = YAML::file($path)->parse();
+        $removed = false;
+
+        $without = function (array $fields) use ($handle, &$removed): array {
+            $kept = array_filter($fields, fn ($field) => ! (is_array($field)
+                && ($field['handle'] ?? null) === $handle
+                && ($field['field']['visibility'] ?? null) === 'hidden'));
+
+            $removed = $removed || count($kept) !== count($fields);
+
+            return array_values($kept);
+        };
+
+        foreach (is_array($contents['sections'] ?? null) ? $contents['sections'] : [] as $key => $section) {
+            if (is_array($section['fields'] ?? null)) {
+                $contents['sections'][$key]['fields'] = $without($section['fields']);
+            }
+        }
+
+        if (is_array($contents['fields'] ?? null)) {
+            $contents['fields'] = $without($contents['fields']);
+        }
+
+        if (! $removed) {
+            return false;
+        }
+
+        Fieldset::make($imported)->setContents($contents)->save();
+
+        return true;
+    }
+
+    /**
      * The section's type as the list describes it, without writing anything —
      * {@see SectionTypeMaker::addFields()} gives a static section a fieldset first.
      */

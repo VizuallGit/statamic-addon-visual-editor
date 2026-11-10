@@ -6,8 +6,8 @@
  * is the same in every section of it, on every page. On, the element's content
  * is its section's own instead: a field of the section kept out of Edit
  * Content's form (port.makeOwn), so each section holds its own. Off, the
- * content goes back into the file, the same everywhere, and the field stays:
- * pages may hold content in it.
+ * content goes back into the file, the same everywhere, and the field leaves
+ * the fieldset once the file no longer reads it (port.dropOwnField).
  *
  * On is where Build starts: the first change it writes into an element's own
  * words turns it on by itself. "Editable in Edit Content" (BuildEditable.vue)

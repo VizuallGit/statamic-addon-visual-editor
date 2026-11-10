@@ -120,6 +120,9 @@ final class EditorRoutes
             // Such a field shown in Edit Content, or kept to Build (own content).
             Route::patch('/!/sve/section-types/fields', [SectionTypesController::class, 'fieldVisibility'])
                 ->name('sve.section-types.fields.update');
+            // Own content's hidden field taken out again: its content back in the file.
+            Route::delete('/!/sve/section-types/fields', [SectionTypesController::class, 'removeField'])
+                ->name('sve.section-types.fields.destroy');
             // The same from a template's file: a field of the entries it draws (TemplateFields).
             Route::get('/!/sve/template-fields', [TemplateFieldsController::class, 'index'])
                 ->name('sve.template-fields.index');

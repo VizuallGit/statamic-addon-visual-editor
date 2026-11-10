@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { holdsText, isOneLine, readText, withText } from '../../../resources/js/build-mode/text.js';
+import { holdsText, isOneLine, readText, readsField, withText } from '../../../resources/js/build-mode/text.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
@@ -138,4 +138,18 @@ test('only the picked element changes, nested in a file', () => {
   const p = first(html).children[1];
 
   assert.equal(withText(html, p, 'Three'), '<section>\n  <h2>One</h2>\n  <p>Three</p>\n</section>');
+});
+
+test('a field the file still reads, in any tag, is in use — a longer name is another field', () => {
+  assert.equal(readsField('<h2>{{ heading }}</h2>', 'heading'), true);
+  assert.equal(readsField('<h2>{{heading|upper}}</h2>', 'heading'), true);
+  assert.equal(readsField('{{ if heading }}<h2>x</h2>{{ /if }}', 'heading'), true);
+  assert.equal(readsField('<img src="{{ image }}" alt="{{ image:alt }}">', 'image'), true);
+  assert.equal(readsField('<a href="{{ link:url }}">Go</a>', 'link'), true);
+
+  assert.equal(readsField('<h2>Our team</h2>', 'heading'), false);
+  assert.equal(readsField('<h2>{{ heading_2 }}</h2>', 'heading'), false);
+  assert.equal(readsField('<h2>{{ sub_heading }}</h2>', 'heading'), false);
+  assert.equal(readsField('<h2 class="heading">heading</h2>', 'heading'), false);
+  assert.equal(readsField('<h2>{{ heading }}</h2>', ''), false);
 });

@@ -268,6 +268,25 @@ class SectionTypesController
             : response()->json(['error' => 'not_found'], 404);
     }
 
+    /**
+     * Own content's hidden field taken out of its section's fieldset
+     * (SectionTypeMaker\AddField::remove): "Own content in each section"
+     * switched off, its content back in the file.
+     */
+    public function removeField(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $set = trim((string) $request->input('handle', ''));
+        $field = trim((string) $request->input('field', ''));
+
+        abort_if($set === '' || ! preg_match('/^[a-z][a-z0-9_]*$/', $field), 400);
+
+        return AddField::remove(static::list($request), $set, $field)
+            ? response()->json(['ok' => true])
+            : response()->json(['error' => 'not_found'], 404);
+    }
+
     public function update(Request $request)
     {
         abort_unless(User::current()?->can('configure fields'), 403);

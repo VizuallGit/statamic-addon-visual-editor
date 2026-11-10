@@ -545,7 +545,8 @@ onBeforeUnmount(() => {
 .sve-build .bm-tabs.bm-tabs-scroll { position: relative; padding: 0; border-radius: 0.5rem; overflow: hidden; }
 .sve-build .bm-tabs-row { --bm-divided-gap: 0.25rem; --bm-divided-inset: 0.625rem; position: relative; display: flex; flex: 1; gap: 0.25rem; min-width: 0; padding: 0.1875rem; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .sve-build .bm-tabs-row::-webkit-scrollbar { display: none; }
-.sve-build .bm-tabs-row button { flex: none; padding: 0.4375rem 1rem; border-radius: 0.375rem; color: var(--bm-faint); letter-spacing: 0.06em; white-space: nowrap; user-select: none; }
+/* They share the room left over (Style switched off: three across the whole row); too many to fit, they keep their width and the row scrolls. */
+.sve-build .bm-tabs-row button { flex: 1 0 auto; padding: 0.4375rem 1rem; border-radius: 0.375rem; color: var(--bm-faint); letter-spacing: 0.06em; white-space: nowrap; user-select: none; }
 .sve-build .bm-tabs-scroll::before, .sve-build .bm-tabs-scroll::after { content: ''; position: absolute; top: 0; bottom: 0; z-index: 1; width: 2.5rem; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
 .sve-build .bm-tabs-scroll::before { left: 0; background: linear-gradient(to right, var(--bm-raise) 25%, transparent); }
 .sve-build .bm-tabs-scroll::after { right: 0; background: linear-gradient(to left, var(--bm-raise) 25%, transparent); }

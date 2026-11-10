@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { altFromAsset, readAttribute, withAttribute, fieldEditOf, withFieldEdit } from '../../../resources/js/build-mode/attrs.js';
+import { altFromAsset, readAttribute, withAttribute, fieldEditOf, withFieldEdit, contrastFits } from '../../../resources/js/build-mode/attrs.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
@@ -213,4 +213,14 @@ test('true writes the attribute bare: added after the last one, a value dropped,
   assert.equal(withAttribute(bare, first(bare), 'data-auto-contrast', true, { end: true }), bare);
   assert.equal(withAttribute(bare, first(bare), 'data-auto-contrast', null), '<section class="b">x</section>');
   assert.equal(withAttribute(valued, first(valued), 'data-auto-contrast', null), '<section class="b">x</section>');
+});
+
+test('auto contrast is offered on boxes only — not on a heading, a paragraph, an image or a link', () => {
+  for (const tag of ['div', 'section', 'DIV', 'article', 'header', 'footer', 'li']) {
+    assert.equal(contrastFits(tag), true, tag);
+  }
+
+  for (const tag of ['h1', 'h2', 'p', 'img', 'video', 'a', 'span', 'button', '', undefined]) {
+    assert.equal(contrastFits(tag), false, String(tag));
+  }
 });
