@@ -4,7 +4,7 @@ import LpSettingsSwitch from './LpSettingsSwitch.vue';
 
 // General tab: the on/off settings that are not a sidebar's, the tree's or the
 // top bar's own. What Live Preview does (the toolbar on each section,
-// animations, smooth scrolling) and how Build starts (the mode switch's tab,
+// animations, smooth scrolling, page transitions) and how Build starts (the mode switch's tab,
 // the Style tab, Style's class list). lp-more-menu.js owns every write (`on.*`); this keeps
 // the switches in step.
 const props = defineProps({
@@ -16,6 +16,8 @@ const props = defineProps({
   animations: { type: Object, default: () => ({ on: false, label: '' }) },
   // { on, label }: glide to a section instead of jumping (scroll-pref.js).
   smoothScroll: { type: Object, default: () => ({ on: false, label: '' }) },
+  // { on, label }: page transitions playing in Live Preview (page-transitions-pref.js).
+  pageTransitions: { type: Object, default: () => ({ on: false, label: '' }) },
   // { show, on, label }: the mode switch on a tab of the bar (build-switch-tab.js).
   switchTab: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
   // { show, on, label }: Build's Style tab in the element panel (build-style-pref.js).
@@ -44,6 +46,13 @@ const smoothScrollOn = ref(props.smoothScroll.on);
 function setSmoothScroll(value) {
   smoothScrollOn.value = value;
   props.on.smoothScroll(value);
+}
+
+const pageTransitionsOn = ref(props.pageTransitions.on);
+
+function setPageTransitions(value) {
+  pageTransitionsOn.value = value;
+  props.on.pageTransitions(value);
 }
 
 const switchTabOn = ref(props.switchTab.on);
@@ -88,6 +97,12 @@ function setClassesDefault(value) {
       :on="smoothScrollOn"
       data-sve-smooth-scroll-setting
       @change="setSmoothScroll"
+    />
+    <LpSettingsSwitch
+      :label="pageTransitions.label"
+      :on="pageTransitionsOn"
+      data-sve-page-transitions-setting
+      @change="setPageTransitions"
     />
   </div>
 

@@ -55,6 +55,7 @@ class ChromePrefsController
         'sve-lite-load-all',
         'sve-section-toolbar',
         'sve-smooth-scroll',
+        'sve-page-transitions',
         'sve-previews-auto',
     ];
 

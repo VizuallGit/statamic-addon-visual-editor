@@ -48,6 +48,7 @@ import { buildStyleTabShown, setBuildStyleTabShown } from './build-style-pref.js
 import { applySectionToolbar, sectionToolbarOn, setSectionToolbarOn } from './section-toolbar-pref.js';
 import { animationsRun, setAnimationsRun } from './animation-mode.js';
 import { setSmoothScrollOn, smoothScrollOn, tellScrollMode } from './scroll-pref.js';
+import { pageTransitionsOn, setPageTransitionsOn } from './page-transitions-pref.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
   deleteToolbarGroup,
@@ -221,6 +222,7 @@ function generalProps(win) {
     sectionToolbar: { on: sectionToolbarOn(win), label: t(win, 'lp_settings_section_toolbar') },
     animations: { on: animationsRun(win), label: t(win, 'lp_settings_animations') },
     smoothScroll: { on: smoothScrollOn(win), label: t(win, 'lp_settings_smooth_scroll') },
+    pageTransitions: { on: pageTransitionsOn(win), label: t(win, 'lp_settings_page_transitions') },
     // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
     switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
     // Build's Style tab, or Content, Action and Animation without it — only with Build.
@@ -462,6 +464,7 @@ function bindSettingHandlers(win) {
       sectionToolbar: (on) => setSectionToolbarOn(win, on),
       animations: (on) => setAnimationsRun(win, on),
       smoothScroll: (on) => setSmoothScrollOn(win, on),
+      pageTransitions: (on) => setPageTransitionsOn(win, on),
       toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
       toolbarShowAll: () => showAllToolbarTools(win),
       // The tab counts places among what this mode has; these make them places among all.

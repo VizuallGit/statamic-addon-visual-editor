@@ -6,10 +6,14 @@ use Closure;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\PreviewHost;
+use Statamic\Facades\User;
 use Symfony\Component\HttpFoundation\Response;
 
 class InjectBridgeScript
 {
+    /** Live Preview settings → General, «Page transitions» (resources/js/page-transitions-pref.js). */
+    public const PAGE_TRANSITIONS_KEY = 'sve-page-transitions';
+
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
@@ -85,7 +89,7 @@ class InjectBridgeScript
 
         return substr_replace(
             $content,
-            $this->bridgeData().$this->viteFullReloadGuard().$this->entranceAnimationGuard().'</head>',
+            $this->bridgeData().$this->viteFullReloadGuard().$this->entranceAnimationGuard().$this->pageTransitionGuard().'</head>',
             $pos,
             strlen('</head>')
         );
@@ -201,6 +205,31 @@ class InjectBridgeScript
         })();
         </script>
         HTML;
+    }
+
+    /**
+     * Keeps the site's page transitions out of Live Preview unless this user
+     * turned them on (Live Preview settings → General, stored in the user's
+     * `sve_chrome` preference by page-transitions-pref.js).
+     *
+     * A cross-document view transition plays only when the page that loads
+     * asks for one too, so this rule on every preview render is enough. It is
+     * unlayered and the last thing in <head>, so it wins over the site's own
+     * `@view-transition` wherever that sits. The public site never gets it.
+     */
+    protected function pageTransitionGuard(): string
+    {
+        return static::pageTransitionGuardFor(User::current()?->getPreference('sve_chrome'));
+    }
+
+    /** The guard for a user's `sve_chrome` preference: nothing when page transitions are on. */
+    public static function pageTransitionGuardFor(mixed $chromePrefs): string
+    {
+        if (is_array($chromePrefs) && ($chromePrefs[self::PAGE_TRANSITIONS_KEY] ?? null) === 'on') {
+            return '';
+        }
+
+        return '<style id="sve-no-page-transitions">@view-transition { navigation: none; }</style>'."\n";
     }
 
     protected function isLivePreview(Request $request): bool

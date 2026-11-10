@@ -781,6 +781,7 @@ return [
     'lp_settings_section_toolbar' => 'Show the toolbar on each section',
     'lp_settings_animations' => 'Animations play in Live Preview (off = they stand still; ▶ in Animation still plays)',
     'lp_settings_smooth_scroll' => 'Smooth scrolling when jumping to a section (off = it jumps)',
+    'lp_settings_page_transitions' => 'Page transitions play in Live Preview (off = pages change without them; the site keeps them)',
     'lp_settings_toolbar_hint' => 'Drag ⠿ to move a tool — into another group too. A hidden tool is still here: open it with Open.',
     'lp_settings_toolbar_groups_reset' => 'Reset groups',
     'lp_settings_toolbar_group_new' => 'New group',

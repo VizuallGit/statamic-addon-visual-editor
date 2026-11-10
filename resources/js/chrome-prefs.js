@@ -64,6 +64,7 @@ export const CHROME_KEYS = [
   'sve-panel-zones',
   'sve-section-toolbar',
   'sve-smooth-scroll',
+  'sve-page-transitions',
   'sve-editor-mode',
 ];
 
