@@ -105,6 +105,17 @@ class PageTransitionSettingsTest extends TestCase
         $this->assertMatchesRegularExpression('#<title>x</title><style id="sve-page-transitions">@view-transition\{navigation:auto\}.*</style></head>#', $html);
     }
 
+    public function test_a_page_with_named_elements_gets_the_list_script_in_its_head(): void
+    {
+        $named = '<html><head></head><body><div style="view-transition-name: case-1"></div></body></html>';
+        $html = $this->run_middleware('/', $named);
+
+        $this->assertStringContainsString('<script id="sve-page-transitions-list">', $html);
+        $this->assertMatchesRegularExpression('#</script></head>#', $html);
+        $this->assertStringContainsString("addEventListener('pageswap'", InjectPageTransitions::listScript());
+        $this->assertStringContainsString("addEventListener('pagereveal'", InjectPageTransitions::listScript());
+    }
+
     public function test_nothing_is_added_without_settings_or_outside_a_page(): void
     {
         $page = '<html><head></head><body></body></html>';
