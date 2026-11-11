@@ -43,6 +43,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SnippetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionLandingController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionSettingsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
@@ -374,6 +375,12 @@ final class EditorRoutes
 
             Route::post('/!/sve/collection-presets/apply', CollectionPresetController::class)
                 ->name('sve.collection-presets.apply');
+
+            // How every page changes to the next (resources/visual-editor/page-transitions.yaml).
+            Route::get('/!/sve/page-transitions', [PageTransitionSettingsController::class, 'show'])
+                ->name('sve.page-transitions.show');
+            Route::post('/!/sve/page-transitions', [PageTransitionSettingsController::class, 'update'])
+                ->name('sve.page-transitions.update');
 
             // The Animation tab's own presets (resources/visual-editor/animations.yaml).
             Route::post('/!/sve/animation-presets', [AnimationPresetController::class, 'store'])

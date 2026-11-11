@@ -9,16 +9,21 @@
  * the pair name and what it matches by; changing those changes one that is
  * on. Nothing plays here: a page transition runs between two real pages.
  *
+ * «Whole site» at the top: how every page changes to the next — on or off,
+ * fade, crossfade, slide or none, how long, and whether the header stands
+ * still (page-transition-site.js, one state for every panel).
+ *
  * «Where it lands»: an element in a loop over entries (the list) lands on the
  * template the collection's own pages are drawn with. Its rows stand here;
  * a click gives that row the same pair name and motion — and takes the pair
  * from any other row there, a page holds it once. The file is read and
  * saved through the dock's own endpoint, as any file the dock opens.
  */
-import { computed, inject, ref, watch } from 'vue';
+import { computed, inject, reactive, ref, watch } from 'vue';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { findByPath } from '../../build-mode/place.js';
 import { csrfToken } from '../../lib/csrf.js';
+import { DURATION, SITE_STYLES, cleanDuration, saveSiteTransitions, siteTransitions } from '../../page-transition-site.js';
 import {
   KEYS,
   MOTIONS,
@@ -50,6 +55,51 @@ const path = computed(() => props.node.path);
 const html = computed(() => (port.rev.value, port.html()));
 const current = computed(() => pageTransitionOf(html.value, findByPath(parseTemplateTree(html.value), path.value)));
 const isComponent = computed(() => props.node.kind === 'component');
+
+/* ---------------- whole site ---------------- */
+
+const site = siteTransitions(window, reactive);
+const durationText = ref('');
+
+watch(() => site.settings.duration, (now) => {
+  durationText.value = String(now);
+}, { immediate: true });
+
+function setSite(patch) {
+  saveSiteTransitions(patch);
+}
+
+function setDuration() {
+  const next = cleanDuration(durationText.value);
+
+  durationText.value = String(next);
+
+  if (next !== site.settings.duration) {
+    setSite({ duration: next });
+  }
+}
+
+const siteNote = computed(() => {
+  if (site.status === 'saving') {
+    return t('pt_site_saving');
+  }
+
+  if (site.status === 'failed') {
+    return t('pt_site_failed');
+  }
+
+  if (site.status === 'unread') {
+    return t('pt_site_unread');
+  }
+
+  if (!site.settings.enabled) {
+    return t('pt_site_off_note');
+  }
+
+  return site.saved ? t('pt_site_saved') : t('pt_site_unsaved');
+});
+
+/* ---------------- this element ---------------- */
 
 const BACK = '<svg class="bm-anim-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
 
@@ -211,6 +261,41 @@ async function land(row) {
       <b>{{ t('anim_r_page') }}</b>
     </div>
     <div v-else class="bm-anim-head"><span>{{ t('anim_r_page') }}</span></div>
+
+    <section class="bm-pt-site" data-sve-build-pt-site>
+      <div class="bm-anim-head"><span>{{ t('pt_site') }}</span></div>
+      <div class="bm-anim-line">
+        <span>{{ t('pt_site_enabled') }}</span>
+        <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_enabled')">
+          <button type="button" :aria-pressed="site.settings.enabled" data-sve-build-pt-site-enabled="on" @click="setSite({ enabled: true })">{{ t('pt_on') }}</button>
+          <button type="button" :aria-pressed="!site.settings.enabled" data-sve-build-pt-site-enabled="off" @click="setSite({ enabled: false })">{{ t('pt_off') }}</button>
+        </span>
+      </div>
+      <template v-if="site.settings.enabled">
+        <span class="bm-pt-label">{{ t('pt_site_style') }}</span>
+        <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_style')">
+          <button v-for="s in SITE_STYLES" :key="s" type="button" :aria-pressed="site.settings.style === s" :data-sve-build-pt-site-style="s" @click="setSite({ style: s })">{{ t(`pt_style_${s}`) }}</button>
+        </span>
+        <p class="bm-anim-note">{{ t(`pt_style_hint_${site.settings.style}`) }}</p>
+        <label class="bm-anim-line">
+          <span>{{ t('pt_site_duration') }}</span>
+          <span class="bm-pt-duration">
+            <input v-model="durationText" class="bm-anim-name" type="number" :min="DURATION.min" :max="DURATION.max" :step="DURATION.step" data-sve-build-pt-site-duration @change="setDuration" @keydown.enter="$event.target.blur()" />
+            s
+          </span>
+        </label>
+        <div class="bm-anim-line">
+          <span>{{ t('pt_site_header') }}</span>
+          <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_header')">
+            <button type="button" :aria-pressed="site.settings.header" data-sve-build-pt-site-header="on" @click="setSite({ header: true })">{{ t('pt_on') }}</button>
+            <button type="button" :aria-pressed="!site.settings.header" data-sve-build-pt-site-header="off" @click="setSite({ header: false })">{{ t('pt_off') }}</button>
+          </span>
+        </div>
+      </template>
+      <p class="bm-anim-note" :class="{ 'is-warn': site.status === 'failed' }" data-sve-build-pt-site-note>{{ siteNote }}</p>
+    </section>
+
+    <div class="bm-anim-head"><span>{{ t('pt_element') }}</span></div>
     <p class="bm-anim-note">{{ t('pt_hint') }}</p>
     <p v-if="isComponent" class="bm-anim-note">{{ t('pt_component_note') }}</p>
 
@@ -277,6 +362,10 @@ async function land(row) {
 
 <style>
 .sve-build .bm-pt.is-standalone { padding: 0.625rem 0.75rem; }
+.sve-build .bm-pt-site { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--bm-line); }
+.sve-build .bm-pt-label { color: var(--bm-muted); font-size: 0.6875rem; }
+.sve-build .bm-pt-duration { display: flex; align-items: center; gap: 0.375rem; color: var(--bm-muted); font-size: 0.6875rem; }
+.sve-build .bm-pt-duration input { width: 4.5rem; }
 .sve-build .bm-pt .bm-anim-gal__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .sve-build .bm-pt-stage { height: 3rem; padding: 0.25rem; }
 .sve-build .bm-pt-stage svg { width: 100%; height: 100%; }

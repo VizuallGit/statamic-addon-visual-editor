@@ -42,6 +42,7 @@ use MarioHamann\StatamicVisualEditor\Http\Middleware\EagerImagesInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\ExplainRenderErrorInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectPageTransitions;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectSchema;
@@ -224,6 +225,9 @@ class ServiceProvider extends AddonServiceProvider
             DisableViteHotReload::class,
             EagerImagesInPreview::class,
             InjectBridgeScript::class,
+            // After the bridge: it writes first on the way out, so the bridge's
+            // Live Preview guard lands after it in <head> and wins there.
+            InjectPageTransitions::class,
             InjectEditButton::class,
             InjectLiveReload::class,
             InjectSchema::class,
