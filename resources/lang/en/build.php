@@ -76,7 +76,7 @@ return [
     'pt_style_none' => 'None',
     'pt_style_hint_fade' => 'The old page fades out, then the new one fades in. The two never show at once.',
     'pt_style_hint_crossfade' => 'Both pages show at once while one fades into the other: the browser\'s own.',
-    'pt_style_hint_slide' => 'The old page moves out to the left as the new one comes in from the right.',
+    'pt_style_hint_slide' => 'The new page slides all the way in from the right, over the old one, which moves a little left and dims.',
     'pt_style_hint_none' => 'The page changes at once. Paired elements still fly.',
     'pt_site_duration' => 'Duration',
     'pt_site_header' => 'Header still',

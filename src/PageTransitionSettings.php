@@ -20,7 +20,8 @@ use Symfony\Component\Yaml\Yaml;
  *            elements included.
  * - style    fade: the old page fades out, then the new one in (no double
  *            exposure); crossfade: the browser's own, both at once; slide:
- *            the new page comes in from the right; none: the page changes at
+ *            the new page slides all the way in from the right over the old,
+ *            which moves a little left and dims; none: the page changes at
  *            once, paired elements still fly.
  * - duration seconds, 0.1–1.5.
  * - header   the site's header (`data-sve-chrome="header"`) stands still
@@ -151,8 +152,8 @@ final class PageTransitionSettings
                 ."::view-transition-new(*):only-child{animation:{$ms}ms ease both sve-vt-fade-in}",
             'slide' => "{$old}{animation:{$ms}ms {$ease} both sve-vt-slide-out;mix-blend-mode:normal}"
                 ."{$new}{animation:{$ms}ms {$ease} both sve-vt-slide-in;mix-blend-mode:normal}"
-                .'@keyframes sve-vt-slide-out{to{transform:translateX(-25%);opacity:0}}'
-                .'@keyframes sve-vt-slide-in{from{transform:translateX(25%);opacity:0}}',
+                .'@keyframes sve-vt-slide-out{to{transform:translateX(-30%);opacity:.4}}'
+                .'@keyframes sve-vt-slide-in{from{transform:translateX(100%)}}',
             'none' => "{$old}{animation:none;opacity:0}{$new}{animation:none;mix-blend-mode:normal}",
             default => '',
         };

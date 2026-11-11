@@ -17,6 +17,13 @@ export const SITE_DEFAULTS = Object.freeze({ enabled: true, style: 'crossfade', 
 
 export const DURATION = Object.freeze({ min: 0.1, max: 1.5, step: 0.05 });
 
+/**
+ * The length a style starts at when it is picked: long enough to see what it
+ * does (at 0.25 s fade, crossfade and none look alike). Duration can be
+ * changed after.
+ */
+export const STYLE_DURATION = Object.freeze({ fade: 0.6, crossfade: 0.5, slide: 0.6, none: 0.25 });
+
 const ENDPOINT = '/!/sve/page-transitions';
 const HEADERS = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
 

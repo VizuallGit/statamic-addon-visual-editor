@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { SITE_DEFAULTS, SITE_STYLES, cleanDuration, saveSiteTransitions, siteTransitions } from '../../resources/js/page-transition-site.js';
+import { SITE_DEFAULTS, SITE_STYLES, STYLE_DURATION, cleanDuration, saveSiteTransitions, siteTransitions } from '../../resources/js/page-transition-site.js';
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../../${path}`, import.meta.url)), 'utf8');
 
@@ -34,6 +34,11 @@ test('a duration is kept in seconds, inside 0.1–1.5, with two decimals', () =>
   assert.equal(cleanDuration(0), 0.1);
   assert.equal(cleanDuration('x'), SITE_DEFAULTS.duration);
   assert.deepEqual(SITE_STYLES, ['fade', 'crossfade', 'slide', 'none']);
+});
+
+test('picking a style sets a length long enough to see it, and the tile says so', () => {
+  assert.deepEqual(STYLE_DURATION, { fade: 0.6, crossfade: 0.5, slide: 0.6, none: 0.25 });
+  assert.match(read('resources/js/cp/surfaces/BuildPageTransition.vue'), /setSite\(\{ style: s, duration: STYLE_DURATION\[s\] \}\)/);
 });
 
 test('the state is read once, then a change is saved and follows what the server kept', async () => {

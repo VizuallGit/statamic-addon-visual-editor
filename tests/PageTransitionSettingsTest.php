@@ -76,7 +76,7 @@ class PageTransitionSettingsTest extends TestCase
         $this->assertStringContainsString('::view-transition-group(root){animation-duration:600ms}', PageTransitionSettings::css(['style' => 'crossfade', 'duration' => 0.6]));
         $this->assertStringNotContainsString('::view-transition-old(root)', PageTransitionSettings::css(['style' => 'crossfade']));
         $this->assertStringContainsString('::view-transition-old(*):only-child{animation:600ms ease both sve-vt-fade-out}', PageTransitionSettings::css(['style' => 'crossfade', 'duration' => 0.6]));
-        $this->assertStringContainsString('sve-vt-slide-in{from{transform:translateX(25%);opacity:0}}', PageTransitionSettings::css(['style' => 'slide']));
+        $this->assertStringContainsString('sve-vt-slide-in{from{transform:translateX(100%)}}', PageTransitionSettings::css(['style' => 'slide']));
         $this->assertStringContainsString('::view-transition-old(root),::view-transition-old(*):only-child{animation:none;opacity:0}', PageTransitionSettings::css(['style' => 'none']));
     }
 

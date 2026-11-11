@@ -23,7 +23,7 @@ import { computed, inject, reactive, ref, watch } from 'vue';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { findByPath } from '../../build-mode/place.js';
 import { csrfToken } from '../../lib/csrf.js';
-import { DURATION, SITE_STYLES, cleanDuration, saveSiteTransitions, siteTransitions } from '../../page-transition-site.js';
+import { DURATION, SITE_STYLES, STYLE_DURATION, cleanDuration, saveSiteTransitions, siteTransitions } from '../../page-transition-site.js';
 import {
   KEYS,
   MOTIONS,
@@ -274,7 +274,7 @@ async function land(row) {
       <template v-if="site.settings.enabled">
         <span class="bm-pt-label">{{ t('pt_site_style') }}</span>
         <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_style')">
-          <button v-for="s in SITE_STYLES" :key="s" type="button" :aria-pressed="site.settings.style === s" :data-sve-build-pt-site-style="s" @click="setSite({ style: s })">{{ t(`pt_style_${s}`) }}</button>
+          <button v-for="s in SITE_STYLES" :key="s" type="button" :aria-pressed="site.settings.style === s" :data-sve-build-pt-site-style="s" @click="setSite({ style: s, duration: STYLE_DURATION[s] })">{{ t(`pt_style_${s}`) }}</button>
         </span>
         <p class="bm-anim-note">{{ t(`pt_style_hint_${site.settings.style}`) }}</p>
         <label class="bm-anim-line">
