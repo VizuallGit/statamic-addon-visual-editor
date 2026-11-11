@@ -66,8 +66,8 @@ class PageTransitionSettingsTest extends TestCase
         $css = PageTransitionSettings::css(['style' => 'fade', 'duration' => 0.4]);
 
         $this->assertStringContainsString('@view-transition{navigation:auto}', $css);
-        $this->assertStringContainsString('::view-transition-old(root){animation:200ms ease-in both sve-vt-fade-out;mix-blend-mode:normal}', $css);
-        $this->assertStringContainsString('::view-transition-new(root){animation:200ms ease-out 200ms both sve-vt-fade-in;mix-blend-mode:normal}', $css);
+        $this->assertStringContainsString('::view-transition-old(root),::view-transition-old(*):only-child{animation:200ms ease-in both sve-vt-fade-out;mix-blend-mode:normal}', $css);
+        $this->assertStringContainsString('::view-transition-new(root),::view-transition-new(*):only-child{animation:200ms ease-out 200ms both sve-vt-fade-in;mix-blend-mode:normal}', $css);
         $this->assertStringContainsString('@media (prefers-reduced-motion)', $css);
     }
 
@@ -75,8 +75,19 @@ class PageTransitionSettingsTest extends TestCase
     {
         $this->assertStringContainsString('::view-transition-group(root){animation-duration:600ms}', PageTransitionSettings::css(['style' => 'crossfade', 'duration' => 0.6]));
         $this->assertStringNotContainsString('::view-transition-old(root)', PageTransitionSettings::css(['style' => 'crossfade']));
+        $this->assertStringContainsString('::view-transition-old(*):only-child{animation:600ms ease both sve-vt-fade-out}', PageTransitionSettings::css(['style' => 'crossfade', 'duration' => 0.6]));
         $this->assertStringContainsString('sve-vt-slide-in{from{transform:translateX(25%);opacity:0}}', PageTransitionSettings::css(['style' => 'slide']));
-        $this->assertStringContainsString('::view-transition-old(root){animation:none;opacity:0}', PageTransitionSettings::css(['style' => 'none']));
+        $this->assertStringContainsString('::view-transition-old(root),::view-transition-old(*):only-child{animation:none;opacity:0}', PageTransitionSettings::css(['style' => 'none']));
+    }
+
+    public function test_an_element_with_no_partner_leaves_and_arrives_with_the_page(): void
+    {
+        foreach (['fade', 'crossfade', 'slide', 'none'] as $style) {
+            $css = PageTransitionSettings::css(['style' => $style]);
+
+            $this->assertStringContainsString('::view-transition-old(*):only-child', $css, $style);
+            $this->assertStringContainsString('::view-transition-new(*):only-child', $css, $style);
+        }
     }
 
     public function test_the_header_stands_still_when_asked(): void

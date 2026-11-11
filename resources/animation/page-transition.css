@@ -19,6 +19,32 @@
   overflow: clip;
 }
 
+/*
+ * An element named on one page only (a card whose partner is not on the next
+ * page) leaves or arrives with the page, as the browser's own crossfade does,
+ * instead of standing over the new page for its motion's length. The site's
+ * «Whole site» setting, when saved, comes after this and sets its own.
+ */
+::view-transition-old(*):only-child {
+  animation: 0.25s ease both sve-vt-leave;
+}
+
+::view-transition-new(*):only-child {
+  animation: 0.25s ease both sve-vt-arrive;
+}
+
+@keyframes sve-vt-leave {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sve-vt-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Smooth: a soft stop. */
 ::view-transition-group(*.smooth) {
   animation-duration: 0.7s;

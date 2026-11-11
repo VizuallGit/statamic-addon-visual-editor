@@ -133,6 +133,8 @@ test('the tile stands after Follow the mouse, and the tag is registered with the
   }
 
   assert.match(css, /@media \(prefers-reduced-motion\)/);
+  assert.match(css, /::view-transition-old\(\*\):only-child \{\s*animation: 0\.25s ease both sve-vt-leave;/);
+  assert.match(css, /::view-transition-new\(\*\):only-child \{\s*animation: 0\.25s ease both sve-vt-arrive;/);
 });
 
 /* The demo site's own two files, as they stand: the list's box around the

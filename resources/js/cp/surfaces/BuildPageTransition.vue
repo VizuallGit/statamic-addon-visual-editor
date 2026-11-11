@@ -292,7 +292,9 @@ async function land(row) {
           </span>
         </div>
       </template>
+      <p v-if="site.settings.enabled" class="bm-anim-note">{{ t('pt_site_header_hint') }}</p>
       <p class="bm-anim-note" :class="{ 'is-warn': site.status === 'failed' }" data-sve-build-pt-site-note>{{ siteNote }}</p>
+      <p class="bm-anim-note">{{ t('pt_site_where') }} <a class="bm-pt-link" href="/" target="_blank" rel="noopener" data-sve-build-pt-site-open>{{ t('pt_site_open') }}</a></p>
     </section>
 
     <div class="bm-anim-head"><span>{{ t('pt_element') }}</span></div>
@@ -333,6 +335,7 @@ async function land(row) {
       <template v-else>
         <p v-if="partner" class="bm-pt-paired" data-sve-build-pt-paired>{{ t('pt_land_on', { view: landing.view, element: rowLabel(partner).tag + (rowLabel(partner).text ? ` ${rowLabel(partner).text}` : '') }) }}</p>
         <p class="bm-anim-note">{{ partner ? t('pt_land_move') : t('pt_land_pick', { view: landing.view }) }}</p>
+        <p v-if="!partner && rows.some((row) => row.pt)" class="bm-anim-note is-warn" data-sve-build-pt-mismatch>{{ t('pt_land_mismatch', { mine: current.pair }) }}</p>
         <div class="bm-pt-rows" role="list" :aria-busy="saving" data-sve-build-pt-landing>
           <button
             v-for="row in rows"
@@ -349,6 +352,7 @@ async function land(row) {
             <span class="bm-pt-row__tag" :class="{ 'is-comp': row.node.kind === 'component' }">{{ rowLabel(row).tag }}</span>
             <span class="bm-pt-row__text">{{ rowLabel(row).text }}</span>
             <span v-if="row === partner" class="bm-pt-row__ok" aria-hidden="true">✓</span>
+            <span v-else-if="row.pt" class="bm-pt-row__other" :title="t('pt_land_other', { pair: row.pt.pair, mine: current.pair })" data-sve-build-pt-other>{{ row.pt.pair }}</span>
           </button>
         </div>
         <p v-if="landing.failed" class="bm-anim-note is-warn">{{ t('pt_land_save_error', { view: landing.view }) }}</p>
@@ -383,6 +387,8 @@ async function land(row) {
 .sve-build .bm-pt-row__tag.is-comp { color: #4fd1a0; }
 .sve-build .bm-pt-row__text { min-width: 0; overflow: hidden; color: var(--bm-muted); text-overflow: ellipsis; white-space: nowrap; }
 .sve-build .bm-pt-row__ok { margin-left: auto; color: #4fd1a0; font-weight: 700; }
+.sve-build .bm-pt-row__other { flex: none; margin-left: auto; padding: 0 0.3125rem; border-radius: 0.25rem; background: color-mix(in srgb, #f0b35f 18%, transparent); color: #f0b35f; font-size: 0.625rem; }
+.sve-build .bm-pt-link { color: var(--bm-accent); text-decoration: underline; }
 .sve-build .bm-pt-remove { align-self: start; color: var(--bm-muted); font-size: 0.6875rem; text-decoration: underline; }
 .sve-build .bm-pt-remove:hover { color: var(--bm-ink); }
 </style>

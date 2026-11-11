@@ -25,6 +25,12 @@ use Symfony\Component\Yaml\Yaml;
  * - duration seconds, 0.1–1.5.
  * - header   the site's header (`data-sve-chrome="header"`) stands still
  *            while the page under it changes.
+ *
+ * An element named on one page only — a card in a list whose partner is not
+ * on the next page — is its own layer in the transition. `:only-child` (an
+ * old image with no new beside it, or the other way round) makes it leave or
+ * arrive with the page, instead of standing over the new page for its own
+ * motion's length.
  */
 final class PageTransitionSettings
 {
@@ -135,17 +141,23 @@ final class PageTransitionSettings
         $css = '@view-transition{navigation:auto}'
             ."::view-transition-group(root){animation-duration:{$ms}ms}";
 
+        $old = '::view-transition-old(root),::view-transition-old(*):only-child';
+        $new = '::view-transition-new(root),::view-transition-new(*):only-child';
+
         $css .= match ($settings['style']) {
-            'fade' => "::view-transition-old(root){animation:{$half}ms ease-in both sve-vt-fade-out;mix-blend-mode:normal}"
-                ."::view-transition-new(root){animation:{$half}ms ease-out {$half}ms both sve-vt-fade-in;mix-blend-mode:normal}"
-                .'@keyframes sve-vt-fade-out{to{opacity:0}}@keyframes sve-vt-fade-in{from{opacity:0}}',
-            'slide' => "::view-transition-old(root){animation:{$ms}ms {$ease} both sve-vt-slide-out;mix-blend-mode:normal}"
-                ."::view-transition-new(root){animation:{$ms}ms {$ease} both sve-vt-slide-in;mix-blend-mode:normal}"
+            'fade' => "{$old}{animation:{$half}ms ease-in both sve-vt-fade-out;mix-blend-mode:normal}"
+                ."{$new}{animation:{$half}ms ease-out {$half}ms both sve-vt-fade-in;mix-blend-mode:normal}",
+            'crossfade' => "::view-transition-old(*):only-child{animation:{$ms}ms ease both sve-vt-fade-out}"
+                ."::view-transition-new(*):only-child{animation:{$ms}ms ease both sve-vt-fade-in}",
+            'slide' => "{$old}{animation:{$ms}ms {$ease} both sve-vt-slide-out;mix-blend-mode:normal}"
+                ."{$new}{animation:{$ms}ms {$ease} both sve-vt-slide-in;mix-blend-mode:normal}"
                 .'@keyframes sve-vt-slide-out{to{transform:translateX(-25%);opacity:0}}'
                 .'@keyframes sve-vt-slide-in{from{transform:translateX(25%);opacity:0}}',
-            'none' => '::view-transition-old(root){animation:none;opacity:0}::view-transition-new(root){animation:none;mix-blend-mode:normal}',
+            'none' => "{$old}{animation:none;opacity:0}{$new}{animation:none;mix-blend-mode:normal}",
             default => '',
         };
+
+        $css .= '@keyframes sve-vt-fade-out{to{opacity:0}}@keyframes sve-vt-fade-in{from{opacity:0}}';
 
         if ($settings['header']) {
             $css .= '[data-sve-chrome="header"]{view-transition-name:sve-site-head}'
