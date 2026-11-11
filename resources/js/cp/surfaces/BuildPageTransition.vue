@@ -23,7 +23,8 @@ import { computed, inject, reactive, ref, watch } from 'vue';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { findByPath } from '../../build-mode/place.js';
 import { csrfToken } from '../../lib/csrf.js';
-import { DURATION, SITE_STYLES, STYLE_DURATION, cleanDuration, saveSiteTransitions, siteTransitions } from '../../page-transition-site.js';
+import { DURATION, SITE_STYLES, cleanDuration, saveSiteTransitions, siteTransitions } from '../../page-transition-site.js';
+import { STYLE_DURATION } from '../../page-transition-site.js';
 import {
   KEYS,
   MOTIONS,
