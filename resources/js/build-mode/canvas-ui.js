@@ -381,7 +381,9 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     }
 
     drag.marked = key;
-    port()?.treeMark?.(over ? { ...(over.section ? { ids: over.ids } : { path: over.path }), where: over.where, reveal } : null);
+    port()?.treeMark?.(
+      over ? { ...(over.section ? { ids: over.ids } : { path: over.path }), where: over.where, reveal } : null
+    );
 
     return true;
   }
@@ -430,7 +432,21 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
    * A press that becomes a drag once it has moved. `events` is the document
    * the pointer is followed in, `capture` the element that keeps it.
    */
-  function press(event, { events, capture, toCanvas, moving = '', label = '', ghost = null, source = null, section = '', tree = false, land }) {
+  function press(
+    event,
+    {
+      events,
+      capture,
+      toCanvas,
+      moving = '',
+      label = '',
+      ghost = null,
+      source = null,
+      section = '',
+      tree = false,
+      land,
+    }
+  ) {
     const origin = { x: event.clientX, y: event.clientY };
     const pointerId = event.pointerId;
     let started = false;
@@ -519,7 +535,9 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
 
       done.ghost?.remove();
       done.source?.removeAttribute(DRAGGING);
-      page()?.querySelectorAll(`[${DRAGGING}]`).forEach((el) => el.removeAttribute(DRAGGING));
+      page()
+        ?.querySelectorAll(`[${DRAGGING}]`)
+        .forEach((el) => el.removeAttribute(DRAGGING));
 
       const doc = page();
 
@@ -652,7 +670,9 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
         const scale = el.offsetWidth ? box.width / el.offsetWidth : 1;
 
         return ({ x, y }) =>
-          x < box.left || x > box.right || y < box.top || y > box.bottom ? null : { x: (x - box.left) / scale, y: (y - box.top) / scale };
+          x < box.left || x > box.right || y < box.top || y > box.bottom
+            ? null
+            : { x: (x - box.left) / scale, y: (y - box.top) / scale };
       },
       land: (over) =>
         over.section

@@ -131,13 +131,13 @@ function canPick(field) {
   display: none;
 }
 .sve-pv__row + .sve-pv__row {
-  margin-top: .75rem;
+  margin-top: 0.75rem;
 }
 .sve-pv__bar {
   display: flex;
   align-items: center;
-  gap: .375rem;
-  margin-bottom: .3rem;
+  gap: 0.375rem;
+  margin-bottom: 0.3rem;
 }
 .sve-pv__label {
   flex: 1 1 auto;
@@ -145,7 +145,7 @@ function canPick(field) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: .8125rem;
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 .sve-pv__data {
@@ -155,20 +155,20 @@ function canPick(field) {
   justify-content: center;
   flex: 0 0 auto;
   /* Its own size, not the row's: `all: unset` leaves the font to the panel it lands in. */
-  font-size: .8125rem;
+  font-size: 0.8125rem;
   width: 1.5em;
   height: 1.5em;
-  border-radius: .25rem;
+  border-radius: 0.25rem;
   cursor: pointer;
-  opacity: .55;
+  opacity: 0.55;
 }
 .sve-pv__data:hover:not([disabled]) {
   opacity: 1;
-  background: rgba(128, 128, 128, .22);
+  background: rgba(128, 128, 128, 0.22);
 }
 .sve-pv__data[disabled] {
   cursor: default;
-  opacity: .3;
+  opacity: 0.3;
 }
 /* A text field's icon stands in the field's own box, over its right end, as it
    does in the box a field reading from the page gets. Statamic's field is left
@@ -182,8 +182,8 @@ function canPick(field) {
 }
 .sve-pv__data--inside {
   position: absolute;
-  right: .3em;
-  bottom: .625rem;
+  right: 0.3em;
+  bottom: 0.625rem;
 }
 .sve-pv__expr {
   position: relative;
@@ -192,13 +192,13 @@ function canPick(field) {
 .sve-pv__expr input {
   box-sizing: border-box;
   width: 100%;
-  padding: .45em 2.2em .45em .6em;
-  border-radius: .35rem;
-  border: 1px solid rgba(128, 128, 128, .35);
-  background: rgba(0, 0, 0, .22);
+  padding: 0.45em 2.2em 0.45em 0.6em;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: rgba(0, 0, 0, 0.22);
   color: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: .75rem;
+  font-size: 0.75rem;
 }
 .sve-pv__expr input:focus {
   outline: 2px solid #3858e9;
@@ -208,19 +208,19 @@ function canPick(field) {
   all: unset;
   position: absolute;
   top: 50%;
-  right: .3em;
+  right: 0.3em;
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 1.5em;
   height: 1.5em;
-  border-radius: .25rem;
+  border-radius: 0.25rem;
   cursor: pointer;
-  opacity: .55;
+  opacity: 0.55;
 }
 .sve-pv__expr button:hover:not([disabled]) {
   opacity: 1;
-  background: rgba(128, 128, 128, .22);
+  background: rgba(128, 128, 128, 0.22);
 }
 </style>

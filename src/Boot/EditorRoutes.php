@@ -16,25 +16,27 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ComponentController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\DataVarsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\DesignOverlayController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\DockGhostController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\ElementFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryBlueprintController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FontsController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LayoutPatternsController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\ElementFieldsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\OwnPageController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\RenderProfileController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionLandingController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionSettingsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PreviewTickController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PropFieldsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\RenderProfileController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SchemaController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\DesignOverlayController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
@@ -42,8 +44,6 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SnippetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionLandingController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\PageTransitionSettingsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
@@ -143,7 +143,6 @@ final class EditorRoutes
             // it — a template's fields, the way a section's are its fieldset.
             Route::get('/!/sve/entry-blueprint', EntryBlueprintController::class)
                 ->name('sve.entry-blueprint');
-
 
             // Fresh meta + defaults for a set, so a picker-inserted section also
             // renders in the CP's own section list (see SectionMetaController).

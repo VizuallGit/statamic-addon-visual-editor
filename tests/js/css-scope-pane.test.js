@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildScopedCss, cssBalanced, findClassRule, mergeScopedCss, tokenTreeFromHtml } from '../../resources/js/css-scope.js';
+import {
+  buildScopedCss,
+  cssBalanced,
+  findClassRule,
+  mergeScopedCss,
+  tokenTreeFromHtml,
+} from '../../resources/js/css-scope.js';
 
 const html = [
   '<section class="wrapper py-1000">',
@@ -27,16 +33,16 @@ const css = [
   '',
 ].join('\n');
 
-test('a tag without a [ name ] shows nothing — not its children\'s names', () => {
+test("a tag without a [ name ] shows nothing — not its children's names", () => {
   assert.deepEqual(tokenTreeFromHtml(html), []);
   assert.deepEqual(tokenTreeFromHtml(ul), [{ className: 'icon-group' }]);
   assert.deepEqual(tokenTreeFromHtml(li), [{ className: 'icon' }]);
 });
 
-test('the pane shows the element\'s own rule as written; a separate .icon rule stays out', () => {
+test("the pane shows the element's own rule as written; a separate .icon rule stays out", () => {
   assert.equal(
     buildScopedCss(css, tokenTreeFromHtml(ul)),
-    '.icon-group {\n    --stagger: 300ms;\n    & .icon {\n        opacity: 0;\n    }\n}\n',
+    '.icon-group {\n    --stagger: 300ms;\n    & .icon {\n        opacity: 0;\n    }\n}\n'
   );
   assert.equal(buildScopedCss(css, tokenTreeFromHtml(li)), '.icon {\n    display: flex;\n}\n');
 });
@@ -48,7 +54,10 @@ test('the top-level rule wins over one nested in another', () => {
   assert.equal(nestedFirst.slice(rule.from, rule.to), '.icon {\n  display: flex;\n}');
   assert.equal(buildScopedCss(nestedFirst, [{ className: 'icon' }]), '.icon {\n    display: flex;\n}\n');
   // No top-level rule: the nested one is the rule, where it is written.
-  assert.equal(buildScopedCss('.card {\n  .icon {\n    color: red;\n  }\n}\n', [{ className: 'icon' }]), '.icon {\n    color: red;\n}\n');
+  assert.equal(
+    buildScopedCss('.card {\n  .icon {\n    color: red;\n  }\n}\n', [{ className: 'icon' }]),
+    '.icon {\n    color: red;\n}\n'
+  );
 });
 
 test('writing the pane back leaves a same-named rule elsewhere in the file alone', () => {
@@ -56,7 +65,7 @@ test('writing the pane back leaves a same-named rule elsewhere in the file alone
 
   assert.equal(
     mergeScopedCss(css, edited, 'icon-group'),
-    '.icon-group {\n    --stagger: 500ms;\n    & .icon {\n        opacity: 0;\n    }\n}\n\n.icon {\n    display: flex;\n}\n',
+    '.icon-group {\n    --stagger: 500ms;\n    & .icon {\n        opacity: 0;\n    }\n}\n\n.icon {\n    display: flex;\n}\n'
   );
 });
 
@@ -67,7 +76,7 @@ test('two names on one tag write back as two rules, each over its own', () => {
   assert.equal(mergeScopedCss(file, pane, 'a'), '.a {\n    color: green;\n}\n.b {\n    color: black;\n}\n');
 });
 
-test('loose declarations become the root\'s body; a missing rule is appended', () => {
+test("loose declarations become the root's body; a missing rule is appended", () => {
   assert.equal(mergeScopedCss('.x {\n}\n', 'gap: 1rem;', 'icon-group'), '.x {\n}\n.icon-group {\ngap: 1rem;\n}\n');
 });
 
@@ -90,7 +99,10 @@ test('text that does not close is not written: a selector with no { yet, an open
 });
 
 test('a rule the pane showed and no longer has leaves the file, blank or not', () => {
-  assert.equal(mergeScopedCss(FILE, '.a {\n    color: red;\n}\n', 'a', { previous: PANE_AB }), '.a {\n    color: red;\n}\n\n.c {\n    color: green;\n}\n');
+  assert.equal(
+    mergeScopedCss(FILE, '.a {\n    color: red;\n}\n', 'a', { previous: PANE_AB }),
+    '.a {\n    color: red;\n}\n\n.c {\n    color: green;\n}\n'
+  );
   assert.equal(mergeScopedCss('.a {\n}\n.f {\n}\n', '.a {\n}\n', 'a', { previous: '.a {\n}\n.f {\n}\n' }), '.a {\n}\n');
 });
 
@@ -113,11 +125,11 @@ test('a name new to the pane leaves a rule nested in another alone and gets its 
 
   assert.equal(
     mergeScopedCss(file, '.icon {\n    color: red;\n}\n', 'icon', { previous: '' }),
-    `${file}.icon {\n    color: red;\n}\n`,
+    `${file}.icon {\n    color: red;\n}\n`
   );
 });
 
-test('a block that is not one class\'s rule replaces the copy written last time', () => {
+test("a block that is not one class's rule replaces the copy written last time", () => {
   const hover = (color) => `${PANE_AB}\n.a:hover {\n    color: ${color};\n}\n`;
   const one = hover('blue');
   const two = hover('navy');
@@ -133,5 +145,8 @@ test('a comment written in front of a rule is written once', () => {
   const written = mergeScopedCss(FILE, pane, 'a', { previous: PANE_AB });
 
   assert.equal(written, `/* note */\n${FILE}`);
-  assert.equal(mergeScopedCss(written, pane.replace('red', 'tomato'), 'a', { previous: pane }), `/* note */\n${FILE.replace('red', 'tomato')}`);
+  assert.equal(
+    mergeScopedCss(written, pane.replace('red', 'tomato'), 'a', { previous: pane }),
+    `/* note */\n${FILE.replace('red', 'tomato')}`
+  );
 });

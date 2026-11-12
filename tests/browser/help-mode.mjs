@@ -134,7 +134,8 @@ const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/he
 /** The HTML pane's CodeMirror view, asked through the element CodeMirror hangs it on. */
 const VIEW_OF = `(() => { const c = document.querySelector('${PANE} .cm-content'); return c?.cmView?.view || c?.cmTile?.view || null; })()`;
 const paneDoc = (cp) => cp.evaluate(`${VIEW_OF}?.state.doc.toString() ?? null`);
-const pressed = (cp) => cp.evaluate((sel) => document.querySelector(sel)?.getAttribute('aria-pressed') ?? null, HELP_BTN);
+const pressed = (cp) =>
+  cp.evaluate((sel) => document.querySelector(sel)?.getAttribute('aria-pressed') ?? null, HELP_BTN);
 const helpLoaded = (requests) => requests.some((url) => /help-editor-[\w-]+\.js/.test(url));
 const dataVarsCount = (requests) => requests.filter((url) => url.includes('/!/sve/data-vars')).length;
 
@@ -161,7 +162,13 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate((re) => [...document.querySelectorAll('button, a')].find((el) => new RegExp(re, 'i').test(el.textContent || ''))?.click(), 'live preview|forhåndsvisning');
+    await page.evaluate(
+      (re) =>
+        [...document.querySelectorAll('button, a')]
+          .find((el) => new RegExp(re, 'i').test(el.textContent || ''))
+          ?.click(),
+      'live preview|forhåndsvisning'
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -200,11 +207,12 @@ async function openDock(page, cp) {
 
   // A section laid out in the preview is clicked there; one without a height
   // (an empty section on this page) is picked from the HTML tree instead.
-  const visible = (sel) => [...document.querySelectorAll(sel)].some((el) => {
-    const b = el.getBoundingClientRect();
+  const visible = (sel) =>
+    [...document.querySelectorAll(sel)].some((el) => {
+      const b = el.getBoundingClientRect();
 
-    return b.width > 0 && b.height > 0;
-  });
+      return b.width > 0 && b.height > 0;
+    });
 
   if (await waitFor(await livePreview(cp), visible, '[id^="id-"]', 5000)) {
     await click(page, await livePreview(cp), '[id^="id-"]');
@@ -229,7 +237,11 @@ async function openDock(page, cp) {
   step('code dock open with an HTML pane', dock);
   await sleep(1500);
 
-  const hasFile = () => cp.evaluate((sel) => !!document.querySelector(`${sel} [data-sve-code-path]`)?.getAttribute('data-sve-code-path'), DOCK);
+  const hasFile = () =>
+    cp.evaluate(
+      (sel) => !!document.querySelector(`${sel} [data-sve-code-path]`)?.getAttribute('data-sve-code-path'),
+      DOCK
+    );
 
   if (!(await hasFile())) {
     if (!(await has(cp, '[data-sve-ht-row]'))) {
@@ -238,7 +250,12 @@ async function openDock(page, cp) {
     }
 
     await click(page, cp, '[data-sve-ht-row][data-sve-ht-sec] [data-sve-ht-name], [data-sve-ht-row][data-sve-ht-sec]');
-    await waitFor(cp, (sel) => !!document.querySelector(`${sel} [data-sve-code-path]`)?.getAttribute('data-sve-code-path'), DOCK, 10000);
+    await waitFor(
+      cp,
+      (sel) => !!document.querySelector(`${sel} [data-sve-code-path]`)?.getAttribute('data-sve-code-path'),
+      DOCK,
+      10000
+    );
     await sleep(1500);
   }
 
@@ -290,23 +307,29 @@ async function closeMenu(page, cp) {
 async function setHelpTick(page, cp, key, on) {
   await openMenuTab(page, cp, 'tree');
 
-  const hit = await cp.evaluate((menu, k) => {
-    // The strings are PHP's (sveStrings); a site whose PHP is older than this
-    // build shows the key itself, so both are looked for.
-    const label = window.Statamic?.$config?.get?.('sveStrings')?.[k] || k;
-    const row = [...document.querySelectorAll(`${menu} label.sve-lp-settings__row`)].find((el) => (el.textContent || '').trim() === label.trim());
-    const box = row?.querySelector('input[type="checkbox"]');
+  const hit = await cp.evaluate(
+    (menu, k) => {
+      // The strings are PHP's (sveStrings); a site whose PHP is older than this
+      // build shows the key itself, so both are looked for.
+      const label = window.Statamic?.$config?.get?.('sveStrings')?.[k] || k;
+      const row = [...document.querySelectorAll(`${menu} label.sve-lp-settings__row`)].find(
+        (el) => (el.textContent || '').trim() === label.trim()
+      );
+      const box = row?.querySelector('input[type="checkbox"]');
 
-    if (!box) {
-      return null;
-    }
+      if (!box) {
+        return null;
+      }
 
-    box.scrollIntoView({ block: 'center' });
+      box.scrollIntoView({ block: 'center' });
 
-    const b = box.getBoundingClientRect();
+      const b = box.getBoundingClientRect();
 
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2, checked: box.checked };
-  }, MENU, key);
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2, checked: box.checked };
+    },
+    MENU,
+    key
+  );
 
   if (!hit) {
     await closeMenu(page, cp);
@@ -327,7 +350,12 @@ async function setHelpTick(page, cp, key, on) {
   return true;
 }
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 const requests = [];
 
@@ -339,7 +367,9 @@ await page.evaluateOnNewDocument((path) => {
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
 
     if (url.includes(path) && method !== 'GET') {
-      return Promise.resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      return Promise.resolve(
+        new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+      );
     }
 
     return real.apply(this, arguments);
@@ -348,7 +378,12 @@ await page.evaluateOnNewDocument((path) => {
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 500 &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 page.on('request', (req) => requests.push(req.url()));
 
 if (WORKTREE) {
@@ -413,7 +448,11 @@ try {
   step('template unlocked for the test', await unlockDock(page, cp));
 
   // ── Off from the start ────────────────────────────────────────────────
-  step('the switch’s icon is in the HTML pane’s toolbar, not pressed', (await pressed(cp)) === 'false', `aria-pressed=${await pressed(cp)}`);
+  step(
+    'the switch’s icon is in the HTML pane’s toolbar, not pressed',
+    (await pressed(cp)) === 'false',
+    `aria-pressed=${await pressed(cp)}`
+  );
 
   const fetchesBefore = dataVarsCount(requests);
   const placed = await newLineAfterRoot(cp);
@@ -423,20 +462,42 @@ try {
   await page.keyboard.press('Enter');
   await page.keyboard.type('<p>', { delay: 20 });
   await sleep(1200);
-  step('help off: nothing fetched and no popup', dataVarsCount(requests) === fetchesBefore && !helpLoaded(requests) && !(await has(cp, POPUP)), `data-vars +${dataVarsCount(requests) - fetchesBefore}, chunk ${helpLoaded(requests)}`);
+  step(
+    'help off: nothing fetched and no popup',
+    dataVarsCount(requests) === fetchesBefore && !helpLoaded(requests) && !(await has(cp, POPUP)),
+    `data-vars +${dataVarsCount(requests) - fetchesBefore}, chunk ${helpLoaded(requests)}`
+  );
   // The <p> and its closing tag: the editor's own closeTags, untouched by help.
   step('typing is the editor’s own: <p></p> closed by it', (await paneDoc(cp))?.includes('<p></p>'));
 
   // ── The default from ⋮ → HTML tree turns it on for this Live Preview ───
   step('the default ticked in the settings', await setHelpTick(page, cp, 'lp_settings_code_dock_help', true));
-  step('…switches the icon on', await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', HELP_BTN, 5000), `aria-pressed=${await pressed(cp)}`);
+  step(
+    '…switches the icon on',
+    await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', HELP_BTN, 5000),
+    `aria-pressed=${await pressed(cp)}`
+  );
   await sleep(800);
   step('…and loads the editor side', helpLoaded(requests));
-  step('the default unticked switches it off again', await setHelpTick(page, cp, 'lp_settings_code_dock_help', false) && (await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'false', HELP_BTN, 5000)), `aria-pressed=${await pressed(cp)}`);
+  step(
+    'the default unticked switches it off again',
+    (await setHelpTick(page, cp, 'lp_settings_code_dock_help', false)) &&
+      (await waitFor(
+        cp,
+        (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'false',
+        HELP_BTN,
+        5000
+      )),
+    `aria-pressed=${await pressed(cp)}`
+  );
 
   // ── The icon switches it on by hand ────────────────────────────────────
   await click(page, cp, HELP_BTN);
-  step('the icon pressed turns help on', await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', HELP_BTN, 3000), `aria-pressed=${await pressed(cp)}`);
+  step(
+    'the icon pressed turns help on',
+    await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', HELP_BTN, 3000),
+    `aria-pressed=${await pressed(cp)}`
+  );
 
   // ── <ul> → popup → Tab → the loop; ⌘Z one step ─────────────────────────
   const placedAgain = await newLineAfterRoot(cp);
@@ -451,7 +512,13 @@ try {
   step('`<ul>` typed opens the popup', await waitSeen(cp, POPUP, 6000));
   await shot(page, 'popup');
 
-  const options = await cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-sve-help-option]`)].map((el) => el.textContent.trim().replace(/\s+/g, ' ')), POPUP);
+  const options = await cp.evaluate(
+    (sel) =>
+      [...document.querySelectorAll(`${sel} [data-sve-help-option]`)].map((el) =>
+        el.textContent.trim().replace(/\s+/g, ' ')
+      ),
+    POPUP
+  );
 
   info(`popup: ${options.join(' | ')}`);
   // A row's text is its label and its meta run together: «Add a class» +
@@ -462,9 +529,21 @@ try {
   const isLoopRow = (text) => /replicator|grid|løkke|loop|gentag/i.test(text);
   const loopIndex = options.findIndex(isLoopRow);
 
-  step('the popup offers the loop over the section’s list (class, ≤ 3 rows, then the id row)', options.length >= 2 && options.length <= 5 && loopIndex >= 0, options.join(' | '));
-  step('the class row is first — on a <ul> as on every tag without one', isClassRow(options[0] || ''), options[0] || '(no rows)');
-  step('the id row is last and never pushes a field off the list', isIdRow(options.at(-1) || '') && options.slice(0, -1).every((text) => !isIdRow(text)), options.at(-1) || '(no rows)');
+  step(
+    'the popup offers the loop over the section’s list (class, ≤ 3 rows, then the id row)',
+    options.length >= 2 && options.length <= 5 && loopIndex >= 0,
+    options.join(' | ')
+  );
+  step(
+    'the class row is first — on a <ul> as on every tag without one',
+    isClassRow(options[0] || ''),
+    options[0] || '(no rows)'
+  );
+  step(
+    'the id row is last and never pushes a field off the list',
+    isIdRow(options.at(-1) || '') && options.slice(0, -1).every((text) => !isIdRow(text)),
+    options.at(-1) || '(no rows)'
+  );
 
   const where = await cp.evaluate(`(() => {
     const view = ${VIEW_OF};
@@ -474,10 +553,11 @@ try {
     const b = popup.getBoundingClientRect();
     return { caret: caret && { left: Math.round(caret.left), bottom: Math.round(caret.bottom), top: Math.round(caret.top) }, popup: { left: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom), width: Math.round(b.width), height: Math.round(b.height) } };
   })()`);
-  const nearCaret = !!where?.caret && (
-    (where.popup.top >= where.caret.bottom && where.popup.top - where.caret.bottom < 16)
-    || (where.popup.bottom <= where.caret.top && where.caret.top - where.popup.bottom < 16)
-  ) && Math.abs(where.popup.left - where.caret.left) < 300;
+  const nearCaret =
+    !!where?.caret &&
+    ((where.popup.top >= where.caret.bottom && where.popup.top - where.caret.bottom < 16) ||
+      (where.popup.bottom <= where.caret.top && where.caret.top - where.popup.bottom < 16)) &&
+    Math.abs(where.popup.left - where.caret.left) < 300;
 
   step('the popup sits at the caret (under it, or above when there is no room)', nearCaret, JSON.stringify(where));
 
@@ -492,9 +572,17 @@ try {
   await sleep(400);
 
   const written = await paneDoc(cp);
-  const loopWritten = !!written && /<ul[^>]*\{\{ visual_edit field="(\w+)"[^}]*\}\}>[\s\S]*\{\{ \1 \}\}[\s\S]*<li[\s\S]*\{\{ \/\1 \}\}\s*<\/ul>/.test(written);
+  const loopWritten =
+    !!written &&
+    /<ul[^>]*\{\{ visual_edit field="(\w+)"[^}]*\}\}>[\s\S]*\{\{ \1 \}\}[\s\S]*<li[\s\S]*\{\{ \/\1 \}\}\s*<\/ul>/.test(
+      written
+    );
 
-  step('Tab writes the loop: the tag, `{{ field }}`, a <li>, `{{ /field }}`', loopWritten, (written || '').slice(placed?.at || 0, (placed?.at || 0) + 220).replace(/\n/g, '⏎'));
+  step(
+    'Tab writes the loop: the tag, `{{ field }}`, a <li>, `{{ /field }}`',
+    loopWritten,
+    (written || '').slice(placed?.at || 0, (placed?.at || 0) + 220).replace(/\n/g, '⏎')
+  );
   step('the popup is gone after Tab', await waitGone(cp, POPUP, 2000));
   await shot(page, 'written');
 
@@ -505,7 +593,13 @@ try {
 
   const undone = await paneDoc(cp);
 
-  step('⌘Z takes the loop back in one step: `<ul></ul>` as typed is there again', undone === afterUl, undone === beforeUl ? 'went one step too far (the <ul> itself is gone)' : `${(undone || '').length} chars vs ${(afterUl || '').length}`);
+  step(
+    '⌘Z takes the loop back in one step: `<ul></ul>` as typed is there again',
+    undone === afterUl,
+    undone === beforeUl
+      ? 'went one step too far (the <ul> itself is gone)'
+      : `${(undone || '').length} chars vs ${(afterUl || '').length}`
+  );
 
   // ── Tab with no popup is the editor’s own ──────────────────────────────
   await page.keyboard.press('Escape');
@@ -519,11 +613,26 @@ try {
 
   const afterTab = await paneDoc(cp);
 
-  step('Tab without a popup writes nothing of ours', !!afterTab && !/visual_edit field="\w+" outline_inside/.test(afterTab.slice(0, afterTab.length - (beforeTab?.length || 0) + 60)) && afterTab.length - (beforeTab?.length || 0) <= 8, `${afterTab?.length - beforeTab?.length} chars`);
+  step(
+    'Tab without a popup writes nothing of ours',
+    !!afterTab &&
+      !/visual_edit field="\w+" outline_inside/.test(
+        afterTab.slice(0, afterTab.length - (beforeTab?.length || 0) + 60)
+      ) &&
+      afterTab.length - (beforeTab?.length || 0) <= 8,
+    `${afterTab?.length - beforeTab?.length} chars`
+  );
 
   // ── «Add a class»: the pane's picker (the setting on), class="" in the pane (off) ──
   const PICKERS = '#__sve-tw-menu, #__sve-css-menu';
-  const classOptionIndex = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-sve-help-option]`)].findIndex((el) => /class|klasse/i.test(el.textContent || '') && !/same|samme/i.test(el.textContent || '')), POPUP);
+  const classOptionIndex = () =>
+    cp.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(`${sel} [data-sve-help-option]`)].findIndex(
+          (el) => /class|klasse/i.test(el.textContent || '') && !/same|samme/i.test(el.textContent || '')
+        ),
+      POPUP
+    );
   const pickClass = async () => {
     const placedP = await newLineAfterRoot(cp);
 
@@ -555,7 +664,11 @@ try {
   const viaPicker = await pickClass();
 
   step('«Add a class» is offered on a fresh <p>', viaPicker.opened && viaPicker.index >= 0, `index ${viaPicker.index}`);
-  step('…and opens the pane’s class picker, nothing written yet', (await has(cp, PICKERS)) && viaPicker.after === viaPicker.before, `picker ${await has(cp, PICKERS)}; doc ${viaPicker.after === viaPicker.before ? 'unchanged' : 'changed'}`);
+  step(
+    '…and opens the pane’s class picker, nothing written yet',
+    (await has(cp, PICKERS)) && viaPicker.after === viaPicker.before,
+    `picker ${await has(cp, PICKERS)}; doc ${viaPicker.after === viaPicker.before ? 'unchanged' : 'changed'}`
+  );
   await shot(page, 'picker');
   await page.keyboard.press('Escape');
   await sleep(300);
@@ -565,7 +678,11 @@ try {
 
   const inline = await pickClass();
 
-  step('…then «Add a class» writes class="" in the pane with the caret inside', inline.opened && inline.index >= 0 && /<p class="">/.test(inline.after || '') && !(await has(cp, PICKERS)), (inline.after || '').slice(placed?.at || 0, (placed?.at || 0) + 60).replace(/\n/g, '⏎'));
+  step(
+    '…then «Add a class» writes class="" in the pane with the caret inside',
+    inline.opened && inline.index >= 0 && /<p class="">/.test(inline.after || '') && !(await has(cp, PICKERS)),
+    (inline.after || '').slice(placed?.at || 0, (placed?.at || 0) + 60).replace(/\n/g, '⏎')
+  );
   step('…and the Tailwind list opens between the quotes', await waitSeen(cp, `${PANE} .cm-tooltip-autocomplete`, 4000));
   await page.keyboard.press('Escape');
   await sleep(200);
@@ -573,9 +690,13 @@ try {
 
   // ── The click setting: off, a click into a tag asks nothing; a typed > still does ──
   step('the click setting unticked', await setHelpTick(page, cp, 'lp_settings_code_dock_help_click', false));
-  await cp.evaluate(`(() => { const view = ${VIEW_OF}; const doc = view.state.doc.toString(); const at = doc.indexOf('<p class=""'); view.dispatch({ selection: { anchor: at + 2 }, scrollIntoView: true }); view.focus(); })()`);
+  await cp.evaluate(
+    `(() => { const view = ${VIEW_OF}; const doc = view.state.doc.toString(); const at = doc.indexOf('<p class=""'); view.dispatch({ selection: { anchor: at + 2 }, scrollIntoView: true }); view.focus(); })()`
+  );
 
-  const caretXY = await cp.evaluate(`(() => { const view = ${VIEW_OF}; const c = view.coordsAtPos(view.state.selection.main.head); return c && { x: c.left + 1, y: (c.top + c.bottom) / 2 }; })()`);
+  const caretXY = await cp.evaluate(
+    `(() => { const view = ${VIEW_OF}; const c = view.coordsAtPos(view.state.selection.main.head); return c && { x: c.left + 1, y: (c.top + c.bottom) / 2 }; })()`
+  );
   const cpBox = await (await cp.frameElement()).boundingBox();
 
   await page.mouse.click(cpBox.x + caretXY.x, cpBox.y + caretXY.y);
@@ -594,27 +715,48 @@ try {
 
   // ── A loop's own tag: «What should … repeat?» → Enter → the loop panel ──
   const LOOP_PANEL = '[data-sve-help-loop]';
-  const loopAt = await cp.evaluate(`(() => { const view = ${VIEW_OF}; const doc = view.state.doc.toString(); const at = doc.search(/\\{\\{ blocks \\}\\}/); if (at < 0) return null; view.dispatch({ selection: { anchor: at + 4 }, scrollIntoView: true }); view.focus(); const c = view.coordsAtPos(at + 4); return c && { x: c.left + 1, y: (c.top + c.bottom) / 2 }; })()`);
+  const loopAt = await cp.evaluate(
+    `(() => { const view = ${VIEW_OF}; const doc = view.state.doc.toString(); const at = doc.search(/\\{\\{ blocks \\}\\}/); if (at < 0) return null; view.dispatch({ selection: { anchor: at + 4 }, scrollIntoView: true }); view.focus(); const c = view.coordsAtPos(at + 4); return c && { x: c.left + 1, y: (c.top + c.bottom) / 2 }; })()`
+  );
 
   step('a loop tag to click into', !!loopAt);
 
   if (loopAt) {
     await page.mouse.click(cpBox.x + loopAt.x, cpBox.y + loopAt.y);
-    step('the loop’s own tag asks what it repeats', await waitSeen(cp, POPUP, 6000) && /repeat|gentage/i.test(await cp.evaluate((sel) => document.querySelector(`${sel} [data-sve-help-option]`)?.textContent || '', POPUP)));
+    step(
+      'the loop’s own tag asks what it repeats',
+      (await waitSeen(cp, POPUP, 6000)) &&
+        /repeat|gentage/i.test(
+          await cp.evaluate((sel) => document.querySelector(`${sel} [data-sve-help-option]`)?.textContent || '', POPUP)
+        )
+    );
     await page.keyboard.press('Enter');
     step('Enter opens the loop panel', await waitSeen(cp, LOOP_PANEL, 3000));
     await shot(page, 'loop-panel');
 
-    const kinds = await cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-sve-help-seg] button`)].map((b) => `${b.textContent.trim()}${b.hasAttribute('data-active') ? '*' : ''}`), LOOP_PANEL);
+    const kinds = await cp.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(`${sel} [data-sve-help-seg] button`)].map(
+          (b) => `${b.textContent.trim()}${b.hasAttribute('data-active') ? '*' : ''}`
+        ),
+      LOOP_PANEL
+    );
 
-    step('the panel shows Field as the kind, with Collection and Nav beside it', kinds.length === 3 && /\*$/.test(kinds[0]), kinds.join(' '));
+    step(
+      'the panel shows Field as the kind, with Collection and Nav beside it',
+      kinds.length === 3 && /\*$/.test(kinds[0]),
+      kinds.join(' ')
+    );
     await page.keyboard.press('Escape');
     step('Esc closes the loop panel', await waitGone(cp, LOOP_PANEL, 3000));
   }
 
   // ── The icon switches it off: the next tag typed opens nothing ─────────
   await click(page, cp, HELP_BTN);
-  step('the icon pressed again turns help off', await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'false', HELP_BTN, 3000));
+  step(
+    'the icon pressed again turns help off',
+    await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'false', HELP_BTN, 3000)
+  );
 
   const placedOff = await newLineAfterRoot(cp);
 

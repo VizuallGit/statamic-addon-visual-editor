@@ -118,7 +118,8 @@ const CSS = `
  * CSS here; the toolbar sets its own 15px on the element.
  */
 const SPARK_ICON = TOOLBAR_ICONS.ai;
-const CLOSE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+const CLOSE_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 function ensureStyles(win) {
   const id = `${ROOT_ID}-css`;

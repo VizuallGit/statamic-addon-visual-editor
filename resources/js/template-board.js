@@ -62,9 +62,9 @@ function columns(win, rows) {
     // exist yet — and the first one anybody makes has nowhere to appear.
     ...(taxonomies.length
       ? taxonomies.map(column)
-      // No kind on the stand-in: it is not a taxonomy, it is the place one
-      // would go. "Taxonomy Taxonomies" reads as a stutter.
-      : [{ id: '_taxonomies', title: t(win, 'template_board_group_taxonomies'), rows: [] }]),
+      : // No kind on the stand-in: it is not a taxonomy, it is the place one
+        // would go. "Taxonomy Taxonomies" reads as a stutter.
+        [{ id: '_taxonomies', title: t(win, 'template_board_group_taxonomies'), rows: [] }]),
   ];
 }
 
@@ -354,7 +354,12 @@ function columnNode(win, group) {
   }
 
   if (missing.length) {
-    const add = el(win, 'button', { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') }, '+');
+    const add = el(
+      win,
+      'button',
+      { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') },
+      '+'
+    );
 
     add.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -374,12 +379,19 @@ function columnNode(win, group) {
   if (!here.length) {
     const none = el(win, 'div', { 'data-sve-tb-none': '' });
 
-    none.appendChild(el(win, 'span', {}, t(win, missing.length ? 'template_board_none' : group.none || 'template_board_none_source')));
+    none.appendChild(
+      el(win, 'span', {}, t(win, missing.length ? 'template_board_none' : group.none || 'template_board_none_source'))
+    );
 
     // No + when there is nothing it could make: an empty taxonomy column is
     // waiting for a taxonomy, not for a template.
     if (missing.length) {
-      const plus = el(win, 'button', { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') }, '+');
+      const plus = el(
+        win,
+        'button',
+        { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') },
+        '+'
+      );
 
       plus.addEventListener('click', (event) => {
         event.stopPropagation();

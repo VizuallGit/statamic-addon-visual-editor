@@ -6,7 +6,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { SITE_DEFAULTS, SITE_STYLES, STYLE_DURATION, cleanDuration, saveSiteTransitions, siteTransitions } from '../../resources/js/page-transition-site.js';
+import {
+  SITE_DEFAULTS,
+  SITE_STYLES,
+  STYLE_DURATION,
+  cleanDuration,
+  saveSiteTransitions,
+  siteTransitions,
+} from '../../resources/js/page-transition-site.js';
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../../${path}`, import.meta.url)), 'utf8');
 
@@ -38,7 +45,10 @@ test('a duration is kept in seconds, inside 0.1–1.5, with two decimals', () =>
 
 test('picking a style sets a length long enough to see it, and the tile says so', () => {
   assert.deepEqual(STYLE_DURATION, { fade: 0.6, crossfade: 0.5, slide: 0.6, none: 0.25 });
-  assert.match(read('resources/js/cp/surfaces/BuildPageTransition.vue'), /setSite\(\{ style: s, duration: STYLE_DURATION\[s\] \}\)/);
+  assert.match(
+    read('resources/js/cp/surfaces/BuildPageTransition.vue'),
+    /setSite\(\{ style: s, duration: STYLE_DURATION\[s\] \}\)/
+  );
 });
 
 test('the state is read once, then a change is saved and follows what the server kept', async () => {
@@ -58,7 +68,11 @@ test('the state is read once, then a change is saved and follows what the server
 
   await saveSiteTransitions({ style: 'fade', duration: '0,4' }, win);
 
-  assert.deepEqual(win.calls[1], { url: '/!/sve/page-transitions', method: 'POST', body: { settings: { enabled: true, style: 'fade', duration: 0.4, header: false } } });
+  assert.deepEqual(win.calls[1], {
+    url: '/!/sve/page-transitions',
+    method: 'POST',
+    body: { settings: { enabled: true, style: 'fade', duration: 0.4, header: false } },
+  });
   assert.equal(state.saved, true);
   assert.equal(state.settings.style, 'fade');
   assert.equal(state.status, 'ready');
@@ -77,7 +91,12 @@ test('the tile shows Whole site above This element, with every setting', () => {
 
   assert.ok(tile.indexOf('data-sve-build-pt-site') < tile.indexOf("t('pt_element')"));
 
-  for (const hook of ['data-sve-build-pt-site-enabled', 'data-sve-build-pt-site-style', 'data-sve-build-pt-site-duration', 'data-sve-build-pt-site-header']) {
+  for (const hook of [
+    'data-sve-build-pt-site-enabled',
+    'data-sve-build-pt-site-style',
+    'data-sve-build-pt-site-duration',
+    'data-sve-build-pt-site-header',
+  ]) {
     assert.ok(tile.includes(hook), hook);
   }
 

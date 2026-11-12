@@ -69,10 +69,7 @@ export function requestRowCaps(win, uid) {
       },
     };
 
-    win.parent.postMessage(
-      { source: SOURCE, type: MSG.ROW_CAPS, uid },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type: MSG.ROW_CAPS, uid }, win.location.origin);
   });
 }
 

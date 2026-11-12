@@ -72,7 +72,7 @@ final class Root
 
     public static function root(): string
     {
-        if (self::$kind === 'svg' && ($folder = static::svgFolder()) !== null) {
+        if (self::$kind === 'svg' && ($folder = self::svgFolder()) !== null) {
             return base_path($folder);
         }
 
@@ -107,7 +107,7 @@ final class Root
      */
     public static function svgSrc(string $relative): ?string
     {
-        $full = static::existingPath($relative);
+        $full = self::existingPath($relative);
 
         if (! $full) {
             return null;
@@ -144,7 +144,7 @@ final class Root
 
     public static function relativeRoot(): string
     {
-        $root = str_replace('\\', '/', static::root());
+        $root = str_replace('\\', '/', self::root());
         $base = str_replace('\\', '/', base_path());
 
         if (str_starts_with($root, $base.'/')) {
@@ -156,13 +156,13 @@ final class Root
 
     public static function existingPath(string $relative): ?string
     {
-        $rel = static::normalize($relative);
+        $rel = self::normalize($relative);
 
-        if (! $rel || static::excluded($rel)) {
+        if (! $rel || self::excluded($rel)) {
             return null;
         }
 
-        $root = realpath(static::root());
+        $root = realpath(self::root());
 
         if (! $root) {
             return null;
@@ -186,7 +186,7 @@ final class Root
             return null;
         }
 
-        $ext = static::extension();
+        $ext = self::extension();
 
         if ($creating && ! str_ends_with(strtolower($relative), '.'.$ext)) {
             if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9_\-\/]*$/', $relative)) {
@@ -218,7 +218,7 @@ final class Root
 
     public static function relativeFrom(string $path): string
     {
-        $root = realpath(static::root()) ?: static::root();
+        $root = realpath(self::root()) ?: self::root();
         $path = str_replace('\\', '/', $path);
         $root = str_replace('\\', '/', $root);
 

@@ -73,12 +73,13 @@ function handleBind(row) {
             v-html="TWIST"
             @click.stop.prevent="ui.onTwist?.(row.uid)"
           ></button>
-          <span data-sve-lv-icon style="flex:none"></span>
+          <span data-sve-lv-icon style="flex: none"></span>
           <span
             data-sve-lv-text
             :title="row.renameTitle"
             @dblclick.stop.prevent="row.canRename && ui.onRename?.(row.uid, $event)"
-          >{{ row.label }}</span>
+            >{{ row.label }}</span
+          >
           <span v-if="row.global" data-sve-lv-global :title="row.globalTitle">{{ row.global }}</span>
           <span data-sve-lv-actions>
             <button
@@ -137,12 +138,13 @@ function handleBind(row) {
             v-html="TWIST"
             @click.stop.prevent="ui.onTwist?.(row.uid)"
           ></button>
-          <span data-sve-lv-icon style="flex:none"></span>
+          <span data-sve-lv-icon style="flex: none"></span>
           <span
             data-sve-lv-text
             :title="row.renameTitle"
             @dblclick.stop.prevent="row.canRename && ui.onRename?.(row.uid, $event)"
-          >{{ row.label }}</span>
+            >{{ row.label }}</span
+          >
           <span v-if="row.global" data-sve-lv-global :title="row.globalTitle">{{ row.global }}</span>
           <span data-sve-lv-actions>
             <button

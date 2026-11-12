@@ -2,8 +2,8 @@
 import { treeUi as ui } from '../a11y/store.js';
 
 const TWIST =
-  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
-  + 'stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 </script>
 
 <template>
@@ -11,12 +11,9 @@ const TWIST =
     <div class="sve-a11y-hint">{{ ui.hint }}</div>
 
     <div class="sve-a11y-counts">
-      <button
-        type="button"
-        class="sve-a11y-toggle"
-        :aria-pressed="ui.showAll"
-        @click="ui.onToggleAll?.()"
-      >{{ ui.showAllLabel }}</button>
+      <button type="button" class="sve-a11y-toggle" :aria-pressed="ui.showAll" @click="ui.onToggleAll?.()">{{
+        ui.showAllLabel
+      }}</button>
     </div>
 
     <div class="sve-a11y-list">

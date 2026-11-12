@@ -57,11 +57,31 @@ const LIVE_URL = 'https://vizuall-demo.vizuall.workers.dev';
 const fake = {
   mode: 'static',
   running: null,
-  runs: [{ id: 'run-0', kind: 'publish', status: 'live', step: 'done', url: LIVE_URL, duration: 21, report: { pages: 10, files: 142, bytes: 1, ok: true, errors: [], warnings: [], external_hosts: [], excluded: [] }, error: null, version_id: 'v0', user: 'Terminal', started_at: 1, finished_at: 2 }],
+  runs: [
+    {
+      id: 'run-0',
+      kind: 'publish',
+      status: 'live',
+      step: 'done',
+      url: LIVE_URL,
+      duration: 21,
+      report: { pages: 10, files: 142, bytes: 1, ok: true, errors: [], warnings: [], external_hosts: [], excluded: [] },
+      error: null,
+      version_id: 'v0',
+      user: 'Terminal',
+      started_at: 1,
+      finished_at: 2,
+    },
+  ],
 };
 let publishPosts = 0;
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 await page.setRequestInterception(true);
@@ -83,7 +103,17 @@ page.on('request', (req) => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        settings: { mode: fake.mode, worker_name: 'vizuall-demo', workers_subdomain: 'vizuall', live_url: LIVE_URL, credentials: true, settings_url: '/cp/addons', nightly: false, nightly_at: '03:00', forms: { enabled: true, cms_origin: '', problem: null } },
+        settings: {
+          mode: fake.mode,
+          worker_name: 'vizuall-demo',
+          workers_subdomain: 'vizuall',
+          live_url: LIVE_URL,
+          credentials: true,
+          settings_url: '/cp/addons',
+          nightly: false,
+          nightly_at: '03:00',
+          forms: { enabled: true, cms_origin: '', problem: null },
+        },
         running: fake.running,
         runs: fake.runs,
       }),
@@ -100,22 +130,32 @@ page.on('request', (req) => {
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 500 && !r.url().includes('/utilities/static-publish/') && errors.push(`HTTP ${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 500 &&
+    !r.url().includes('/utilities/static-publish/') &&
+    errors.push(`HTTP ${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 /** Is it on screen: laid out, with a size — not just in the DOM. */
-const seen = (frame, selector) => frame.evaluate((sel) => {
-  const el = document.querySelector(sel);
+const seen = (frame, selector) =>
+  frame.evaluate((sel) => {
+    const el = document.querySelector(sel);
 
-  if (!el) {
-    return false;
-  }
+    if (!el) {
+      return false;
+    }
 
-  const b = el.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
 
-  return getComputedStyle(el).display !== 'none'
-    && getComputedStyle(el).visibility !== 'hidden'
-    && b.width > 0 && b.height > 0;
-}, selector);
+    return (
+      getComputedStyle(el).display !== 'none' &&
+      getComputedStyle(el).visibility !== 'hidden' &&
+      b.width > 0 &&
+      b.height > 0
+    );
+  }, selector);
 
 async function pointIn(frame, selector) {
   const r = await frame.evaluate((sel) => {
@@ -169,7 +209,13 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate((re) => [...document.querySelectorAll('button, a')].find((el) => new RegExp(re, 'i').test(el.textContent || ''))?.click(), 'live preview|forhåndsvisning');
+    await page.evaluate(
+      (re) =>
+        [...document.querySelectorAll('button, a')]
+          .find((el) => new RegExp(re, 'i').test(el.textContent || ''))
+          ?.click(),
+      'live preview|forhåndsvisning'
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -201,51 +247,89 @@ try {
   await shot('idle');
 
   // ---- 2. right of reload -------------------------------------------------
-  const order = await cp.evaluate((p, r) => {
-    const pub = document.querySelector(p);
-    const rel = document.querySelector(r);
+  const order = await cp.evaluate(
+    (p, r) => {
+      const pub = document.querySelector(p);
+      const rel = document.querySelector(r);
 
-    if (!pub || !rel) {
-      return null;
-    }
+      if (!pub || !rel) {
+        return null;
+      }
 
-    return {
-      sameParent: pub.parentElement === rel.parentElement,
-      after: rel.compareDocumentPosition(pub) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false,
-      gap: Math.round(pub.getBoundingClientRect().left - rel.getBoundingClientRect().right),
-    };
-  }, PUBLISH, RELOAD);
+      return {
+        sameParent: pub.parentElement === rel.parentElement,
+        after: rel.compareDocumentPosition(pub) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false,
+        gap: Math.round(pub.getBoundingClientRect().left - rel.getBoundingClientRect().right),
+      };
+    },
+    PUBLISH,
+    RELOAD
+  );
 
-  step('right of the reload icon', !!order && order.sameParent && order.after, order ? `gap ${order.gap}px` : 'one of them missing');
+  step(
+    'right of the reload icon',
+    !!order && order.sameParent && order.after,
+    order ? `gap ${order.gap}px` : 'one of them missing'
+  );
 
   // The order is enforced on every pass — it must still hold after several.
   await sleep(3000);
-  step('still right of reload after several passes', await cp.evaluate((p, r) => {
-    const pub = document.querySelector(p);
-    const rel = document.querySelector(r);
+  step(
+    'still right of reload after several passes',
+    await cp.evaluate(
+      (p, r) => {
+        const pub = document.querySelector(p);
+        const rel = document.querySelector(r);
 
-    return !!pub && !!rel && pub.previousElementSibling === rel;
-  }, PUBLISH, RELOAD));
+        return !!pub && !!rel && pub.previousElementSibling === rel;
+      },
+      PUBLISH,
+      RELOAD
+    )
+  );
 
   // ---- 3. a real click starts it ------------------------------------------
   // The run the fake server will report while it is "in flight".
-  fake.running = { id: 'run-1', kind: 'publish', status: 'running', step: 'generating', url: null, duration: null, report: null, version_id: null, error: null, user: 'Terminal', started_at: 3, finished_at: null };
+  fake.running = {
+    id: 'run-1',
+    kind: 'publish',
+    status: 'running',
+    step: 'generating',
+    url: null,
+    duration: null,
+    report: null,
+    version_id: null,
+    error: null,
+    user: 'Terminal',
+    started_at: 3,
+    finished_at: null,
+  };
 
   await click(page, cp, PUBLISH);
 
   step('POST publish was caught here, not sent', publishPosts === 1, `${publishPosts} caught`);
-  step('icon pulses while it runs', await waitFor(cp, (sel) => {
-    const button = document.querySelector(sel);
-    const icon = button?.querySelector('svg[data-icon="publish"]');
-    const name = icon ? getComputedStyle(icon).animationName : '';
+  step(
+    'icon pulses while it runs',
+    await waitFor(
+      cp,
+      (sel) => {
+        const button = document.querySelector(sel);
+        const icon = button?.querySelector('svg[data-icon="publish"]');
+        const name = icon ? getComputedStyle(icon).animationName : '';
 
-    return !!button?.hasAttribute('data-busy') && name.includes('sve-lp-publish-pulse') && !name.includes('spin');
-  }, PUBLISH));
+        return !!button?.hasAttribute('data-busy') && name.includes('sve-lp-publish-pulse') && !name.includes('spin');
+      },
+      PUBLISH
+    )
+  );
 
   // The step shows in the title, in the CP user's language.
   fake.running.step = 'deploying';
-  step('the step shows in the title', await waitFor(cp, (sel) => /cloudflare/i.test(document.querySelector(sel)?.title || ''), PUBLISH, 8000),
-    await cp.evaluate((sel) => document.querySelector(sel)?.title || '', PUBLISH));
+  step(
+    'the step shows in the title',
+    await waitFor(cp, (sel) => /cloudflare/i.test(document.querySelector(sel)?.title || ''), PUBLISH, 8000),
+    await cp.evaluate((sel) => document.querySelector(sel)?.title || '', PUBLISH)
+  );
   await shot('running');
 
   // ---- 4. the finished run's address --------------------------------------
@@ -254,12 +338,22 @@ try {
 
   step('the card appears when it is done', await waitFor(cp, (sel) => !!document.querySelector(sel), CARD));
   step('the card is SEEN', await seen(cp, CARD));
-  step('it carries the live address as a real link', await cp.evaluate((sel, url) => {
-    const link = document.querySelector(`${sel} a[href]`);
+  step(
+    'it carries the live address as a real link',
+    await cp.evaluate(
+      (sel, url) => {
+        const link = document.querySelector(`${sel} a[href]`);
 
-    return !!link && link.href.startsWith(url) && link.target === '_blank';
-  }, CARD, LIVE_URL));
-  step('the icon stops pulsing', !(await cp.evaluate((sel) => document.querySelector(sel)?.hasAttribute('data-busy'), PUBLISH)));
+        return !!link && link.href.startsWith(url) && link.target === '_blank';
+      },
+      CARD,
+      LIVE_URL
+    )
+  );
+  step(
+    'the icon stops pulsing',
+    !(await cp.evaluate((sel) => document.querySelector(sel)?.hasAttribute('data-busy'), PUBLISH))
+  );
   await shot('done');
 
   // Polling must stop once the run is over — a timer left running would keep

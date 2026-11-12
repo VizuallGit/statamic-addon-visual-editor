@@ -143,7 +143,7 @@ test('MORPH_OPTIONS.updating rewrites a template whose markup differs, and only 
   assert.equal(swapped.innerHTML, '<p>tpl</p>');
 });
 
-test('MORPH_OPTIONS.updating keeps the bridge\'s component marks on the server\'s node, and nothing else', () => {
+test("MORPH_OPTIONS.updating keeps the bridge's component marks on the server's node, and nothing else", () => {
   const el = (attrs, nodeType = 1) => ({
     nodeType,
     nodeName: 'DIV',
@@ -157,7 +157,12 @@ test('MORPH_OPTIONS.updating keeps the bridge\'s component marks on the server\'
     attrs,
   });
 
-  const live = el({ 'data-sve-component-dim': '', 'data-sve-component-src': 'components/card', class: 'old', 'data-sid': 'x' });
+  const live = el({
+    'data-sve-component-dim': '',
+    'data-sve-component-src': 'components/card',
+    class: 'old',
+    'data-sid': 'x',
+  });
   const server = el({ class: 'new', 'data-sve-component-src': 'components/other' });
 
   MORPH_OPTIONS.updating(live, server);
@@ -168,7 +173,9 @@ test('MORPH_OPTIONS.updating keeps the bridge\'s component marks on the server\'
   });
 
   // Text nodes carry no attributes and must pass through untouched.
-  assert.doesNotThrow(() => MORPH_OPTIONS.updating({ nodeType: 3, nodeName: '#text' }, { nodeType: 3, nodeName: '#text' }));
+  assert.doesNotThrow(() =>
+    MORPH_OPTIONS.updating({ nodeType: 3, nodeName: '#text' }, { nodeType: 3, nodeName: '#text' })
+  );
 });
 
 /** An element whose attribute list follows set/remove, as a DOM node's does. */

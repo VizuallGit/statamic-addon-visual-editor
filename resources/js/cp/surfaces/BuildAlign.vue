@@ -24,7 +24,8 @@ const port = inject('sveBuild');
 const buttons = ref({});
 
 const tip = (kid) => (kid.css && kid.value ? `${kid.css}: ${kid.value}` : kid.title);
-const icon = (kid) => port.lists.toolIcons[kid.icon] || port.lists.toolIcons[kid.id] || (kid.glyph ? ic(kid.glyph) : '') || kid.title;
+const icon = (kid) =>
+  port.lists.toolIcons[kid.icon] || port.lists.toolIcons[kid.id] || (kid.glyph ? ic(kid.glyph) : '') || kid.title;
 
 /** Lit from the file as it is now: the port's revision is read, so a write redraws it. */
 function lit(kid) {

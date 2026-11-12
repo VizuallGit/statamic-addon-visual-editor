@@ -21,7 +21,7 @@ final class Store
     {
         $entry = Entry::find($id);
 
-        abort_unless($entry && $entry->collectionHandle() === static::collection(), 404);
+        abort_unless($entry && $entry->collectionHandle() === self::collection(), 404);
 
         return $entry;
     }

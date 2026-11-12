@@ -101,7 +101,13 @@ function twins(page, realDoc, selector, { root, rootKey, skip }) {
 function followVideo(video, twin) {
   video.muted = true;
 
-  if (videoShouldPlay({ paused: twin.paused, autoplay: twin.hasAttribute('autoplay'), held: twin.hasAttribute(VIDEO_HOLD_ATTR) })) {
+  if (
+    videoShouldPlay({
+      paused: twin.paused,
+      autoplay: twin.hasAttribute('autoplay'),
+      held: twin.hasAttribute(VIDEO_HOLD_ATTR),
+    })
+  ) {
     if (video.paused) {
       if (!twin.paused) {
         video.currentTime = twin.currentTime;

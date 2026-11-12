@@ -41,6 +41,7 @@ use MarioHamann\StatamicVisualEditor\ComponentProps\Schema;
 class ComponentProps
 {
     public const TYPES = Schema::TYPES;
+
     public const PREFIX = Schema::PREFIX;
 
     /**

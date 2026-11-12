@@ -34,7 +34,16 @@ import { closeOutlinePanel } from './lazy/outline.js';
 import { closeThemePanel } from './theme-panel-lazy.js';
 import { CODE_KEYS, isFixedPane } from './cp/panel-zones/layout.js';
 import { BOTTOM_ZONE_ID, BUILD_PANEL_ID, CODE_SLOT_ID, LEFT_ZONE_ID, RIGHT_DOCK_ID } from './lib/ids.js';
-import { beginPaneDrag, revealZone, settleZones, zoneCss, zoneGripTitle, zoneShellFor, zoneShells, zonesOn } from './panel-zones.js';
+import {
+  beginPaneDrag,
+  revealZone,
+  settleZones,
+  zoneCss,
+  zoneGripTitle,
+  zoneShellFor,
+  zoneShells,
+  zonesOn,
+} from './panel-zones.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -79,10 +88,10 @@ const HEIGHTS_KEY = 'sve-right-dock-stack-heights';
 const ORDER_KEY = 'sve-right-dock-stack-order';
 
 const GRIP_6 =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
-  + '<circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/>'
-  + '<circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/>'
-  + '<circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+  '<circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/>' +
+  '<circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/>' +
+  '<circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
 
 const PANE_BY_ID = {
   '__sve-listview-panel': 'listview',
@@ -101,30 +110,22 @@ const PANE_BY_ID = {
 };
 
 const PIN_OFF =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
-  + 'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
 
 const PIN_ON =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" '
-  + 'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
 
 const CLOSE_ICON =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
-  + 'stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 const CHEVRON_ICON =
-  '<svg data-sve-right-chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
-  + 'stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+  '<svg data-sve-right-chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
 
-export const RIGHT_PANE_TOOLS = [
-  'listview',
-  'outline',
-  'html_tree',
-  'comments',
-  'sections',
-  'ai',
-  'performance',
-];
+export const RIGHT_PANE_TOOLS = ['listview', 'outline', 'html_tree', 'comments', 'sections', 'ai', 'performance'];
 
 /** Inner panel fill — the shell owns position, width, border and the grip. */
 export const RIGHT_PANEL_FILL =
@@ -140,11 +141,11 @@ export const RIGHT_PANEL_FILL =
  * have to recognise twice is a handle you have to look for twice.
  */
 export const DRAG_DOTS_V =
-  'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 7 17\'><g fill=\'%23a1a1aa\' fill-rule=\'evenodd\'><rect width=\'2\' height=\'2\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'10\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'15\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'10\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'15\' rx=\'1\'/></g></svg>")';
+  "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 17'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' y='10' rx='1'/><rect width='2' height='2' y='15' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='5' y='10' rx='1'/><rect width='2' height='2' x='5' y='15' rx='1'/></g></svg>\")";
 
 /** Horizontal twin (4×2) for ns-resize splitters. */
 export const DRAG_DOTS_H =
-  'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 17 7\'><g fill=\'%23a1a1aa\' fill-rule=\'evenodd\'><rect width=\'2\' height=\'2\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'10\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'15\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'10\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'15\' y=\'5\' rx=\'1\'/></g></svg>")';
+  "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 7'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='10' rx='1'/><rect width='2' height='2' x='15' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='10' y='5' rx='1'/><rect width='2' height='2' x='15' y='5' rx='1'/></g></svg>\")";
 
 /** Same 16px strip as Statamic `.live-preview-resizer`: grey fill + drag-dots. */
 export function splitterFill(orientation) {
@@ -345,7 +346,10 @@ function storedOpenPanes(win) {
 }
 
 export function visiblePaneKeys(win) {
-  return zoneShells(win.document).flatMap(shellPanes).map(paneKeyOf).filter((key) => key && !isFixedPane(key));
+  return zoneShells(win.document)
+    .flatMap(shellPanes)
+    .map(paneKeyOf)
+    .filter((key) => key && !isFixedPane(key));
 }
 
 export function persistVisibleRightPanes(win, keys = null) {
@@ -451,7 +455,11 @@ export function pinnedKeepIds(win) {
 
 /** The left and bottom zones are this same shell: every rule reaches them, at the id's weight. */
 function ensureStyle(doc) {
-  injectStyle(doc, STYLE_ID, dockCss.replaceAll(`#${RIGHT_DOCK_ID}`, `:is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID},#${BOTTOM_ZONE_ID})`) + zoneCss());
+  injectStyle(
+    doc,
+    STYLE_ID,
+    dockCss.replaceAll(`#${RIGHT_DOCK_ID}`, `:is(#${RIGHT_DOCK_ID},#${LEFT_ZONE_ID},#${BOTTOM_ZONE_ID})`) + zoneCss()
+  );
 }
 
 export const ensureShellStyle = ensureStyle;
@@ -532,10 +540,7 @@ function bindWidth(win, dock) {
       win,
       'ew-resize',
       (e) => {
-        next = clampDockWidth(
-          win,
-          startW + (startX - e.clientX)
-        );
+        next = clampDockWidth(win, startW + (startX - e.clientX));
         dock.style.width = `${next}px`;
         previewRightPad(win.document, next);
       },

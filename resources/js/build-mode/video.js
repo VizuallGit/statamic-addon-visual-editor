@@ -39,8 +39,15 @@ export const FIT_CLASSES = ['object-contain', 'object-cover', 'object-fill', 'ob
 /** `default` is no attribute: the browser's own choice. */
 export const PRELOADS = ['default', 'none', 'metadata', 'auto'];
 
-const named = (source, node, name) => attributeList(source, node).find((attr) => attr.name.toLowerCase() === name) || null;
-const on = (attr) => !!attr && !['false', '0', 'off'].includes(String(attr.value ?? '').trim().toLowerCase());
+const named = (source, node, name) =>
+  attributeList(source, node).find((attr) => attr.name.toLowerCase() === name) || null;
+const on = (attr) =>
+  !!attr &&
+  !['false', '0', 'off'].includes(
+    String(attr.value ?? '')
+      .trim()
+      .toLowerCase()
+  );
 
 /** The shape the classes give: a VIDEO_RATIOS key, or 'auto'. */
 export function ratioOfClasses(classes) {
@@ -60,7 +67,9 @@ export function ratioClass(key) {
 
 /** @returns {{ ratio: string, autoplay: boolean, loop: boolean, muted: boolean, controls: boolean, preload: string, poster: string|null, first: boolean }} */
 export function readVideo(source, node) {
-  const preload = String(readAttribute(source, node, 'preload') ?? '').trim().toLowerCase();
+  const preload = String(readAttribute(source, node, 'preload') ?? '')
+    .trim()
+    .toLowerCase();
   const priority = named(source, node, 'priority');
 
   return {
@@ -69,9 +78,19 @@ export function readVideo(source, node) {
     loop: on(named(source, node, 'loop')),
     muted: on(named(source, node, 'muted')),
     controls: on(named(source, node, 'controls')),
-    preload: !named(source, node, 'preload') ? 'default' : PRELOADS.includes(preload) && preload !== 'default' ? preload : 'auto',
+    preload: !named(source, node, 'preload')
+      ? 'default'
+      : PRELOADS.includes(preload) && preload !== 'default'
+        ? preload
+        : 'auto',
     poster: readAttribute(source, node, 'poster'),
-    first: !!priority && ['', 'true', 'high'].includes(String(priority.value ?? '').trim().toLowerCase()),
+    first:
+      !!priority &&
+      ['', 'true', 'high'].includes(
+        String(priority.value ?? '')
+          .trim()
+          .toLowerCase()
+      ),
   };
 }
 

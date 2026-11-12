@@ -46,7 +46,9 @@ class El {
     }
 
     if (selector === '.page-tree-branch') {
-      return String(this.attrs.class ?? '').split(' ').includes('page-tree-branch');
+      return String(this.attrs.class ?? '')
+        .split(' ')
+        .includes('page-tree-branch');
     }
 
     if (selector === `[${ENTRY_OPEN_ATTR}]`) {
@@ -134,11 +136,13 @@ function fakeWindow() {
 
 test('the top-bar button holds its dots inside with no open-in-preview collections, and loses them when the overlay is idle', () => {
   const { win, doc, body } = fakeWindow();
-  const button = body.appendChild(new El('a', {
-    href: 'https://site.test/cp/collections/pages/entries/home?live-preview=1',
-    'data-sve-home-preview': '',
-    [ENTRY_OPEN_INSIDE_ATTR]: '',
-  }));
+  const button = body.appendChild(
+    new El('a', {
+      href: 'https://site.test/cp/collections/pages/entries/home?live-preview=1',
+      'data-sve-home-preview': '',
+      [ENTRY_OPEN_INSIDE_ATTR]: '',
+    })
+  );
   const label = button.appendChild(new El('span'));
 
   showEntryOpening(doc, button, button.href);
@@ -161,7 +165,9 @@ test('a row label in the page tree gets its dots after itself, so the label does
   const { doc, body } = fakeWindow();
   const branch = body.appendChild(new El('div', { class: 'page-tree-branch' }));
   const title = branch.appendChild(new El('a', { href: '/cp/collections/pages/entries/about' }));
-  const label = branch.appendChild(new El('a', { href: '/cp/collections/pages/entries/about?live-preview=1', 'data-sve-open-preview': '' }));
+  const label = branch.appendChild(
+    new El('a', { href: '/cp/collections/pages/entries/about?live-preview=1', 'data-sve-open-preview': '' })
+  );
 
   showEntryOpening(doc, label, label.href);
 

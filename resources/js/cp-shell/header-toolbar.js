@@ -7,31 +7,102 @@ import { bindTips } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { sveState } from '../cp-state.js';
 import { SELECTORS } from '../cp-selectors.js';
-import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from '../code-dock-lazy.js';
+import {
+  closeCodeDock,
+  isCodeDockArmed,
+  setCodeDockArmed,
+  syncCodeDock,
+  templateDockAllowed,
+} from '../code-dock-lazy.js';
 import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, toggleAiPanel } from '../ai-panel-lazy.js';
 import { closeSiteCss, isSiteCssOpen, siteCssAllowed, toggleSiteCss } from '../site-css-lazy.js';
-import { THEME_PANEL_ICON, closeThemePanel, isThemePanelOpen, themePanelAllowed, toggleThemePanel } from '../theme-panel-lazy.js';
-import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShortcut, relayoutRightDock, releaseRightShellIfEmpty, rememberedListViewTab, rememberedRightPaneKeys, revealRightPane } from '../right-dock.js';
+import {
+  THEME_PANEL_ICON,
+  closeThemePanel,
+  isThemePanelOpen,
+  themePanelAllowed,
+  toggleThemePanel,
+} from '../theme-panel-lazy.js';
+import {
+  beginRightShellSwap,
+  endRightShellSwap,
+  isRightDockTool,
+  isToolbarShortcut,
+  relayoutRightDock,
+  releaseRightShellIfEmpty,
+  rememberedListViewTab,
+  rememberedRightPaneKeys,
+  revealRightPane,
+} from '../right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
-import { placeToolbarButton, readHiddenTools, syncToolbarLayout, toolbarModeHasDock, toolbarToolAllowed } from '../toolbar-visibility.js';
+import {
+  placeToolbarButton,
+  readHiddenTools,
+  syncToolbarLayout,
+  toolbarModeHasDock,
+  toolbarToolAllowed,
+} from '../toolbar-visibility.js';
 import { startShortcuts } from '../toolbar-shortcuts.js';
 import { bindMenuDismiss } from '../lp-menu-dismiss.js';
 import { remToPx } from '../lib/dom.js';
 import { barEdge } from '../lib/under-bar.js';
 import { ensureBuildSwitch } from './build-switch.js';
-import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from '../lib/ids.js';
+import {
+  COLLECTION_PICKER_ID,
+  GLOBALS_PICKER_ID,
+  HEADER_FRAME_PREFIX,
+  HEADER_SURFACE,
+  HEADER_TOOLBAR_ID,
+  HTML_TREE_PANEL_ID,
+  LIBRARY_BUTTON_ID,
+  LP_CHROME_H,
+  LP_CONTROL_H,
+  LP_CONTROL_PAD,
+  LP_DOCKED_KEY,
+  LP_MODE_ID,
+  LP_PRIMARY_FLAT,
+  LP_TOGGLE_ID,
+  LP_TOOLBAR_GAP,
+  LP_WIDTH_ID,
+  NEW_ENTRY_ID,
+  OUTLINE_PANEL_ID,
+  PERF_PANEL_ID,
+  SECTION_PICKER_ID,
+} from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { activeContainers } from '../lib/publish-containers.js';
-import { lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, persistDockedPanel, setLpMode } from '../lp-panel.js';
+import {
+  lpHeaderBg,
+  lpMode,
+  lpModeSeparator,
+  paintLpActiveControl,
+  persistDockedPanel,
+  setLpMode,
+} from '../lp-panel.js';
 import { placeLpWidthPicker } from '../lp-width.js';
 import { leaveSelection, selectionPanelShowing } from '../selection-panel.js';
 import { currentSelection } from '../lib/selection.js';
-import { closeRightPanels, closeSectionPicker, isGlobalsOverlayOpen, leaveFocusLock, openSectionPicker, rowLocation, syncPreviewInset } from '../section-library.js';
-import { blockRowUid, closeListViewPanel, commentsPanel, listViewPanel, toggleCommentsPanel, toggleListViewPanel } from '../lazy/listview.js';
+import {
+  closeRightPanels,
+  closeSectionPicker,
+  isGlobalsOverlayOpen,
+  leaveFocusLock,
+  openSectionPicker,
+  rowLocation,
+  syncPreviewInset,
+} from '../section-library.js';
+import {
+  blockRowUid,
+  closeListViewPanel,
+  commentsPanel,
+  listViewPanel,
+  toggleCommentsPanel,
+  toggleListViewPanel,
+} from '../lazy/listview.js';
 import { armHtmlTreePrefetch, closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
 import { closeOutlinePanel, toggleOutlinePanel } from '../lazy/outline.js';
 import { closePerformancePanel, togglePerformancePanel } from '../lazy/performance.js';
@@ -100,9 +171,9 @@ export const LP_SEAM_GAP = 6;
 
 /** Pilen i vores egne selects. Native-pilen står klods op ad kanten. */
 export const SELECT_CHEVRON =
-  'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' ' +
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' " +
   "viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.2' stroke-linecap='round' " +
-  'stroke-linejoin=\'round\'%3E%3Cpath d=\'m6 9 6 6 6-6\'/%3E%3C/svg%3E")';
+  "stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")";
 
 /** Selve gruppen om et sæt kontroller: fladen, hjørnerne og luften ud til dem. */
 export const HEADER_GROUP_STYLE =
@@ -120,8 +191,7 @@ export const FRAMED_CONTROL_STYLE =
   'font-size:12px;font-weight:500;font-family:inherit;line-height:1;';
 
 /** Ikon inde i en topbar-gruppe — samme mål som device-knapperne. */
-export const LP_TOOLBAR_ICON_STYLE =
-  `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
+export const LP_TOOLBAR_ICON_STYLE = `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
 
 /**
  * En select i et felt med streger: ingen flade om sig selv — stregerne er det
@@ -694,8 +764,7 @@ export function ensureHeaderToolbar(win) {
   bar.id = HEADER_TOOLBAR_ID;
   bar.dataset.sveChrome = 'group-1';
   bindTips(win, bar);
-  bar.style.cssText =
-    `${HEADER_GROUP_STYLE}gap:4px;margin-right:${LP_TOOLBAR_GAP}px;`;
+  bar.style.cssText = `${HEADER_GROUP_STYLE}gap:4px;margin-right:${LP_TOOLBAR_GAP}px;`;
 
   // `feature` names the toggle on the settings screen; `key` is what the rest of
   // the header calls the tab. They differ for the panel because the toggle reads
@@ -1065,9 +1134,7 @@ export function ensurePerformanceToolbarButton(win) {
 
 /** HTML tree opens with the template dock — no top-bar icon. */
 export function ensureHtmlTreeToolbarButton(win) {
-  win.document.getElementById(HEADER_TOOLBAR_ID)
-    ?.querySelector('button[data-tab="html_tree"]')
-    ?.remove();
+  win.document.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="html_tree"]')?.remove();
 }
 
 export function ensureCommentsToolbarButton(win) {
@@ -1628,8 +1695,7 @@ export function toggleHeaderTab(win, key) {
     void runDockedTool(win, {
       key: 'listview',
       want: !open,
-      isOpen: () =>
-        !!listViewPanel(win.document) || isRightPanelInDom(win, 'listview'),
+      isOpen: () => !!listViewPanel(win.document) || isRightPanelInDom(win, 'listview'),
       open: () => toggleListViewPanel(win),
       close: () => closeListViewPanel(win),
     });
@@ -1770,9 +1836,7 @@ export function ensureSettingsTabs(win) {
   const inSection = selectionPanelShowing();
 
   group.querySelectorAll('[data-tab-index]').forEach((btn) => {
-    const selected =
-      !inSection &&
-      nativeTabs[Number(btn.dataset.tabIndex)]?.getAttribute('aria-selected') === 'true';
+    const selected = !inSection && nativeTabs[Number(btn.dataset.tabIndex)]?.getAttribute('aria-selected') === 'true';
 
     btn.setAttribute('aria-pressed', panelOpen && selected ? 'true' : 'false');
   });
@@ -2142,25 +2206,25 @@ export function applyHeaderTab(win) {
           ? isCodeDockArmed(win)
           : tab === 'site_css'
             ? isSiteCssOpen(win.document)
-          : tab === 'theme'
-            ? isThemePanelOpen(win.document)
-          : tab === 'edits'
-            ? !!pageEditsOpen()
-          : tab === 'aitext'
-            ? !!isAiTextOn(win)
-          : tab === 'xray'
-            ? !!isXrayOn(win)
-          : tab === 'design_overlay'
-            ? !!isDesignOn(win)
-          : tab === 'site_canvas'
-            ? !!isSiteCanvasOpen(win)
-          : tab === 'schema'
-            ? !!isSchemaOpen(win.document)
-          : tab === 'globals'
-            ? sveState.headerTab === 'globals' || !!isGlobalsOverlayOpen(win)
-          : tab in docked
-            ? docked[tab]
-            : tab === sveState.headerTab;
+            : tab === 'theme'
+              ? isThemePanelOpen(win.document)
+              : tab === 'edits'
+                ? !!pageEditsOpen()
+                : tab === 'aitext'
+                  ? !!isAiTextOn(win)
+                  : tab === 'xray'
+                    ? !!isXrayOn(win)
+                    : tab === 'design_overlay'
+                      ? !!isDesignOn(win)
+                      : tab === 'site_canvas'
+                        ? !!isSiteCanvasOpen(win)
+                        : tab === 'schema'
+                          ? !!isSchemaOpen(win.document)
+                          : tab === 'globals'
+                            ? sveState.headerTab === 'globals' || !!isGlobalsOverlayOpen(win)
+                            : tab in docked
+                              ? docked[tab]
+                              : tab === sveState.headerTab;
 
     if (btn.style.width !== '28px') {
       btn.style.width = '28px';

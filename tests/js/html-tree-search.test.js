@@ -7,7 +7,13 @@ const rows = [
   { path: '0:section/0:h2', tag: 'h2', name: 'mb-400', klass: 'mb-400' },
   { path: '0:section/1:div', tag: 'div', name: 'bg-gray-100 wrapper', klass: 'bg-gray-100 wrapper' },
   { path: '0:section/1:div/0:p', tag: 'p', name: 'text-300', klass: 'text-300' },
-  { path: '0:section/2:c12:component', tag: 'component', name: 'employee_card', klass: 'employee_card', src: 'components/employee_card' },
+  {
+    path: '0:section/2:c12:component',
+    tag: 'component',
+    name: 'employee_card',
+    klass: 'employee_card',
+    src: 'components/employee_card',
+  },
 ];
 
 test('an empty query keeps every row and marks nothing', () => {
@@ -20,14 +26,20 @@ test('an empty query keeps every row and marks nothing', () => {
 test('a match keeps the row and the rows above it, held back', () => {
   const out = searchHtmlTreeRows(rows, 'TEXT-3');
 
-  assert.deepEqual(out.rows.map((row) => row.path), ['0:section', '0:section/1:div', '0:section/1:div/0:p']);
+  assert.deepEqual(
+    out.rows.map((row) => row.path),
+    ['0:section', '0:section/1:div', '0:section/1:div/0:p']
+  );
   assert.deepEqual([...out.hits], ['0:section/1:div/0:p']);
 });
 
 test('a match on a parent does not drag its children along', () => {
   const out = searchHtmlTreeRows(rows, 'wrapper');
 
-  assert.deepEqual(out.rows.map((row) => row.path), ['0:section', '0:section/1:div']);
+  assert.deepEqual(
+    out.rows.map((row) => row.path),
+    ['0:section', '0:section/1:div']
+  );
 });
 
 test('the tag, the class list and a component file all count', () => {
@@ -44,5 +56,8 @@ test('a sibling prefix is not an ancestor', () => {
   ];
   const out = searchHtmlTreeRows(two, 'target');
 
-  assert.deepEqual(out.rows.map((row) => row.path), ['0:section/10:div']);
+  assert.deepEqual(
+    out.rows.map((row) => row.path),
+    ['0:section/10:div']
+  );
 });

@@ -6,7 +6,9 @@ const rows = (html) => flattenHtmlTree(parseTemplateTree(html), new Set());
 const byTag = (list, tag) => list.find((row) => row.tag === tag && !row.kind);
 
 test('an empty div, section or list is hollow — room for children', () => {
-  const list = rows('<section><div class="a"></div><ul>\n  </ul><li><!-- later --></li><article>{{# note #}}</article></section>');
+  const list = rows(
+    '<section><div class="a"></div><ul>\n  </ul><li><!-- later --></li><article>{{# note #}}</article></section>'
+  );
 
   assert.equal(byTag(list, 'div').emptyTag, true);
   assert.equal(byTag(list, 'ul').emptyTag, true, 'whitespace is empty');

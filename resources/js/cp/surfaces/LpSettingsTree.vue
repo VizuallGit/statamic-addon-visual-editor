@@ -76,7 +76,12 @@ function resetFamilyColors() {
 
 <template>
   <div v-if="codeDockHelp.show || codeDockGhost.show || htmlTree.show" class="sve-lp-settings__section is-list">
-    <LpSettingsSwitch v-if="codeDockHelp.show" :label="codeDockHelp.label" :on="codeDockHelpOn" @change="setCodeDockHelp" />
+    <LpSettingsSwitch
+      v-if="codeDockHelp.show"
+      :label="codeDockHelp.label"
+      :on="codeDockHelpOn"
+      @change="setCodeDockHelp"
+    />
     <!-- How the help behaves once on — whichever way it was turned on. -->
     <LpSettingsSwitch
       v-if="codeDockHelp.show && codeDockHelp.click"
@@ -92,7 +97,12 @@ function resetFamilyColors() {
       :on="codeDockHelpPicker"
       @change="setCodeDockHelpPicker"
     />
-    <LpSettingsSwitch v-if="codeDockGhost.show" :label="codeDockGhost.label" :on="codeDockGhostOn" @change="setCodeDockGhost" />
+    <LpSettingsSwitch
+      v-if="codeDockGhost.show"
+      :label="codeDockGhost.label"
+      :on="codeDockGhostOn"
+      @change="setCodeDockGhost"
+    />
     <p v-if="codeDockGhost.show && codeDockGhost.stats" class="sve-lp-settings__hint">{{ codeDockGhost.stats }}</p>
     <p v-if="codeDockGhost.show && codeDockGhostCost" class="sve-lp-settings__hint">{{ codeDockGhostCost }}</p>
     <LpSettingsSwitch v-if="htmlTree.show" :label="htmlTree.label" :on="htmlTreeOn" @change="setHtmlTree" />
@@ -106,7 +116,7 @@ function resetFamilyColors() {
         class="sve-lp-settings__swatch"
         :value="row.value"
         @input="setFamilyColor(row.id, $event.target.value)"
-      >
+      />
       <span>{{ row.label }}</span>
     </label>
     <button type="button" class="sve-lp-settings__small" @click="resetFamilyColors">

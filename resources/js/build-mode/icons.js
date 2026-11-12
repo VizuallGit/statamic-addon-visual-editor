@@ -19,7 +19,8 @@ const P = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   container: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1"/>',
   // A box and its width: container queries, told apart from the Container element above.
-  containerQueries: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 12h10M9.5 9.5L7 12l2.5 2.5M14.5 9.5L17 12l-2.5 2.5"/>',
+  containerQueries:
+    '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 12h10M9.5 9.5L7 12l2.5 2.5M14.5 9.5L17 12l-2.5 2.5"/>',
   columns: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   button: '<rect x="3" y="7" width="18" height="10" rx="3"/><path d="M8 12h8"/>',
@@ -39,9 +40,11 @@ const P = {
   arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   arrowL: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   arrowU: '<path d="M12 19V5M6 11l6-6 6 6"/>',
-  gallery: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M13 19l2.5-3 2 2 1.5-1.5 2 2.5"/>',
+  gallery:
+    '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M13 19l2.5-3 2 2 1.5-1.5 2 2.5"/>',
   sidesApart: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
-  linkic: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>',
+  linkic:
+    '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
@@ -57,26 +60,35 @@ const P = {
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   mouseIn: '<path d="M3 12h9M9 8.5 12.5 12 9 15.5"/><rect x="14" y="5" width="7" height="14" rx="1.5"/>',
   mouseOut: '<path d="M21 12h-9M18 8.5 21.5 12 18 15.5"/><rect x="3" y="5" width="7" height="14" rx="1.5"/>',
-  focusIn: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="2.5"/>',
-  focusOut: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M9.5 12h5"/>',
-  clickOut: '<rect x="4" y="4" width="10" height="10" rx="1.5" stroke-dasharray="2.5 2.5"/><path d="M14 14l7 3-3 1-1 3z"/>',
+  focusIn:
+    '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="2.5"/>',
+  focusOut:
+    '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M9.5 12h5"/>',
+  clickOut:
+    '<rect x="4" y="4" width="10" height="10" rx="1.5" stroke-dasharray="2.5 2.5"/><path d="M14 14l7 3-3 1-1 3z"/>',
   keyEsc: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 10h3M8 12h2.5M8 14h3M14 14l3-4"/>',
   alJ: '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>',
   more: '<path d="M12 5h.01M12 12h.01M12 19h.01" stroke-width="2.5"/>',
   flowInline: '<path d="M4 18h16" opacity=".5"/><path d="M7 15l3-8 3 8M8.2 12.5h3.6M15 15v-4.5a2 2 0 1 1 0 4.5"/>',
   underline: '<path d="M7 4v7a5 5 0 0 0 10 0V4M5 20h14"/>',
-  strike: '<path d="M4 12h16M16.5 7.5C15.8 5.6 14 4.5 12 4.5c-2.5 0-4.5 1.5-4.5 3.5 0 1.7 1.2 2.8 3 3.5M7.5 16c.7 2.2 2.5 3.5 4.5 3.5 2.5 0 4.5-1.5 4.5-3.5 0-1-.4-1.8-1-2.5"/>',
+  strike:
+    '<path d="M4 12h16M16.5 7.5C15.8 5.6 14 4.5 12 4.5c-2.5 0-4.5 1.5-4.5 3.5 0 1.7 1.2 2.8 3 3.5M7.5 16c.7 2.2 2.5 3.5 4.5 3.5 2.5 0 4.5-1.5 4.5-3.5 0-1-.4-1.8-1-2.5"/>',
   overline: '<path d="M5 4h14M7 9v5a5 5 0 0 0 10 0V9"/>',
   italic: '<path d="M10 4h8M6 20h8M14 4l-4 16"/>',
   fMotion: '<path d="M4 12h10M10 6l6 6-6 6M18 18V6"/>',
   fEffects: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>',
-  jEvenly: '<path d="M3.5 4v16M20.5 4v16" opacity=".5"/><rect x="7.5" y="7" width="3.5" height="10" rx="1"/><rect x="13" y="7" width="3.5" height="10" rx="1"/>',
-  aBaseline: '<path d="M3 13h18" stroke-dasharray="2 2"/><rect x="6" y="7" width="5" height="6" rx="1"/><rect x="13" y="5" width="5" height="8" rx="1"/>',
+  jEvenly:
+    '<path d="M3.5 4v16M20.5 4v16" opacity=".5"/><rect x="7.5" y="7" width="3.5" height="10" rx="1"/><rect x="13" y="7" width="3.5" height="10" rx="1"/>',
+  aBaseline:
+    '<path d="M3 13h18" stroke-dasharray="2 2"/><rect x="6" y="7" width="5" height="6" rx="1"/><rect x="13" y="5" width="5" height="8" rx="1"/>',
   /* The Figma look's own: flow, the fields' prefixes, the sections' actions */
   flowBlock: '<rect x="5" y="4" width="14" height="6" rx="1.5"/><rect x="5" y="14" width="14" height="6" rx="1.5"/>',
-  flowRow: '<rect x="3" y="7" width="6" height="10" rx="1.5"/><rect x="11" y="7" width="6" height="10" rx="1.5"/><path d="M19 12h3M20.5 10.5 22 12l-1.5 1.5"/>',
-  flowCol: '<rect x="7" y="2.5" width="10" height="6" rx="1.5"/><rect x="7" y="10.5" width="10" height="6" rx="1.5"/><path d="M12 18.5v3M10.5 20 12 21.5 13.5 20"/>',
-  flowGrid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  flowRow:
+    '<rect x="3" y="7" width="6" height="10" rx="1.5"/><rect x="11" y="7" width="6" height="10" rx="1.5"/><path d="M19 12h3M20.5 10.5 22 12l-1.5 1.5"/>',
+  flowCol:
+    '<rect x="7" y="2.5" width="10" height="6" rx="1.5"/><rect x="7" y="10.5" width="10" height="6" rx="1.5"/><path d="M12 18.5v3M10.5 20 12 21.5 13.5 20"/>',
+  flowGrid:
+    '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   wrap: '<path d="M4 7h12a4 4 0 0 1 0 8H8"/><path d="M11 12l-3 3 3 3"/>',
   padX: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8.5 9v6M15.5 9v6"/>',
   padY: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M9 9.5h6M9 14.5h6"/>',
@@ -89,7 +101,8 @@ const P = {
   gapX: '<path d="M5 4v16M19 4v16"/><path d="M12 9v6"/>',
   gapAll: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path d="M12 9v6M9 12h6"/>',
   radius: '<path d="M4 20V10a6 6 0 0 1 6-6h10"/>',
-  opacity: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h5v5H4zM9 4h5v5H9zM14 9h6v5h-6zM9 14h5v6H9z" fill="currentColor" stroke="none" opacity=".55"/>',
+  opacity:
+    '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h5v5H4zM9 4h5v5H9zM14 9h6v5h-6zM9 14h5v6H9z" fill="currentColor" stroke="none" opacity=".55"/>',
   minus: '<path d="M5 12h14"/>',
   ol: '<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 4.5 5.5 3.5V9"/><path d="M3.7 14.5a1.4 1.4 0 0 1 2.6.7c0 1-2.6 2-2.6 3.3h2.8"/>',
   reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>',

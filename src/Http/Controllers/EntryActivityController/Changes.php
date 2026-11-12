@@ -39,7 +39,7 @@ final class Changes
             }
 
             if ($handle === $builder) {
-                array_push($changes, ...static::sectionChanges(
+                array_push($changes, ...self::sectionChanges(
                     is_array($prevData[$handle] ?? null) ? $prevData[$handle] : [],
                     is_array($currData[$handle] ?? null) ? $currData[$handle] : []
                 ));
@@ -47,7 +47,7 @@ final class Changes
                 continue;
             }
 
-            if (static::encode($prevData[$handle] ?? null) !== static::encode($currData[$handle] ?? null)) {
+            if (self::encode($prevData[$handle] ?? null) !== self::encode($currData[$handle] ?? null)) {
                 $changes[] = ['action' => 'updated', 'handle' => $handle];
             }
         }
@@ -62,31 +62,31 @@ final class Changes
      */
     protected static function sectionChanges(array $previous, array $current): array
     {
-        $prev = static::indexRows($previous);
-        $curr = static::indexRows($current);
+        $prev = self::indexRows($previous);
+        $curr = self::indexRows($current);
         $changes = [];
 
         foreach (array_diff_key($curr, $prev) as $row) {
-            $changes[] = ['action' => 'added', 'section' => static::sectionName($row)];
+            $changes[] = ['action' => 'added', 'section' => self::sectionName($row)];
         }
 
         foreach (array_diff_key($prev, $curr) as $row) {
-            $changes[] = ['action' => 'removed', 'section' => static::sectionName($row)];
+            $changes[] = ['action' => 'removed', 'section' => self::sectionName($row)];
         }
 
         foreach (array_intersect_key($curr, $prev) as $key => $row) {
-            $parts = static::changedParts($prev[$key], $row);
+            $parts = self::changedParts($prev[$key], $row);
 
             if ($parts) {
                 $changes[] = [
                     'action' => 'updated',
-                    'section' => static::sectionName($row),
+                    'section' => self::sectionName($row),
                     'parts' => $parts,
                 ];
             }
         }
 
-        if (! $changes && static::rowKeys($previous) !== static::rowKeys($current)) {
+        if (! $changes && self::rowKeys($previous) !== self::rowKeys($current)) {
             $changes[] = ['action' => 'reordered', 'handle' => 'page_sections'];
         }
 
@@ -116,7 +116,7 @@ final class Changes
     /** @param  list<mixed>  $rows */
     protected static function rowKeys(array $rows): array
     {
-        return array_keys(static::indexRows($rows));
+        return array_keys(self::indexRows($rows));
     }
 
     protected static function sectionName(array $section): string
@@ -150,12 +150,12 @@ final class Changes
             $now = $current[$handle] ?? null;
 
             if (in_array($handle, $nested, true) && (is_array($was) || is_array($now))) {
-                $parts = array_merge($parts, static::changedBlocks((array) $was, (array) $now));
+                $parts = array_merge($parts, self::changedBlocks((array) $was, (array) $now));
 
                 continue;
             }
 
-            if (static::encode($was) !== static::encode($now)) {
+            if (self::encode($was) !== self::encode($now)) {
                 $parts[] = $handle;
             }
         }
@@ -168,26 +168,26 @@ final class Changes
      */
     protected static function changedBlocks(array $previous, array $current): array
     {
-        $prev = static::indexRows($previous);
-        $curr = static::indexRows($current);
+        $prev = self::indexRows($previous);
+        $curr = self::indexRows($current);
         $parts = [];
 
         foreach (array_diff_key($curr, $prev) as $row) {
-            $parts[] = static::blockName($row);
+            $parts[] = self::blockName($row);
         }
 
         foreach (array_diff_key($prev, $curr) as $row) {
-            $parts[] = static::blockName($row);
+            $parts[] = self::blockName($row);
         }
 
         foreach (array_intersect_key($curr, $prev) as $key => $row) {
-            if (static::encode($prev[$key]) !== static::encode($row)) {
-                $inner = static::changedParts($prev[$key], $row);
+            if (self::encode($prev[$key]) !== self::encode($row)) {
+                $inner = self::changedParts($prev[$key], $row);
 
                 if ($inner) {
                     array_push($parts, ...$inner);
                 } else {
-                    $parts[] = static::blockName($row);
+                    $parts[] = self::blockName($row);
                 }
             }
         }
@@ -204,7 +204,7 @@ final class Changes
 
     protected static function encode(mixed $value): string
     {
-        return json_encode(static::stripNoise($value)) ?: '';
+        return json_encode(self::stripNoise($value)) ?: '';
     }
 
     protected static function stripNoise(mixed $value): mixed
@@ -217,6 +217,6 @@ final class Changes
             unset($value[$key]);
         }
 
-        return array_map(fn ($item) => static::stripNoise($item), $value);
+        return array_map(fn ($item) => self::stripNoise($item), $value);
     }
 }

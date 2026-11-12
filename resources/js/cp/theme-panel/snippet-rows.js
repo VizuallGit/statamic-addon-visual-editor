@@ -17,7 +17,16 @@ let keySeq = 0;
 
 /** A row for a snippet that is not on disk yet — the New button's. */
 export function freshSnippetRow() {
-  return { key: `snippet-${++keySeq}`, name: '', savedName: null, body: '', savedBody: '', problem: 'empty', saving: false, fresh: true };
+  return {
+    key: `snippet-${++keySeq}`,
+    name: '',
+    savedName: null,
+    body: '',
+    savedBody: '',
+    problem: 'empty',
+    saving: false,
+    fresh: true,
+  };
 }
 
 /**
@@ -69,7 +78,16 @@ export function snippetDirty(row) {
 export function snippetRow(parts) {
   const body = dedent(parts.css);
 
-  return { key: `snippet-${++keySeq}`, name: parts.name, savedName: parts.name, body, savedBody: body, problem: null, saving: false, fresh: false };
+  return {
+    key: `snippet-${++keySeq}`,
+    name: parts.name,
+    savedName: parts.name,
+    body,
+    savedBody: body,
+    problem: null,
+    saving: false,
+    fresh: false,
+  };
 }
 
 /**

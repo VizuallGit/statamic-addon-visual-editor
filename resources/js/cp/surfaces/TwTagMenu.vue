@@ -85,13 +85,22 @@ function submit() {
     props.onPick(picked);
   }
 }
-
 </script>
 
 <template>
   <div data-sve-tw-search>
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </svg>
     <input
       ref="input"
@@ -103,12 +112,15 @@ function submit() {
       :placeholder="custom ? customPlaceholder : placeholder"
       :aria-label="custom ? customLabel : label"
       :data-sve-tw-custom-input="custom ? '' : undefined"
-      @input="cursor = -1; refused = ''"
+      @input="
+        cursor = -1;
+        refused = '';
+      "
       @keydown.down.prevent="custom || move(1)"
       @keydown.up.prevent="custom || move(-1)"
       @keydown.enter.prevent="submit"
       @keydown.escape.stop
-    >
+    />
   </div>
   <p v-if="refused" data-sve-tw-note>{{ refused }}</p>
   <div v-if="!custom" @mousemove="keys = false">

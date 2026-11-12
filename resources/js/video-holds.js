@@ -79,7 +79,10 @@ export function syncStoredVideoHolds(win, doc = win.document, target = previewFr
 
     for (const nth of list) {
       if (Number.isInteger(nth)) {
-        target.postMessage({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid: row.ids[0], uids: row.ids, nth, on: true }, win.location.origin);
+        target.postMessage(
+          { source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid: row.ids[0], uids: row.ids, nth, on: true },
+          win.location.origin
+        );
       }
     }
   }

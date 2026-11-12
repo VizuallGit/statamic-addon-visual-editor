@@ -20,7 +20,12 @@ test('a removal, a prefix change and identical texts', () => {
 });
 
 test('the round trip always reproduces the new text', () => {
-  for (const [a, b] of [['abcabc', 'abcXabc'], ['aaaa', 'aa'], ['<p>x</p>', '<p class="y">x</p>'], ['tail', 'head tail']]) {
+  for (const [a, b] of [
+    ['abcabc', 'abcXabc'],
+    ['aaaa', 'aa'],
+    ['<p>x</p>', '<p class="y">x</p>'],
+    ['tail', 'head tail'],
+  ]) {
     assert.equal(apply(a, minimalChange(a, b)), b, `${a} → ${b}`);
   }
 });

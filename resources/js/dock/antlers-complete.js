@@ -18,7 +18,14 @@
  *
  * May import: dock/*, lib/.
  */
-import { antlersWord, closingAfter, collectionLoop, collectionOptions, fieldOptions, imagePathWord } from './antlers-options.js';
+import {
+  antlersWord,
+  closingAfter,
+  collectionLoop,
+  collectionOptions,
+  fieldOptions,
+  imagePathWord,
+} from './antlers-options.js';
 import { scopeDataRows, sectionDataRows } from './data-vars.js';
 import { dockState } from './state.js';
 
@@ -91,7 +98,11 @@ async function imageFields(win, context, at) {
     apply: (view, completion, from, to) => {
       const text = view.state.sliceDoc(to, to + 1) === '"' ? row.var : `${row.var}"`;
 
-      view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input.complete' });
+      view.dispatch({
+        changes: { from, to, insert: text },
+        selection: { anchor: from + text.length },
+        userEvent: 'input.complete',
+      });
     },
   }));
 
@@ -103,7 +114,11 @@ function writeName(view, name, from, to) {
   const rest = view.state.sliceDoc(to, view.state.doc.lineAt(to).to);
   const text = closingAfter(rest) ? name : `${name} }}`;
 
-  view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input.complete' });
+  view.dispatch({
+    changes: { from, to, insert: text },
+    selection: { anchor: from + text.length },
+    userEvent: 'input.complete',
+  });
 }
 
 /** The collection's loop in place of the word typed; a `}}` already after the caret is replaced, not doubled. */
@@ -113,5 +128,9 @@ function writeLoop(view, handle, from, to) {
   const loop = collectionLoop(handle, indent);
   const closing = closingAfter(view.state.sliceDoc(to, line.to));
 
-  view.dispatch({ changes: { from, to: to + closing, insert: loop.text }, selection: { anchor: from + loop.cursor }, userEvent: 'input.complete' });
+  view.dispatch({
+    changes: { from, to: to + closing, insert: loop.text },
+    selection: { anchor: from + loop.cursor },
+    userEvent: 'input.complete',
+  });
 }

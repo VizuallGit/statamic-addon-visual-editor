@@ -149,6 +149,6 @@ class AiWriteScopeTest extends TestCase
         $this->assertSame('resources/fieldsets/hero/style_1.yaml', $newest[0]['fieldset']);
         $this->assertNotContains('hero/style_1.old', array_column($newest, 'handle'));
         $this->assertNotContains('hero/style_1', array_column(HouseStyle::newest('hero/style_1'), 'handle'));
-        $this->assertStringContainsString("<section>hero</section>", HouseStyle::prompt());
+        $this->assertStringContainsString('<section>hero</section>', HouseStyle::prompt());
     }
 }

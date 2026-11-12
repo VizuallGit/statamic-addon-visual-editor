@@ -20,8 +20,18 @@ const fakeWin = () => {
 };
 
 test('each browser’s words for a file that could not be fetched count', () => {
-  assert.equal(isStaleChunkError(new TypeError('Failed to fetch dynamically imported module: https://x.test/build/assets/xray-Dls3mBiA.js')), true);
-  assert.equal(isStaleChunkError(new TypeError('error loading dynamically imported module: https://x.test/build/assets/xray-Dls3mBiA.js')), true);
+  assert.equal(
+    isStaleChunkError(
+      new TypeError('Failed to fetch dynamically imported module: https://x.test/build/assets/xray-Dls3mBiA.js')
+    ),
+    true
+  );
+  assert.equal(
+    isStaleChunkError(
+      new TypeError('error loading dynamically imported module: https://x.test/build/assets/xray-Dls3mBiA.js')
+    ),
+    true
+  );
   assert.equal(isStaleChunkError(new TypeError('Importing a module script failed.')), true);
   assert.equal(isStaleChunkError(new Error('Unable to preload CSS for /build/assets/lp-cluster-CwGFA4UX.css')), true);
 });
@@ -36,7 +46,10 @@ test('an error thrown while a module runs is not an update', () => {
 test('a gone file shows the toast in the user’s words; another error shows nothing', () => {
   const win = fakeWin();
 
-  assert.equal(reportStaleChunk(win, new TypeError('Failed to fetch dynamically imported module: /a.js'), 1_000_000), true);
+  assert.equal(
+    reportStaleChunk(win, new TypeError('Failed to fetch dynamically imported module: /a.js'), 1_000_000),
+    true
+  );
   assert.deepEqual(win.shown, ['Reload me']);
 
   assert.equal(reportStaleChunk(win, new TypeError('x is not a function'), 1_100_000), false);

@@ -23,7 +23,11 @@ const FILE = [
 
 const pathOf = (html, test) => {
   let found = '';
-  const walk = (nodes) => nodes.forEach((n) => { if (!found && test(n, html)) found = n.path; walk(n.children); });
+  const walk = (nodes) =>
+    nodes.forEach((n) => {
+      if (!found && test(n, html)) found = n.path;
+      walk(n.children);
+    });
   walk(parseTemplateTree(html));
   return found;
 };
@@ -49,7 +53,10 @@ test('columns fill their first empty column, which opens up around it', () => {
   const grid = pathOf(FILE, (n, html) => html.slice(n.from, n.openTo).includes('grid-cols-2'));
   const out = addAt(FILE, grid, P);
 
-  assert.ok(out.html.includes('            <div>\n                <p>New</p>\n            </div>\n        </div>'), out.html);
+  assert.ok(
+    out.html.includes('            <div>\n                <p>New</p>\n            </div>\n        </div>'),
+    out.html
+  );
   assert.equal(findByPath(parseTemplateTree(out.html), out.path).tag, 'p');
 });
 
@@ -57,7 +64,12 @@ test('a column with something in it gets the new one at the end', () => {
   const firstCol = pathOf(FILE, (n) => n.tag === 'div' && n.children[0]?.tag === 'p');
   const out = addAt(FILE, firstCol, '<ul>\n    <li>Item</li>\n</ul>');
 
-  assert.ok(out.html.includes('                <p>One</p>\n                <ul>\n                    <li>Item</li>\n                </ul>\n            </div>'), out.html);
+  assert.ok(
+    out.html.includes(
+      '                <p>One</p>\n                <ul>\n                    <li>Item</li>\n                </ul>\n            </div>'
+    ),
+    out.html
+  );
 });
 
 test('nothing picked: the end of the section, in its container — not after </section>, where the canvas shows nothing', () => {
@@ -107,10 +119,18 @@ test('a one-line empty element opens up', () => {
 
 test('before: its own line in front of the row, at the row’s indent; a lock stays with its element', () => {
   const roots = parseTemplateTree(FILE);
-  const h2 = findByPath(roots, pathOf(FILE, (n) => n.tag === 'h2'));
+  const h2 = findByPath(
+    roots,
+    pathOf(FILE, (n) => n.tag === 'h2')
+  );
   const out = insertAt(FILE, { mode: 'before', before: h2 }, '<div>\n    <p>New</p>\n</div>');
 
-  assert.ok(out.html.includes('    <div class="wrapper">\n        <div>\n            <p>New</p>\n        </div>\n        <h2>Title</h2>'), out.html);
+  assert.ok(
+    out.html.includes(
+      '    <div class="wrapper">\n        <div>\n            <p>New</p>\n        </div>\n        <h2>Title</h2>'
+    ),
+    out.html
+  );
   assert.equal(findByPath(parseTemplateTree(out.html), pathAt(out.html, out.at)).tag, 'div');
 
   const locked = '<div>\n    {{# sve-lock #}}\n    <p>Fixed</p>\n</div>\n';
@@ -124,8 +144,14 @@ test('before: its own line in front of the row, at the row’s indent; a lock st
 test('a loop renamed where it stands has a new path and the same start', () => {
   const field = '<div>\n    {{ items }}\n        <p>One</p>\n    {{ /items }}\n</div>\n';
   const collection = field.replaceAll('items', 'collection:pages');
-  const before = describeAt(field, pathOf(field, (n) => n.kind === 'antlers')).node;
-  const after = describeAt(collection, pathOf(collection, (n) => n.kind === 'antlers')).node;
+  const before = describeAt(
+    field,
+    pathOf(field, (n) => n.kind === 'antlers')
+  ).node;
+  const after = describeAt(
+    collection,
+    pathOf(collection, (n) => n.kind === 'antlers')
+  ).node;
 
   assert.notEqual(after.path, before.path);
   assert.equal(after.from, before.from);
@@ -137,5 +163,8 @@ test('what is added with a Rich text element picked lands after it, not in it', 
   const rich = parseTemplateTree(html)[0].children[0];
   const out = addAt(html, rich.path, '<a href="">Link</a>');
 
-  assert.equal(out.html, '<section>\n    <div class="prose">\n        <p>Words</p>\n    </div>\n    <a href="">Link</a>\n</section>');
+  assert.equal(
+    out.html,
+    '<section>\n    <div class="prose">\n        <p>Words</p>\n    </div>\n    <a href="">Link</a>\n</section>'
+  );
 });

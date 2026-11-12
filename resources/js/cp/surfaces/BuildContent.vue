@@ -260,7 +260,9 @@ function lineBreak(event) {
  * A `<picture>` or one of its `<source>`s is its image's: Content shows the
  * `<img>` inside — its file, and its options (BuildImage.vue) — and writes there.
  */
-const imageNode = ['picture', 'source'].includes(tag.value) ? imageAt(parseTemplateTree(port.html()), path)?.img || null : null;
+const imageNode = ['picture', 'source'].includes(tag.value)
+  ? imageAt(parseTemplateTree(port.html()), path)?.img || null
+  : null;
 const addressTag = imageNode ? 'img' : tag.value;
 const addressPath = imageNode?.path || path;
 const imageOptions = addressTag === 'img' && !!siteImageOptions(window);
@@ -272,7 +274,10 @@ const addressNow = computed(() => {
     return null;
   }
 
-  const value = addressPath === path ? port.attr(address.attr) : readAttribute(port.html(), findByPath(parseTemplateTree(port.html()), addressPath), address.attr);
+  const value =
+    addressPath === path
+      ? port.attr(address.attr)
+      : readAttribute(port.html(), findByPath(parseTemplateTree(port.html()), addressPath), address.attr);
 
   return value ?? '';
 });
@@ -358,7 +363,7 @@ function removeFile() {
 /** An attribute of a link, gone when it is empty. */
 const linkAttr = (name) =>
   typed(
-    computed(() => (port.rev.value, isLink ? port.attr(name) ?? '' : null)),
+    computed(() => (port.rev.value, isLink ? (port.attr(name) ?? '') : null)),
     (value) => port.setAttrsAt(path, { [name]: value.trim() === '' ? null : value })
   );
 const relBox = linkAttr('rel');
@@ -855,9 +860,13 @@ function richOff() {
 }
 
 const container = props.node.kind === 'container';
-const nothing = computed(() => !svg && !container && !read.value && !address && !rich.value && richField.value === null);
+const nothing = computed(
+  () => !svg && !container && !read.value && !address && !rich.value && richField.value === null
+);
 /* Rich text is a div by what it is, and a Grid's columns are divs for the Grid to stay one: their tag is shown, not changed. */
-const tagLocked = computed(() => !!rich.value || richField.value !== null || ['column', 'columns'].includes(props.node.kind));
+const tagLocked = computed(
+  () => !!rich.value || richField.value !== null || ['column', 'columns'].includes(props.node.kind)
+);
 const layout = computed(() => tagFamily(tag.value) === 'layout');
 
 onBeforeUnmount(() => {
@@ -880,7 +889,16 @@ onBeforeUnmount(() => {
       <span class="fg-rlab">tag</span>
       <div class="fg-field">
         <span v-if="tagLocked" class="bm-tag-now is-locked" data-sve-build-tag-locked>{{ tag }}</span>
-        <button v-else type="button" class="fg-select bm-tag-now" aria-label="tag" aria-haspopup="listbox" data-sve-build-tag-open @click="port.openTagMenu($event.currentTarget)">{{ tag }}</button>
+        <button
+          v-else
+          type="button"
+          class="fg-select bm-tag-now"
+          aria-label="tag"
+          aria-haspopup="listbox"
+          data-sve-build-tag-open
+          @click="port.openTagMenu($event.currentTarget)"
+          >{{ tag }}</button
+        >
       </div>
     </div>
     <div v-if="read?.kind === 'text'" class="bm-text">
@@ -933,7 +951,9 @@ onBeforeUnmount(() => {
         @off="textEditableOff"
       />
     </div>
-    <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{ port.t('content_markup') }}</p>
+    <p v-else-if="read?.kind === 'markup'" class="bm-note is-top" data-sve-build-text-markup>{{
+      port.t('content_markup')
+    }}</p>
 
     <div v-if="address" class="bm-text" :data-sve-build-address="address.attr">
       <!-- The box stays while it is typed in: a tag's first `{` is in the file before the tag is. -->
@@ -957,7 +977,13 @@ onBeforeUnmount(() => {
         </div>
       </template>
       <div v-else :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
-      <button v-if="address.attr === 'src' && ((addressNow && !addressExpr) || addressHidden) && !addressBox.typing.value" type="button" class="bm-remove-file" data-sve-build-remove-file @click="removeFile">
+      <button
+        v-if="address.attr === 'src' && ((addressNow && !addressExpr) || addressHidden) && !addressBox.typing.value"
+        type="button"
+        class="bm-remove-file"
+        data-sve-build-remove-file
+        @click="removeFile"
+      >
         <span v-html="ic('trash')"></span>{{ port.t(`content_remove_${addressTag}`) }}
       </button>
       <p v-if="address.alt" class="bm-note is-top" data-sve-build-alt-note>{{ port.t('content_alt_note') }}</p>
@@ -985,15 +1011,41 @@ onBeforeUnmount(() => {
       <div v-if="isLink" class="bm-link-more" data-sve-build-link-more>
         <div class="bm-link-row">
           <span>{{ port.t('content_new_tab') }}</span>
-          <button type="button" class="bm-switch" role="switch" :aria-checked="newTab" :aria-label="port.t('content_new_tab')" data-sve-build-new-tab @click="toggleNewTab"></button>
+          <button
+            type="button"
+            class="bm-switch"
+            role="switch"
+            :aria-checked="newTab"
+            :aria-label="port.t('content_new_tab')"
+            data-sve-build-new-tab
+            @click="toggleNewTab"
+          ></button>
         </div>
         <label class="bm-text">
           <span class="fg-lab">rel</span>
-          <input v-model="relBox.value.value" class="bm-inp" type="text" spellcheck="false" placeholder="noopener noreferrer" data-sve-build-rel @input="relBox.input" @keydown.enter.prevent="relBox.done" @blur="relBox.done" />
+          <input
+            v-model="relBox.value.value"
+            class="bm-inp"
+            type="text"
+            spellcheck="false"
+            placeholder="noopener noreferrer"
+            data-sve-build-rel
+            @input="relBox.input"
+            @keydown.enter.prevent="relBox.done"
+            @blur="relBox.done"
+          />
         </label>
         <label class="bm-text">
           <span class="fg-lab">aria-label</span>
-          <input v-model="ariaBox.value.value" class="bm-inp" type="text" data-sve-build-aria @input="ariaBox.input" @keydown.enter.prevent="ariaBox.done" @blur="ariaBox.done" />
+          <input
+            v-model="ariaBox.value.value"
+            class="bm-inp"
+            type="text"
+            data-sve-build-aria
+            @input="ariaBox.input"
+            @keydown.enter.prevent="ariaBox.done"
+            @blur="ariaBox.done"
+          />
         </label>
       </div>
     </div>
@@ -1040,7 +1092,14 @@ onBeforeUnmount(() => {
           <BuildPickField @pick="pickRich" />
         </div>
       </template>
-      <div v-else :id="richHidden ? port.fieldElementId(richName) || null : null" :key="fieldKey" ref="host" class="bm-field-host" data-sve-build-field></div>
+      <div
+        v-else
+        :id="richHidden ? port.fieldElementId(richName) || null : null"
+        :key="fieldKey"
+        ref="host"
+        class="bm-field-host"
+        data-sve-build-field
+      ></div>
       <BuildOwn v-if="canOwnHere" :on="richHidden" :busy="owningSwitch" @on="fieldOwnOn" @off="fieldOwnOff" />
       <BuildEditable
         v-if="canMake"
@@ -1056,7 +1115,12 @@ onBeforeUnmount(() => {
 
     <div v-if="svg" class="bm-text" data-sve-build-svg-content>
       <span class="fg-lab">{{ port.t('content_svg') }}</span>
-      <p v-if="node.dynamic" class="bm-note is-top" data-sve-build-svg-field v-html="port.t('content_svg_field', { src: `<code>${esc(node.src)}</code>` })"></p>
+      <p
+        v-if="node.dynamic"
+        class="bm-note is-top"
+        data-sve-build-svg-field
+        v-html="port.t('content_svg_field', { src: `<code>${esc(node.src)}</code>` })"
+      ></p>
       <template v-else>
         <p class="bm-note is-top" v-html="port.t('content_svg_now', { src: `<code>${esc(node.src)}</code>` })"></p>
         <BuildSvgPicker :current="node.src" @pick="(src) => port.setSvgAt(path, src)" />

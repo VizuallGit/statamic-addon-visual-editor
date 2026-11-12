@@ -40,9 +40,11 @@ const keys = ref(false);
 const query = computed(() => typed.value.trim().toLowerCase());
 
 /** The site's own names, flat: the folder they live in is not the point here. */
-const site = computed(() => (twUi.siteClasses || [])
-  .flatMap((group) => group.items)
-  .filter((item) => !query.value || item.name.toLowerCase().includes(query.value)));
+const site = computed(() =>
+  (twUi.siteClasses || [])
+    .flatMap((group) => group.items)
+    .filter((item) => !query.value || item.name.toLowerCase().includes(query.value))
+);
 
 const tailwind = computed(() => props.search(typed.value));
 
@@ -56,9 +58,11 @@ onMounted(() => nextTick(() => input.value?.focus()));
  * typed. Told to whoever wants to show it before it is picked — with `listed`
  * saying whether it came off a row (a class for sure) or off the keyboard.
  */
-const previewed = computed(() => (cursor.value >= 0
-  ? { name: nameOf(rows.value[cursor.value]), listed: true }
-  : { name: typed.value.trim(), listed: false }));
+const previewed = computed(() =>
+  cursor.value >= 0
+    ? { name: nameOf(rows.value[cursor.value]), listed: true }
+    : { name: typed.value.trim(), listed: false }
+);
 
 watch(previewed, (next, prev) => {
   if (next.name === prev?.name && next.listed === prev?.listed) {
@@ -168,8 +172,18 @@ function submit() {
 
 <template>
   <div data-sve-tw-search>
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </svg>
     <input
       ref="input"
@@ -183,7 +197,7 @@ function submit() {
       @keydown.up.prevent="move(-1)"
       @keydown.enter.prevent="submit"
       @keydown.escape.stop
-    >
+    />
   </div>
 
   <div data-sve-tw-tabs>
@@ -191,14 +205,22 @@ function submit() {
       type="button"
       data-sve-tw-tab
       :data-active="tab === 'tailwind' ? '' : undefined"
-      @click.prevent.stop="tab = 'tailwind'; reset()"
-    >{{ tailwindLabel }}</button>
+      @click.prevent.stop="
+        tab = 'tailwind';
+        reset();
+      "
+      >{{ tailwindLabel }}</button
+    >
     <button
       type="button"
       data-sve-tw-tab
       :data-active="tab === 'site' ? '' : undefined"
-      @click.prevent.stop="tab = 'site'; reset()"
-    >{{ siteLabel }}</button>
+      @click.prevent.stop="
+        tab = 'site';
+        reset();
+      "
+      >{{ siteLabel }}</button
+    >
   </div>
 
   <div v-if="!rows.length" data-sve-tw-add-empty>{{ emptyText }}</div>
@@ -211,7 +233,7 @@ function submit() {
       :data-cursor="index === cursor ? '' : undefined"
       :data-active="index === cursor ? '' : undefined"
       :data-sve-tw-off="row.loaded === false ? '' : undefined"
-      :title="row.loaded === false ? offText : (row.file || row.css)"
+      :title="row.loaded === false ? offText : row.file || row.css"
       @mouseenter="hover(index)"
       @click.prevent.stop="add(nameOf(row))"
     >

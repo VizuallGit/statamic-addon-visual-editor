@@ -17,7 +17,7 @@ final class Tree
 
         return [
             'root' => Root::relativeRoot(),
-            'tree' => is_dir($root) ? static::scan($root, '') : [],
+            'tree' => is_dir($root) ? self::scan($root, '') : [],
         ];
     }
 
@@ -44,7 +44,7 @@ final class Tree
             }
 
             if (is_dir($full)) {
-                $children = static::scan($full, $rel);
+                $children = self::scan($full, $rel);
 
                 if ($children === []) {
                     continue;
@@ -68,7 +68,7 @@ final class Tree
                 'type' => 'file',
                 'path' => $rel,
                 'name' => $name,
-                'language' => static::language($rel),
+                'language' => self::language($rel),
             ];
         }
 

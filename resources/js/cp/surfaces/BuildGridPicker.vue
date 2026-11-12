@@ -28,7 +28,9 @@ const emit = defineEmits(['pick']);
         @click="emit('pick', preset.key)"
       >
         <span class="bm-cells">
-          <span v-for="row in preset.rows" :key="row" class="bm-bars"><i v-for="(part, n) in preset.parts" :key="n" :style="{ flex: part }"></i></span>
+          <span v-for="row in preset.rows" :key="row" class="bm-bars"
+            ><i v-for="(part, n) in preset.parts" :key="n" :style="{ flex: part }"></i
+          ></span>
         </span>
         <span class="bm-pk-l">{{ preset.label }}</span>
       </button>

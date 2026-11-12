@@ -7,12 +7,7 @@
  */
 
 import { expandAbbreviation, abbreviationTracker } from '@emmetio/codemirror6-plugin';
-import {
-  ANTLERS_SNIPPETS,
-  antlersSnippet,
-  expandAntlersSnippet,
-  indentAntlersSnippet,
-} from './antlers-snippets.js';
+import { ANTLERS_SNIPPETS, antlersSnippet, expandAntlersSnippet, indentAntlersSnippet } from './antlers-snippets.js';
 
 const ANTLERS_IDS = new Set(ANTLERS_SNIPPETS.map((item) => item.id));
 

@@ -63,7 +63,7 @@ final class Schema
      */
     public static function normalize(array $props): array
     {
-        return static::rows($props, false);
+        return self::rows($props, false);
     }
 
     /**
@@ -94,7 +94,7 @@ final class Schema
                 continue;
             }
 
-            $handle = static::handle((string) ($prop['handle'] ?? ''));
+            $handle = self::handle((string) ($prop['handle'] ?? ''));
 
             if ($handle === null || isset($seen[$handle]) || ($inGroup && in_array($handle, self::LOOP_NAMES, true)) || in_array($handle, $reserved, true)) {
                 continue;
@@ -108,14 +108,14 @@ final class Schema
             $row = [
                 'handle' => $handle,
                 'type' => $type,
-                'label' => static::label((string) ($prop['label'] ?? ''), $handle),
+                'label' => self::label((string) ($prop['label'] ?? ''), $handle),
                 'default' => (string) ($prop['default'] ?? ''),
             ];
 
             // Only a select has choices. Carrying an empty `options` on every
             // other row would put a key in the file that means nothing there.
             if ($type === 'select') {
-                $row['options'] = static::options($prop['options'] ?? []);
+                $row['options'] = self::options($prop['options'] ?? []);
             }
 
             // A switch is on or it is not. Written as the one word the pair
@@ -126,7 +126,7 @@ final class Schema
             }
 
             if ($type === 'group') {
-                $row = static::group($row, $prop);
+                $row = self::group($row, $prop);
             }
 
             $out[] = $row;
@@ -149,8 +149,8 @@ final class Schema
     protected static function group(array $row, array $prop): array
     {
         $repeat = ($prop['repeat'] ?? false) === true;
-        $sets = $repeat ? static::sets(is_array($prop['sets'] ?? null) ? $prop['sets'] : []) : [];
-        $fields = $sets === [] ? static::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true, $repeat ? self::ROW_NAMES : []) : [];
+        $sets = $repeat ? self::sets(is_array($prop['sets'] ?? null) ? $prop['sets'] : []) : [];
+        $fields = $sets === [] ? self::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true, $repeat ? self::ROW_NAMES : []) : [];
         $default = GroupValue::decode($row['default']);
         $renamed = [];
 
@@ -197,7 +197,7 @@ final class Schema
                 continue;
             }
 
-            $handle = static::handle((string) ($set['handle'] ?? ''));
+            $handle = self::handle((string) ($set['handle'] ?? ''));
 
             if ($handle === null || isset($seen[$handle])) {
                 continue;
@@ -206,8 +206,8 @@ final class Schema
             $seen[$handle] = true;
             $row = [
                 'handle' => $handle,
-                'label' => static::label((string) ($set['label'] ?? ''), $handle),
-                'fields' => static::rows(is_array($set['fields'] ?? null) ? $set['fields'] : [], true, self::ROW_NAMES),
+                'label' => self::label((string) ($set['label'] ?? ''), $handle),
+                'fields' => self::rows(is_array($set['fields'] ?? null) ? $set['fields'] : [], true, self::ROW_NAMES),
             ];
 
             // The names the type had before a rename. Rows written under one of
@@ -216,7 +216,7 @@ final class Schema
             $was = [];
 
             foreach (is_array($set['was'] ?? null) ? $set['was'] : [] as $old) {
-                $old = static::handle((string) $old);
+                $old = self::handle((string) $old);
 
                 if ($old !== null && $old !== $handle && ! in_array($old, $was, true)) {
                     $was[] = $old;

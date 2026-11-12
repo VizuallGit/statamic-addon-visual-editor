@@ -3,10 +3,25 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TEXT_FIELDS, fieldTypesFor, onlyTypes, wholeTag, withoutFields, wrongFields } from '../../resources/js/data-var-types.js';
+import {
+  TEXT_FIELDS,
+  fieldTypesFor,
+  onlyTypes,
+  wholeTag,
+  withoutFields,
+  wrongFields,
+} from '../../resources/js/data-var-types.js';
 
 const MODEL = {
-  scope: [{ handle: 'gallery', items: [{ var: 'caption', type: 'text', parent: 'gallery' }, { var: 'photo', type: 'assets', parent: 'gallery' }] }],
+  scope: [
+    {
+      handle: 'gallery',
+      items: [
+        { var: 'caption', type: 'text', parent: 'gallery' },
+        { var: 'photo', type: 'assets', parent: 'gallery' },
+      ],
+    },
+  ],
   section: [
     { var: 'headline', type: 'text' },
     { var: 'intro', type: 'textarea' },
@@ -15,10 +30,24 @@ const MODEL = {
     { var: 'label', type: 'text', parent: 'cards' },
   ],
   page: [
-    { handle: 'this', items: [{ var: 'title', type: 'text' }, { var: 'date', type: 'date' }] },
+    {
+      handle: 'this',
+      items: [
+        { var: 'title', type: 'text' },
+        { var: 'date', type: 'date' },
+      ],
+    },
     { handle: 'collection', loop: 'collection:news', items: [{ var: 'teaser', type: 'text' }] },
   ],
-  site: [{ handle: 'site_settings', items: [{ var: 'site_settings.phone', type: 'text' }, { var: 'site_settings.logo', type: 'assets' }] }],
+  site: [
+    {
+      handle: 'site_settings',
+      items: [
+        { var: 'site_settings.phone', type: 'text' },
+        { var: 'site_settings.logo', type: 'assets' },
+      ],
+    },
+  ],
 };
 
 test('a type reads from its own family; a type without one reads from any', () => {
@@ -33,10 +62,22 @@ test('a type reads from its own family; a type without one reads from any', () =
 test('a text place is offered text fields only, on every tab', () => {
   const out = onlyTypes(MODEL, TEXT_FIELDS);
 
-  assert.deepEqual(out.section.map((row) => row.var), ['headline', 'intro']);
-  assert.deepEqual(out.page.map((group) => group.handle), ['this']);
-  assert.deepEqual(out.page[0].items.map((row) => row.var), ['title']);
-  assert.deepEqual(out.site[0].items.map((row) => row.var), ['site_settings.phone']);
+  assert.deepEqual(
+    out.section.map((row) => row.var),
+    ['headline', 'intro']
+  );
+  assert.deepEqual(
+    out.page.map((group) => group.handle),
+    ['this']
+  );
+  assert.deepEqual(
+    out.page[0].items.map((row) => row.var),
+    ['title']
+  );
+  assert.deepEqual(
+    out.site[0].items.map((row) => row.var),
+    ['site_settings.phone']
+  );
 });
 
 test('an asset place is offered assets, without the mark that promises a loop', () => {
@@ -46,11 +87,17 @@ test('an asset place is offered assets, without the mark that promises a loop', 
   assert.deepEqual(out.page, []);
 });
 
-test('rows that print only inside a loop stay only on the loop\'s own tab', () => {
+test("rows that print only inside a loop stay only on the loop's own tab", () => {
   const out = onlyTypes(MODEL, TEXT_FIELDS);
 
-  assert.equal(out.section.some((row) => row.var === 'label'), false);
-  assert.deepEqual(out.scope[0].items.map((row) => row.var), ['caption']);
+  assert.equal(
+    out.section.some((row) => row.var === 'label'),
+    false
+  );
+  assert.deepEqual(
+    out.scope[0].items.map((row) => row.var),
+    ['caption']
+  );
 });
 
 test('an empty catalogue stays an empty one', () => {
@@ -81,16 +128,34 @@ test('a name with a fitting row somewhere is not wrong, whatever else shares it'
 });
 
 test('one file only: a gallery is no image', () => {
-  const model = { section: [{ var: 'image', type: 'assets', single: true }, { var: 'gallery', type: 'assets', loop: true }] };
+  const model = {
+    section: [
+      { var: 'image', type: 'assets', single: true },
+      { var: 'gallery', type: 'assets', loop: true },
+    ],
+  };
 
-  assert.deepEqual(onlyTypes(model, ['assets'], { single: true }).section.map((row) => row.var), ['image']);
-  assert.deepEqual(onlyTypes(model, ['assets']).section.map((row) => row.var), ['image', 'gallery']);
+  assert.deepEqual(
+    onlyTypes(model, ['assets'], { single: true }).section.map((row) => row.var),
+    ['image']
+  );
+  assert.deepEqual(
+    onlyTypes(model, ['assets']).section.map((row) => row.var),
+    ['image', 'gallery']
+  );
   assert.deepEqual(wrongFields('{{ gallery }}', model, ['assets'], { single: true }), ['gallery']);
   assert.deepEqual(wrongFields('{{ image }}', model, ['assets'], { single: true }), []);
 });
 
 test('one file only asks it of assets: an address can still print a text field', () => {
-  const model = { section: [{ var: 'slug', type: 'text' }, { var: 'image', type: 'assets', single: true }, { var: 'gallery', type: 'assets', loop: true }, { var: 'content', type: 'bard' }] };
+  const model = {
+    section: [
+      { var: 'slug', type: 'text' },
+      { var: 'image', type: 'assets', single: true },
+      { var: 'gallery', type: 'assets', loop: true },
+      { var: 'content', type: 'bard' },
+    ],
+  };
   const address = ['assets', ...TEXT_FIELDS];
 
   assert.deepEqual(wrongFields('/img/{{ slug }}.png', model, address, { single: true }), []);

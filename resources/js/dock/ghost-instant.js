@@ -37,7 +37,21 @@
 const TAIL = 4000;
 
 /** Elements that never close. */
-const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const VOID = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+]);
 
 /** Field types written as text the author types. */
 const TEXT = new Set(['text', 'textarea', 'bard', 'markdown']);
@@ -56,7 +70,9 @@ export function instantSuggestion(full, pos, rows, loop = null) {
   const text = String(full || '');
   const before = text.slice(0, pos);
   const after = text.slice(pos);
-  const fields = (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row.var === 'string' && row.var !== '');
+  const fields = (Array.isArray(rows) ? rows : []).filter(
+    (row) => row && typeof row.var === 'string' && row.var !== ''
+  );
   const caret = caretAt(before);
   const foreign = foreignLoop(before);
 
@@ -69,7 +85,9 @@ export function instantSuggestion(full, pos, rows, loop = null) {
   }
 
   if (caret.kind === 'antlers') {
-    const scope = foreign ? { rows: (loop?.fields || []).filter((row) => row && typeof row.var === 'string' && !row.parent) } : scopeFields(text, before, after, fields);
+    const scope = foreign
+      ? { rows: (loop?.fields || []).filter((row) => row && typeof row.var === 'string' && !row.parent) }
+      : scopeFields(text, before, after, fields);
     const image = imagePath(caret, after, scope.rows);
 
     if (image !== null) {
@@ -81,7 +99,9 @@ export function instantSuggestion(full, pos, rows, loop = null) {
   }
 
   if (caret.kind === 'markup' && caret.fresh) {
-    return foreign ? foreignBlock(text, before, after, caret, foreign, loop?.fields) : block(text, before, after, fields, caret);
+    return foreign
+      ? foreignBlock(text, before, after, caret, foreign, loop?.fields)
+      : block(text, before, after, fields, caret);
   }
 
   return '';
@@ -152,7 +172,9 @@ export function insideElement(tail) {
   const text = String(tail).replace(/\{\{[\s\S]*?\}\}/g, '');
   const stack = [];
 
-  for (const [, closing, rawName, self] of text.matchAll(/<(\/?)([a-zA-Z][\w:.-]*)(?:"[^"]*"|'[^']*'|[^'">])*?(\/?)>/g)) {
+  for (const [, closing, rawName, self] of text.matchAll(
+    /<(\/?)([a-zA-Z][\w:.-]*)(?:"[^"]*"|'[^']*'|[^'">])*?(\/?)>/g
+  )) {
     const name = rawName.toLowerCase();
 
     if (!closing) {
@@ -184,7 +206,9 @@ export function insideElement(tail) {
 export function foreignLoop(before) {
   const open = [];
 
-  for (const [, closing, kind, rest] of String(before).slice(-TAIL).matchAll(/\{\{\s*(\/?)(collection|nav|taxonomy|search)\b([^}]*)\}\}/g)) {
+  for (const [, closing, kind, rest] of String(before)
+    .slice(-TAIL)
+    .matchAll(/\{\{\s*(\/?)(collection|nav|taxonomy|search)\b([^}]*)\}\}/g)) {
     if (!closing) {
       const handle = (rest.match(/^:([\w-]+)/) || rest.match(/\b(?:from|handle)="([^"]+)"/) || [])[1] || '';
 
@@ -235,7 +259,9 @@ export function listsOf(fields) {
 export function openLoop(before, handles) {
   const open = [];
 
-  for (const [, closing, name] of String(before).slice(-TAIL).matchAll(/\{\{\s*(\/?)([A-Za-z_][\w.:]*)/g)) {
+  for (const [, closing, name] of String(before)
+    .slice(-TAIL)
+    .matchAll(/\{\{\s*(\/?)([A-Za-z_][\w.:]*)/g)) {
     if (!handles.has(name)) {
       continue;
     }
@@ -259,7 +285,8 @@ function shows(text, name) {
 
 /** The text of the loop `name` the caret stands in: from its opening tag to its closing one. */
 function loopText(before, after, name) {
-  const from = before.lastIndexOf(`{{ ${name}`) !== -1 ? before.lastIndexOf(`{{ ${name}`) : before.lastIndexOf(`{{${name}`);
+  const from =
+    before.lastIndexOf(`{{ ${name}`) !== -1 ? before.lastIndexOf(`{{ ${name}`) : before.lastIndexOf(`{{${name}`);
   const close = after.search(new RegExp(`\\{\\{\\s*/${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\}\\}`));
 
   return before.slice(Math.max(0, from)) + (close === -1 ? after : after.slice(0, close));
@@ -307,8 +334,9 @@ function visualEdit(caret, after, scope, fields) {
     return '';
   }
 
-  const row = elementField(caret, after, [...scope.rows, ...fields])
-    || scope.rows.find((candidate) => shown(candidate) && !new RegExp(`field="${handleOf(candidate)}"`).test(scope.shown));
+  const row =
+    elementField(caret, after, [...scope.rows, ...fields]) ||
+    scope.rows.find((candidate) => shown(candidate) && !new RegExp(`field="${handleOf(candidate)}"`).test(scope.shown));
 
   if (!row) {
     return '';
@@ -440,7 +468,10 @@ function foreignBlock(text, before, after, caret, foreign, rows) {
   const here = before.slice(Math.max(0, start)) + (close === -1 ? after : after.slice(0, close));
   const image = text.includes('partial:components/image');
   const options = { heading: 'h3', image, editable: false };
-  const fresh = (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row.var === 'string' && !row.parent && fieldLines(row, options) && !shows(here, handleOf(row)));
+  const fresh = (Array.isArray(rows) ? rows : []).filter(
+    (row) =>
+      row && typeof row.var === 'string' && !row.parent && fieldLines(row, options) && !shows(here, handleOf(row))
+  );
 
   if (!fresh.length) {
     return '';
@@ -452,7 +483,10 @@ function foreignBlock(text, before, after, caret, foreign, rows) {
 
   const tag = caret.inside === 'ul' || caret.inside === 'ol' ? 'li' : 'div';
 
-  return indent([`<${tag}>`, ...fresh.flatMap((row) => fieldLines(row, options)).map((line) => STEP + line), `</${tag}>`], caret.indent);
+  return indent(
+    [`<${tag}>`, ...fresh.flatMap((row) => fieldLines(row, options)).map((line) => STEP + line), `</${tag}>`],
+    caret.indent
+  );
 }
 
 /** An empty line: a loop, an item, or the next field — or ''. */
@@ -463,7 +497,9 @@ function block(text, before, after, fields, caret) {
   const list = caret.inside === 'ul' || caret.inside === 'ol';
 
   if (loop) {
-    const rows = lists.get(loop).filter((row) => fieldLines(row) && !shows(loopText(before, after, loop), handleOf(row)));
+    const rows = lists
+      .get(loop)
+      .filter((row) => fieldLines(row) && !shows(loopText(before, after, loop), handleOf(row)));
 
     if (!rows.length) {
       return '';
@@ -477,7 +513,13 @@ function block(text, before, after, fields, caret) {
       return indent(fieldLines(rows[0], { heading: 'h3', image }), caret.indent);
     }
 
-    return indent(item(list ? 'li' : 'div', rows.flatMap((row) => fieldLines(row, { heading: 'h3', image }))), caret.indent);
+    return indent(
+      item(
+        list ? 'li' : 'div',
+        rows.flatMap((row) => fieldLines(row, { heading: 'h3', image }))
+      ),
+      caret.indent
+    );
   }
 
   if (list) {
@@ -494,7 +536,9 @@ function block(text, before, after, fields, caret) {
   }
 
   // Elsewhere: the next of the section's own fields the file does not show.
-  const next = fields.find((row) => !row.parent && !lists.has(row.var) && fieldLines(row) && !shows(text, handleOf(row)));
+  const next = fields.find(
+    (row) => !row.parent && !lists.has(row.var) && fieldLines(row) && !shows(text, handleOf(row))
+  );
 
   return next ? indent(fieldLines(next, { image }), caret.indent) : '';
 }

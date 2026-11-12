@@ -4,11 +4,14 @@ import { readFileSync } from 'node:fs';
 import { DOCK_TAB, MODES, cleanModes, modeAllows } from '../../resources/js/lib/toolbar-modes.js';
 
 test('the lists are made safe: known icons once each; no lists is null', () => {
-  assert.deepEqual(cleanModes({ content: ['pages', 'pages', 'bogus', 3, 'ai'], build: ['theme'], html: ['pages', 'theme'] }), {
-    content: ['pages', 'ai'],
-    build: ['theme'],
-    html: ['pages', 'theme'],
-  });
+  assert.deepEqual(
+    cleanModes({ content: ['pages', 'pages', 'bogus', 3, 'ai'], build: ['theme'], html: ['pages', 'theme'] }),
+    {
+      content: ['pages', 'ai'],
+      build: ['theme'],
+      html: ['pages', 'theme'],
+    }
+  );
   assert.deepEqual(cleanModes({ content: 'pages' }), { content: [], build: [], html: [] });
   assert.equal(cleanModes(null), null);
   assert.equal(cleanModes([]), null);

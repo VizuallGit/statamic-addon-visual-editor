@@ -62,10 +62,14 @@ export function coveredBy(names, name) {
     .filter((other) => other.family === own.family);
   const replaced = others.filter((other) => within(other.sides, own.sides));
   const left = [...others.filter((other) => !replaced.includes(other)), { name, ...own }];
-  const dead = left.filter((wide) => wide.name !== name && within(
-    wide.sides,
-    left.filter((narrow) => narrow.sides.length < wide.sides.length).flatMap((narrow) => narrow.sides)
-  ));
+  const dead = left.filter(
+    (wide) =>
+      wide.name !== name &&
+      within(
+        wide.sides,
+        left.filter((narrow) => narrow.sides.length < wide.sides.length).flatMap((narrow) => narrow.sides)
+      )
+  );
 
   return [...replaced, ...dead].map((other) => other.name);
 }

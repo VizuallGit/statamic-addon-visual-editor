@@ -7,6 +7,7 @@ use MarioHamann\StatamicVisualEditor\SectionList;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use Statamic\Facades\Blueprint;
+use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
 use Statamic\Fields\Blueprint as BlueprintObject;
 
@@ -151,7 +152,7 @@ class SectionFieldTest extends TestCase
     public function test_every_sections_field_on_the_site_is_listed_default_first(): void
     {
         $this->inlineLawyerBlueprint()->save();
-        \Statamic\Facades\Collection::make('lawyers')->save();
+        Collection::make('lawyers')->save();
 
         try {
             $all = SectionField::all();
@@ -160,7 +161,7 @@ class SectionFieldTest extends TestCase
             $this->assertContains('lawyer_info', $all);
             $this->assertSame(count($all), count(array_unique($all)));
         } finally {
-            \Statamic\Facades\Collection::findByHandle('lawyers')?->delete();
+            Collection::findByHandle('lawyers')?->delete();
         }
     }
 

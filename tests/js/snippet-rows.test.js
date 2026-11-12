@@ -1,7 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshSnippetRow, mergeSnippetRows, normalizeSnippetName, snippetDirty, snippetProblem, snippetRow } from '../../resources/js/cp/theme-panel/snippet-rows.js';
-import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, snippetRows } from '../../resources/js/cp/theme-panel/site-classes.js';
+import {
+  freshSnippetRow,
+  mergeSnippetRows,
+  normalizeSnippetName,
+  snippetDirty,
+  snippetProblem,
+  snippetRow,
+} from '../../resources/js/cp/theme-panel/snippet-rows.js';
+import {
+  CLASS_CHIPS,
+  CLASS_CHIPS_ALWAYS,
+  chipKeeps,
+  snippetRows,
+} from '../../resources/js/cp/theme-panel/site-classes.js';
 
 test('a snippet name files the way Snippet::normalizeName does', () => {
   assert.equal(normalizeSnippetName('Card Hover'), 'card_hover');
@@ -45,7 +57,13 @@ test('a reload keeps the row that has an unsaved edit and drops the one whose fi
   const clean = snippetRow({ name: 'lead', css: 'color: red;' });
   const gone = snippetRow({ name: 'old', css: 'margin: 0;' });
 
-  const rows = mergeSnippetRows([kept, clean, gone], [{ name: 'card', css: 'padding: 1rem;' }, { name: 'lead', css: 'color: blue;' }]);
+  const rows = mergeSnippetRows(
+    [kept, clean, gone],
+    [
+      { name: 'card', css: 'padding: 1rem;' },
+      { name: 'lead', css: 'color: blue;' },
+    ]
+  );
 
   assert.equal(rows.length, 2);
   assert.equal(rows[0], kept, 'the edited row is the same object');

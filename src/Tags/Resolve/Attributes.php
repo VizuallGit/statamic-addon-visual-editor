@@ -2,9 +2,6 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Icons;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Placeholders;
-
 /**
  * The `data-sid-*` attributes `{{ visual_edit }}` writes for a set or a field:
  * ids, labels, types, icons, placeholders, template and default markers.
@@ -12,11 +9,9 @@ use MarioHamann\StatamicVisualEditor\Tags\Resolve\Placeholders;
  */
 final class Attributes
 {
-    use ResolvesScope, ResolvesFields, ResolvesIcons;
+    use ResolvesFields, ResolvesIcons, ResolvesScope;
 
-    public function __construct(protected $params, protected $context)
-    {
-    }
+    public function __construct(protected $params, protected $context) {}
 
     public function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false, bool $move = false, bool $orderable = false, string $icon = ''): string
     {

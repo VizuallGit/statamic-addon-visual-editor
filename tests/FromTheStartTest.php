@@ -3,7 +3,6 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\FromTheStart;
-use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 
 class FromTheStartTest extends TestCase
 {

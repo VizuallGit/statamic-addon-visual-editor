@@ -6,8 +6,10 @@ import { moveClassesIntoScope, canMoveIntoScope, strayClassRules } from '../reso
 let fails = 0;
 const is = (got, want, what) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { fails += 1; console.log('FEJL', what, '\n  fik: ', JSON.stringify(got), '\n  vil: ', JSON.stringify(want)); }
-  else console.log('ok  ', what);
+  if (!ok) {
+    fails += 1;
+    console.log('FEJL', what, '\n  fik: ', JSON.stringify(got), '\n  vil: ', JSON.stringify(want));
+  } else console.log('ok  ', what);
 };
 
 const HTML = '<section id="id-{{ id }}" class="[ {{ _class }} ] wrapper">';
@@ -31,22 +33,28 @@ const css = `#id-{{ id }} {
     }
 }`;
 
-is(strayClassRules(css).map((r) => r.name), ['card'], 'kun .card står forkert');
+is(
+  strayClassRules(css).map((r) => r.name),
+  ['card'],
+  'kun .card står forkert'
+);
 is(canMoveIntoScope(css, HTML, SCOPE), true, 'sikkert at flytte');
 
 const moved = moveClassesIntoScope(css, HTML, SCOPE);
 is(/@scope\(\.\{\{ _class \}\}\) \{[\s\S]*\.card \{/.test(moved), true, '.card ligger nu inde i scopet');
 is(/\}\s*$/.test(moved.trim()), true, 'filen slutter stadig med en lukket klamme');
-is([...moved].reduce((n, c) => n + (c === '{') - (c === '}'), 0), 0, 'klammerne går op');
+is(
+  [...moved].reduce((n, c) => n + (c === '{') - (c === '}'), 0),
+  0,
+  'klammerne går op'
+);
 is(moved.includes('.title'), true, 'de nestede klasser kom med');
 is(moved.indexOf('.card') > moved.indexOf('@scope'), true, '.card står efter @scope, ikke før');
 is((moved.match(/\.card \{/g) || []).length, 1, 'og kun én gang');
 
 // --- sikkerhedsreglerne -----------------------------------------------------
-is(canMoveIntoScope(css, '<section class="wrapper">', SCOPE), false,
-   'ingen scope-klasse i markup → rør ikke');
-is(moveClassesIntoScope(css, '<section class="wrapper">', SCOPE), css,
-   'og teksten er uændret');
+is(canMoveIntoScope(css, '<section class="wrapper">', SCOPE), false, 'ingen scope-klasse i markup → rør ikke');
+is(moveClassesIntoScope(css, '<section class="wrapper">', SCOPE), css, 'og teksten er uændret');
 
 const noScope = `.card { padding: 1rem; }`;
 is(moveClassesIntoScope(noScope, HTML, SCOPE), noScope, 'ingen @scope at flytte ind i → rør ikke');
@@ -62,7 +70,11 @@ const dynamic = `@scope(.{{ _class }}) { :scope { color: red } }
 .gallery-lb-{{ id }} img {
     width: 100%;
 }`;
-is(strayClassRules(dynamic).map((r) => r.name), [], 'Antlers i selectoren = ikke vores at flytte');
+is(
+  strayClassRules(dynamic).map((r) => r.name),
+  [],
+  'Antlers i selectoren = ikke vores at flytte'
+);
 is(moveClassesIntoScope(dynamic, HTML, SCOPE), dynamic, 'og filen er urørt');
 
 // --- hvad der IKKE er en løs klasse ----------------------------------------
@@ -72,7 +84,11 @@ html { font-size: 100% }
 .a .b { color: red }
 a:hover { color: blue }
 @media (width < 48em) { .c { color: red } }`;
-is(strayClassRules(keep).map((r) => r.name), [], 'root, html, efterkommere, pseudo og media er ikke løse klasser');
+is(
+  strayClassRules(keep).map((r) => r.name),
+  [],
+  'root, html, efterkommere, pseudo og media er ikke løse klasser'
+);
 is(moveClassesIntoScope(keep, HTML, SCOPE), keep, 'og intet af det flyttes');
 
 console.log(fails ? `\n${fails} FEJL` : '\nAlt grønt');

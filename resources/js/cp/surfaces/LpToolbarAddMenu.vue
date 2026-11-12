@@ -68,8 +68,13 @@ const nothingToPick = computed(() => props.tools.every(greyed));
   border-radius: 0.625rem;
   background: #343439;
   color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font: 500 0.8125rem/1.3 ui-sans-serif, system-ui, sans-serif;
+  box-shadow:
+    0 0.75rem 2.5rem rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  font:
+    500 0.8125rem/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
   outline: none;
 }
 

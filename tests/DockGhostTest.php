@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\DockGhost;
@@ -12,8 +13,9 @@ use MarioHamann\StatamicVisualEditor\DockGhost\Prompt;
 use MarioHamann\StatamicVisualEditor\DockGhost\Reply;
 use MarioHamann\StatamicVisualEditor\DockGhost\Tokens;
 use MarioHamann\StatamicVisualEditor\DockGhost\Usage;
-use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Features;
+use Statamic\Facades\Collection;
+use Statamic\Facades\User;
 use Symfony\Component\Process\Process;
 
 /**
@@ -70,7 +72,7 @@ class DockGhostTest extends TestCase
     public function test_the_user_turn_holds_the_caret_between_before_and_after(): void
     {
         $text = Prompt::user([
-            'before' => "<h2 class=\"x\" {{ visual_",
+            'before' => '<h2 class="x" {{ visual_',
             'after' => ">{{ title }}</h2>\n",
             'section' => 'hero/style_2',
             'fields' => [['var' => 'title', 'type' => 'text', 'label' => 'Title'], ['var' => 'items.text', 'parent' => 'items']],
@@ -242,7 +244,7 @@ class DockGhostTest extends TestCase
 
     public function test_the_endpoint_refuses_while_the_feature_is_off(): void
     {
-        $user = \Statamic\Facades\User::make()->email('ghost-off@example.com')->makeSuper();
+        $user = User::make()->email('ghost-off@example.com')->makeSuper();
         $user->save();
         $this->actingAs($user);
 
@@ -256,7 +258,7 @@ class DockGhostTest extends TestCase
 
     public function test_the_endpoint_answers_with_the_text_when_on(): void
     {
-        $user = \Statamic\Facades\User::make()->email('ghost-on@example.com')->makeSuper();
+        $user = User::make()->email('ghost-on@example.com')->makeSuper();
         $user->save();
         $this->actingAs($user);
 
@@ -435,7 +437,7 @@ class DockGhostTest extends TestCase
 
     public function test_the_endpoints_for_cmd_k_and_the_month(): void
     {
-        $user = \Statamic\Facades\User::make()->email('ghost-edit@example.com')->makeSuper();
+        $user = User::make()->email('ghost-edit@example.com')->makeSuper();
         $user->save();
         $this->actingAs($user);
 
@@ -700,7 +702,7 @@ class DockGhostTest extends TestCase
     public function test_an_answer_about_the_task_is_no_suggestion(): void
     {
         $this->assertSame('', Reply::clean('The `<after>` text already contains the ul line, and the caret sits inside the tag.', '<section x-data="{ '));
-        $this->assertSame('', Reply::clean("Completing the tag: `field=\"entries\"` closes the <after> block"));
+        $this->assertSame('', Reply::clean('Completing the tag: `field="entries"` closes the <after> block'));
     }
 
     public function test_an_answer_in_an_attribute_ends_where_the_value_does(): void
@@ -801,7 +803,7 @@ class DockGhostTest extends TestCase
 
     public function test_the_ai_knows_the_site_s_collections_by_handle(): void
     {
-        \Statamic\Facades\Collection::make('employees')->title('Employees')->save();
+        Collection::make('employees')->title('Employees')->save();
 
         try {
             $data = Prompt::siteData();
@@ -811,8 +813,7 @@ class DockGhostTest extends TestCase
             $this->assertStringContainsString('never invent one', $data);
             $this->assertStringContainsString('<site_data>', Prompt::system()[0]['text']);
         } finally {
-            \Statamic\Facades\Collection::find('employees')?->delete();
+            Collection::find('employees')?->delete();
         }
     }
 }
-

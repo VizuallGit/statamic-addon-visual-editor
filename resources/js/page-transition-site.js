@@ -39,7 +39,9 @@ function stateOf(wrap = (raw) => raw) {
 export function cleanDuration(raw) {
   const n = Number(String(raw ?? '').replace(',', '.'));
 
-  return Number.isFinite(n) ? Math.round(Math.min(DURATION.max, Math.max(DURATION.min, n)) * 100) / 100 : SITE_DEFAULTS.duration;
+  return Number.isFinite(n)
+    ? Math.round(Math.min(DURATION.max, Math.max(DURATION.min, n)) * 100) / 100
+    : SITE_DEFAULTS.duration;
 }
 
 async function load(win) {

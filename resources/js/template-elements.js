@@ -83,8 +83,8 @@ export function withTemplateElement(html, tag, after = null) {
 export function withTemplateMarkup(html, markup, after = null) {
   const source = String(html || '');
   const element = String(markup || '');
-  const from = after ? after.wrapFrom ?? after.from : NaN;
-  const to = after ? after.wrapTo ?? after.to : NaN;
+  const from = after ? (after.wrapFrom ?? after.from) : NaN;
+  const to = after ? (after.wrapTo ?? after.to) : NaN;
 
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to > source.length || from > to) {
     const head = `${source.replace(/\s+$/, '')}${source.trim() ? '\n\n' : ''}`;

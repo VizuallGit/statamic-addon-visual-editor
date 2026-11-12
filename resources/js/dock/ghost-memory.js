@@ -58,7 +58,12 @@ export function rememberTaken(win, line, text) {
 
   const rows = takenRows(win).filter((row) => row.text !== taken);
 
-  rows.push({ line: String(line || '').trim().slice(-LINE_CHARS), text: taken });
+  rows.push({
+    line: String(line || '')
+      .trim()
+      .slice(-LINE_CHARS),
+    text: taken,
+  });
   chromeSet(win, GHOST_TAKEN_KEY, JSON.stringify(rows.slice(-MAX_TAKEN)));
 }
 

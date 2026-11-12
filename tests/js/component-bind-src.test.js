@@ -24,12 +24,13 @@ test('already the field: nothing to write', () => {
   assert.equal(bind('<img src="{{ props_pic }}">'), null);
 });
 
-test('an address with a tag is the file\'s own work: left alone', () => {
+test("an address with a tag is the file's own work: left alone", () => {
   assert.deepEqual(bind('<img src="{{ glide :src="_src" width="10" }}" alt="b">'), { computed: true });
 });
 
 test('components/image: a src under a condition and another after a tag', () => {
-  const tag = '<img\n {{ if _wait }}\n src="{{ glide :src="_src" }}"\n {{ /if }}\n {{ _pre }}src="{{ glide :src="_src" }}"\n alt="x">';
+  const tag =
+    '<img\n {{ if _wait }}\n src="{{ glide :src="_src" }}"\n {{ /if }}\n {{ _pre }}src="{{ glide :src="_src" }}"\n alt="x">';
 
   assert.deepEqual(bind(tag), { computed: true });
 });

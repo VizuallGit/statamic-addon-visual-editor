@@ -64,7 +64,8 @@ test('free space follows justify-content / align-content', () => {
     { start: 0, end: 100 },
     { start: 200, end: 300 },
   ]);
-  const round = (tracks) => tracks.map(({ start, end }) => [Math.round(start * 100) / 100, Math.round(end * 100) / 100]);
+  const round = (tracks) =>
+    tracks.map(({ start, end }) => [Math.round(start * 100) / 100, Math.round(end * 100) / 100]);
 
   assert.deepEqual(round(trackOffsets([100, 100], 0, 400, 'space-evenly')), [
     [66.67, 166.67],
@@ -205,7 +206,13 @@ test('the first font family, unquoted', () => {
   assert.equal(firstFamily(''), '');
 });
 
-import { DESIGN_DEFAULTS, designAllowed, fitWidth, readDesignPrefs, writeDesignPrefs } from '../../resources/js/cp/design/prefs.js';
+import {
+  DESIGN_DEFAULTS,
+  designAllowed,
+  fitWidth,
+  readDesignPrefs,
+  writeDesignPrefs,
+} from '../../resources/js/cp/design/prefs.js';
 
 test('design prefs: defaults, clamped opacity, unknown values ignored', () => {
   const win = fakeWindow();

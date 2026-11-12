@@ -187,8 +187,7 @@ function buildBox(win, frame, el, index) {
   root.id = focusFrameId(kind, index);
   root.setAttribute(FOCUS_FRAME_ATTR, kind);
   root.setAttribute('data-sve-ui', '');
-  root.style.cssText =
-    'position:absolute;z-index:9998;margin:0;padding:0;pointer-events:none;box-sizing:border-box;';
+  root.style.cssText = 'position:absolute;z-index:9998;margin:0;padding:0;pointer-events:none;box-sizing:border-box;';
 
   const label = doc.createElement('span');
 
@@ -200,8 +199,7 @@ function buildBox(win, frame, el, index) {
 
   const actions = doc.createElement('div');
 
-  actions.style.cssText =
-    'position:absolute;top:0;right:0;display:flex;align-items:stretch;pointer-events:none;';
+  actions.style.cssText = 'position:absolute;top:0;right:0;display:flex;align-items:stretch;pointer-events:none;';
 
   const status = doc.createElement('span');
 
@@ -245,7 +243,10 @@ function buildBox(win, frame, el, index) {
  * work (a half's global set, a global section's entry — not a component's
  * file); `dirty` is the state as the caller knows it right now.
  */
-export function mountFocusFrame(win, { kind, el = null, els = null, label, t, dirtyable = false, dirty = false, onSave = null, onClose }) {
+export function mountFocusFrame(
+  win,
+  { kind, el = null, els = null, label, t, dirtyable = false, dirty = false, onSave = null, onClose }
+) {
   const targets = (els || [el]).filter((node) => node);
 
   if (!targets.length || !kind) {

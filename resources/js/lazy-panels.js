@@ -7,16 +7,18 @@
  * with the module and remembers it, which is what makes that work.
  */
 import { sveState } from './cp-state.js';
-import {
-  registerRightDockHook,
-  releaseRightShellIfEmpty,
-  RIGHT_PANEL_FILL,
-  showInRightShell,
-} from './right-dock.js';
+import { registerRightDockHook, releaseRightShellIfEmpty, RIGHT_PANEL_FILL, showInRightShell } from './right-dock.js';
 import { injectStyle } from './lib/style.js';
 import { reportStaleChunk } from './lib/stale-chunk.js';
 import { aiTextStoredOn } from './lazy/ai-text.js';
-import { COMMENTS_PANEL_ID, HTML_TREE_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import {
+  COMMENTS_PANEL_ID,
+  HTML_TREE_PANEL_ID,
+  LISTVIEW_PANEL_ID,
+  OUTLINE_PANEL_ID,
+  PERF_PANEL_ID,
+  SECTION_PICKER_ID,
+} from './lib/ids.js';
 import { mountSectionPicker } from './section-library.js';
 
 export const PANEL_IDS = {
@@ -76,8 +78,6 @@ let sectionsWarmed = false;
 export function loadedPanel(key) {
   return loaded[key] || null;
 }
-
-
 
 function bindRightDockHooks() {
   if (loaded.listview) {
@@ -149,9 +149,7 @@ export function showPanelWait(win, key) {
   if (!el) {
     el = doc.createElement('div');
     el.id = WAIT_ID;
-    el.style.cssText =
-      RIGHT_PANEL_FILL +
-      'display:flex;align-items:center;justify-content:center;min-height:8rem;';
+    el.style.cssText = RIGHT_PANEL_FILL + 'display:flex;align-items:center;justify-content:center;min-height:8rem;';
     el.innerHTML =
       '<span style="width:18px;height:18px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:block;animation:sve-panel-wait-spin .6s linear infinite" aria-hidden="true"></span>';
   }

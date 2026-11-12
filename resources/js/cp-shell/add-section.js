@@ -9,7 +9,14 @@ import { sveState } from '../cp-state.js';
 import { COLLAPSE_SETTLE_MS, SELECTORS } from '../cp-selectors.js';
 import { closeCodeDockPopups } from '../code-dock-lazy.js';
 import { ensurePanel, markLivePreviewReady } from '../lazy-panels.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, HEADER_ICON_HOVER, LP_BACK_ID, LP_COVER_ID } from '../lib/ids.js';
+import {
+  COMMENTS_BADGE_ACTIVE_BG,
+  COMMENTS_BADGE_FG,
+  COMMENTS_BADGE_IDLE_TYPE,
+  HEADER_ICON_HOVER,
+  LP_BACK_ID,
+  LP_COVER_ID,
+} from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { isEmbeddedInSite, livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
@@ -18,16 +25,76 @@ import { syncStoredAlpineStates } from '../alpine-states.js';
 import { scrollBehavior, tellScrollMode } from '../scroll-pref.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
-import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, openSectionPicker, overlaySidTemplate, pageSectionRow, rowDuplicable, watchNewRow } from '../section-library.js';
-import { handleOpenChrome, handleOpenGlobal, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from '../globals-panel.js';
-import { applyStartingText, editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest } from '../inline-edit.js';
+import {
+  closeRightPanels,
+  dismissChromeForPageEdit,
+  handleAddRow,
+  handleDuplicateRow,
+  handleHideRow,
+  handleInsertBardSet,
+  handleInsertBlock,
+  handleOpenGlobalSection,
+  handleRemoveRow,
+  handleRowCaps,
+  handleSectionSettings,
+  insertSection,
+  openSectionPicker,
+  overlaySidTemplate,
+  pageSectionRow,
+  rowDuplicable,
+  watchNewRow,
+} from '../section-library.js';
+import {
+  handleOpenChrome,
+  handleOpenGlobal,
+  notifyChromeDirty,
+  notifyGlobalSectionDirty,
+  saveGlobalsPanel,
+  setChromeSidebarMode,
+} from '../globals-panel.js';
+import {
+  applyStartingText,
+  editSession,
+  handleAddColumn,
+  handleAssetEdit,
+  handleBardCommand,
+  handleBlockFormat,
+  handleColumnWidth,
+  handleEditControl,
+  handleEditEnd,
+  handleEditInput,
+  handleEditRequest,
+  handleGridSpan,
+  handleIconEdit,
+  handleLinkEdit,
+  handleMove,
+  handleOpenPanelField,
+  handleSaveSection,
+  handleThemeSwatchesRequest,
+} from '../inline-edit.js';
 import { closeGlobalSectionPanel, globalSectionEditorOpen, saveGlobalSectionPanel } from '../global-section.js';
 import { claimOrigin, markLivePreviewOpening } from '../open-in-preview.js';
 import { confirmCloseDiscard, handleRequestCloseChrome, handleRequestCloseGlobal, hideNavSpinner } from '../pages.js';
 import { listViewSyncTo, pinDockedPanelsUnderHeader } from '../lazy/listview.js';
 import { handleOutline } from '../lazy/outline.js';
-import { handleAiTextApply, handleAiTextGenerate, handleAiTextOpen, handleAiTextSetKeywords, syncAiTextToPreview } from '../lazy/ai-text.js';
-import { collectAncestorSets, expandSet, findFieldElement, findSetByUid, handleFieldFocus, handleFieldHover, handleFocus, handleHover, topLevelSectionUid } from './sets.js';
+import {
+  handleAiTextApply,
+  handleAiTextGenerate,
+  handleAiTextOpen,
+  handleAiTextSetKeywords,
+  syncAiTextToPreview,
+} from '../lazy/ai-text.js';
+import {
+  collectAncestorSets,
+  expandSet,
+  findFieldElement,
+  findSetByUid,
+  handleFieldFocus,
+  handleFieldHover,
+  handleFocus,
+  handleHover,
+  topLevelSectionUid,
+} from './sets.js';
 import { applyDeclaredDefaults, restoreDockedHeaderPanels, scheduleHtmlTreePrefetch } from './header-toolbar.js';
 import { selectFromPreview, selectRow } from '../selection-panel.js';
 import { log } from '../lib/debug.js';
@@ -70,17 +137,12 @@ export let previewPickerSession = null; // { doc, win, anchorRect, observer, gon
  * fields (those live in docked sidebars we must not reposition).
  */
 export function findSetPickerSearchInput(doc) {
-  const nodes = doc.querySelectorAll(
-    '[data-set-picker-search-input], input[placeholder*="Search Sets" i]'
-  );
+  const nodes = doc.querySelectorAll('[data-set-picker-search-input], input[placeholder*="Search Sets" i]');
 
   for (const node of nodes) {
     const input = node.tagName === 'INPUT' ? node : node.querySelector?.('input') || node;
 
-    if (
-      input instanceof (doc.defaultView?.HTMLElement || HTMLElement) &&
-      input.getClientRects().length > 0
-    ) {
+    if (input instanceof (doc.defaultView?.HTMLElement || HTMLElement) && input.getClientRects().length > 0) {
       return input;
     }
   }
@@ -106,9 +168,7 @@ export function findSetPickerEl(doc, win) {
       const cs = win.getComputedStyle(parent);
       const pw = parent.getBoundingClientRect().width;
       const floating =
-        cs.position === 'fixed' ||
-        cs.position === 'absolute' ||
-        (cs.transform && cs.transform !== 'none');
+        cs.position === 'fixed' || cs.position === 'absolute' || (cs.transform && cs.transform !== 'none');
 
       if (floating && pw > 180 && pw < 400) {
         return parent;
@@ -205,26 +265,15 @@ export function stopPreviewPickerSession() {
 
   previewPickerSession.observer?.disconnect();
   clearTimeout(previewPickerSession.goneTimer);
-  previewPickerSession.doc?.removeEventListener?.(
-    'pointerdown',
-    previewPickerSession.onDocPointer,
-    true
-  );
+  previewPickerSession.doc?.removeEventListener?.('pointerdown', previewPickerSession.onDocPointer, true);
 
   try {
-    previewPickerSession.iframeDoc?.removeEventListener?.(
-      'pointerdown',
-      previewPickerSession.onIframePointer,
-      true
-    );
+    previewPickerSession.iframeDoc?.removeEventListener?.('pointerdown', previewPickerSession.onIframePointer, true);
   } catch {
     // iframe may already be gone / cross-origin
   }
 
-  previewPickerSession.iframe?.removeEventListener?.(
-    'load',
-    previewPickerSession.onIframeLoad
-  );
+  previewPickerSession.iframe?.removeEventListener?.('load', previewPickerSession.onIframeLoad);
   previewPickerSession = null;
 }
 
@@ -247,9 +296,7 @@ export function dismissOpenSetPicker(doc) {
     }
 
     const trigger = [...doc.querySelectorAll('[aria-expanded="true"]')].find(
-      (el) =>
-        el.closest?.('.replicator-fieldtype-container') ||
-        (el.id || '').includes('reka-popover')
+      (el) => el.closest?.('.replicator-fieldtype-container') || (el.id || '').includes('reka-popover')
     );
 
     trigger?.click();
@@ -323,11 +370,7 @@ export function startPreviewPickerSession(doc, win, anchorRect) {
     }
 
     try {
-      previewPickerSession.iframeDoc?.removeEventListener?.(
-        'pointerdown',
-        onIframePointer,
-        true
-      );
+      previewPickerSession.iframeDoc?.removeEventListener?.('pointerdown', onIframePointer, true);
     } catch {
       // ignore
     }
@@ -644,9 +687,7 @@ export function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position
 
   // Walk the real row list (not nextElementSibling — a stray node between rows
   // must not throw the position off).
-  const rows = [...item.parentElement.children].filter((c) =>
-    /sortable-item/.test((c.className || '').toString())
-  );
+  const rows = [...item.parentElement.children].filter((c) => /sortable-item/.test((c.className || '').toString()));
 
   // Every row carries an "insert before me" trigger, so both sides are the same
   // question asked of a different row: this one to land above it, the next one
@@ -718,7 +759,9 @@ export function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position
  * given to it, which keeps the insert itself entirely native.
  */
 export function autoPickSet(doc, win, label) {
-  const wanted = String(label || '').trim().toLowerCase();
+  const wanted = String(label || '')
+    .trim()
+    .toLowerCase();
 
   if (!wanted) {
     return;
@@ -1195,9 +1238,7 @@ export function handleAddBlockNative(data, doc, win) {
   //
   // LOCKED. Do not remove this. Only skip if the user asks in this message.
   if (anchorRect) {
-    const field =
-      replicatorOwningUid(anchorUid, doc) ||
-      replicatorOwningUid(sectionUid, doc);
+    const field = replicatorOwningUid(anchorUid, doc) || replicatorOwningUid(sectionUid, doc);
     const sets = pickerSetsFrom(data.sets, field);
     const rect = previewRectInWindow(doc, win, anchorRect) || anchorRect;
     const vueWin = win.Statamic?.$app ? win : win.top || win;
@@ -1291,7 +1332,9 @@ export function handleAddBlockNative(data, doc, win) {
         return;
       }
     } else if (section) {
-      const addButton = [...section.querySelectorAll('button')].find((b) => /add set|add block|tilføj/i.test(b.textContent || ''));
+      const addButton = [...section.querySelectorAll('button')].find((b) =>
+        /add set|add block|tilføj/i.test(b.textContent || '')
+      );
 
       if (addButton) {
         addButton.click();
@@ -1325,11 +1368,7 @@ export function findBardVueProxy(el) {
   for (let i = 0; vn && i < 40; i++) {
     const proxy = vn.proxy;
 
-    if (
-      proxy &&
-      (typeof proxy.openSetPicker === 'function' ||
-        (proxy.editor && 'showAddSetButton' in proxy))
-    ) {
+    if (proxy && (typeof proxy.openSetPicker === 'function' || (proxy.editor && 'showAddSetButton' in proxy))) {
       return proxy;
     }
 
@@ -1342,11 +1381,7 @@ export function findBardVueProxy(el) {
   for (let i = 0; cur && i < 30; i++) {
     const proxy = cur.__vueParentComponent?.proxy;
 
-    if (
-      proxy &&
-      (typeof proxy.openSetPicker === 'function' ||
-        (proxy.editor && 'showAddSetButton' in proxy))
-    ) {
+    if (proxy && (typeof proxy.openSetPicker === 'function' || (proxy.editor && 'showAddSetButton' in proxy))) {
       return proxy;
     }
 
@@ -1579,8 +1614,7 @@ export function handleAddBardSetNative(data, doc, win) {
 
   const run = () => {
     const fieldEl = findFieldElement(field, doc, scope || undefined);
-    const bardEl =
-      fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
+    const bardEl = fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
     const pm = bardEl?.querySelector('.ProseMirror') || bardEl?.querySelector('[contenteditable="true"]');
 
     if (!bardEl || !pm) {
@@ -1997,7 +2031,7 @@ export function createMessageListener(doc = document, win = window) {
       if (pill) {
         tellPreviewWherePillIs(win, pill);
       }
-        } else if (data.type === MSG.CLOSE_GLOBAL_SECTION) {
+    } else if (data.type === MSG.CLOSE_GLOBAL_SECTION) {
       closeGlobalSectionPanel(win);
     } else if (data.type === MSG.REQUEST_CLOSE_GLOBAL) {
       handleRequestCloseGlobal(win);
@@ -2587,10 +2621,7 @@ export function postToHost(win, type, data = {}) {
   }
 
   try {
-    win.parent.postMessage(
-      { source: SOURCE, type, ...data },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type, ...data }, win.location.origin);
   } catch {
     /* the host went away */
   }
@@ -2811,7 +2842,6 @@ export function buildLpCover(doc, background, { blocking = false, still = null, 
 
   return cover;
 }
-
 
 /**
  * Covers the screen *before* leaving, in the colour of the preview you're looking

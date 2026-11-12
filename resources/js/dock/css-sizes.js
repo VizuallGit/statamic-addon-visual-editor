@@ -66,7 +66,9 @@ export function applyCssFolds(win, force = false) {
   }
 
   const text = view.state.doc.toString();
-  const sig = `${dockState.cssValues ? '1' : '0'}|${dockState.cssSize}|${cssMediaBlocks(text).map((b) => `${b.from}-${b.to}`).join(',')}`;
+  const sig = `${dockState.cssValues ? '1' : '0'}|${dockState.cssSize}|${cssMediaBlocks(text)
+    .map((b) => `${b.from}-${b.to}`)
+    .join(',')}`;
 
   // Typing inside a rule moves nothing that is folded. Re-folding on every
   // keystroke would be work for nothing, and a dispatch per character.
@@ -135,9 +137,7 @@ export function applyCssFolds(win, force = false) {
 export function newSizeQuery(row, text) {
   const spelling = dockState.cssFull || text;
 
-  return /(max|min)-width/i.test(spelling) && !/width\s*[<>]/i.test(spelling)
-    ? row.media_px || row.media
-    : row.media;
+  return /(max|min)-width/i.test(spelling) && !/width\s*[<>]/i.test(spelling) ? row.media_px || row.media : row.media;
 }
 
 /**
@@ -177,7 +177,10 @@ function enterCssSize(win, handle) {
 
   if (existing.length) {
     const block = existing[0];
-    const at = Math.min(block.bodyTo, block.bodyFrom + (text.slice(block.bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length);
+    const at = Math.min(
+      block.bodyTo,
+      block.bodyFrom + (text.slice(block.bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length
+    );
 
     view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
 

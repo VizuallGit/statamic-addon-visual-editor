@@ -34,7 +34,16 @@ test('room again: the left comes back first, then the right, only what was close
 });
 
 test('not until both fit, with room to spare', () => {
-  const base = { min: 480, slack: 16, rightOpen: false, leftOpen: true, rightWidth: 320, leftWidth: 350, autoRight: true, autoLeft: false };
+  const base = {
+    min: 480,
+    slack: 16,
+    rightOpen: false,
+    leftOpen: true,
+    rightWidth: 320,
+    leftWidth: 350,
+    autoRight: true,
+    autoLeft: false,
+  };
 
   assert.equal(roomStep({ ...base, room: 800 }), '');
   assert.equal(roomStep({ ...base, room: 816 }), 'open-right');

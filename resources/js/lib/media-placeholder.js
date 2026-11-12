@@ -14,7 +14,8 @@
  * May import: nothing.
  */
 // Not one with a file to come from elsewhere: a srcset, a <picture>'s source, a lazy loader's data-src.
-const EMPTY_IMAGE = 'img:not([src]:not([src=""]),[srcset]:not([srcset=""]),[data-src],[data-srcset],picture:has(source[srcset]:not([srcset=""]),source[data-srcset])>img)';
+const EMPTY_IMAGE =
+  'img:not([src]:not([src=""]),[srcset]:not([srcset=""]),[data-src],[data-srcset],picture:has(source[srcset]:not([srcset=""]),source[data-srcset])>img)';
 const EMPTY_VIDEO = 'video[src=""],video:not([src],:has(source))';
 const EMPTY = `${EMPTY_IMAGE},${EMPTY_VIDEO}`;
 
@@ -22,7 +23,8 @@ const ACCENT = '#3858e9';
 /** In place of the browser's own broken-image icon, which would draw over the box. */
 const NOTHING = 'url("data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==")';
 const ICONS = {
-  image: '<rect x="93" y="5" width="22" height="22" rx="3"/><circle cx="100" cy="12" r="2"/><path d="m93 23 6-6 5 5 3-3 8 7"/>',
+  image:
+    '<rect x="93" y="5" width="22" height="22" rx="3"/><circle cx="100" cy="12" r="2"/><path d="m93 23 6-6 5 5 3-3 8 7"/>',
   video: '<rect x="93" y="5" width="22" height="22" rx="3"/><path d="m101 11 7 5-7 5Z"/>',
 };
 

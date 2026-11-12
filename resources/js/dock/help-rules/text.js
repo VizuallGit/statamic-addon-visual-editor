@@ -16,8 +16,27 @@ import { isUrlField } from './link.js';
 
 /** Elements that hold a line of text. */
 export const TEXT_TAGS = new Set([
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'li', 'strong', 'em', 'small',
-  'blockquote', 'figcaption', 'label', 'button', 'td', 'th', 'dt', 'dd',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'p',
+  'span',
+  'a',
+  'li',
+  'strong',
+  'em',
+  'small',
+  'blockquote',
+  'figcaption',
+  'label',
+  'button',
+  'td',
+  'th',
+  'dt',
+  'dd',
 ]);
 
 /** Elements whose text is one line from a text field: never a textarea, never Bard. */
@@ -67,15 +86,25 @@ export function textRule(ctx) {
   }
 
   // Closed: plain text or nothing inside, which the field replaces. Just typed: nothing yet.
-  const to = close >= 0 ? (node.children.length || source.slice(node.openTo, close).includes('{{') ? null : node.to) : emptyInside(ctx)?.to;
+  const to =
+    close >= 0
+      ? node.children.length || source.slice(node.openTo, close).includes('{{')
+        ? null
+        : node.to
+      : emptyInside(ctx)?.to;
 
   if (to == null) {
     return [];
   }
 
-  const rows = unusedFirst(source, rowsInScope(ctx).filter((row) => fits(node.tag, row)));
+  const rows = unusedFirst(
+    source,
+    rowsInScope(ctx).filter((row) => fits(node.tag, row))
+  );
   // A heading's own field first; the sort keeps «unused first» inside each group.
-  const ordered = HEADING.test(node.tag) ? [...rows].sort((a, b) => Number(TITLE_HANDLE.test(b.var)) - Number(TITLE_HANDLE.test(a.var))) : rows;
+  const ordered = HEADING.test(node.tag)
+    ? [...rows].sort((a, b) => Number(TITLE_HANDLE.test(b.var)) - Number(TITLE_HANDLE.test(a.var)))
+    : rows;
 
   return ordered.slice(0, TEXT_ROWS).map((row) => {
     // Bard and Markdown render their own <p>s; inside a <p> the browser splits

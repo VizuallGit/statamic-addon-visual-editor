@@ -2,7 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
 
-use Statamic\Statamic;
+use MarioHamann\StatamicVisualEditor\BuiltAssets;
 
 /**
  * The "Rediger" button itself — markup, styles and the script that reveals
@@ -19,7 +19,7 @@ final class Button
         $joiner = str_contains($edit, '?') ? '&' : '?';
         $url = e($edit.$joiner.'live-preview=1');
         $hostJson = json_encode(
-            static::resolveScriptUrl('resources/js/overlay-host.js'),
+            self::resolveScriptUrl('resources/js/overlay-host.js'),
             JSON_UNESCAPED_SLASHES
         );
 
@@ -194,6 +194,6 @@ final class Button
 
     protected static function resolveScriptUrl(string $entry): string
     {
-        return \MarioHamann\StatamicVisualEditor\BuiltAssets::url($entry);
+        return BuiltAssets::url($entry);
     }
 }

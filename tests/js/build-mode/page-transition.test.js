@@ -8,7 +8,21 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
-import { KEYS, MOTION_BASE, TAG, cleanPair, defaultPair, keyFor, loopCollectionOf, motionPath, pageTransitionOf, samePair, transitionRows, withLanding, withPageTransition } from '../../../resources/js/build-mode/page-transition.js';
+import {
+  KEYS,
+  MOTION_BASE,
+  TAG,
+  cleanPair,
+  defaultPair,
+  keyFor,
+  loopCollectionOf,
+  motionPath,
+  pageTransitionOf,
+  samePair,
+  transitionRows,
+  withLanding,
+  withPageTransition,
+} from '../../../resources/js/build-mode/page-transition.js';
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../../../${path}`, import.meta.url)), 'utf8');
 
@@ -52,7 +66,7 @@ function find(html, tag) {
 
 const at = (html, tag) => pageTransitionOf(html, find(html, tag));
 
-test('an element in a loop over entries matches by the loop\'s id; one outside a loop by the page\'s', () => {
+test("an element in a loop over entries matches by the loop's id; one outside a loop by the page's", () => {
   assert.equal(keyFor(LIST, find(LIST, 'figure').path), KEYS.loop);
   assert.equal(keyFor(LIST, find(LIST, 'h2').path), KEYS.page);
   assert.equal(keyFor(PAGE, find(PAGE, 'figure').path), KEYS.page);
@@ -61,16 +75,22 @@ test('an element in a loop over entries matches by the loop\'s id; one outside a
 test('a page transition is written into the style, read back, and the tag follows the markup', () => {
   const next = withPageTransition(LIST, find(LIST, 'figure').path, { pair: 'image', key: KEYS.loop, motion: 'spring' });
 
-  assert.match(next, /<figure class="overflow-clip" style="view-transition-name: image-\{\{ id \}\}; view-transition-class: spring">/);
+  assert.match(
+    next,
+    /<figure class="overflow-clip" style="view-transition-name: image-\{\{ id \}\}; view-transition-class: spring">/
+  );
   assert.deepEqual(at(next, 'figure'), { pair: 'image', key: KEYS.loop, motion: 'spring' });
   assert.ok(next.trimEnd().endsWith(TAG));
   assert.equal(next.split(TAG).length, 2);
 });
 
-test('the element\'s own declarations stay, and the pair on the other page reads the same', () => {
+test("the element's own declarations stay, and the pair on the other page reads the same", () => {
   const next = withPageTransition(PAGE, find(PAGE, 'figure').path, { pair: 'image', key: KEYS.page, motion: 'smooth' });
 
-  assert.match(next, /style="aspect-ratio: 21 \/ 9; view-transition-name: image-\{\{ page:id \}\}; view-transition-class: smooth"/);
+  assert.match(
+    next,
+    /style="aspect-ratio: 21 \/ 9; view-transition-name: image-\{\{ page:id \}\}; view-transition-class: smooth"/
+  );
   assert.deepEqual(at(next, 'figure'), { pair: 'image', key: KEYS.page, motion: 'smooth' });
 });
 
@@ -108,7 +128,7 @@ test('an element with no name, or `none`, has no page transition', () => {
   assert.equal(at('<div style="view-transition-name: none"></div>', 'div'), null);
 });
 
-test('the motions\' curves: spring goes past the line it ends on, smooth and snappy do not', () => {
+test("the motions' curves: spring goes past the line it ends on, smooth and snappy do not", () => {
   const ys = (d) => [...d.matchAll(/[ML][\d.]+ ([\d.]+)/g)].map((m) => Number(m[1]));
   const line = Number(/M4 ([\d.]+)H96/.exec(MOTION_BASE)[1]);
 
@@ -177,9 +197,17 @@ test('a component call with a {{ id }} in its style is read across its whole len
 });
 
 test('a component is written with single braces, the rest of its call untouched', () => {
-  const next = withPageTransition(DEMO_SHOW, component(DEMO_SHOW).node.path, { pair: 'case', key: KEYS.page, motion: 'snappy' });
+  const next = withPageTransition(DEMO_SHOW, component(DEMO_SHOW).node.path, {
+    pair: 'case',
+    key: KEYS.page,
+    motion: 'snappy',
+  });
 
-  assert.ok(next.includes('{{ partial:components/image :imagePath="main_image" props_width="1400" priority="true" style="view-transition-name: case-{page:id}; view-transition-class: snappy" }}'));
+  assert.ok(
+    next.includes(
+      '{{ partial:components/image :imagePath="main_image" props_width="1400" priority="true" style="view-transition-name: case-{page:id}; view-transition-class: snappy" }}'
+    )
+  );
   assert.deepEqual(component(next).pt, { pair: 'case', key: KEYS.page, motion: 'snappy' });
   assert.ok(next.includes(TAG));
   assert.ok(next.includes('{{ sve_tw handle="view/cases/show" }}'));
@@ -192,7 +220,11 @@ test('a component is written with single braces, the rest of its call untouched'
 
 test('landing on an element takes the pair from the one that had it: a page holds a pair once', () => {
   const h1 = transitionRows(DEMO_SHOW).find((row) => row.node.tag === 'h1');
-  const next = withLanding(DEMO_SHOW, h1.node.path, { pair: 'case', key: keyFor(DEMO_SHOW, h1.node.path), motion: 'spring' });
+  const next = withLanding(DEMO_SHOW, h1.node.path, {
+    pair: 'case',
+    key: keyFor(DEMO_SHOW, h1.node.path),
+    motion: 'spring',
+  });
   const named = transitionRows(next).filter((row) => row.pt);
 
   assert.equal(named.length, 1);
@@ -209,10 +241,13 @@ test('the rows a landing can be picked from: elements and components, with their
   assert.deepEqual(rows, ['section:0', 'h1:1', 'component:1', 'div:1']);
 });
 
-test('a component\'s Animation tab holds its page transition', () => {
+test("a component's Animation tab holds its page transition", () => {
   const panel = read('resources/js/cp/surfaces/BuildPanel.vue');
 
   assert.match(panel, /\['animation', 'anim_tab'\],\s*\]\s*: \[\['content', 'tab_settings'\]\]/);
   assert.match(panel, /<BuildPageTransition v-else-if="tab === 'animation' && picked.kind === 'component'"/);
-  assert.match(read('src/Boot/EditorRoutes.php'), /'\/!\/sve\/page-transition\/landing', PageTransitionLandingController::class/);
+  assert.match(
+    read('src/Boot/EditorRoutes.php'),
+    /'\/!\/sve\/page-transition\/landing', PageTransitionLandingController::class/
+  );
 });

@@ -9,6 +9,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
 use Symfony\Component\HttpFoundation\Response;
+use Vizuall\ColorScheme\Fieldtypes\ThemeColorPicker;
 
 /**
  * Renders Live Preview with the globals the user is *currently typing*, rather
@@ -79,8 +80,8 @@ class OverrideGlobalsInPreview
             $variables->data($this->process($variables, $raw, $saved->all()));
 
             // Theme color swatches/resolve cache must see the live bias/sat.
-            if ($handle === 'theme_settings' && class_exists(\Vizuall\ColorScheme\Fieldtypes\ThemeColorPicker::class)) {
-                \Vizuall\ColorScheme\Fieldtypes\ThemeColorPicker::clearSwatchCache();
+            if ($handle === 'theme_settings' && class_exists(ThemeColorPicker::class)) {
+                ThemeColorPicker::clearSwatchCache();
             }
 
             app()->terminating(fn () => $variables->data($saved));

@@ -7,6 +7,7 @@ use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SiteCss;
 use MarioHamann\StatamicVisualEditor\SiteCss\Root;
 use Statamic\Facades\Antlers;
+use Statamic\Facades\User;
 
 /**
  * The SVG folder is a setting (`svg_folder`): Site CSS lists and uploads there,
@@ -113,7 +114,7 @@ class SvgFolderTest extends TestCase
 
     public function test_builds_picker_lists_the_folder_with_the_src_statamic_draws(): void
     {
-        $user = \Statamic\Facades\User::make()->email('svg-picker@example.com')->makeSuper();
+        $user = User::make()->email('svg-picker@example.com')->makeSuper();
         $user->save();
         $this->actingAs($user);
         config(['statamic-visual-editor.features.template_dock' => true, 'statamic-visual-editor.features.build_mode' => true]);
@@ -132,7 +133,7 @@ class SvgFolderTest extends TestCase
 
     public function test_builds_picker_refuses_while_build_is_off(): void
     {
-        $user = \Statamic\Facades\User::make()->email('svg-picker-off@example.com')->makeSuper();
+        $user = User::make()->email('svg-picker-off@example.com')->makeSuper();
         $user->save();
         $this->actingAs($user);
         config(['statamic-visual-editor.features.build_mode' => false]);

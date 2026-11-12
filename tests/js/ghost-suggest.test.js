@@ -132,7 +132,7 @@ test('a fresh line under a comment is a described block', () => {
   assert.equal(ghostMode(sameLine.full, sameLine.pos), 'line');
 });
 
-test('what a taken suggestion followed: the caret\'s line, or the line above a fresh one', () => {
+test("what a taken suggestion followed: the caret's line, or the line above a fresh one", () => {
   const own = at('<div>\n  <h2 {{ visual_|\n</div>');
   const fresh = at('<ul>\n  <li>\n    |\n</ul>');
 

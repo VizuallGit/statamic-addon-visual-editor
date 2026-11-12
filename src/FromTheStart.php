@@ -24,7 +24,6 @@ class FromTheStart
     /**
      * Grid-rækker `{ set, count }` → handle => antal.
      *
-     * @param  mixed  $raw
      * @return array<string, int>
      */
     public static function counts(mixed $raw): array

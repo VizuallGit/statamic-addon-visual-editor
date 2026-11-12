@@ -22,20 +22,20 @@ final class Reply
     public static function clean(string $text, string $before = '', string $after = '', string $mode = 'line'): string
     {
         $text = str_replace("\r\n", "\n", $text);
-        $text = static::unfence($text);
+        $text = self::unfence($text);
 
-        if (static::prose($text)) {
+        if (self::prose($text)) {
             return '';
         }
 
-        $text = static::withoutRepeat($text, $before);
-        $text = static::withinValue($text, Caret::of($before));
-        $text = static::withoutIndent($text, $before);
-        $text = static::underCaret($text, $before);
-        $text = static::withoutTail($text, $after);
+        $text = self::withoutRepeat($text, $before);
+        $text = self::withinValue($text, Caret::of($before));
+        $text = self::withoutIndent($text, $before);
+        $text = self::underCaret($text, $before);
+        $text = self::withoutTail($text, $after);
 
         $lines = explode("\n", $text);
-        $max = static::MAX_LINES[$mode] ?? static::MAX_LINES['line'];
+        $max = self::MAX_LINES[$mode] ?? self::MAX_LINES['line'];
 
         if (count($lines) > $max) {
             $text = implode("\n", array_slice($lines, 0, $max));
@@ -59,7 +59,7 @@ final class Reply
      */
     public static function edit(string $text, string $selection): string
     {
-        $text = rtrim(static::unfence(str_replace("\r\n", "\n", $text)), " \t\n");
+        $text = rtrim(self::unfence(str_replace("\r\n", "\n", $text)), " \t\n");
 
         if (trim($text) === '') {
             return '';
@@ -141,7 +141,7 @@ final class Reply
         for ($length = $max; $length > 0; $length--) {
             $piece = substr($text, 0, $length);
 
-            if (strlen(trim($piece)) < static::MIN_REPEAT) {
+            if (strlen(trim($piece)) < self::MIN_REPEAT) {
                 break;
             }
 

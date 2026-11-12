@@ -24,7 +24,12 @@ function cp(stored, config = {}) {
   return { win, target, sent };
 }
 
-const TEMPLATES = { sveChromeTemplates: { header: { type: 'view:partials/site_head', styled: false }, footer: { type: 'footer/style_2', styled: true } } };
+const TEMPLATES = {
+  sveChromeTemplates: {
+    header: { type: 'view:partials/site_head', styled: false },
+    footer: { type: 'footer/style_2', styled: true },
+  },
+};
 const brief = ({ uid, uids, chrome, nth, key, value }) => ({ uid, uids, chrome, nth, key, value });
 
 beforeEach(() => {
@@ -41,27 +46,41 @@ test('frameScope: the dock’s word for a part of the frame, the layout’s `mai
 });
 
 test('the header’s, the footer’s and the layout’s states are sent by part of the frame', () => {
-  const { win, target, sent } = cp({
-    'view:partials/site_head': { 0: { menuOpen: true } },
-    'footer/style_2': { 1: { open: true } },
-    'view:layout': { 2: { navOpen: false } },
-    'hero/style_1': { 0: { open: true } },
-  }, TEMPLATES);
+  const { win, target, sent } = cp(
+    {
+      'view:partials/site_head': { 0: { menuOpen: true } },
+      'footer/style_2': { 1: { open: true } },
+      'view:layout': { 2: { navOpen: false } },
+      'hero/style_1': { 0: { open: true } },
+    },
+    TEMPLATES
+  );
 
   syncStoredAlpineStates(win, doc, target);
 
-  assert.deepEqual(sent.map(brief), [
-    { uid: undefined, uids: undefined, chrome: 'header', nth: 0, key: 'menuOpen', value: true },
-    { uid: undefined, uids: undefined, chrome: 'footer', nth: 1, key: 'open', value: true },
-    { uid: undefined, uids: undefined, chrome: 'layout', nth: 2, key: 'navOpen', value: false },
-  ], 'a section’s file whose section is not on the page is not sent');
+  assert.deepEqual(
+    sent.map(brief),
+    [
+      { uid: undefined, uids: undefined, chrome: 'header', nth: 0, key: 'menuOpen', value: true },
+      { uid: undefined, uids: undefined, chrome: 'footer', nth: 1, key: 'open', value: true },
+      { uid: undefined, uids: undefined, chrome: 'layout', nth: 2, key: 'navOpen', value: false },
+    ],
+    'a section’s file whose section is not on the page is not sent'
+  );
   assert.ok(sent.every((message) => message.on === true && message.type === 'sve-alpine-state'));
 });
 
 test('a section on the page is still named by its ids, beside the frame', () => {
-  addContainer({ setFieldValue() {}, setFieldMeta() {}, values: { page_sections: [{ type: 'hero/style_1', _visual_id: 'v-1', id: 'r-1' }] } });
+  addContainer({
+    setFieldValue() {},
+    setFieldMeta() {},
+    values: { page_sections: [{ type: 'hero/style_1', _visual_id: 'v-1', id: 'r-1' }] },
+  });
 
-  const { win, target, sent } = cp({ 'hero/style_1': { 0: { open: true } }, 'view:layout': { 0: { open: true } } }, TEMPLATES);
+  const { win, target, sent } = cp(
+    { 'hero/style_1': { 0: { open: true } }, 'view:layout': { 0: { open: true } } },
+    TEMPLATES
+  );
 
   syncStoredAlpineStates(win, doc, target);
 
@@ -77,10 +96,13 @@ test('while the dock holds a half, that half’s states are the dock’s file’
   register('dock:chrome-kind', () => 'header');
   register('dock:current-type', () => 'header/style_3');
 
-  const { win, target, sent } = cp({
-    'view:partials/site_head': { 0: { menuOpen: true } },
-    'header/style_3': { 0: { menuOpen: false } },
-  }, TEMPLATES);
+  const { win, target, sent } = cp(
+    {
+      'view:partials/site_head': { 0: { menuOpen: true } },
+      'header/style_3': { 0: { menuOpen: false } },
+    },
+    TEMPLATES
+  );
 
   syncStoredAlpineStates(win, doc, target);
 

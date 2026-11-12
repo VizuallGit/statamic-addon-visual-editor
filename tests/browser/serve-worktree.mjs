@@ -38,11 +38,21 @@ const stemOf = (name) => name.replace(/-[\w-]{8}(\.\w+)$/, '$1');
 // Entries, and the named chunks PHP hands the CP by URL (`BuiltAssets::url('resources/js/tw-compile.js')`):
 // both are asked for under the installed hash and must answer from the working tree.
 // Vite's own `_name-HASH.js` chunks are imported by the working-tree files themselves, so they are found by name.
-const entryFiles = (manifest) => Object.entries(manifest).filter(([key, e]) => e.isEntry || key.startsWith('resources/')).flatMap(([, e]) => [e.file, ...(e.css || [])]);
-const types = { js: 'application/javascript', css: 'text/css', json: 'application/json', woff2: 'font/woff2', svg: 'image/svg+xml' };
+const entryFiles = (manifest) =>
+  Object.entries(manifest)
+    .filter(([key, e]) => e.isEntry || key.startsWith('resources/'))
+    .flatMap(([, e]) => [e.file, ...(e.css || [])]);
+const types = {
+  js: 'application/javascript',
+  css: 'text/css',
+  json: 'application/json',
+  woff2: 'font/woff2',
+  svg: 'image/svg+xml',
+};
 
 export async function serveWorktreeBuild(page, { buildDir, installedManifest, scriptsDir = null, extra = null }) {
-  if (!buildDir || !installedManifest) throw new Error('serveWorktreeBuild: buildDir and installedManifest are required');
+  if (!buildDir || !installedManifest)
+    throw new Error('serveWorktreeBuild: buildDir and installedManifest are required');
   const manifest = JSON.parse(readFileSync(`${buildDir}/manifest.json`, 'utf8'));
   const installed = JSON.parse(readFileSync(installedManifest, 'utf8'));
   const byStem = {};
@@ -60,7 +70,10 @@ export async function serveWorktreeBuild(page, { buildDir, installedManifest, sc
   const rewrite = (body) => renames.reduce((text, [from, to]) => text.split(from).join(to), body);
   let served = 0;
   const answer = (req, file) => {
-    if (!existsSync(file)) { req.respond({ status: 404, contentType: 'text/plain', body: `not in the working tree: ${file}` }); return; }
+    if (!existsSync(file)) {
+      req.respond({ status: 404, contentType: 'text/plain', body: `not in the working tree: ${file}` });
+      return;
+    }
     served++;
     const ext = file.split('.').pop();
     const body = ext === 'js' || ext === 'css' ? rewrite(readFileSync(file, 'utf8')) : readFileSync(file);
@@ -71,12 +84,18 @@ export async function serveWorktreeBuild(page, { buildDir, installedManifest, sc
     if (extra && extra(req)) return;
     const url = req.url();
     const script = scriptsDir && url.match(/\/vendor\/visual-editor\/js\/([\w-]+\.js)(?:[?#]|$)/);
-    if (script) { answer(req, `${scriptsDir}/${script[1]}`); return; }
+    if (script) {
+      answer(req, `${scriptsDir}/${script[1]}`);
+      return;
+    }
     // The CP loads from /vendor/visual-editor/build/…; the preview document loads
     // the bridge from the addon's own route, /!/sve/build/… — both must be served,
     // or the kernel is never under test.
     const m = url.match(/(?:\/vendor\/visual-editor\/build|\/!\/sve\/build)\/(assets\/[^?#]+|manifest\.json)/);
-    if (!m) { req.continue(); return; }
+    if (!m) {
+      req.continue();
+      return;
+    }
     const name = m[1].split('/').pop();
     answer(req, mapped.has(name) ? `${buildDir}/${mapped.get(name)}` : `${buildDir}/${m[1]}`);
   });

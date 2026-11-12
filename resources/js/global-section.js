@@ -27,7 +27,12 @@ import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { publishContainers, whenContainerContext } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
-import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import {
+  closeRightPanels,
+  savedSectionsCollection,
+  syncPreviewInset,
+  syncSectionLibraryAvailability,
+} from './section-library.js';
 import { ensureNestedRowIds, notifyGlobalSectionDirty } from './globals-panel.js';
 import { applySectionValues } from './chrome.js';
 import { editSession } from './inline-edit.js';

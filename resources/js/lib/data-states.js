@@ -46,7 +46,9 @@ export function dataStates(html, at, model) {
     return [];
   }
 
-  const chain = rows.filter((row) => row.tag && row.from <= self.from && row.to >= self.to).sort((a, b) => b.from - a.from);
+  const chain = rows
+    .filter((row) => row.tag && row.from <= self.from && row.to >= self.to)
+    .sort((a, b) => b.from - a.from);
   const out = [];
   const seen = new Set();
 
@@ -63,7 +65,13 @@ export function dataStates(html, at, model) {
 
       const field = attr.bare ? null : wholeTag(attr.value);
       const fieldName = field ? field.split('|')[0].trim() : '';
-      const values = attr.bare ? [null] : field !== null ? fieldOptions(model, fieldName) : attr.value.includes('{{') ? [] : [attr.value];
+      const values = attr.bare
+        ? [null]
+        : field !== null
+          ? fieldOptions(model, fieldName)
+          : attr.value.includes('{{')
+            ? []
+            : [attr.value];
 
       for (const value of values) {
         if (value !== null && !SAFE.test(value)) {
@@ -118,7 +126,9 @@ export function fieldDataAttr(html, node) {
 
 /** `image_position` as a person reads it: `Image position`. */
 export function fieldLabel(handle) {
-  const words = String(handle || '').replace(/[_-]+/g, ' ').trim();
+  const words = String(handle || '')
+    .replace(/[_-]+/g, ' ')
+    .trim();
 
   return words ? words[0].toUpperCase() + words.slice(1) : '';
 }

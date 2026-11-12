@@ -52,9 +52,22 @@ export function readHtmlTag(text, i) {
   const name = opening[1].toLowerCase();
   const self =
     /\/\s*>$/.test(chunk) ||
-    ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'].includes(
-      name
-    );
+    [
+      'area',
+      'base',
+      'br',
+      'col',
+      'embed',
+      'hr',
+      'img',
+      'input',
+      'link',
+      'meta',
+      'param',
+      'source',
+      'track',
+      'wbr',
+    ].includes(name);
 
   return { kind: self ? 'void' : 'open', name, from: i, to: close + 1 };
 }

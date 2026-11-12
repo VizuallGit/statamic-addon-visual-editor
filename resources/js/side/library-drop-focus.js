@@ -12,380 +12,386 @@ import { injectStyle } from '../lib/style.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 (function () {
-    'use strict';
+  'use strict';
 
-    mark('library-drop-focus');
+  mark('library-drop-focus');
 
-    var SECTION_ATTR = 'data-sid-section-orderable';
-    var drag = null;
+  var SECTION_ATTR = 'data-sid-section-orderable';
+  var drag = null;
 
-    function sectionsOf(win) {
-        var nodes = win.document.querySelectorAll('[' + SECTION_ATTR + ']');
-        var out = [];
-        var i;
+  function sectionsOf(win) {
+    var nodes = win.document.querySelectorAll('[' + SECTION_ATTR + ']');
+    var out = [];
+    var i;
 
-        for (i = 0; i < nodes.length; i++) {
-            if (nodes[i].getBoundingClientRect().width > 0) {
-                out.push(nodes[i]);
-            }
-        }
-
-        return out;
+    for (i = 0; i < nodes.length; i++) {
+      if (nodes[i].getBoundingClientRect().width > 0) {
+        out.push(nodes[i]);
+      }
     }
 
-    function uidOf(el) {
-        return el ? el.getAttribute('data-sid') : null;
+    return out;
+  }
+
+  function uidOf(el) {
+    return el ? el.getAttribute('data-sid') : null;
+  }
+
+  function uidList(win) {
+    return sectionsOf(win).map(uidOf);
+  }
+
+  function insertedSection(win, before) {
+    var list = sectionsOf(win);
+    var i;
+
+    for (i = 0; i < list.length; i++) {
+      if (before.indexOf(uidOf(list[i])) === -1) {
+        return list[i];
+      }
     }
 
-    function uidList(win) {
-        return sectionsOf(win).map(uidOf);
+    return null;
+  }
+
+  function bodyScale(win) {
+    var t = win.getComputedStyle(win.document.body).transform;
+    var m;
+
+    if (!t || t === 'none') {
+      return 1;
     }
 
-    function insertedSection(win, before) {
-        var list = sectionsOf(win);
-        var i;
+    m = t.match(/matrix\(([^)]+)\)/);
 
-        for (i = 0; i < list.length; i++) {
-            if (before.indexOf(uidOf(list[i])) === -1) {
-                return list[i];
-            }
-        }
-
-        return null;
+    if (m) {
+      return Math.abs(parseFloat(m[1].split(',')[0])) || 1;
     }
 
-    function bodyScale(win) {
-        var t = win.getComputedStyle(win.document.body).transform;
-        var m;
+    return 1;
+  }
 
-        if (!t || t === 'none') {
-            return 1;
-        }
+  function keepOverview(win) {
+    var body;
+    var scale;
 
-        m = t.match(/matrix\(([^)]+)\)/);
-
-        if (m) {
-            return Math.abs(parseFloat(m[1].split(',')[0])) || 1;
-        }
-
-        return 1;
+    if (!drag || drag.win !== win) {
+      return;
     }
 
-    function keepOverview(win) {
-        var body;
-        var scale;
+    scale = drag.scale > 0 && drag.scale < 0.999 ? drag.scale : 0;
 
-        if (!drag || drag.win !== win) {
-            return;
-        }
-
-        scale = drag.scale > 0 && drag.scale < 0.999 ? drag.scale : 0;
-
-        if (!scale) {
-            return;
-        }
-
-        injectStyle(win.document, 'sve-hold-overview', 'body{transform:scale(' + scale + ') !important;transform-origin:top center !important;transition:none !important;}');
-        body = win.document.body;
-        body.style.transition = 'none';
-        body.style.transformOrigin = 'top center';
-        body.style.transform = 'scale(' + scale + ')';
-        win.scrollTo(0, 0);
+    if (!scale) {
+      return;
     }
 
-    function releaseOverview(win) {
-        var style = win.document.getElementById('sve-hold-overview');
+    injectStyle(
+      win.document,
+      'sve-hold-overview',
+      'body{transform:scale(' +
+        scale +
+        ') !important;transform-origin:top center !important;transition:none !important;}'
+    );
+    body = win.document.body;
+    body.style.transition = 'none';
+    body.style.transformOrigin = 'top center';
+    body.style.transform = 'scale(' + scale + ')';
+    win.scrollTo(0, 0);
+  }
 
-        if (style) {
-            style.remove();
-        }
+  function releaseOverview(win) {
+    var style = win.document.getElementById('sve-hold-overview');
+
+    if (style) {
+      style.remove();
+    }
+  }
+
+  function holdOverview(win) {
+    var frames = 0;
+
+    function tick() {
+      if (!drag || drag.win !== win || frames > 24) {
+        return;
+      }
+
+      keepOverview(win);
+      frames += 1;
+      win.requestAnimationFrame(tick);
     }
 
-    function holdOverview(win) {
-        var frames = 0;
+    tick();
+  }
 
-        function tick() {
-            if (!drag || drag.win !== win || frames > 24) {
-                return;
-            }
+  function tapRestoreScroll(win) {
+    var orig;
 
-            keepOverview(win);
-            frames += 1;
-            win.requestAnimationFrame(tick);
-        }
-
-        tick();
+    if (win.__sveDropScrollOrig) {
+      return;
     }
 
-    function tapRestoreScroll(win) {
-        var orig;
+    orig = win.scrollTo.bind(win);
+    win.__sveDropScrollOrig = orig;
+    drag.holdUntil = Date.now() + 450;
+    win.scrollTo = function () {
+      if (drag && Date.now() < drag.holdUntil) {
+        orig(0, 0);
 
-        if (win.__sveDropScrollOrig) {
-            return;
-        }
+        return;
+      }
 
-        orig = win.scrollTo.bind(win);
-        win.__sveDropScrollOrig = orig;
-        drag.holdUntil = Date.now() + 450;
-        win.scrollTo = function () {
-            if (drag && Date.now() < drag.holdUntil) {
-                orig(0, 0);
+      return orig.apply(win, arguments);
+    };
 
-                return;
-            }
+    win.setTimeout(function () {
+      if (win.__sveDropScrollOrig === orig) {
+        win.scrollTo = orig;
+        win.__sveDropScrollOrig = null;
+      }
 
-            return orig.apply(win, arguments);
-        };
+      if (drag && drag.win === win) {
+        keepOverview(win);
+      }
+    }, 390);
+  }
 
-        win.setTimeout(function () {
-            if (win.__sveDropScrollOrig === orig) {
-                win.scrollTo = orig;
-                win.__sveDropScrollOrig = null;
-            }
+  function flipZoomTo(win, el) {
+    var body = win.document.body;
+    var first;
+    var last;
+    var br;
+    var dx;
+    var dy;
+    var sx;
+    var previous = drag ? drag.previous : null;
 
-            if (drag && drag.win === win) {
-                keepOverview(win);
-            }
-        }, 390);
+    first = el.getBoundingClientRect();
+
+    body.style.transition = 'none';
+    body.style.transform = previous && previous.transform ? previous.transform : 'none';
+    body.style.transformOrigin = previous && previous.origin ? previous.origin : '';
+
+    try {
+      el.scrollIntoView({ block: 'start', behavior: 'instant' });
+    } catch (err) {
+      el.scrollIntoView(true);
     }
 
-    function flipZoomTo(win, el) {
-        var body = win.document.body;
-        var first;
-        var last;
-        var br;
-        var dx;
-        var dy;
-        var sx;
-        var previous = drag ? drag.previous : null;
+    last = el.getBoundingClientRect();
+    br = body.getBoundingClientRect();
+    dx = first.left - last.left;
+    dy = first.top - last.top;
+    sx = first.width / Math.max(last.width, 1);
 
-        first = el.getBoundingClientRect();
+    body.style.transformOrigin = last.left - br.left + 'px ' + (last.top - br.top) + 'px';
+    body.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ')';
+    body.getBoundingClientRect();
+    body.style.transition = 'transform .35s ease';
+    body.style.transform = previous && previous.transform ? previous.transform : 'none';
 
-        body.style.transition = 'none';
-        body.style.transform = previous && previous.transform ? previous.transform : 'none';
-        body.style.transformOrigin = previous && previous.origin ? previous.origin : '';
+    win.setTimeout(function () {
+      body.style.transformOrigin = previous ? previous.origin : '';
+      body.style.transition = previous ? previous.transition : '';
+    }, 380);
+  }
 
-        try {
-            el.scrollIntoView({ block: 'start', behavior: 'instant' });
-        } catch (err) {
-            el.scrollIntoView(true);
-        }
+  function finishOnSection(win) {
+    var el;
 
-        last = el.getBoundingClientRect();
-        br = body.getBoundingClientRect();
-        dx = first.left - last.left;
-        dy = first.top - last.top;
-        sx = first.width / Math.max(last.width, 1);
-
-        body.style.transformOrigin = last.left - br.left + 'px ' + (last.top - br.top) + 'px';
-        body.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ')';
-        body.getBoundingClientRect();
-        body.style.transition = 'transform .35s ease';
-        body.style.transform = previous && previous.transform ? previous.transform : 'none';
-
-        win.setTimeout(function () {
-            body.style.transformOrigin = previous ? previous.origin : '';
-            body.style.transition = previous ? previous.transition : '';
-        }, 380);
+    if (!drag || drag.win !== win) {
+      return;
     }
 
-    function finishOnSection(win) {
-        var el;
+    el = insertedSection(win, drag.before);
 
-        if (!drag || drag.win !== win) {
-            return;
-        }
+    if (!el) {
+      return;
+    }
 
-        el = insertedSection(win, drag.before);
+    if (drag.timer) {
+      win.clearInterval(drag.timer);
+    }
 
-        if (!el) {
-            return;
-        }
+    releaseOverview(win);
+    flipZoomTo(win, el);
+    drag = null;
+  }
 
-        if (drag.timer) {
-            win.clearInterval(drag.timer);
-        }
+  function watchInsert(win) {
+    var tries = 0;
 
+    if (!drag) {
+      return;
+    }
+
+    if (drag.timer) {
+      win.clearInterval(drag.timer);
+    }
+
+    drag.timer = win.setInterval(function () {
+      tries += 1;
+
+      if (!drag || drag.win !== win) {
+        win.clearInterval(drag.timer);
+
+        return;
+      }
+
+      if (insertedSection(win, drag.before)) {
+        finishOnSection(win);
+
+        return;
+      }
+
+      if (tries > 160) {
+        win.clearInterval(drag.timer);
         releaseOverview(win);
-        flipZoomTo(win, el);
         drag = null;
+      }
+    }, 50);
+  }
+
+  function bindPreview(win) {
+    if (!win || win.__sveDropFocusBound) {
+      return;
     }
 
-    function watchInsert(win) {
-        var tries = 0;
+    win.__sveDropFocusBound = true;
 
-        if (!drag) {
-            return;
+    win.addEventListener(
+      'message',
+      function (event) {
+        var data = event.data;
+
+        if (!data || data.source !== SOURCE) {
+          return;
         }
 
-        if (drag.timer) {
-            win.clearInterval(drag.timer);
-        }
+        if ((data.type === MSG.EXT_DRAG_MOVE || data.type === MSG.EXT_DRAG_END) && drag && drag.win === win) {
+          drag.scale = bodyScale(win);
 
-        drag.timer = win.setInterval(function () {
-            tries += 1;
-
-            if (!drag || drag.win !== win) {
-                win.clearInterval(drag.timer);
-
-                return;
-            }
-
-            if (insertedSection(win, drag.before)) {
-                finishOnSection(win);
-
-                return;
-            }
-
-            if (tries > 160) {
-                win.clearInterval(drag.timer);
-                releaseOverview(win);
-                drag = null;
-            }
-        }, 50);
-    }
-
-    function bindPreview(win) {
-        if (!win || win.__sveDropFocusBound) {
-            return;
-        }
-
-        win.__sveDropFocusBound = true;
-
-        win.addEventListener(
-            'message',
-            function (event) {
-                var data = event.data;
-
-                if (!data || data.source !== SOURCE) {
-                    return;
-                }
-
-                if ((data.type === MSG.EXT_DRAG_MOVE || data.type === MSG.EXT_DRAG_END) && drag && drag.win === win) {
-                    drag.scale = bodyScale(win);
-
-                    if (data.type === MSG.EXT_DRAG_END && !data.cancelled) {
-                        drag.scale = bodyScale(win);
-                        keepOverview(win);
-                    }
-                }
-            },
-            true
-        );
-
-        win.addEventListener(
-            'message',
-            function (event) {
-                var data = event.data;
-                var body;
-
-                if (!data || data.source !== SOURCE) {
-                    return;
-                }
-
-                if (data.type === MSG.EXT_DRAG_START) {
-                    body = win.document.body;
-                    drag = {
-                        win: win,
-                        previous: {
-                            scroll: win.scrollY,
-                            transform: body.style.transform,
-                            origin: body.style.transformOrigin,
-                            transition: body.style.transition,
-                        },
-                        before: uidList(win),
-                        scale: 1,
-                        timer: 0,
-                        holdUntil: 0,
-                    };
-                    win.requestAnimationFrame(function () {
-                        win.requestAnimationFrame(function () {
-                            if (drag && drag.win === win) {
-                                drag.scale = bodyScale(win);
-                            }
-                        });
-                    });
-
-                    return;
-                }
-
-                if (data.type !== MSG.EXT_DRAG_END) {
-                    return;
-                }
-
-                if (!drag || drag.win !== win) {
-                    return;
-                }
-
-                if (data.cancelled) {
-                    if (drag.timer) {
-                        win.clearInterval(drag.timer);
-                    }
-
-                    releaseOverview(win);
-                    drag = null;
-
-                    return;
-                }
-
-                keepOverview(win);
-                holdOverview(win);
-                tapRestoreScroll(win);
-                watchInsert(win);
-            },
-            false
-        );
-
-        win.addEventListener('statamic:preview-updated', function () {
-            if (!drag || drag.win !== win) {
-                return;
-            }
-
+          if (data.type === MSG.EXT_DRAG_END && !data.cancelled) {
+            drag.scale = bodyScale(win);
             keepOverview(win);
-            win.setTimeout(function () {
-                finishOnSection(win);
-            }, 40);
-        });
-    }
+          }
+        }
+      },
+      true
+    );
 
-    function bindPreviewFrames() {
-        var iframe = document.getElementById('live-preview-iframe');
-        var nested;
+    win.addEventListener(
+      'message',
+      function (event) {
+        var data = event.data;
+        var body;
 
-        if (!iframe) {
-            return;
+        if (!data || data.source !== SOURCE) {
+          return;
         }
 
-        try {
-            bindPreview(iframe.contentWindow);
-            nested = iframe.contentDocument && iframe.contentDocument.getElementById('live-preview-iframe');
+        if (data.type === MSG.EXT_DRAG_START) {
+          body = win.document.body;
+          drag = {
+            win: win,
+            previous: {
+              scroll: win.scrollY,
+              transform: body.style.transform,
+              origin: body.style.transformOrigin,
+              transition: body.style.transition,
+            },
+            before: uidList(win),
+            scale: 1,
+            timer: 0,
+            holdUntil: 0,
+          };
+          win.requestAnimationFrame(function () {
+            win.requestAnimationFrame(function () {
+              if (drag && drag.win === win) {
+                drag.scale = bodyScale(win);
+              }
+            });
+          });
 
-            if (nested && nested.contentWindow) {
-                bindPreview(nested.contentWindow);
-            }
-        } catch (err) {
-            /* cross-origin */
+          return;
         }
-    }
 
-    var bindTimer = 0;
-
-    function scheduleBind() {
-        if (bindTimer) {
-            return;
+        if (data.type !== MSG.EXT_DRAG_END) {
+          return;
         }
 
-        bindTimer = window.setTimeout(function () {
-            bindTimer = 0;
-            bindPreviewFrames();
-        }, 200);
-    }
+        if (!drag || drag.win !== win) {
+          return;
+        }
 
-    bindPreviewFrames();
-    document.addEventListener('sve-chrome-render', scheduleBind);
+        if (data.cancelled) {
+          if (drag.timer) {
+            win.clearInterval(drag.timer);
+          }
 
-    new MutationObserver(scheduleBind).observe(document.documentElement, {
-        childList: true,
-        subtree: true,
+          releaseOverview(win);
+          drag = null;
+
+          return;
+        }
+
+        keepOverview(win);
+        holdOverview(win);
+        tapRestoreScroll(win);
+        watchInsert(win);
+      },
+      false
+    );
+
+    win.addEventListener('statamic:preview-updated', function () {
+      if (!drag || drag.win !== win) {
+        return;
+      }
+
+      keepOverview(win);
+      win.setTimeout(function () {
+        finishOnSection(win);
+      }, 40);
     });
+  }
+
+  function bindPreviewFrames() {
+    var iframe = document.getElementById('live-preview-iframe');
+    var nested;
+
+    if (!iframe) {
+      return;
+    }
+
+    try {
+      bindPreview(iframe.contentWindow);
+      nested = iframe.contentDocument && iframe.contentDocument.getElementById('live-preview-iframe');
+
+      if (nested && nested.contentWindow) {
+        bindPreview(nested.contentWindow);
+      }
+    } catch (err) {
+      /* cross-origin */
+    }
+  }
+
+  var bindTimer = 0;
+
+  function scheduleBind() {
+    if (bindTimer) {
+      return;
+    }
+
+    bindTimer = window.setTimeout(function () {
+      bindTimer = 0;
+      bindPreviewFrames();
+    }, 200);
+  }
+
+  bindPreviewFrames();
+  document.addEventListener('sve-chrome-render', scheduleBind);
+
+  new MutationObserver(scheduleBind).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();

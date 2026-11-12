@@ -6,135 +6,129 @@
  */
 import { t } from '../../lib/i18n.js';
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { computed, nextTick, onMounted, onUnmounted, ref } = window.Vue;
+  Statamic.booting(() => {
+    const { computed, nextTick, onMounted, onUnmounted, ref } = window.Vue;
 
-        function rowFrom(value, fallbackAudience) {
-            const current = value && typeof value === 'object' ? value : {};
-            const audience =
-                current.audience === 'super' || current.audience === 'people' || current.audience === 'everyone'
-                    ? current.audience
-                    : fallbackAudience;
+    function rowFrom(value, fallbackAudience) {
+      const current = value && typeof value === 'object' ? value : {};
+      const audience =
+        current.audience === 'super' || current.audience === 'people' || current.audience === 'everyone'
+          ? current.audience
+          : fallbackAudience;
 
-            return {
-                audience,
-                users: Array.isArray(current.users) ? current.users.map(String) : [],
-                groups: Array.isArray(current.groups) ? current.groups.map(String) : [],
-            };
+      return {
+        audience,
+        users: Array.isArray(current.users) ? current.users.map(String) : [],
+        groups: Array.isArray(current.groups) ? current.groups.map(String) : [],
+      };
+    }
+
+    function fieldRoot(el) {
+      return el?.closest('[data-ui-input-group]') || el?.closest('[class$="-fieldtype"]') || null;
+    }
+
+    Statamic.$components.register('toolbar-access-fieldtype', {
+      props: {
+        value: { default: null },
+        meta: { type: Object, default: () => ({}) },
+      },
+
+      emits: ['update:value'],
+
+      setup(props, { emit }) {
+        const anchor = ref(null);
+        const target = ref(null);
+        const hiddenField = ref(null);
+
+        const users = computed(() => (Array.isArray(props.meta?.users) ? props.meta.users : []));
+        const groups = computed(() => (Array.isArray(props.meta?.groups) ? props.meta.groups : []));
+        const defaultAudience = computed(() =>
+          props.meta?.default_audience === 'super' || props.meta?.default_audience === 'people'
+            ? props.meta.default_audience
+            : 'everyone'
+        );
+        const row = computed(() => rowFrom(props.value, defaultAudience.value));
+
+        function emitRow(partial) {
+          emit('update:value', {
+            audience: partial.audience ?? row.value.audience,
+            users: partial.users ?? row.value.users,
+            groups: partial.groups ?? row.value.groups,
+          });
         }
 
-        function fieldRoot(el) {
-            return el?.closest('[data-ui-input-group]') || el?.closest('[class$="-fieldtype"]') || null;
+        function setAudience(audience) {
+          emitRow({ audience });
         }
 
-        Statamic.$components.register('toolbar-access-fieldtype', {
-            props: {
-                value: { default: null },
-                meta: { type: Object, default: () => ({}) },
-            },
+        function toggleUser(id) {
+          const usersForRow = row.value.users;
 
-            emits: ['update:value'],
+          emitRow({
+            users: usersForRow.includes(id) ? usersForRow.filter((item) => item !== id) : [...usersForRow, id],
+          });
+        }
 
-            setup(props, { emit }) {
-                const anchor = ref(null);
-                const target = ref(null);
-                const hiddenField = ref(null);
+        function toggleGroup(handle) {
+          const groupsForRow = row.value.groups;
 
-                const users = computed(() =>
-                    Array.isArray(props.meta?.users) ? props.meta.users : []
-                );
-                const groups = computed(() =>
-                    Array.isArray(props.meta?.groups) ? props.meta.groups : []
-                );
-                const defaultAudience = computed(() =>
-                    props.meta?.default_audience === 'super' || props.meta?.default_audience === 'people'
-                        ? props.meta.default_audience
-                        : 'everyone'
-                );
-                const row = computed(() => rowFrom(props.value, defaultAudience.value));
+          emitRow({
+            groups: groupsForRow.includes(handle)
+              ? groupsForRow.filter((item) => item !== handle)
+              : [...groupsForRow, handle],
+          });
+        }
 
-                function emitRow(partial) {
-                    emit('update:value', {
-                        audience: partial.audience ?? row.value.audience,
-                        users: partial.users ?? row.value.users,
-                        groups: partial.groups ?? row.value.groups,
-                    });
-                }
+        onMounted(async () => {
+          await nextTick();
+          await nextTick();
 
-                function setAudience(audience) {
-                    emitRow({ audience });
-                }
+          const mine = fieldRoot(anchor.value);
+          if (!mine) {
+            return;
+          }
 
-                function toggleUser(id) {
-                    const usersForRow = row.value.users;
+          let prev = mine.previousElementSibling;
+          while (prev && !prev.classList.contains('toggle-fieldtype')) {
+            prev = prev.previousElementSibling;
+          }
 
-                    emitRow({
-                        users: usersForRow.includes(id)
-                            ? usersForRow.filter((item) => item !== id)
-                            : [...usersForRow, id],
-                    });
-                }
+          const header = prev?.querySelector('[data-ui-field-header]');
+          if (!header) {
+            return;
+          }
 
-                function toggleGroup(handle) {
-                    const groupsForRow = row.value.groups;
+          target.value = header;
+          await nextTick();
+          mine.setAttribute('hidden', '');
+          mine.style.display = 'none';
+          hiddenField.value = mine;
+        });
 
-                    emitRow({
-                        groups: groupsForRow.includes(handle)
-                            ? groupsForRow.filter((item) => item !== handle)
-                            : [...groupsForRow, handle],
-                    });
-                }
+        onUnmounted(() => {
+          const mine = hiddenField.value;
+          if (mine) {
+            mine.removeAttribute('hidden');
+            mine.style.removeProperty('display');
+          }
+        });
 
-                onMounted(async () => {
-                    await nextTick();
-                    await nextTick();
+        return {
+          anchor,
+          target,
+          row,
+          users,
+          groups,
+          setAudience,
+          toggleUser,
+          toggleGroup,
+          t: (key, replacements) => t(window, key, replacements),
+        };
+      },
 
-                    const mine = fieldRoot(anchor.value);
-                    if (!mine) {
-                        return;
-                    }
-
-                    let prev = mine.previousElementSibling;
-                    while (prev && !prev.classList.contains('toggle-fieldtype')) {
-                        prev = prev.previousElementSibling;
-                    }
-
-                    const header = prev?.querySelector('[data-ui-field-header]');
-                    if (!header) {
-                        return;
-                    }
-
-                    target.value = header;
-                    await nextTick();
-                    mine.setAttribute('hidden', '');
-                    mine.style.display = 'none';
-                    hiddenField.value = mine;
-                });
-
-                onUnmounted(() => {
-                    const mine = hiddenField.value;
-                    if (mine) {
-                        mine.removeAttribute('hidden');
-                        mine.style.removeProperty('display');
-                    }
-                });
-
-                return {
-                    anchor,
-                    target,
-                    row,
-                    users,
-                    groups,
-                    setAudience,
-                    toggleUser,
-                    toggleGroup,
-                    t: (key, replacements) => t(window, key, replacements),
-                };
-            },
-
-            template: `
+      template: `
                 <div>
                     <span ref="anchor" hidden></span>
                     <Teleport :to="target || 'body'" :disabled="!target">
@@ -196,6 +190,6 @@ import { t } from '../../lib/i18n.js';
                     </Teleport>
                 </div>
             `,
-        });
     });
+  });
 })();

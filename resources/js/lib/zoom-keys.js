@@ -14,7 +14,14 @@
 
 /** 'in' for `+` (or `=`), 'out' for `-`, null for any other key or a key with a modifier, already handled, or typed into a field. */
 export function zoomKey(event) {
-  if (!event || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || isTypingTarget(event.target)) {
+  if (
+    !event ||
+    event.defaultPrevented ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    isTypingTarget(event.target)
+  ) {
     return null;
   }
 

@@ -6,7 +6,8 @@
  * Stroke icons on a 24-box in `currentColor`, so each takes the colour of the
  * row it sits in. Sized by whoever draws it.
  */
-const A = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
+const A =
+  'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
 
 export const PROP_ICONS = {
   text: `<svg ${A}><path d="M5 6h14M12 6v13"/></svg>`,

@@ -35,9 +35,7 @@ export function collectionViewType(win) {
       continue;
     }
 
-    const normalised = view
-      .replace(/\.(antlers\.html|blade\.php)$/i, '')
-      .replace(/^\/+|\/+$/g, '');
+    const normalised = view.replace(/\.(antlers\.html|blade\.php)$/i, '').replace(/^\/+|\/+$/g, '');
 
     if (normalised) {
       return `view:${normalised}`;

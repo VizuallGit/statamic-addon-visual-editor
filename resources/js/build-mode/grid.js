@@ -19,7 +19,16 @@
  */
 
 import { parseTemplateTree } from '../html-tree-parse.js';
-import { appendToken, buildClass, readClassAttr, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../tw-parse.js';
+import {
+  appendToken,
+  buildClass,
+  readClassAttr,
+  replaceToken,
+  splitClass,
+  splitUtility,
+  tokenizeClassValue,
+  writeClassValue,
+} from '../tw-parse.js';
 import { findByPath, insertAt } from './place.js';
 
 /** The most columns the builder adds: Tailwind's twelve, the grid designers count in. */
@@ -54,7 +63,16 @@ function chipsOf(value) {
       const { variants, base } = splitClass(tok.text);
       const { name, modifier, important } = splitUtility(base);
 
-      return { raw: tok.text, from: tok.from, to: tok.to, variants, key: variants.join(':'), name, modifier, important };
+      return {
+        raw: tok.text,
+        from: tok.from,
+        to: tok.to,
+        variants,
+        key: variants.join(':'),
+        name,
+        modifier,
+        important,
+      };
     });
 }
 
@@ -135,7 +153,11 @@ export function gridValueWith(value, part, n, variants = []) {
     .forEach((chip, at, list) => {
       const keep = name && at === list.length - 1;
 
-      next = replaceToken(next, chip, keep ? buildClass({ variants: chip.variants, name, modifier: chip.modifier, important: chip.important }) : '');
+      next = replaceToken(
+        next,
+        chip,
+        keep ? buildClass({ variants: chip.variants, name, modifier: chip.modifier, important: chip.important }) : ''
+      );
     });
 
   return name && !own.length ? appendToken(next, buildClass({ variants, name })) : next;
@@ -220,7 +242,8 @@ export function withPresetAt(html, path, preset, { variants = [], chain = [''] }
   const before = readClassAttr(source, node.from, node.openTo)?.value || '';
   const wider = readGrid(before, chain.slice(1));
   const cols = wider.cols?.name === preset.cls ? null : preset.cls.slice(`${GRID_PARTS.cols.prefix}-`.length);
-  const rows = preset.rows === 1 ? (wider.rows && wider.rows.n !== 1 ? 1 : null) : planned(before, 'rows', preset.rows, chain);
+  const rows =
+    preset.rows === 1 ? (wider.rows && wider.rows.n !== 1 ? 1 : null) : planned(before, 'rows', preset.rows, chain);
   const value = gridValueWith(gridValueWith(before, 'cols', cols, variants), 'rows', rows, variants);
 
   return value === before ? source : writeClassValue(source, node, value);
@@ -282,7 +305,10 @@ export function withGridReset(html, path, { variants = [], chain = [''] } = {}) 
     }
   }
 
-  return withGridAt(next, path, oneByOne(readClassAttr(next, grid.from, grid.openTo)?.value || '', chain), { variants, chain });
+  return withGridAt(next, path, oneByOne(readClassAttr(next, grid.from, grid.openTo)?.value || '', chain), {
+    variants,
+    chain,
+  });
 }
 
 /** The gap a grid's one gap field sets — both, between rows (the block axis), between columns (the inline axis) — and the next one round. */
@@ -327,11 +353,18 @@ export function withGridAt(html, path, changes, { variants = [], chain = [''] } 
     const keep = before[start]?.n ?? null;
 
     if (span in (changes || {}) && !(start in changes) && keep !== null) {
-      value = gridValueWith(value, start, readGrid(value, chain.slice(0, 1))[span] ? keep : planned(value, start, keep, chain), variants);
+      value = gridValueWith(
+        value,
+        start,
+        readGrid(value, chain.slice(0, 1))[span] ? keep : planned(value, start, keep, chain),
+        variants
+      );
     }
   }
 
-  return value === (readClassAttr(source, node.from, node.openTo)?.value || '') ? source : writeClassValue(source, node, value);
+  return value === (readClassAttr(source, node.from, node.openTo)?.value || '')
+    ? source
+    : writeClassValue(source, node, value);
 }
 
 /**
@@ -350,9 +383,17 @@ export function withCellAt(html, path, [col, row], next, { variants = [] } = {})
     return null;
   }
 
-  const starts = next ? '' : [`${GRID_PARTS.colStart.prefix}-${col + 1}`, `${GRID_PARTS.rowStart.prefix}-${row + 1}`].map((name) => buildClass({ variants, name })).join(' ');
+  const starts = next
+    ? ''
+    : [`${GRID_PARTS.colStart.prefix}-${col + 1}`, `${GRID_PARTS.rowStart.prefix}-${row + 1}`]
+        .map((name) => buildClass({ variants, name }))
+        .join(' ');
 
-  return insertAt(source, { mode: 'into', parent: grid, after: null }, starts ? `<div class="${starts}"></div>` : '<div></div>');
+  return insertAt(
+    source,
+    { mode: 'into', parent: grid, after: null },
+    starts ? `<div class="${starts}"></div>` : '<div></div>'
+  );
 }
 
 /* ------------------------------------------------------------------ *

@@ -29,7 +29,9 @@ export function tagAt(source, at) {
 /** The file with the element starting at `at` renamed to `name`; unchanged when it cannot be (tag-choices.js `tagRefusal`). */
 export function retag(source, at, name) {
   const text = String(source || '');
-  const next = String(name || '').trim().toLowerCase();
+  const next = String(name || '')
+    .trim()
+    .toLowerCase();
   let node = tagAt(text, at);
 
   if (!node || next === node.tag.toLowerCase() || tagRefusal(node.tag, next)) {

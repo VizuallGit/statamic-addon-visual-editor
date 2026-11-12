@@ -25,8 +25,7 @@ export function beginOverlayDrag(win, cursor, onMove, onEnd, shieldAttr = 'data-
 
   const shield = doc.createElement('div');
   shield.setAttribute(shieldAttr, '');
-  shield.style.cssText =
-    `position:fixed;inset:0;z-index:2147483646;cursor:${cursor};user-select:none;`;
+  shield.style.cssText = `position:fixed;inset:0;z-index:2147483646;cursor:${cursor};user-select:none;`;
   doc.body.appendChild(shield);
 
   let done = false;

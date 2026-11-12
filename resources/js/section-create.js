@@ -227,11 +227,7 @@ export function updateSectionType(win, { handle, hidden, fields = false }) {
  * not finished mounting.
  */
 export async function placeNewSection(win, handle, afterUid = null, set = null) {
-  if (
-    !handle
-    || typeof fetchSetMeta !== 'function'
-    || typeof insertSectionAfter !== 'function'
-  ) {
+  if (!handle || typeof fetchSetMeta !== 'function' || typeof insertSectionAfter !== 'function') {
     return null;
   }
 
@@ -305,9 +301,7 @@ export function revealWhenRendered(win, ids) {
     tries += 1;
 
     const doc = previewDocument(win);
-    const rendered = doc
-      ? wanted.some((id) => doc.querySelector(`[data-sid="${CSS.escape(id)}"]`))
-      : true;
+    const rendered = doc ? wanted.some((id) => doc.querySelector(`[data-sid="${CSS.escape(id)}"]`)) : true;
 
     if (rendered) {
       sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: wanted }, win);
@@ -447,9 +441,7 @@ async function makeSection(win, overlay, payload, { afterUid, onDone, onError, t
 
     overlay.dismiss();
 
-    win.Statamic?.$toast?.success(
-      t(win, 'section_created', { name: data.section?.display || payload.display })
-    );
+    win.Statamic?.$toast?.success(t(win, 'section_created', { name: data.section?.display || payload.display }));
 
     // An open Patterns panel is holding the list from before this section
     // existed. Same event a saved section fires: it drops its lists and asks
@@ -475,9 +467,7 @@ async function makeSection(win, overlay, payload, { afterUid, onDone, onError, t
   } catch (err) {
     overlay.dismiss();
 
-    win.Statamic?.$toast?.error(
-      t(win, err.reason === 'bad_name' ? 'section_new_bad_name' : 'section_new_failed')
-    );
+    win.Statamic?.$toast?.error(t(win, err.reason === 'bad_name' ? 'section_new_bad_name' : 'section_new_failed'));
 
     onError?.(err);
   }
@@ -492,9 +482,7 @@ async function makeSection(win, overlay, payload, { afterUid, onDone, onError, t
  * on every section.
  */
 export function libraryStale(win) {
-  win.document
-    .getElementById('__sve-section-picker')
-    ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
+  win.document.getElementById('__sve-section-picker')?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
 }
 
 /** What both dialogs ask of a group: the list, and the plus that adds to it (a new tab in the fieldset, selected at once). */
@@ -513,7 +501,9 @@ function groupPrompt(win, groups) {
 
         return made;
       } catch (err) {
-        win.Statamic?.$toast?.error(t(win, err?.message === 'bad_name' ? 'section_new_bad_name' : 'section_group_failed'));
+        win.Statamic?.$toast?.error(
+          t(win, err?.message === 'bad_name' ? 'section_new_bad_name' : 'section_group_failed')
+        );
 
         return null;
       }
@@ -551,7 +541,10 @@ async function groupsOrFail(win, onError, add = (groups) => groups) {
  */
 export function openStaticSectionDialog(win, { afterUid = null, template = null, onDone, onError, onClose } = {}) {
   void (async () => {
-    const groups = await groupsOrFail(win, onError, (list) => [...list, { key: STATIC_GROUP, display: t(win, 'static_sections_group') }]);
+    const groups = await groupsOrFail(win, onError, (list) => [
+      ...list,
+      { key: STATIC_GROUP, display: t(win, 'static_sections_group') },
+    ]);
 
     if (!groups) {
       return;
@@ -569,7 +562,12 @@ export function openStaticSectionDialog(win, { afterUid = null, template = null,
       saveLabel: t(win, 'section_new_create'),
       onClose,
       onOk: (display, group, insertable) => {
-        void makeSection(win, overlay, { display, group, static: true, hidden: !insertable }, { afterUid, onDone, onError, template });
+        void makeSection(
+          win,
+          overlay,
+          { display, group, static: true, hidden: !insertable },
+          { afterUid, onDone, onError, template }
+        );
       },
     });
   })();
@@ -660,7 +658,10 @@ function insertTemplateMarkup(win, template, after = null) {
  * section to make: the markup goes into the open file after the picked row,
  * which is what the plus does there too.
  */
-export function openImportDialog(win, { afterUid = null, intoTemplate = false, after = null, onDone, onError, onClose } = {}) {
+export function openImportDialog(
+  win,
+  { afterUid = null, intoTemplate = false, after = null, onDone, onError, onClose } = {}
+) {
   const overlay = openCpOverlay(win.document, ImportPrompt, {
     heading: t(win, 'section_import'),
     nameLabel: t(win, 'section_new_name'),

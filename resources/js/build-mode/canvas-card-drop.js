@@ -36,7 +36,8 @@ const GLIDE_MS = 380;
 const GIVE_UP_MS = 8000;
 
 const STEP_ASIDE = `html > :not(head, body, style, #${LINE_ID}){display:none!important}`;
-const LINE_CSS = 'position:fixed;z-index:2147483646;pointer-events:none;height:.25rem;margin-top:-.125rem;border-radius:.125rem;background:#3858e9;box-shadow:0 0 0 .0625rem rgba(255,255,255,.5)';
+const LINE_CSS =
+  'position:fixed;z-index:2147483646;pointer-events:none;height:.25rem;margin-top:-.125rem;border-radius:.125rem;background:#3858e9;box-shadow:0 0 0 .0625rem rgba(255,255,255,.5)';
 
 const bodyLooks = ({ origin = 'top center', transform = 'none', transition = 'none' }) =>
   `body{transform-origin:${origin}!important;transform:${transform}!important;transition:${transition}!important}`;
@@ -81,7 +82,8 @@ export function sectionBefore(boxes, y) {
 export function canvasCardDrop(win, { page, frame, done }) {
   let settle = null;
 
-  const sections = (doc) => [...doc.querySelectorAll(`[${SECTION_ATTR}]`)].filter((el) => el.getBoundingClientRect().width > 0);
+  const sections = (doc) =>
+    [...doc.querySelectorAll(`[${SECTION_ATTR}]`)].filter((el) => el.getBoundingClientRect().width > 0);
 
   function writeSheet(doc, css) {
     let sheet = doc.getElementById(SHEET_ID);
@@ -128,7 +130,13 @@ export function canvasCardDrop(win, { page, frame, done }) {
     const origin = `${last.left - body.left}px ${last.top - body.top}px`;
     const scale = first.width / Math.max(last.width, 1);
 
-    writeSheet(doc, bodyLooks({ origin, transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${scale})` }) + STEP_ASIDE);
+    writeSheet(
+      doc,
+      bodyLooks({
+        origin,
+        transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${scale})`,
+      }) + STEP_ASIDE
+    );
     doc.body.getBoundingClientRect();
     writeSheet(doc, bodyLooks({ origin, transition: GLIDE }) + STEP_ASIDE);
   }
@@ -215,7 +223,10 @@ export function canvasCardDrop(win, { page, frame, done }) {
     return {
       move(x, y) {
         const list = sections(doc);
-        const at = sectionBefore(list.map((el) => el.getBoundingClientRect()), y);
+        const at = sectionBefore(
+          list.map((el) => el.getBoundingClientRect()),
+          y
+        );
         const anchor = list[at] || list[0];
 
         afterUid = at === -1 ? null : list[at].getAttribute('data-sid');

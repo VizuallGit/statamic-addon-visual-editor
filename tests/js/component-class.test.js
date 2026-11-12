@@ -45,7 +45,8 @@ test('a bound class is read as an expression, not as classes', () => {
 });
 
 test('the cursor in a call finds the component row — the tags-only tree never has one', () => {
-  const source = '<section class="wrapper">\n  {{ partial:components/section_heading }}\n  <ul class="grid"></ul>\n</section>';
+  const source =
+    '<section class="wrapper">\n  {{ partial:components/section_heading }}\n  <ul class="grid"></ul>\n</section>';
   const pos = source.indexOf('section_heading');
   const component = flattenHtmlTree(parseTemplateTree(source), new Set()).find(
     (row) => row.kind === 'component' && row.from <= pos && pos < row.to
@@ -54,7 +55,10 @@ test('the cursor in a call finds the component row — the tags-only tree never 
   assert.ok(hitPartial(source, pos));
   assert.equal(component.src, 'components/section_heading');
   assert.equal(source.slice(component.from, component.to), '{{ partial:components/section_heading }}');
-  assert.equal(flattenHtmlTree(parseHtmlTree(source), new Set()).some((row) => row.kind === 'component'), false);
+  assert.equal(
+    flattenHtmlTree(parseHtmlTree(source), new Set()).some((row) => row.kind === 'component'),
+    false
+  );
 });
 
 test('the cursor between tags is no call', () => {
@@ -64,7 +68,8 @@ test('the cursor between tags is no call', () => {
 });
 
 test('a call’s _class and props_class reach the compiler, like its class', () => {
-  const html = '{{ partial:components/a class="mt-400" }}{{ partial:components/b _class="p-200" }}{{ partial:components/c props_class="gap-300" }}<div data_class="nope"></div>';
+  const html =
+    '{{ partial:components/a class="mt-400" }}{{ partial:components/b _class="p-200" }}{{ partial:components/c props_class="gap-300" }}<div data_class="nope"></div>';
 
   assert.deepEqual(twCandidates(html).sort(), ['gap-300', 'mt-400', 'p-200']);
 });

@@ -49,7 +49,7 @@ final class Targets
 
         $targets = [];
 
-        foreach (static::targetSets() as $handle => $current) {
+        foreach (self::targetSets() as $handle => $current) {
             if ($only !== null && $handle !== $only) {
                 continue;
             }
@@ -68,7 +68,7 @@ final class Targets
                 continue;
             }
 
-            $candidates = static::candidates($handle, $overrides[$handle] ?? [], $selector);
+            $candidates = self::candidates($handle, $overrides[$handle] ?? [], $selector);
 
             if ($candidates === []) {
                 $targets[$handle] = array_merge($base, ['status' => 'no_source']);
@@ -84,10 +84,10 @@ final class Targets
                 array_map(fn ($candidate) => $candidate['data'], $candidates),
             );
 
-            $filename = static::handleBase($handle).'-'.$fingerprint.'.png';
+            $filename = self::handleBase($handle).'-'.$fingerprint.'.png';
             $exists = $current === $filename && $filesystem && $filesystem->exists($folder.$current);
-            $drewNothing = Cache::get(static::emptyKey($handle)) === $filename;
-            $lastFailed = Cache::get(static::failedKey($handle)) === $filename;
+            $drewNothing = Cache::get(self::emptyKey($handle)) === $filename;
+            $lastFailed = Cache::get(self::failedKey($handle)) === $filename;
 
             $targets[$handle] = array_merge($base, [
                 'status' => match (true) {

@@ -13,9 +13,7 @@ use Illuminate\Contracts\View\Engine;
  */
 final class TimedEngine implements Engine
 {
-    public function __construct(protected Engine $inner, protected Ledger $ledger)
-    {
-    }
+    public function __construct(protected Engine $inner, protected Ledger $ledger) {}
 
     public function get($path, array $data = [])
     {

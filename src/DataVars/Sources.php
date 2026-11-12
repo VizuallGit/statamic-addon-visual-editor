@@ -79,7 +79,7 @@ final class Sources
      */
     public static function sectionFields(string $collection, string $set): array
     {
-        $config = static::setConfig($collection, $set);
+        $config = self::setConfig($collection, $set);
 
         if (! $config) {
             return [];

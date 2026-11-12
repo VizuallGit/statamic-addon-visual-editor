@@ -43,7 +43,6 @@ const BLOCKS = [
   { var: 'media', label: 'Media', type: 'assets', loop: true, parent: 'blocks › media' },
 ];
 
-
 /** A replicator with one set the site has a block partial for, and one it has not. */
 const MIXED_SETS = [
   { var: 'content', label: 'Content', type: 'replicator', loop: true },
@@ -93,7 +92,9 @@ test('no shell outside a section partial, or below the first element', () => {
 
   const second = caret('<div></div>\n<section|>\n</section>');
 
-  assert.ok(!ids(helpSuggestions(second.html, second.at, { sectionPartial: true, shellRoot: SCAFFOLD })).includes('shell'));
+  assert.ok(
+    !ids(helpSuggestions(second.html, second.at, { sectionPartial: true, shellRoot: SCAFFOLD })).includes('shell')
+  );
 });
 
 test('a class: empty, no [ ], with the caret between the quotes', () => {
@@ -123,14 +124,20 @@ test('text from a field replaces the fixed text and makes it editable', () => {
   assert.equal(text.id, 'text:title');
   assert.deepEqual(text.args, { name: 'Title' });
   assert.equal(text.meta, 'Det gør vi');
-  assert.equal(apply(html, text), '<h2 class="text-800" {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h2>');
+  assert.equal(
+    apply(html, text),
+    '<h2 class="text-800" {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h2>'
+  );
 });
 
 test('a Bard field never goes in a <p>', () => {
   const { html, at } = caret('<p class="lead">|</p>');
   const [text] = helpSuggestions(html, at, { fields: [{ var: 'text', label: 'Text', type: 'bard' }] });
 
-  assert.equal(apply(html, text), '<div class="lead" {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>');
+  assert.equal(
+    apply(html, text),
+    '<div class="lead" {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>'
+  );
 });
 
 test('fields the file does not print yet come first', () => {
@@ -199,7 +206,9 @@ test('a <ul> just typed, not closed yet, above other markup', () => {
 
 test('inside a loop, the loop’s own fields — in a heading, its text field alone', () => {
   const { html, at } = caret('{{ items }}\n    <h3>|</h3>\n{{ /items }}');
-  const suggestions = helpSuggestions(html, at, { fields: [{ var: 'heading', label: 'Heading', type: 'text' }, ...GRID] });
+  const suggestions = helpSuggestions(html, at, {
+    fields: [{ var: 'heading', label: 'Heading', type: 'text' }, ...GRID],
+  });
 
   assert.deepEqual(ids(suggestions), ['class', 'text:title']);
 });
@@ -288,7 +297,10 @@ test('no id on an element that has one, inside a loop, or where the shell writes
   assert.ok(!ids(helpSuggestions(inCollection.html, inCollection.at)).includes('id'));
 
   const root = caret('<section>|</section>');
-  assert.deepEqual(ids(helpSuggestions(root.html, root.at, { sectionPartial: true, shellRoot: SCAFFOLD })), ['shell', 'x-data']);
+  assert.deepEqual(ids(helpSuggestions(root.html, root.at, { sectionPartial: true, shellRoot: SCAFFOLD })), [
+    'shell',
+    'x-data',
+  ]);
 });
 
 test('what the editor does after a row: the class opens the picker, a loop tag the loop panel', () => {
@@ -325,20 +337,32 @@ test('the registry: the middle fills the cap in order — or by counts — and s
 });
 
 test('help-rules/index.js: the rules in the order their rows show — the class first, the id last', () => {
-  assert.deepEqual(ONLY_RULES.map((rule) => rule.name), ['ifTagRule']);
-  assert.deepEqual(HEAD_RULES.map((rule) => rule.name), ['classRule']);
-  assert.deepEqual(RULES.map((rule) => rule.name), [
-    'sectionRule',
-    'visualEditRule',
-    'blocksRule',
-    'linkRule',
-    'listRule',
-    'textRule',
-    'alpineRule',
-    'sourceRule',
-    'imgRule',
-  ]);
-  assert.deepEqual(TAIL_RULES.map((rule) => rule.name), ['idRule']);
+  assert.deepEqual(
+    ONLY_RULES.map((rule) => rule.name),
+    ['ifTagRule']
+  );
+  assert.deepEqual(
+    HEAD_RULES.map((rule) => rule.name),
+    ['classRule']
+  );
+  assert.deepEqual(
+    RULES.map((rule) => rule.name),
+    [
+      'sectionRule',
+      'visualEditRule',
+      'blocksRule',
+      'linkRule',
+      'listRule',
+      'textRule',
+      'alpineRule',
+      'sourceRule',
+      'imgRule',
+    ]
+  );
+  assert.deepEqual(
+    TAIL_RULES.map((rule) => rule.name),
+    ['idRule']
+  );
 });
 
 /* ---- section -------------------------------------------------------------- */
@@ -356,7 +380,11 @@ test('no blocks wrapper and no loop on the section — before its shell, with ma
   const shelled = caret('<section id="id-{{ id }}" class="">|</section>');
 
   assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, options)), ['x-data']);
-  assert.deepEqual(ids(helpSuggestions(shelled.html, shelled.at, { ...options, fields: GRID })), ['x-data'], 'no loop directly under a section');
+  assert.deepEqual(
+    ids(helpSuggestions(shelled.html, shelled.at, { ...options, fields: GRID })),
+    ['x-data'],
+    'no loop directly under a section'
+  );
 });
 
 /* ---- div ------------------------------------------------------------------ */
@@ -391,7 +419,9 @@ test('an empty <div> over a replicator: the div is the wrapper, its rows <div>s,
       '    </div>',
     ].join('\n')
   );
-  assert.ok(out.slice(0, loop.selection).endsWith('{{ blocks }}\n            <div class="" {{ visual_edit orderable="true" }}>'));
+  assert.ok(
+    out.slice(0, loop.selection).endsWith('{{ blocks }}\n            <div class="" {{ visual_edit orderable="true" }}>')
+  );
 });
 
 test('a replicator on a <div>: every set field by field, the same with the site’s partials or without', () => {
@@ -443,7 +473,9 @@ test('an empty <div> over a grid: rows of <div>s, the way the list writes <li>s'
       '</div>',
     ].join('\n')
   );
-  assert.ok(out.slice(0, loop.selection).endsWith('{{ items }}\n        <div class="" {{ visual_edit orderable="true" }}>'));
+  assert.ok(
+    out.slice(0, loop.selection).endsWith('{{ items }}\n        <div class="" {{ visual_edit orderable="true" }}>')
+  );
 });
 
 test('a replicator inside a <div>’s rows: the loops inside are written field by field too', () => {
@@ -489,7 +521,11 @@ test('a <div> takes text only from Bard or Markdown — never a text or textarea
 
   const fixed = caret('<div>Lorem| ipsum</div>');
 
-  assert.deepEqual(ids(helpSuggestions(fixed.html, fixed.at, { fields: fields.slice(0, 2) })), ['class', 'visual-edit', 'id']);
+  assert.deepEqual(ids(helpSuggestions(fixed.html, fixed.at, { fields: fields.slice(0, 2) })), [
+    'class',
+    'visual-edit',
+    'id',
+  ]);
 });
 
 test('no file row on a <div> — files belong to img and video', () => {
@@ -510,13 +546,24 @@ test('a <div>: visual_edit, its loops, then Bard — no image; the class first, 
   const { html, at } = caret('<div>|</div>');
   const fields = [{ var: 'body', label: 'Body', type: 'bard' }, ...MEDIA, ...GRID];
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields })), ['class', 'visual-edit', 'loop:items', 'text:body', 'id']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields })), [
+    'class',
+    'visual-edit',
+    'loop:items',
+    'text:body',
+    'id',
+  ]);
 });
 
 test('a <div> inside the blocks loop: what the sets hold that fits a div', () => {
   const { html, at } = caret('{{ blocks }}\n    <div>|</div>\n{{ /blocks }}');
 
-  assert.deepEqual(ids(helpSuggestions(html, at, { fields: BLOCKS })), ['class', 'visual-edit', 'loop:links', 'text:text']);
+  assert.deepEqual(ids(helpSuggestions(html, at, { fields: BLOCKS })), [
+    'class',
+    'visual-edit',
+    'loop:links',
+    'text:text',
+  ]);
 });
 
 test('no loop or text on a <div> that holds markup, or inside a collection loop', () => {
@@ -527,7 +574,10 @@ test('no loop or text on a <div> that holds markup, or inside a collection loop'
 
   const loop = caret('{{ collection:services }}\n    <div>|</div>\n{{ /collection:services }}');
 
-  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: [...fields, ...BLOCKS] })), ['class', 'visual-edit']);
+  assert.deepEqual(ids(helpSuggestions(loop.html, loop.at, { fields: [...fields, ...BLOCKS] })), [
+    'class',
+    'visual-edit',
+  ]);
 });
 
 /* ---- ul / ol / li --------------------------------------------------------- */
@@ -602,14 +652,18 @@ test('an empty <li> in a loop whose row holds a replicator: a wrapper <div> insi
 test('an <li> outside a loop is static: no text from a field — inside one it takes the loop’s', () => {
   const outside = caret('<ul>\n    <li>|</li>\n</ul>');
 
-  assert.deepEqual(ids(helpSuggestions(outside.html, outside.at, { fields: [{ var: 'title', label: 'Title', type: 'text' }] })), [
-    'class',
-    'id',
-  ]);
+  assert.deepEqual(
+    ids(helpSuggestions(outside.html, outside.at, { fields: [{ var: 'title', label: 'Title', type: 'text' }] })),
+    ['class', 'id']
+  );
 
   const inside = caret('<ul>\n    {{ items }}\n        <li>|</li>\n    {{ /items }}\n</ul>');
 
-  assert.deepEqual(ids(helpSuggestions(inside.html, inside.at, { fields: GRID })), ['class', 'text:title', 'text:text']);
+  assert.deepEqual(ids(helpSuggestions(inside.html, inside.at, { fields: GRID })), [
+    'class',
+    'text:title',
+    'text:text',
+  ]);
 });
 
 /* ---- a -------------------------------------------------------------------- */
@@ -653,7 +707,9 @@ test('no URL row on an <a> that has an href; one that holds text still gets it',
 });
 
 test('an empty <a> in a links set: no links block — an href and a text field', () => {
-  const { html, at } = caret("{{ blocks }}\n    {{ if type == 'links' }}\n        <a class=\"btn\">|</a>\n    {{ /if }}\n{{ /blocks }}");
+  const { html, at } = caret(
+    '{{ blocks }}\n    {{ if type == \'links\' }}\n        <a class="btn">|</a>\n    {{ /if }}\n{{ /blocks }}'
+  );
   const suggestions = helpSuggestions(html, at, { fields: BLOCKS });
 
   assert.deepEqual(ids(suggestions), ['href', 'text:title']);
@@ -749,11 +805,21 @@ test('a heading offers the title-like fields first, a <p> the unused first — n
   ];
   const heading = caret('<h1>{{ title }}</h1>\n<h2>|</h2>');
 
-  assert.deepEqual(ids(helpSuggestions(heading.html, heading.at, { fields })), ['class', 'text:heading', 'text:title', 'id']);
+  assert.deepEqual(ids(helpSuggestions(heading.html, heading.at, { fields })), [
+    'class',
+    'text:heading',
+    'text:title',
+    'id',
+  ]);
 
   const paragraph = caret('<h1>{{ title }}</h1>\n<p>|</p>');
 
-  assert.deepEqual(ids(helpSuggestions(paragraph.html, paragraph.at, { fields })), ['class', 'text:heading', 'text:title', 'id']);
+  assert.deepEqual(ids(helpSuggestions(paragraph.html, paragraph.at, { fields })), [
+    'class',
+    'text:heading',
+    'text:title',
+    'id',
+  ]);
 });
 
 test('a <button> takes no Bard or Markdown', () => {

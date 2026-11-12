@@ -40,14 +40,14 @@ final class SectionRootTags
      */
     public static function map(): array
     {
-        $files = static::files();
+        $files = self::files();
         $stamp = md5(implode('|', array_map(
             fn (string $path, string $handle) => $handle.':'.filemtime($path).':'.filesize($path),
             $files,
             array_keys($files)
         )));
 
-        $cached = Cache::get(static::CACHE_KEY);
+        $cached = Cache::get(self::CACHE_KEY);
 
         if (is_array($cached) && ($cached['stamp'] ?? null) === $stamp && is_array($cached['tags'] ?? null)) {
             return $cached['tags'];
@@ -57,14 +57,14 @@ final class SectionRootTags
 
         foreach ($files as $handle => $path) {
             $parts = SectionTemplate::split((string) file_get_contents($path), $handle);
-            $tag = static::of((string) ($parts['html'] ?? ''));
+            $tag = self::of((string) ($parts['html'] ?? ''));
 
             if ($tag !== '') {
                 $tags[$handle] = $tag;
             }
         }
 
-        Cache::forever(static::CACHE_KEY, ['stamp' => $stamp, 'tags' => $tags]);
+        Cache::forever(self::CACHE_KEY, ['stamp' => $stamp, 'tags' => $tags]);
 
         return $tags;
     }
@@ -116,8 +116,8 @@ final class SectionRootTags
      */
     public static function of(string $html): string
     {
-        $tag = static::firstTag(static::mask($html));
-        $call = static::firstPartialCall($html);
+        $tag = self::firstTag(self::mask($html));
+        $call = self::firstPartialCall($html);
 
         if ($call !== null && ($tag === null || $call < $tag['at'])) {
             return 'component';

@@ -26,7 +26,9 @@ export function isSubgridValue(value) {
  * empty array — the caller decides what an axis with no tracks means.
  */
 export function parseTracks(value) {
-  const text = String(value || '').replace(LINE_NAMES, ' ').trim();
+  const text = String(value || '')
+    .replace(LINE_NAMES, ' ')
+    .trim();
 
   if (!text || text === 'none' || isSubgridValue(text)) {
     return [];

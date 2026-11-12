@@ -19,94 +19,98 @@
 import ShortcutInput from '../../cp/surfaces/ShortcutInput.vue';
 import { NONE, conflictsWith, isMac, resolveShortcutLayers, siteShortcuts } from '../../lib/shortcuts.js';
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { computed, inject } = window.Vue;
+  Statamic.booting(() => {
+    const { computed, inject } = window.Vue;
 
-        /** The form's values. `values` is a ref() in v6, but do not depend on it. */
-        function publishValues(ctx) {
-            return ctx?.values?.value ?? ctx?.values ?? {};
+    /** The form's values. `values` is a ref() in v6, but do not depend on it. */
+    function publishValues(ctx) {
+      return ctx?.values?.value ?? ctx?.values ?? {};
+    }
+
+    function plainObject(value) {
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    }
+
+    Statamic.$components.register('sve-shortcuts-fieldtype', {
+      components: { ShortcutInput },
+
+      props: {
+        value: { default: null },
+        meta: { type: Object, default: () => ({}) },
+      },
+
+      emits: ['update:value'],
+
+      setup(props, { emit }) {
+        const publishContext = inject('PublishContainerContext', null);
+        const mac = isMac(window.navigator);
+
+        // [{ action, label, default }] — every tool, in the built-in order.
+        const rows = computed(() => (Array.isArray(props.meta?.rows) ? props.meta.rows : []));
+        const locked = computed(() => (Array.isArray(props.meta?.locked) ? props.meta.locked : []));
+        const own = computed(() => plainObject(props.value));
+        const sizeRows = computed(() => {
+          const list = publishValues(publishContext).breakpoints;
+
+          return Array.isArray(list) ? list : [];
+        });
+        const layers = computed(() =>
+          resolveShortcutLayers(
+            plainObject(props.meta?.builtIn),
+            siteShortcuts(own.value, sizeRows.value, locked.value),
+            {}
+          )
+        );
+
+        function nameOf(action) {
+          if (action.startsWith('size:')) {
+            const handle = action.slice('size:'.length);
+            const row = sizeRows.value.find((item) => item?.handle === handle);
+
+            return plainObject(props.meta?.sizes)[handle] || row?.label || handle;
+          }
+
+          return rows.value.find((row) => row.action === action)?.label || action;
         }
 
-        function plainObject(value) {
-            return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+        function ownerFor(action) {
+          return (combo) => {
+            const other = conflictsWith(layers.value.map, combo, action);
+
+            if (!other) {
+              return null;
+            }
+
+            return {
+              action: other,
+              label: nameOf(other),
+              movable: other.startsWith('tool:') || layers.value.level[other] === 0,
+            };
+          };
         }
 
-        Statamic.$components.register('sve-shortcuts-fieldtype', {
-            components: { ShortcutInput },
+        function change(action, value, moveFrom) {
+          const next = { ...own.value };
 
-            props: {
-                value: { default: null },
-                meta: { type: Object, default: () => ({}) },
-            },
+          if (value) {
+            next[action] = value;
+          } else {
+            delete next[action];
+          }
 
-            emits: ['update:value'],
+          if (moveFrom && moveFrom.startsWith('tool:') && moveFrom !== action) {
+            next[moveFrom] = NONE;
+          }
 
-            setup(props, { emit }) {
-                const publishContext = inject('PublishContainerContext', null);
-                const mac = isMac(window.navigator);
+          emit('update:value', next);
+        }
 
-                // [{ action, label, default }] — every tool, in the built-in order.
-                const rows = computed(() => (Array.isArray(props.meta?.rows) ? props.meta.rows : []));
-                const locked = computed(() => (Array.isArray(props.meta?.locked) ? props.meta.locked : []));
-                const own = computed(() => plainObject(props.value));
-                const sizeRows = computed(() => {
-                    const list = publishValues(publishContext).breakpoints;
+        return { rows, own, mac, locked, ownerFor, change };
+      },
 
-                    return Array.isArray(list) ? list : [];
-                });
-                const layers = computed(() =>
-                    resolveShortcutLayers(plainObject(props.meta?.builtIn), siteShortcuts(own.value, sizeRows.value, locked.value), {})
-                );
-
-                function nameOf(action) {
-                    if (action.startsWith('size:')) {
-                        const handle = action.slice('size:'.length);
-                        const row = sizeRows.value.find((item) => item?.handle === handle);
-
-                        return plainObject(props.meta?.sizes)[handle] || row?.label || handle;
-                    }
-
-                    return rows.value.find((row) => row.action === action)?.label || action;
-                }
-
-                function ownerFor(action) {
-                    return (combo) => {
-                        const other = conflictsWith(layers.value.map, combo, action);
-
-                        if (!other) {
-                            return null;
-                        }
-
-                        return {
-                            action: other,
-                            label: nameOf(other),
-                            movable: other.startsWith('tool:') || layers.value.level[other] === 0,
-                        };
-                    };
-                }
-
-                function change(action, value, moveFrom) {
-                    const next = { ...own.value };
-
-                    if (value) {
-                        next[action] = value;
-                    } else {
-                        delete next[action];
-                    }
-
-                    if (moveFrom && moveFrom.startsWith('tool:') && moveFrom !== action) {
-                        next[moveFrom] = NONE;
-                    }
-
-                    emit('update:value', next);
-                }
-
-                return { rows, own, mac, locked, ownerFor, change };
-            },
-
-            template: `
+      template: `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
                     <div
                         v-for="row in rows"
@@ -127,6 +131,6 @@ import { NONE, conflictsWith, isMac, resolveShortcutLayers, siteShortcuts } from
                     </div>
                 </div>
             `,
-        });
     });
+  });
 })();

@@ -37,7 +37,9 @@ export function ifTagRule(ctx) {
   const indent = indentOf(source, tag.from);
 
   return rowsInScope(ctx).map((row) => {
-    const lines = closed ? [`{{ if ${row.var} }}`] : [`{{ if ${row.var} }}`, `${indent}${INDENT}`, `${indent}{{ /if }}`];
+    const lines = closed
+      ? [`{{ if ${row.var} }}`]
+      : [`{{ if ${row.var} }}`, `${indent}${INDENT}`, `${indent}{{ /if }}`];
 
     return {
       id: `if:${row.var}`,

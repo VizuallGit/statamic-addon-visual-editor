@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Fonts;
 
 use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -39,12 +40,12 @@ final class GoogleFonts
      */
     public static function catalog(): array
     {
-        return Cache::remember(self::CACHE, now()->addWeek(), fn () => static::fetchCatalog());
+        return Cache::remember(self::CACHE, now()->addWeek(), fn () => self::fetchCatalog());
     }
 
     public static function find(string $family): ?array
     {
-        foreach (static::catalog() as $font) {
+        foreach (self::catalog() as $font) {
             if ($font['family'] === $family) {
                 return $font;
             }
@@ -61,8 +62,8 @@ final class GoogleFonts
      */
     public static function plan(array $font, array $variants, array $subsets): array
     {
-        $faces = static::faces($font, $variants, $subsets);
-        $sizes = static::sizes(array_column($faces, 'url'));
+        $faces = self::faces($font, $variants, $subsets);
+        $sizes = self::sizes(array_column($faces, 'url'));
 
         foreach ($faces as &$face) {
             $face['bytes'] = $sizes[$face['url']] ?? 0;
@@ -78,7 +79,7 @@ final class GoogleFonts
      */
     public static function install(array $font, array $variants, array $subsets): int
     {
-        $faces = static::faces($font, $variants, $subsets);
+        $faces = self::faces($font, $variants, $subsets);
         $slug = Folder::slug($font['family']);
         $responses = Http::pool(fn (Pool $pool) => array_map(
             fn ($url) => $pool->as($url)->timeout(30)->get($url),
@@ -88,7 +89,7 @@ final class GoogleFonts
 
         foreach ($faces as $face) {
             $response = $responses[$face['url']] ?? null;
-            $bytes = $response instanceof \Illuminate\Http\Client\Response && $response->successful() ? $response->body() : '';
+            $bytes = $response instanceof Response && $response->successful() ? $response->body() : '';
 
             if (! str_starts_with($bytes, 'wOF2')) {
                 throw new \RuntimeException('Google Fonts sent no font for '.$face['url']);
@@ -180,7 +181,7 @@ final class GoogleFonts
     /** The css2 faces for a choice, narrowed to the chosen scripts, one per file. */
     private static function faces(array $font, array $variants, array $subsets): array
     {
-        $css = Cache::remember(self::CACHE.':css:'.md5(static::query($font, $variants)), now()->addDay(), function () use ($font, $variants) {
+        $css = Cache::remember(self::CACHE.':css:'.md5(self::query($font, $variants)), now()->addDay(), function () use ($font, $variants) {
             return Http::withHeaders(['User-Agent' => self::AGENT])
                 ->timeout(20)
                 ->get(self::CSS.'?family='.static::query($font, $variants).'&display=swap')
@@ -188,7 +189,7 @@ final class GoogleFonts
                 ->body();
         });
 
-        $all = static::parse($css);
+        $all = self::parse($css);
         $named = array_filter(array_column($all, 'subset'), fn ($s) => ! str_starts_with($s, '['));
         // A CJK script comes as numbered slices, not under its own name: a
         // chosen script that has no block of its own is what the slices are.
@@ -233,7 +234,7 @@ final class GoogleFonts
 
             foreach ($missing as $url) {
                 $response = $responses[$url] ?? null;
-                $bytes = $response instanceof \Illuminate\Http\Client\Response && $response->successful()
+                $bytes = $response instanceof Response && $response->successful()
                     ? (int) $response->header('Content-Length')
                     : 0;
 

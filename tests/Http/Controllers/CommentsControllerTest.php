@@ -2,10 +2,10 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests\Http\Controllers;
 
+use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
-use Illuminate\Support\Facades\File;
 use Statamic\Facades\User;
 
 /**

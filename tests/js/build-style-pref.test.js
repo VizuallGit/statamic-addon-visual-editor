@@ -40,7 +40,7 @@ test('on by default; off is written and said, on again takes the key away', () =
   assert.equal(buildStyleTabShown(win), true);
 });
 
-test('the key travels with the user\'s preferences, in the browser and on the server', () => {
+test("the key travels with the user's preferences, in the browser and on the server", () => {
   assert.ok(CHROME_KEYS.includes('sve-build-style-tab'));
   assert.match(read('src/Http/Controllers/ChromePrefsController.php'), /'sve-build-style-tab',/);
 });

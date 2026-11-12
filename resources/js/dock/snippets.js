@@ -83,7 +83,11 @@ const NEW_CLASS_ICON =
 const HEADERS = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
 
 async function fetchJson(win, url, init = {}) {
-  const res = await win.fetch(url, { credentials: 'same-origin', ...init, headers: { ...HEADERS, ...(init.headers || {}) } });
+  const res = await win.fetch(url, {
+    credentials: 'same-origin',
+    ...init,
+    headers: { ...HEADERS, ...(init.headers || {}) },
+  });
 
   if (!res.ok) {
     const err = new Error(String(res.status));
@@ -139,9 +143,7 @@ function insertHtmlBlock(html) {
   }
 
   const line = view.state.doc.lineAt(view.state.selection.main.head);
-  const indent = line.text.trim()
-    ? lineIndentOf(line.text)
-    : indentFromPrevious(view, line) || lineIndentOf(line.text);
+  const indent = line.text.trim() ? lineIndentOf(line.text) : indentFromPrevious(view, line) || lineIndentOf(line.text);
   const text = indentAntlersSnippet(html.trim(), indent);
 
   insertHtmlElement(text, text.length);
@@ -183,7 +185,9 @@ function writeSnippetIntoRule(win, root, body) {
   let media = '';
 
   if (row && !row.base) {
-    const own = blocksForSize(text, cssSizeRows(win), row.handle).find((block) => block.from > rule.brace && block.to <= rule.close);
+    const own = blocksForSize(text, cssSizeRows(win), row.handle).find(
+      (block) => block.from > rule.brace && block.to <= rule.close
+    );
 
     media = own ? own.query : newSizeQuery(row, text);
   }
@@ -211,7 +215,9 @@ function writeSnippetIntoRule(win, root, body) {
 function openSnippetClassPrompt(win, body) {
   const doc = win.document;
   const dock = doc.getElementById(DOCK_ID);
-  const anchor = dock?.querySelector('[data-sve-snippet-btn][data-sve-snippet-pane="css"]') || dock?.querySelector('[data-sve-snippet-btn]');
+  const anchor =
+    dock?.querySelector('[data-sve-snippet-btn][data-sve-snippet-pane="css"]') ||
+    dock?.querySelector('[data-sve-snippet-btn]');
 
   if (!anchor) {
     return;
@@ -394,7 +400,13 @@ function snippetPartsFor(pane) {
   }
 
   // The whole file: its markup, all of its CSS, and its JS pane.
-  return { kind: 'html', html: dedent(full), css: css.trim(), js: String(ask('dock:js') || '').trim(), name: suggestedName(full) };
+  return {
+    kind: 'html',
+    html: dedent(full),
+    css: css.trim(),
+    js: String(ask('dock:js') || '').trim(),
+    name: suggestedName(full),
+  };
 }
 
 /**
@@ -417,7 +429,14 @@ function suggestedName(html) {
 
 async function store(win, name, parts, replace = false) {
   try {
-    const made = await postSnippet(win, { name, kind: parts.kind, html: parts.html, css: parts.css, js: parts.js, replace });
+    const made = await postSnippet(win, {
+      name,
+      kind: parts.kind,
+      html: parts.html,
+      css: parts.css,
+      js: parts.js,
+      replace,
+    });
 
     win.Statamic?.$toast?.success(t(win, 'snippet_saved', { name: made?.name || name }));
   } catch (err) {
@@ -555,7 +574,14 @@ function bindPane(win, dock, selector, pane) {
   // The word is visible, so it is the name; a tooltip would say it twice.
   btn.removeAttribute('title');
   btn.removeAttribute('aria-label');
-  btn.replaceChildren(face(doc, SNIPPET_ICON, t(win, pane === 'css' ? 'snippet_button_css' : 'snippet_button'), pane === 'css' ? 'css' : 'html'));
+  btn.replaceChildren(
+    face(
+      doc,
+      SNIPPET_ICON,
+      t(win, pane === 'css' ? 'snippet_button_css' : 'snippet_button'),
+      pane === 'css' ? 'css' : 'html'
+    )
+  );
 
   if (pane === 'css') {
     btn.appendChild(face(doc, NEW_CLASS_ICON, t(win, 'class_new'), 'tw'));

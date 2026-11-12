@@ -1615,7 +1615,6 @@ return [
     'ai_text_close' => 'Close',
     'ai_text_hint_hover' => 'Point at a suggestion to see it on the page. Click to insert.',
 
-
     // Structured data (schema.org JSON-LD)
     'schema' => 'Structured data',
     'schema_title' => 'Structured data',
@@ -1826,7 +1825,7 @@ return [
     'template_board_site' => 'Site',
     'template_board_empty' => 'No template yet',
     'template_board_create' => 'Create',
-        'template_board_group_site' => 'Miscellaneous',
+    'template_board_group_site' => 'Miscellaneous',
     'template_board_kind_collection' => 'Collection',
     'template_board_kind_taxonomy' => 'Taxonomy',
     'template_board_group_collections' => 'Pages & Posts',

@@ -8,7 +8,30 @@ import { INSERT_ATTR } from './outline-nav.js';
 import { ORDERABLE_ATTR, isHorizontalFlow } from './grid.js';
 import { orderablePeers } from './drag.js';
 import { sidTemplatePayload } from './inserters.js';
-import { ICONS, applyBlockFormat, applyControlValue, applyHighlightColor, applyVizuStyle, bardCommand, clearVizuSpanProp, detectCpDark, headingIcon, letterIcon, openControlMenu, openHighlightColorMenu, openToolbarMenu, positionEditToolbar, readSelectionVizuProp, removeEditToolbar, sendEditInput, setVizuSpanProp, styleIdentHtml, toggleSpanClass, toolbarThemeFor, updateEditToolbarState } from './inline-edit.js';
+import {
+  ICONS,
+  applyBlockFormat,
+  applyControlValue,
+  applyHighlightColor,
+  applyVizuStyle,
+  bardCommand,
+  clearVizuSpanProp,
+  detectCpDark,
+  headingIcon,
+  letterIcon,
+  openControlMenu,
+  openHighlightColorMenu,
+  openToolbarMenu,
+  positionEditToolbar,
+  readSelectionVizuProp,
+  removeEditToolbar,
+  sendEditInput,
+  setVizuSpanProp,
+  styleIdentHtml,
+  toggleSpanClass,
+  toolbarThemeFor,
+  updateEditToolbarState,
+} from './inline-edit.js';
 import { hideMoveControl, requestRowCaps } from './row-caps-move.js';
 import { finishEditing } from './editing.js';
 import { focusFrameChipRects } from './focus-frame.js';
@@ -132,18 +155,14 @@ function rowContextFor(win, el) {
   // a drag of one step landed two rows away.
   const row = outermostRowWithin(inner);
 
-  const uid =
-    row.getAttribute(GLOBAL_ROW_ATTR) || row.getAttribute(SID_ATTR) || row.getAttribute('data-sid-field-uid');
+  const uid = row.getAttribute(GLOBAL_ROW_ATTR) || row.getAttribute(SID_ATTR) || row.getAttribute('data-sid-field-uid');
 
   if (!uid) {
     return null;
   }
 
   const post = (type, extra = {}) =>
-    win.parent.postMessage(
-      { source: SOURCE, type, uid, ...extra },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type, uid, ...extra }, win.location.origin);
 
   // The block around the row, when the row is not one itself. Only a nested row
   // has one: a block's own parent IS the insertable container.
@@ -247,10 +266,7 @@ function rowContextFor(win, el) {
                 dividerBefore: true,
                 cancels: true,
                 run: () =>
-                  win.parent.postMessage(
-                    { source: SOURCE, type: MSG.REMOVE_ROW, uid: blockUid },
-                    win.location.origin
-                  ),
+                  win.parent.postMessage({ source: SOURCE, type: MSG.REMOVE_ROW, uid: blockUid }, win.location.origin),
               },
             ]
           : []),
@@ -583,7 +599,8 @@ export function showHoverBelt(win, rowEl) {
   const chip = doc.createElement('span');
 
   chip.style.cssText =
-    pill + `flex:0 0 auto;justify-content:center;width:${SQUARE}px;height:${SQUARE}px;` +
+    pill +
+    `flex:0 0 auto;justify-content:center;width:${SQUARE}px;height:${SQUARE}px;` +
     'font-weight:600;white-space:nowrap;';
 
   const badge = rowBadge(doc, ctx);
@@ -827,9 +844,7 @@ export function createEditToolbar(win, session) {
   // orderable — that is what lets the boxes be rearranged — but being movable is
   // not a reason to hang a bar over a field that did not ask for one. The badge,
   // the drag handle and the actions menu all belong to the same answer.
-  const rowCtx = session.el.hasAttribute(TOOLBAR_ATTR)
-    ? rowContextFor(win, session.el)
-    : null;
+  const rowCtx = session.el.hasAttribute(TOOLBAR_ATTR) ? rowContextFor(win, session.el) : null;
 
   if (rowCtx) {
     const chip = doc.createElement('span');
@@ -841,7 +856,8 @@ export function createEditToolbar(win, session) {
     // and border on each side is the controls' height, and the icon's box comes
     // out 1:1 without either measurement being repeated.
     chip.style.cssText =
-      pill + `flex:0 0 auto;justify-content:center;width:${SQUARE}px;height:${SQUARE}px;` +
+      pill +
+      `flex:0 0 auto;justify-content:center;width:${SQUARE}px;height:${SQUARE}px;` +
       'font-weight:600;white-space:nowrap;';
 
     const badge = rowBadge(doc, rowCtx);
@@ -1030,9 +1046,7 @@ export function createEditToolbar(win, session) {
     // rendered by its handler below; unknown names are skipped. Buttons that
     // inline editing can't perform in place (lists, quote, color) fall back to
     // opening the CP panel focused on this field.
-    const buttons = session.bardButtons?.length
-      ? session.bardButtons
-      : ['bold', 'italic', 'anchor', 'removeformat'];
+    const buttons = session.bardButtons?.length ? session.bardButtons : ['bold', 'italic', 'anchor', 'removeformat'];
     const styles = session.bardStyles || {};
 
     // Rendered in the field's own `buttons` order, no separators — mirroring
@@ -1041,9 +1055,14 @@ export function createEditToolbar(win, session) {
       if (/^h[1-6]$/.test(name)) {
         const level = Number(name.slice(1));
 
-        addBlockButton('', `Heading ${level}`, { tag: name, node: 'heading', level }, {
-          html: headingIcon(level),
-        });
+        addBlockButton(
+          '',
+          `Heading ${level}`,
+          { tag: name, node: 'heading', level },
+          {
+            html: headingIcon(level),
+          }
+        );
         continue;
       }
 
@@ -1136,17 +1155,22 @@ export function createEditToolbar(win, session) {
         if (style.type === 'span') {
           addButton('', style.name || name, () => toggleSpanClass(win, session, style.class), {
             spanClass: style.class,
-            html: letterIcon(style.ident || (style.name || name)),
+            html: letterIcon(style.ident || style.name || name),
           });
         } else {
           const tag = style.type === 'heading' ? `h${style.level || 2}` : 'p';
 
-          addBlockButton('', style.name || name, {
-            tag,
-            node: style.type === 'heading' ? 'heading' : 'paragraph',
-            level: style.level,
-            className: style.class,
-          }, { html: letterIcon(style.ident || (style.name || name)) });
+          addBlockButton(
+            '',
+            style.name || name,
+            {
+              tag,
+              node: style.type === 'heading' ? 'heading' : 'paragraph',
+              level: style.level,
+              className: style.class,
+            },
+            { html: letterIcon(style.ident || style.name || name) }
+          );
         }
 
         continue;
@@ -1173,10 +1197,15 @@ export function createEditToolbar(win, session) {
           addButton('', 'Link', () => bardCommand(win, session, 'link'), { html: ICONS.anchor });
           break;
         case 'removeformat':
-          addButton('', 'Remove Formatting', () => {
-            exec('removeFormat');
-            exec('unlink');
-          }, { html: ICONS.removeformat });
+          addButton(
+            '',
+            'Remove Formatting',
+            () => {
+              exec('removeFormat');
+              exec('unlink');
+            },
+            { html: ICONS.removeformat }
+          );
           break;
         case 'color': {
           // In-preview theme swatches — keep the edit session open. The old
@@ -1239,13 +1268,18 @@ export function createEditToolbar(win, session) {
   // message must be posted BEFORE finishEditing so the CP still has the edit
   // session (and its resolved link path) when the message arrives.
   if (session.hasLink) {
-    addButton('', 'Skift link', () => {
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.LINK_EDIT, requestId: session.requestId },
-        win.location.origin
-      );
-      finishEditing(win, false);
-    }, { html: ICONS.anchor });
+    addButton(
+      '',
+      'Skift link',
+      () => {
+        win.parent.postMessage(
+          { source: SOURCE, type: MSG.LINK_EDIT, requestId: session.requestId },
+          win.location.origin
+        );
+        finishEditing(win, false);
+      },
+      { html: ICONS.anchor }
+    );
   }
 
   // Everything that can be done to the block, behind one button at the far end —

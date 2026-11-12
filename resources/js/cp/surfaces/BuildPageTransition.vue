@@ -23,7 +23,13 @@ import { computed, inject, reactive, ref, watch } from 'vue';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { findByPath } from '../../build-mode/place.js';
 import { csrfToken } from '../../lib/csrf.js';
-import { DURATION, SITE_STYLES, cleanDuration, saveSiteTransitions, siteTransitions } from '../../page-transition-site.js';
+import {
+  DURATION,
+  SITE_STYLES,
+  cleanDuration,
+  saveSiteTransitions,
+  siteTransitions,
+} from '../../page-transition-site.js';
 import { STYLE_DURATION } from '../../page-transition-site.js';
 import {
   KEYS,
@@ -62,9 +68,13 @@ const isComponent = computed(() => props.node.kind === 'component');
 const site = siteTransitions(window, reactive);
 const durationText = ref('');
 
-watch(() => site.settings.duration, (now) => {
-  durationText.value = String(now);
-}, { immediate: true });
+watch(
+  () => site.settings.duration,
+  (now) => {
+    durationText.value = String(now);
+  },
+  { immediate: true }
+);
 
 function setSite(patch) {
   saveSiteTransitions(patch);
@@ -147,7 +157,9 @@ function setKey(next) {
 
 /* ---------------- where it lands ---------------- */
 
-const collection = computed(() => (current.value && current.value.key === KEYS.loop ? loopCollectionOf(html.value, path.value) : ''));
+const collection = computed(() =>
+  current.value && current.value.key === KEYS.loop ? loopCollectionOf(html.value, path.value) : ''
+);
 /** `{ state: 'loading'|'ready'|'none'|'error', view, type, title, file }` for the collection's template. */
 const landing = ref(null);
 const saving = ref(false);
@@ -167,7 +179,12 @@ async function readLanding(handle) {
   landing.value = { state: 'loading', view: handle };
 
   try {
-    const info = await (await fetch(`/!/sve/page-transition/landing?collection=${encodeURIComponent(handle)}`, { credentials: 'same-origin', headers: json })).json();
+    const info = await (
+      await fetch(`/!/sve/page-transition/landing?collection=${encodeURIComponent(handle)}`, {
+        credentials: 'same-origin',
+        headers: json,
+      })
+    ).json();
 
     if (ask !== asked) {
       return;
@@ -179,10 +196,18 @@ async function readLanding(handle) {
       return;
     }
 
-    const file = await (await fetch(`/!/sve/section-template?type=${encodeURIComponent(info.type)}`, { credentials: 'same-origin', headers: json })).json();
+    const file = await (
+      await fetch(`/!/sve/section-template?type=${encodeURIComponent(info.type)}`, {
+        credentials: 'same-origin',
+        headers: json,
+      })
+    ).json();
 
     if (ask === asked) {
-      landing.value = typeof file?.html === 'string' ? { state: 'ready', view: info.view, type: info.type, title: info.title, file } : { state: 'error', view: info.view };
+      landing.value =
+        typeof file?.html === 'string'
+          ? { state: 'ready', view: info.view, type: info.type, title: info.title, file }
+          : { state: 'error', view: info.view };
     }
   } catch {
     if (ask === asked) {
@@ -194,7 +219,9 @@ async function readLanding(handle) {
 watch(collection, readLanding, { immediate: true });
 
 const rows = computed(() => (landing.value?.state === 'ready' ? transitionRows(landing.value.file.html) : []));
-const partner = computed(() => rows.value.find((row) => row.pt && current.value && row.pt.pair === current.value.pair) || null);
+const partner = computed(
+  () => rows.value.find((row) => row.pt && current.value && row.pt.pair === current.value.pair) || null
+);
 
 function rowLabel(row) {
   const node = row.node;
@@ -206,8 +233,16 @@ function rowLabel(row) {
   const source = landing.value.file.html;
   const inner = node.children?.some((child) => !child.kind || child.kind === 'component')
     ? ''
-    : source.slice(node.openTo, node.to).replace(/<\/[^>]+>\s*$/, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  const klass = String(node.classes || '').split(/\s+/).find((name) => name && !name.includes('{')) || '';
+    : source
+        .slice(node.openTo, node.to)
+        .replace(/<\/[^>]+>\s*$/, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+  const klass =
+    String(node.classes || '')
+      .split(/\s+/)
+      .find((name) => name && !name.includes('{')) || '';
 
   return { tag: `<${node.tag}>`, text: [klass && `.${klass}`, inner.slice(0, 28)].filter(Boolean).join(' ') };
 }
@@ -219,7 +254,11 @@ async function land(row) {
     return;
   }
 
-  const next = withLanding(now.file.html, row.node.path, { pair: current.value.pair, key: keyFor(now.file.html, row.node.path), motion: current.value.motion });
+  const next = withLanding(now.file.html, row.node.path, {
+    pair: current.value.pair,
+    key: keyFor(now.file.html, row.node.path),
+    motion: current.value.motion,
+  });
 
   if (next === now.file.html) {
     return;
@@ -258,70 +297,167 @@ async function land(row) {
 <template>
   <div class="bm-anim-gal bm-pt" :class="{ 'is-standalone': !back }" data-sve-build-page-transition>
     <div v-if="back" class="bm-anim-gal__head">
-      <button type="button" class="bm-anim-gal__back" :aria-label="t('anim_gallery_back')" :title="t('anim_gallery_back')" data-sve-build-anim-gallery-back @click="emit('back')" v-html="BACK"></button>
+      <button
+        type="button"
+        class="bm-anim-gal__back"
+        :aria-label="t('anim_gallery_back')"
+        :title="t('anim_gallery_back')"
+        data-sve-build-anim-gallery-back
+        @click="emit('back')"
+        v-html="BACK"
+      ></button>
       <b>{{ t('anim_r_page') }}</b>
     </div>
-    <div v-else class="bm-anim-head"><span>{{ t('anim_r_page') }}</span></div>
+    <div v-else class="bm-anim-head"
+      ><span>{{ t('anim_r_page') }}</span></div
+    >
 
     <section class="bm-pt-site" data-sve-build-pt-site>
-      <div class="bm-anim-head"><span>{{ t('pt_site') }}</span></div>
+      <div class="bm-anim-head"
+        ><span>{{ t('pt_site') }}</span></div
+      >
       <div class="bm-anim-line">
         <span>{{ t('pt_site_enabled') }}</span>
         <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_enabled')">
-          <button type="button" :aria-pressed="site.settings.enabled" data-sve-build-pt-site-enabled="on" @click="setSite({ enabled: true })">{{ t('pt_on') }}</button>
-          <button type="button" :aria-pressed="!site.settings.enabled" data-sve-build-pt-site-enabled="off" @click="setSite({ enabled: false })">{{ t('pt_off') }}</button>
+          <button
+            type="button"
+            :aria-pressed="site.settings.enabled"
+            data-sve-build-pt-site-enabled="on"
+            @click="setSite({ enabled: true })"
+            >{{ t('pt_on') }}</button
+          >
+          <button
+            type="button"
+            :aria-pressed="!site.settings.enabled"
+            data-sve-build-pt-site-enabled="off"
+            @click="setSite({ enabled: false })"
+            >{{ t('pt_off') }}</button
+          >
         </span>
       </div>
       <template v-if="site.settings.enabled">
         <span class="bm-pt-label">{{ t('pt_site_style') }}</span>
         <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_style')">
-          <button v-for="s in SITE_STYLES" :key="s" type="button" :aria-pressed="site.settings.style === s" :data-sve-build-pt-site-style="s" @click="setSite({ style: s, duration: STYLE_DURATION[s] })">{{ t(`pt_style_${s}`) }}</button>
+          <button
+            v-for="s in SITE_STYLES"
+            :key="s"
+            type="button"
+            :aria-pressed="site.settings.style === s"
+            :data-sve-build-pt-site-style="s"
+            @click="setSite({ style: s, duration: STYLE_DURATION[s] })"
+            >{{ t(`pt_style_${s}`) }}</button
+          >
         </span>
         <p class="bm-anim-note">{{ t(`pt_style_hint_${site.settings.style}`) }}</p>
         <label class="bm-anim-line">
           <span>{{ t('pt_site_duration') }}</span>
           <span class="bm-pt-duration">
-            <input v-model="durationText" class="bm-anim-name" type="number" :min="DURATION.min" :max="DURATION.max" :step="DURATION.step" data-sve-build-pt-site-duration @change="setDuration" @keydown.enter="$event.target.blur()" />
+            <input
+              v-model="durationText"
+              class="bm-anim-name"
+              type="number"
+              :min="DURATION.min"
+              :max="DURATION.max"
+              :step="DURATION.step"
+              data-sve-build-pt-site-duration
+              @change="setDuration"
+              @keydown.enter="$event.target.blur()"
+            />
             s
           </span>
         </label>
         <div class="bm-anim-line">
           <span>{{ t('pt_site_header') }}</span>
           <span class="bm-anim-seg" role="group" :aria-label="t('pt_site_header')">
-            <button type="button" :aria-pressed="site.settings.header" data-sve-build-pt-site-header="on" @click="setSite({ header: true })">{{ t('pt_on') }}</button>
-            <button type="button" :aria-pressed="!site.settings.header" data-sve-build-pt-site-header="off" @click="setSite({ header: false })">{{ t('pt_off') }}</button>
+            <button
+              type="button"
+              :aria-pressed="site.settings.header"
+              data-sve-build-pt-site-header="on"
+              @click="setSite({ header: true })"
+              >{{ t('pt_on') }}</button
+            >
+            <button
+              type="button"
+              :aria-pressed="!site.settings.header"
+              data-sve-build-pt-site-header="off"
+              @click="setSite({ header: false })"
+              >{{ t('pt_off') }}</button
+            >
           </span>
         </div>
       </template>
       <p v-if="site.settings.enabled" class="bm-anim-note">{{ t('pt_site_header_hint') }}</p>
-      <p class="bm-anim-note" :class="{ 'is-warn': site.status === 'failed' }" data-sve-build-pt-site-note>{{ siteNote }}</p>
-      <p class="bm-anim-note">{{ t('pt_site_where') }} <a class="bm-pt-link" href="/" target="_blank" rel="noopener" data-sve-build-pt-site-open>{{ t('pt_site_open') }}</a></p>
+      <p class="bm-anim-note" :class="{ 'is-warn': site.status === 'failed' }" data-sve-build-pt-site-note>{{
+        siteNote
+      }}</p>
+      <p class="bm-anim-note"
+        >{{ t('pt_site_where') }}
+        <a class="bm-pt-link" href="/" target="_blank" rel="noopener" data-sve-build-pt-site-open>{{
+          t('pt_site_open')
+        }}</a></p
+      >
     </section>
 
-    <div class="bm-anim-head"><span>{{ t('pt_element') }}</span></div>
+    <div class="bm-anim-head"
+      ><span>{{ t('pt_element') }}</span></div
+    >
     <p class="bm-anim-note">{{ t('pt_hint') }}</p>
     <p v-if="isComponent" class="bm-anim-note">{{ t('pt_component_note') }}</p>
 
     <label class="bm-anim-line">
       <span>{{ t('pt_pair') }}</span>
-      <input v-model="pair" class="bm-anim-name" type="text" spellcheck="false" autocomplete="off" data-sve-build-pt-pair @change="setPair" @keydown.enter="$event.target.blur()" />
+      <input
+        v-model="pair"
+        class="bm-anim-name"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        data-sve-build-pt-pair
+        @change="setPair"
+        @keydown.enter="$event.target.blur()"
+      />
     </label>
     <div class="bm-anim-line">
       <span>{{ t('pt_match') }}</span>
       <span class="bm-anim-seg" role="group" :aria-label="t('pt_match')">
-        <button type="button" :aria-pressed="key === KEYS.page" data-sve-build-pt-key="page" @click="setKey(KEYS.page)">{{ t('pt_match_page') }}</button>
-        <button type="button" :aria-pressed="key === KEYS.loop" data-sve-build-pt-key="loop" @click="setKey(KEYS.loop)">{{ t('pt_match_loop') }}</button>
+        <button
+          type="button"
+          :aria-pressed="key === KEYS.page"
+          data-sve-build-pt-key="page"
+          @click="setKey(KEYS.page)"
+          >{{ t('pt_match_page') }}</button
+        >
+        <button
+          type="button"
+          :aria-pressed="key === KEYS.loop"
+          data-sve-build-pt-key="loop"
+          @click="setKey(KEYS.loop)"
+          >{{ t('pt_match_loop') }}</button
+        >
       </span>
     </div>
     <code class="bm-pt-name" :title="preview" data-sve-build-pt-name>{{ preview }}</code>
-    <p v-if="clash" class="bm-anim-note is-warn" data-sve-build-pt-clash>{{ t('pt_same_pair', { pair: shownPair }) }}</p>
+    <p v-if="clash" class="bm-anim-note is-warn" data-sve-build-pt-clash>{{
+      t('pt_same_pair', { pair: shownPair })
+    }}</p>
 
-    <div class="bm-anim-head"><span>{{ t('pt_motion') }}</span></div>
+    <div class="bm-anim-head"
+      ><span>{{ t('pt_motion') }}</span></div
+    >
     <div class="bm-anim-gal__grid">
       <div v-for="m in MOTIONS" :key="m" class="bm-anim-gal__cell">
-        <button type="button" class="bm-anim-gal__tile" :aria-pressed="current?.motion === m" :data-sve-build-pt-motion="m" @click="pickMotion(m)">
+        <button
+          type="button"
+          class="bm-anim-gal__tile"
+          :aria-pressed="current?.motion === m"
+          :data-sve-build-pt-motion="m"
+          @click="pickMotion(m)"
+        >
           <span class="bm-anim-gal__stage bm-pt-stage">
-            <svg viewBox="0 0 100 56" aria-hidden="true"><path class="bm-pt-base" :d="MOTION_BASE" /><path class="bm-pt-curve" :d="motionPath(m)" /></svg>
+            <svg viewBox="0 0 100 56" aria-hidden="true">
+              <path class="bm-pt-base" :d="MOTION_BASE" />
+              <path class="bm-pt-curve" :d="motionPath(m)" />
+            </svg>
           </span>
           <span class="bm-anim-gal__label">{{ t(`pt_${m}`) }} · {{ seconds(m) }}</span>
         </button>
@@ -329,14 +465,25 @@ async function land(row) {
     </div>
 
     <template v-if="landing">
-      <div class="bm-anim-head"><span>{{ t('pt_land') }}</span></div>
+      <div class="bm-anim-head"
+        ><span>{{ t('pt_land') }}</span></div
+      >
       <p v-if="landing.state === 'loading'" class="bm-anim-note">{{ t('pt_land_loading', { view: landing.view }) }}</p>
-      <p v-else-if="landing.state === 'none'" class="bm-anim-note">{{ t('pt_land_nofile', { collection: landing.title }) }}</p>
+      <p v-else-if="landing.state === 'none'" class="bm-anim-note">{{
+        t('pt_land_nofile', { collection: landing.title })
+      }}</p>
       <p v-else-if="landing.state === 'error'" class="bm-anim-note is-warn">{{ t('pt_land_error') }}</p>
       <template v-else>
-        <p v-if="partner" class="bm-pt-paired" data-sve-build-pt-paired>{{ t('pt_land_on', { view: landing.view, element: rowLabel(partner).tag + (rowLabel(partner).text ? ` ${rowLabel(partner).text}` : '') }) }}</p>
+        <p v-if="partner" class="bm-pt-paired" data-sve-build-pt-paired>{{
+          t('pt_land_on', {
+            view: landing.view,
+            element: rowLabel(partner).tag + (rowLabel(partner).text ? ` ${rowLabel(partner).text}` : ''),
+          })
+        }}</p>
         <p class="bm-anim-note">{{ partner ? t('pt_land_move') : t('pt_land_pick', { view: landing.view }) }}</p>
-        <p v-if="!partner && rows.some((row) => row.pt)" class="bm-anim-note is-warn" data-sve-build-pt-mismatch>{{ t('pt_land_mismatch', { mine: current.pair }) }}</p>
+        <p v-if="!partner && rows.some((row) => row.pt)" class="bm-anim-note is-warn" data-sve-build-pt-mismatch>{{
+          t('pt_land_mismatch', { mine: current.pair })
+        }}</p>
         <div class="bm-pt-rows" role="list" :aria-busy="saving" data-sve-build-pt-landing>
           <button
             v-for="row in rows"
@@ -350,46 +497,175 @@ async function land(row) {
             :data-sve-build-pt-land="row.node.path"
             @click="land(row)"
           >
-            <span class="bm-pt-row__tag" :class="{ 'is-comp': row.node.kind === 'component' }">{{ rowLabel(row).tag }}</span>
+            <span class="bm-pt-row__tag" :class="{ 'is-comp': row.node.kind === 'component' }">{{
+              rowLabel(row).tag
+            }}</span>
             <span class="bm-pt-row__text">{{ rowLabel(row).text }}</span>
             <span v-if="row === partner" class="bm-pt-row__ok" aria-hidden="true">✓</span>
-            <span v-else-if="row.pt" class="bm-pt-row__other" :title="t('pt_land_other', { pair: row.pt.pair, mine: current.pair })" data-sve-build-pt-other>{{ row.pt.pair }}</span>
+            <span
+              v-else-if="row.pt"
+              class="bm-pt-row__other"
+              :title="t('pt_land_other', { pair: row.pt.pair, mine: current.pair })"
+              data-sve-build-pt-other
+              >{{ row.pt.pair }}</span
+            >
           </button>
         </div>
         <p v-if="landing.failed" class="bm-anim-note is-warn">{{ t('pt_land_save_error', { view: landing.view }) }}</p>
       </template>
     </template>
 
-    <button v-if="current" type="button" class="bm-pt-remove" data-sve-build-pt-remove @click="write(null)">{{ t('pt_remove') }}</button>
+    <button v-if="current" type="button" class="bm-pt-remove" data-sve-build-pt-remove @click="write(null)">{{
+      t('pt_remove')
+    }}</button>
     <p class="bm-anim-note">{{ t('pt_note') }}</p>
   </div>
 </template>
 
 <style>
-.sve-build .bm-pt.is-standalone { padding: 0.625rem 0.75rem; }
-.sve-build .bm-pt-site { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--bm-line); }
-.sve-build .bm-pt-label { color: var(--bm-muted); font-size: 0.6875rem; }
-.sve-build .bm-pt-duration { display: flex; align-items: center; gap: 0.375rem; color: var(--bm-muted); font-size: 0.6875rem; }
-.sve-build .bm-pt-duration input { width: 4.5rem; }
-.sve-build .bm-pt .bm-anim-gal__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.sve-build .bm-pt-stage { height: 3rem; padding: 0.25rem; }
-.sve-build .bm-pt-stage svg { width: 100%; height: 100%; }
-.sve-build .bm-pt-base { fill: none; stroke: var(--bm-line); stroke-width: 1; stroke-dasharray: 2 2; }
-.sve-build .bm-pt-curve { fill: none; stroke: var(--bm-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.sve-build .bm-pt-name { align-self: start; max-width: 100%; overflow: hidden; padding: 0.125rem 0.375rem; border-radius: 0.25rem; background: var(--bm-raise); color: var(--bm-muted); font-size: 0.625rem; text-overflow: ellipsis; white-space: nowrap; }
-.sve-build .bm-pt .bm-anim-note.is-warn { color: #f0b35f; }
-.sve-build .bm-pt-paired { margin: 0; padding: 0.375rem 0.5rem; border-radius: 0.375rem; background: color-mix(in srgb, #4fd1a0 16%, transparent); color: #4fd1a0; font-size: 0.6875rem; line-height: 1.4; }
-.sve-build .bm-pt-rows { display: flex; flex-direction: column; gap: 0.125rem; max-height: 14rem; overflow: auto; padding: 0.25rem; border-radius: 0.5rem; background: var(--bm-bg); }
-.sve-build .bm-pt-row { display: flex; align-items: center; gap: 0.375rem; min-height: 1.625rem; padding-right: 0.5rem; border-radius: 0.3125rem; font-size: 0.6875rem; text-align: left; }
-.sve-build .bm-pt-row:hover:not(:disabled) { background: var(--bm-raise); }
-.sve-build .bm-pt-row[aria-pressed='true'] { background: color-mix(in srgb, var(--bm-accent) 22%, transparent); }
-.sve-build .bm-pt-row:disabled { opacity: 0.6; cursor: progress; }
-.sve-build .bm-pt-row__tag { flex: none; color: #e88cc4; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.625rem; }
-.sve-build .bm-pt-row__tag.is-comp { color: #4fd1a0; }
-.sve-build .bm-pt-row__text { min-width: 0; overflow: hidden; color: var(--bm-muted); text-overflow: ellipsis; white-space: nowrap; }
-.sve-build .bm-pt-row__ok { margin-left: auto; color: #4fd1a0; font-weight: 700; }
-.sve-build .bm-pt-row__other { flex: none; margin-left: auto; padding: 0 0.3125rem; border-radius: 0.25rem; background: color-mix(in srgb, #f0b35f 18%, transparent); color: #f0b35f; font-size: 0.625rem; }
-.sve-build .bm-pt-link { color: var(--bm-accent); text-decoration: underline; }
-.sve-build .bm-pt-remove { align-self: start; color: var(--bm-muted); font-size: 0.6875rem; text-decoration: underline; }
-.sve-build .bm-pt-remove:hover { color: var(--bm-ink); }
+.sve-build .bm-pt.is-standalone {
+  padding: 0.625rem 0.75rem;
+}
+.sve-build .bm-pt-site {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--bm-line);
+}
+.sve-build .bm-pt-label {
+  color: var(--bm-muted);
+  font-size: 0.6875rem;
+}
+.sve-build .bm-pt-duration {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--bm-muted);
+  font-size: 0.6875rem;
+}
+.sve-build .bm-pt-duration input {
+  width: 4.5rem;
+}
+.sve-build .bm-pt .bm-anim-gal__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.sve-build .bm-pt-stage {
+  height: 3rem;
+  padding: 0.25rem;
+}
+.sve-build .bm-pt-stage svg {
+  width: 100%;
+  height: 100%;
+}
+.sve-build .bm-pt-base {
+  fill: none;
+  stroke: var(--bm-line);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.sve-build .bm-pt-curve {
+  fill: none;
+  stroke: var(--bm-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sve-build .bm-pt-name {
+  align-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--bm-raise);
+  color: var(--bm-muted);
+  font-size: 0.625rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-build .bm-pt .bm-anim-note.is-warn {
+  color: #f0b35f;
+}
+.sve-build .bm-pt-paired {
+  margin: 0;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, #4fd1a0 16%, transparent);
+  color: #4fd1a0;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+.sve-build .bm-pt-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  background: var(--bm-bg);
+}
+.sve-build .bm-pt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.625rem;
+  padding-right: 0.5rem;
+  border-radius: 0.3125rem;
+  font-size: 0.6875rem;
+  text-align: left;
+}
+.sve-build .bm-pt-row:hover:not(:disabled) {
+  background: var(--bm-raise);
+}
+.sve-build .bm-pt-row[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--bm-accent) 22%, transparent);
+}
+.sve-build .bm-pt-row:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.sve-build .bm-pt-row__tag {
+  flex: none;
+  color: #e88cc4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem;
+}
+.sve-build .bm-pt-row__tag.is-comp {
+  color: #4fd1a0;
+}
+.sve-build .bm-pt-row__text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bm-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-build .bm-pt-row__ok {
+  margin-left: auto;
+  color: #4fd1a0;
+  font-weight: 700;
+}
+.sve-build .bm-pt-row__other {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.3125rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, #f0b35f 18%, transparent);
+  color: #f0b35f;
+  font-size: 0.625rem;
+}
+.sve-build .bm-pt-link {
+  color: var(--bm-accent);
+  text-decoration: underline;
+}
+.sve-build .bm-pt-remove {
+  align-self: start;
+  color: var(--bm-muted);
+  font-size: 0.6875rem;
+  text-decoration: underline;
+}
+.sve-build .bm-pt-remove:hover {
+  color: var(--bm-ink);
+}
 </style>

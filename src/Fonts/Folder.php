@@ -31,13 +31,13 @@ final class Folder
     /** Can this server's PHP add files and write fonts.css? */
     public static function writable(): bool
     {
-        $root = static::path();
+        $root = self::path();
 
         if (! is_dir($root)) {
             return is_writable(dirname($root));
         }
 
-        $css = static::path(self::STYLESHEET);
+        $css = self::path(self::STYLESHEET);
 
         return is_writable($root) && (! is_file($css) || is_writable($css));
     }
@@ -45,7 +45,7 @@ final class Folder
     /** `Barlow Condensed` → `barlow-condensed`: the family's folder and file prefix. */
     public static function slug(string $name): string
     {
-        $slug = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', static::ascii($name)));
+        $slug = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', self::ascii($name)));
 
         return trim($slug, '-') ?: 'font';
     }
@@ -74,7 +74,7 @@ final class Folder
 
         for ($n = 1; $n < 100; $n++) {
             $candidate = $dir.$info['filename'].($n === 1 ? '' : '-'.$n).$ext;
-            $path = static::path($candidate);
+            $path = self::path($candidate);
 
             if (is_file($path)) {
                 if (hash_file('sha256', $path) === hash('sha256', $bytes)) {

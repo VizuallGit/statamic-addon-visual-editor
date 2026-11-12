@@ -25,7 +25,12 @@ export const VISUAL_EDIT_PARTS = [
   { id: 'insertable', attr: 'insertable="true"', key: 'code_dock_help_ve_insertable' },
   { id: 'popup', attr: 'popup="true"', key: 'code_dock_help_ve_popup' },
   { id: 'toolbar', attr: 'toolbar="true"', key: 'code_dock_help_ve_toolbar' },
-  { id: 'section_orderable', attr: 'section_orderable="true"', key: 'code_dock_help_ve_section_orderable', only: 'section' },
+  {
+    id: 'section_orderable',
+    attr: 'section_orderable="true"',
+    key: 'code_dock_help_ve_section_orderable',
+    only: 'section',
+  },
 ];
 
 /**
@@ -59,11 +64,20 @@ export function visualEditPartRows(source, open) {
     return [];
   }
 
-  return VISUAL_EDIT_PARTS.filter((part) => (!part.only || part.only === open.name) && !hasAttr(tag.inner, part.id)).map(
-    (part) =>
-      part.attr
-        ? partRow(tag, `ve:${part.id}`, part.key, {}, part.attr)
-        : { id: `ve:${part.id}`, key: part.key, args: {}, meta: part.id, changes: [], selection: null, after: 'visual-edit-field' }
+  return VISUAL_EDIT_PARTS.filter(
+    (part) => (!part.only || part.only === open.name) && !hasAttr(tag.inner, part.id)
+  ).map((part) =>
+    part.attr
+      ? partRow(tag, `ve:${part.id}`, part.key, {}, part.attr)
+      : {
+          id: `ve:${part.id}`,
+          key: part.key,
+          args: {},
+          meta: part.id,
+          changes: [],
+          selection: null,
+          after: 'visual-edit-field',
+        }
   );
 }
 
@@ -79,7 +93,15 @@ export function visualEditFieldRows(source, open, rows) {
     return [];
   }
 
-  return rows.map((row) => partRow(tag, `ve:field:${row.var}`, 'code_dock_help_ve_field_name', { name: row.label || row.var }, `field="${row.var}"`));
+  return rows.map((row) =>
+    partRow(
+      tag,
+      `ve:field:${row.var}`,
+      'code_dock_help_ve_field_name',
+      { name: row.label || row.var },
+      `field="${row.var}"`
+    )
+  );
 }
 
 function partRow(tag, id, key, args, attr) {

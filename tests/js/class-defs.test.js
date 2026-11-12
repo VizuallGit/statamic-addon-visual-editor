@@ -9,7 +9,7 @@ test('fills the empty rule the bracket sync made', () => {
   );
 });
 
-test('keeps what the rule has and adds only the lines it lacks — in front, so the file\'s own win', () => {
+test("keeps what the rule has and adds only the lines it lacks — in front, so the file's own win", () => {
   assert.equal(
     fillClassRule('.a {\n    color: red;\n}\n', 'a', 'color: red\ngap: 1rem'),
     '.a {\n    gap: 1rem;\n    color: red;\n}\n'

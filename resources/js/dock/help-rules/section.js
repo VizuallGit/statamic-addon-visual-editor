@@ -32,7 +32,11 @@ export function sectionRule(ctx) {
     return [];
   }
 
-  let next = afterName(open.text, 'section', `${id[0].trim()}${hasAttr(open.masked, 'class') || !klass ? '' : ` ${klass[0].trim()}`}`);
+  let next = afterName(
+    open.text,
+    'section',
+    `${id[0].trim()}${hasAttr(open.masked, 'class') || !klass ? '' : ` ${klass[0].trim()}`}`
+  );
 
   if (edit) {
     next = withVisualEdit(next, edit[0]);

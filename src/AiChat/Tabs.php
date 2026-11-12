@@ -68,7 +68,7 @@ final class Tabs
     {
         abort_if($userId === '', 403);
 
-        $this->dir = static::root().'/'.substr(sha1($userId), 0, 24);
+        $this->dir = self::root().'/'.substr(sha1($userId), 0, 24);
     }
 
     public static function root(): string
@@ -201,16 +201,16 @@ final class Tabs
     {
         abort_unless($this->validId($id) && is_file($this->chatPath($id)), 404);
         abort_unless($file->isValid(), 422, 'The image did not arrive.');
-        abort_if($file->getSize() > static::MAX_IMAGE_BYTES, 422, 'The image is larger than 8 MB.');
+        abort_if($file->getSize() > self::MAX_IMAGE_BYTES, 422, 'The image is larger than 8 MB.');
 
         $mime = (string) $file->getMimeType();
 
-        abort_unless(isset(static::IMAGE_TYPES[$mime]), 422, 'Only PNG, JPEG, WebP and GIF images.');
+        abort_unless(isset(self::IMAGE_TYPES[$mime]), 422, 'Only PNG, JPEG, WebP and GIF images.');
 
         $imageId = strtolower(Str::random(20));
 
         File::ensureDirectoryExists($this->imageDir($id));
-        $file->move($this->imageDir($id), $imageId.'.'.static::IMAGE_TYPES[$mime]);
+        $file->move($this->imageDir($id), $imageId.'.'.self::IMAGE_TYPES[$mime]);
 
         return ['id' => $imageId, 'mime' => $mime];
     }
@@ -221,7 +221,7 @@ final class Tabs
             return null;
         }
 
-        foreach (static::IMAGE_TYPES as $ext) {
+        foreach (self::IMAGE_TYPES as $ext) {
             $path = $this->imageDir($id).'/'.$imageId.'.'.$ext;
 
             if (is_file($path)) {
@@ -420,7 +420,7 @@ final class Tabs
         $chat['pending'] = ['run' => $run, 'since' => time(), 'mode' => $item['mode'], 'model' => $item['model'] ?? null];
 
         if ($chat['title'] === '' && $item['text'] !== '') {
-            $chat['title'] = static::titleOf($item['text']);
+            $chat['title'] = self::titleOf($item['text']);
         }
 
         return $run;
@@ -459,7 +459,7 @@ final class Tabs
 
         $images = [];
 
-        foreach (array_slice($attached, -static::MAX_AGENT_IMAGES) as $imageId) {
+        foreach (array_slice($attached, -self::MAX_AGENT_IMAGES) as $imageId) {
             $path = $this->imagePath($chat['id'], $imageId);
 
             if ($path) {
@@ -592,7 +592,7 @@ final class Tabs
         $chat += ['title' => '', 'draft' => '', 'draft_images' => [], 'model' => null, 'pending' => null, 'queue' => [], 'paused' => false, 'messages' => [], 'updated_at' => 0];
         $chat['id'] = $id;
 
-        if ($settle && $chat['pending'] !== null && (int) ($chat['pending']['since'] ?? 0) < time() - static::PENDING_TIMEOUT) {
+        if ($settle && $chat['pending'] !== null && (int) ($chat['pending']['since'] ?? 0) < time() - self::PENDING_TIMEOUT) {
             $chat['messages'][] = ['role' => 'assistant', 'kind' => 'lost', 'content' => '', 'at' => time()];
             $chat['pending'] = null;
             $this->writeChat($chat);
@@ -643,7 +643,7 @@ final class Tabs
         }
 
         foreach (File::files($dir) as $file) {
-            if (! isset($keep[$file->getFilenameWithoutExtension()]) && $file->getMTime() < time() - static::ORPHAN_AGE) {
+            if (! isset($keep[$file->getFilenameWithoutExtension()]) && $file->getMTime() < time() - self::ORPHAN_AGE) {
                 File::delete($file->getPathname());
             }
         }
@@ -658,7 +658,7 @@ final class Tabs
     {
         $ext = pathinfo((string) $this->imagePath($id, $imageId), PATHINFO_EXTENSION);
 
-        return (string) (array_search($ext, static::IMAGE_TYPES, true) ?: 'image/png');
+        return (string) (array_search($ext, self::IMAGE_TYPES, true) ?: 'image/png');
     }
 
     private function chatPath(string $id): string

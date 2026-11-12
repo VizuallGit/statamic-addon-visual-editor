@@ -12,7 +12,7 @@ use MarioHamann\StatamicVisualEditor\VisualEditAntlers;
  */
 final class SetAttributes
 {
-    use ResolvesScope, ResolvesFields, ResolvesIcons;
+    use ResolvesFields, ResolvesIcons, ResolvesScope;
 
     private Attributes $attributes;
 

@@ -16,17 +16,31 @@
           :class="{ 'is-on': ui.button['button-font'] === choice.value }"
           :aria-checked="ui.button['button-font'] === choice.value"
           @click="h.onButton('button-font', choice.value)"
-        >{{ ui.labels[choice.label] }}</button>
+          >{{ ui.labels[choice.label] }}</button
+        >
       </div>
     </div>
 
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.button_size }}</span>
       <span class="sve-theme__input">
-        <select :value="sizeRef(ui.button['button-size']) || ''" @change="h.onButton('button-size', `var(--${$event.target.value})`)">
+        <select
+          :value="sizeRef(ui.button['button-size']) || ''"
+          @change="h.onButton('button-size', `var(--${$event.target.value})`)"
+        >
           <option v-for="s in ui.sizes" :key="s.key" :value="s.name">{{ s.name }} · {{ sizeLabel(s) }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
 
@@ -36,7 +50,17 @@
         <select :value="weight" @change="h.onButton('button-weight', $event.target.value)">
           <option v-for="[name, value] in WEIGHTS" :key="value" :value="value">{{ name }} · {{ value }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
 
@@ -44,9 +68,21 @@
       <span class="sve-theme__label">{{ ui.labels.button_radius }}</span>
       <span class="sve-theme__input">
         <select :value="radius" @change="h.onButton('button-radius', $event.target.value)">
-          <option v-for="[name, value] in radiiWith(radius)" :key="value" :value="value">{{ name ? `${name} · ${value}` : value }}</option>
+          <option v-for="[name, value] in radiiWith(radius)" :key="value" :value="value">{{
+            name ? `${name} · ${value}` : value
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
 
@@ -60,7 +96,8 @@
         :aria-checked="ui.button['button-transform'] === 'uppercase'"
         :aria-label="ui.labels.button_uppercase"
         @click="h.onButton('button-transform', ui.button['button-transform'] === 'uppercase' ? 'none' : 'uppercase')"
-      ><span></span></button>
+        ><span></span
+      ></button>
     </div>
   </div>
 </template>

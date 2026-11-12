@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\IconifyDefault;
 
+use Statamic\Facades\Fieldset;
 use Statamic\Fields\Value;
 
 /**
@@ -64,7 +65,7 @@ final class Defaults
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
             if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+                $fieldset = Fieldset::find($item['import']);
 
                 if ($fieldset) {
                     self::collectIconifyDefaults($fieldset->contents(), $handle, $matches, $enclosingSet, $depth + 1);
@@ -76,8 +77,8 @@ final class Defaults
             $field = $item['field'] ?? null;
 
             if (is_string($field)) {
-                $fieldset = \Statamic\Facades\Fieldset::find($field)
-                    ?: \Statamic\Facades\Fieldset::find(strstr($field, '.', true) ?: '');
+                $fieldset = Fieldset::find($field)
+                    ?: Fieldset::find(strstr($field, '.', true) ?: '');
 
                 if ($fieldset) {
                     self::collectIconifyDefaults($fieldset->contents(), $handle, $matches, $enclosingSet, $depth + 1);

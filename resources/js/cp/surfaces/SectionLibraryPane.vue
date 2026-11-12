@@ -15,28 +15,44 @@ defineProps({
         <!-- Automatic / manual, as the HTML dock saves; previews-watch.js paints
              both and hides the save button while automatic is on. -->
         <button type="button" data-sve-previews-auto aria-pressed="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3" />
+            <path d="M21 3.2v5.4h-5.4" />
+          </svg>
           <span data-sve-previews-spinner aria-hidden="true"></span>
         </button>
-        <button
-          type="button"
-          data-sve-previews-refresh
-          :aria-label="refreshLabel"
-          :title="refreshLabel"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+        <button type="button" data-sve-previews-refresh :aria-label="refreshLabel" :title="refreshLabel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+            />
+            <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+            <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+          </svg>
           <span data-sve-previews-spinner aria-hidden="true"></span>
         </button>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
     </div>
     <div data-sve-hint class="sve-pane-hint">{{ hint }}</div>
     <div data-sve-tabs></div>
     <div data-sve-search-wrap>
-      <input data-sve-search type="text" autocomplete="sve-off" :placeholder="searchPlaceholder">
+      <input data-sve-search type="text" autocomplete="sve-off" :placeholder="searchPlaceholder" />
     </div>
     <div data-sve-groups-wrap>
       <div data-sve-groups></div>

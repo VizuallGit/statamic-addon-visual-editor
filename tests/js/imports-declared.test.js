@@ -9,12 +9,17 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'resources', 'js');
-const walk = (dir) => readdirSync(dir).flatMap((name) => { const path = join(dir, name); return statSync(path).isDirectory() ? walk(path) : path.endsWith('.js') ? [path] : []; });
+const walk = (dir) =>
+  readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    return statSync(path).isDirectory() ? walk(path) : path.endsWith('.js') ? [path] : [];
+  });
 const files = walk(ROOT);
 // Comments blanked, lines kept: a name in a comment is neither a call nor a declaration.
-const noBlockComments = (source) => source
-  .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-  .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, (m, before) => before + ' '.repeat(m.length - before.length));
+const noBlockComments = (source) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, (m, before) => before + ' '.repeat(m.length - before.length));
 const IDENT = '[A-Za-z_$][\\w$]*';
 
 test('no import statement is swallowed by a comment', () => {
@@ -41,9 +46,16 @@ test('every function a module calls from a sibling module is imported there', ()
     const source = noBlockComments(readFileSync(file, 'utf8'));
     const names = new Set();
 
-    for (const m of source.matchAll(new RegExp(`^export\\s+(?:async\\s+)?function\\s*\\*?\\s*(${IDENT})`, 'gm'))) names.add(m[1]);
+    for (const m of source.matchAll(new RegExp(`^export\\s+(?:async\\s+)?function\\s*\\*?\\s*(${IDENT})`, 'gm')))
+      names.add(m[1]);
     for (const m of source.matchAll(/^export\s*\{([^}]*)\}/gm)) {
-      m[1].split(',').forEach((part) => { const name = part.trim().split(/\s+as\s+/).pop(); if (name) names.add(name); });
+      m[1].split(',').forEach((part) => {
+        const name = part
+          .trim()
+          .split(/\s+as\s+/)
+          .pop();
+        if (name) names.add(name);
+      });
     }
 
     names.forEach((name) => owners.set(name, [...(owners.get(name) || []), file]));
@@ -71,7 +83,12 @@ test('every function a module calls from a sibling module is imported there', ()
         new RegExp(`\\b${name}\\b(?!\\s*\\()`).test(source);
 
       if (!declared) {
-        missing.push(`${relative(ROOT, file)}:${source.slice(0, m.index).split('\n').length} ${name} (exported by ${owners.get(name).map((f) => relative(ROOT, f)).join(', ')})`);
+        missing.push(
+          `${relative(ROOT, file)}:${source.slice(0, m.index).split('\n').length} ${name} (exported by ${owners
+            .get(name)
+            .map((f) => relative(ROOT, f))
+            .join(', ')})`
+        );
       }
     }
   }

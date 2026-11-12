@@ -159,11 +159,7 @@ Statamic.booting(() => {
 function pageIsLivePreview() {
   const params = new URLSearchParams(window.location.search);
 
-  return (
-    params.has('live-preview') ||
-    params.has('sve-panel') ||
-    (document.referrer || '').includes('live-preview=')
-  );
+  return params.has('live-preview') || params.has('sve-panel') || (document.referrer || '').includes('live-preview=');
 }
 
 // 1. Live Preview: load now.

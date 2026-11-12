@@ -111,11 +111,12 @@ function groupSlotAt(bar, x, dragged) {
     return null;
   }
 
-  const next = shown.find((box) => {
-    const rect = box.getBoundingClientRect();
+  const next =
+    shown.find((box) => {
+      const rect = box.getBoundingClientRect();
 
-    return rect.left + rect.width / 2 > x;
-  }) || null;
+      return rect.left + rect.width / 2 > x;
+    }) || null;
 
   return { index: next ? others.indexOf(next) : others.length, next, last: shown[shown.length - 1] };
 }
@@ -175,17 +176,29 @@ function slotAt(bar, x) {
 
     if (x >= left && x <= right) {
       const tools = groupTools(boxes[i]);
-      const before = tools.find((node) => {
-        const box = node.getBoundingClientRect();
+      const before =
+        tools.find((node) => {
+          const box = node.getBoundingClientRect();
 
-        return box.left + box.width / 2 > x;
-      }) || null;
+          return box.left + box.width / 2 > x;
+        }) || null;
 
-      return { groupId: boxes[i].getAttribute(TOOLBAR_GROUP_ATTR), beforeKey: before ? toolKey(before) : null, box: boxes[i], before, tools };
+      return {
+        groupId: boxes[i].getAttribute(TOOLBAR_GROUP_ATTR),
+        beforeKey: before ? toolKey(before) : null,
+        box: boxes[i],
+        before,
+        tools,
+      };
     }
 
     if (i < boxes.length - 1 && x > rect.right && x < rects[i + 1].left) {
-      return { newGroupIndex: all.indexOf(boxes[i + 1]), rects, at: (rect.right + rects[i + 1].left) / 2, align: 'centre' };
+      return {
+        newGroupIndex: all.indexOf(boxes[i + 1]),
+        rects,
+        at: (rect.right + rects[i + 1].left) / 2,
+        align: 'centre',
+      };
     }
   }
 
@@ -216,7 +229,8 @@ function isSamePlace(slot, source) {
     // bar — also with groups nobody sees (all hidden) between the two places.
     const all = allBoxes(box.parentElement);
     const boxIndex = all.indexOf(box);
-    const [lo, hi] = slot.newGroupIndex <= boxIndex ? [slot.newGroupIndex, boxIndex] : [boxIndex + 1, slot.newGroupIndex];
+    const [lo, hi] =
+      slot.newGroupIndex <= boxIndex ? [slot.newGroupIndex, boxIndex] : [boxIndex + 1, slot.newGroupIndex];
 
     return tools.length === 1 && all.slice(lo, hi).every((el) => !isShown(el));
   }
@@ -412,7 +426,12 @@ function onKey(event) {
 
 function onDown(win, bar, event) {
   // Touch scrolls and taps as before: only mouse and pen drag.
-  if (event.button !== 0 || !event.isPrimary || event.pointerType === 'touch' || !(event.target instanceof win.Element)) {
+  if (
+    event.button !== 0 ||
+    !event.isPrimary ||
+    event.pointerType === 'touch' ||
+    !(event.target instanceof win.Element)
+  ) {
     return;
   }
 

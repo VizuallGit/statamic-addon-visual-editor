@@ -68,7 +68,11 @@ export function setPanelSelection(selection) {
 
 /** The page's own context: the one named 'base', else the oldest. */
 export function pageContext() {
-  return panelStore.ctxs.find((ctx) => containerContextName(ctx) === 'base') || panelStore.ctxs[panelStore.ctxs.length - 1] || null;
+  return (
+    panelStore.ctxs.find((ctx) => containerContextName(ctx) === 'base') ||
+    panelStore.ctxs[panelStore.ctxs.length - 1] ||
+    null
+  );
 }
 
 function contextNamed(name) {

@@ -3,7 +3,15 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui, readHtmlTreeLayers, setHtmlTreeLayers } from '../html-tree/store.js';
-import { canCreateSections, chooseSectionKind, insertTemplateElement, openImportDialog, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
+import {
+  canCreateSections,
+  chooseSectionKind,
+  insertTemplateElement,
+  openImportDialog,
+  openNewSectionDialog,
+  openStaticSectionDialog,
+  revealWhenRendered,
+} from '../../section-create.js';
 import { TEMPLATE_TAGS } from '../../template-elements.js';
 import { defaultSectionField } from '../../lib/config.js';
 import { openCpOverlay } from '../open-overlay.js';
@@ -116,9 +124,11 @@ function pickedRow() {
   // Inside a locked element nothing new goes in: it goes after the whole
   // locked element instead — the outermost lock around the picked row.
   if (row?.lockedIn) {
-    return ui.rows
-      .filter((item) => item.locked && item.from <= row.from && item.to >= row.to)
-      .sort((a, b) => a.from - b.from)[0] || null;
+    return (
+      ui.rows
+        .filter((item) => item.locked && item.from <= row.from && item.to >= row.to)
+        .sort((a, b) => a.from - b.from)[0] || null
+    );
   }
 
   return row;
@@ -134,22 +144,24 @@ function openElementMenu(anchor) {
   const after = pickedRow();
   let menu = null;
 
-  const add = (tag, name, note = '') => () => {
-    menu?.dismiss();
-    menu = null;
-    release();
+  const add =
+    (tag, name, note = '') =>
+    () => {
+      menu?.dismiss();
+      menu = null;
+      release();
 
-    const at = insertTemplateElement(window, tag, after, name);
+      const at = insertTemplateElement(window, tag, after, name);
 
-    if (at !== null) {
-      ui.selectFrom = { at, left: 4 };
+      if (at !== null) {
+        ui.selectFrom = { at, left: 4 };
 
-      // A loop over a field the pages do not have draws nothing yet.
-      if (note) {
-        window.Statamic?.$toast?.info?.(note);
+        // A loop over a field the pages do not have draws nothing yet.
+        if (note) {
+          window.Statamic?.$toast?.info?.(note);
+        }
       }
-    }
-  };
+    };
 
   menu = openCpOverlay(document, HtmlTreeMenu, {
     items: [
@@ -157,14 +169,16 @@ function openElementMenu(anchor) {
       // section for it is made here too — with a list of its own, there is no
       // other way to the first one.
       ...(ui.newSectionToo
-        ? [{
-            label: newSectionLabel,
-            onPick: () => {
-              menu?.dismiss();
-              menu = null;
-              makePageSection(ui.lastSectionUid || null);
+        ? [
+            {
+              label: newSectionLabel,
+              onPick: () => {
+                menu?.dismiss();
+                menu = null;
+                makePageSection(ui.lastSectionUid || null);
+              },
             },
-          }]
+          ]
         : []),
       ...TEMPLATE_TAGS.map((tag) => ({ label: tag, onPick: add(tag, `<${tag}>`) })),
       ...sectionsItems().map((item) => ({
@@ -317,7 +331,19 @@ function setQuery(value) {
         ></button>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
     </div>
@@ -355,61 +381,74 @@ function setQuery(value) {
             class="sve-ht-used-by__chip sve-ht-used-by__chip--open"
             :title="item.openLabel"
             @click="item.onOpen($event.currentTarget)"
-          >{{ item.name }}</button>
+            >{{ item.name }}</button
+          >
           <span v-else class="sve-ht-used-by__chip">{{ item.name }}</span>
         </template>
         <span v-if="ui.usedBy.empty" class="sve-ht-used-by__empty">{{ ui.usedBy.empty }}</span>
       </span>
     </div>
     <div class="sve-ht-tools">
-    <label class="sve-ht-search" :title="searchLabel">
-      <span class="sve-ht-search__icon" aria-hidden="true" v-html="SEARCH"></span>
-      <input
-        type="text"
-        class="sve-ht-search__input"
-        data-sve-ht-search
-        :placeholder="searchLabel"
-        :aria-label="searchLabel"
-        :value="ui.query"
-        autocomplete="off"
-        spellcheck="false"
-        @input="setQuery($event.target.value)"
-        @keydown.stop
-        @keydown.escape.prevent="setQuery('')"
-      >
+      <label class="sve-ht-search" :title="searchLabel">
+        <span class="sve-ht-search__icon" aria-hidden="true" v-html="SEARCH"></span>
+        <input
+          type="text"
+          class="sve-ht-search__input"
+          data-sve-ht-search
+          :placeholder="searchLabel"
+          :aria-label="searchLabel"
+          :value="ui.query"
+          autocomplete="off"
+          spellcheck="false"
+          @input="setQuery($event.target.value)"
+          @keydown.stop
+          @keydown.escape.prevent="setQuery('')"
+        />
+        <button
+          v-if="ui.query"
+          type="button"
+          class="sve-ht-search__clear"
+          :aria-label="searchLabel"
+          v-html="CLEAR"
+          @click="setQuery('')"
+        ></button>
+      </label>
       <button
-        v-if="ui.query"
+        v-if="
+          canCreate &&
+          ((ui.sections.length && !ui.sectionsInLoop) ||
+            ui.pageBuilder ||
+            (ui.rows.length && !ui.layoutFile) ||
+            ui.emptyFile)
+        "
         type="button"
-        class="sve-ht-search__clear"
-        :aria-label="searchLabel"
-        v-html="CLEAR"
-        @click="setQuery('')"
+        class="sve-ht-new"
+        :title="(ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder ? newSectionLabel : addElementLabel"
+        :aria-label="(ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder ? newSectionLabel : addElementLabel"
+        v-html="PLUS"
+        @click="onNewSection"
       ></button>
-    </label>
-    <button
-      v-if="canCreate && ((ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder || (ui.rows.length && !ui.layoutFile) || ui.emptyFile)"
-      type="button"
-      class="sve-ht-new"
-      :title="(ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder ? newSectionLabel : addElementLabel"
-      :aria-label="(ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder ? newSectionLabel : addElementLabel"
-      v-html="PLUS"
-      @click="onNewSection"
-    ></button>
-    <!--
+      <!--
       Beside the plus, on the same terms: markup written somewhere else — a
       Tailwind UI block, a snippet from a pen — pasted in and made into a
       section of ours rather than retyped. The plus makes an empty one; this
       one arrives with the markup already in it.
     -->
-    <button
-      v-if="canCreate && ((ui.sections.length && !ui.sectionsInLoop) || ui.pageBuilder || (ui.rows.length && !ui.layoutFile) || ui.emptyFile)"
-      type="button"
-      class="sve-ht-import"
-      :title="importLabel"
-      :aria-label="importLabel"
-      v-html="IMPORT"
-      @click="onImport"
-    ></button>
+      <button
+        v-if="
+          canCreate &&
+          ((ui.sections.length && !ui.sectionsInLoop) ||
+            ui.pageBuilder ||
+            (ui.rows.length && !ui.layoutFile) ||
+            ui.emptyFile)
+        "
+        type="button"
+        class="sve-ht-import"
+        :title="importLabel"
+        :aria-label="importLabel"
+        v-html="IMPORT"
+        @click="onImport"
+      ></button>
     </div>
     <!--
       Only when there is no Live Preview column to draw them in. Inside a
@@ -425,12 +464,9 @@ function setQuery(value) {
          The left column carries it instead whenever it has taken the fields. -->
     <div v-if="ui.exitOpen && !componentPropsUi.inSidebar" class="sve-tree-exit">
       <span class="sve-tree-exit__name" :title="ui.exitName">{{ ui.exitName }}</span>
-      <button
-        type="button"
-        class="sve-tree-exit__go"
-        :title="ui.exitTitle"
-        @click="ui.onExit?.()"
-      >{{ ui.exitLabel }}</button>
+      <button type="button" class="sve-tree-exit__go" :title="ui.exitTitle" @click="ui.onExit?.()">{{
+        ui.exitLabel
+      }}</button>
     </div>
   </div>
 </template>
@@ -457,7 +493,7 @@ function setQuery(value) {
 [data-sve-ht-layers-switch]:hover {
   opacity: 0.85;
 }
-[data-sve-ht-layers-switch][aria-pressed="true"] {
+[data-sve-ht-layers-switch][aria-pressed='true'] {
   opacity: 1;
 }
 [data-sve-ht-layers-switch]:focus-visible {
@@ -518,7 +554,10 @@ function setQuery(value) {
   all: unset;
   flex: 1 1 auto;
   min-width: 0;
-  font: 500 12px/1.3 ui-sans-serif, system-ui, sans-serif;
+  font:
+    500 12px/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
   color: inherit;
 }
 .sve-ht-search__input::placeholder {
@@ -589,7 +628,10 @@ function setQuery(value) {
   padding: 0.5rem 0.625rem 0.5625rem;
   border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.1);
-  font: 500 0.6875rem/1.3 ui-sans-serif, system-ui, sans-serif;
+  font:
+    500 0.6875rem/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 .sve-ht-used-by__label {
   display: inline-flex;

@@ -41,7 +41,11 @@ const LIST = [
   { handle: 'tablet', device: 'Tablet', label: 'Tablet', base: false },
   { handle: 'mobile', device: 'Mobile', label: 'Mobile', base: false },
 ];
-const DEVICES = { Desktop: { width: 1440, height: 900 }, Tablet: { width: 810, height: 1080 }, Mobile: { width: 375, height: 812 } };
+const DEVICES = {
+  Desktop: { width: 1440, height: 900 },
+  Tablet: { width: 810, height: 1080 },
+  Mobile: { width: 375, height: 812 },
+};
 
 test('one frame per breakpoint, narrowest first, at the device preset width', () => {
   assert.deepEqual(overviewFrames(LIST, DEVICES), [
@@ -59,14 +63,29 @@ test('the frame count follows the list — five sizes, five frames', () => {
     { handle: 'phablet', device: 'Phablet' },
     { handle: 'mobile', device: 'Mobile' },
   ];
-  const widths = { Wide: { width: 1920 }, Laptop: { width: 1280 }, Tablet: { width: 810 }, Phablet: { width: 600 }, Mobile: { width: 375 } };
+  const widths = {
+    Wide: { width: 1920 },
+    Laptop: { width: 1280 },
+    Tablet: { width: 810 },
+    Phablet: { width: 600 },
+    Mobile: { width: 375 },
+  };
 
-  assert.deepEqual(overviewFrames(five, widths).map((frame) => frame.width), [375, 600, 810, 1280, 1920]);
+  assert.deepEqual(
+    overviewFrames(five, widths).map((frame) => frame.width),
+    [375, 600, 810, 1280, 1920]
+  );
 });
 
 test('the base size falls back to 1440 as applyLpDevice does; a size with no width is left out', () => {
-  assert.deepEqual(overviewFrames(LIST, {}).map((frame) => [frame.handle, frame.width]), [['laptop', 1440]]);
-  assert.deepEqual(overviewFrames(LIST, null).map((frame) => frame.handle), ['laptop']);
+  assert.deepEqual(
+    overviewFrames(LIST, {}).map((frame) => [frame.handle, frame.width]),
+    [['laptop', 1440]]
+  );
+  assert.deepEqual(
+    overviewFrames(LIST, null).map((frame) => frame.handle),
+    ['laptop']
+  );
   assert.deepEqual(overviewFrames(null, DEVICES), []);
 });
 
@@ -83,7 +102,10 @@ test('the view URL keeps the token and adds the view flag once', () => {
   assert.equal(out.searchParams.get('token'), 'qJYs');
   assert.equal(out.pathname, '/landing');
   assert.equal(viewUrl(viewUrl(url)), viewUrl(url));
-  assert.equal(viewUrl('/landing?token=x', 'http://site.test/cp/entries/1'), 'http://site.test/landing?token=x&sve_view=1');
+  assert.equal(
+    viewUrl('/landing?token=x', 'http://site.test/cp/entries/1'),
+    'http://site.test/landing?token=x&sve_view=1'
+  );
   assert.equal(new URL(viewUrl(url, undefined, 'mobile')).searchParams.get(VIEW_FLAG), 'mobile');
   assert.notEqual(viewUrl(url, undefined, 'mobile'), viewUrl(url, undefined, 'tablet'));
   assert.equal(viewUrl(''), '');
@@ -105,8 +127,13 @@ test('the unsaved-work flags the preview fetches with ride along on a frame URL'
 test('which flags: the globals stash while a global set is edited, the section stash while a global section is', () => {
   assert.deepEqual(stashFlags({ globalsStashActive: false, sectionPanelValues: null }), []);
   assert.deepEqual(stashFlags({ globalsStashActive: true, sectionPanelValues: null }), ['sve_globals']);
-  assert.deepEqual(stashFlags({ globalsStashActive: false, sectionPanelValues: { id: 'x', values: {} } }), ['sve_sections']);
-  assert.deepEqual(stashFlags({ globalsStashActive: true, sectionPanelValues: { id: 'x', values: {} } }), ['sve_globals', 'sve_sections']);
+  assert.deepEqual(stashFlags({ globalsStashActive: false, sectionPanelValues: { id: 'x', values: {} } }), [
+    'sve_sections',
+  ]);
+  assert.deepEqual(stashFlags({ globalsStashActive: true, sectionPanelValues: { id: 'x', values: {} } }), [
+    'sve_globals',
+    'sve_sections',
+  ]);
   assert.deepEqual(stashFlags({}), []);
 });
 
@@ -181,7 +208,7 @@ test('picking a size scrolls the row the shortest way until its frame is whole i
   assert.equal(revealScroll(400, view, 1000, 2000), 560);
 });
 
-test('a frame wider than the view stands with its left edge at the view\'s left edge, wherever the row was', () => {
+test("a frame wider than the view stands with its left edge at the view's left edge, wherever the row was", () => {
   const desktop = [1361, 2801];
 
   assert.equal(revealScroll(0, 1440, ...desktop), 1361);
@@ -235,7 +262,10 @@ const MOBILE = {
 // The line a size is compared on, in its page's pixels: scrollTop × scrollHeight / max.
 const lineOf = (page, scrollTop) => (scrollTop * page.scrollHeight) / (page.scrollHeight - page.viewport);
 // Which anchor stands under that line, and how far into it.
-const under = (page, y) => { const a = page.anchors.find((anchor) => anchor.top + anchor.height > y); return a ? { id: a.id, share: (y - a.top) / a.height } : null; };
+const under = (page, y) => {
+  const a = page.anchors.find((anchor) => anchor.top + anchor.height > y);
+  return a ? { id: a.id, share: (y - a.top) / a.height } : null;
+};
 
 test('synced scroll: the same section stands under the sliding line, as far into it as in the source', () => {
   // Desktop 900 px down: the line is half way down the page (and the viewport); the target's line meets the same section at the same share.
@@ -281,20 +311,50 @@ test('synced scroll: a line above the first anchor, or no anchors at all, goes b
 
 test('synced scroll: never past what the target can scroll, never above its top, whole pixels', () => {
   // The source at its very end; a target too short to scroll at all.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1800 }, { scrollHeight: 600, viewport: 900, anchors: MOBILE.anchors }), 0);
+  assert.equal(
+    syncedScrollTop({ ...DESKTOP, scrollTop: 1800 }, { scrollHeight: 600, viewport: 900, anchors: MOBILE.anchors }),
+    0
+  );
   // A target section that starts above the page (a negative top): no lower than 0.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 10 }, { scrollHeight: 3000, viewport: 800, anchors: [{ id: 'chrome:header', top: -50, height: 10 }] }), 0);
+  assert.equal(
+    syncedScrollTop(
+      { ...DESKTOP, scrollTop: 10 },
+      { scrollHeight: 3000, viewport: 800, anchors: [{ id: 'chrome:header', top: -50, height: 10 }] }
+    ),
+    0
+  );
   // Fractions round to a whole pixel.
-  assert.equal(syncedScrollTop({ scrollTop: 100, scrollHeight: 1200, viewport: 900, anchors: [] }, { scrollHeight: 1900, viewport: 900, anchors: [] }), 333);
+  assert.equal(
+    syncedScrollTop(
+      { scrollTop: 100, scrollHeight: 1200, viewport: 900, anchors: [] },
+      { scrollHeight: 1900, viewport: 900, anchors: [] }
+    ),
+    333
+  );
   assert.ok(Number.isInteger(syncedScrollTop({ ...DESKTOP, scrollTop: 777 }, MOBILE)));
 });
 
 test('the layer covers the pane without the padding the docks sit on', () => {
   const rect = { left: 352, top: 52, width: 1088, height: 848 };
-  const style = { paddingTop: '0px', paddingRight: '352px', paddingBottom: '280px', paddingLeft: '0px', borderLeftWidth: '0px', borderTopWidth: '0px' };
+  const style = {
+    paddingTop: '0px',
+    paddingRight: '352px',
+    paddingBottom: '280px',
+    paddingLeft: '0px',
+    borderLeftWidth: '0px',
+    borderTopWidth: '0px',
+  };
 
   assert.deepEqual(contentBox(rect, style, 1088, 848), { left: 352, top: 52, width: 736, height: 568 });
-  assert.deepEqual(contentBox({ left: 0, top: 52 }, { paddingLeft: '10px', paddingTop: '5px', borderLeftWidth: '1px', borderTopWidth: '1px' }, 100, 50), { left: 11, top: 58, width: 90, height: 45 });
+  assert.deepEqual(
+    contentBox(
+      { left: 0, top: 52 },
+      { paddingLeft: '10px', paddingTop: '5px', borderLeftWidth: '1px', borderTopWidth: '1px' },
+      100,
+      50
+    ),
+    { left: 11, top: 58, width: 90, height: 45 }
+  );
 });
 
 test('transparent means no alpha — not a colour whose last channel is 0', () => {
@@ -341,10 +401,32 @@ test('the preview moves to the size still in the row nearest in width, the narro
   assert.equal(nearestSize(sizes, 'laptop'), 'tablet');
   assert.equal(nearestSize(sizes, 'mobile'), 'tablet');
   assert.equal(nearestSize(sizes, 'tablet'), 'mobile');
-  assert.equal(nearestSize(sizes.map((row) => ({ ...row, hidden: row.handle === 'tablet' })), 'laptop'), 'mobile');
-  assert.equal(nearestSize([{ handle: 'a', width: 500 }, { handle: 'b', width: 700 }, { handle: 'c', width: 300 }], 'a'), 'c');
+  assert.equal(
+    nearestSize(
+      sizes.map((row) => ({ ...row, hidden: row.handle === 'tablet' })),
+      'laptop'
+    ),
+    'mobile'
+  );
+  assert.equal(
+    nearestSize(
+      [
+        { handle: 'a', width: 500 },
+        { handle: 'b', width: 700 },
+        { handle: 'c', width: 300 },
+      ],
+      'a'
+    ),
+    'c'
+  );
   assert.equal(nearestSize([{ handle: 'laptop', width: 1440 }], 'laptop'), '');
-  assert.equal(nearestSize(sizes.map((row) => ({ ...row, hidden: row.handle !== 'laptop' })), 'laptop'), '');
+  assert.equal(
+    nearestSize(
+      sizes.map((row) => ({ ...row, hidden: row.handle !== 'laptop' })),
+      'laptop'
+    ),
+    ''
+  );
 });
 
 test('labels are light on a dark pane and dark on a light one', () => {
@@ -368,7 +450,15 @@ test('closed costs nothing: no timers, no MutationObserver, no stored state', ()
   // An animation frame is not a timer: the glide asks for one only while a
   // reveal is under way, and stopGlide cancels it on a wheel, a drag, a zoom
   // and on close.
-  for (const banned of ['setInterval(', 'setTimeout(', 'MutationObserver', 'chromeSet', 'localStorage', 'sessionStorage', 'sve-lp-zoom']) {
+  for (const banned of [
+    'setInterval(',
+    'setTimeout(',
+    'MutationObserver',
+    'chromeSet',
+    'localStorage',
+    'sessionStorage',
+    'sve-lp-zoom',
+  ]) {
     assert.ok(!code.includes(banned), `breakpoint-overview.js uses ${banned}`);
   }
 
@@ -423,18 +513,35 @@ test('the row has no zoom bar of its own any more: the top bar hears its zoom', 
 test('the top bar\'s zoom group is the overview\'s while it is open, with a hidden "Fit all" until then', () => {
   const shell = readFileSync(join(JS, 'cp-shell/block-order.js'), 'utf8');
 
-  assert.ok(shell.includes("win.addEventListener('sve:overview-zoom'"), 'block-order.js hears the overview\'s zoom');
-  assert.ok(shell.includes("zoomFit.dataset.zoom = 'fit'") && shell.includes("t(win, 'bp_overview_fit')"), 'a "Fit all" button in the zoom group');
+  assert.ok(shell.includes("win.addEventListener('sve:overview-zoom'"), "block-order.js hears the overview's zoom");
+  assert.ok(
+    shell.includes("zoomFit.dataset.zoom = 'fit'") && shell.includes("t(win, 'bp_overview_fit')"),
+    'a "Fit all" button in the zoom group'
+  );
   assert.ok(shell.includes("fit.style.display = 'none'"), '"Fit all" is built hidden');
 
   for (const action of ['fit', 'actual']) {
-    assert.ok(shell.includes(`overviewModule?.().then((m) => m.overviewZoom(win, '${action}'))`), `the zoom group drives the row's ${action} through the one loader`);
+    assert.ok(
+      shell.includes(`overviewModule?.().then((m) => m.overviewZoom(win, '${action}'))`),
+      `the zoom group drives the row's ${action} through the one loader`
+    );
   }
 
   // − and + are one step (lpZoomStep), from a click or the +/- keys: while the overview is open, the row's step through the one loader.
-  assert.ok(shell.includes("overviewModule?.().then((m) => m.overviewZoom(win, dir))"), 'lpZoomStep drives the row\'s in/out through the one loader');
-  assert.ok(shell.includes("zoomOut.addEventListener('click', () => lpZoomStep(win, 'out'))") && shell.includes("zoomIn.addEventListener('click', () => lpZoomStep(win, 'in'))"), 'the buttons are that step');
-  assert.ok(shell.includes("win.addEventListener('keydown', (event) => onLpZoomKey(win, event))") && shell.includes('lpZoomStep(win, dir)'), 'the +/- keys are that step too');
+  assert.ok(
+    shell.includes('overviewModule?.().then((m) => m.overviewZoom(win, dir))'),
+    "lpZoomStep drives the row's in/out through the one loader"
+  );
+  assert.ok(
+    shell.includes("zoomOut.addEventListener('click', () => lpZoomStep(win, 'out'))") &&
+      shell.includes("zoomIn.addEventListener('click', () => lpZoomStep(win, 'in'))"),
+    'the buttons are that step'
+  );
+  assert.ok(
+    shell.includes("win.addEventListener('keydown', (event) => onLpZoomKey(win, event))") &&
+      shell.includes('lpZoomStep(win, dir)'),
+    'the +/- keys are that step too'
+  );
 });
 
 test('the layer id is the shared one: lib/preview-frame.js reads it', () => {
@@ -443,11 +550,12 @@ test('the layer id is the shared one: lib/preview-frame.js reads it', () => {
 });
 
 test('no file depends on it: the button import()s it and nothing imports it statically', () => {
-  const walk = (dir) => readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
+  const walk = (dir) =>
+    readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
 
-    return statSync(path).isDirectory() ? walk(path) : /\.(js|vue)$/.test(name) ? [path] : [];
-  });
+      return statSync(path).isDirectory() ? walk(path) : /\.(js|vue)$/.test(name) ? [path] : [];
+    });
   const users = walk(JS)
     .filter((file) => !file.endsWith('breakpoint-overview.js'))
     .filter((file) => /(?:from\s*|import\(\s*)['"][^'"]*breakpoint-overview\.js['"]/.test(readFileSync(file, 'utf8')))
@@ -461,5 +569,8 @@ test('no file depends on it: the button import()s it and nothing imports it stat
 
   assert.ok(!/from\s*['"][^'"]*breakpoint-overview/.test(shell), 'block-order.js imports it statically');
   assert.equal((shell.match(/import\(\s*['"]\.\.\/breakpoint-overview\.js['"]\s*\)/g) || []).length, 1);
-  assert.ok(!/from\s*['"][^'"]*breakpoint-overview/.test(readFileSync(join(JS, 'site-canvas.js'), 'utf8')), 'site-canvas.js imports it statically');
+  assert.ok(
+    !/from\s*['"][^'"]*breakpoint-overview/.test(readFileSync(join(JS, 'site-canvas.js'), 'utf8')),
+    'site-canvas.js imports it statically'
+  );
 });

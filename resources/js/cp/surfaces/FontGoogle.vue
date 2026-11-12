@@ -2,8 +2,25 @@
   <template v-if="!font">
     <div class="sve-fontdlg__search">
       <span class="sve-theme__input">
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input ref="searchEl" v-model="query" type="search" :placeholder="ui.labels.fonts_search" data-sve-font-search>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input
+          ref="searchEl"
+          v-model="query"
+          type="search"
+          :placeholder="ui.labels.fonts_search"
+          data-sve-font-search
+        />
       </span>
       <div class="sve-fontdlg__chips">
         <button
@@ -14,7 +31,8 @@
           :class="{ 'is-on': category === key }"
           :data-sve-font-category="key"
           @click="category = key"
-        >{{ ui.labels[`fonts_category_${key}`] }}</button>
+          >{{ ui.labels[`fonts_category_${key}`] }}</button
+        >
       </div>
     </div>
 
@@ -32,7 +50,9 @@
         @click="open(f)"
       >
         <span class="sve-fontdlg__family-name" :style="nameStyle(f)">{{ f.family }}</span>
-        <span class="sve-fontdlg__family-meta">{{ ui.labels[`fonts_category_${categoryKey(f.category)}`] || f.category }} · {{ stylesText(f) }}</span>
+        <span class="sve-fontdlg__family-meta"
+          >{{ ui.labels[`fonts_category_${categoryKey(f.category)}`] || f.category }} · {{ stylesText(f) }}</span
+        >
         <span v-if="installedFamily(f.family)" class="sve-fontdlg__badge">{{ ui.labels.fonts_installed_badge }}</span>
       </button>
       <span ref="moreEl" class="sve-fontdlg__more" aria-hidden="true"></span>
@@ -46,7 +66,9 @@
           <span>{{ font.family }}</span>
           <span>{{ ui.labels[`fonts_category_${categoryKey(font.category)}`] || font.category }}</span>
         </div>
-        <p class="sve-fontdlg__sample-text" :style="variantStyle(sampleVariant)" data-sve-font-sample>{{ ui.labels.fonts_sample }}</p>
+        <p class="sve-fontdlg__sample-text" :style="variantStyle(sampleVariant)" data-sve-font-sample>{{
+          ui.labels.fonts_sample
+        }}</p>
       </div>
 
       <div class="sve-fontdlg__group-head">
@@ -67,10 +89,23 @@
             @click="toggle(cell.variant)"
           >
             <span class="sve-fontdlg__check" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="m5 12 5 5 9-10" />
+              </svg>
             </span>
-            <span class="sve-fontdlg__variant-name" :style="variantStyle(cell.variant)">{{ variantLabel(cell.variant) }}</span>
-            <span class="sve-fontdlg__variant-num">{{ weightOf(cell.variant) }}{{ isItalic(cell.variant) ? ' I' : '' }}</span>
+            <span class="sve-fontdlg__variant-name" :style="variantStyle(cell.variant)">{{
+              variantLabel(cell.variant)
+            }}</span>
+            <span class="sve-fontdlg__variant-num"
+              >{{ weightOf(cell.variant) }}{{ isItalic(cell.variant) ? ' I' : '' }}</span
+            >
           </button>
           <span v-else class="sve-fontdlg__variant is-empty" aria-hidden="true"></span>
         </template>
@@ -89,13 +124,16 @@
           :class="{ 'is-on': subsets.has(s) }"
           :data-sve-font-subset="s"
           @click="toggleSubset(s)"
-        >{{ s }}</button>
+          >{{ s }}</button
+        >
       </div>
     </div>
 
     <footer class="sve-fontdlg__foot">
       <span class="sve-fontdlg__size" data-sve-font-size>
-        <template v-if="plan.bytes !== null"><b>{{ formatBytes(plan.bytes) }}</b> {{ filesText(plan.files) }}</template>
+        <template v-if="plan.bytes !== null"
+          ><b>{{ formatBytes(plan.bytes) }}</b> {{ filesText(plan.files) }}</template
+        >
         <template v-else-if="plan.loading">…</template>
       </span>
       <span class="sve-fontdlg__error">{{ error ? errorText(error) : '' }}</span>
@@ -112,7 +150,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { errorText, filesText, fontsRequest, installedFamily } from '../theme-panel/fonts.js';
 import { loadCatalog, loadPreview } from '../theme-panel/google-fonts.js';
-import { defaultVariant, formatBytes, hasVariant, isItalic, previewAlias, variantLabel, weightOf } from '../theme-panel/font-helpers.js';
+import {
+  defaultVariant,
+  formatBytes,
+  hasVariant,
+  isItalic,
+  previewAlias,
+  variantLabel,
+  weightOf,
+} from '../theme-panel/font-helpers.js';
 
 const CATEGORIES = ['all', 'sans-serif', 'serif', 'display', 'handwriting', 'monospace'];
 const PAGE = 60;
@@ -142,7 +188,11 @@ const categoryKey = (name) => String(name).toLowerCase().replace(/\s+/g, '-');
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
 
-  return (fonts.value || []).filter((f) => (category.value === 'all' || categoryKey(f.category) === category.value) && (!q || f.family.toLowerCase().includes(q)));
+  return (fonts.value || []).filter(
+    (f) =>
+      (category.value === 'all' || categoryKey(f.category) === category.value) &&
+      (!q || f.family.toLowerCase().includes(q))
+  );
 });
 const visible = computed(() => filtered.value.slice(0, limit.value));
 
@@ -152,14 +202,20 @@ watch([query, category], () => {
 });
 
 function stylesText(f) {
-  return f.variants.length === 1 ? ui.labels.fonts_style_one : String(ui.labels.fonts_styles || ':count').replace(':count', f.variants.length);
+  return f.variants.length === 1
+    ? ui.labels.fonts_style_one
+    : String(ui.labels.fonts_styles || ':count').replace(':count', f.variants.length);
 }
 
 function nameStyle(f) {
   const v = defaultVariant(f);
 
   return ready[f.family]
-    ? { fontFamily: `'${previewAlias(f.family)}', ui-sans-serif, system-ui, sans-serif`, fontWeight: weightOf(v), fontStyle: isItalic(v) ? 'italic' : 'normal' }
+    ? {
+        fontFamily: `'${previewAlias(f.family)}', ui-sans-serif, system-ui, sans-serif`,
+        fontWeight: weightOf(v),
+        fontStyle: isItalic(v) ? 'italic' : 'normal',
+      }
     : {};
 }
 
@@ -194,11 +250,14 @@ function observeList() {
   rowObserver?.disconnect();
   moreObserver?.disconnect();
   rowObserver = new props.win.IntersectionObserver(onRows, { root: listEl.value, rootMargin: '200px 0px' });
-  moreObserver = new props.win.IntersectionObserver((entries) => {
-    if (entries.some((e) => e.isIntersecting) && limit.value < filtered.value.length) {
-      limit.value += PAGE;
-    }
-  }, { root: listEl.value, rootMargin: '400px 0px' });
+  moreObserver = new props.win.IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting) && limit.value < filtered.value.length) {
+        limit.value += PAGE;
+      }
+    },
+    { root: listEl.value, rootMargin: '400px 0px' }
+  );
 
   if (moreEl.value) {
     moreObserver.observe(moreEl.value);
@@ -262,10 +321,14 @@ const cells = computed(() => {
 });
 
 const chosenCount = computed(() => (font.value ? font.value.variants.filter(isOn).length : 0));
-const sampleVariant = computed(() => font.value?.variants.find((v) => chosen.has(v)) || (font.value ? defaultVariant(font.value) : '400'));
-const variableHint = computed(() => String(ui.labels.fonts_variable_hint || '')
-  .replace(':min', font.value?.axis?.[0] ?? '')
-  .replace(':max', font.value?.axis?.[1] ?? ''));
+const sampleVariant = computed(
+  () => font.value?.variants.find((v) => chosen.has(v)) || (font.value ? defaultVariant(font.value) : '400')
+);
+const variableHint = computed(() =>
+  String(ui.labels.fonts_variable_hint || '')
+    .replace(':min', font.value?.axis?.[0] ?? '')
+    .replace(':max', font.value?.axis?.[1] ?? '')
+);
 const canInstall = computed(() => !installing.value && chosen.size > 0 && subsets.size > 0 && ui.fontsWritable);
 
 function variantStyle(v) {
@@ -392,7 +455,10 @@ async function install() {
     return;
   }
 
-  emit('installed', data, String(ui.labels.fonts_installed_message || '').replace(':name', data.family || font.value.family));
+  emit(
+    'installed',
+    data,
+    String(ui.labels.fonts_installed_message || '').replace(':name', data.family || font.value.family)
+  );
 }
-
 </script>

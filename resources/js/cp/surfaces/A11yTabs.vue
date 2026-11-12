@@ -9,12 +9,8 @@ import { a11yUi as ui } from '../a11y/store.js';
  */
 const badges = computed(() => ({
   headings: ui.headingIssues ? { count: ui.headingIssues, level: ui.headingLevel } : null,
-  contrast:
-    ui.scanned.contrast && ui.found.contrast
-      ? { count: ui.found.contrast, level: 'critical' }
-      : null,
-  checks:
-    ui.scanned.checks && ui.found.checks ? { count: ui.found.checks, level: 'critical' } : null,
+  contrast: ui.scanned.contrast && ui.found.contrast ? { count: ui.found.contrast, level: 'critical' } : null,
+  checks: ui.scanned.checks && ui.found.checks ? { count: ui.found.checks, level: 'critical' } : null,
   tree: ui.scanned.tree && ui.found.tree ? { count: ui.found.tree, level: 'critical' } : null,
 }));
 </script>
@@ -30,11 +26,9 @@ const badges = computed(() => ({
       @click="ui.onTab?.(tab.key)"
     >
       {{ tab.label }}
-      <span
-        v-if="badges[tab.key]"
-        class="sve-a11y-tab-badge"
-        :data-level="badges[tab.key].level"
-      >{{ badges[tab.key].count }}</span>
+      <span v-if="badges[tab.key]" class="sve-a11y-tab-badge" :data-level="badges[tab.key].level">{{
+        badges[tab.key].count
+      }}</span>
     </button>
   </div>
 </template>
@@ -74,8 +68,8 @@ button.is-on {
   color: #fff;
   background: #d97706;
 }
-.sve-a11y-tab-badge[data-level="critical"],
-.sve-a11y-tab-badge[data-level="fail"] {
+.sve-a11y-tab-badge[data-level='critical'],
+.sve-a11y-tab-badge[data-level='fail'] {
   background: #dc2626;
 }
 </style>

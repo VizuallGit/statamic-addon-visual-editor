@@ -2,10 +2,10 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
-use MarioHamann\StatamicVisualEditor\GitSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
+use MarioHamann\StatamicVisualEditor\GitSync;
 use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionList;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker;

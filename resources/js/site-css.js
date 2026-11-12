@@ -61,27 +61,27 @@ function loadCm() {
   cmReady = loadCodeMirror()
     .then((loaded) => {
       cm = loaded;
-    EditorView = cm.view.EditorView;
-    keymap = cm.view.keymap;
-    lineNumbers = cm.view.lineNumbers;
-    highlightActiveLine = cm.view.highlightActiveLine;
-    highlightActiveLineGutter = cm.view.highlightActiveLineGutter;
-    tooltips = cm.view.tooltips;
-    EditorState = cm.state.EditorState;
-    defaultKeymap = cm.commands.defaultKeymap;
-    indentWithTab = cm.commands.indentWithTab;
-    historyKeymap = cm.commands.historyKeymap;
-    history = cm.commands.history;
-    autocompletion = cm.autocomplete.autocompletion;
-    closeBrackets = cm.autocomplete.closeBrackets;
-    closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
-    completionKeymap = cm.autocomplete.completionKeymap;
-    css = cm.langCss.css;
-    javascript = cm.langJs.javascript;
-    html = cm.langHtml.html;
-    HighlightStyle = cm.language.HighlightStyle;
-    syntaxHighlighting = cm.language.syntaxHighlighting;
-    tags = cm.highlight.tags;
+      EditorView = cm.view.EditorView;
+      keymap = cm.view.keymap;
+      lineNumbers = cm.view.lineNumbers;
+      highlightActiveLine = cm.view.highlightActiveLine;
+      highlightActiveLineGutter = cm.view.highlightActiveLineGutter;
+      tooltips = cm.view.tooltips;
+      EditorState = cm.state.EditorState;
+      defaultKeymap = cm.commands.defaultKeymap;
+      indentWithTab = cm.commands.indentWithTab;
+      historyKeymap = cm.commands.historyKeymap;
+      history = cm.commands.history;
+      autocompletion = cm.autocomplete.autocompletion;
+      closeBrackets = cm.autocomplete.closeBrackets;
+      closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
+      completionKeymap = cm.autocomplete.completionKeymap;
+      css = cm.langCss.css;
+      javascript = cm.langJs.javascript;
+      html = cm.langHtml.html;
+      HighlightStyle = cm.language.HighlightStyle;
+      syntaxHighlighting = cm.language.syntaxHighlighting;
+      tags = cm.highlight.tags;
     })
     .catch((err) => {
       cmReady = null;
@@ -94,7 +94,10 @@ function loadCm() {
 const COMPLETE_STYLE_ID = '__sve-site-css-complete';
 
 function ensureCompleteStyles(doc) {
-  injectStyle(doc, COMPLETE_STYLE_ID, `
+  injectStyle(
+    doc,
+    COMPLETE_STYLE_ID,
+    `
 .cm-tooltip.sve-css-complete {
   background: #1E1E21 !important;
   color: #d4d4d4;
@@ -142,7 +145,8 @@ function ensureCompleteStyles(doc) {
   opacity: .65;
   font-size: 11px !important;
 }
-`);
+`
+  );
 }
 
 function bumpPreviewCss(win) {
@@ -434,11 +438,14 @@ async function saveFile(win) {
     }
     const shown = ui.status;
 
-    win.setTimeout(() => {
-      if (ui.status === shown) {
-        ui.status = '';
-      }
-    }, data.build ? 4000 : 1200);
+    win.setTimeout(
+      () => {
+        if (ui.status === shown) {
+          ui.status = '';
+        }
+      },
+      data.build ? 4000 : 1200
+    );
 
     return true;
   } catch {

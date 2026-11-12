@@ -33,7 +33,9 @@ function read() {
 
 const active = computed(() => resolveShortcuts(layers.value.builtIn, layers.value.site, layers.value.user));
 const sites = computed(() => resolveShortcuts(layers.value.builtIn, layers.value.site, {}));
-const names = computed(() => Object.fromEntries([...props.tools, ...props.sizes].map((row) => [row.action, row.label])));
+const names = computed(() =>
+  Object.fromEntries([...props.tools, ...props.sizes].map((row) => [row.action, row.label]))
+);
 const anyOwn = computed(() => Object.keys(layers.value.user).length > 0);
 
 /** Who else has a shortcut: any action, as the user's own layer can give every one of them none. */
@@ -70,12 +72,7 @@ const groups = computed(() => [
   >
     <span class="sve-lp-settings__label">{{ group.label }}</span>
     <p v-if="!group.rows.length" class="sve-lp-settings__hint">{{ emptyLabel }}</p>
-    <div
-      v-for="row in group.rows"
-      :key="row.action"
-      class="sve-lp-settings__tool"
-      :data-sve-shortcut-row="row.action"
-    >
+    <div v-for="row in group.rows" :key="row.action" class="sve-lp-settings__tool" :data-sve-shortcut-row="row.action">
       <span class="sve-lp-settings__shortcut-name" :title="row.label">
         <span v-if="row.icon" class="sve-lp-settings__tool-icon" aria-hidden="true" v-html="row.icon"></span>
         <span class="sve-lp-settings__tool-name">{{ row.label }}</span>

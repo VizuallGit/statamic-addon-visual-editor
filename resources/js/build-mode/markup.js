@@ -166,7 +166,9 @@ export function caretIn(markup, words = [], def = {}) {
 export function columnsMarkup(key, mobile = 'max-md') {
   const preset = GRID_PRESETS.find((p) => p.key === key) || GRID_PRESETS[1];
   const rows = Math.max(1, preset.rows);
-  const stack = mobile ? `${preset.parts.length > 1 ? ` ${mobile}:grid-cols-1` : ''}${rows > 1 ? ` ${mobile}:grid-rows-1` : ''}` : '';
+  const stack = mobile
+    ? `${preset.parts.length > 1 ? ` ${mobile}:grid-cols-1` : ''}${rows > 1 ? ` ${mobile}:grid-rows-1` : ''}`
+    : '';
 
   return `<div class="grid ${preset.cls} grid-rows-${rows}${stack} ${GRID_GAP}"></div>`;
 }

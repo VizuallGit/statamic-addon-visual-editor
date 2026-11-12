@@ -8,10 +8,13 @@ import { readCallParams, writeCallParam } from '../../resources/js/component-pro
 const svg = '{{ svg src="{{ logo }}" width="auto" height="auto" class="max-h-500 w-auto" aria-hidden="true" }}';
 const html = `<ul>\n  {{ collection from="companies" }}\n    <li class="bg-gray-800 p-500">\n      {{ if (logo | ends_with('.svg')) }}\n        ${svg}\n      {{ /if }}\n      <p>{{ teaser }}</p>\n    </li>\n  {{ /collection }}\n</ul>`;
 
-test('a tag inside another tag\'s parameter is part of the outer tag', () => {
+test("a tag inside another tag's parameter is part of the outer tag", () => {
   const tags = antlersTags(html);
 
-  assert.deepEqual(tags.map((tag) => (tag.closer ? '/' : '') + tag.name), ['collection', 'if', 'svg', '/if', 'teaser', '/collection']);
+  assert.deepEqual(
+    tags.map((tag) => (tag.closer ? '/' : '') + tag.name),
+    ['collection', 'if', 'svg', '/if', 'teaser', '/collection']
+  );
   assert.equal(html.slice(tags[2].from, tags[2].to), svg);
 });
 
@@ -44,7 +47,10 @@ test('the caret inside the svg tag is in that tag, and not in a partial', () => 
 test('a tag with a literal class of its own is a class tag; a loop, an if and a field are not', () => {
   const tags = findClassTags(html);
 
-  assert.deepEqual(tags.map((tag) => tag.src), ['svg']);
+  assert.deepEqual(
+    tags.map((tag) => tag.src),
+    ['svg']
+  );
   assert.equal(tags[0].tagCall, true);
   assert.equal(hitClassTag(html, html.indexOf('max-h-500')).src, 'svg');
   assert.equal(hitClassTag(html, html.indexOf('{{ teaser }}') + 3), null);
@@ -69,5 +75,8 @@ test('the HTML tree still sees the <li> as the tag around the svg, with its own 
   const li = rows.find((row) => row.tag === 'li');
 
   assert.equal(li.klass, 'bg-gray-800');
-  assert.equal(rows.some((row) => row.tag === 'svg'), false);
+  assert.equal(
+    rows.some((row) => row.tag === 'svg'),
+    false
+  );
 });

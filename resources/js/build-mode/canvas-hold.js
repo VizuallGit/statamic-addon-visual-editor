@@ -25,7 +25,10 @@ import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_PATH } from './canvas-paint.js';
 import { findByPath } from './place.js';
 
-const tokens = (value) => String(value || '').split(/\s+/).filter(Boolean);
+const tokens = (value) =>
+  String(value || '')
+    .split(/\s+/)
+    .filter(Boolean);
 
 /**
  * @param {Window} win  the Control Panel window

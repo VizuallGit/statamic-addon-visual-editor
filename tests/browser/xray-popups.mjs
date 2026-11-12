@@ -164,7 +164,12 @@ function barsCovering(cp) {
   }, BARS);
 }
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1600,1000'], defaultViewport: { width: 1600, height: 1000 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1600,1000'],
+  defaultViewport: { width: 1600, height: 1000 },
+});
 const page = await browser.newPage();
 
 await page.evaluateOnNewDocument((path) => {
@@ -175,7 +180,9 @@ await page.evaluateOnNewDocument((path) => {
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
 
     if (url.includes(path) && method !== 'GET') {
-      return Promise.resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      return Promise.resolve(
+        new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+      );
     }
 
     return real.apply(this, arguments);
@@ -191,7 +198,10 @@ await page.evaluateOnNewDocument((path) => {
 }, '/!/sve/chrome-prefs');
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-page.on('response', (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -224,7 +234,13 @@ try {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate((re) => [...document.querySelectorAll('button, a')].find((el) => new RegExp(re, 'i').test(el.textContent || ''))?.click(), 'live preview|forhåndsvisning');
+    await page.evaluate(
+      (re) =>
+        [...document.querySelectorAll('button, a')]
+          .find((el) => new RegExp(re, 'i').test(el.textContent || ''))
+          ?.click(),
+      'live preview|forhåndsvisning'
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -235,7 +251,14 @@ try {
   await sleep(2500);
 
   for (const key of SWITCHES) {
-    step(`${key} switch is in the top bar and on`, await cp.evaluate((k) => document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') === 'true', key));
+    step(
+      `${key} switch is in the top bar and on`,
+      await cp.evaluate(
+        (k) =>
+          document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') === 'true',
+        key
+      )
+    );
   }
 
   await cp.waitForSelector(BARS.xray, { timeout: 10000 }).catch(() => {});
@@ -264,7 +287,11 @@ try {
   }, DESIGN_MENU);
 
   step('design icon opens its dropdown under the icon', !!menu && menu.portal && menu.under, JSON.stringify(menu));
-  step('design dropdown lists Mobile, Tablet, Desktop in that order', menu?.sizes?.join(',') === 'Mobile,Tablet,Desktop', menu?.sizes?.join(', '));
+  step(
+    'design dropdown lists Mobile, Tablet, Desktop in that order',
+    menu?.sizes?.join(',') === 'Mobile,Tablet,Desktop',
+    menu?.sizes?.join(', ')
+  );
   await shot('01-design-menu');
   await page.keyboard.press('Escape');
   await sleep(500);
@@ -325,25 +352,44 @@ try {
       });
     }, BARS);
 
-  for (const [dir, label] of [['out', 'zoomed out'], ['in', 'zoomed back in']]) {
+  for (const [dir, label] of [
+    ['out', 'zoomed out'],
+    ['in', 'zoomed back in'],
+  ]) {
     if (await click(page, cp, `button[data-zoom="${dir}"]`)) {
       await sleep(900);
 
       const placed = await barsOnFrame();
 
-      step(`${label}: bars centred on the visible frame`, placed.every((bar) => bar.ok), JSON.stringify(placed));
+      step(
+        `${label}: bars centred on the visible frame`,
+        placed.every((bar) => bar.ok),
+        JSON.stringify(placed)
+      );
       await shot(`zoom-${dir}`);
     }
   }
 
-  const tools = (await cp.evaluate(() => [...document.querySelectorAll('#__sve-toolbar button[data-tab]')].filter((b) => b.getBoundingClientRect().width > 0).map((b) => b.dataset.tab))).filter((key) => !SWITCHES.includes(key));
+  const tools = (
+    await cp.evaluate(() =>
+      [...document.querySelectorAll('#__sve-toolbar button[data-tab]')]
+        .filter((b) => b.getBoundingClientRect().width > 0)
+        .map((b) => b.dataset.tab)
+    )
+  ).filter((key) => !SWITCHES.includes(key));
 
   console.log(`info tools: ${tools.join(', ')}`);
 
-  const targets = [...tools.map((key) => ({ key, selector: `${BAR} button[data-tab="${key}"]` })), { key: 'more-menu', selector: '#__sve-lp-more' }];
+  const targets = [
+    ...tools.map((key) => ({ key, selector: `${BAR} button[data-tab="${key}"]` })),
+    { key: 'more-menu', selector: '#__sve-lp-more' },
+  ];
 
   for (const { key, selector } of targets) {
-    const pressedBefore = await cp.evaluate((sel) => document.querySelector(sel)?.getAttribute('aria-pressed'), selector);
+    const pressedBefore = await cp.evaluate(
+      (sel) => document.querySelector(sel)?.getAttribute('aria-pressed'),
+      selector
+    );
 
     if (!(await click(page, cp, selector))) {
       console.log(`info ${key}: not clickable here, skipped`);
@@ -357,7 +403,11 @@ try {
     const bars = await barsCovering(cp);
     const bad = bars.filter((bar) => bar.shown && bar.over.length);
 
-    step(`${key} open: no bar over it`, !bad.length, bad.map((bar) => `${bar.key} over ${bar.over.join(', ')}`).join('; '));
+    step(
+      `${key} open: no bar over it`,
+      !bad.length,
+      bad.map((bar) => `${bar.key} over ${bar.over.join(', ')}`).join('; ')
+    );
 
     if (MUST_COVER.includes(key)) {
       const uncovered = bars.filter((bar) => bar.shown && !bar.covered);
@@ -401,8 +451,11 @@ try {
     await cp.evaluate(
       () =>
         !document.querySelector('#__sve-xray-bar, #__sve-xray-style, #__sve-design-menu') &&
-        ['xray', 'design_overlay'].every((k) => document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') !== 'true'),
-    ),
+        ['xray', 'design_overlay'].every(
+          (k) =>
+            document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') !== 'true'
+        )
+    )
   );
   step('no page errors', !errors.length, errors.slice(0, 5).join(' | '));
 } catch (err) {

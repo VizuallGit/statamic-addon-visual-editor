@@ -19,10 +19,15 @@ use MarioHamann\StatamicVisualEditor\TemplateProps\Parser;
 class TemplateProps
 {
     public const KIND_COLLECTION = Parser::KIND_COLLECTION;
+
     public const KIND_TEXT = Parser::KIND_TEXT;
+
     public const KIND_ASSETS = Parser::KIND_ASSETS;
+
     public const TEXT_KINDS = Options::TEXT_KINDS;
+
     public const ASSET_KINDS = Options::ASSET_KINDS;
+
     public const MEDIA_ATTRIBUTES = Parser::MEDIA_ATTRIBUTES;
 
     /**

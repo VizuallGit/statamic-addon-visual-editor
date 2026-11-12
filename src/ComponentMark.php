@@ -70,7 +70,7 @@ final class ComponentMark
      */
     public static function preparse(?string $text): ?string
     {
-        if ($text === null || $text === '' || ! static::active()) {
+        if ($text === null || $text === '' || ! self::active()) {
             return $text;
         }
 
@@ -83,16 +83,16 @@ final class ComponentMark
         // The preparser runs for every text the runtime parses; the same few
         // files come round many times on one page.
         if (! array_key_exists($view, self::$srcs)) {
-            self::$srcs[$view] = static::srcOfView($view);
+            self::$srcs[$view] = self::srcOfView($view);
         }
 
         $src = self::$srcs[$view];
 
-        if ($src === null || ! static::isFileText($view, $text)) {
+        if ($src === null || ! self::isFileText($view, $text)) {
             return $text;
         }
 
-        return static::wrap($text, $src);
+        return self::wrap($text, $src);
     }
 
     /** The text as the preparser hands it on: in the pair, with the inner comment first. */
@@ -112,10 +112,10 @@ final class ComponentMark
      */
     public static function srcOfView(string $path): ?string
     {
-        $path = static::normalizePath($path);
+        $path = self::normalizePath($path);
 
         foreach (View::getFinder()->getPaths() as $location) {
-            $prefix = rtrim(static::normalizePath((string) $location), '/').'/partials/';
+            $prefix = rtrim(self::normalizePath((string) $location), '/').'/partials/';
 
             if (! str_starts_with($path, $prefix)) {
                 continue;
@@ -200,7 +200,7 @@ final class ComponentMark
             }
 
             if (in_array($lower, self::SKIPPED_VOID, true)) {
-                $end = static::openTagEnd($html, $afterName);
+                $end = self::openTagEnd($html, $afterName);
 
                 if ($end === null) {
                     return $html;
@@ -211,7 +211,7 @@ final class ComponentMark
                 continue;
             }
 
-            return static::stampOpenTag($html, $afterName, $src);
+            return self::stampOpenTag($html, $afterName, $src);
         }
 
         return $html;
@@ -220,7 +220,7 @@ final class ComponentMark
     /** The attribute written into the open tag whose name ends at `$afterName`. */
     private static function stampOpenTag(string $html, int $afterName, string $src): string
     {
-        $end = static::openTagEnd($html, $afterName);
+        $end = self::openTagEnd($html, $afterName);
         $openTag = substr($html, $afterName, ($end ?? strlen($html)) - $afterName);
         $value = htmlspecialchars($src, ENT_QUOTES);
 

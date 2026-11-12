@@ -31,7 +31,17 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import statamic from '@statamic/cms/vite-plugin';
-import { CSS_TOOLS, CSS_TOOL_ICONS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, LP_DEVICE_ICONS, PROSE_VARIANTS, STATES, TW_TOOL_ICONS } from '../../js/build-mode/dock-lists.js';
+import {
+  CSS_TOOLS,
+  CSS_TOOL_ICONS,
+  HTML_DIVS,
+  HTML_HEADINGS,
+  HTML_TOOLS,
+  LP_DEVICE_ICONS,
+  PROSE_VARIANTS,
+  STATES,
+  TW_TOOL_ICONS,
+} from '../../js/build-mode/dock-lists.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ADDON = resolve(HERE, '../../..');
@@ -41,10 +51,14 @@ const OUT = process.env.SVE_HARNESS_OUT || join(tmpdir(), 'sve-build-mode-harnes
 
 const php = (code) => JSON.parse(execFileSync('php', ['-r', code], { encoding: 'utf8' }));
 const lang = (locale) =>
-  php(`echo json_encode(array_merge(include '${ADDON}/resources/lang/en/messages.php', include '${ADDON}/resources/lang/${locale}/messages.php', include '${ADDON}/resources/lang/en/build.php', include '${ADDON}/resources/lang/${locale}/build.php'));`);
+  php(
+    `echo json_encode(array_merge(include '${ADDON}/resources/lang/en/messages.php', include '${ADDON}/resources/lang/${locale}/messages.php', include '${ADDON}/resources/lang/en/build.php', include '${ADDON}/resources/lang/${locale}/build.php'));`
+  );
 
 function sectionTag() {
-  const m = /'section_tag'\s*=>\s*'((?:[^'\\]|\\.)*)'/.exec(readFileSync(`${ADDON}/config/statamic-visual-editor.php`, 'utf8'));
+  const m = /'section_tag'\s*=>\s*'((?:[^'\\]|\\.)*)'/.exec(
+    readFileSync(`${ADDON}/config/statamic-visual-editor.php`, 'utf8')
+  );
 
   return m ? m[1].replace(/\\'/g, "'") : '';
 }
@@ -53,7 +67,12 @@ function tailwindTheme() {
   try {
     const out = execFileSync(
       'php',
-      ['artisan', 'tinker', '--execute', 'echo json_encode(["css" => \\MarioHamann\\StatamicVisualEditor\\TailwindTheme::css(), "plugins" => \\MarioHamann\\StatamicVisualEditor\\TailwindTheme::plugins()]);'],
+      [
+        'artisan',
+        'tinker',
+        '--execute',
+        'echo json_encode(["css" => \\MarioHamann\\StatamicVisualEditor\\TailwindTheme::css(), "plugins" => \\MarioHamann\\StatamicVisualEditor\\TailwindTheme::plugins()]);',
+      ],
       { cwd: SITE, encoding: 'utf8' }
     );
 
@@ -93,7 +112,13 @@ function svgs() {
       if (entry.isDirectory()) {
         walk(`${dir}/${entry.name}`, path);
       } else if (/\.svg$/i.test(entry.name)) {
-        icons.push({ path, name: entry.name.replace(/\.svg$/i, ''), folder, src: path.replace(/\.svg$/i, ''), svg: readFileSync(`${dir}/${entry.name}`, 'utf8') });
+        icons.push({
+          path,
+          name: entry.name.replace(/\.svg$/i, ''),
+          folder,
+          src: path.replace(/\.svg$/i, ''),
+          svg: readFileSync(`${dir}/${entry.name}`, 'utf8'),
+        });
       }
     }
   };

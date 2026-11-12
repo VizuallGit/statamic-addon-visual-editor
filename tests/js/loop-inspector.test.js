@@ -44,7 +44,27 @@ const nodeOf = (html) => loopNodeOf(blockOf(html));
 test('a node from a block is the tree’s row for the same loop', () => {
   const node = nodeOf(HTML);
   const row = flattenHtmlTree(parseTemplateTree(HTML), new Set()).find((item) => item.kind === 'antlers');
-  const same = ['id', 'tag', 'kind', 'antlers', 'loopKind', 'handle', 'params', 'sortField', 'sortDir', 'limit', 'offset', 'paginate', 'alias', 'navDepth', 'includeHome', 'expr', 'from', 'to', 'openTo'];
+  const same = [
+    'id',
+    'tag',
+    'kind',
+    'antlers',
+    'loopKind',
+    'handle',
+    'params',
+    'sortField',
+    'sortDir',
+    'limit',
+    'offset',
+    'paginate',
+    'alias',
+    'navDepth',
+    'includeHome',
+    'expr',
+    'from',
+    'to',
+    'openTo',
+  ];
 
   for (const key of same) {
     assert.deepEqual(node[key], row[key], key);
@@ -60,7 +80,10 @@ test('the model names the kind, the sort, the limit — and the nav its depth', 
   assert.equal(model.mode, 'loop');
   assert.equal(model.loopKind, 'field');
   assert.equal(model.value, 'items');
-  assert.deepEqual(model.kinds.map((kind) => kind.id), ['field', 'collection', 'nav']);
+  assert.deepEqual(
+    model.kinds.map((kind) => kind.id),
+    ['field', 'collection', 'nav']
+  );
   assert.equal(model.sort.dir, 'asc');
   assert.equal(model.sort.field, 'title');
   assert.equal(model.sort.needsField, true);
@@ -82,7 +105,10 @@ test('the model names the kind, the sort, the limit — and the nav its depth', 
   assert.equal(nav.nav.depth, '2');
   assert.equal(nav.nav.homeAsked, true);
   assert.equal(nav.sort, undefined);
-  assert.deepEqual(navSources(win).map((item) => item.handle), [NAV_PAGES, 'footer']);
+  assert.deepEqual(
+    navSources(win).map((item) => item.handle),
+    [NAV_PAGES, 'footer']
+  );
 });
 
 test('switching kind writes only where there is somewhere to point', () => {

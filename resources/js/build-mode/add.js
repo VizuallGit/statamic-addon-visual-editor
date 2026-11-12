@@ -40,7 +40,9 @@ export function tileMarkup(port, entry, { preset } = {}) {
     sectionTag: port.sectionTag(),
     mobile: port.mobileVariant(),
     preset,
-    images: images ? { img: imageMarkup(images.quality), picture: pictureMarkup(pictureSizes(port.sizes?.() || []), images.quality) } : null,
+    images: images
+      ? { img: imageMarkup(images.quality), picture: pictureMarkup(pictureSizes(port.sizes?.() || []), images.quality) }
+      : null,
     text: {
       heading: port.t('new_heading'),
       text: port.t('new_text'),

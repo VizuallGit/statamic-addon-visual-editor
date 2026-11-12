@@ -43,6 +43,7 @@ use Statamic\Facades\YAML;
 class LibraryAccess
 {
     public const SCOPE = Audience::SCOPE;
+
     public const ROLES = Audience::ROLES;
 
     /** The settings toggle this hangs on. */

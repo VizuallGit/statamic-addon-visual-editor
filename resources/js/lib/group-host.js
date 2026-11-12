@@ -101,7 +101,8 @@ function repeats(source, chain, i, roots) {
   }
 
   return openConditions(parent ? parent.children : roots).some(
-    (other) => other !== self && isTag(other) && tagOf(other) === tagOf(self) && (other.klass || '') === (self.klass || '')
+    (other) =>
+      other !== self && isTag(other) && tagOf(other) === tagOf(self) && (other.klass || '') === (self.klass || '')
   );
 }
 

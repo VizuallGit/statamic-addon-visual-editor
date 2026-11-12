@@ -18,7 +18,10 @@ export const REPLACED_OUTLINE_OFFSET_PX = 5;
  * the two files run in separate bundles (preview iframe vs. CP window).
  */
 export function normText(s) {
-  return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  return (s || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**

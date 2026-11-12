@@ -34,9 +34,7 @@ export async function loadCatalog(win) {
 /** css2's `family=` for a preview: each variant's weight and style, as they are. */
 function familyParam(font, variants) {
   const italic = variants.some(isItalic);
-  const tuples = variants
-    .map((v) => [isItalic(v) ? 1 : 0, weightOf(v)])
-    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const tuples = variants.map((v) => [isItalic(v) ? 1 : 0, weightOf(v)]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const spec = italic
     ? `ital,wght@${tuples.map(([i, w]) => `${i},${w}`).join(';')}`
     : `wght@${tuples.map(([, w]) => w).join(';')}`;
@@ -55,11 +53,14 @@ export function loadPreview(win, font, variants, text) {
   const key = `${font.family}|${variants.join(',')}|${chars}`;
 
   if (!loaded.has(key)) {
-    loaded.set(key, drawPreview(win, font, variants, chars).catch(() => {
-      loaded.delete(key);
+    loaded.set(
+      key,
+      drawPreview(win, font, variants, chars).catch(() => {
+        loaded.delete(key);
 
-      return false;
-    }));
+        return false;
+      })
+    );
   }
 
   return loaded.get(key);

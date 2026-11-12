@@ -38,7 +38,13 @@ import { sectionField, sectionLoopFields } from '../lib/config.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { findByPath } from './place.js';
 import { t } from '../lib/i18n.js';
-import { canCreateSections, chooseSectionKind, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../section-create.js';
+import {
+  canCreateSections,
+  chooseSectionKind,
+  openNewSectionDialog,
+  openStaticSectionDialog,
+  revealWhenRendered,
+} from '../section-create.js';
 
 /** The dock holds a header, a footer, a layout or a component: a file of its own, not one of the page's sections. */
 export const fileOfItsOwn = () => !!(ask('dock:chrome-kind') || ask('dock:component-src'));

@@ -128,7 +128,10 @@ async function click(page, frame, selector) {
   const { x, y } = await pointIn(frame, selector);
   const t0 = Date.now();
 
-  while (Date.now() - t0 < 8000 && (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))) {
+  while (
+    Date.now() - t0 < 8000 &&
+    (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))
+  ) {
     await sleep(100);
   }
 
@@ -150,47 +153,75 @@ async function waitFor(frame, fn, arg, ms = 8000) {
 }
 
 /** Is it on screen: laid out, with a size — not just in the DOM. */
-const seen = (frame, selector) => frame.evaluate((sel) => {
-  const el = document.querySelector(sel);
+const seen = (frame, selector) =>
+  frame.evaluate((sel) => {
+    const el = document.querySelector(sel);
 
-  if (!el) {
-    return false;
-  }
+    if (!el) {
+      return false;
+    }
 
-  const b = el.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
 
-  return getComputedStyle(el).display !== 'none' && b.width > 0 && b.height > 0;
-}, selector);
+    return getComputedStyle(el).display !== 'none' && b.width > 0 && b.height > 0;
+  }, selector);
 
-const visibleIcons = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab]`)]
-  .filter((el) => el.getBoundingClientRect().width > 0)
-  .map((el) => el.dataset.tab), BAR);
+const visibleIcons = (frame) =>
+  frame.evaluate(
+    (bar) =>
+      [...document.querySelectorAll(`${bar} button[data-tab]`)]
+        .filter((el) => el.getBoundingClientRect().width > 0)
+        .map((el) => el.dataset.tab),
+    BAR
+  );
 
-const storedKey = (frame, key) => frame.evaluate((k) => {
-  const id = window.Statamic?.$config?.get?.('sveUserId');
+const storedKey = (frame, key) =>
+  frame.evaluate((k) => {
+    const id = window.Statamic?.$config?.get?.('sveUserId');
 
-  return localStorage.getItem(id ? `sve-u:${id}:${k}` : k);
-}, key);
+    return localStorage.getItem(id ? `sve-u:${id}:${k}` : k);
+  }, key);
 const stored = (frame) => storedKey(frame, 'sve-toolbar-hidden-content');
 
 /** The icons on screen, left to right as they are drawn (CSS order included). */
-const barOrder = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab]`)]
-  .filter((el) => el.getBoundingClientRect().width > 0)
-  .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
-  .map((el) => el.dataset.tab), BAR);
+const barOrder = (frame) =>
+  frame.evaluate(
+    (bar) =>
+      [...document.querySelectorAll(`${bar} button[data-tab]`)]
+        .filter((el) => el.getBoundingClientRect().width > 0)
+        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+        .map((el) => el.dataset.tab),
+    BAR
+  );
 
-const listOrder = (frame) => frame.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-toolbar-tool]`)].map((el) => el.dataset.sveToolbarTool), MENU);
+const listOrder = (frame) =>
+  frame.evaluate(
+    (m) => [...document.querySelectorAll(`${m} [data-sve-toolbar-tool]`)].map((el) => el.dataset.sveToolbarTool),
+    MENU
+  );
 
 /** The group boxes on screen, left to right, each as the keys of its visible tools. */
-const groupBoxes = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
-  .filter((box) => box.getBoundingClientRect().width > 0)
-  .map((box) => [...box.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
-    .filter((el) => el.getBoundingClientRect().width > 0)
-    .map((el) => el.dataset.tab || el.id.replace('__sve-frame-', ''))), BAR);
+const groupBoxes = (frame) =>
+  frame.evaluate(
+    (bar) =>
+      [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
+        .filter((box) => box.getBoundingClientRect().width > 0)
+        .map((box) =>
+          [...box.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
+            .filter((el) => el.getBoundingClientRect().width > 0)
+            .map((el) => el.dataset.tab || el.id.replace('__sve-frame-', ''))
+        ),
+    BAR
+  );
 
-const groupBoxIds = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
-  .filter((box) => box.getBoundingClientRect().width > 0)
-  .map((box) => box.getAttribute('data-sve-toolbar-group')), BAR);
+const groupBoxIds = (frame) =>
+  frame.evaluate(
+    (bar) =>
+      [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
+        .filter((box) => box.getBoundingClientRect().width > 0)
+        .map((box) => box.getAttribute('data-sve-toolbar-group')),
+    BAR
+  );
 
 const storedGroups = async (frame) => JSON.parse((await storedKey(frame, 'sve-toolbar-groups')) || '[]');
 
@@ -286,7 +317,12 @@ async function dragGroup(page, frame, id, x) {
 }
 
 /** The tools whose button is pressed (open), to see a drag opened nothing. */
-const pressedTools = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab][aria-pressed="true"]`)].map((el) => el.dataset.tab).join(), BAR);
+const pressedTools = (frame) =>
+  frame.evaluate(
+    (bar) =>
+      [...document.querySelectorAll(`${bar} button[data-tab][aria-pressed="true"]`)].map((el) => el.dataset.tab).join(),
+    BAR
+  );
 
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/toolbar-visibility-${name}.png` });
 
@@ -295,7 +331,13 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate((re) => [...document.querySelectorAll('button, a')].find((el) => new RegExp(re, 'i').test(el.textContent || ''))?.click(), 'live preview|forhåndsvisning');
+    await page.evaluate(
+      (re) =>
+        [...document.querySelectorAll('button, a')]
+          .find((el) => new RegExp(re, 'i').test(el.textContent || ''))
+          ?.click(),
+      'live preview|forhåndsvisning'
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -316,7 +358,9 @@ async function openLivePreview(page) {
 async function cleanSlate(page, cp, { groups = true } = {}) {
   await openMenuTab(page, cp, 'toolbar');
 
-  for (const button of groups ? ['[data-sve-toolbar-all]', '[data-sve-toolbar-groups-reset]'] : ['[data-sve-toolbar-all]']) {
+  for (const button of groups
+    ? ['[data-sve-toolbar-all]', '[data-sve-toolbar-groups-reset]']
+    : ['[data-sve-toolbar-all]']) {
     if (await cp.$(`${MENU} ${button}`)) {
       await click(page, cp, `${MENU} ${button}`);
       await sleep(200);
@@ -340,7 +384,12 @@ async function openMenuTab(page, cp, tab) {
   }
 }
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 // The layout save is stubbed inside every document, before its own scripts
@@ -358,7 +407,9 @@ await page.evaluateOnNewDocument((path) => {
     if (url.includes(path) && method !== 'GET') {
       window.__sveTestPrefsStubbed = (window.__sveTestPrefsStubbed || 0) + 1;
 
-      return Promise.resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      return Promise.resolve(
+        new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+      );
     }
 
     return real.apply(this, arguments);
@@ -374,7 +425,12 @@ async function serverLayout() {
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 500 &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 // A missing file is named by its URL, not by the console's bare "Failed to
 // load resource": one from the editor's build fails the run, the site's own
@@ -387,8 +443,18 @@ const askedBy = (req) => {
   return from ? ` (${from.type}${from.url ? ' ' + from.url.replace(SITE_URL, '').slice(0, 80) : ''})` : '';
 };
 
-page.on('response', (r) => r.status() >= 400 && r.status() < 500 && missing.push(`${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 160)}${askedBy(r.request())}`));
-page.on('requestfailed', (req) => missing.push(`${req.failure()?.errorText || 'failed'} ${req.url().replace(SITE_URL, '').slice(0, 160)}${askedBy(req)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 400 &&
+    r.status() < 500 &&
+    missing.push(`${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 160)}${askedBy(r.request())}`)
+);
+page.on('requestfailed', (req) =>
+  missing.push(
+    `${req.failure()?.errorText || 'failed'} ${req.url().replace(SITE_URL, '').slice(0, 160)}${askedBy(req)}`
+  )
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -418,9 +484,10 @@ try {
   // where the account has its own hidden icons or order stored, a reload brings
   // those back and the reload steps for them cannot show this run's choice.
   const accountHas = (key) => Object.prototype.hasOwnProperty.call(JSON.parse(layoutBefore), key);
-  const reloadStep = (key, name, ok, detail) => (accountHas(key)
-    ? console.log(`info ${name} — skipped: the account has its own ${key} on the server`)
-    : step(name, ok, detail));
+  const reloadStep = (key, name, ok, detail) =>
+    accountHas(key)
+      ? console.log(`info ${name} — skipped: the account has its own ${key} on the server`)
+      : step(name, ok, detail);
 
   let cp = await openLivePreview(page);
 
@@ -438,7 +505,9 @@ try {
     const btn = row.querySelector(':scope > button[data-tab="settings"]');
     const r = btn.getBoundingClientRect();
     const rowBox = row.getBoundingClientRect();
-    const group = [...row.querySelectorAll(':scope > [data-sve-toolbar-group]')].find((el) => el.getBoundingClientRect().width > 0);
+    const group = [...row.querySelectorAll(':scope > [data-sve-toolbar-group]')].find(
+      (el) => el.getBoundingClientRect().width > 0
+    );
     const g = group?.getBoundingClientRect();
 
     return {
@@ -447,46 +516,95 @@ try {
       left: Math.round(r.left - rowBox.left),
       bg: getComputedStyle(btn).backgroundColor,
       gap: g ? Math.round(g.left - r.right) : 0,
-      groupBox: !!group && getComputedStyle(group).backgroundColor !== 'rgba(0, 0, 0, 0)' && Math.round(g.height) === 32,
+      groupBox:
+        !!group && getComputedStyle(group).backgroundColor !== 'rgba(0, 0, 0, 0)' && Math.round(g.height) === 32,
       rowBg: getComputedStyle(row).backgroundColor,
     };
   }, BAR);
 
-  step('Page settings is a full button of its own, one gap before the first group', box.w === 32 && box.h === 32 && box.left === 0 && box.bg !== 'rgba(0, 0, 0, 0)' && box.groupBox && box.gap === 8 && box.rowBg === 'rgba(0, 0, 0, 0)', JSON.stringify(box));
-  step('with nothing stored the bar is one group', (await groupBoxes(cp)).length === 1, JSON.stringify(await groupBoxes(cp)));
+  step(
+    'Page settings is a full button of its own, one gap before the first group',
+    box.w === 32 &&
+      box.h === 32 &&
+      box.left === 0 &&
+      box.bg !== 'rgba(0, 0, 0, 0)' &&
+      box.groupBox &&
+      box.gap === 8 &&
+      box.rowBg === 'rgba(0, 0, 0, 0)',
+    JSON.stringify(box)
+  );
+  step(
+    'with nothing stored the bar is one group',
+    (await groupBoxes(cp)).length === 1,
+    JSON.stringify(await groupBoxes(cp))
+  );
 
   // ── The menu ──────────────────────────────────────────────────────────
   await click(page, cp, MORE);
   step('⋮ opens the menu', !!(await cp.waitForSelector(MENU, { timeout: 5000 }).catch(() => null)));
 
-  const tabs = await cp.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-lp-settings-tab]`)].map((el) => el.dataset.sveLpSettingsTab), MENU);
+  const tabs = await cp.evaluate(
+    (m) => [...document.querySelectorAll(`${m} [data-sve-lp-settings-tab]`)].map((el) => el.dataset.sveLpSettingsTab),
+    MENU
+  );
 
-  step('five tabs: general, sidebars, HTML tree, top bar, shortcuts', tabs.join() === 'general,sidebars,tree,toolbar,shortcuts', tabs.join());
-  step('General first: the section toolbar and animations as switches',
-    (await cp.evaluate((m) => document.querySelector(`${m} [data-sve-lp-settings-tab="general"]`)?.classList.contains('is-on')
-      && document.querySelectorAll(`${m} [data-sve-section-toolbar-setting] input[role="switch"], ${m} [data-sve-animations-setting] input[role="switch"]`).length === 2, MENU)));
+  step(
+    'five tabs: general, sidebars, HTML tree, top bar, shortcuts',
+    tabs.join() === 'general,sidebars,tree,toolbar,shortcuts',
+    tabs.join()
+  );
+  step(
+    'General first: the section toolbar and animations as switches',
+    await cp.evaluate(
+      (m) =>
+        document.querySelector(`${m} [data-sve-lp-settings-tab="general"]`)?.classList.contains('is-on') &&
+        document.querySelectorAll(
+          `${m} [data-sve-section-toolbar-setting] input[role="switch"], ${m} [data-sve-animations-setting] input[role="switch"]`
+        ).length === 2,
+      MENU
+    )
+  );
   await shot(page, '0-general');
 
   await openMenuTab(page, cp, 'sidebars');
-  step('Sidebars: the mode as one small row, two width sliders',
-    (await cp.evaluate((m) => document.querySelectorAll(`${m} .sve-lp-settings__modes button`).length === 3
-      && document.querySelectorAll(`${m} input[type="range"]`).length === 2, MENU)));
+  step(
+    'Sidebars: the mode as one small row, two width sliders',
+    await cp.evaluate(
+      (m) =>
+        document.querySelectorAll(`${m} .sve-lp-settings__modes button`).length === 3 &&
+        document.querySelectorAll(`${m} input[type="range"]`).length === 2,
+      MENU
+    )
+  );
 
-  const modesHeight = await cp.evaluate((m) => document.querySelector(`${m} .sve-lp-settings__modes`)?.getBoundingClientRect().height || 0, MENU);
+  const modesHeight = await cp.evaluate(
+    (m) => document.querySelector(`${m} .sve-lp-settings__modes`)?.getBoundingClientRect().height || 0,
+    MENU
+  );
 
   step('Hidden/Auto/Visible is compact', modesHeight > 0 && modesHeight <= 28, `${Math.round(modesHeight)} px high`);
   await shot(page, '1-sidebars');
 
   await openMenuTab(page, cp, 'tree');
-  step('HTML tree tab: dock, tree face and the colours', await cp.evaluate((m) => document.querySelectorAll(`${m} input[type="color"]`).length >= 5, MENU));
+  step(
+    'HTML tree tab: dock, tree face and the colours',
+    await cp.evaluate((m) => document.querySelectorAll(`${m} input[type="color"]`).length >= 5, MENU)
+  );
   await shot(page, '2-tree');
 
   await openMenuTab(page, cp, 'toolbar');
 
-  const listed = await cp.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-toolbar-tool]`)].map((el) => el.dataset.sveToolbarTool), MENU);
+  const listed = await cp.evaluate(
+    (m) => [...document.querySelectorAll(`${m} [data-sve-toolbar-tool]`)].map((el) => el.dataset.sveToolbarTool),
+    MENU
+  );
   const expected = before.filter((key) => key !== 'settings');
 
-  step('Top bar lists the icons in the row, without Page settings', listed.join() === expected.join() && !listed.includes('settings'), listed.join(' '));
+  step(
+    'Top bar lists the icons in the row, without Page settings',
+    listed.join() === expected.join() && !listed.includes('settings'),
+    listed.join(' ')
+  );
   await shot(page, '3-toolbar');
 
   // A panel tool and a framed one: the two ways an icon opens something.
@@ -521,10 +639,18 @@ try {
 
   // ── A reload ──────────────────────────────────────────────────────────
   cp = await openLivePreview(page);
-  reloadStep('sve-toolbar-hidden-content', `${panelTool} still hidden after a reload`, !(await seen(cp, icon(panelTool))));
+  reloadStep(
+    'sve-toolbar-hidden-content',
+    `${panelTool} still hidden after a reload`,
+    !(await seen(cp, icon(panelTool)))
+  );
 
   if (framed) {
-    reloadStep('sve-toolbar-hidden-content', 'Pages still hidden after a reload', !(await seen(cp, `#__sve-frame-${framed}`)));
+    reloadStep(
+      'sve-toolbar-hidden-content',
+      'Pages still hidden after a reload',
+      !(await seen(cp, `#__sve-frame-${framed}`))
+    );
   }
 
   // The account's own hidden icons came back with the reload: this run's two
@@ -550,12 +676,28 @@ try {
   await openMenuTab(page, cp, 'toolbar');
   await click(page, cp, `${toolRow(panelTool)} [data-sve-toolbar-open]`);
   step('Open closes the menu', await waitFor(cp, (m) => !document.querySelector(m), MENU, 3000));
-  step(`${panelTool} opens`, await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true', icon(panelTool), 10000));
+  step(
+    `${panelTool} opens`,
+    await waitFor(
+      cp,
+      (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') === 'true',
+      icon(panelTool),
+      10000
+    )
+  );
   step('its icon shows while it is open', await seen(cp, icon(panelTool)));
   await shot(page, '5-open');
 
   await click(page, cp, icon(panelTool));
-  step(`${panelTool} closes from its icon`, await waitFor(cp, (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') !== 'true', icon(panelTool), 5000));
+  step(
+    `${panelTool} closes from its icon`,
+    await waitFor(
+      cp,
+      (sel) => document.querySelector(sel)?.getAttribute('aria-pressed') !== 'true',
+      icon(panelTool),
+      5000
+    )
+  );
   await sleep(500);
   step('and the icon goes again', !(await seen(cp, icon(panelTool))));
 
@@ -563,11 +705,19 @@ try {
     await openMenuTab(page, cp, 'toolbar');
     await click(page, cp, `${toolRow(framed)} [data-sve-toolbar-open]`);
     // Its icon stays hidden; the control stands under the bar's left edge (header-toolbar.js UNDER_BAR_ID).
-    step('Pages opens under the bar', await waitFor(cp, (sel) => {
-      const el = document.querySelector(sel);
+    step(
+      'Pages opens under the bar',
+      await waitFor(
+        cp,
+        (sel) => {
+          const el = document.querySelector(sel);
 
-      return !!el && el.getBoundingClientRect().width > 40;
-    }, '#__sve-under-bar', 5000));
+          return !!el && el.getBoundingClientRect().width > 40;
+        },
+        '#__sve-under-bar',
+        5000
+      )
+    );
     await click(page, cp, icon(framed));
     await sleep(600);
     step('and goes again when closed', !(await seen(cp, `#__sve-frame-${framed}`)));
@@ -577,7 +727,11 @@ try {
   await openMenuTab(page, cp, 'toolbar');
   await click(page, cp, `${MENU} [data-sve-toolbar-all]`);
   await sleep(300);
-  step('Show all brings every icon back', (await visibleIcons(cp)).join() === before.join(), (await visibleIcons(cp)).join(' '));
+  step(
+    'Show all brings every icon back',
+    (await visibleIcons(cp)).join() === before.join(),
+    (await visibleIcons(cp)).join(' ')
+  );
   step('and clears the stored list', (await stored(cp)) === null);
 
   // ── Groups: drag a row with the real mouse ────────────────────────────
@@ -585,10 +739,22 @@ try {
   const mover = rows[rows.length - 1];
 
   await dragRow(page, cp, mover, rows[0]);
-  step('dragging a row moves it to the top of the list', (await listOrder(cp))[0] === mover, (await listOrder(cp)).join(' '));
-  step('and in the top bar, right after Page settings', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
+  step(
+    'dragging a row moves it to the top of the list',
+    (await listOrder(cp))[0] === mover,
+    (await listOrder(cp)).join(' ')
+  );
+  step(
+    'and in the top bar, right after Page settings',
+    (await barOrder(cp))[1] === mover,
+    (await barOrder(cp)).join(' ')
+  );
   step('Page settings stays first', (await barOrder(cp))[0] === 'settings');
-  step('the groups are stored, the tool first in the first group', (await storedGroups(cp))[0]?.tools[0] === mover, JSON.stringify(await storedGroups(cp)));
+  step(
+    'the groups are stored, the tool first in the first group',
+    (await storedGroups(cp))[0]?.tools[0] === mover,
+    JSON.stringify(await storedGroups(cp))
+  );
 
   await page.keyboard.press('Escape');
   cp = await openLivePreview(page);
@@ -599,7 +765,12 @@ try {
     await cleanSlate(page, cp, { groups: false });
   }
 
-  reloadStep('sve-toolbar-groups', 'the groups survive a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
+  reloadStep(
+    'sve-toolbar-groups',
+    'the groups survive a reload',
+    (await barOrder(cp))[1] === mover,
+    (await barOrder(cp)).join(' ')
+  );
 
   await openMenuTab(page, cp, 'toolbar');
   reloadStep('sve-toolbar-groups', 'the list opens in that order', (await listOrder(cp))[0] === mover);
@@ -612,8 +783,20 @@ try {
 
   const split = await groupBoxes(cp);
 
-  step('the dropped tool is in a group of its own, last in the bar', split.length === 2 && split[1].join() === mover, JSON.stringify(split));
-  step('the menu shows two groups, no draft', (await cp.evaluate((m) => document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length === 2 && !document.querySelector(`${m} [data-sve-toolbar-group-draft]`), MENU)));
+  step(
+    'the dropped tool is in a group of its own, last in the bar',
+    split.length === 2 && split[1].join() === mover,
+    JSON.stringify(split)
+  );
+  step(
+    'the menu shows two groups, no draft',
+    await cp.evaluate(
+      (m) =>
+        document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length === 2 &&
+        !document.querySelector(`${m} [data-sve-toolbar-group-draft]`),
+      MENU
+    )
+  );
   step('both are stored', (await storedGroups(cp)).length === 2 && (await storedGroups(cp))[1].tools.join() === mover);
 
   // A tool hidden now is what the «+» has to offer.
@@ -633,15 +816,34 @@ try {
   await page.mouse.move(secondBox.x, secondBox.y);
   await sleep(200);
   await click(page, cp, `${BAR} [data-sve-toolbar-add="${secondId}"]`);
-  step('«+» opens the add menu', !!(await cp.waitForSelector('#__sve-toolbar-add-menu', { timeout: 5000 }).catch(() => null)));
-  step('a tool already in the bar is greyed out', await cp.evaluate((k) => document.querySelector(`#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${k}"]`)?.disabled === true, mover));
-  step('a hidden one is not', await cp.evaluate((k) => document.querySelector(`#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${k}"]`)?.disabled === false, addable));
+  step(
+    '«+» opens the add menu',
+    !!(await cp.waitForSelector('#__sve-toolbar-add-menu', { timeout: 5000 }).catch(() => null))
+  );
+  step(
+    'a tool already in the bar is greyed out',
+    await cp.evaluate(
+      (k) => document.querySelector(`#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${k}"]`)?.disabled === true,
+      mover
+    )
+  );
+  step(
+    'a hidden one is not',
+    await cp.evaluate(
+      (k) => document.querySelector(`#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${k}"]`)?.disabled === false,
+      addable
+    )
+  );
   await click(page, cp, `#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${addable}"]`);
   await sleep(300);
 
   const added = await groupBoxes(cp);
 
-  step('the hidden tool joins that group at its end, shown', added[1]?.join() === [mover, addable].join(), JSON.stringify(added));
+  step(
+    'the hidden tool joins that group at its end, shown',
+    added[1]?.join() === [mover, addable].join(),
+    JSON.stringify(added)
+  );
   step('and is no longer hidden', !JSON.parse((await stored(cp)) || '[]').includes(addable));
   step('the add menu closed', !(await cp.$('#__sve-toolbar-add-menu')));
 
@@ -652,9 +854,23 @@ try {
 
   const merged = await groupBoxes(cp);
 
-  step('an icon dragged into another group lands at its end', merged[0]?.[merged[0].length - 1] === addable, JSON.stringify(merged));
-  step('its old group still holds the other tool', merged.length === 2 && merged[1].join() === mover, JSON.stringify(merged));
-  step('the drag opened nothing', !(await cp.evaluate((k) => document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') === 'true', addable)));
+  step(
+    'an icon dragged into another group lands at its end',
+    merged[0]?.[merged[0].length - 1] === addable,
+    JSON.stringify(merged)
+  );
+  step(
+    'its old group still holds the other tool',
+    merged.length === 2 && merged[1].join() === mover,
+    JSON.stringify(merged)
+  );
+  step(
+    'the drag opened nothing',
+    !(await cp.evaluate(
+      (k) => document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') === 'true',
+      addable
+    ))
+  );
 
   // Dropped in the gap before the first group: a new group there, and the
   // one it left — empty now — is gone.
@@ -665,8 +881,16 @@ try {
 
   const regrouped = await groupBoxes(cp);
 
-  step('an icon dropped in the gap makes a new group there', regrouped.length === 2 && regrouped[0].join() === mover, JSON.stringify(regrouped));
-  step('the group it emptied is gone', regrouped[1]?.includes(addable) && !(await storedGroups(cp)).some((g) => g.id === secondId), JSON.stringify(await storedGroups(cp)));
+  step(
+    'an icon dropped in the gap makes a new group there',
+    regrouped.length === 2 && regrouped[0].join() === mover,
+    JSON.stringify(regrouped)
+  );
+  step(
+    'the group it emptied is gone',
+    regrouped[1]?.includes(addable) && !(await storedGroups(cp)).some((g) => g.id === secondId),
+    JSON.stringify(await storedGroups(cp))
+  );
 
   // ── A whole group, by its own surface ─────────────────────────────────
   const [loneId, restId] = await groupBoxIds(cp);
@@ -685,42 +909,52 @@ try {
     };
   }, groupBox(restId));
 
-  step('a group\'s own surface shows the grab hand, its icons their own pointer, and there is no grip',
-    cursors.surface && cursors.box === 'grab' && cursors.icon === 'pointer' && !cursors.grip, JSON.stringify(cursors));
+  step(
+    "a group's own surface shows the grab hand, its icons their own pointer, and there is no grip",
+    cursors.surface && cursors.box === 'grab' && cursors.icon === 'pointer' && !cursors.grip,
+    JSON.stringify(cursors)
+  );
 
   await dragGroup(page, cp, restId, loneRect.left + 4);
-  step('a group dragged by its surface moves in front of the other', (await groupBoxIds(cp)).join() === [restId, loneId].join(), (await groupBoxIds(cp)).join(' '));
+  step(
+    'a group dragged by its surface moves in front of the other',
+    (await groupBoxIds(cp)).join() === [restId, loneId].join(),
+    (await groupBoxIds(cp)).join(' ')
+  );
   step('and is stored in that order', (await storedGroups(cp)).map((g) => g.id).join() === [restId, loneId].join());
   step('Page settings stays first after a group drag', (await barOrder(cp))[0] === 'settings');
   step('the group drag opened nothing', (await pressedTools(cp)) === pressedBefore, await pressedTools(cp));
   await shot(page, '6-group-dragged');
 
   // ── The new-group square ──────────────────────────────────────────────
-  const squareState = (frame) => frame.evaluate((bar) => {
-    const square = document.querySelector(`${bar} > [data-sve-toolbar-new-group]`);
-    const btn = square?.querySelector(':scope > button');
-    const last = [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)].filter((box) => box.getBoundingClientRect().width > 0).pop();
+  const squareState = (frame) =>
+    frame.evaluate((bar) => {
+      const square = document.querySelector(`${bar} > [data-sve-toolbar-new-group]`);
+      const btn = square?.querySelector(':scope > button');
+      const last = [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
+        .filter((box) => box.getBoundingClientRect().width > 0)
+        .pop();
 
-    if (!btn || !last) {
-      return null;
-    }
+      if (!btn || !last) {
+        return null;
+      }
 
-    const r = btn.getBoundingClientRect();
-    const l = last.getBoundingClientRect();
+      const r = btn.getBoundingClientRect();
+      const l = last.getBoundingClientRect();
 
-    const groupBg = getComputedStyle(last).backgroundColor;
+      const groupBg = getComputedStyle(last).backgroundColor;
 
-    return {
-      opacity: getComputedStyle(square).opacity,
-      plus: getComputedStyle(btn.querySelector('svg')).opacity,
-      w: Math.round(r.width),
-      h: Math.round(r.height),
-      gap: Math.round(r.left - l.right),
-      top: Math.round(r.top - l.top),
-      ring: getComputedStyle(btn).borderTopColor === groupBg,
-      surface: getComputedStyle(btn).backgroundColor === groupBg,
-    };
-  }, BAR);
+      return {
+        opacity: getComputedStyle(square).opacity,
+        plus: getComputedStyle(btn.querySelector('svg')).opacity,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        gap: Math.round(r.left - l.right),
+        top: Math.round(r.top - l.top),
+        ring: getComputedStyle(btn).borderTopColor === groupBg,
+        surface: getComputedStyle(btn).backgroundColor === groupBg,
+      };
+    }, BAR);
 
   const lastRect = await rectIn(cp, `${BAR} > [data-sve-toolbar-group="${loneId}"]`);
 
@@ -729,9 +963,16 @@ try {
 
   const square = await squareState(cp);
 
-  step('away from the bar the new-group square is still there right of the last group: its height, 1:1, one gap away',
-    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 8 && square.top === 0, JSON.stringify(square));
-  step('at rest it is a ring in the groups\' grey, no surface, its «+» at 20%', square?.ring && !square.surface && square.plus === '0.2', JSON.stringify(square));
+  step(
+    'away from the bar the new-group square is still there right of the last group: its height, 1:1, one gap away',
+    !!square && square.opacity === '1' && square.w === 32 && square.h === 32 && square.gap === 8 && square.top === 0,
+    JSON.stringify(square)
+  );
+  step(
+    "at rest it is a ring in the groups' grey, no surface, its «+» at 20%",
+    square?.ring && !square.surface && square.plus === '0.2',
+    JSON.stringify(square)
+  );
   await shot(page, '7-new-group-square');
 
   const squarePoint = await pointIn(cp, `${NEW_GROUP} > button`);
@@ -741,17 +982,27 @@ try {
 
   const hovered = await squareState(cp);
 
-  step('hovered it takes the groups\' surface and its «+» is whole', hovered?.surface && hovered.plus === '1', JSON.stringify(hovered));
+  step(
+    "hovered it takes the groups' surface and its «+» is whole",
+    hovered?.surface && hovered.plus === '1',
+    JSON.stringify(hovered)
+  );
 
   await page.mouse.move(lastRect.left + 10, lastRect.y);
   await sleep(200);
   await click(page, cp, `${NEW_GROUP} > button`);
-  step('its «+» opens the tool menu', !!(await cp.waitForSelector('#__sve-toolbar-add-menu', { timeout: 5000 }).catch(() => null)));
-  step('every tool can be picked for a new group', await cp.evaluate(() => {
-    const tiles = [...document.querySelectorAll('#__sve-toolbar-add-menu [data-sve-toolbar-add-tool]')];
+  step(
+    'its «+» opens the tool menu',
+    !!(await cp.waitForSelector('#__sve-toolbar-add-menu', { timeout: 5000 }).catch(() => null))
+  );
+  step(
+    'every tool can be picked for a new group',
+    await cp.evaluate(() => {
+      const tiles = [...document.querySelectorAll('#__sve-toolbar-add-menu [data-sve-toolbar-add-tool]')];
 
-    return tiles.length > 0 && tiles.every((tile) => !tile.disabled);
-  }));
+      return tiles.length > 0 && tiles.every((tile) => !tile.disabled);
+    })
+  );
 
   const starter = (await groupBoxes(cp))[0].find((key) => key !== addable);
 
@@ -760,7 +1011,11 @@ try {
 
   const withNew = await groupBoxes(cp);
 
-  step('the picked tool starts a new group, last in the bar', withNew.length === 3 && withNew[2].join() === starter, JSON.stringify(withNew));
+  step(
+    'the picked tool starts a new group, last in the bar',
+    withNew.length === 3 && withNew[2].join() === starter,
+    JSON.stringify(withNew)
+  );
   step('the tool menu closed', !(await cp.$('#__sve-toolbar-add-menu')));
 
   const squareRect = await rectIn(cp, `${NEW_GROUP} > button`);
@@ -770,7 +1025,11 @@ try {
 
   const withDropped = await groupBoxes(cp);
 
-  step('an icon dropped on the square starts a new group there too', withDropped.length === 4 && withDropped[3].join() === dropped, JSON.stringify(withDropped));
+  step(
+    'an icon dropped on the square starts a new group there too',
+    withDropped.length === 4 && withDropped[3].join() === dropped,
+    JSON.stringify(withDropped)
+  );
 
   // ── Reset groups ──────────────────────────────────────────────────────
   await openMenuTab(page, cp, 'toolbar');
@@ -778,12 +1037,17 @@ try {
   await sleep(300);
   step('Reset groups is one group again', (await groupBoxes(cp)).length === 1, JSON.stringify(await groupBoxes(cp)));
   step('and clears the stored groups', (await storedKey(cp, 'sve-toolbar-groups')) === null);
-  step('the list is one group too', (await cp.evaluate((m) => document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length, MENU)) === 1);
+  step(
+    'the list is one group too',
+    (await cp.evaluate((m) => document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length, MENU)) === 1
+  );
 
   // ── Content and Build ─────────────────────────────────────────────────
   // Statamic's config hands back reactive proxies, which do not cross into
   // the test as values — made plain JSON in the page first.
-  const modes = await cp.evaluate(() => JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveToolbarModes') || null)));
+  const modes = await cp.evaluate(() =>
+    JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveToolbarModes') || null))
+  );
   const dockArmed = async () => (await storedKey(cp, 'sve-code-dock-armed')) === '1';
 
   if (!modes) {
@@ -791,10 +1055,18 @@ try {
   } else {
     const inContent = await visibleIcons(cp);
 
-    step('Content shows only what the site gave Content', inContent.every((key) => key === 'settings' || modes.content.includes(key)), inContent.join(' '));
+    step(
+      'Content shows only what the site gave Content',
+      inContent.every((key) => key === 'settings' || modes.content.includes(key)),
+      inContent.join(' ')
+    );
     step('the HTML dock is never one of them', !inContent.includes('code') && !(await dockArmed()));
     await openMenuTab(page, cp, 'toolbar');
-    step('⋮ → Top bar lists only Content’s', (await listOrder(cp)).every((key) => modes.content.includes(key)), (await listOrder(cp)).join(' '));
+    step(
+      '⋮ → Top bar lists only Content’s',
+      (await listOrder(cp)).every((key) => modes.content.includes(key)),
+      (await listOrder(cp)).join(' ')
+    );
     await page.keyboard.press('Escape');
 
     const switchTo = (mode) => `[data-sve-build-switch] [data-sve-build-mode="${mode}"]`;
@@ -807,7 +1079,11 @@ try {
 
       const inVisual = await visibleIcons(cp);
 
-      step('Visual Build shows only what the site gave Build', inVisual.every((key) => key === 'settings' || modes.build.includes(key)), inVisual.join(' '));
+      step(
+        'Visual Build shows only what the site gave Build',
+        inVisual.every((key) => key === 'settings' || modes.build.includes(key)),
+        inVisual.join(' ')
+      );
       step('and the HTML dock is open, with no icon of its own', !inVisual.includes('code') && (await dockArmed()));
 
       await click(page, cp, switchTo('html'));
@@ -815,12 +1091,19 @@ try {
 
       const inHtml = await visibleIcons(cp);
 
-      step('HTML Build shows every icon the site has, and none it does not', inHtml.every((key) => key === 'settings' || modes.html.includes(key)), inHtml.join(' '));
+      step(
+        'HTML Build shows every icon the site has, and none it does not',
+        inHtml.every((key) => key === 'settings' || modes.html.includes(key)),
+        inHtml.join(' ')
+      );
       step('and the HTML dock, open, with no icon of its own', !inHtml.includes('code') && (await dockArmed()));
 
       await click(page, cp, switchTo('content'));
       await sleep(1500);
-      step('back in Content, the dock is shut and its icon gone', !(await dockArmed()) && !(await visibleIcons(cp)).includes('code'));
+      step(
+        'back in Content, the dock is shut and its icon gone',
+        !(await dockArmed()) && !(await visibleIcons(cp)).includes('code')
+      );
     }
   }
 
@@ -841,10 +1124,16 @@ try {
   // manifest on a real site. Only those parser-made requests are set aside.
   const preloadMiss = (line) => WORKTREE && / \(parser /.test(line);
   const editorMissing = missing.filter((line) => /visual-editor|\/!\/sve\//.test(line) && !preloadMiss(line));
-  const preloads = [...new Set(missing.filter((line) => /visual-editor/.test(line) && preloadMiss(line)).map((line) => line.split(' (')[0]))];
+  const preloads = [
+    ...new Set(
+      missing.filter((line) => /visual-editor/.test(line) && preloadMiss(line)).map((line) => line.split(' (')[0])
+    ),
+  ];
 
   if (preloads.length) {
-    console.log(`info installed preload links not in the working tree (expected with SVE_WORKTREE): ${preloads.join(' | ')}`);
+    console.log(
+      `info installed preload links not in the working tree (expected with SVE_WORKTREE): ${preloads.join(' | ')}`
+    );
   }
 
   step("the account's saved layout on the server is unchanged", (await serverLayout()) === layoutBefore);
@@ -852,7 +1141,12 @@ try {
   step('no missing editor files', editorMissing.length === 0, editorMissing.slice(0, 5).join(' | '));
 
   if (missing.length) {
-    console.log(`info the site's own missing files: ${[...new Set(missing)].filter((line) => !/visual-editor|\/!\/sve\//.test(line)).slice(0, 8).join(' | ')}`);
+    console.log(
+      `info the site's own missing files: ${[...new Set(missing)]
+        .filter((line) => !/visual-editor|\/!\/sve\//.test(line))
+        .slice(0, 8)
+        .join(' | ')}`
+    );
   }
 } catch (e) {
   step('run', false, e.message);

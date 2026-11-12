@@ -30,12 +30,12 @@ final class AiProvider
         $chosen = trim((string) Features::setting('ghost_provider', ''));
         $chosen = $chosen !== '' ? $chosen : trim((string) config('statamic-visual-editor.ghost.provider', ''));
 
-        return in_array($chosen, static::PROVIDERS, true) ? $chosen : 'cursor';
+        return in_array($chosen, self::PROVIDERS, true) ? $chosen : 'cursor';
     }
 
     public static function claude(): bool
     {
-        return static::current() === 'claude';
+        return self::current() === 'claude';
     }
 
     /** The Cursor key: the settings field, then CURSOR_API_KEY. */
@@ -55,25 +55,25 @@ final class AiProvider
     /** The key of the way picked; '' when the site has none for it. */
     public static function key(): string
     {
-        return static::claude() ? static::claudeKey() : static::cursorKey();
+        return self::claude() ? self::claudeKey() : self::cursorKey();
     }
 
     /** What the author is told when the way picked has no key: which key, and where it goes. */
     public static function needKey(): string
     {
-        return __(static::claude() ? 'sve::messages.ai_need_claude_key' : 'sve::messages.ai_need_cursor_key');
+        return __(self::claude() ? 'sve::messages.ai_need_claude_key' : 'sve::messages.ai_need_cursor_key');
     }
 
     /** The agent the AI chat and AI text run: Cursor's, or the Claude runner with the same contract. */
     public static function agent(): string
     {
-        return static::claude() ? ClaudeAgent::class : CursorAgent::class;
+        return self::claude() ? ClaudeAgent::class : CursorAgent::class;
     }
 
     /** The model a chat or AI text uses: the one picked in the panel when it fits the way picked, else the site's default. */
     public static function model(?string $picked = null): string
     {
-        return static::claude() ? static::claudeModel($picked) : CursorAgent::model($picked);
+        return self::claude() ? self::claudeModel($picked) : CursorAgent::model($picked);
     }
 
     /** A Claude model: the one picked, else the settings' default, when it is one of CLAUDE_MODELS; else Opus. */
@@ -82,12 +82,12 @@ final class AiProvider
         foreach ([$picked, Features::setting('ai_model', '')] as $id) {
             $id = trim((string) $id);
 
-            if (array_key_exists($id, static::CLAUDE_MODELS)) {
+            if (array_key_exists($id, self::CLAUDE_MODELS)) {
                 return $id;
             }
         }
 
-        return static::CLAUDE_DEFAULT;
+        return self::CLAUDE_DEFAULT;
     }
 
     /**
@@ -99,8 +99,8 @@ final class AiProvider
     {
         return array_map(
             fn (string $id, string $name) => ['id' => $id, 'name' => $name, 'group' => 'Claude'],
-            array_keys(static::CLAUDE_MODELS),
-            static::CLAUDE_MODELS,
+            array_keys(self::CLAUDE_MODELS),
+            self::CLAUDE_MODELS,
         );
     }
 }

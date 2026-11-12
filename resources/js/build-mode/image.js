@@ -55,7 +55,8 @@ export const RATIOS = [
 
 const tagOf = (node) => (!node || node.kind ? '' : String(node.tag || '').toLowerCase());
 const whole = (value) => (/^\s*\d+\s*$/.test(String(value ?? '')) && Number(value) > 0 ? Number(value) : null);
-const named = (source, node, name) => attributeList(source, node).find((attr) => attr.name.toLowerCase() === name) || null;
+const named = (source, node, name) =>
+  attributeList(source, node).find((attr) => attr.name.toLowerCase() === name) || null;
 
 /** The ratio a width and a height make: a RATIOS key, 'custom', or 'original' without both. */
 export function ratioOf(width, height) {
@@ -118,7 +119,10 @@ export function readImage(source, img) {
   const on = IMAGE_OPTIONS.some((name) => named(source, img, name));
   const blur = named(source, img, 'blur');
   const priority = named(source, img, 'priority');
-  let format = String(read('format') || '').trim().toLowerCase() || 'webp';
+  let format =
+    String(read('format') || '')
+      .trim()
+      .toLowerCase() || 'webp';
 
   if (format === 'jpeg') {
     format = 'jpg';
@@ -131,11 +135,12 @@ export function readImage(source, img) {
     format: on ? format : 'off',
     quality: whole(read('quality')),
     blur: !!blur && !['false', '0', 'off'].includes(String(blur.value).trim().toLowerCase()),
-    loading: priority && ['', 'true', 'high'].includes(String(priority.value).trim().toLowerCase())
-      ? 'first'
-      : String(read('loading') || '').toLowerCase() === 'eager'
-        ? 'eager'
-        : 'lazy',
+    loading:
+      priority && ['', 'true', 'high'].includes(String(priority.value).trim().toLowerCase())
+        ? 'first'
+        : String(read('loading') || '').toLowerCase() === 'eager'
+          ? 'eager'
+          : 'lazy',
   };
 }
 
@@ -248,7 +253,10 @@ export function withImageAttrs(source, roots, path, attrs) {
  */
 export function pictureSizes(rows) {
   const list = rows || [];
-  const base = Math.max(0, list.findIndex((row) => row.base));
+  const base = Math.max(
+    0,
+    list.findIndex((row) => row.base)
+  );
 
   return list
     .map((row, at) => ({
@@ -263,7 +271,13 @@ export function pictureSizes(rows) {
     .sort((a, b) => b.order - a.order);
 }
 
-const sameMedia = (a, b) => String(a || '').replace(/\s+/g, '').toLowerCase() === String(b || '').replace(/\s+/g, '').toLowerCase();
+const sameMedia = (a, b) =>
+  String(a || '')
+    .replace(/\s+/g, '')
+    .toLowerCase() ===
+  String(b || '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
 
 /**
  * The picture's `<source>`s by size: `{ [handle]: { path, width, height } }`.
@@ -279,7 +293,9 @@ export function readSources(source, picture, sizes, rows = []) {
     }
 
     const media = readAttribute(source, kid, 'media');
-    const size = sizes.find((s) => sameMedia(s.media, media) || sameMedia(rows.find((row) => row.handle === s.handle)?.media, media));
+    const size = sizes.find(
+      (s) => sameMedia(s.media, media) || sameMedia(rows.find((row) => row.handle === s.handle)?.media, media)
+    );
 
     if (size && !out[size.handle]) {
       out[size.handle] = {
@@ -338,23 +354,30 @@ export function withSource(source, found, size, sizes, { width, height } = {}) {
     const imgTag = text.slice(img.from, img.openTo);
 
     if (indent === null) {
-      return { html: `${text.slice(0, img.from)}<picture>${tag}${imgTag}</picture>${text.slice(img.openTo)}`, imgAt: img.from + `<picture>${tag}`.length };
+      return {
+        html: `${text.slice(0, img.from)}<picture>${tag}${imgTag}</picture>${text.slice(img.openTo)}`,
+        imgAt: img.from + `<picture>${tag}`.length,
+      };
     }
 
     const inner = `${indent}    `;
     const head = `<picture>\n${inner}${tag}\n${inner}`;
 
-    return { html: `${text.slice(0, img.from)}${head}${imgTag}\n${indent}</picture>${text.slice(img.openTo)}`, imgAt: img.from + head.length };
+    return {
+      html: `${text.slice(0, img.from)}${head}${imgTag}\n${indent}</picture>${text.slice(img.openTo)}`,
+      imgAt: img.from + head.length,
+    };
   }
 
   // Before the first that comes after it, else before the image.
   const kids = (picture.children || []).filter((kid) => tagOf(kid) === 'source');
   const rank = (node) => sizes.find((s) => sameMedia(s.media, readAttribute(text, node, 'media')));
-  const next = kids.find((kid) => {
-    const other = rank(kid);
+  const next =
+    kids.find((kid) => {
+      const other = rank(kid);
 
-    return other && other.order < size.order;
-  }) || img;
+      return other && other.order < size.order;
+    }) || img;
   const indent = indentAt(text, next.from);
   const put = `${tag}${indent === null ? '' : `\n${indent}`}`;
 
@@ -381,13 +404,18 @@ export function withoutSource(source, roots, found, sourcePath) {
   const bare = !/\S/.test(text.slice(picture.from + '<picture'.length, picture.openTo - 1));
 
   if (kids.length === 1 && kids[0] === node && bare) {
-    return { html: text.slice(0, picture.from) + text.slice(img.from, img.openTo) + text.slice(picture.to), imgAt: picture.from };
+    return {
+      html: text.slice(0, picture.from) + text.slice(img.from, img.openTo) + text.slice(picture.to),
+      imgAt: picture.from,
+    };
   }
 
   // The line it stands on, when it stands on one alone.
   const indent = indentAt(text, node.from);
   const lineEnd = text.indexOf('\n', node.openTo);
-  const alone = indent !== null && (lineEnd === -1 ? !/\S/.test(text.slice(node.openTo)) : !/\S/.test(text.slice(node.openTo, lineEnd)));
+  const alone =
+    indent !== null &&
+    (lineEnd === -1 ? !/\S/.test(text.slice(node.openTo)) : !/\S/.test(text.slice(node.openTo, lineEnd)));
   const from = alone ? node.from - indent.length : node.from;
   const to = alone && lineEnd !== -1 ? lineEnd + 1 : node.openTo;
 

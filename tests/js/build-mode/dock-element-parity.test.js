@@ -33,7 +33,11 @@ const read = (path) => readFileSync(fileURLToPath(new URL(`../../../resources/js
 
 /** Every Build tile, by id — the elements Build adds. */
 function tiles() {
-  return new Map(addGroups(LISTS).flatMap((group) => group.items).map((entry) => [entry.id, entry]));
+  return new Map(
+    addGroups(LISTS)
+      .flatMap((group) => group.items)
+      .map((entry) => [entry.id, entry])
+  );
 }
 
 test('every toolbar button that adds an element finds the tile that adds the same element', () => {
@@ -84,14 +88,23 @@ test('the button and the tile write the very same markup', () => {
 });
 
 test('an image and a picture come with their options; a heading and a text with their word', () => {
-  assert.equal(markupFor(tileForTool(LISTS, 'img'), OPTS), '<img src="" alt="" width="1200" format="webp" quality="70" blur>');
-  assert.match(markupFor(tileForTool(LISTS, 'picture'), OPTS), /^<picture>\n {4}<source media="\(max-width: 767\.98px\)" width="768" height="768">\n {4}<source media="\(max-width: 1023\.98px\)" width="1024" height="768">\n {4}<img src="" alt="" width="1200" height="675" format="webp" quality="70" blur>\n<\/picture>$/);
+  assert.equal(
+    markupFor(tileForTool(LISTS, 'img'), OPTS),
+    '<img src="" alt="" width="1200" format="webp" quality="70" blur>'
+  );
+  assert.match(
+    markupFor(tileForTool(LISTS, 'picture'), OPTS),
+    /^<picture>\n {4}<source media="\(max-width: 767\.98px\)" width="768" height="768">\n {4}<source media="\(max-width: 1023\.98px\)" width="1024" height="768">\n {4}<img src="" alt="" width="1200" height="675" format="webp" quality="70" blur>\n<\/picture>$/
+  );
   assert.equal(markupFor(tileForTool(LISTS, 'heading'), { ...OPTS, heading: 'h3' }), '<h3>New heading</h3>');
-  assert.equal(markupFor(tileForTool(LISTS, 'text'), { ...OPTS, textTag: 'span' }), '<span>Write your text here.</span>');
+  assert.equal(
+    markupFor(tileForTool(LISTS, 'text'), { ...OPTS, textTag: 'span' }),
+    '<span>Write your text here.</span>'
+  );
   assert.equal(markupFor(tileForTool(LISTS, 'text'), OPTS), '<p>Write your text here.</p>');
 });
 
-test('the dock\'s caret: into an empty attribute, over the word, where a snippet says, inside an empty element', () => {
+test("the dock's caret: into an empty attribute, over the word, where a snippet says, inside an empty element", () => {
   const at = (markup, def) => {
     const c = caretIn(markup, words, def);
 
@@ -116,8 +129,15 @@ test('a site that makes no images has no Picture, in the dock or in Build', () =
 
   try {
     assert.equal(tileForTool(LISTS, 'picture'), null);
-    assert.ok(!addGroups(LISTS).flatMap((group) => group.items).some((entry) => entry.id === 'picture'));
-    assert.match(read('dock/element-markup.js'), /HTML_TOOLS\.filter\(\(tool\) => !tool\.images \|\| siteImageOptions\(win\)\)/);
+    assert.ok(
+      !addGroups(LISTS)
+        .flatMap((group) => group.items)
+        .some((entry) => entry.id === 'picture')
+    );
+    assert.match(
+      read('dock/element-markup.js'),
+      /HTML_TOOLS\.filter\(\(tool\) => !tool\.images \|\| siteImageOptions\(win\)\)/
+    );
   } finally {
     globalThis.Statamic = saved;
   }

@@ -26,7 +26,7 @@
             :aria-label="ui.labels[`containers_${row.key.replace('-', '_')}`]"
             :data-sve-theme-width="row.key"
             @change="h.onWidth(row.key, $event.target.value)"
-          >
+          />
           <span class="sve-theme__unit">px</span>
         </label>
       </template>
@@ -39,10 +39,22 @@
       <span class="sve-theme__label">{{ ui.labels.spacing_gutter }}</span>
       <span class="sve-theme__input">
         <select data-sve-gutter :value="gutterName" @change="h.onGutter(`var(--${$event.target.value})`)">
-          <option v-if="gutterName && !ui.sizes.some((s) => s.name === gutterName)" :value="gutterName">{{ ui.gutter }}</option>
+          <option v-if="gutterName && !ui.sizes.some((s) => s.name === gutterName)" :value="gutterName">{{
+            ui.gutter
+          }}</option>
           <option v-for="s in ui.sizes" :key="s.key" :value="s.name">{{ s.name }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <p class="sve-theme__hint">{{ ui.labels.spacing_gutter_hint }}</p>

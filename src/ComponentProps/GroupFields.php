@@ -26,13 +26,13 @@ final class GroupFields
 
     public static function config(array $prop, string $label): array
     {
-        if (static::repeats($prop)) {
+        if (self::repeats($prop)) {
             $sets = [];
 
-            foreach (static::sets($prop) as $set) {
+            foreach (self::sets($prop) as $set) {
                 $sets[$set['handle']] = [
                     'display' => $set['label'] ?? $label,
-                    'fields' => static::configs($set['fields']),
+                    'fields' => self::configs($set['fields']),
                 ];
             }
 
@@ -53,7 +53,7 @@ final class GroupFields
             'display' => $label,
             'hide_display' => true,
             'fullscreen' => false,
-            'fields' => static::configs(static::fields($prop)),
+            'fields' => self::configs(self::fields($prop)),
         ];
     }
 
@@ -66,21 +66,21 @@ final class GroupFields
             return null;
         }
 
-        if (! static::repeats($prop)) {
-            return isset($value['rows'][0]) ? static::row(static::fields($prop), $value['rows'][0], 'toPublish') : null;
+        if (! self::repeats($prop)) {
+            return isset($value['rows'][0]) ? self::row(self::fields($prop), $value['rows'][0], 'toPublish') : null;
         }
 
         $off = array_flip($value['off']);
         $rows = [];
 
         foreach ($value['rows'] as $at => $row) {
-            $set = static::setOf($prop, $row[GroupValue::TYPE] ?? null);
+            $set = self::setOf($prop, $row[GroupValue::TYPE] ?? null);
 
             // A replicator row names its set, and says whether it is on.
             $rows[] = [
                 'type' => $set['handle'],
                 'enabled' => ! isset($off[$at]),
-                ...static::row($set['fields'], $row, 'toPublish'),
+                ...self::row($set['fields'], $row, 'toPublish'),
             ];
         }
 
@@ -99,17 +99,17 @@ final class GroupFields
      */
     public static function toParam(array $prop, mixed $value): string
     {
-        if (! static::repeats($prop)) {
-            $row = is_array($value) ? static::row(static::fields($prop), $value, 'toParam') : [];
+        if (! self::repeats($prop)) {
+            $row = is_array($value) ? self::row(self::fields($prop), $value, 'toParam') : [];
 
             if (implode('', $row) === '') {
                 return '';
             }
 
-            return GroupValue::encode(GroupValue::names(static::fields($prop)), [$row], false);
+            return GroupValue::encode(GroupValue::names(self::fields($prop)), [$row], false);
         }
 
-        $typed = static::declaredSets($prop) !== [];
+        $typed = self::declaredSets($prop) !== [];
         $out = [];
         $off = [];
 
@@ -118,8 +118,8 @@ final class GroupFields
                 continue;
             }
 
-            $set = static::setOf($prop, $row['type'] ?? null);
-            $clean = static::row($set['fields'], $row, 'toParam');
+            $set = self::setOf($prop, $row['type'] ?? null);
+            $clean = self::row($set['fields'], $row, 'toParam');
 
             if ($typed) {
                 $clean = [GroupValue::TYPE => $set['handle'], ...$clean];
@@ -132,7 +132,7 @@ final class GroupFields
             $out[] = $clean;
         }
 
-        $declared = static::declaredSets($prop);
+        $declared = self::declaredSets($prop);
         $renamed = [];
 
         foreach ($declared as $set) {
@@ -142,7 +142,7 @@ final class GroupFields
         }
 
         return GroupValue::encode(
-            GroupValue::names(static::fields($prop), $declared),
+            GroupValue::names(self::fields($prop), $declared),
             $out,
             true,
             $off,
@@ -190,13 +190,13 @@ final class GroupFields
      */
     private static function sets(array $prop): array
     {
-        return static::declaredSets($prop) ?: [['handle' => self::SET, 'label' => null, 'fields' => static::fields($prop), 'was' => []]];
+        return self::declaredSets($prop) ?: [['handle' => self::SET, 'label' => null, 'fields' => self::fields($prop), 'was' => []]];
     }
 
     /** The set a row is: the one it names — now or before a rename — or the first. */
     private static function setOf(array $prop, mixed $type): array
     {
-        $sets = static::sets($prop);
+        $sets = self::sets($prop);
 
         foreach ($sets as $set) {
             if ($set['handle'] === $type || in_array($type, $set['was'], true)) {
@@ -210,7 +210,7 @@ final class GroupFields
     /** @return list<array{handle: string, label: ?string, fields: list<array<string, mixed>>, was: list<string>}> */
     private static function declaredSets(array $prop): array
     {
-        if (! static::repeats($prop)) {
+        if (! self::repeats($prop)) {
             return [];
         }
 
@@ -221,7 +221,7 @@ final class GroupFields
                 $out[] = [
                     'handle' => (string) $set['handle'],
                     'label' => isset($set['label']) ? (string) $set['label'] : null,
-                    'fields' => static::valid(is_array($set['fields'] ?? null) ? $set['fields'] : []),
+                    'fields' => self::valid(is_array($set['fields'] ?? null) ? $set['fields'] : []),
                     'was' => array_values(array_filter(is_array($set['was'] ?? null) ? $set['was'] : [], 'is_string')),
                 ];
             }
@@ -233,7 +233,7 @@ final class GroupFields
     /** @return list<array<string, mixed>> */
     private static function fields(array $prop): array
     {
-        return static::valid(is_array($prop['fields'] ?? null) ? $prop['fields'] : []);
+        return self::valid(is_array($prop['fields'] ?? null) ? $prop['fields'] : []);
     }
 
     /** @return list<array<string, mixed>> */

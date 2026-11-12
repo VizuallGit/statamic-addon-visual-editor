@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classBodies, classNameProblem, readClasses, writeClasses } from '../../resources/js/cp/theme-panel/custom-classes.js';
+import {
+  classBodies,
+  classNameProblem,
+  readClasses,
+  writeClasses,
+} from '../../resources/js/cp/theme-panel/custom-classes.js';
 
 const FILE = `.btn {
     padding-block: .9em;
@@ -16,8 +21,12 @@ const FILE = `.btn {
 }
 `;
 
-test('only a rule that is one whole class counts as the site\'s own', () => {
-  assert.deepEqual(readClasses(FILE).map((c) => c.name), ['btn'], 'an attribute or a descendant describes a place');
+test("only a rule that is one whole class counts as the site's own", () => {
+  assert.deepEqual(
+    readClasses(FILE).map((c) => c.name),
+    ['btn'],
+    'an attribute or a descendant describes a place'
+  );
 });
 
 test('a body comes out as a designer reads it', () => {
@@ -36,7 +45,10 @@ test('a new rule is added at the end, indented once', () => {
   const next = writeClasses(FILE, { heading: 'font-size: var(--text-700);' });
 
   assert.ok(next.includes('.heading {\n    font-size: var(--text-700);\n}'));
-  assert.deepEqual(readClasses(next).map((c) => c.name), ['btn', 'heading']);
+  assert.deepEqual(
+    readClasses(next).map((c) => c.name),
+    ['btn', 'heading']
+  );
 });
 
 test('a rule round-trips through a second edit', () => {
@@ -50,7 +62,10 @@ test('a rule round-trips through a second edit', () => {
 test('null removes a rule and leaves no gap behind', () => {
   const next = writeClasses(FILE, { btn: null });
 
-  assert.deepEqual(readClasses(next).map((c) => c.name), []);
+  assert.deepEqual(
+    readClasses(next).map((c) => c.name),
+    []
+  );
   assert.ok(!/\n{3,}/.test(next), 'no run of blank lines where it stood');
   assert.ok(next.includes('.card h2'), 'the rules it did not own stay');
 });

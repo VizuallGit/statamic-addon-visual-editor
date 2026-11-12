@@ -22,7 +22,6 @@ import { loadCodeMirror } from './lib/codemirror.js';
  * or `{{# sve-unlocked #}}`.
  */
 
-
 export let EditorView;
 export let keymap;
 export let lineNumbers;
@@ -68,45 +67,45 @@ export function loadCm() {
   cmReady = loadCodeMirror()
     .then((loaded) => {
       cm = loaded;
-    EditorView = cm.view.EditorView;
-    keymap = cm.view.keymap;
-    lineNumbers = cm.view.lineNumbers;
-    highlightActiveLine = cm.view.highlightActiveLine;
-    highlightActiveLineGutter = cm.view.highlightActiveLineGutter;
-    Compartment = cm.state.Compartment;
-    EditorState = cm.state.EditorState;
-    StateField = cm.state.StateField;
-    StateEffect = cm.state.StateEffect;
-    RangeSetBuilder = cm.state.RangeSetBuilder;
-    Decoration = cm.view.Decoration;
-    defaultKeymap = cm.commands.defaultKeymap;
-    indentWithTab = cm.commands.indentWithTab;
-    historyKeymap = cm.commands.historyKeymap;
-    history = cm.commands.history;
-    autocompletion = cm.autocomplete.autocompletion;
-    closeBrackets = cm.autocomplete.closeBrackets;
-    closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
-    closeCompletion = cm.autocomplete.closeCompletion;
-    completionKeymap = cm.autocomplete.completionKeymap;
-    hoverTooltip = cm.view.hoverTooltip;
-    htmlLanguage = cm.langHtml.htmlLanguage;
-    html = cm.langHtml.html;
-    css = cm.langCss.css;
-    javascript = cm.langJs.javascript;
-    HighlightStyle = cm.language.HighlightStyle;
-    syntaxHighlighting = cm.language.syntaxHighlighting;
-    codeFolding = cm.language.codeFolding;
-    foldEffect = cm.language.foldEffect;
-    unfoldEffect = cm.language.unfoldEffect;
-    foldedRanges = cm.language.foldedRanges;
-    tags = cm.highlight.tags;
+      EditorView = cm.view.EditorView;
+      keymap = cm.view.keymap;
+      lineNumbers = cm.view.lineNumbers;
+      highlightActiveLine = cm.view.highlightActiveLine;
+      highlightActiveLineGutter = cm.view.highlightActiveLineGutter;
+      Compartment = cm.state.Compartment;
+      EditorState = cm.state.EditorState;
+      StateField = cm.state.StateField;
+      StateEffect = cm.state.StateEffect;
+      RangeSetBuilder = cm.state.RangeSetBuilder;
+      Decoration = cm.view.Decoration;
+      defaultKeymap = cm.commands.defaultKeymap;
+      indentWithTab = cm.commands.indentWithTab;
+      historyKeymap = cm.commands.historyKeymap;
+      history = cm.commands.history;
+      autocompletion = cm.autocomplete.autocompletion;
+      closeBrackets = cm.autocomplete.closeBrackets;
+      closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
+      closeCompletion = cm.autocomplete.closeCompletion;
+      completionKeymap = cm.autocomplete.completionKeymap;
+      hoverTooltip = cm.view.hoverTooltip;
+      htmlLanguage = cm.langHtml.htmlLanguage;
+      html = cm.langHtml.html;
+      css = cm.langCss.css;
+      javascript = cm.langJs.javascript;
+      HighlightStyle = cm.language.HighlightStyle;
+      syntaxHighlighting = cm.language.syntaxHighlighting;
+      codeFolding = cm.language.codeFolding;
+      foldEffect = cm.language.foldEffect;
+      unfoldEffect = cm.language.unfoldEffect;
+      foldedRanges = cm.language.foldedRanges;
+      tags = cm.highlight.tags;
 
-    readOnlyOf.html = new Compartment();
-    readOnlyOf.css = new Compartment();
-    readOnlyOf.js = new Compartment();
-    editableOf.html = new Compartment();
-    editableOf.css = new Compartment();
-    editableOf.js = new Compartment();
+      readOnlyOf.html = new Compartment();
+      readOnlyOf.css = new Compartment();
+      readOnlyOf.js = new Compartment();
+      editableOf.html = new Compartment();
+      editableOf.css = new Compartment();
+      editableOf.js = new Compartment();
     })
     .catch((err) => {
       cmReady = null;
@@ -196,7 +195,12 @@ export const HTML_DIVS = [
 export const HTML_TOOLS = [
   { id: 'section', title: 'section', tag: 'section' },
   { id: 'div', title: 'div', menu: 'div' },
-  { id: 'grid', title: 'grid', snippet: '<div class="grid grid-cols-2 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n</div>', caret: 59 },
+  {
+    id: 'grid',
+    title: 'grid',
+    snippet: '<div class="grid grid-cols-2 max-md:grid-cols-1">\n    <div></div>\n    <div></div>\n</div>',
+    caret: 59,
+  },
   { id: 'heading', title: 'heading', menu: 'heading' },
   { id: 'text', title: 'text', menu: 'text' },
   { id: 'richtext', title: 'rich text', snippet: '<div class="prose">\n    <p></p>\n</div>', caret: 27 },
@@ -204,8 +208,19 @@ export const HTML_TOOLS = [
   { id: 'button', title: 'button', snippet: '<a href="" class="btn">Button</a>', caret: 9 },
   { id: 'img', title: 'image', snippet: '<img src="" alt="">', caret: 10 },
   // The site's image work (build-mode/image.js): a crop per screen size. Only where the site makes images (`images`).
-  { id: 'picture', title: 'picture', snippet: '<picture>\n    <img src="" alt="">\n</picture>', caret: 24, images: true },
-  { id: 'gallery', title: 'gallery', snippet: '<div class="grid grid-cols-3 gap-4">\n    <img src="" alt="" class="w-full">\n</div>', caret: 52 },
+  {
+    id: 'picture',
+    title: 'picture',
+    snippet: '<picture>\n    <img src="" alt="">\n</picture>',
+    caret: 24,
+    images: true,
+  },
+  {
+    id: 'gallery',
+    title: 'gallery',
+    snippet: '<div class="grid grid-cols-3 gap-4">\n    <img src="" alt="" class="w-full">\n</div>',
+    caret: 52,
+  },
   { id: 'svg', title: 'svg', snippet: '{{ svg src="" class="" }}', caret: 12 },
   // Loads only its length and size before it plays (Build's Content: Preload).
   { id: 'video', title: 'video', snippet: '<video src="" controls playsinline preload="metadata"></video>', caret: 12 },
@@ -261,69 +276,69 @@ export const CSS_SPACING = [
  */
 export const TW_TOOL_ICONS = {
   'tw-text':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M1.5 13 5 3l3.5 10M2.7 10h4.6"/><path d="M12.5 3.5v9M11 5l1.5-1.5L14 5M11 11l1.5 1.5L14 11"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M1.5 13 5 3l3.5 10M2.7 10h4.6"/><path d="M12.5 3.5v9M11 5l1.5-1.5L14 5M11 11l1.5 1.5L14 11"/></svg>',
   'tw-leading':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M6 3.5h8.5M6 8h8.5M6 12.5h8.5"/><path d="M2.5 4.5v7M1.4 5.6 2.5 4.5l1.1 1.1M1.4 10.4l1.1 1.1 1.1-1.1"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M6 3.5h8.5M6 8h8.5M6 12.5h8.5"/><path d="M2.5 4.5v7M1.4 5.6 2.5 4.5l1.1 1.1M1.4 10.4l1.1 1.1 1.1-1.1"/></svg>',
   'tw-font':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M3 4.2V3h10v1.2M8 3v10M6 13h4"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3 4.2V3h10v1.2M8 3v10M6 13h4"/></svg>',
   'tw-radius':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M2.5 13.5v-6a5 5 0 0 1 5-5h6"/><path d="M13.5 6.5v7h-7" stroke-dasharray="2 2"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M2.5 13.5v-6a5 5 0 0 1 5-5h6"/><path d="M13.5 6.5v7h-7" stroke-dasharray="2 2"/></svg>',
   'tw-gap':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<rect x="1.6" y="3" width="4.2" height="10" rx=".6"/><rect x="10.2" y="3" width="4.2" height="10" rx=".6"/><path d="M8 4.5v7"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="1.6" y="3" width="4.2" height="10" rx=".6"/><rect x="10.2" y="3" width="4.2" height="10" rx=".6"/><path d="M8 4.5v7"/></svg>',
   'tw-align':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">'
-    + '<path d="M2 3.5h12M2 8h8M2 12.5h10"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
+    '<path d="M2 3.5h12M2 8h8M2 12.5h10"/></svg>',
   'tw-w':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M2 3.5v9M14 3.5v9"/><path d="M4.5 8h7"/><path d="M6 6.2 4.2 8 6 9.8M10 6.2 11.8 8 10 9.8"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M2 3.5v9M14 3.5v9"/><path d="M4.5 8h7"/><path d="M6 6.2 4.2 8 6 9.8M10 6.2 11.8 8 10 9.8"/></svg>',
   'tw-h':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M3.5 2h9M3.5 14h9"/><path d="M8 4.5v7"/><path d="M6.2 6 8 4.2 9.8 6M6.2 10 8 11.8 9.8 10"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3.5 2h9M3.5 14h9"/><path d="M8 4.5v7"/><path d="M6.2 6 8 4.2 9.8 6M6.2 10 8 11.8 9.8 10"/></svg>',
   'tw-maxw':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M1.5 3v10M14.5 3v10"/><path d="M5 8h6"/><path d="M6.6 6.2 4.8 8l1.8 1.8M9.4 6.2 11.2 8l-1.8 1.8"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M1.5 3v10M14.5 3v10"/><path d="M5 8h6"/><path d="M6.6 6.2 4.8 8l1.8 1.8M9.4 6.2 11.2 8l-1.8 1.8"/></svg>',
   'tw-overflow':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">'
-    + '<rect x="1.8" y="4.5" width="8.6" height="9.7" rx="1.2"/><path d="M6.5 1.8h7.7v7.7" stroke-linecap="round"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">' +
+    '<rect x="1.8" y="4.5" width="8.6" height="9.7" rx="1.2"/><path d="M6.5 1.8h7.7v7.7" stroke-linecap="round"/></svg>',
   'tw-border':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">'
-    + '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6"/>'
-    + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" stroke-width="1" opacity=".45"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">' +
+    '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6"/>' +
+    '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" stroke-width="1" opacity=".45"/></svg>',
   // The same frame as Border, read as a pair: there the ring is the subject,
   // here it is filled in, because the subject is what colour it is.
   'tw-border-color':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">'
-    + '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6" stroke-dasharray="3.1 2.2"/>'
-    + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" fill="currentColor" stroke="none" opacity=".55"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">' +
+    '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6" stroke-dasharray="3.1 2.2"/>' +
+    '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" fill="currentColor" stroke="none" opacity=".55"/></svg>',
 };
 
 export const HISTORY_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<path d="M3.1 12a8.9 8.9 0 1 0 2.8-6.5L3 8"/><path d="M3 3.4V8h4.6"/>'
-  + '<path d="M12 7.4V12l3 1.8"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M3.1 12a8.9 8.9 0 1 0 2.8-6.5L3 8"/><path d="M3 3.4V8h4.6"/>' +
+  '<path d="M12 7.4V12l3 1.8"/></svg>';
 
 export const CSS_MODE_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>'
-  + '<path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>' +
+  '<path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>';
 
 export const ID_MODE_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>';
 
 export const TW_MODE_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<path d="M3 10.5c1.5-4 3.8-5 6-3.5 1.4 1 1.7 2.5 3.4 2.9 2.2.5 3.6-.9 4.6-2.4"/>'
-  + '<path d="M3 17c1.5-4 3.8-5 6-3.5 1.4 1 1.7 2.5 3.4 2.9 2.2.5 3.6-.9 4.6-2.4"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M3 10.5c1.5-4 3.8-5 6-3.5 1.4 1 1.7 2.5 3.4 2.9 2.2.5 3.6-.9 4.6-2.4"/>' +
+  '<path d="M3 17c1.5-4 3.8-5 6-3.5 1.4 1 1.7 2.5 3.4 2.9 2.2.5 3.6-.9 4.6-2.4"/></svg>';
 
 export const CSS_GRAYS = [
   ['--gray-50', '#fafafa'],
@@ -364,28 +379,171 @@ export const CSS_GRAYS = [
 /** The seven parts of a box, built for whichever property owns them. */
 const boxKids = (prefix) => [
   { id: `${prefix}-all`, icon: 'box-all', title: 'All sides', css: prefix, tw: prefix, menu: 'spacing' },
-  { id: `${prefix}-block`, icon: 'box-block', title: 'Top and bottom', css: `${prefix}-block`, tw: `${prefix}-block`, menu: 'spacing', sep: true },
-  { id: `${prefix}-block-start`, icon: 'box-block-start', title: 'Top', css: `${prefix}-block-start`, tw: `${prefix}-top`, menu: 'spacing' },
-  { id: `${prefix}-block-end`, icon: 'box-block-end', title: 'Bottom', css: `${prefix}-block-end`, tw: `${prefix}-bottom`, menu: 'spacing' },
-  { id: `${prefix}-inline`, icon: 'box-inline', title: 'Left and right', css: `${prefix}-inline`, tw: `${prefix}-inline`, menu: 'spacing', sep: true },
-  { id: `${prefix}-inline-start`, icon: 'box-inline-start', title: 'Left', css: `${prefix}-inline-start`, tw: `${prefix}-left`, menu: 'spacing' },
-  { id: `${prefix}-inline-end`, icon: 'box-inline-end', title: 'Right', css: `${prefix}-inline-end`, tw: `${prefix}-right`, menu: 'spacing' },
+  {
+    id: `${prefix}-block`,
+    icon: 'box-block',
+    title: 'Top and bottom',
+    css: `${prefix}-block`,
+    tw: `${prefix}-block`,
+    menu: 'spacing',
+    sep: true,
+  },
+  {
+    id: `${prefix}-block-start`,
+    icon: 'box-block-start',
+    title: 'Top',
+    css: `${prefix}-block-start`,
+    tw: `${prefix}-top`,
+    menu: 'spacing',
+  },
+  {
+    id: `${prefix}-block-end`,
+    icon: 'box-block-end',
+    title: 'Bottom',
+    css: `${prefix}-block-end`,
+    tw: `${prefix}-bottom`,
+    menu: 'spacing',
+  },
+  {
+    id: `${prefix}-inline`,
+    icon: 'box-inline',
+    title: 'Left and right',
+    css: `${prefix}-inline`,
+    tw: `${prefix}-inline`,
+    menu: 'spacing',
+    sep: true,
+  },
+  {
+    id: `${prefix}-inline-start`,
+    icon: 'box-inline-start',
+    title: 'Left',
+    css: `${prefix}-inline-start`,
+    tw: `${prefix}-left`,
+    menu: 'spacing',
+  },
+  {
+    id: `${prefix}-inline-end`,
+    icon: 'box-inline-end',
+    title: 'Right',
+    css: `${prefix}-inline-end`,
+    tw: `${prefix}-right`,
+    menu: 'spacing',
+  },
 ];
 
 /** Flex's own children: what it is, which way it runs, how it lines up. */
 const DISPLAY_KIDS = [
-  { id: 'display-flex', twClass: 'flex', icon: 'display-flex', title: 'Flex', kind: 'display', value: 'flex', css: 'display' },
-  { id: 'flex-row', twClass: 'flex-row', icon: 'flex-row', title: 'Direction: row', kind: 'flexDir', value: 'row', css: 'flex-direction', sep: true },
-  { id: 'flex-col', twClass: 'flex-col', icon: 'flex-col', title: 'Direction: column', kind: 'flexDir', value: 'column', css: 'flex-direction' },
-  { id: 'justify-start', twClass: 'justify-start', icon: 'justify-start', title: 'Justify: start', css: 'justify-content', value: 'flex-start', when: 'flex', sep: true },
-  { id: 'justify-center', twClass: 'justify-center', icon: 'justify-center', title: 'Justify: center', css: 'justify-content', value: 'center', when: 'flex' },
-  { id: 'justify-end', twClass: 'justify-end', icon: 'justify-end', title: 'Justify: end', css: 'justify-content', value: 'flex-end', when: 'flex' },
-  { id: 'justify-between', twClass: 'justify-between', icon: 'justify-between', title: 'Justify: between', css: 'justify-content', value: 'space-between', when: 'flex' },
-  { id: 'justify-around', twClass: 'justify-around', icon: 'justify-around', title: 'Justify: around', css: 'justify-content', value: 'space-around', when: 'flex' },
-  { id: 'align-start', twClass: 'items-start', icon: 'align-start', title: 'Align: start', css: 'align-items', value: 'flex-start', when: 'flex', sep: true },
-  { id: 'align-center', twClass: 'items-center', icon: 'align-center', title: 'Align: center', css: 'align-items', value: 'center', when: 'flex' },
-  { id: 'align-end', twClass: 'items-end', icon: 'align-end', title: 'Align: end', css: 'align-items', value: 'flex-end', when: 'flex' },
-  { id: 'align-stretch', twClass: 'items-stretch', icon: 'align-stretch', title: 'Align: stretch', css: 'align-items', value: 'stretch', when: 'flex' },
+  {
+    id: 'display-flex',
+    twClass: 'flex',
+    icon: 'display-flex',
+    title: 'Flex',
+    kind: 'display',
+    value: 'flex',
+    css: 'display',
+  },
+  {
+    id: 'flex-row',
+    twClass: 'flex-row',
+    icon: 'flex-row',
+    title: 'Direction: row',
+    kind: 'flexDir',
+    value: 'row',
+    css: 'flex-direction',
+    sep: true,
+  },
+  {
+    id: 'flex-col',
+    twClass: 'flex-col',
+    icon: 'flex-col',
+    title: 'Direction: column',
+    kind: 'flexDir',
+    value: 'column',
+    css: 'flex-direction',
+  },
+  {
+    id: 'justify-start',
+    twClass: 'justify-start',
+    icon: 'justify-start',
+    title: 'Justify: start',
+    css: 'justify-content',
+    value: 'flex-start',
+    when: 'flex',
+    sep: true,
+  },
+  {
+    id: 'justify-center',
+    twClass: 'justify-center',
+    icon: 'justify-center',
+    title: 'Justify: center',
+    css: 'justify-content',
+    value: 'center',
+    when: 'flex',
+  },
+  {
+    id: 'justify-end',
+    twClass: 'justify-end',
+    icon: 'justify-end',
+    title: 'Justify: end',
+    css: 'justify-content',
+    value: 'flex-end',
+    when: 'flex',
+  },
+  {
+    id: 'justify-between',
+    twClass: 'justify-between',
+    icon: 'justify-between',
+    title: 'Justify: between',
+    css: 'justify-content',
+    value: 'space-between',
+    when: 'flex',
+  },
+  {
+    id: 'justify-around',
+    twClass: 'justify-around',
+    icon: 'justify-around',
+    title: 'Justify: around',
+    css: 'justify-content',
+    value: 'space-around',
+    when: 'flex',
+  },
+  {
+    id: 'align-start',
+    twClass: 'items-start',
+    icon: 'align-start',
+    title: 'Align: start',
+    css: 'align-items',
+    value: 'flex-start',
+    when: 'flex',
+    sep: true,
+  },
+  {
+    id: 'align-center',
+    twClass: 'items-center',
+    icon: 'align-center',
+    title: 'Align: center',
+    css: 'align-items',
+    value: 'center',
+    when: 'flex',
+  },
+  {
+    id: 'align-end',
+    twClass: 'items-end',
+    icon: 'align-end',
+    title: 'Align: end',
+    css: 'align-items',
+    value: 'flex-end',
+    when: 'flex',
+  },
+  {
+    id: 'align-stretch',
+    twClass: 'items-stretch',
+    icon: 'align-stretch',
+    title: 'Align: stretch',
+    css: 'align-items',
+    value: 'stretch',
+    when: 'flex',
+  },
 ];
 
 const GAP_KIDS = [
@@ -430,20 +588,93 @@ const BORDER_WIDTH_KIDS = [
 
 const BORDER_KIDS = [
   { id: 'bd-all', icon: 'bd-all', title: 'All sides', css: 'border-color', tw: 'border-color', menu: 'colors' },
-  { id: 'bd-block', icon: 'bd-block', title: 'Top and bottom', css: 'border-block-color', tw: 'border-color', menu: 'colors', sep: true },
-  { id: 'bd-top', icon: 'bd-top', title: 'Top', css: 'border-block-start-color', tw: 'border-top-color', menu: 'colors' },
-  { id: 'bd-bottom', icon: 'bd-bottom', title: 'Bottom', css: 'border-block-end-color', tw: 'border-bottom-color', menu: 'colors' },
-  { id: 'bd-inline', icon: 'bd-inline', title: 'Left and right', css: 'border-inline-color', tw: 'border-color', menu: 'colors', sep: true },
-  { id: 'bd-left', icon: 'bd-left', title: 'Left', css: 'border-inline-start-color', tw: 'border-left-color', menu: 'colors' },
-  { id: 'bd-right', icon: 'bd-right', title: 'Right', css: 'border-inline-end-color', tw: 'border-right-color', menu: 'colors' },
+  {
+    id: 'bd-block',
+    icon: 'bd-block',
+    title: 'Top and bottom',
+    css: 'border-block-color',
+    tw: 'border-color',
+    menu: 'colors',
+    sep: true,
+  },
+  {
+    id: 'bd-top',
+    icon: 'bd-top',
+    title: 'Top',
+    css: 'border-block-start-color',
+    tw: 'border-top-color',
+    menu: 'colors',
+  },
+  {
+    id: 'bd-bottom',
+    icon: 'bd-bottom',
+    title: 'Bottom',
+    css: 'border-block-end-color',
+    tw: 'border-bottom-color',
+    menu: 'colors',
+  },
+  {
+    id: 'bd-inline',
+    icon: 'bd-inline',
+    title: 'Left and right',
+    css: 'border-inline-color',
+    tw: 'border-color',
+    menu: 'colors',
+    sep: true,
+  },
+  {
+    id: 'bd-left',
+    icon: 'bd-left',
+    title: 'Left',
+    css: 'border-inline-start-color',
+    tw: 'border-left-color',
+    menu: 'colors',
+  },
+  {
+    id: 'bd-right',
+    icon: 'bd-right',
+    title: 'Right',
+    css: 'border-inline-end-color',
+    tw: 'border-right-color',
+    menu: 'colors',
+  },
 ];
 
 const RADIUS_KIDS = [
   { id: 'rd-all', icon: 'rd-all', title: 'All corners', css: 'border-radius', tw: 'border-radius', menu: 'values' },
-  { id: 'rd-tl', icon: 'rd-tl', title: 'Top left', css: 'border-start-start-radius', tw: 'border-top-left-radius', menu: 'values', sep: true },
-  { id: 'rd-tr', icon: 'rd-tr', title: 'Top right', css: 'border-start-end-radius', tw: 'border-top-right-radius', menu: 'values' },
-  { id: 'rd-br', icon: 'rd-br', title: 'Bottom right', css: 'border-end-end-radius', tw: 'border-bottom-right-radius', menu: 'values' },
-  { id: 'rd-bl', icon: 'rd-bl', title: 'Bottom left', css: 'border-end-start-radius', tw: 'border-bottom-left-radius', menu: 'values' },
+  {
+    id: 'rd-tl',
+    icon: 'rd-tl',
+    title: 'Top left',
+    css: 'border-start-start-radius',
+    tw: 'border-top-left-radius',
+    menu: 'values',
+    sep: true,
+  },
+  {
+    id: 'rd-tr',
+    icon: 'rd-tr',
+    title: 'Top right',
+    css: 'border-start-end-radius',
+    tw: 'border-top-right-radius',
+    menu: 'values',
+  },
+  {
+    id: 'rd-br',
+    icon: 'rd-br',
+    title: 'Bottom right',
+    css: 'border-end-end-radius',
+    tw: 'border-bottom-right-radius',
+    menu: 'values',
+  },
+  {
+    id: 'rd-bl',
+    icon: 'rd-bl',
+    title: 'Bottom left',
+    css: 'border-end-start-radius',
+    tw: 'border-bottom-left-radius',
+    menu: 'values',
+  },
 ];
 
 /** The row, in order. `kids` is what unfolds under the icon. */
@@ -457,7 +688,14 @@ export const CSS_TOOLS = [
   { id: 'tw-text', title: 'Font size', css: 'font-size', tw: 'font-size', menu: 'values' },
   { id: 'tw-leading', title: 'Line height', css: 'line-height', tw: 'line-height', menu: 'values' },
   { id: 'tw-font', title: 'Font family', css: 'font-family', tw: 'font-family', menu: 'values' },
-  { id: 'tw-align', title: 'Text align', css: 'text-align', tw: 'text-align', menu: 'choices', choices: ['left', 'center', 'right', 'justify'] },
+  {
+    id: 'tw-align',
+    title: 'Text align',
+    css: 'text-align',
+    tw: 'text-align',
+    menu: 'choices',
+    choices: ['left', 'center', 'right', 'justify'],
+  },
   // Width first, colour second. A width alone draws a border — preflight
   // leaves the style at `solid` and the colour at `currentColor`. A colour
   // alone draws nothing at all, because the width is still 0, which is why
@@ -469,7 +707,14 @@ export const CSS_TOOLS = [
   { id: 'tw-w', title: 'Width', css: 'width', tw: 'width', menu: 'sizes' },
   { id: 'tw-h', title: 'Height', css: 'height', tw: 'height', menu: 'sizes' },
   { id: 'tw-maxw', title: 'Max width', css: 'max-width', tw: 'max-width', menu: 'sizes' },
-  { id: 'tw-overflow', title: 'Overflow', css: 'overflow', tw: 'overflow', menu: 'choices', choices: ['visible', 'hidden', 'clip', 'auto', 'scroll'] },
+  {
+    id: 'tw-overflow',
+    title: 'Overflow',
+    css: 'overflow',
+    tw: 'overflow',
+    menu: 'choices',
+    choices: ['visible', 'hidden', 'clip', 'auto', 'scroll'],
+  },
 ];
 
 /** Lengths that are not on a scale — a box is as wide as it needs to be. */
@@ -516,16 +761,16 @@ export const CSS_TOOL_ICONS = {
   absolute:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1" stroke-dasharray="2 1.5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/></svg>',
   color:
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">'
-    + '<path d="M3.4 11.2 7.4 2.4l4 8.8"/><path d="M4.7 8.4h5.4"/>'
-    + '<rect x="1.6" y="12.8" width="12.8" height="2.2" rx=".6" fill="currentColor" stroke="none"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">' +
+    '<path d="M3.4 11.2 7.4 2.4l4 8.8"/><path d="M4.7 8.4h5.4"/>' +
+    '<rect x="1.6" y="12.8" width="12.8" height="2.2" rx=".6" fill="currentColor" stroke="none"/></svg>',
   bg:
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">'
-    + '<path d="M8 1.9a6.1 6.1 0 1 0 0 12.2c.85 0 1.35-.55 1.35-1.25 0-.38-.18-.66-.4-.88a1.2 1.2 0 0 1 .85-2.05h1.3A3.5 3.5 0 0 0 14.1 6.1C14.1 3.75 11.4 1.9 8 1.9Z"/>'
-    + '<circle cx="4.9" cy="6.5" r=".95" fill="currentColor" stroke="none"/>'
-    + '<circle cx="8" cy="4.8" r=".95" fill="currentColor" stroke="none"/>'
-    + '<circle cx="11.1" cy="6.5" r=".95" fill="currentColor" stroke="none"/>'
-    + '<circle cx="4.7" cy="9.9" r=".95" fill="currentColor" stroke="none"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">' +
+    '<path d="M8 1.9a6.1 6.1 0 1 0 0 12.2c.85 0 1.35-.55 1.35-1.25 0-.38-.18-.66-.4-.88a1.2 1.2 0 0 1 .85-2.05h1.3A3.5 3.5 0 0 0 14.1 6.1C14.1 3.75 11.4 1.9 8 1.9Z"/>' +
+    '<circle cx="4.9" cy="6.5" r=".95" fill="currentColor" stroke="none"/>' +
+    '<circle cx="8" cy="4.8" r=".95" fill="currentColor" stroke="none"/>' +
+    '<circle cx="11.1" cy="6.5" r=".95" fill="currentColor" stroke="none"/>' +
+    '<circle cx="4.7" cy="9.9" r=".95" fill="currentColor" stroke="none"/></svg>',
   padding:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1"/><rect x="4.5" y="4.5" width="7" height="7" rx=".6"/></svg>',
   margin:
@@ -534,9 +779,9 @@ export const CSS_TOOL_ICONS = {
   // rather than outlined — the parent stands right next to it, and two thin
   // squares beside each other read as the same icon twice.
   'box-all':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">'
-    + '<rect x="1.5" y="1.5" width="13" height="13" rx="1"/>'
-    + '<rect x="4.5" y="4.5" width="7" height="7" rx=".4" fill="currentColor" stroke="none"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">' +
+    '<rect x="1.5" y="1.5" width="13" height="13" rx="1"/>' +
+    '<rect x="4.5" y="4.5" width="7" height="7" rx=".4" fill="currentColor" stroke="none"/></svg>',
   'box-block':
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="9.6" height="2.3" rx=".35" stroke="none"/><rect x="3.2" y="10.5" width="9.6" height="2.3" rx=".35" stroke="none"/></svg>',
   'box-block-start':

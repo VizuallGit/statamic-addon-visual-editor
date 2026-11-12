@@ -95,9 +95,26 @@ beforeEach(() => {
 test('every way to reach the page is listened for on the document, in the capture phase', () => {
   const { listeners } = preview();
   const ways = [
-    'click', 'dblclick', 'contextmenu', 'mouseenter', 'mouseleave', 'mouseover', 'mouseout',
-    'pointerdown', 'pointerenter', 'touchstart', 'keydown', 'keyup', 'input', 'change',
-    'focus', 'blur', 'focusin', 'dragstart', 'drop', 'toggle',
+    'click',
+    'dblclick',
+    'contextmenu',
+    'mouseenter',
+    'mouseleave',
+    'mouseover',
+    'mouseout',
+    'pointerdown',
+    'pointerenter',
+    'touchstart',
+    'keydown',
+    'keyup',
+    'input',
+    'change',
+    'focus',
+    'blur',
+    'focusin',
+    'dragstart',
+    'drop',
+    'toggle',
   ];
 
   ways.forEach((type) => {
@@ -125,7 +142,18 @@ test('a click on the page is kept from the site and its activation cancelled', (
 test('hover, focus, keys and pointer downs are kept from the site, but never cancelled', () => {
   const { fire, button, body } = preview();
 
-  ['mouseenter', 'mouseleave', 'mouseover', 'focus', 'focusin', 'mousedown', 'pointerdown', 'touchstart', 'dblclick', 'toggle'].forEach((type) => {
+  [
+    'mouseenter',
+    'mouseleave',
+    'mouseover',
+    'focus',
+    'focusin',
+    'mousedown',
+    'pointerdown',
+    'touchstart',
+    'dblclick',
+    'toggle',
+  ].forEach((type) => {
     const event = fire(type, button);
 
     assert.deepEqual([event.stopped, event.prevented], [true, false], type);
@@ -181,8 +209,15 @@ test('a block inserter’s container hears the pointer arriving and leaving, and
 });
 
 test('EDITOR_UI names the id prefixes and the portaled markers', () => {
-  ['[id^="__sve"]', '[id^="sve-"]', '[data-sve-ui]', '[data-sve-menu]', '[data-sve-color-menu]',
-    '[data-sve-bard-style-menu]', '[data-sve-bard-set-inserter]'].forEach((part) => {
+  [
+    '[id^="__sve"]',
+    '[id^="sve-"]',
+    '[data-sve-ui]',
+    '[data-sve-menu]',
+    '[data-sve-color-menu]',
+    '[data-sve-bard-style-menu]',
+    '[data-sve-bard-set-inserter]',
+  ].forEach((part) => {
     assert.ok(EDITOR_UI.includes(part), part);
   });
 });

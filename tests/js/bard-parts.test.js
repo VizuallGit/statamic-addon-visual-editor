@@ -21,7 +21,13 @@ const FIELD = [
 
 test('each top-level node renders as its tag; a set is not text', () => {
   assert.deepEqual(FIELD.map(nodeTag), ['h1', 'p', null, 'p', 'ul', 'p']);
-  assert.deepEqual(['H2', 'p', 'UL', 'ol', 'blockquote'].map(partKind), ['heading', 'paragraph', 'list', 'list', 'paragraph']);
+  assert.deepEqual(['H2', 'p', 'UL', 'ol', 'blockquote'].map(partKind), [
+    'heading',
+    'paragraph',
+    'list',
+    'list',
+    'paragraph',
+  ]);
 });
 
 test('a part is found by its tag and words, and the nth of two that look the same', () => {
@@ -46,8 +52,15 @@ test('an empty field has no text to point at', () => {
 });
 
 test('a heading keeps its level and its attrs; a paragraph stays one paragraph', () => {
-  assert.deepEqual(withPartText(FIELD[0], 'Ny overskrift'), { type: 'heading', attrs: { level: 1, textAlign: 'left' }, content: [text('Ny overskrift')] });
-  assert.deepEqual(withPartText(FIELD[1], 'Første.\n\nAnden.'), { type: 'paragraph', content: [text('Første. Anden.')] });
+  assert.deepEqual(withPartText(FIELD[0], 'Ny overskrift'), {
+    type: 'heading',
+    attrs: { level: 1, textAlign: 'left' },
+    content: [text('Ny overskrift')],
+  });
+  assert.deepEqual(withPartText(FIELD[1], 'Første.\n\nAnden.'), {
+    type: 'paragraph',
+    content: [text('Første. Anden.')],
+  });
 });
 
 test('a list stays its kind, one item per line, bullets the AI wrote anyway dropped', () => {

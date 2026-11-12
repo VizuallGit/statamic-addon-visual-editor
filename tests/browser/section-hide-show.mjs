@@ -41,7 +41,10 @@ const LOCAL = existsSync(`${SITE_DIR}/users/${USER}.yaml`);
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { errors: [], ok: true };
-const step = (name, ok, detail = '') => { if (!ok) report.ok = false; console.log(`${ok ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
+const step = (name, ok, detail = '') => {
+  if (!ok) report.ok = false;
+  console.log(`${ok ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`);
+};
 const info = (name, detail = '') => console.log(`info ${name}${detail ? ' — ' + detail : ''}`);
 const skip = (name, why) => console.log(`skip ${name} — ${why}`);
 
@@ -54,16 +57,41 @@ async function until(fn, ms, every = 100) {
     await sleep(every);
   }
 }
-async function waitIn(frame, selector, ms) { try { await frame.waitForSelector(selector, { timeout: ms }); return true; } catch { return false; } }
+async function waitIn(frame, selector, ms) {
+  try {
+    await frame.waitForSelector(selector, { timeout: ms });
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function absoluteRect(frame, selector) {
-  const rect = await frame.evaluate((sel) => { for (const el of document.querySelectorAll(sel)) { const r = el.getBoundingClientRect(); if (r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight) return { x: r.x, y: r.y, w: r.width, h: r.height }; } return null; }, selector);
+  const rect = await frame.evaluate((sel) => {
+    for (const el of document.querySelectorAll(sel)) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight)
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+    }
+    return null;
+  }, selector);
   if (!rect) throw new Error(`no visible element for ${selector}`);
-  for (let f = frame; f.parentFrame(); f = f.parentFrame()) { const box = await (await f.frameElement()).boundingBox(); rect.x += box.x; rect.y += box.y; }
+  for (let f = frame; f.parentFrame(); f = f.parentFrame()) {
+    const box = await (await f.frameElement()).boundingBox();
+    rect.x += box.x;
+    rect.y += box.y;
+  }
   return rect;
 }
-async function realClick(page, frame, selector) { const r = await absoluteRect(frame, selector); await page.mouse.click(r.x + r.w / 2, r.y + Math.min(r.h / 2, 300)); return r; }
+async function realClick(page, frame, selector) {
+  const r = await absoluteRect(frame, selector);
+  await page.mouse.click(r.x + r.w / 2, r.y + Math.min(r.h / 2, 300));
+  return r;
+}
 /** A point inside the CP overlay frame, clicked at page coordinates. */
-async function clickInCp(page, cp, point) { const box = await (await cp.frameElement()).boundingBox(); await page.mouse.click(box.x + point.x, box.y + point.y); }
+async function clickInCp(page, cp, point) {
+  const box = await (await cp.frameElement()).boundingBox();
+  await page.mouse.click(box.x + point.x, box.y + point.y);
+}
 
 // The test user's layout: the left panel shown so the tree can be opened; put back in `finally`.
 function seedLayoutPrefs(prefs) {
@@ -73,7 +101,9 @@ function seedLayoutPrefs(prefs) {
   const entries = Object.entries(prefs || {});
   if (entries.length) {
     const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
-    yaml = /^preferences:\n/m.test(yaml) ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`) : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
+    yaml = /^preferences:\n/m.test(yaml)
+      ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`)
+      : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
   }
   writeFileSync(file, yaml);
 }
@@ -81,21 +111,36 @@ function seedLayoutPrefs(prefs) {
 // --- run ---------------------------------------------------------------------------
 
 seedLayoutPrefs({ 'sve-lp-panel-mode': 'show' });
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
-page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
-page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
+page.on('console', (m) => {
+  if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`);
+});
+page.on('response', (r) => {
+  if (r.status() >= 500)
+    report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`);
+});
 // Every Live Preview render fetched: scoped to one section (sve_sid) or the whole page.
 const fetches = [];
 // A request for the Instant paint's placeholder character (U+E000 in a src): a Control Panel page per element per frame.
 const placeholderRequests = [];
 page.on('request', (r) => {
-  if (/live-preview=/.test(r.url()) && r.method() === 'GET') fetches.push(/[?&]sve_sid=/.test(r.url()) ? 'section' : 'page');
+  if (/live-preview=/.test(r.url()) && r.method() === 'GET')
+    fetches.push(/[?&]sve_sid=/.test(r.url()) ? 'section' : 'page');
   if (/%EE%80%8[0-2]/i.test(r.url())) placeholderRequests.push(r.url().replace(SITE_URL, '').slice(0, 80));
 });
 if (WORKTREE) {
-  await serveWorktreeBuild(page, { buildDir: BUILD_DIR, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
+  await serveWorktreeBuild(page, {
+    buildDir: BUILD_DIR,
+    installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`,
+    scriptsDir: `${ADDON_DIR}/resources/js`,
+  });
   info('build served from', ADDON_DIR);
 }
 
@@ -114,20 +159,34 @@ try {
   await page.goto(`${SITE_URL}${ENTRY}`, { waitUntil: 'networkidle2' });
   await sleep(1500);
   if (!(await page.$('iframe.sve-edit-overlay'))) {
-    await page.evaluate(() => { [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click(); });
+    await page.evaluate(() => {
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click();
+    });
   }
   step('Live Preview opened', await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000));
   const cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
   await page.keyboard.press('Escape');
   step('top bar built', await waitIn(cp, '#__sve-preview-chrome [data-sve-zoom]', 20000));
   const preview = async () => (await cp.$('#live-preview-iframe'))?.contentFrame();
-  const main = await until(async () => {
-    const f = await preview();
-    return f && (await f.evaluate((field) => !!document.querySelector(`[data-sid-field="${field}"]`), FIELD).catch(() => false)) ? f : null;
-  }, 25000, 500);
+  const main = await until(
+    async () => {
+      const f = await preview();
+      return f &&
+        (await f.evaluate((field) => !!document.querySelector(`[data-sid-field="${field}"]`), FIELD).catch(() => false))
+        ? f
+        : null;
+    },
+    25000,
+    500
+  );
   step(`the preview rendered a ${FIELD}`, !!main);
   await sleep(2500);
-  const sectionId = await main.evaluate((field) => document.querySelector(`[data-sid-field="${field}"]`)?.closest('[id^="id-"]')?.id || '', FIELD);
+  const sectionId = await main.evaluate(
+    (field) => document.querySelector(`[data-sid-field="${field}"]`)?.closest('[id^="id-"]')?.id || '',
+    FIELD
+  );
   step('the field sits in a section', !!sectionId, sectionId);
 
   // 2. The dock on that section's file, unlocked, and the tree open.
@@ -138,9 +197,16 @@ try {
     dock = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000);
   }
   step('the dock opened', dock);
-  const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
+  const dockPath = () =>
+    cp.evaluate(() => {
+      const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]');
+      return el ? el.getAttribute('data-sve-code-path') || el.textContent.trim() : '';
+    });
   // The tree comes with the dock; a site with the older toolbar tab needs it pressed.
-  if (!(await cp.$('[data-sve-ht-row]')) && (await cp.$('#__sve-toolbar button[data-tab="html_tree"]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]'); await sleep(1500); }
+  if (!(await cp.$('[data-sve-ht-row]')) && (await cp.$('#__sve-toolbar button[data-tab="html_tree"]'))) {
+    await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]');
+    await sleep(1500);
+  }
   step('the tree is open', !!(await cp.$('[data-sve-ht-row]')));
   // The section's row in the tree opens its file in the dock.
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -162,27 +228,56 @@ try {
   if (await cp.evaluate(() => document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked'))) {
     await realClick(page, cp, '#__sve-code-dock [data-sve-code-lock]');
     if (await waitIn(cp, '.sve-dialog .sve-dialog__actions button', 8000)) {
-      const confirm = await cp.evaluate(() => { const b = [...document.querySelectorAll('.sve-dialog .sve-dialog__actions button')].pop(); const q = b.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
+      const confirm = await cp.evaluate(() => {
+        const b = [...document.querySelectorAll('.sve-dialog .sve-dialog__actions button')].pop();
+        const q = b.getBoundingClientRect();
+        return { x: q.x + q.width / 2, y: q.y + q.height / 2 };
+      });
       await clickInCp(page, cp, confirm);
     }
-    await until(() => cp.evaluate(() => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')), 10000, 500);
+    await until(
+      () => cp.evaluate(() => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')),
+      10000,
+      500
+    );
   }
-  step('the file is unlocked', await cp.evaluate(() => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')));
-  if (LOCAL && existsSync(absolute(filePath))) { original = readFileSync(absolute(filePath), 'utf8'); info('file backed up', filePath.replace(/^.*page_sections\//, '')); } else { skip('file backup', 'not a local site'); }
+  step(
+    'the file is unlocked',
+    await cp.evaluate(() => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked'))
+  );
+  if (LOCAL && existsSync(absolute(filePath))) {
+    original = readFileSync(absolute(filePath), 'utf8');
+    info('file backed up', filePath.replace(/^.*page_sections\//, ''));
+  } else {
+    skip('file backup', 'not a local site');
+  }
 
   // What the preview, the copies and the tree row hold for the section.
   const inPreview = async () => (await preview()).evaluate((id) => !!document.getElementById(id), sectionId);
-  const inCopies = async () => Promise.all((await cp.$$('#__sve-bp-overview iframe')).map(async (h) => {
-    const src = await (await h.getProperty('src')).jsonValue();
-    if (!src || src === 'about:blank') return 'slot';
-    const f = await h.contentFrame();
-    return f ? f.evaluate((id) => (document.getElementById(id) ? 'present' : 'absent'), sectionId).catch(() => '?') : '?';
-  }));
-  const rowState = () => cp.evaluate(() => { const r = [...document.querySelectorAll('[data-sve-ht-row]')].find((x) => /^section/.test((x.textContent || '').trim())); return r ? (r.hasAttribute('data-sve-ht-hidden') ? 'hidden' : 'shown') : 'no row'; });
+  const inCopies = async () =>
+    Promise.all(
+      (await cp.$$('#__sve-bp-overview iframe')).map(async (h) => {
+        const src = await (await h.getProperty('src')).jsonValue();
+        if (!src || src === 'about:blank') return 'slot';
+        const f = await h.contentFrame();
+        return f
+          ? f.evaluate((id) => (document.getElementById(id) ? 'present' : 'absent'), sectionId).catch(() => '?')
+          : '?';
+      })
+    );
+  const rowState = () =>
+    cp.evaluate(() => {
+      const r = [...document.querySelectorAll('[data-sve-ht-row]')].find((x) =>
+        /^section/.test((x.textContent || '').trim())
+      );
+      return r ? (r.hasAttribute('data-sve-ht-hidden') ? 'hidden' : 'shown') : 'no row';
+    });
   // The eye on the open section's own row: it shows on hover, so the mouse gets there first.
   const eye = async () => {
     const target = await cp.evaluate(() => {
-      const r = [...document.querySelectorAll('[data-sve-ht-row]')].find((x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim()));
+      const r = [...document.querySelectorAll('[data-sve-ht-row]')].find(
+        (x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim())
+      );
       if (!r) return null;
       r.scrollIntoView({ block: 'center' });
       const q = r.getBoundingClientRect();
@@ -194,7 +289,9 @@ try {
     await page.mouse.move(box.x + target.x, box.y + target.y);
     await sleep(300);
     const icon = await cp.evaluate(() => {
-      const r = [...document.querySelectorAll('[data-sve-ht-row]')].find((x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim()));
+      const r = [...document.querySelectorAll('[data-sve-ht-row]')].find(
+        (x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim())
+      );
       const e = r?.querySelector('[data-sve-ht-eye]');
       if (!e) return null;
       const q = e.getBoundingClientRect();
@@ -212,16 +309,40 @@ try {
     const gone = await until(async () => !(await inPreview()), 6000, 200);
     step(`${where}: hidden — the section left the preview`, !!gone, `renders fetched: ${fetches.join(', ') || 'none'}`);
     step(`${where}: hidden — the tree row says so`, (await rowState()) === 'hidden', await rowState());
-    if (where === 'overview') { const copies = await until(async () => { const c = await inCopies(); return c.every((s) => s !== 'present') ? c : null; }, 6000, 300); step('overview: hidden — every copy dropped it too', !!copies, (copies || (await inCopies())).join(' ')); }
+    if (where === 'overview') {
+      const copies = await until(
+        async () => {
+          const c = await inCopies();
+          return c.every((s) => s !== 'present') ? c : null;
+        },
+        6000,
+        300
+      );
+      step('overview: hidden — every copy dropped it too', !!copies, (copies || (await inCopies())).join(' '));
+    }
     await sleep(1500);
     fetches.splice(0);
     const started = Date.now();
     why = await eye();
     step(`${where}: the eye is clickable again`, !why, why);
     const back = await until(inPreview, 8000, 200);
-    step(`${where}: shown — the section is back in the preview`, !!back, `after ${Date.now() - started} ms; renders fetched: ${fetches.join(', ') || 'none'}`);
+    step(
+      `${where}: shown — the section is back in the preview`,
+      !!back,
+      `after ${Date.now() - started} ms; renders fetched: ${fetches.join(', ') || 'none'}`
+    );
     step(`${where}: shown — the tree row says so`, (await rowState()) === 'shown', await rowState());
-    if (where === 'overview') { const copies = await until(async () => { const c = await inCopies(); return c.every((s) => s !== 'absent') ? c : null; }, 8000, 300); step('overview: shown — every copy has it back', !!copies, (copies || (await inCopies())).join(' ')); }
+    if (where === 'overview') {
+      const copies = await until(
+        async () => {
+          const c = await inCopies();
+          return c.every((s) => s !== 'absent') ? c : null;
+        },
+        8000,
+        300
+      );
+      step('overview: shown — every copy has it back', !!copies, (copies || (await inCopies())).join(' '));
+    }
     await sleep(1500);
   };
 
@@ -232,8 +353,19 @@ try {
   // 4. The overview.
   await realClick(page, cp, '#__sve-preview-chrome [data-overview]');
   step('the overview opened', await waitIn(cp, '#__sve-bp-overview', 10000));
-  await until(async () => { const c = await inCopies(); return c.length > 1 && c.every((s) => s !== '?' && s !== 'absent') ? c : null; }, 12000, 500);
-  step('every copy shows the section to begin with', (await inCopies()).every((s) => s !== 'absent'), (await inCopies()).join(' '));
+  await until(
+    async () => {
+      const c = await inCopies();
+      return c.length > 1 && c.every((s) => s !== '?' && s !== 'absent') ? c : null;
+    },
+    12000,
+    500
+  );
+  step(
+    'every copy shows the section to begin with',
+    (await inCopies()).every((s) => s !== 'absent'),
+    (await inCopies()).join(' ')
+  );
   await cycle('overview');
   await page.keyboard.press('Escape');
   await sleep(800);
@@ -247,7 +379,13 @@ try {
     const now = bare(readFileSync(absolute(filePath), 'utf8'));
     const was = bare(original);
     const at = [...now].findIndex((ch, i) => ch !== was[i]);
-    step('the file ends as it began (apart from the dock\'s sve_tw line)', now === was, now === was ? '' : `${was.length} → ${now.length} chars; first difference at ${at}: ${JSON.stringify(was.slice(Math.max(0, at - 20), at + 30))} → ${JSON.stringify(now.slice(Math.max(0, at - 20), at + 30))}`);
+    step(
+      "the file ends as it began (apart from the dock's sve_tw line)",
+      now === was,
+      now === was
+        ? ''
+        : `${was.length} → ${now.length} chars; first difference at ${at}: ${JSON.stringify(was.slice(Math.max(0, at - 20), at + 30))} → ${JSON.stringify(now.slice(Math.max(0, at - 20), at + 30))}`
+    );
   }
 } catch (e) {
   step('no exception', false, e.stack || e.message);
@@ -257,13 +395,23 @@ try {
   if (original !== null) {
     const abs = absolute(filePath);
     let stable = 0;
-    for (let i = 0; i < 40 && stable < 8; i++) { if (readFileSync(abs, 'utf8') !== original) { writeFileSync(abs, original); stable = 0; } else stable++; await sleep(500); }
+    for (let i = 0; i < 40 && stable < 8; i++) {
+      if (readFileSync(abs, 'utf8') !== original) {
+        writeFileSync(abs, original);
+        stable = 0;
+      } else stable++;
+      await sleep(500);
+    }
     info('file restored', String(readFileSync(abs, 'utf8') === original));
   }
   seedLayoutPrefs(null);
 }
 
-step('no request for a placeholder URL (an <img> or <video> built from the template must not load U+E000)', placeholderRequests.length === 0, placeholderRequests.length ? `${placeholderRequests.length} request(s), e.g. ${placeholderRequests[0]}` : 'none');
+step(
+  'no request for a placeholder URL (an <img> or <video> built from the template must not load U+E000)',
+  placeholderRequests.length === 0,
+  placeholderRequests.length ? `${placeholderRequests.length} request(s), e.g. ${placeholderRequests[0]}` : 'none'
+);
 const errors = report.errors.filter((e) => !/favicon|ERR_ABORTED|status of 4|ERR_NETWORK_CHANGED/.test(e));
 step('no page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 console.log(report.ok ? '\nPASS' : '\nFAIL');

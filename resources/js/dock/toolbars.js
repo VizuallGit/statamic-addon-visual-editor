@@ -12,12 +12,49 @@ import { closeTwMenu, twOpenGroupMenu, twOpenToolMenu, twSetClass } from '../tw-
 import { BP_CHANGED_EVENT, breakpoints } from '../breakpoints.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
-import { CSS_LENGTHS, CSS_MENU_ID, CSS_TOOL_INDEX, HTML_HEADINGS, HTML_TOOLS, STYLE_MODE_KEY, VALUES_MODE_KEY } from '../code-dock.js';
-import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMode, setValuesMode, toggleAll } from './style-modes.js';
+import {
+  CSS_LENGTHS,
+  CSS_MENU_ID,
+  CSS_TOOL_INDEX,
+  HTML_HEADINGS,
+  HTML_TOOLS,
+  STYLE_MODE_KEY,
+  VALUES_MODE_KEY,
+} from '../code-dock.js';
+import {
+  CSS_SIZE_KEY,
+  CSS_STATES,
+  CSS_STATE_KEY,
+  applyStyleMode,
+  paintValuesMode,
+  setValuesMode,
+  toggleAll,
+} from './style-modes.js';
 import { paintAll } from './all.js';
-import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
+import {
+  applyDisplay,
+  applyFlexDirection,
+  applyRuleDecls,
+  closeCssMenu,
+  currentFlexDecls,
+  normalizeFlexValue,
+  openCssChoiceMenu,
+  openCssColorMenu,
+  openCssSpacingMenu,
+  openCssValueMenu,
+  paintCssToolState,
+} from './css-tools.js';
 import { paintCssHead } from './css-sizes.js';
-import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlDivMenu, openHtmlTagMenu, tidyHtmlPane, toggleHtmlPagination } from './html-tools.js';
+import {
+  applyHtmlTag,
+  finishHtmlEdit,
+  insertHtmlElement,
+  openHtmlComponentMenu,
+  openHtmlDivMenu,
+  openHtmlTagMenu,
+  tidyHtmlPane,
+  toggleHtmlPagination,
+} from './html-tools.js';
 import { toolElement, toolbarTools } from './element-markup.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
@@ -118,9 +155,10 @@ export function bindCssTools(win, dock) {
     // open would make the next click on it do nothing at all. Remembered AFTER
     // the menu is up: every opener closes whatever was there first, and that
     // is what forgets which icon it belonged to.
-    const opensMenu = dockState.styleMode === 'tw'
-      ? !item.twClass && (!!item.tw || !!item.twGroup)
-      : !item.kind && !item.value && !(item.css in currentFlexDecls()) && !!item.menu;
+    const opensMenu =
+      dockState.styleMode === 'tw'
+        ? !item.twClass && (!!item.tw || !!item.twGroup)
+        : !item.kind && !item.value && !(item.css in currentFlexDecls()) && !!item.menu;
     const remember = () => {
       if (opensMenu) {
         dockState.cssOpenMenu = item.id;
@@ -248,7 +286,9 @@ export function bindCssTools(win, dock) {
   win.document.addEventListener(
     'mousedown',
     (event) => {
-      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-html-tools], [data-sve-css-add-class]`)) {
+      if (
+        event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-html-tools], [data-sve-css-add-class]`)
+      ) {
         return;
       }
 
@@ -341,7 +381,6 @@ export function bindHtmlTools(win, dock) {
         return;
       }
 
-
       closeCssMenu(win.document);
 
       if (tool.action === 'pagination') {
@@ -352,7 +391,11 @@ export function bindHtmlTools(win, dock) {
 
       if (tool.snippet) {
         // The element Build's Add tile writes for the same button (dock/element-markup.js).
-        const element = toolElement(win, tool.id) || { markup: tool.snippet, caret: tool.caret ?? tool.snippet.length, select: tool.select };
+        const element = toolElement(win, tool.id) || {
+          markup: tool.snippet,
+          caret: tool.caret ?? tool.snippet.length,
+          select: tool.select,
+        };
 
         insertHtmlElement(element.markup, element.caret, element.select);
         finishHtmlEdit();

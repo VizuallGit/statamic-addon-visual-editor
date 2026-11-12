@@ -60,7 +60,13 @@ const written = () => (gate ? { written: gate.written, register: gate.register }
 // Images pasted into the chat go with the prompt as one user turn.
 const images = Array.isArray(input.images) ? input.images.filter((image) => image?.data && image?.mimeType) : [];
 const prompt = images.length
-  ? [...images.map(({ data, mimeType }) => ({ type: 'image', source: { type: 'base64', media_type: mimeType, data } })), { type: 'text', text: input.prompt }]
+  ? [
+      ...images.map(({ data, mimeType }) => ({
+        type: 'image',
+        source: { type: 'base64', media_type: mimeType, data },
+      })),
+      { type: 'text', text: input.prompt },
+    ]
   : input.prompt;
 
 // Stop in the panel ends this process (PHP sends SIGTERM): the request on its
@@ -97,12 +103,25 @@ try {
     signal: controller.signal,
   });
 
-  const reply = out.stop === 'refusal' ? 'Claude declined to answer this.' : out.stop === 'max_turns' ? 'The AI stopped after too many steps.' : out.reply;
+  const reply =
+    out.stop === 'refusal'
+      ? 'Claude declined to answer this.'
+      : out.stop === 'max_turns'
+        ? 'The AI stopped after too many steps.'
+        : out.reply;
 
   answer({ status: 'finished', reply, error: null, ...written() }, 0);
 } catch (err) {
   if (!ending) {
     // Anthropic's own words: a wrong key, credit that has run out.
-    answer({ status: 'error', reply: '', error: err instanceof Anthropic.APIError ? err.message : err?.message || String(err), ...written() }, 1);
+    answer(
+      {
+        status: 'error',
+        reply: '',
+        error: err instanceof Anthropic.APIError ? err.message : err?.message || String(err),
+        ...written(),
+      },
+      1
+    );
   }
 }

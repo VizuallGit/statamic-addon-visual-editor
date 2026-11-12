@@ -13,7 +13,14 @@ import { LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, ensureRightTool, resetEditorLayout 
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
-import { helpDefaultOn, helpOnClick, helpOpensPicker, setHelpDefault, setHelpOnClick, setHelpOpensPicker } from './dock/help-state.js';
+import {
+  helpDefaultOn,
+  helpOnClick,
+  helpOpensPicker,
+  setHelpDefault,
+  setHelpOnClick,
+  setHelpOpensPicker,
+} from './dock/help-state.js';
 import { ghostAllowed, ghostDefaultOn, setGhostDefault } from './dock/ghost-state.js';
 import { ghostCounts, takenRate } from './dock/ghost-memory.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
@@ -224,9 +231,17 @@ function generalProps(win) {
     smoothScroll: { on: smoothScrollOn(win), label: t(win, 'lp_settings_smooth_scroll') },
     pageTransitions: { on: pageTransitionsOn(win), label: t(win, 'lp_settings_page_transitions') },
     // The mode switch on a tab hanging into the preview, or a group like the others — only with Build.
-    switchTab: { show: featureSaidOn(win, 'build_mode'), on: buildSwitchTabOn(win), label: t(win, 'lp_settings_switch_tab') },
+    switchTab: {
+      show: featureSaidOn(win, 'build_mode'),
+      on: buildSwitchTabOn(win),
+      label: t(win, 'lp_settings_switch_tab'),
+    },
     // Build's Style tab, or Content, Action and Animation without it — only with Build.
-    styleTab: { show: featureSaidOn(win, 'build_mode'), on: buildStyleTabShown(win), label: t(win, 'lp_settings_style_tab') },
+    styleTab: {
+      show: featureSaidOn(win, 'build_mode'),
+      on: buildStyleTabShown(win),
+      label: t(win, 'lp_settings_style_tab'),
+    },
     classesDefault: { on: buildClassesShownByDefault(win), label: t(win, 'lp_settings_classes_default') },
   };
 }
@@ -387,7 +402,8 @@ function shortcutsProps(win) {
   const doc = win.document;
   const settings = doc.querySelector(`#${HEADER_TOOLBAR_ID} button[data-tab="settings"]`);
   const sizeIcon = (device) =>
-    doc.querySelector(`#${LP_PREVIEW_CHROME_ID} [data-sve-devices] > button[data-device="${device}"] svg`)?.outerHTML || '';
+    doc.querySelector(`#${LP_PREVIEW_CHROME_ID} [data-sve-devices] > button[data-device="${device}"] svg`)?.outerHTML ||
+    '';
 
   return {
     toolbarLabel: t(win, 'lp_settings_shortcuts_toolbar'),
@@ -397,10 +413,20 @@ function shortcutsProps(win) {
     emptyLabel: t(win, 'lp_settings_toolbar_empty'),
     mac: isMac(win.navigator),
     tools: [
-      settings ? { action: 'tool:settings', label: settings.title || t(win, 'panel'), icon: settings.querySelector('svg')?.outerHTML || '' } : null,
+      settings
+        ? {
+            action: 'tool:settings',
+            label: settings.title || t(win, 'panel'),
+            icon: settings.querySelector('svg')?.outerHTML || '',
+          }
+        : null,
       ...toolbarTools(win).map((tool) => ({ action: `tool:${tool.key}`, label: tool.label, icon: tool.icon })),
     ].filter(Boolean),
-    sizes: breakpoints(win).map((row) => ({ action: `size:${row.handle}`, label: row.label, icon: sizeIcon(row.device) })),
+    sizes: breakpoints(win).map((row) => ({
+      action: `size:${row.handle}`,
+      label: row.label,
+      icon: sizeIcon(row.device),
+    })),
   };
 }
 
@@ -518,11 +544,7 @@ function openMoreMenu(win, pill) {
     ...bindSettingHandlers(win),
   });
 
-  awayHandler = bindMenuDismiss(
-    win,
-    (target) => host.contains(target) || pill.contains(target),
-    dismissLpMoreMenu
-  );
+  awayHandler = bindMenuDismiss(win, (target) => host.contains(target) || pill.contains(target), dismissLpMoreMenu);
 
   win.requestAnimationFrame(() => host.querySelector('.sve-lp-settings')?.focus());
 }

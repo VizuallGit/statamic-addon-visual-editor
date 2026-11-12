@@ -265,7 +265,11 @@ function fakeWin({ stored = null, order = null, groups = null, row = null, modes
       setItem: (key, value) => store.set(key, String(value)),
       removeItem: (key) => store.delete(key),
     },
-    Statamic: { $config: { get: (key) => ({ sveStrings: { toolbar_add_tip: 'Add a tool' }, sveToolbarModes: modes })[key] ?? undefined } },
+    Statamic: {
+      $config: {
+        get: (key) => ({ sveStrings: { toolbar_add_tip: 'Add a tool' }, sveToolbarModes: modes })[key] ?? undefined,
+      },
+    },
     setTimeout: () => 1,
     clearTimeout: () => {},
     document: {
@@ -292,7 +296,8 @@ function fakeWin({ stored = null, order = null, groups = null, row = null, modes
 
 /** The row as a picture: `settings [g-a: code, +] [g-b: pages, +] (+)` — (+) the new-group square. */
 function picture(bar) {
-  const inBox = (child) => (child.hasAttribute(TOOLBAR_ADD_ATTR) ? '+' : child.dataset.tab || child.id.replace('__sve-frame-', ''));
+  const inBox = (child) =>
+    child.hasAttribute(TOOLBAR_ADD_ATTR) ? '+' : child.dataset.tab || child.id.replace('__sve-frame-', '');
 
   return bar.children
     .map((node) => {
@@ -305,7 +310,13 @@ function picture(bar) {
     .join(' ');
 }
 
-const row = () => [fakeButton('settings'), fakeFrame('pages', { title: 'Pages' }), fakeButton('sections', { title: 'Patterns' }), fakeButton('performance'), fakeButton('code')];
+const row = () => [
+  fakeButton('settings'),
+  fakeFrame('pages', { title: 'Pages' }),
+  fakeButton('sections', { title: 'Patterns' }),
+  fakeButton('performance'),
+  fakeButton('code'),
+];
 
 // ── The sheet ───────────────────────────────────────────────────────────
 
@@ -315,7 +326,10 @@ test('the sheet hides a plain icon by its button and a framed one by its frame, 
   assert.match(css, /#__sve-toolbar button\[data-tab="performance"\]:not\(\[data-sve-peek\]\)/);
   assert.match(css, /#__sve-frame-pages:not\(\[data-sve-peek\]\)\{display:none!important\}/);
   // A group with nothing left to see goes too — unless one of its tools peeks.
-  assert.match(css, /\[data-sve-toolbar-group\]:not\(:has\([^)]*\[data-sve-peek\][^}]*:not\(\[data-tab="performance"\]\):not\(\[data-tab="pages"\]\)[^}]*:not\(#__sve-frame-performance\):not\(#__sve-frame-pages\)\)\)\{display:none!important\}/);
+  assert.match(
+    css,
+    /\[data-sve-toolbar-group\]:not\(:has\([^)]*\[data-sve-peek\][^}]*:not\(\[data-tab="performance"\]\):not\(\[data-tab="pages"\]\)[^}]*:not\(#__sve-frame-performance\):not\(#__sve-frame-pages\)\)\)\{display:none!important\}/
+  );
   assert.match(toolbarCss({ hidden: [] }), /\[data-sve-toolbar-group\]:not\(:has\(/);
   assert.equal(toolbarCss({ hidden: [] }), FRAME);
   assert.equal(toolbarCss(), FRAME);
@@ -328,36 +342,75 @@ test('page settings and anything that is not a tab key never reach the sheet', (
 
 test('the frame: a transparent row, Page settings as a full square of its own, each group its own surface with a «+» at its edge', () => {
   assert.match(FRAME, /#__sve-toolbar\{background:transparent!important;padding:0!important;gap:8px!important\}/);
-  assert.match(FRAME, /button\[data-tab="settings"\]\{flex-shrink:0;width:32px!important;height:32px!important;margin:0!important;border-radius:\.5rem!important;opacity:1!important\}/);
-  assert.match(FRAME, /\[data-tab="settings"\]:not\(\[aria-pressed="true"\]\)\{background:rgba\(128,128,128,\.16\)!important\}/);
-  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-group\]\{position:relative;display:inline-flex;[^}]*height:32px;padding:5px;gap:4px;border-radius:\.5rem;background:rgba\(128,128,128,\.16\)\}/);
-  assert.match(FRAME, /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{position:absolute;[^}]*right:-\.4375rem;[^}]*width:\.875rem;height:\.875rem;[^}]*opacity:0;pointer-events:none/);
-  assert.match(FRAME, /\[data-sve-toolbar-group\]:hover>\[data-sve-toolbar-add\],[^{]*\{opacity:1;pointer-events:auto\}/);
+  assert.match(
+    FRAME,
+    /button\[data-tab="settings"\]\{flex-shrink:0;width:32px!important;height:32px!important;margin:0!important;border-radius:\.5rem!important;opacity:1!important\}/
+  );
+  assert.match(
+    FRAME,
+    /\[data-tab="settings"\]:not\(\[aria-pressed="true"\]\)\{background:rgba\(128,128,128,\.16\)!important\}/
+  );
+  assert.match(
+    FRAME,
+    /#__sve-toolbar>\[data-sve-toolbar-group\]\{position:relative;display:inline-flex;[^}]*height:32px;padding:5px;gap:4px;border-radius:\.5rem;background:rgba\(128,128,128,\.16\)\}/
+  );
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{position:absolute;[^}]*right:-\.4375rem;[^}]*width:\.875rem;height:\.875rem;[^}]*opacity:0;pointer-events:none/
+  );
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-group\]:hover>\[data-sve-toolbar-add\],[^{]*\{opacity:1;pointer-events:auto\}/
+  );
   assert.doesNotMatch(FRAME, /[{;]order:|::before/);
 });
 
-test('the frame: the group «+» is cut out of the group by 2px of the header\'s own colour, around its thin ring — hovered too', () => {
-  assert.match(FRAME, /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{[^}]*box-shadow:0 0 0 1px rgba\(128,128,128,\.35\),0 0 0 3px var\(--sve-toolbar-bg,transparent\);/);
-  assert.match(FRAME, /\[data-sve-toolbar-add\]:focus-visible\{background:var\(--theme-color-primary,#4f46e5\);color:#fff;box-shadow:0 0 0 2px var\(--sve-toolbar-bg,transparent\)\}/);
+test("the frame: the group «+» is cut out of the group by 2px of the header's own colour, around its thin ring — hovered too", () => {
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-group\]>\[data-sve-toolbar-add\]\{[^}]*box-shadow:0 0 0 1px rgba\(128,128,128,\.35\),0 0 0 3px var\(--sve-toolbar-bg,transparent\);/
+  );
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-add\]:focus-visible\{background:var\(--theme-color-primary,#4f46e5\);color:#fff;box-shadow:0 0 0 2px var\(--sve-toolbar-bg,transparent\)\}/
+  );
 });
 
-test('the frame: a group\'s own surface shows the grab hand only where there is a second group; its icons keep their own cursor', () => {
-  assert.match(FRAME, /#__sve-toolbar:has\(>\[data-sve-toolbar-group\]~\[data-sve-toolbar-group\]\)>\[data-sve-toolbar-group\]\{cursor:grab\}/);
+test("the frame: a group's own surface shows the grab hand only where there is a second group; its icons keep their own cursor", () => {
+  assert.match(
+    FRAME,
+    /#__sve-toolbar:has\(>\[data-sve-toolbar-group\]~\[data-sve-toolbar-group\]\)>\[data-sve-toolbar-group\]\{cursor:grab\}/
+  );
   assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-group\]>\*\{cursor:default\}/);
-  assert.match(FRAME, /#__sve-toolbar\[data-sve-dragging-group\],#__sve-toolbar\[data-sve-dragging-group\] \*\{cursor:grabbing!important\}/);
+  assert.match(
+    FRAME,
+    /#__sve-toolbar\[data-sve-dragging-group\],#__sve-toolbar\[data-sve-dragging-group\] \*\{cursor:grabbing!important\}/
+  );
   assert.doesNotMatch(FRAME, /grip/);
 });
 
-test('the frame: the new-group square always in the row, one gap after the last group as the groups stand — a group\'s height, 1:1, a ring in the groups\' grey, no surface until hovered', () => {
+test("the frame: the new-group square always in the row, one gap after the last group as the groups stand — a group's height, 1:1, a ring in the groups' grey, no surface until hovered", () => {
   assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]\{display:flex;flex-shrink:0\}/);
-  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button\{[^}]*width:32px;height:32px;[^}]*border:1px solid rgba\(128,128,128,\.16\);[^}]*border-radius:\.5rem;[^}]*background:transparent\}/);
-  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button:hover,[^{]*>button:focus-visible\{background:rgba\(128,128,128,\.16\);border-color:transparent\}/);
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-new-group\]>button\{[^}]*width:32px;height:32px;[^}]*border:1px solid rgba\(128,128,128,\.16\);[^}]*border-radius:\.5rem;[^}]*background:transparent\}/
+  );
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-new-group\]>button:hover,[^{]*>button:focus-visible\{background:rgba\(128,128,128,\.16\);border-color:transparent\}/
+  );
   assert.doesNotMatch(FRAME, /new-group\][^{]*\{[^}]*(opacity:0|position:absolute)/);
 });
 
-test('the frame: the square\'s «+» rests faint, and is whole on hover or focus', () => {
-  assert.match(FRAME, /#__sve-toolbar>\[data-sve-toolbar-new-group\]>button svg\{opacity:\.2;transition:opacity \.12s\}/);
-  assert.match(FRAME, /\[data-sve-toolbar-new-group\]>button:hover svg,[^{]*\[data-sve-toolbar-new-group\]>button:focus-visible svg\{opacity:1\}/);
+test("the frame: the square's «+» rests faint, and is whole on hover or focus", () => {
+  assert.match(
+    FRAME,
+    /#__sve-toolbar>\[data-sve-toolbar-new-group\]>button svg\{opacity:\.2;transition:opacity \.12s\}/
+  );
+  assert.match(
+    FRAME,
+    /\[data-sve-toolbar-new-group\]>button:hover svg,[^{]*\[data-sve-toolbar-new-group\]>button:focus-visible svg\{opacity:1\}/
+  );
 });
 
 // ── Hidden ──────────────────────────────────────────────────────────────
@@ -504,11 +557,17 @@ test('moving a tool stores the groups and redraws the row; the group it empties 
 
   moveToolbarToolBefore(win, 'sections', id, 'code');
   assert.equal(picture(win.bar), `settings [${id}: sections, code, performance, pages, +] (+)`);
-  assert.deepEqual(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)), [{ id, name: 'Speed', tools: ['sections', 'code', 'performance', 'pages'] }]);
+  assert.deepEqual(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)), [
+    { id, name: 'Speed', tools: ['sections', 'code', 'performance', 'pages'] },
+  ]);
 });
 
 test('the «+» puts a tool at the end of the group and shows it', () => {
-  const win = fakeWin({ stored: '["code"]', groups: '[{"id":"g-a","tools":["pages"]},{"id":"g-b","tools":["sections"]}]', row: row() });
+  const win = fakeWin({
+    stored: '["code"]',
+    groups: '[{"id":"g-a","tools":["pages"]},{"id":"g-b","tools":["sections"]}]',
+    row: row(),
+  });
 
   syncToolbarLayout(win);
   assert.equal(picture(win.bar), 'settings [g-a: pages, +] [g-b: sections, performance, code, +] (+)');
@@ -536,14 +595,20 @@ test('the new-group square stands after the last box, and goes when there is no 
 });
 
 test('a dragged group goes to its new place; the square stays last; a second pass moves nothing', () => {
-  const win = fakeWin({ groups: '[{"id":"g-a","tools":["code"]},{"id":"g-b","tools":["pages"]},{"id":"g-c","tools":["sections"]}]', row: row() });
+  const win = fakeWin({
+    groups: '[{"id":"g-a","tools":["code"]},{"id":"g-b","tools":["pages"]},{"id":"g-c","tools":["sections"]}]',
+    row: row(),
+  });
 
   syncToolbarLayout(win);
   assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, +] [g-c: sections, performance, +] (+)');
 
   moveToolbarGroup(win, 'g-c', 0);
   assert.equal(picture(win.bar), 'settings [g-c: sections, performance, +] [g-a: code, +] [g-b: pages, +] (+)');
-  assert.deepEqual(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)).map((group) => group.id), ['g-c', 'g-a', 'g-b']);
+  assert.deepEqual(
+    JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)).map((group) => group.id),
+    ['g-c', 'g-a', 'g-b']
+  );
 
   moveToolbarGroup(win, 'g-c', 2);
   assert.equal(picture(win.bar), 'settings [g-a: code, +] [g-b: pages, +] [g-c: sections, performance, +] (+)');
@@ -554,7 +619,11 @@ test('a dragged group goes to its new place; the square stays last; a second pas
 });
 
 test('the new-group square starts a group of its own after the last with the tool picked — a hidden one shown, one from a group moved out, the group it empties gone', () => {
-  const win = fakeWin({ stored: '["code"]', groups: '[{"id":"g-a","tools":["pages"]},{"id":"g-b","tools":["sections","performance"]}]', row: row() });
+  const win = fakeWin({
+    stored: '["code"]',
+    groups: '[{"id":"g-a","tools":["pages"]},{"id":"g-b","tools":["sections","performance"]}]',
+    row: row(),
+  });
 
   syncToolbarLayout(win);
   assert.equal(picture(win.bar), 'settings [g-a: pages, +] [g-b: sections, performance, code, +] (+)');
@@ -562,13 +631,23 @@ test('the new-group square starts a group of its own after the last with the too
   const hiddenOne = addToolbarToolToNewGroup(win, 'code');
 
   assert.match(hiddenOne, /^g-[a-z0-9]+$/);
-  assert.equal(picture(win.bar), `settings [g-a: pages, +] [g-b: sections, performance, +] [${hiddenOne}: code, +] (+)`);
+  assert.equal(
+    picture(win.bar),
+    `settings [g-a: pages, +] [g-b: sections, performance, +] [${hiddenOne}: code, +] (+)`
+  );
   assert.equal(win.store.has(TOOLBAR_HIDDEN_KEY), false, 'and shown');
 
   const fromGroup = addToolbarToolToNewGroup(win, 'pages');
 
-  assert.equal(picture(win.bar), `settings [g-b: sections, performance, +] [${hiddenOne}: code, +] [${fromGroup}: pages, +] (+)`);
-  assert.equal(JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)).some((group) => group.id === 'g-a'), false, 'the group it emptied is gone');
+  assert.equal(
+    picture(win.bar),
+    `settings [g-b: sections, performance, +] [${hiddenOne}: code, +] [${fromGroup}: pages, +] (+)`
+  );
+  assert.equal(
+    JSON.parse(win.store.get(TOOLBAR_GROUPS_KEY)).some((group) => group.id === 'g-a'),
+    false,
+    'the group it emptied is gone'
+  );
   assert.equal(addToolbarToolToNewGroup(win, 'x"y'), '', 'not a tool: nothing');
 });
 
@@ -687,7 +766,11 @@ test('no icon for the tool, or nothing for it on this page: nothing happens', ()
 // as `build`) and HTML Build have those and performance. The dock (`code`) is
 // on none of them: it comes with the mode, never as an icon.
 
-const MODES = { content: ['pages', 'sections'], build: ['pages', 'sections', 'performance'], html: ['pages', 'sections', 'performance'] };
+const MODES = {
+  content: ['pages', 'sections'],
+  build: ['pages', 'sections', 'performance'],
+  html: ['pages', 'sections', 'performance'],
+};
 
 /** Run `fn` with Live Preview in `mode` (Visual Build unless said), and back to Content after. */
 function inBuild(fn, mode = 'visual') {
@@ -720,7 +803,11 @@ test('what a mode may not have is hidden, whatever the user has stored; Page set
   syncToolbarLayout(win);
   // Every icon Content's list leaves out — also one with no button yet, so a
   // button a pass makes is hidden before it paints.
-  assert.ok(readHiddenTools(win).includes('performance') && readHiddenTools(win).includes('code') && readHiddenTools(win).includes('ai'));
+  assert.ok(
+    readHiddenTools(win).includes('performance') &&
+      readHiddenTools(win).includes('code') &&
+      readHiddenTools(win).includes('ai')
+  );
   assert.ok(!readHiddenTools(win).includes('pages') && !readHiddenTools(win).includes('sections'));
   assert.match(win.sheet(), /button\[data-tab="code"\]:not\(\[data-sve-peek\]\)/);
   assert.equal(toolbarToolAllowed(win, 'settings'), true);
@@ -767,14 +854,23 @@ test('the menus list only what the mode may have, and only the groups with some 
   const win = fakeWin({ modes: MODES, groups, row: row() });
 
   syncToolbarLayout(win);
-  assert.deepEqual(toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]), [['g-b', ['pages', 'sections']]]);
-  assert.deepEqual(toolbarTools(win).map((tool) => tool.key), ['pages', 'sections']);
+  assert.deepEqual(
+    toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]),
+    [['g-b', ['pages', 'sections']]]
+  );
+  assert.deepEqual(
+    toolbarTools(win).map((tool) => tool.key),
+    ['pages', 'sections']
+  );
 
   inBuild(() => {
-    assert.deepEqual(toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]), [
-      ['g-a', ['performance']],
-      ['g-b', ['pages', 'sections']],
-    ]);
+    assert.deepEqual(
+      toolbarGroups(win).map((group) => [group.id, group.tools.map((tool) => tool.key)]),
+      [
+        ['g-a', ['performance']],
+        ['g-b', ['pages', 'sections']],
+      ]
+    );
   });
 });
 
@@ -798,7 +894,11 @@ test('neither Open nor a shortcut presses what the mode may not have — the doc
 });
 
 test('a move in the menu lands where it was seen, between tools the mode does not show', () => {
-  const win = fakeWin({ modes: MODES, groups: '[{"id":"g-a","tools":["pages","code","performance","sections"]}]', row: row() });
+  const win = fakeWin({
+    modes: MODES,
+    groups: '[{"id":"g-a","tools":["pages","code","performance","sections"]}]',
+    row: row(),
+  });
 
   // Content sees pages, sections: sections first.
   moveModeTool(win, 'sections', 'g-a', 0);
@@ -812,20 +912,27 @@ test('a move in the menu lands where it was seen, between tools the mode does no
 });
 
 test('a group moved or made in the menu counts only the groups the mode draws', () => {
-  const groups = '[{"id":"g-a","tools":["pages"]},{"id":"g-x","tools":["code","performance"]},{"id":"g-b","tools":["sections"]}]';
+  const groups =
+    '[{"id":"g-a","tools":["pages"]},{"id":"g-x","tools":["code","performance"]},{"id":"g-b","tools":["sections"]}]';
   const win = fakeWin({ modes: MODES, groups, row: row() });
 
   // Content sees g-a, g-b. g-b first.
   moveModeGroup(win, 'g-b', 0);
-  assert.deepEqual(toolbarLayout(win).map((group) => group.id), ['g-b', 'g-a', 'g-x']);
+  assert.deepEqual(
+    toolbarLayout(win).map((group) => group.id),
+    ['g-b', 'g-a', 'g-x']
+  );
 
   // A new group after the last Content sees: after g-a, not before g-x's tools jump.
   const id = moveModeToolToNewGroup(win, 'sections', 2, 'Mine');
-  assert.deepEqual(toolbarLayout(win).map((group) => [group.id === id ? 'new' : group.id, group.tools]), [
-    ['g-a', ['pages']],
-    ['new', ['sections']],
-    ['g-x', ['code', 'performance']],
-  ]);
+  assert.deepEqual(
+    toolbarLayout(win).map((group) => [group.id === id ? 'new' : group.id, group.tools]),
+    [
+      ['g-a', ['pages']],
+      ['new', ['sections']],
+      ['g-x', ['code', 'performance']],
+    ]
+  );
 });
 
 test('a switch of mode closes what is open and the new mode may not have — never the dock, which is the switch’s', () => {

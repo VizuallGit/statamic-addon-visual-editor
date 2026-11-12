@@ -43,14 +43,20 @@ test('a direct answer is passed on as it came, nothing polled', async () => {
 });
 
 test('a direct error is passed on as it came', async () => {
-  const out = await answerOf(fakeWin(() => assert.fail('no poll')), response(422, { message: 'Write what should change.' }), HEADERS);
+  const out = await answerOf(
+    fakeWin(() => assert.fail('no poll')),
+    response(422, { message: 'Write what should change.' }),
+    HEADERS
+  );
 
   assert.deepEqual(out, { ok: false, status: 422, body: { message: 'Write what should change.' } });
 });
 
 test('202 with a job: asked every POLL until done, then the done answer', async () => {
   const win = fakeWin((n) =>
-    n < 3 ? response(200, { ok: true, state: 'pending' }) : response(200, { ok: true, state: 'done', text: '<p>x</p>', ms: 14000 })
+    n < 3
+      ? response(200, { ok: true, state: 'pending' })
+      : response(200, { ok: true, state: 'done', text: '<p>x</p>', ms: 14000 })
   );
 
   const out = await answerOf(win, response(202, { ok: true, job: 'abc-1' }), HEADERS);
@@ -90,7 +96,9 @@ test('an abort while polling rejects and asks no more', async () => {
     return response(200, { ok: true, state: 'pending' });
   });
 
-  await assert.rejects(answerOf(win, response(202, { ok: true, job: 'abc-4' }), HEADERS, abort.signal), { name: 'AbortError' });
+  await assert.rejects(answerOf(win, response(202, { ok: true, job: 'abc-4' }), HEADERS, abort.signal), {
+    name: 'AbortError',
+  });
   assert.equal(win.asked.length, 2);
   assert.equal(win.asked[0].init.signal, abort.signal);
 });

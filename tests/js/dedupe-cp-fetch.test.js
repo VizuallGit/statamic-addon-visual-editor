@@ -61,7 +61,11 @@ test('a saved site.css drops the palette, so the next field is served the new co
 
   win.dispatchEvent({ type: 'sve:site-css-saved' });
 
-  assert.deepEqual(await (await win.fetch(SWATCHES)).json(), ['new'], 'the theme panel saved, so the body kept here was stale');
+  assert.deepEqual(
+    await (await win.fetch(SWATCHES)).json(),
+    ['new'],
+    'the theme panel saved, so the body kept here was stale'
+  );
   assert.equal(asked.length, 2, 'exactly one more GET — the cache is dropped, not disabled');
 
   assert.deepEqual(await (await win.fetch(SWATCHES)).json(), ['new']);
@@ -70,7 +74,9 @@ test('a saved site.css drops the palette, so the next field is served the new co
 
 test('saving site.css leaves the iconify config alone', async () => {
   const ICONIFY = 'https://site.test/cp/iconify/config';
-  const { win, asked } = cpWindow((url, nth) => JSON.stringify([url.includes('iconify') ? `icons-${nth}` : `swatches-${nth}`]));
+  const { win, asked } = cpWindow((url, nth) =>
+    JSON.stringify([url.includes('iconify') ? `icons-${nth}` : `swatches-${nth}`])
+  );
 
   await win.fetch(ICONIFY);
   win.dispatchEvent({ type: 'sve:site-css-saved' });

@@ -13,7 +13,13 @@
  */
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { CODE_DOCK_ID, FAMILY_COLORS_KEY } from './lib/ids.js';
-import { FAMILIES, FAMILY_COLORS, familyColorStyle, parseFamilyOverrides, withFamilyColor } from './lib/tag-families.js';
+import {
+  FAMILIES,
+  FAMILY_COLORS,
+  familyColorStyle,
+  parseFamilyOverrides,
+  withFamilyColor,
+} from './lib/tag-families.js';
 import { htmlTreeUi } from './cp/html-tree/store.js';
 
 export function readFamilyOverrides(win) {

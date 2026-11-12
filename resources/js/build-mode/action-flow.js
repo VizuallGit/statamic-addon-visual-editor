@@ -15,11 +15,22 @@
  */
 import { ALPINE_BEHAVIOURS } from '../alpine-behaviours.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
-import { alpineAttrs, freeName, stateHolder, statesInScope, STATEMENT, withAction, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
+import {
+  alpineAttrs,
+  freeName,
+  stateHolder,
+  statesInScope,
+  STATEMENT,
+  withAction,
+  withAlpineAttr,
+  withoutAlpineAttr,
+} from './alpine.js';
 import { findByPath } from './place.js';
 
 /** The dock's triggers, each once, in the dock's order: a trigger added there is a trigger here. */
-export const TRIGGERS = [...new Set(ALPINE_BEHAVIOURS.filter((item) => item.group === 'act').map((item) => item.attrs[0].name))];
+export const TRIGGERS = [
+  ...new Set(ALPINE_BEHAVIOURS.filter((item) => item.group === 'act').map((item) => item.attrs[0].name)),
+];
 
 /** [lang key, icons.js name] for each trigger. */
 export const TRIGGER_WORDS = {
@@ -33,7 +44,14 @@ export const TRIGGER_WORDS = {
 };
 
 /** What a trigger does by default: leaving and Escape turn off, entering turns on, the rest toggles. */
-export const DOES_BY_TRIGGER = { '@mouseleave': 'off', '@focusout': 'off', '@click.outside': 'off', '@keydown.escape.window': 'off', '@mouseenter': 'on', '@focusin': 'on' };
+export const DOES_BY_TRIGGER = {
+  '@mouseleave': 'off',
+  '@focusout': 'off',
+  '@click.outside': 'off',
+  '@keydown.escape.window': 'off',
+  '@mouseenter': 'on',
+  '@focusin': 'on',
+};
 
 /** What can follow a switch: the dock's react behaviours that take a name. */
 export const THENS = ALPINE_BEHAVIOURS.filter((item) => item.group === 'react' && item.needsName);
@@ -61,11 +79,15 @@ export function statementOf(part) {
  * Action does not write (`$dispatch('x')`): it shows as written.
  */
 export function actionsOn(attrs) {
-  return (attrs || []).filter((attr) => isEvent(attr.name)).flatMap((attr) => String(attr.value)
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => ({ attr: attr.name, part, ...(statementOf(part) || { name: null, does: null }) })));
+  return (attrs || [])
+    .filter((attr) => isEvent(attr.name))
+    .flatMap((attr) =>
+      String(attr.value)
+        .split(';')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => ({ attr: attr.name, part, ...(statementOf(part) || { name: null, does: null }) }))
+    );
 }
 
 /** `animate` is the Animation tab's switch binding (animation.js SWITCH_ATTRS): that tab writes and removes it. */
@@ -77,7 +99,8 @@ const FOLLOW = {
   ':data-anim-active': 'animate',
   'x-bind:data-anim-active': 'animate',
 };
-const mentions = (value, name) => new RegExp(`(^|[^\\w$.'"])${name.replace(/\$/g, '\\$')}([^\\w$]|$)`).test(String(value));
+const mentions = (value, name) =>
+  new RegExp(`(^|[^\\w$.'"])${name.replace(/\$/g, '\\$')}([^\\w$]|$)`).test(String(value));
 
 /**
  * What the element does because of a switch in `names`: `{ attr, name, then }`,
@@ -112,7 +135,9 @@ export function followersOf(html, holderPath, name) {
       return;
     }
 
-    followsOn(alpineAttrs(html, node), [name]).forEach((follow) => out.push({ path: node.path, tag: node.tag, label: node.label, ...follow }));
+    followsOn(alpineAttrs(html, node), [name]).forEach((follow) =>
+      out.push({ path: node.path, tag: node.tag, label: node.label, ...follow })
+    );
   });
 
   return out;
@@ -123,7 +148,12 @@ function partsOf(html, path, name) {
   const node = findByPath(parseTemplateTree(html), path);
   const attr = node && !node.kind ? alpineAttrs(html, node).find((a) => a.name === name) : null;
 
-  return attr ? attr.value.split(';').map((part) => part.trim()).filter(Boolean) : null;
+  return attr
+    ? attr.value
+        .split(';')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    : null;
 }
 
 /** Statements in one attribute, each once, as withAction joins them. */
@@ -151,7 +181,9 @@ export function withStatement(html, path, from, to) {
 
   parts.splice(at, 1);
 
-  const next = parts.length ? withAlpineAttr(html, path, from.attr, join(parts)) : withoutAlpineAttr(html, path, from.attr);
+  const next = parts.length
+    ? withAlpineAttr(html, path, from.attr, join(parts))
+    : withoutAlpineAttr(html, path, from.attr);
 
   return to ? withAlpineAttr(next, path, to.attr, join([...(partsOf(next, path, to.attr) || []), to.part])) : next;
 }
@@ -206,7 +238,9 @@ export const PATTERNS = [
 
 /** The element children of the tag at `path`, by path. */
 function childrenOf(html, path) {
-  return (findByPath(parseTemplateTree(html), path)?.children || []).filter((node) => !node.kind).map((node) => node.path);
+  return (findByPath(parseTemplateTree(html), path)?.children || [])
+    .filter((node) => !node.kind)
+    .map((node) => node.path);
 }
 
 /** A value switch nothing in reach uses: `tab`, `tab2`, … */
@@ -245,11 +279,17 @@ function withValueState(html, a, b, name, first) {
 
   const body = inner[1].trim().replace(/,$/, '');
 
-  return withAlpineAttr(html, holder.node.path, 'x-data', body ? `{ ${body}, ${name}: ${first} }` : `{ ${name}: ${first} }`);
+  return withAlpineAttr(
+    html,
+    holder.node.path,
+    'x-data',
+    body ? `{ ${body}, ${name}: ${first} }` : `{ ${name}: ${first} }`
+  );
 }
 
 /** One more statement on the element's `@click`, beside the ones it runs. */
-const withClick = (html, path, part) => withAlpineAttr(html, path, '@click', join([...(partsOf(html, path, '@click') || []), part]));
+const withClick = (html, path, part) =>
+  withAlpineAttr(html, path, '@click', join([...(partsOf(html, path, '@click') || []), part]));
 
 /**
  * Tabs: the picked element's children are the tabs, the target's children
@@ -273,7 +313,12 @@ export function withTabs(html, controls, panels) {
 
   next = withAlpineAttr(next, controls, 'role', 'tablist');
   tabs.slice(0, shown.length).forEach((at, i) => {
-    next = withAlpineAttr(withAlpineAttr(withClick(next, at, `${name} = ${i + 1}`), at, 'role', 'tab'), at, ':aria-selected', `${name} === ${i + 1}`);
+    next = withAlpineAttr(
+      withAlpineAttr(withClick(next, at, `${name} = ${i + 1}`), at, 'role', 'tab'),
+      at,
+      ':aria-selected',
+      `${name} === ${i + 1}`
+    );
   });
   shown.forEach((at, i) => {
     next = withAlpineAttr(withAlpineAttr(next, at, 'role', 'tabpanel'), at, 'x-show', `${name} === ${i + 1}`);
@@ -306,9 +351,12 @@ export function withCarousel(html, controls, slides) {
 
   next = withClick(next, buttons[0], `${name} = (${name} + ${n - 1}) % ${n}`);
   next = withClick(next, buttons.at(-1), `${name} = (${name} + 1) % ${n}`);
-  buttons.slice(1, -1).slice(0, n).forEach((at, i) => {
-    next = withAlpineAttr(withClick(next, at, `${name} = ${i}`), at, ':aria-current', `${name} === ${i}`);
-  });
+  buttons
+    .slice(1, -1)
+    .slice(0, n)
+    .forEach((at, i) => {
+      next = withAlpineAttr(withClick(next, at, `${name} = ${i}`), at, ':aria-current', `${name} === ${i}`);
+    });
   shown.forEach((at, i) => {
     next = withAlpineAttr(next, at, 'x-show', `${name} === ${i}`);
     next = i ? withAlpineAttr(next, at, 'x-cloak', '') : next;

@@ -26,7 +26,7 @@ final class Link
             return;
         }
 
-        static::replaceWithLink($target, $source);
+        self::replaceWithLink($target, $source);
     }
 
     protected static function replaceWithLink(string $target, string $source): void

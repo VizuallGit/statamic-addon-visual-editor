@@ -40,7 +40,9 @@ export function altFromAsset(url) {
     return `{{ ${field}:alt | entities }}`;
   }
 
-  const at = String(url || '').trim().replace(/'/g, '%27');
+  const at = String(url || '')
+    .trim()
+    .replace(/'/g, '%27');
 
   return at ? `{{ asset url='${at}' }}{{ alt | entities }}{{ /asset }}` : '';
 }
@@ -57,7 +59,9 @@ function find(source, node, name) {
   const from = match.index + match[1].length + 1;
   const to = masked.indexOf(match[2], from);
 
-  return to === -1 ? null : { start: node.from + match.index, from: node.from + from, to: node.from + to, value: open.slice(from, to) };
+  return to === -1
+    ? null
+    : { start: node.from + match.index, from: node.from + from, to: node.from + to, value: open.slice(from, to) };
 }
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
@@ -141,7 +145,10 @@ export function escapeAttrValue(value) {
 
 /** The opening tag with Antlers and every quoted value blanked: what is left are the names. Offsets hold. */
 function namesOnly(open) {
-  return maskAntlers(open).replace(/(["'])[\s\S]*?\1/g, (quoted) => quoted[0] + ' '.repeat(quoted.length - 2) + quoted[quoted.length - 1]);
+  return maskAntlers(open).replace(
+    /(["'])[\s\S]*?\1/g,
+    (quoted) => quoted[0] + ' '.repeat(quoted.length - 2) + quoted[quoted.length - 1]
+  );
 }
 
 /**
@@ -192,11 +199,18 @@ export function attributeList(source, node) {
 /** The attribute renamed where it stands, its value and its place kept. The file unchanged when the new name is taken or is not a name. */
 export function renameAttribute(source, node, from, to) {
   const text = String(source || '');
-  const next = String(to || '').trim().toLowerCase();
+  const next = String(to || '')
+    .trim()
+    .toLowerCase();
   const list = attributeList(text, node);
   const hit = list.find((attr) => attr.name.toLowerCase() === String(from || '').toLowerCase());
 
-  if (!hit || !ATTR_NAME.test(next) || next === hit.name || list.some((attr) => attr !== hit && attr.name.toLowerCase() === next)) {
+  if (
+    !hit ||
+    !ATTR_NAME.test(next) ||
+    next === hit.name ||
+    list.some((attr) => attr !== hit && attr.name.toLowerCase() === next)
+  ) {
     return text;
   }
 
@@ -219,7 +233,19 @@ export const AUTO_CONTRAST = 'data-auto-contrast';
  * have a background of its own. A heading, a paragraph, an image, a link take
  * the colour of the box around them.
  */
-const CONTRAST_BOXES = new Set(['div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'figure', 'form', 'li']);
+const CONTRAST_BOXES = new Set([
+  'div',
+  'section',
+  'article',
+  'aside',
+  'header',
+  'footer',
+  'main',
+  'nav',
+  'figure',
+  'form',
+  'li',
+]);
 
 /** Is auto contrast offered on this tag? */
 export function contrastFits(tag) {
@@ -234,7 +260,9 @@ export function contrastFits(tag) {
 function inCondition(source, node, at) {
   let depth = 0;
 
-  for (const m of String(source).slice(node.from, at).matchAll(/\{\{\s*(\/|end)?\s*(if|unless)\b/g)) {
+  for (const m of String(source)
+    .slice(node.from, at)
+    .matchAll(/\{\{\s*(\/|end)?\s*(if|unless)\b/g)) {
     depth += m[1] ? -1 : 1;
   }
 
@@ -286,14 +314,18 @@ export function withAttribute(source, node, name, value, { end = false } = {}) {
   const safe = escapeAttrValue(value);
   const hit = find(text, node, name);
   // Written bare — `data-open`, no value: found by the list, replaced whole.
-  const bare = hit ? null : attributeList(text, node).find((attr) => attr.bare && attr.name.toLowerCase() === name.toLowerCase());
+  const bare = hit
+    ? null
+    : attributeList(text, node).find((attr) => attr.bare && attr.name.toLowerCase() === name.toLowerCase());
 
   if (bare) {
     if (value === true) {
       return text;
     }
 
-    return value === null ? text.slice(0, bare.from - 1) + text.slice(bare.to) : `${text.slice(0, bare.from)}${name}="${safe}"${text.slice(bare.to)}`;
+    return value === null
+      ? text.slice(0, bare.from - 1) + text.slice(bare.to)
+      : `${text.slice(0, bare.from)}${name}="${safe}"${text.slice(bare.to)}`;
   }
 
   if (value === null) {
@@ -302,7 +334,9 @@ export function withAttribute(source, node, name, value, { end = false } = {}) {
 
   if (hit) {
     // `true` drops the value: the name stays where it stands, after its own space.
-    return value === true ? text.slice(0, hit.start + 1) + name + text.slice(hit.to + 1) : text.slice(0, hit.from) + safe + text.slice(hit.to);
+    return value === true
+      ? text.slice(0, hit.start + 1) + name + text.slice(hit.to + 1)
+      : text.slice(0, hit.from) + safe + text.slice(hit.to);
   }
 
   const tag = /^<([a-zA-Z][a-zA-Z0-9:-]*)/.exec(text.slice(node.from, node.openTo));

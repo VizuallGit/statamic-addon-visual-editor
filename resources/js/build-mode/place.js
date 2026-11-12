@@ -84,7 +84,9 @@ export function kindAt(source, roots, node) {
  *   null when that place takes nothing (locked, inside a lock, commented out)
  */
 export function placeFor(source, roots, path) {
-  let target = path ? findByPath(roots, path) : (roots || []).find((node) => kindAt(source, roots, node) === 'section') || null;
+  let target = path
+    ? findByPath(roots, path)
+    : (roots || []).find((node) => kindAt(source, roots, node) === 'section') || null;
 
   if (!target) {
     return { mode: 'end', parent: null, after: null };

@@ -252,7 +252,10 @@ export function chipKeeps(chip, row) {
 
 /** The rows a chip and a search box leave, in the list's own order. */
 export function filterRows(rows, { chip = CLASS_CHIPS[0], query = '' } = {}) {
-  const q = String(query || '').trim().toLowerCase().replace(/^\./, '');
+  const q = String(query || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\./, '');
 
   return (rows || []).filter((row) => {
     if (!chipKeeps(chip, row)) {
@@ -263,10 +266,12 @@ export function filterRows(rows, { chip = CLASS_CHIPS[0], query = '' } = {}) {
       return true;
     }
 
-    return row.name.toLowerCase().includes(q)
-      || row.files.some((f) => f.toLowerCase().includes(q))
-      || row.props.some((p) => p.toLowerCase().includes(q))
-      || (row.classes || []).some((c) => c.toLowerCase().includes(q));
+    return (
+      row.name.toLowerCase().includes(q) ||
+      row.files.some((f) => f.toLowerCase().includes(q)) ||
+      row.props.some((p) => p.toLowerCase().includes(q)) ||
+      (row.classes || []).some((c) => c.toLowerCase().includes(q))
+    );
   });
 }
 
@@ -295,8 +300,12 @@ export function usageLabel(row, labels = {}) {
 export function rowSummary(row, labels = {}) {
   const inside = (row.classes || []).length;
   const parts = [
-    inside ? `${inside} ${inside === 1 ? labels.tw_one || 'Tailwind-klasse' : labels.tw_many || 'Tailwind-klasser'}` : '',
-    row.props.length ? `${row.props.length} ${row.props.length === 1 ? labels.prop_one || 'egenskab' : labels.prop_many || 'egenskaber'}` : '',
+    inside
+      ? `${inside} ${inside === 1 ? labels.tw_one || 'Tailwind-klasse' : labels.tw_many || 'Tailwind-klasser'}`
+      : '',
+    row.props.length
+      ? `${row.props.length} ${row.props.length === 1 ? labels.prop_one || 'egenskab' : labels.prop_many || 'egenskaber'}`
+      : '',
   ].filter(Boolean);
 
   return [row.files.join(', '), ...(parts.length ? parts : [labels.no_props || 'tom'])].filter(Boolean).join(' · ');

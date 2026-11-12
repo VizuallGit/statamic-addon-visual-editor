@@ -42,7 +42,7 @@ export const PAGE_CHARS = 30000;
 const IMAGE_BYTES = 15 * 1024 * 1024;
 
 export const LOCKED_HINT =
-  'That file is closed to the AI — a secret, an installed or built file, or the site\'s own PHP. Say what you would change there and why, and carry on with the rest.';
+  "That file is closed to the AI — a secret, an installed or built file, or the site's own PHP. Say what you would change there and why, and carry on with the rest.";
 
 /** Files the open part of the site may hold: content, theme and markup — never PHP. */
 const OPEN_FILE = /\.(ya?ml|md|html?|css|js|mjs|json|txt|svg|xml)$/i;
@@ -77,9 +77,13 @@ export function createGate(cwd, scope) {
     // (a symlinked home folder, /var → /private/var).
     const outside = (rel) => rel.startsWith('..') || isAbsolute(rel);
     const fromCwd = isAbsolute(given) ? relative(cwd, given) : given;
-    const rel = normalize(isAbsolute(given) && outside(fromCwd) ? relative(root, given) : fromCwd).split(sep).join('/');
+    const rel = normalize(isAbsolute(given) && outside(fromCwd) ? relative(root, given) : fromCwd)
+      .split(sep)
+      .join('/');
 
-    return rel === '' || rel === '.' || rel.startsWith('../') || rel === '..' || isAbsolute(rel) ? '' : rel.replace(/^\.\//, '');
+    return rel === '' || rel === '.' || rel.startsWith('../') || rel === '..' || isAbsolute(rel)
+      ? ''
+      : rel.replace(/^\.\//, '');
   }
 
   /** The real folder a path would land in is still inside the site — a symlink cannot carry a write out. */
@@ -127,7 +131,11 @@ export function createGate(cwd, scope) {
 
   /** May this run make a file that is not there yet? */
   function mayCreate(rel) {
-    return rel !== '' && ((NEW_FILE.test(rel) && create.some((folder) => rel.startsWith(folder))) || opened(rel)) && inside(rel);
+    return (
+      rel !== '' &&
+      ((NEW_FILE.test(rel) && create.some((folder) => rel.startsWith(folder))) || opened(rel)) &&
+      inside(rel)
+    );
   }
 
   function put(rel, content) {
@@ -215,13 +223,19 @@ export function createGate(cwd, scope) {
 
   function registerSection({ group, handle, display, fieldset } = {}) {
     const ok =
-      typeof group === 'string' && /^[a-z0-9_]+$/.test(group) &&
-      typeof handle === 'string' && /^[a-z0-9_]+\/[a-z0-9_]+$/.test(handle) &&
-      typeof display === 'string' && display.trim() !== '' &&
-      typeof fieldset === 'string' && /^[a-z0-9_]+(\.[a-z0-9_]+)+$/.test(fieldset);
+      typeof group === 'string' &&
+      /^[a-z0-9_]+$/.test(group) &&
+      typeof handle === 'string' &&
+      /^[a-z0-9_]+\/[a-z0-9_]+$/.test(handle) &&
+      typeof display === 'string' &&
+      display.trim() !== '' &&
+      typeof fieldset === 'string' &&
+      /^[a-z0-9_]+(\.[a-z0-9_]+)+$/.test(fieldset);
 
     if (!ok) {
-      return refuse('group is a group handle from page_sections.yaml, handle is folder/name (the partial under page_sections/), display the name editors see, fieldset folder.name of the fieldset the set imports.');
+      return refuse(
+        'group is a group handle from page_sections.yaml, handle is folder/name (the partial under page_sections/), display the name editors see, fieldset folder.name of the fieldset the set imports.'
+      );
     }
 
     if (!register.some((row) => row.handle === handle)) {
@@ -269,7 +283,9 @@ export function createGate(cwd, scope) {
     const rel = clean(path);
 
     if (!assets || !rel.startsWith(assets) || !IMAGE.test(rel) || !inside(rel)) {
-      return refuse(`path must be a new image file (.jpg, .png, .webp, .gif, .svg, .avif) under ${assets || 'the assets folder'}.`);
+      return refuse(
+        `path must be a new image file (.jpg, .png, .webp, .gif, .svg, .avif) under ${assets || 'the assets folder'}.`
+      );
     }
 
     if (existsSync(absolute(rel))) {
@@ -325,7 +341,15 @@ export function privateAddress(ip) {
   if (isIP(v4) === 4) {
     const [a, b] = v4.split('.').map(Number);
 
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b < 128) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b < 32) || (a === 192 && b === 168);
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b < 128) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b < 32) ||
+      (a === 192 && b === 168)
+    );
   }
 
   const v6 = ip.toLowerCase();
@@ -354,7 +378,9 @@ async function publicFetch(url) {
     }
 
     const host = parsed.hostname.replace(/^\[|\]$/g, '');
-    const addresses = isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => [])).map((row) => row.address);
+    const addresses = isIP(host)
+      ? [host]
+      : (await lookup(host, { all: true }).catch(() => [])).map((row) => row.address);
 
     if (!addresses.length || addresses.some(privateAddress)) {
       return `${next} is not a public web address.`;
@@ -438,11 +464,15 @@ function decodeTitle(title) {
 export function gateTools(gate, { rules = false } = {}) {
   const tools = {
     write_file: {
-      description: 'Write a whole file: change an existing file this run may change, or make a new section file (.yaml / .antlers.html). Paths are relative to the site root. Anything else is refused as LOCKED.',
+      description:
+        'Write a whole file: change an existing file this run may change, or make a new section file (.yaml / .antlers.html). Paths are relative to the site root. Anything else is refused as LOCKED.',
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'e.g. resources/views/partials/page_sections/hero/style_2.antlers.html' },
+          path: {
+            type: 'string',
+            description: 'e.g. resources/views/partials/page_sections/hero/style_2.antlers.html',
+          },
           content: { type: 'string', description: 'The complete new contents of the file.' },
         },
         required: ['path', 'content'],
@@ -450,7 +480,8 @@ export function gateTools(gate, { rules = false } = {}) {
       execute: (args) => gate.writeFile(args),
     },
     edit_file: {
-      description: 'Replace text in a file this run may change. old_string must match the file exactly. Anything else is refused as LOCKED.',
+      description:
+        'Replace text in a file this run may change. old_string must match the file exactly. Anything else is refused as LOCKED.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -464,12 +495,16 @@ export function gateTools(gate, { rules = false } = {}) {
       execute: (args) => gate.editFile(args),
     },
     register_section: {
-      description: 'Add a new section type to the page builder (page_sections.yaml). Call it once the partial and fieldset are written. The list itself is written after you finish; never edit page_sections.yaml.',
+      description:
+        'Add a new section type to the page builder (page_sections.yaml). Call it once the partial and fieldset are written. The list itself is written after you finish; never edit page_sections.yaml.',
       inputSchema: {
         type: 'object',
         properties: {
           group: { type: 'string', description: 'An existing group handle in page_sections.yaml, e.g. hero.' },
-          handle: { type: 'string', description: 'folder/name — the partial under resources/views/partials/page_sections/.' },
+          handle: {
+            type: 'string',
+            description: 'folder/name — the partial under resources/views/partials/page_sections/.',
+          },
           display: { type: 'string', description: 'The name editors see.' },
           fieldset: { type: 'string', description: 'folder.name of the fieldset the set imports, e.g. hero.style_3.' },
         },
@@ -480,32 +515,40 @@ export function gateTools(gate, { rules = false } = {}) {
   };
 
   tools.delete_file = {
-    description: 'Delete a file of the site\'s content or theme, or an image in the assets folder — one this or an earlier run made by mistake, or one the user wants gone.',
+    description:
+      "Delete a file of the site's content or theme, or an image in the assets folder — one this or an earlier run made by mistake, or one the user wants gone.",
     inputSchema: {
       type: 'object',
-      properties: { path: { type: 'string', description: 'Relative to the site root, e.g. public/assets/team/old-photo.webp' } },
+      properties: {
+        path: { type: 'string', description: 'Relative to the site root, e.g. public/assets/team/old-photo.webp' },
+      },
       required: ['path'],
     },
     execute: (args) => gate.deleteFile(args),
   };
 
   tools.fetch_page = {
-    description: 'Read a web page the user points at: its title, its images (with their addresses and alt text) and its text. Public web addresses only.',
+    description:
+      'Read a web page the user points at: its title, its images (with their addresses and alt text) and its text. Public web addresses only.',
     inputSchema: {
       type: 'object',
-      properties: { url: { type: 'string', description: 'The page\'s full address, https://…' } },
+      properties: { url: { type: 'string', description: "The page's full address, https://…" } },
       required: ['url'],
     },
     execute: (args) => gate.fetchPage(args),
   };
 
   tools.save_image = {
-    description: 'Save an image from the web as a new file in the site\'s assets folder, to use in an assets field. Never replaces a file.',
+    description:
+      "Save an image from the web as a new file in the site's assets folder, to use in an assets field. Never replaces a file.",
     inputSchema: {
       type: 'object',
       properties: {
-        url: { type: 'string', description: 'The image\'s address, as fetch_page listed it.' },
-        path: { type: 'string', description: 'Where it goes, a new file under the assets folder, e.g. public/assets/employees/jane-doe.jpg' },
+        url: { type: 'string', description: "The image's address, as fetch_page listed it." },
+        path: {
+          type: 'string',
+          description: 'Where it goes, a new file under the assets folder, e.g. public/assets/employees/jane-doe.jpg',
+        },
       },
       required: ['url', 'path'],
     },
@@ -514,10 +557,11 @@ export function gateTools(gate, { rules = false } = {}) {
 
   if (rules) {
     tools.add_rule = {
-      description: 'Append one numbered rule to the site\'s AI rules (how this site wants things built). Existing rules are never changed.',
+      description:
+        "Append one numbered rule to the site's AI rules (how this site wants things built). Existing rules are never changed.",
       inputSchema: {
         type: 'object',
-        properties: { text: { type: 'string', description: 'The rule, in the user\'s words.' } },
+        properties: { text: { type: 'string', description: "The rule, in the user's words." } },
         required: ['text'],
       },
       execute: (args) => gate.addRule(args),

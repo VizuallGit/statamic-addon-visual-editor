@@ -32,15 +32,15 @@ final class Lock
      */
     public static function read(): ?array
     {
-        if (static::$read) {
-            return static::$memo;
+        if (self::$read) {
+            return self::$memo;
         }
 
-        static::$read = true;
-        $path = static::path();
+        self::$read = true;
+        $path = self::path();
 
         if (! is_file($path)) {
-            return static::$memo = null;
+            return self::$memo = null;
         }
 
         $data = json_decode((string) file_get_contents($path), true);
@@ -51,16 +51,16 @@ final class Lock
             || ! is_string($data['addon'] ?? null)
             || ! is_array($data['imports'] ?? null)
         ) {
-            return static::$memo = null;
+            return self::$memo = null;
         }
 
-        return static::$memo = $data;
+        return self::$memo = $data;
     }
 
     /** The lock describes this very build. */
     public static function holds(?string $build): bool
     {
-        return $build !== null && (static::read()['build'] ?? null) === $build;
+        return $build !== null && (self::read()['build'] ?? null) === $build;
     }
 
     /**
@@ -68,7 +68,7 @@ final class Lock
      */
     public static function write(string $build, string $addon, array $imports): void
     {
-        $dir = dirname(static::path());
+        $dir = dirname(self::path());
 
         if (! is_dir($dir) || ! is_writable($dir)) {
             return;
@@ -83,13 +83,13 @@ final class Lock
             return;
         }
 
-        @file_put_contents(static::path(), $json."\n");
-        static::forget();
+        @file_put_contents(self::path(), $json."\n");
+        self::forget();
     }
 
     public static function forget(): void
     {
-        static::$memo = null;
-        static::$read = false;
+        self::$memo = null;
+        self::$read = false;
     }
 }

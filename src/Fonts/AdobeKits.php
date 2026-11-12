@@ -38,7 +38,7 @@ final class AdobeKits
     /** The kit's families, remembered for a day; empty when Adobe does not answer. */
     public static function families(string $url): array
     {
-        if (! static::isKit($url)) {
+        if (! self::isKit($url)) {
             return [];
         }
 

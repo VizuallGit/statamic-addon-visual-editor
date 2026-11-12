@@ -50,7 +50,10 @@ const CSS = `@import "tailwindcss";
 test('reads every top-level @utility, skipping comments, strings and @theme', () => {
   const utilities = readUtilities(CSS);
 
-  assert.deepEqual(utilities.map((u) => u.name), ['wrapper', 'card', 'image-overlay', 'auto-grid']);
+  assert.deepEqual(
+    utilities.map((u) => u.name),
+    ['wrapper', 'card', 'image-overlay', 'auto-grid']
+  );
   assert.equal(utilityBodies(CSS).get('card'), 'padding: var(--size-900);\nbackground-color: red;');
   // The brace in the string does not end the block; nesting stays.
   assert.equal(
@@ -60,10 +63,12 @@ test('reads every top-level @utility, skipping comments, strings and @theme', ()
   assert.equal(utilities[3].indent, '  ');
 });
 
-test('writes one body in place, with the block\'s own indent, and nothing else', () => {
+test("writes one body in place, with the block's own indent, and nothing else", () => {
   const out = writeUtilities(CSS, { card: 'padding: var(--size-700);\nbackground-color: var(--color-primary);' });
 
-  assert.ok(out.includes('@utility card {\n    padding: var(--size-700);\n    background-color: var(--color-primary);\n}'));
+  assert.ok(
+    out.includes('@utility card {\n    padding: var(--size-700);\n    background-color: var(--color-primary);\n}')
+  );
   assert.equal(out.replace(/@utility card \{[^}]*\}/, ''), CSS.replace(/@utility card \{[^}]*\}/, ''));
 
   const two = writeUtilities(CSS, { 'auto-grid': 'display: grid;' });
@@ -80,11 +85,17 @@ test('a new utility goes after the last one; a removed one takes its blank line 
   const added = writeUtilities(CSS, { stack: 'display: flex;\nflex-direction: column;' });
 
   assert.ok(added.endsWith('1fr));\n}\n\n@utility stack {\n  display: flex;\n  flex-direction: column;\n}\n'));
-  assert.deepEqual(readUtilities(added).map((u) => u.name), ['wrapper', 'card', 'image-overlay', 'auto-grid', 'stack']);
+  assert.deepEqual(
+    readUtilities(added).map((u) => u.name),
+    ['wrapper', 'card', 'image-overlay', 'auto-grid', 'stack']
+  );
 
   const removed = writeUtilities(CSS, { card: null });
 
-  assert.deepEqual(readUtilities(removed).map((u) => u.name), ['wrapper', 'image-overlay', 'auto-grid']);
+  assert.deepEqual(
+    readUtilities(removed).map((u) => u.name),
+    ['wrapper', 'image-overlay', 'auto-grid']
+  );
   assert.ok(removed.includes('transparent;\n}\n\n@utility image-overlay {'));
   assert.ok(!/\n\n\n/.test(removed));
 });
@@ -205,7 +216,7 @@ test('a lock survives a write of its body, and a deleted utility takes its lock 
   assert.ok(gone.includes('/* a note about grids */'));
 });
 
-test('the last class out of @apply leaves a utility\'s own CSS, and an empty body when it had none', () => {
+test("the last class out of @apply leaves a utility's own CSS, and an empty body when it had none", () => {
   assert.equal(bodyWithClasses('@apply card;\npadding: 1rem;', ''), 'padding: 1rem;');
   assert.equal(bodyWithClasses('@apply card;', ''), '');
 });

@@ -590,7 +590,12 @@ class LiveReloadTest extends TestCase
             $byName[basename($file['path'])] = $file;
         }
 
-        $this->assertSame(['big.antlers.html', 'gone.antlers.html', 'new.antlers.html'], array_keys($byName) === [] ? [] : (function () use ($byName) { $k = array_keys($byName); sort($k); return $k; })());
+        $this->assertSame(['big.antlers.html', 'gone.antlers.html', 'new.antlers.html'], array_keys($byName) === [] ? [] : (function () use ($byName) {
+            $k = array_keys($byName);
+            sort($k);
+
+            return $k;
+        })());
         $this->assertSame('<p>new</p>', $byName['new.antlers.html']['content']);
         $this->assertNull($byName['big.antlers.html']['content'], 'too big to send');
         $this->assertTrue($byName['gone.antlers.html']['removed']);

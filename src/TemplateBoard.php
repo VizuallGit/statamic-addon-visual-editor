@@ -55,8 +55,8 @@ final class TemplateBoard
     {
         return [
             'rows' => array_values(array_filter(array_merge(
-                [static::siteRow(), static::pagesRow()],
-                static::sourceRows(),
+                [self::siteRow(), self::pagesRow()],
+                self::sourceRows(),
             ))),
         ];
     }
@@ -68,11 +68,11 @@ final class TemplateBoard
      */
     public static function siteRow(): array
     {
-        $byView = static::siteEntries();
+        $byView = self::siteEntries();
         $cards = [];
 
-        foreach (static::SITE_SLOTS as $slot => $view) {
-            $card = static::card($slot, $view, $byView[$view] ?? null);
+        foreach (self::SITE_SLOTS as $slot => $view) {
+            $card = self::card($slot, $view, $byView[$view] ?? null);
             $card['kind'] = $slot === 'layout' ? 'layout' : 'page';
             $cards[] = $card;
         }
@@ -96,7 +96,7 @@ final class TemplateBoard
         $cards = [];
 
         foreach (OwnPage::all() as $own) {
-            $card = static::card('page', $own['view'], null);
+            $card = self::card('page', $own['view'], null);
             $card['title'] = (string) ($own['entry']->value('title') ?: $own['entry']->slug());
             $card['edit'] = $own['entry']->editUrl();
             $card['broken'] = ! $card['exists'];
@@ -121,7 +121,7 @@ final class TemplateBoard
      */
     public static function sourceRows(): array
     {
-        $stores = array_merge(Stores::all(), static::skipped());
+        $stores = array_merge(Stores::all(), self::skipped());
         $rows = [];
 
         foreach (Collection::all() as $collection) {
@@ -129,11 +129,11 @@ final class TemplateBoard
                 continue;
             }
 
-            $rows[] = static::sourceRow($collection->handle(), $collection->title(), 'collection', $collection);
+            $rows[] = self::sourceRow($collection->handle(), $collection->title(), 'collection', $collection);
         }
 
         foreach (Taxonomy::all() as $taxonomy) {
-            $rows[] = static::sourceRow($taxonomy->handle(), $taxonomy->title(), 'taxonomy', $taxonomy);
+            $rows[] = self::sourceRow($taxonomy->handle(), $taxonomy->title(), 'taxonomy', $taxonomy);
         }
 
         return $rows;
@@ -157,22 +157,22 @@ final class TemplateBoard
 
     public static function sourceRow(string $handle, string $title, string $kind, mixed $source = null): array
     {
-        $entries = static::entriesFor($handle);
+        $entries = self::entriesFor($handle);
         $cards = [];
 
-        foreach (static::SOURCE_SLOTS as $slot) {
+        foreach (self::SOURCE_SLOTS as $slot) {
             $view = $slot === 'show'
-                ? static::showView($handle, $source)
-                : static::viewPath($handle, $slot);
+                ? self::showView($handle, $source)
+                : self::viewPath($handle, $slot);
 
-            $card = static::card($slot, $view, $entries[$slot] ?? null);
+            $card = self::card($slot, $view, $entries[$slot] ?? null);
 
             // A template the collection shares with others — `default`, or a
             // file of its own name. Saying so is the point: the card is not
             // empty, and editing it would change every collection pointing at
             // the same view.
             $card['shared'] = $slot === 'show' && ! str_starts_with($view, $handle.'/');
-            $card['create'] = static::viewPath($handle, $slot);
+            $card['create'] = self::viewPath($handle, $slot);
 
             $cards[] = $card;
         }
@@ -202,7 +202,7 @@ final class TemplateBoard
     {
         $source ??= Collection::findByHandle($handle) ?: Taxonomy::findByHandle($handle);
 
-        return static::ownTemplate($source) ?? static::viewPath($handle, 'show');
+        return self::ownTemplate($source) ?? self::viewPath($handle, 'show');
     }
 
     /**
@@ -221,7 +221,7 @@ final class TemplateBoard
             ? $source->template()
             : null;
 
-        if (! is_string($template) || $template === '' || $template === static::SITE_SLOTS['default']) {
+        if (! is_string($template) || $template === '' || $template === self::SITE_SLOTS['default']) {
             return null;
         }
 
@@ -245,7 +245,7 @@ final class TemplateBoard
      */
     public static function card(string $slot, string $view, mixed $entry): array
     {
-        $file = static::viewFile($view);
+        $file = self::viewFile($view);
         $entryId = $entry?->id();
 
         return [
@@ -270,11 +270,11 @@ final class TemplateBoard
      */
     public static function viewFile(string $view): ?string
     {
-        if (! static::safeView($view)) {
+        if (! self::safeView($view)) {
             return null;
         }
 
-        foreach (static::EXTENSIONS as $extension) {
+        foreach (self::EXTENSIONS as $extension) {
             $relative = $view.'.'.$extension;
 
             if (is_file(resource_path('views/'.$relative))) {

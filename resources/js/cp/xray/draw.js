@@ -306,7 +306,7 @@ function drawGrid(ctx, grid, color, { layers, hover, labels, words, tokens, spot
       `${grid.label} · ${words.grid} ${cols.length} × ${rows.length}${sub ? ` · ${sub}` : ''}`,
       grid.rect.left,
       grid.rect.top - PILL_H - 14,
-      color,
+      color
     );
 
     // The gap, as the token it is: `gap-500 · 34`. One label when both
@@ -319,7 +319,7 @@ function drawGrid(ctx, grid, color, { layers, hover, labels, words, tokens, spot
         (cols[0].end + cols[1].start) / 2,
         rows[0].start + 22,
         color,
-        { align: 'center' },
+        { align: 'center' }
       );
     }
 
@@ -328,7 +328,7 @@ function drawGrid(ctx, grid, color, { layers, hover, labels, words, tokens, spot
         sizeLabel(grid.rowGap, tokenFor(tokens.spacing, grid.rowGap), same ? 'gap' : 'gap-y'),
         left + 40,
         (rows[0].end + rows[1].start) / 2 - PILL_H / 2,
-        color,
+        color
       );
     }
   }
@@ -382,7 +382,12 @@ function drawBoxModel(ctx, model, labels, tokens) {
   const borderBox = { x: r.left, y: r.top, w: r.width, h: r.height };
   const marginBox = { x: r.left - m.l, y: r.top - m.t, w: r.width + m.l + m.r, h: r.height + m.t + m.b };
   const paddingBox = { x: r.left + b.l, y: r.top + b.t, w: r.width - b.l - b.r, h: r.height - b.t - b.b };
-  const contentBox = { x: paddingBox.x + p.l, y: paddingBox.y + p.t, w: paddingBox.w - p.l - p.r, h: paddingBox.h - p.t - p.b };
+  const contentBox = {
+    x: paddingBox.x + p.l,
+    y: paddingBox.y + p.t,
+    w: paddingBox.w - p.l - p.r,
+    h: paddingBox.h - p.t - p.b,
+  };
 
   band(marginBox, borderBox, BOX_MODEL.margin);
   band(borderBox, paddingBox, BOX_MODEL.border);
@@ -471,7 +476,7 @@ function drawType(ctx, text, labels, tokens) {
     `${text.tag} · ${token ? `text-${token} · ` : ''}${size} · ${text.family}${weight}`,
     text.rect.left,
     text.rect.top - PILL_H - 1,
-    TYPE_COLOR,
+    TYPE_COLOR
   );
 }
 

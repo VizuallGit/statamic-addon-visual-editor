@@ -16,9 +16,7 @@ class ExplainRenderErrorInPreviewTest extends TestCase
     {
         return new class($livePreview) extends ExplainRenderErrorInPreview
         {
-            public function __construct(private bool $livePreview)
-            {
-            }
+            public function __construct(private bool $livePreview) {}
 
             protected function isLivePreview(Request $request): bool
             {

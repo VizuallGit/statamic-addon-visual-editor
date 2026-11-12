@@ -6,7 +6,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { antlersWord, closingAfter, collectionLoop, collectionOptions, fieldOptions, imagePathWord } from '../../resources/js/dock/antlers-options.js';
+import {
+  antlersWord,
+  closingAfter,
+  collectionLoop,
+  collectionOptions,
+  fieldOptions,
+  imagePathWord,
+} from '../../resources/js/dock/antlers-options.js';
 
 const COLLECTIONS = [
   { handle: 'employees', title: 'Employees' },
@@ -30,9 +37,18 @@ test('the word is the first one after {{, nothing past it', () => {
 });
 
 test('collection: every collection on the way, then by handle or title', () => {
-  assert.deepEqual(collectionOptions(COLLECTIONS, 'coll').map((row) => row.handle), ['employees', 'pages', 'cases']);
-  assert.deepEqual(collectionOptions(COLLECTIONS, 'c').map((row) => row.handle), ['employees', 'pages', 'cases']);
-  assert.deepEqual(collectionOptions(COLLECTIONS, 'collection:em').map((row) => row.handle), ['employees']);
+  assert.deepEqual(
+    collectionOptions(COLLECTIONS, 'coll').map((row) => row.handle),
+    ['employees', 'pages', 'cases']
+  );
+  assert.deepEqual(
+    collectionOptions(COLLECTIONS, 'c').map((row) => row.handle),
+    ['employees', 'pages', 'cases']
+  );
+  assert.deepEqual(
+    collectionOptions(COLLECTIONS, 'collection:em').map((row) => row.handle),
+    ['employees']
+  );
   assert.deepEqual(collectionOptions(COLLECTIONS, 'na'), []);
 });
 
@@ -44,10 +60,22 @@ test('a collection is written as its loop, the caret on the item line', () => {
 });
 
 test('fields fit by handle or by a word of the label', () => {
-  assert.deepEqual(fieldOptions(ROWS, 'na').map((row) => row.var), ['name']);
-  assert.deepEqual(fieldOptions(ROWS, 'pro').map((row) => row.var), ['profile_image']);
-  assert.deepEqual(fieldOptions(ROWS, 'ima').map((row) => row.var), ['profile_image']);
-  assert.deepEqual(fieldOptions(ROWS, 'po').map((row) => row.var), ['position']);
+  assert.deepEqual(
+    fieldOptions(ROWS, 'na').map((row) => row.var),
+    ['name']
+  );
+  assert.deepEqual(
+    fieldOptions(ROWS, 'pro').map((row) => row.var),
+    ['profile_image']
+  );
+  assert.deepEqual(
+    fieldOptions(ROWS, 'ima').map((row) => row.var),
+    ['profile_image']
+  );
+  assert.deepEqual(
+    fieldOptions(ROWS, 'po').map((row) => row.var),
+    ['position']
+  );
   assert.equal(fieldOptions(ROWS, '').length, 4);
   assert.deepEqual(fieldOptions(ROWS, 'zz'), []);
 });

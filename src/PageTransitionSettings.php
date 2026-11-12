@@ -60,15 +60,15 @@ final class PageTransitionSettings
     /** The saved settings, cleaned; null when none are saved. Read once per request. */
     public static function read(): ?array
     {
-        if (static::$read) {
-            return static::$memo;
+        if (self::$read) {
+            return self::$memo;
         }
 
-        static::$read = true;
-        $path = static::file();
+        self::$read = true;
+        $path = self::file();
 
         if (! is_file($path)) {
-            return static::$memo = null;
+            return self::$memo = null;
         }
 
         try {
@@ -77,14 +77,14 @@ final class PageTransitionSettings
             $data = null;
         }
 
-        return static::$memo = is_array($data) ? static::clean($data) : null;
+        return self::$memo = is_array($data) ? self::clean($data) : null;
     }
 
     /** Forget what this request read: the next read() reads the file again. */
     public static function forget(): void
     {
-        static::$read = false;
-        static::$memo = null;
+        self::$read = false;
+        self::$memo = null;
     }
 
     /** @return array{enabled: bool, style: string, duration: float, header: bool} */
@@ -106,15 +106,15 @@ final class PageTransitionSettings
     /** @return array{enabled: bool, style: string, duration: float, header: bool} what was written */
     public static function write(array $settings): array
     {
-        $clean = static::clean($settings);
-        $path = static::file();
+        $clean = self::clean($settings);
+        $path = self::file();
 
         if (! is_dir(dirname($path))) {
             mkdir(dirname($path), 0755, true);
         }
 
         file_put_contents($path, Yaml::dump($clean, 2, 2));
-        static::forget();
+        self::forget();
 
         Persist::flushStaticCache();
         GitSync::after('page transitions');
@@ -129,7 +129,7 @@ final class PageTransitionSettings
             return '';
         }
 
-        $settings = static::clean($settings);
+        $settings = self::clean($settings);
 
         if (! $settings['enabled']) {
             return '@view-transition{navigation:none}';

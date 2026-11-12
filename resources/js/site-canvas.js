@@ -312,7 +312,10 @@ export function moveFrame(columns, id, target) {
 
 /** Two sets of columns say the same thing. */
 export function sameColumns(a, b) {
-  return a.length === b.length && a.every((column, i) => column.length === b[i].length && column.every((id, j) => id === b[i][j]));
+  return (
+    a.length === b.length &&
+    a.every((column, i) => column.length === b[i].length && column.every((id, j) => id === b[i][j]))
+  );
 }
 
 /**
@@ -329,7 +332,9 @@ export function dropTarget(columns, items, point, draggedId, options = {}) {
   const { frame = FRAME, edge = DROP_EDGE } = options;
   const at = new Map(items.map((item) => [item.id, item]));
   const lefts = columns.map((column) => at.get(column[0])?.x ?? 0);
-  const into = lefts.findIndex((left) => point.x >= left + frame.width * edge && point.x <= left + frame.width * (1 - edge));
+  const into = lefts.findIndex(
+    (left) => point.x >= left + frame.width * edge && point.x <= left + frame.width * (1 - edge)
+  );
 
   if (into >= 0) {
     const others = columns[into].filter((id) => id !== draggedId);
@@ -381,7 +386,10 @@ export function dropIndicator(target, columns, items, draggedId, band, z, option
 
   if (Number.isInteger(target?.newColumn)) {
     const lefts = columns.map((column) => at.get(column[0])?.x ?? 0);
-    const x = target.newColumn < lefts.length ? lefts[target.newColumn] - gap / 2 : lefts[lefts.length - 1] + frame.width + gap / 2;
+    const x =
+      target.newColumn < lefts.length
+        ? lefts[target.newColumn] - gap / 2
+        : lefts[lefts.length - 1] + frame.width + gap / 2;
 
     return { x: x - thick / 2, y: band.top, width: thick, height: Math.max(0, band.bottom - band.top) };
   }
@@ -437,7 +445,15 @@ export function canvasLayout(groups, z, options = {}) {
       y += groupGap;
     }
 
-    const heading = { kind: 'group', key: group.key, title: group.title, x: pad, y, height: groupHead / scale, bottom: y };
+    const heading = {
+      kind: 'group',
+      key: group.key,
+      title: group.title,
+      x: pad,
+      y,
+      height: groupHead / scale,
+      bottom: y,
+    };
 
     headings.push(heading);
     y += groupHead / scale;
@@ -476,7 +492,17 @@ export function canvasLayout(groups, z, options = {}) {
 
           const height = heightOf(item);
 
-          items.push({ id: item.id, title: item.title, group: group.key, row: row.key, column: ci, x, y: cy, width: frame.width, height });
+          items.push({
+            id: item.id,
+            title: item.title,
+            group: group.key,
+            row: row.key,
+            column: ci,
+            x,
+            y: cy,
+            width: frame.width,
+            height,
+          });
           cy += height;
           stack += height;
         });
@@ -585,7 +611,13 @@ export function framesNear(items, z, view, margin = LOAD_MARGIN_PX) {
   const bottom = view.scrollTop + view.height + margin;
 
   return items
-    .filter((item) => item.x * z < right && (item.x + item.width) * z > left && item.y * z < bottom && (item.y + item.height) * z > top)
+    .filter(
+      (item) =>
+        item.x * z < right &&
+        (item.x + item.width) * z > left &&
+        item.y * z < bottom &&
+        (item.y + item.height) * z > top
+    )
     .map((item) => item.id);
 }
 
@@ -651,7 +683,12 @@ export function contentBox(rect, style, clientWidth, clientHeight) {
   const padRight = parseFloat(style.paddingRight) || 0;
   const padBottom = parseFloat(style.paddingBottom) || 0;
 
-  return { left: rect.left + padLeft, top: rect.top + padTop, width: Math.max(0, clientWidth - padLeft - padRight), height: Math.max(0, clientHeight - padTop - padBottom) };
+  return {
+    left: rect.left + padLeft,
+    top: rect.top + padTop,
+    width: Math.max(0, clientWidth - padLeft - padRight),
+    height: Math.max(0, clientHeight - padTop - padBottom),
+  };
 }
 
 export function isTransparent(color) {
@@ -879,9 +916,19 @@ function build(win, host) {
   sheet.setAttribute('aria-hidden', 'true');
   empty.hidden = true;
 
-  const zoomOut = zoomButton(doc, 'out', t(win, 'zoom_out'), '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>');
+  const zoomOut = zoomButton(
+    doc,
+    'out',
+    t(win, 'zoom_out'),
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>'
+  );
   const zoomLabel = zoomButton(doc, 'label', t(win, 'bp_overview_actual'), '100%');
-  const zoomIn = zoomButton(doc, 'in', t(win, 'zoom_in'), '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>');
+  const zoomIn = zoomButton(
+    doc,
+    'in',
+    t(win, 'zoom_in'),
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>'
+  );
   const zoomFit = zoomButton(doc, 'fit', t(win, 'site_canvas_fit'), t(win, 'site_canvas_fit'));
 
   zoom.append(zoomOut, zoomLabel, zoomIn, zoomFit);
@@ -966,7 +1013,12 @@ ${L} .sve-sc-zoom [data-sc-zoom="label"] { min-width: 3rem; font-variant-numeric
 function place() {
   const { contents, layer } = canvasState;
   const view = contents.ownerDocument.defaultView;
-  const box = contentBox(contents.getBoundingClientRect(), view.getComputedStyle(contents), contents.clientWidth, contents.clientHeight);
+  const box = contentBox(
+    contents.getBoundingClientRect(),
+    view.getComputedStyle(contents),
+    contents.clientWidth,
+    contents.clientHeight
+  );
 
   setStyle(layer, 'left', `${box.left}px`);
   setStyle(layer, 'top', `${box.top}px`);
@@ -1027,7 +1079,10 @@ function populate(win, groups) {
 
       el.title = frame.note ? `${frame.title} — ${frame.note}` : frame.title;
       el.tabIndex = -1;
-      hit.title = frame.id === current ? t(win, 'site_canvas_current') : t(win, arrange ? 'site_canvas_drag' : 'site_canvas_open', { title: frame.title });
+      hit.title =
+        frame.id === current
+          ? t(win, 'site_canvas_current')
+          : t(win, arrange ? 'site_canvas_drag' : 'site_canvas_open', { title: frame.title });
 
       if (frame.id === current) {
         item.dataset.current = '';
@@ -1044,7 +1099,17 @@ function populate(win, groups) {
 
       item.append(label, el, hit);
       sheet.appendChild(item);
-      canvasState.entries.set(frame.id, { frame, group: group.key, arrange, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
+      canvasState.entries.set(frame.id, {
+        frame,
+        group: group.key,
+        arrange,
+        item,
+        label,
+        el,
+        hit,
+        url: frameSrc(frame, current, preview, win.location.href),
+        src: '',
+      });
     }
   }
 
@@ -1248,10 +1313,15 @@ function loadNear() {
 
     entry.src = entry.url;
     canvasState.loading += 1;
-    listen(entry.el, 'load', () => {
-      canvasState.loading -= 1;
-      measured(entry);
-    }, { once: true });
+    listen(
+      entry.el,
+      'load',
+      () => {
+        canvasState.loading -= 1;
+        measured(entry);
+      },
+      { once: true }
+    );
     entry.el.src = entry.src;
   }
 }
@@ -1388,7 +1458,10 @@ function onWheel(event) {
   const rect = scroller.getBoundingClientRect();
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
 
-  setZoom(zoom * Math.exp(-event.deltaY * unit * 0.0015), { x: event.clientX - rect.left, y: event.clientY - rect.top });
+  setZoom(zoom * Math.exp(-event.deltaY * unit * 0.0015), {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  });
 }
 
 function onPanStart(event) {
@@ -1396,7 +1469,11 @@ function onPanStart(event) {
   const rect = scroller.getBoundingClientRect();
 
   // Not on a scrollbar: those keep working as scrollbars. Not on the zoom bar.
-  if (event.button !== 0 || event.clientX - rect.left >= scroller.clientWidth || event.clientY - rect.top >= scroller.clientHeight) {
+  if (
+    event.button !== 0 ||
+    event.clientX - rect.left >= scroller.clientWidth ||
+    event.clientY - rect.top >= scroller.clientHeight
+  ) {
     return;
   }
 
@@ -1406,7 +1483,13 @@ function onPanStart(event) {
   const item = event.target.closest?.('.sve-sc-item');
   const lift = item ? canvasState.entries.get(item.dataset.id) : null;
 
-  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY }, lift: lift?.arrange && arrangeRow(lift) ? lift : null };
+  canvasState.pan = {
+    id: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    from: { x: event.clientX, y: event.clientY },
+    lift: lift?.arrange && arrangeRow(lift) ? lift : null,
+  };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
 }
@@ -1483,7 +1566,10 @@ function toSheet(clientX, clientY) {
   const rect = scroller.getBoundingClientRect();
   const origin = sheetOrigin();
 
-  return { x: (clientX - rect.left + scroller.scrollLeft - origin.x) / zoom, y: (clientY - rect.top + scroller.scrollTop - origin.y) / zoom };
+  return {
+    x: (clientX - rect.left + scroller.scrollLeft - origin.x) / zoom,
+    y: (clientY - rect.top + scroller.scrollTop - origin.y) / zoom,
+  };
 }
 
 /** The group a dragged frame belongs to, its one row, and where its line stands. */
@@ -1524,7 +1610,14 @@ function startDrag(entry, from) {
   sheet.appendChild(bar);
   elements.forEach((el) => (el.dataset.dragging = ''));
   scroller.dataset.dragging = '';
-  canvasState.drag = { entry, elements, grab: { x: grabbed.x - item.x, y: grabbed.y - item.y }, pointer: { x: from.x, y: from.y }, target: null, bar };
+  canvasState.drag = {
+    entry,
+    elements,
+    grab: { x: grabbed.x - item.x, y: grabbed.y - item.y },
+    pointer: { x: from.x, y: from.y },
+    target: null,
+    bar,
+  };
 }
 
 /** The dragged unit under the pointer, and the bar where it would land — nowhere above its group's heading. */
@@ -1607,7 +1700,11 @@ function arrangeTo(entry, target) {
   }
 
   const units = unitFrames(place.row);
-  const after = before.map((group) => (group !== place.group ? group : { ...group, rows: [{ ...place.row, columns: columns.map((column) => column.flatMap((id) => units.get(id))) }] }));
+  const after = before.map((group) =>
+    group !== place.group
+      ? group
+      : { ...group, rows: [{ ...place.row, columns: columns.map((column) => column.flatMap((id) => units.get(id))) }] }
+  );
 
   showGroups(after);
 
@@ -1641,7 +1738,12 @@ async function saveArrangement(win, columns) {
   const res = await win.fetch(ARRANGE_ENDPOINT, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': csrfToken(win),
+    },
     body: JSON.stringify({ columns }),
   });
 

@@ -29,14 +29,27 @@ test('a property after a finished declaration starts over', () => {
 test('a value is offered for the property it belongs to', () => {
   const r = cssCompletions()(at('display: fl'));
 
-  assert.deepEqual(r.options.filter((o) => o.type === 'keyword').map((o) => o.label).slice(0, 3), ['block', 'flex', 'grid']);
-  assert.ok(r.options.some((o) => o.apply === 'var(--'), 'and var( is always one of them');
+  assert.deepEqual(
+    r.options
+      .filter((o) => o.type === 'keyword')
+      .map((o) => o.label)
+      .slice(0, 3),
+    ['block', 'flex', 'grid']
+  );
+  assert.ok(
+    r.options.some((o) => o.apply === 'var(--'),
+    'and var( is always one of them'
+  );
 });
 
 test('inside var( the theme answers, not CSS', () => {
   const r = cssCompletions(() => ['--gutter', 'color-primary'])(at('color: var(--gut'));
 
-  assert.deepEqual(r.options.map((o) => o.label), ['--gutter', '--color-primary'], 'a name given without dashes still reads as one');
+  assert.deepEqual(
+    r.options.map((o) => o.label),
+    ['--gutter', '--color-primary'],
+    'a name given without dashes still reads as one'
+  );
   assert.equal(r.from, 11, 'replacing what stands after var(');
 });
 

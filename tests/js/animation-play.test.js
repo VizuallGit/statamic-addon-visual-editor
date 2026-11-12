@@ -90,13 +90,14 @@ class El {
 
   querySelectorAll(selector) {
     const out = [];
-    const walk = (el) => el.children.forEach((child) => {
-      if (child.matches(selector)) {
-        out.push(child);
-      }
+    const walk = (el) =>
+      el.children.forEach((child) => {
+        if (child.matches(selector)) {
+          out.push(child);
+        }
 
-      walk(child);
-    });
+        walk(child);
+      });
 
     walk(this);
 
@@ -136,11 +137,13 @@ test('▶ on an element without an animation of its own plays every animated ele
   const b = new El({ 'data-anim': 'children' });
   const plain = new El({});
   const second = new El({ 'data-anim': 'ticker' });
-  const win = makeWindow(new El({}, [
-    new El({ 'data-sve-ht-path': '0' }, [a, plain, b]),
-    new El({ 'data-sve-ht-path': '0' }, [second]),
-    new El({ 'data-sve-ht-path': '1' }, [new El({ 'data-anim': 'self' })]),
-  ]));
+  const win = makeWindow(
+    new El({}, [
+      new El({ 'data-sve-ht-path': '0' }, [a, plain, b]),
+      new El({ 'data-sve-ht-path': '0' }, [second]),
+      new El({ 'data-sve-ht-path': '1' }, [new El({ 'data-anim': 'self' })]),
+    ])
+  );
 
   playAnimation(win, { path: '0' });
 
@@ -189,9 +192,20 @@ test('held still: the document is marked and one unlayered sheet hangs in the he
   assert.equal(win.head.children[0].id, '__sve-anim-still');
   assert.match(win.head.children[0].textContent, /^html\[data-sve-anim-still\] /);
   assert.ok(!win.head.children[0].textContent.includes('@layer'), 'unlayered: it beats the runtime’s layers');
-  assert.ok(win.head.children[0].textContent.includes(':not([data-sve-anim-playing], [data-sve-anim-playing] > *, [data-sve-anim-playing] [data-anim-word])'));
-  assert.ok(win.head.children[0].textContent.includes('[data-anim="words"] [data-anim-word])'), 'the words of a heading stand at their end frame too');
-  assert.match(win.head.children[0].textContent, /html\[data-sve-anim-still\] \[data-anim="mouse"\] \{ translate: none; transition: none; \}/, 'the pointer over the preview moves nothing');
+  assert.ok(
+    win.head.children[0].textContent.includes(
+      ':not([data-sve-anim-playing], [data-sve-anim-playing] > *, [data-sve-anim-playing] [data-anim-word])'
+    )
+  );
+  assert.ok(
+    win.head.children[0].textContent.includes('[data-anim="words"] [data-anim-word])'),
+    'the words of a heading stand at their end frame too'
+  );
+  assert.match(
+    win.head.children[0].textContent,
+    /html\[data-sve-anim-still\] \[data-anim="mouse"\] \{ translate: none; transition: none; \}/,
+    'the pointer over the preview moves nothing'
+  );
 
   setAnimationMode(win, { still: false });
 
@@ -236,7 +250,7 @@ test('held still, an element whose play starts no animation is not left singled 
   assert.ok(!el.hasAttribute('data-sve-anim-playing'));
 });
 
-test('Build\'s canvas: its own sheet, under its own id, where it is put; the mark on its own <html>', () => {
+test("Build's canvas: its own sheet, under its own id, where it is put; the mark on its own <html>", () => {
   const el = new El({ 'data-anim': 'self' });
   const win = makeWindow(new El({}, [el]));
   const after = [];
@@ -248,7 +262,7 @@ test('Build\'s canvas: its own sheet, under its own id, where it is put; the mar
   assert.equal(after.length, 1);
   assert.equal(after[0].id, '__sve-build-canvas-still');
   assert.match(after[0].textContent, new RegExp(`^html\\[${STILL_ATTR}\\] `));
-  assert.equal(win.head.children.length, 0, 'nothing in the head, which the canvas morphs from the preview\'s');
+  assert.equal(win.head.children.length, 0, "nothing in the head, which the canvas morphs from the preview's");
   assert.ok(win.html.hasAttribute(STILL_ATTR));
 
   applyStill(doc, false, { id: '__sve-build-canvas-still', into: { appendChild: (sheet) => after.push(sheet) } });
@@ -301,7 +315,10 @@ function expand(selector) {
 }
 
 test('canvas-motion.css reverts reduce motion only under [data-sve-anim-playing]: the element, its children, its words — nothing else moves', () => {
-  const css = readFileSync(new URL('../../resources/animation/canvas-motion.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = readFileSync(new URL('../../resources/animation/canvas-motion.css', import.meta.url), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    ''
+  );
   const inner = css.slice(css.indexOf('{') + 1, css.lastIndexOf('}'));
   const selectors = [...inner.matchAll(/([^{}]+)\{[^{}]*\}/g)].map((m) => m[1].trim());
 

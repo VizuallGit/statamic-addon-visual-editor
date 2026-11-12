@@ -25,9 +25,17 @@ const puppeteer = require('puppeteer');
 const CHROME = env('SVE_CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ok = true;
-const step = (name, pass, detail = '') => { if (!pass) ok = false; console.log(`${pass ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
+const step = (name, pass, detail = '') => {
+  if (!pass) ok = false;
+  console.log(`${pass ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`);
+};
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1600,1000'], defaultViewport: { width: 1600, height: 1000 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1600,1000'],
+  defaultViewport: { width: 1600, height: 1000 },
+});
 const page = await browser.newPage();
 
 try {
@@ -42,7 +50,11 @@ try {
   await sleep(1500);
   let cp = page.mainFrame();
   if (!(await page.$('iframe.sve-edit-overlay'))) {
-    await page.evaluate(() => [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click());
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click()
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
   cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
@@ -54,10 +66,15 @@ try {
   if (!hasButton) throw new Error('no performance button');
 
   await cp.evaluate(() => document.querySelector('#__sve-toolbar button[data-tab="performance"]').click());
-  const panel = await cp.waitForSelector('#__sve-perf-panel .sve-perf-tabs', { timeout: 15000 }).then(() => true).catch(() => false);
+  const panel = await cp
+    .waitForSelector('#__sve-perf-panel .sve-perf-tabs', { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
   step('performance panel opened', panel);
 
-  const tabs = await cp.$$eval('#__sve-perf-panel .sve-perf-tabs button', (b) => b.map((x) => x.getAttribute('data-tab')));
+  const tabs = await cp.$$eval('#__sve-perf-panel .sve-perf-tabs button', (b) =>
+    b.map((x) => x.getAttribute('data-tab'))
+  );
   step('server tab present', tabs.includes('server'), tabs.join(', '));
 
   await cp.evaluate(() => document.querySelector('#__sve-perf-panel .sve-perf-tabs button[data-tab="server"]').click());
@@ -67,32 +84,74 @@ try {
     reading = await cp.evaluate(() => {
       const body = document.querySelector('#__sve-perf-panel .sve-perf-body');
       if (!body) return null;
-      const kvs = [...body.querySelectorAll('.sve-perf-kv')].map((el) => ({ label: el.querySelector('.sve-perf-kv-label')?.textContent.trim(), value: el.querySelector('.sve-perf-kv-value')?.textContent.trim(), level: el.getAttribute('data-level') }));
-      const rows = [...body.querySelectorAll('.sve-perf-row')].map((el) => ({ tag: el.querySelector('.sve-perf-tag')?.textContent.trim(), title: el.querySelector('.sve-perf-title')?.textContent.trim(), help: el.querySelector('.sve-perf-help')?.textContent.trim() }));
+      const kvs = [...body.querySelectorAll('.sve-perf-kv')].map((el) => ({
+        label: el.querySelector('.sve-perf-kv-label')?.textContent.trim(),
+        value: el.querySelector('.sve-perf-kv-value')?.textContent.trim(),
+        level: el.getAttribute('data-level'),
+      }));
+      const rows = [...body.querySelectorAll('.sve-perf-row')].map((el) => ({
+        tag: el.querySelector('.sve-perf-tag')?.textContent.trim(),
+        title: el.querySelector('.sve-perf-title')?.textContent.trim(),
+        help: el.querySelector('.sve-perf-help')?.textContent.trim(),
+      }));
       const error = body.querySelector('.sve-perf-error')?.textContent.trim();
       return kvs.length || error ? { kvs, rows, error } : null;
     });
   }
-  step('server profile arrived', !!reading && !reading.error, reading?.error || (reading ? `${reading.kvs.length} readings, ${reading.rows.length} rows` : 'nothing after 60 s'));
+  step(
+    'server profile arrived',
+    !!reading && !reading.error,
+    reading?.error || (reading ? `${reading.kvs.length} readings, ${reading.rows.length} rows` : 'nothing after 60 s')
+  );
   if (reading && !reading.error) {
     const total = reading.kvs[0];
-    step('total render time with a budget level', /ms|s$/.test(total?.value || '') && ['pass', 'warn', 'fail'].includes(total?.level), `${total?.value} (${total?.level})`);
-    step('sections / layout split', reading.kvs.length >= 3, reading.kvs.slice(1).map((k) => `${k.label}: ${k.value}`).join(' | '));
-    step('template rows, biggest first', reading.rows.length > 0, reading.rows.slice(0, 5).map((r) => `${r.tag} ${r.title}`).join(' | '));
+    step(
+      'total render time with a budget level',
+      /ms|s$/.test(total?.value || '') && ['pass', 'warn', 'fail'].includes(total?.level),
+      `${total?.value} (${total?.level})`
+    );
+    step(
+      'sections / layout split',
+      reading.kvs.length >= 3,
+      reading.kvs
+        .slice(1)
+        .map((k) => `${k.label}: ${k.value}`)
+        .join(' | ')
+    );
+    step(
+      'template rows, biggest first',
+      reading.rows.length > 0,
+      reading.rows
+        .slice(0, 5)
+        .map((r) => `${r.tag} ${r.title}`)
+        .join(' | ')
+    );
   }
 
   // Editor tab: live readings appear within a few seconds, four of them.
-  await cp.evaluate(() => document.querySelector('#__sve-perf-panel .sve-perf-tabs button[data-tab="editor"]')?.click());
+  await cp.evaluate(() =>
+    document.querySelector('#__sve-perf-panel .sve-perf-tabs button[data-tab="editor"]')?.click()
+  );
   let editor = null;
   for (let i = 0; i < 10 && !editor; i++) {
     await sleep(1000);
     editor = await cp.evaluate(() => {
       const body = document.querySelector('#__sve-perf-panel .sve-perf-body');
-      const kvs = body ? [...body.querySelectorAll('.sve-perf-kv')].map((el) => ({ label: el.querySelector('.sve-perf-kv-label')?.textContent.trim(), value: el.querySelector('.sve-perf-kv-value')?.textContent.trim(), level: el.getAttribute('data-level') })) : [];
+      const kvs = body
+        ? [...body.querySelectorAll('.sve-perf-kv')].map((el) => ({
+            label: el.querySelector('.sve-perf-kv-label')?.textContent.trim(),
+            value: el.querySelector('.sve-perf-kv-value')?.textContent.trim(),
+            level: el.getAttribute('data-level'),
+          }))
+        : [];
       return kvs.length >= 4 ? kvs : null;
     });
   }
-  step('editor tab shows four live readings', !!editor, editor ? editor.map((k) => `${k.label}: ${k.value} (${k.level})`).join(' | ') : 'no readings after 10 s');
+  step(
+    'editor tab shows four live readings',
+    !!editor,
+    editor ? editor.map((k) => `${k.label}: ${k.value} (${k.level})`).join(' | ') : 'no readings after 10 s'
+  );
 } catch (e) {
   step('no exception', false, e.message);
 } finally {

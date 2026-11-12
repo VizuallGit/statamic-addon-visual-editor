@@ -6,6 +6,7 @@ use MarioHamann\StatamicVisualEditor\ComponentProps\GroupFields;
 use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
+use Statamic\Fields\Blueprint;
 use Statamic\Fields\Field;
 use Statamic\Fields\FieldtypeRepository;
 
@@ -195,7 +196,7 @@ class PropFields
      * publish form is handed everywhere else in the Control Panel — and it is
      * what builds the publish array in the shape the form already reads.
      */
-    public static function blueprint(array $props): \Statamic\Fields\Blueprint
+    public static function blueprint(array $props): Blueprint
     {
         $fields = [];
 

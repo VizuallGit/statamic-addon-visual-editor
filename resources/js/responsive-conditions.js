@@ -21,7 +21,7 @@ let patched = false;
 
 /** Cascade order — the base first, what a size reads back through when it is empty. */
 function bpOrder() {
-    return bpCascadeHandles(window);
+  return bpCascadeHandles(window);
 }
 
 /**
@@ -31,22 +31,22 @@ function bpOrder() {
  * written without a media query, so it is what a condition falls back to.
  */
 function deviceToBp(device) {
-    return bpForDevice(device, window)?.handle || bpBase(window);
+  return bpForDevice(device, window)?.handle || bpBase(window);
 }
 
 function bpFromStorage() {
-    try {
-        return deviceToBp(chromeGet(window, 'sve-lp-device'));
-    } catch {
-        return bpBase(window);
-    }
+  try {
+    return deviceToBp(chromeGet(window, 'sve-lp-device'));
+  } catch {
+    return bpBase(window);
+  }
 }
 
 function leafHandle(field) {
-    if (!field || typeof field !== 'string') return null;
-    const clean = field.replace(/^\$?root\./, '').replace(/^\$parent\./, '');
-    const parts = clean.split('.');
-    return parts[parts.length - 1] || null;
+  if (!field || typeof field !== 'string') return null;
+  const clean = field.replace(/^\$?root\./, '').replace(/^\$parent\./, '');
+  const parts = clean.split('.');
+  return parts[parts.length - 1] || null;
 }
 
 /**
@@ -54,67 +54,67 @@ function leafHandle(field) {
  * drawer is a plain object of inner field values.
  */
 export function isResponsiveBag(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return false;
-    }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
 
-    const keys = Object.keys(value);
-    if (!keys.length) return false;
-    if (!keys.every((k) => bpOrder().includes(k))) return false;
+  const keys = Object.keys(value);
+  if (!keys.length) return false;
+  if (!keys.every((k) => bpOrder().includes(k))) return false;
 
-    return keys.every((k) => {
-        const inner = value[k];
-        return inner != null && typeof inner === 'object' && !Array.isArray(inner);
-    });
+  return keys.every((k) => {
+    const inner = value[k];
+    return inner != null && typeof inner === 'object' && !Array.isArray(inner);
+  });
 }
 
 export function effectiveLeaf(bag, bp, handle) {
-    const effective = {};
-    for (const step of bpOrder()) {
-        Object.assign(effective, bag[step] || {});
-        if (step === bp) break;
-    }
+  const effective = {};
+  for (const step of bpOrder()) {
+    Object.assign(effective, bag[step] || {});
+    if (step === bp) break;
+  }
 
-    if (handle && Object.prototype.hasOwnProperty.call(effective, handle)) {
-        return effective[handle];
-    }
+  if (handle && Object.prototype.hasOwnProperty.call(effective, handle)) {
+    return effective[handle];
+  }
 
-    const keys = Object.keys(effective);
-    if (keys.length === 1) {
-        return effective[keys[0]];
-    }
+  const keys = Object.keys(effective);
+  if (keys.length === 1) {
+    return effective[keys[0]];
+  }
 
-    return effective;
+  return effective;
 }
 
 export function unwrapResponsiveConditionValue(value, field, bp = activeBp || bpBase(window)) {
-    if (!isResponsiveBag(value)) {
-        return value;
-    }
+  if (!isResponsiveBag(value)) {
+    return value;
+  }
 
-    return effectiveLeaf(value, bp || bpBase(window), leafHandle(field));
+  return effectiveLeaf(value, bp || bpBase(window), leafHandle(field));
 }
 
 function patchValidatorProto(proto) {
-    if (patched || !proto || typeof proto.getFieldValue !== 'function') {
-        return false;
-    }
+  if (patched || !proto || typeof proto.getFieldValue !== 'function') {
+    return false;
+  }
 
-    const original = proto.getFieldValue;
-    if (original._sveResponsiveConditions) {
-        patched = true;
-        return true;
-    }
-
-    function getFieldValue(field) {
-        const value = original.call(this, field);
-        return unwrapResponsiveConditionValue(value, field, activeBp || bpBase(window));
-    }
-
-    getFieldValue._sveResponsiveConditions = true;
-    proto.getFieldValue = getFieldValue;
+  const original = proto.getFieldValue;
+  if (original._sveResponsiveConditions) {
     patched = true;
     return true;
+  }
+
+  function getFieldValue(field) {
+    const value = original.call(this, field);
+    return unwrapResponsiveConditionValue(value, field, activeBp || bpBase(window));
+  }
+
+  getFieldValue._sveResponsiveConditions = true;
+  proto.getFieldValue = getFieldValue;
+  patched = true;
+  return true;
 }
 
 /**
@@ -123,55 +123,55 @@ function patchValidatorProto(proto) {
  * the capture so Object.prototype stays clean.
  */
 function installCapture() {
-    if (patched || Object.prototype.hasOwnProperty(CAPTURE_KEY)) {
-        return;
-    }
+  if (patched || Object.prototype.hasOwnProperty(CAPTURE_KEY)) {
+    return;
+  }
 
-    Object.defineProperty(Object.prototype, CAPTURE_KEY, {
+  Object.defineProperty(Object.prototype, CAPTURE_KEY, {
+    configurable: true,
+    enumerable: false,
+    get() {
+      return undefined;
+    },
+    set(value) {
+      const proto = Object.getPrototypeOf(this);
+      const looksLikeValidator =
+        this.field != null &&
+        this.values != null &&
+        typeof proto?.getFieldValue === 'function' &&
+        typeof proto?.passesConditions === 'function' &&
+        typeof proto?.getConditions === 'function';
+
+      Object.defineProperty(this, CAPTURE_KEY, {
+        value,
+        writable: true,
+        enumerable: true,
         configurable: true,
-        enumerable: false,
-        get() {
-            return undefined;
-        },
-        set(value) {
-            const proto = Object.getPrototypeOf(this);
-            const looksLikeValidator =
-                this.field != null &&
-                this.values != null &&
-                typeof proto?.getFieldValue === 'function' &&
-                typeof proto?.passesConditions === 'function' &&
-                typeof proto?.getConditions === 'function';
+      });
 
-            Object.defineProperty(this, CAPTURE_KEY, {
-                value,
-                writable: true,
-                enumerable: true,
-                configurable: true,
-            });
-
-            if (looksLikeValidator && patchValidatorProto(proto)) {
-                try {
-                    delete Object.prototype[CAPTURE_KEY];
-                } catch {
-                    // ignore
-                }
-            }
-        },
-    });
+      if (looksLikeValidator && patchValidatorProto(proto)) {
+        try {
+          delete Object.prototype[CAPTURE_KEY];
+        } catch {
+          // ignore
+        }
+      }
+    },
+  });
 }
 
 function trackBreakpoint() {
-    activeBp = bpFromStorage();
+  activeBp = bpFromStorage();
 
-    window.addEventListener('sve:breakpoint', (event) => {
-        const next = event?.detail?.bp || deviceToBp(event?.detail?.device);
-        if (bpOrder().includes(next)) {
-            activeBp = next;
-        }
-    });
+  window.addEventListener('sve:breakpoint', (event) => {
+    const next = event?.detail?.bp || deviceToBp(event?.detail?.device);
+    if (bpOrder().includes(next)) {
+      activeBp = next;
+    }
+  });
 }
 
 export function installResponsiveConditions() {
-    trackBreakpoint();
-    installCapture();
+  trackBreakpoint();
+  installCapture();
 }

@@ -132,7 +132,10 @@ test("own words in a section: the first change makes the section's own field, an
     ['field', 'heading', 'Our team leader'],
     ['field', 'heading', 'Our team leader'],
   ]);
-  assert.equal(log.some(([where]) => where === 'file'), false);
+  assert.equal(
+    log.some(([where]) => where === 'file'),
+    false
+  );
 });
 
 test('a click into own words that changes nothing makes no field and writes nothing', async () => {

@@ -4,11 +4,7 @@ import { outlineUi as ui } from '../outline/store.js';
 
 <template>
   <div class="sve-outline-list">
-    <p
-      v-for="(notice, i) in ui.notices"
-      :key="'n' + i"
-      :data-sve-outline-note="notice.severity"
-    >
+    <p v-for="(notice, i) in ui.notices" :key="'n' + i" :data-sve-outline-note="notice.severity">
       {{ notice.message }}
     </p>
     <div v-if="!ui.rows.length" class="sve-outline-empty">{{ ui.emptyText }}</div>

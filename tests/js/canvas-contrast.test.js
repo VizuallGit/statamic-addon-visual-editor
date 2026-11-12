@@ -5,7 +5,7 @@ import { measureContrast } from '../../resources/js/build-mode/canvas-contrast.j
 
 const page = (marked) => ({ querySelector: () => (marked ? {} : null) });
 
-test('the real preview\'s script measures the canvas\'s document', () => {
+test("the real preview's script measures the canvas's document", () => {
   const asked = [];
   const doc = page(true);
 
@@ -24,7 +24,7 @@ test('nothing to measure, or no script on the page: nothing is asked', () => {
   assert.deepEqual(asked, []);
 });
 
-test('each paint asks: the canvas\'s report is where every paint ends', () => {
+test("each paint asks: the canvas's report is where every paint ends", () => {
   const canvas = readFileSync(new URL('../../resources/js/build-mode/canvas.js', import.meta.url), 'utf8');
   const report = /function report\(\) \{[\s\S]*?\n {2}\}/.exec(canvas)[0];
 

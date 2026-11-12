@@ -276,7 +276,10 @@ function render(win) {
 
 /** Valid JSON, as far as the browser can tell before the server sees it. */
 function check(value) {
-  const text = value.trim().replace(/^<script[^>]*>|<\/script>$/gi, '').trim();
+  const text = value
+    .trim()
+    .replace(/^<script[^>]*>|<\/script>$/gi, '')
+    .trim();
 
   if (text === '') {
     return null;
@@ -307,11 +310,7 @@ function paintStatus(win) {
 
   status.style.color = state.ok === false ? '#dc2626' : 'inherit';
   status.textContent =
-    state.ok === null
-      ? t(win, 'schema_empty')
-      : state.ok
-        ? t(win, 'schema_valid')
-        : t(win, 'schema_invalid');
+    state.ok === null ? t(win, 'schema_empty') : state.ok ? t(win, 'schema_valid') : t(win, 'schema_invalid');
 }
 
 async function persist(win, value) {

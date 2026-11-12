@@ -22,7 +22,8 @@ test('tag names wear the family the tree gives them', () => {
 });
 
 test('a block is its family, open and close; a value is plain Antlers', () => {
-  const text = '{{ if show }}<p>{{ title }}</p>{{ else }}x{{ /if }}{{ collection from="blog" }}{{ title }}{{ /collection }}{{ items }}{{ /items }}{{ svg src="x" }}';
+  const text =
+    '{{ if show }}<p>{{ title }}</p>{{ else }}x{{ /if }}{{ collection from="blog" }}{{ title }}{{ /collection }}{{ items }}{{ /items }}{{ svg src="x" }}';
   const ranges = highlightRanges(text);
 
   assert.equal(at(text, ranges, '{{ if show }}'), 'fam-if');
@@ -50,7 +51,10 @@ test('nothing inside an HTML comment gets a family, and ranges never overlap', (
   const text = '<!-- <div>{{ if a }}{{ /if }}</div> --><div>{{ if a }}{{ /if }}</div>';
   const ranges = highlightRanges(text);
 
-  assert.ok(ranges.every((range) => range.from >= 40), JSON.stringify(ranges));
+  assert.ok(
+    ranges.every((range) => range.from >= 40),
+    JSON.stringify(ranges)
+  );
 
   let last = 0;
 

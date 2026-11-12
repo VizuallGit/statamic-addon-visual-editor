@@ -3,6 +3,9 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Support\Facades\File;
+use MarioHamann\StatamicVisualEditor\AiChat;
+use MarioHamann\StatamicVisualEditor\AiRules;
+use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\Features;
 use Statamic\Facades\Addon;
 
@@ -104,8 +107,8 @@ class FeaturesTest extends TestCase
         config(['statamic-visual-editor.ai.api_key' => '']);
         Features::flush();
 
-        $this->assertFalse(\MarioHamann\StatamicVisualEditor\AiChat::ready());
-        $this->assertFileExists(\MarioHamann\StatamicVisualEditor\CursorAgent::script());
+        $this->assertFalse(AiChat::ready());
+        $this->assertFileExists(CursorAgent::script());
     }
 
     public function test_target_files_point_at_the_selected_section(): void
@@ -121,7 +124,7 @@ class FeaturesTest extends TestCase
         file_put_contents($list, "title: Page sections\nfields:\n  -\n    handle: page_sections\n    field:\n      type: replicator\n      sets:\n        hero:\n          sets:\n            hero/style_2:\n              fields:\n                - import: hero.style_2\n");
 
         try {
-            $target = \MarioHamann\StatamicVisualEditor\AiChat::targetFiles('hero/style_2');
+            $target = AiChat::targetFiles('hero/style_2');
         } finally {
             $before === null ? @unlink($list) : file_put_contents($list, $before);
         }
@@ -130,7 +133,7 @@ class FeaturesTest extends TestCase
         $this->assertSame('resources/views/partials/page_sections/hero/style_2.antlers.html', str_replace('\\', '/', (string) $target['antlers']));
         $this->assertSame('resources/fieldsets/hero/style_2.yaml', $target['fieldset']);
 
-        $empty = \MarioHamann\StatamicVisualEditor\AiChat::targetFiles('');
+        $empty = AiChat::targetFiles('');
         $this->assertSame('', $empty['handle']);
         $this->assertNull($empty['antlers']);
     }
@@ -142,30 +145,30 @@ class FeaturesTest extends TestCase
         $file = $dir.'/ai-rules.md';
         file_put_contents($file, "1. Keep existing markup.\n");
 
-        $this->assertSame($file, \MarioHamann\StatamicVisualEditor\AiRules::path());
-        $this->assertStringContainsString('Keep existing markup', \MarioHamann\StatamicVisualEditor\AiRules::text());
+        $this->assertSame($file, AiRules::path());
+        $this->assertStringContainsString('Keep existing markup', AiRules::text());
 
         @unlink($file);
     }
 
     public function test_ai_rules_fall_back_to_the_addon_list(): void
     {
-        $this->assertFileExists(\MarioHamann\StatamicVisualEditor\AiRules::defaultPath());
-        $this->assertStringContainsString('Slet aldrig', \MarioHamann\StatamicVisualEditor\AiRules::text());
+        $this->assertFileExists(AiRules::defaultPath());
+        $this->assertStringContainsString('Slet aldrig', AiRules::text());
     }
 
     public function test_ai_chat_mode_defaults_to_write(): void
     {
-        $this->assertSame('write', \MarioHamann\StatamicVisualEditor\AiChat::modeOf(null));
-        $this->assertSame('write', \MarioHamann\StatamicVisualEditor\AiChat::modeOf('write'));
-        $this->assertSame('write', \MarioHamann\StatamicVisualEditor\AiChat::modeOf('ask'));
-        $this->assertSame('build', \MarioHamann\StatamicVisualEditor\AiChat::modeOf('Build'));
+        $this->assertSame('write', AiChat::modeOf(null));
+        $this->assertSame('write', AiChat::modeOf('write'));
+        $this->assertSame('write', AiChat::modeOf('ask'));
+        $this->assertSame('build', AiChat::modeOf('Build'));
     }
 
     public function test_write_mode_instructions_forbid_file_writes(): void
     {
-        $build = \MarioHamann\StatamicVisualEditor\AiChat::modeInstructions('build');
-        $write = \MarioHamann\StatamicVisualEditor\AiChat::modeInstructions('write');
+        $build = AiChat::modeInstructions('build');
+        $write = AiChat::modeInstructions('write');
 
         $this->assertStringContainsString('WRITE MODE', $write);
         $this->assertStringContainsString('Do not write', $write);

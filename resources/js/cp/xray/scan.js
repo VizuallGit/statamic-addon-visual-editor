@@ -149,7 +149,11 @@ export function scanScope(pwin, roots, layers) {
       }
 
       if (layers.type && texts.length < MAX_TEXTS && ownsText(el)) {
-        const inline = display.startsWith('inline') && !display.includes('block') && !display.includes('flex') && !display.includes('grid');
+        const inline =
+          display.startsWith('inline') &&
+          !display.includes('block') &&
+          !display.includes('flex') &&
+          !display.includes('grid');
         const parent = el.parentElement;
 
         if (!inline || !parent || pwin.getComputedStyle(parent).fontSize !== cs.fontSize) {
@@ -380,7 +384,12 @@ export function measureBoxModel(pwin, el) {
   const cs = pwin.getComputedStyle(el);
   const num = (value) => parseFloat(value) || 0;
   const m = { t: num(cs.marginTop), r: num(cs.marginRight), b: num(cs.marginBottom), l: num(cs.marginLeft) };
-  const bd = { t: num(cs.borderTopWidth), r: num(cs.borderRightWidth), b: num(cs.borderBottomWidth), l: num(cs.borderLeftWidth) };
+  const bd = {
+    t: num(cs.borderTopWidth),
+    r: num(cs.borderRightWidth),
+    b: num(cs.borderBottomWidth),
+    l: num(cs.borderLeftWidth),
+  };
   const p = { t: num(cs.paddingTop), r: num(cs.paddingRight), b: num(cs.paddingBottom), l: num(cs.paddingLeft) };
 
   return {
@@ -452,16 +461,30 @@ export function measureSpacing(pwin, el) {
     left: pr.left + (parseFloat(pcs.borderLeftWidth) || 0),
     right: pr.right - (parseFloat(pcs.borderRightWidth) || 0),
   };
-  const peers = laidOutChildren(pwin, parent).filter((peer) => peer.el !== el).map((peer) => peer.rect);
+  const peers = laidOutChildren(pwin, parent)
+    .filter((peer) => peer.el !== el)
+    .map((peer) => peer.rect);
   const acrossX = (r) => r.left < rect.right && r.right > rect.left;
   const acrossY = (r) => r.top < rect.bottom && r.bottom > rect.top;
   const midX = (rect.left + rect.right) / 2;
   const midY = (rect.top + rect.bottom) / 2;
 
-  const above = Math.max(inner.top, ...peers.filter((r) => acrossX(r) && r.bottom <= rect.top + 0.5).map((r) => r.bottom));
-  const below = Math.min(inner.bottom, ...peers.filter((r) => acrossX(r) && r.top >= rect.bottom - 0.5).map((r) => r.top));
-  const before = Math.max(inner.left, ...peers.filter((r) => acrossY(r) && r.right <= rect.left + 0.5).map((r) => r.right));
-  const after = Math.min(inner.right, ...peers.filter((r) => acrossY(r) && r.left >= rect.right - 0.5).map((r) => r.left));
+  const above = Math.max(
+    inner.top,
+    ...peers.filter((r) => acrossX(r) && r.bottom <= rect.top + 0.5).map((r) => r.bottom)
+  );
+  const below = Math.min(
+    inner.bottom,
+    ...peers.filter((r) => acrossX(r) && r.top >= rect.bottom - 0.5).map((r) => r.top)
+  );
+  const before = Math.max(
+    inner.left,
+    ...peers.filter((r) => acrossY(r) && r.right <= rect.left + 0.5).map((r) => r.right)
+  );
+  const after = Math.min(
+    inner.right,
+    ...peers.filter((r) => acrossY(r) && r.left >= rect.right - 0.5).map((r) => r.left)
+  );
 
   const lines = [
     { axis: 'y', from: above, to: rect.top, at: midX },

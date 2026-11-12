@@ -316,7 +316,9 @@ function nudgeGroup(id, step) {
 <template>
   <div class="sve-lp-settings__section is-tight">
     <div class="sve-lp-settings__line">
-      <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{ modeLabel ? `${label} · ${modeLabel}` : label }}</span>
+      <span class="sve-lp-settings__label" data-sve-toolbar-mode>{{
+        modeLabel ? `${label} · ${modeLabel}` : label
+      }}</span>
       <a
         v-if="editUrl"
         class="sve-lp-settings__link"
@@ -324,7 +326,8 @@ function nudgeGroup(id, step) {
         target="_blank"
         rel="noopener"
         data-sve-toolbar-modes-edit
-      >{{ editLabel }} ↗</a>
+        >{{ editLabel }} ↗</a
+      >
       <button v-if="anyHidden" type="button" class="sve-lp-settings__small" data-sve-toolbar-all @click="showAll">
         {{ showAllLabel }}
       </button>
@@ -350,7 +353,8 @@ function nudgeGroup(id, step) {
             @pointerdown="startDrag('group', group.id, $event)"
             @keydown.up.prevent="nudgeGroup(group.id, -1)"
             @keydown.down.prevent="nudgeGroup(group.id, 1)"
-          >⠿</button>
+            >⠿</button
+          >
           <input
             type="text"
             class="sve-lp-settings__group-name"
@@ -362,7 +366,7 @@ function nudgeGroup(id, step) {
             @blur="rename(group, $event)"
             @keydown.enter.prevent="$event.target.blur()"
             @keydown.escape.stop.prevent="restoreName(group, $event)"
-          >
+          />
           <button
             v-if="groups.length > 1"
             type="button"
@@ -371,7 +375,8 @@ function nudgeGroup(id, step) {
             :aria-label="deleteTitle(group, at)"
             data-sve-toolbar-group-delete
             @click="removeGroup(group.id)"
-          >×</button>
+            >×</button
+          >
         </div>
         <p v-if="!group.tools.length" class="sve-lp-settings__group-hint">{{ groupDropHint }}</p>
         <div
@@ -390,9 +395,10 @@ function nudgeGroup(id, step) {
             @pointerdown="startDrag('tool', tool.key, $event)"
             @keydown.up.prevent="nudgeTool(tool.key, -1)"
             @keydown.down.prevent="nudgeTool(tool.key, 1)"
-          >⠿</button>
+            >⠿</button
+          >
           <label class="sve-lp-settings__row" :title="tool.label">
-            <input type="checkbox" :checked="tool.shown" @change="setShown(tool.key, $event.target.checked)">
+            <input type="checkbox" :checked="tool.shown" @change="setShown(tool.key, $event.target.checked)" />
             <span class="sve-lp-settings__tool-icon" aria-hidden="true" v-html="tool.icon"></span>
             <span class="sve-lp-settings__tool-name">{{ tool.label }}</span>
           </label>
@@ -428,7 +434,7 @@ function nudgeGroup(id, step) {
             data-sve-toolbar-group-draft-name
             @keydown.enter.prevent
             @keydown.escape.stop.prevent="draft = null"
-          >
+          />
           <button
             type="button"
             class="sve-lp-settings__group-x"
@@ -436,7 +442,8 @@ function nudgeGroup(id, step) {
             :aria-label="deleteTitle(draft, groups.length)"
             data-sve-toolbar-group-draft-cancel
             @click="draft = null"
-          >×</button>
+            >×</button
+          >
         </div>
         <p class="sve-lp-settings__group-hint">{{ groupDropHint }}</p>
       </div>
@@ -446,11 +453,18 @@ function nudgeGroup(id, step) {
         class="sve-lp-settings__pill is-add sve-lp-settings__group-new"
         data-sve-toolbar-group-new
         @click="addDraft"
-      >+ {{ newGroupLabel }}</button>
+        >+ {{ newGroupLabel }}</button
+      >
     </div>
     <div v-if="allTools.length" class="sve-lp-settings__line">
       <span class="sve-lp-settings__hint">{{ hint }}</span>
-      <button v-if="grouped" type="button" class="sve-lp-settings__small" data-sve-toolbar-groups-reset @click="resetGroups">
+      <button
+        v-if="grouped"
+        type="button"
+        class="sve-lp-settings__small"
+        data-sve-toolbar-groups-reset
+        @click="resetGroups"
+      >
         {{ groupsResetLabel }}
       </button>
     </div>

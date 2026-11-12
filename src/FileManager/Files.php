@@ -91,7 +91,7 @@ final class Files
             return null;
         }
 
-        return static::read($rel);
+        return self::read($rel);
     }
 
     /**
@@ -134,7 +134,7 @@ final class Files
             return null;
         }
 
-        return rename($source, $target) ? static::read($rel) : null;
+        return rename($source, $target) ? self::read($rel) : null;
     }
 
     public static function delete(string $relative): bool

@@ -17,38 +17,133 @@ export const ANTLERS_SNIPPET_GROUPS = [
 export const ANTLERS_SNIPPETS = [
   { id: 'if', group: 'logic', label: 'if', snippet: '{{ if |field }}\n  \n{{ /if }}' },
   { id: 'if_else', group: 'logic', label: 'if / else', snippet: '{{ if |field }}\n  \n{{ else }}\n  \n{{ /if }}' },
-  { id: 'if_elseif', group: 'logic', label: 'if / elseif / else', snippet: '{{ if |field }}\n  \n{{ elseif other }}\n  \n{{ else }}\n  \n{{ /if }}' },
+  {
+    id: 'if_elseif',
+    group: 'logic',
+    label: 'if / elseif / else',
+    snippet: '{{ if |field }}\n  \n{{ elseif other }}\n  \n{{ else }}\n  \n{{ /if }}',
+  },
   { id: 'unless', group: 'logic', label: 'unless', snippet: '{{ unless |field }}\n  \n{{ /unless }}' },
-  { id: 'unless_else', group: 'logic', label: 'unless / else', snippet: '{{ unless |field }}\n  \n{{ else }}\n  \n{{ /unless }}' },
+  {
+    id: 'unless_else',
+    group: 'logic',
+    label: 'unless / else',
+    snippet: '{{ unless |field }}\n  \n{{ else }}\n  \n{{ /unless }}',
+  },
   // A field's text: what it ends with, starts with, or holds.
-  { id: 'if_ends_with', group: 'logic', label: "if … ends_with('…')", snippet: "{{ if (|field | ends_with('.mp4')) }}\n  \n{{ /if }}" },
-  { id: 'if_starts_with', group: 'logic', label: "if … starts_with('…')", snippet: "{{ if (|field | starts_with('http')) }}\n  \n{{ /if }}" },
-  { id: 'if_contains', group: 'logic', label: "if … contains('…')", snippet: "{{ if (|field | contains('word')) }}\n  \n{{ /if }}" },
+  {
+    id: 'if_ends_with',
+    group: 'logic',
+    label: "if … ends_with('…')",
+    snippet: "{{ if (|field | ends_with('.mp4')) }}\n  \n{{ /if }}",
+  },
+  {
+    id: 'if_starts_with',
+    group: 'logic',
+    label: "if … starts_with('…')",
+    snippet: "{{ if (|field | starts_with('http')) }}\n  \n{{ /if }}",
+  },
+  {
+    id: 'if_contains',
+    group: 'logic',
+    label: "if … contains('…')",
+    snippet: "{{ if (|field | contains('word')) }}\n  \n{{ /if }}",
+  },
   // Inside a nav loop: the page being viewed, and the one above it.
   { id: 'is_current', group: 'logic', label: 'is_current', snippet: '{{ if |is_current }}\n  \n{{ /if }}' },
   { id: 'is_parent', group: 'logic', label: 'is_parent', snippet: '{{ if |is_parent }}\n  \n{{ /if }}' },
-  { id: 'is_current_or_parent', group: 'logic', label: 'is_current || is_parent', snippet: '{{ if |is_current || is_parent }}\n  \n{{ /if }}' },
+  {
+    id: 'is_current_or_parent',
+    group: 'logic',
+    label: 'is_current || is_parent',
+    snippet: '{{ if |is_current || is_parent }}\n  \n{{ /if }}',
+  },
   { id: 'loop', group: 'loops', label: 'loop', snippet: '{{ |items }}\n  {{ title }}\n{{ /items }}' },
-  { id: 'collection', group: 'loops', label: 'collection', snippet: '{{ collection from="|handle" }}\n  {{ title }}\n{{ /collection }}' },
-  { id: 'collection_as', group: 'loops', label: 'collection as', snippet: '{{ collection from="|handle" as="entries" }}\n  {{ if no_results }}\n    \n  {{ /if }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n{{ /collection }}' },
+  {
+    id: 'collection',
+    group: 'loops',
+    label: 'collection',
+    snippet: '{{ collection from="|handle" }}\n  {{ title }}\n{{ /collection }}',
+  },
+  {
+    id: 'collection_as',
+    group: 'loops',
+    label: 'collection as',
+    snippet:
+      '{{ collection from="|handle" as="entries" }}\n  {{ if no_results }}\n    \n  {{ /if }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n{{ /collection }}',
+  },
   // Pages: `limit` is how many to a page, and the pager is the site's own
   // components/pagination, inside the `{{ paginate }}` pair it reads from.
-  { id: 'collection_paginate', group: 'loops', label: 'collection paginate', snippet: '{{ collection from="|handle" paginate="true" limit="12" as="entries" }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n  {{ paginate }}{{ partial:components/pagination }}{{ /paginate }}\n{{ /collection }}' },
-  { id: 'foreach', group: 'loops', label: 'foreach', snippet: '{{ foreach:|items }}\n  {{ key }}: {{ value }}\n{{ /foreach:items }}' },
+  {
+    id: 'collection_paginate',
+    group: 'loops',
+    label: 'collection paginate',
+    snippet:
+      '{{ collection from="|handle" paginate="true" limit="12" as="entries" }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n  {{ paginate }}{{ partial:components/pagination }}{{ /paginate }}\n{{ /collection }}',
+  },
+  {
+    id: 'foreach',
+    group: 'loops',
+    label: 'foreach',
+    snippet: '{{ foreach:|items }}\n  {{ key }}: {{ value }}\n{{ /foreach:items }}',
+  },
   // Navigation: the tree by handle, the page being viewed marked; with the
   // home page in front of it; one level down; the way here.
-  { id: 'nav', group: 'loops', label: 'nav', snippet: '{{ nav:|main }}\n  <a href="{{ url }}"{{ if is_current || is_parent }} aria-current="page"{{ /if }}>{{ title }}</a>\n{{ /nav:main }}' },
-  { id: 'nav_home', group: 'loops', label: 'nav include_home', snippet: '{{ nav:|main include_home="true" }}\n  <a href="{{ url }}"{{ if is_current || is_parent }} aria-current="page"{{ /if }}>{{ title }}</a>\n{{ /nav:main }}' },
-  { id: 'nav_children', group: 'loops', label: 'nav children', snippet: '{{ nav:|main }}\n  <a href="{{ url }}">{{ title }}</a>\n  {{ if children }}\n    {{ children }}\n      <a href="{{ url }}">{{ title }}</a>\n    {{ /children }}\n  {{ /if }}\n{{ /nav:main }}' },
-  { id: 'breadcrumbs', group: 'loops', label: 'nav:breadcrumbs', snippet: '{{ nav:breadcrumbs }}\n  <a href="{{ url }}">{{ title }}</a>\n{{ /nav:breadcrumbs }}' },
+  {
+    id: 'nav',
+    group: 'loops',
+    label: 'nav',
+    snippet:
+      '{{ nav:|main }}\n  <a href="{{ url }}"{{ if is_current || is_parent }} aria-current="page"{{ /if }}>{{ title }}</a>\n{{ /nav:main }}',
+  },
+  {
+    id: 'nav_home',
+    group: 'loops',
+    label: 'nav include_home',
+    snippet:
+      '{{ nav:|main include_home="true" }}\n  <a href="{{ url }}"{{ if is_current || is_parent }} aria-current="page"{{ /if }}>{{ title }}</a>\n{{ /nav:main }}',
+  },
+  {
+    id: 'nav_children',
+    group: 'loops',
+    label: 'nav children',
+    snippet:
+      '{{ nav:|main }}\n  <a href="{{ url }}">{{ title }}</a>\n  {{ if children }}\n    {{ children }}\n      <a href="{{ url }}">{{ title }}</a>\n    {{ /children }}\n  {{ /if }}\n{{ /nav:main }}',
+  },
+  {
+    id: 'breadcrumbs',
+    group: 'loops',
+    label: 'nav:breadcrumbs',
+    snippet: '{{ nav:breadcrumbs }}\n  <a href="{{ url }}">{{ title }}</a>\n{{ /nav:breadcrumbs }}',
+  },
   { id: 'partial', group: 'include', label: 'partial', snippet: '{{ partial:|path }}' },
-  { id: 'partial_exists', group: 'include', label: 'partial:if_exists', snippet: '{{ partial:if_exists src="|path" }}' },
+  {
+    id: 'partial_exists',
+    group: 'include',
+    label: 'partial:if_exists',
+    snippet: '{{ partial:if_exists src="|path" }}',
+  },
   { id: 'svg', group: 'include', label: 'svg', snippet: '{{ svg src="|icon" }}' },
   { id: 'iconify', group: 'include', label: 'iconify', snippet: '{{ iconify:|icon }}' },
   { id: 'nocache', group: 'include', label: 'nocache', snippet: '{{ nocache }}\n  \n{{ /nocache }}' },
-  { id: 'assets', group: 'fields', label: 'assets', snippet: '{{ |assets }}\n  <img src="{{ url }}" alt="{{ alt }}">\n{{ /assets }}' },
-  { id: 'asset', group: 'fields', label: 'asset', snippet: '{{ |image }}\n  <img src="{{ url }}" alt="{{ alt }}">\n{{ /image }}' },
-  { id: 'replicator', group: 'fields', label: 'replicator', snippet: '{{ |blocks }}\n  {{ if type == "set_name" }}\n    \n  {{ /if }}\n{{ /blocks }}' },
+  {
+    id: 'assets',
+    group: 'fields',
+    label: 'assets',
+    snippet: '{{ |assets }}\n  <img src="{{ url }}" alt="{{ alt }}">\n{{ /assets }}',
+  },
+  {
+    id: 'asset',
+    group: 'fields',
+    label: 'asset',
+    snippet: '{{ |image }}\n  <img src="{{ url }}" alt="{{ alt }}">\n{{ /image }}',
+  },
+  {
+    id: 'replicator',
+    group: 'fields',
+    label: 'replicator',
+    snippet: '{{ |blocks }}\n  {{ if type == "set_name" }}\n    \n  {{ /if }}\n{{ /blocks }}',
+  },
   { id: 'grid', group: 'fields', label: 'grid', snippet: '{{ |items }}\n  {{ title }}\n{{ /items }}' },
   { id: 'variable', group: 'output', label: '{{ field }}', snippet: '{{ |field }}' },
   { id: 'trans', group: 'output', label: 'trans', snippet: '{{ trans:|key }}' },
@@ -58,7 +153,12 @@ export const ANTLERS_SNIPPETS = [
   // resources/sites.yaml). The time is the app's timezone (config/app.php).
   { id: 'date_short', group: 'dates', label: '23.09.2026', snippet: '{{ |date | format:d.m.Y }}' },
   { id: 'date_long', group: 'dates', label: '23. september 2026', snippet: "{{ |date | iso_format('D. MMMM YYYY') }}" },
-  { id: 'date_weekday', group: 'dates', label: 'onsdag 23. september', snippet: "{{ |date | iso_format('dddd D. MMMM') }}" },
+  {
+    id: 'date_weekday',
+    group: 'dates',
+    label: 'onsdag 23. september',
+    snippet: "{{ |date | iso_format('dddd D. MMMM') }}",
+  },
   { id: 'date_time', group: 'dates', label: '23.09.2026 14:30', snippet: "{{ |date | format('d.m.Y H:i') }}" },
   { id: 'date_time_only', group: 'dates', label: '14:30', snippet: "{{ |date | format('H:i') }}" },
   { id: 'date_year', group: 'dates', label: 'year', snippet: '{{ |date | format:Y }}' },
@@ -67,7 +167,12 @@ export const ANTLERS_SNIPPETS = [
   { id: 'date_relative', group: 'dates', label: 'relative (3 dage siden)', snippet: '{{ |date | relative }}' },
   { id: 'date_now', group: 'dates', label: 'now', snippet: '{{ now | format:d.m.Y }}' },
   { id: 'date_now_year', group: 'dates', label: 'year now (© 2026)', snippet: '{{ now | format:Y }}' },
-  { id: 'date_iso', group: 'dates', label: 'datetime attribute (ISO)', snippet: '<time datetime="{{ |date | format:Y-m-d }}">{{ date | format:d.m.Y }}</time>' },
+  {
+    id: 'date_iso',
+    group: 'dates',
+    label: 'datetime attribute (ISO)',
+    snippet: '<time datetime="{{ |date | format:Y-m-d }}">{{ date | format:d.m.Y }}</time>',
+  },
   // Modifiers go in at the caret, inside the tag already there: `{{ title| }}` → `{{ title | upper }}`.
   { id: 'mod_upper', group: 'modifiers', label: 'upper', snippet: ' | upper', inline: true },
   { id: 'mod_lower', group: 'modifiers', label: 'lower', snippet: ' | lower', inline: true },
@@ -79,7 +184,13 @@ export const ANTLERS_SNIPPETS = [
   { id: 'mod_nl2br', group: 'modifiers', label: 'nl2br', snippet: ' | nl2br', inline: true },
   { id: 'mod_strip_tags', group: 'modifiers', label: 'strip_tags', snippet: ' | strip_tags', inline: true },
   { id: 'mod_format', group: 'modifiers', label: 'format (date)', snippet: ' | format:d.m.Y', inline: true },
-  { id: 'mod_iso_format', group: 'modifiers', label: 'iso_format', snippet: " | iso_format('D. MMMM YYYY')", inline: true },
+  {
+    id: 'mod_iso_format',
+    group: 'modifiers',
+    label: 'iso_format',
+    snippet: " | iso_format('D. MMMM YYYY')",
+    inline: true,
+  },
   { id: 'mod_relative', group: 'modifiers', label: 'relative', snippet: ' | relative', inline: true },
   { id: 'mod_count', group: 'modifiers', label: 'count', snippet: ' | count', inline: true },
   { id: 'mod_first', group: 'modifiers', label: 'first', snippet: ' | first', inline: true },

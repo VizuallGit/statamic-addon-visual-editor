@@ -177,7 +177,7 @@ export async function refreshFieldsForType(win, setHandle) {
         }
       }
 
-      if (! Object.keys(add).length) {
+      if (!Object.keys(add).length) {
         return row;
       }
 

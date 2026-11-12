@@ -261,12 +261,7 @@ function onOverlay(event) {
       :style="{ width: width + 'px', '--sve-fs-grip': DRAG_DOTS_V }"
       @click.stop
     >
-      <div
-        class="sve-fs__grip"
-        role="separator"
-        aria-orientation="vertical"
-        @pointerdown="startResize"
-      ></div>
+      <div class="sve-fs__grip" role="separator" aria-orientation="vertical" @pointerdown="startResize"></div>
       <div class="sve-fs__bar">
         <div class="sve-fs__title">
           {{ heading }}
@@ -284,7 +279,18 @@ function onOverlay(event) {
           {{ action.label }}
         </button>
         <button type="button" :aria-label="closeLabel" :title="closeLabel" @click="onClose">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
 

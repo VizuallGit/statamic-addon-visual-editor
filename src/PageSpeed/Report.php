@@ -47,10 +47,10 @@ final class Report
             'url' => (string) ($body['id'] ?? ''),
             'score' => is_numeric($score) ? (int) round($score * 100) : null,
             'fetched_at' => (string) ($house['fetchTime'] ?? ''),
-            'lab' => static::lab($audits),
-            'field' => static::field($body['loadingExperience'] ?? []),
+            'lab' => self::lab($audits),
+            'field' => self::field($body['loadingExperience'] ?? []),
             'field_is_origin' => (bool) ($body['loadingExperience']['origin_fallback'] ?? false),
-            'opportunities' => static::opportunities($audits),
+            'opportunities' => self::opportunities($audits),
         ];
     }
 
@@ -59,7 +59,7 @@ final class Report
     {
         $out = [];
 
-        foreach (static::LAB_AUDITS as $id) {
+        foreach (self::LAB_AUDITS as $id) {
             $audit = $audits[$id] ?? null;
 
             if (! is_array($audit)) {
@@ -70,7 +70,7 @@ final class Report
                 'key' => $id,
                 'label' => (string) ($audit['title'] ?? $id),
                 'value' => (string) ($audit['displayValue'] ?? ''),
-                'level' => static::levelFor($audit['score'] ?? null),
+                'level' => self::levelFor($audit['score'] ?? null),
             ];
         }
 
@@ -92,7 +92,7 @@ final class Report
         $metrics = $experience['metrics'] ?? [];
         $out = [];
 
-        foreach (static::FIELD_METRICS as $key) {
+        foreach (self::FIELD_METRICS as $key) {
             $metric = $metrics[$key] ?? null;
 
             if (! is_array($metric) || ! isset($metric['percentile'])) {
@@ -125,7 +125,7 @@ final class Report
 
             $savings = (float) ($audit['details']['overallSavingsMs'] ?? 0);
 
-            if ($savings < static::MIN_SAVING_MS) {
+            if ($savings < self::MIN_SAVING_MS) {
                 continue;
             }
 
@@ -135,7 +135,7 @@ final class Report
                 'value' => (string) ($audit['displayValue'] ?? ''),
                 'savings' => (int) round($savings),
                 'bytes' => (int) ($audit['details']['overallSavingsBytes'] ?? 0),
-                'level' => static::levelFor($audit['score'] ?? null),
+                'level' => self::levelFor($audit['score'] ?? null),
             ];
         }
 

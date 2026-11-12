@@ -30,7 +30,9 @@ const now = computed(() => props.hit?.n ?? props.seen ?? props.min);
 const placeholder = computed(() => (props.auto ? 'auto' : props.seen != null ? String(props.seen) : ''));
 
 function set(n) {
-  port.setGridAt(props.path, { [props.part]: Math.max(props.min, props.max ? Math.min(props.max, Math.round(n)) : Math.round(n)) });
+  port.setGridAt(props.path, {
+    [props.part]: Math.max(props.min, props.max ? Math.min(props.max, Math.round(n)) : Math.round(n)),
+  });
 }
 
 function typed(event) {
@@ -64,8 +66,22 @@ function typed(event) {
       @keydown.up.prevent="set(now + 1)"
       @keydown.down.prevent="set(now - 1)"
     />
-    <button type="button" class="fg-step__b" :aria-label="`${label} −`" :disabled="now <= min" @click.prevent="set(now - 1)" v-html="ic('minus')"></button>
-    <button type="button" class="fg-step__b" :aria-label="`${label} +`" :disabled="!!max && now >= max" @click.prevent="set(now + 1)" v-html="ic('plus')"></button>
+    <button
+      type="button"
+      class="fg-step__b"
+      :aria-label="`${label} −`"
+      :disabled="now <= min"
+      @click.prevent="set(now - 1)"
+      v-html="ic('minus')"
+    ></button>
+    <button
+      type="button"
+      class="fg-step__b"
+      :aria-label="`${label} +`"
+      :disabled="!!max && now >= max"
+      @click.prevent="set(now + 1)"
+      v-html="ic('plus')"
+    ></button>
     <BuildFieldReset :hit="own" :label="label" />
   </label>
 </template>

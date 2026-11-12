@@ -33,7 +33,7 @@ final class Copy
 {
     /**
      * @return array{handle: string, display: string, group: string, view: string, icon: ?string, fieldset: ?string, static: bool, hidden: bool}|string
-     *         the new set, or why not: `not_found`, `bad_name`, `failed`
+     *                                                                                                                                                  the new set, or why not: `not_found`, `bad_name`, `failed`
      */
     public static function run(SectionList $list, string $source, string $display): array|string
     {
@@ -58,7 +58,7 @@ final class Copy
         }
 
         $set = $groups[$group]['sets'][$source];
-        $own = static::ownImport($set, $source);
+        $own = self::ownImport($set, $source);
         $viewFolder = str_contains($source, '/') ? dirname($source) : Names::viewFolderForGroup($groups, $group);
         $fieldsetFolder = $own !== null && str_contains($own, '.')
             ? substr($own, 0, (int) strrpos($own, '.'))
@@ -67,7 +67,7 @@ final class Copy
         $handle = $viewFolder.'/'.$name;
         $imported = $fieldsetFolder.'.'.$name;
 
-        if ($own !== null && ! static::copyFieldset($own, $imported, str_replace('.', '/', $fieldsetFolder), $name, $display)) {
+        if ($own !== null && ! self::copyFieldset($own, $imported, str_replace('.', '/', $fieldsetFolder), $name, $display)) {
             return 'failed';
         }
 
@@ -77,11 +77,11 @@ final class Copy
             return 'failed';
         }
 
-        if (file_put_contents($view, static::unlocked((string) file_get_contents($sourceView), $handle)) === false) {
+        if (file_put_contents($view, self::unlocked((string) file_get_contents($sourceView), $handle)) === false) {
             return 'failed';
         }
 
-        static::copyTailwind($source, $handle);
+        self::copyTailwind($source, $handle);
 
         $copy = $set;
         unset($copy['image']);
@@ -94,7 +94,7 @@ final class Copy
             );
         }
 
-        $groups[$group]['sets'] = static::after($groups[$group]['sets'], $source, $handle, $copy);
+        $groups[$group]['sets'] = self::after($groups[$group]['sets'], $source, $handle, $copy);
         $list->save($list->withSets($contents, $groups));
         SetPreviewImages::flush();
         GitSync::after('section type copied: '.$source.' → '.$handle);

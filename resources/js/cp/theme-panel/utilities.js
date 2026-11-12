@@ -75,7 +75,11 @@ function lockAbove(text, start) {
 export function lockedUtilities(css) {
   const text = String(css || '');
 
-  return new Set(readUtilities(text).filter((u) => lockAbove(text, u.start)).map((u) => u.name));
+  return new Set(
+    readUtilities(text)
+      .filter((u) => lockAbove(text, u.start))
+      .map((u) => u.name)
+  );
 }
 
 /** site.css with `name` locked or not; every other byte stays as it is. */
@@ -259,13 +263,19 @@ function topLevelApplies(body) {
 
 /** The classes a utility is made of: what its `@apply` names, in order. */
 export function applyClasses(body) {
-  return topLevelApplies(body).map((apply) => apply.value).filter(Boolean).join(' ').replace(/\s+/g, ' ');
+  return topLevelApplies(body)
+    .map((apply) => apply.value)
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ');
 }
 
 /** The body with `@apply` naming `classes`; everything else in it stays as it is. */
 export function bodyWithClasses(body, classes) {
   const text = String(body || '');
-  const value = String(classes || '').trim().replace(/\s+/g, ' ');
+  const value = String(classes || '')
+    .trim()
+    .replace(/\s+/g, ' ');
   const line = value ? `@apply ${value};` : '';
   const applies = topLevelApplies(text);
 
@@ -276,18 +286,26 @@ export function bodyWithClasses(body, classes) {
   let next = text;
 
   // Back to front: the first one becomes the line, the others go.
-  applies.slice().reverse().forEach((apply, index) => {
-    const last = index === applies.length - 1;
+  applies
+    .slice()
+    .reverse()
+    .forEach((apply, index) => {
+      const last = index === applies.length - 1;
 
-    next = next.slice(0, apply.start) + (last ? line : '') + next.slice(apply.end);
-  });
+      next = next.slice(0, apply.start) + (last ? line : '') + next.slice(apply.end);
+    });
 
-  return next.split('\n').filter((row) => row.trim()).join('\n');
+  return next
+    .split('\n')
+    .filter((row) => row.trim())
+    .join('\n');
 }
 
 /** A body as the tab shows it: no blank edge lines, the common indent gone. */
 export function dedent(raw) {
-  const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = String(raw || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n');
 
   while (lines.length && !lines[0].trim()) {
     lines.shift();

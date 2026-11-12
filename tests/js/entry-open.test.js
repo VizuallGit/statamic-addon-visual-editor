@@ -55,5 +55,8 @@ test('a collection the server did not list cannot be previewed by this user', ()
 test('the drawer leaves every other move to the frame', () => {
   assert.equal(entryOpenDecision('/cp/collections/pages', origin, { pages: true }), null);
   assert.equal(entryOpenDecision('/cp/collections/pages/entries/create/default', origin, { pages: true }), null);
-  assert.equal(entryOpenDecision('https://elsewhere.test/cp/collections/pages/entries/abc', origin, { pages: true }), null);
+  assert.equal(
+    entryOpenDecision('https://elsewhere.test/cp/collections/pages/entries/abc', origin, { pages: true }),
+    null
+  );
 });

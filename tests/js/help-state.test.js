@@ -93,7 +93,10 @@ test('the default ticked while the switch is untouched is heard like the switch'
   setHelpDefault(win, true);
   stop();
 
-  assert.deepEqual(heard, [[true, true], [true, false]]);
+  assert.deepEqual(heard, [
+    [true, true],
+    [true, false],
+  ]);
 });
 
 test('forgetting the switch is heard when it changes the answer', () => {

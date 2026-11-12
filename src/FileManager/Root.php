@@ -66,7 +66,7 @@ final class Root
     /** The root as the site says it — `resources`, for the header. */
     public static function relativeRoot(): string
     {
-        $root = str_replace('\\', '/', static::root());
+        $root = str_replace('\\', '/', self::root());
         $base = str_replace('\\', '/', base_path());
 
         if (str_starts_with($root, $base.'/')) {
@@ -79,7 +79,7 @@ final class Root
     /** @return list<string> */
     public static function excluded(): array
     {
-        $list = config('statamic-visual-editor.file_manager.exclude', static::DEFAULT_EXCLUDE);
+        $list = config('statamic-visual-editor.file_manager.exclude', self::DEFAULT_EXCLUDE);
 
         return array_values(array_filter(array_map('strval', (array) $list)));
     }
@@ -92,13 +92,13 @@ final class Root
      */
     public static function existingPath(string $relative): ?string
     {
-        $rel = static::normalize($relative);
+        $rel = self::normalize($relative);
 
         if (! $rel) {
             return null;
         }
 
-        $root = realpath(static::root());
+        $root = realpath(self::root());
 
         if (! $root) {
             return null;
@@ -106,7 +106,7 @@ final class Root
 
         $full = realpath($root.'/'.$rel);
 
-        if (! $full || ! is_file($full) || ! static::insideRoot($full, $root)) {
+        if (! $full || ! is_file($full) || ! self::insideRoot($full, $root)) {
             return null;
         }
 
@@ -116,13 +116,13 @@ final class Root
     /** Absolute path of an existing folder inside the root — or null. */
     public static function existingFolder(string $relative): ?string
     {
-        $rel = static::normalizeFolder($relative);
+        $rel = self::normalizeFolder($relative);
 
         if (! $rel) {
             return null;
         }
 
-        $root = realpath(static::root());
+        $root = realpath(self::root());
 
         if (! $root) {
             return null;
@@ -130,7 +130,7 @@ final class Root
 
         $full = realpath($root.'/'.$rel);
 
-        if (! $full || ! is_dir($full) || ! static::insideRoot($full, $root)) {
+        if (! $full || ! is_dir($full) || ! self::insideRoot($full, $root)) {
             return null;
         }
 
@@ -145,9 +145,9 @@ final class Root
      */
     public static function normalize(string $relative): ?string
     {
-        $rel = static::normalizeFolder($relative);
+        $rel = self::normalizeFolder($relative);
 
-        if (! $rel || ! static::extensionOk($rel)) {
+        if (! $rel || ! self::extensionOk($rel)) {
             return null;
         }
 
@@ -167,7 +167,7 @@ final class Root
         $segments = explode('/', $relative);
 
         foreach ($segments as $segment) {
-            if ($segment === '' || ! static::visible($segment)) {
+            if ($segment === '' || ! self::visible($segment)) {
                 return null;
             }
 
@@ -177,7 +177,7 @@ final class Root
                 return null;
             }
 
-            if (in_array($segment, static::excluded(), true)) {
+            if (in_array($segment, self::excluded(), true)) {
                 return null;
             }
         }
@@ -195,7 +195,7 @@ final class Root
     {
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
-        return in_array($ext, static::EXTENSIONS, true);
+        return in_array($ext, self::EXTENSIONS, true);
     }
 
     /**
@@ -235,7 +235,7 @@ final class Root
             $out[] = $full;
 
             if (is_dir($full)) {
-                $out = [...$out, ...static::walk($full)];
+                $out = [...$out, ...self::walk($full)];
             }
         }
 
@@ -244,7 +244,7 @@ final class Root
 
     public static function relativeFrom(string $path): string
     {
-        $root = realpath(static::root()) ?: static::root();
+        $root = realpath(self::root()) ?: self::root();
         $path = str_replace('\\', '/', $path);
         $root = str_replace('\\', '/', $root);
 

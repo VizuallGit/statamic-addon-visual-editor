@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FAMILY_COLORS, familyColorStyle, parseFamilyOverrides, withFamilyColor } from '../../resources/js/lib/tag-families.js';
+import {
+  FAMILY_COLORS,
+  familyColorStyle,
+  parseFamilyOverrides,
+  withFamilyColor,
+} from '../../resources/js/lib/tag-families.js';
 
 test('stored colours are read back, and only real ones', () => {
   const raw = JSON.stringify({ layout: '#FF0000', text: 'red', media: FAMILY_COLORS.dark.media, bogus: '#00ff00' });

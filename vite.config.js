@@ -17,8 +17,7 @@ export default defineConfig({
    * naked HTML. Relative URLs are correct wherever the addon is published.
    */
   experimental: {
-    renderBuiltUrl: (filename, { hostType }) =>
-      hostType === 'js' ? { relative: true } : filename,
+    renderBuiltUrl: (filename, { hostType }) => (hostType === 'js' ? { relative: true } : filename),
   },
   build: {
     // A full rebuild may add new hashes. It must not wipe the file

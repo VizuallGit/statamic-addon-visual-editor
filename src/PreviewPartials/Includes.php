@@ -58,7 +58,7 @@ final class Includes
         if (($brace = strpos($src, '{')) !== false) {
             $prefix = trim(substr($src, 0, $brace), '/');
 
-            return $prefix === '' ? [] : Files::viewFilesIn(static::candidates($prefix));
+            return $prefix === '' ? [] : Files::viewFilesIn(self::candidates($prefix));
         }
 
         $src = trim(preg_replace('/\.(antlers\.html|blade\.php)$/i', '', $src) ?? $src, '/');
@@ -69,7 +69,7 @@ final class Includes
 
         $files = [];
 
-        foreach (static::candidates($src) as $base) {
+        foreach (self::candidates($src) as $base) {
             foreach (['.antlers.html', '.blade.php'] as $extension) {
                 if (is_file($base.$extension)) {
                     $files[] = $base.$extension;

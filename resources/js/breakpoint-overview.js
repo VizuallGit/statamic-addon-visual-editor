@@ -419,7 +419,9 @@ export function contentBox(rect, style, clientWidth, clientHeight) {
 
 /** A computed colour with nothing in it: `transparent`, `rgba(…, 0)`, `… / 0)`. */
 export function isTransparent(color) {
-  const value = String(color || '').trim().toLowerCase();
+  const value = String(color || '')
+    .trim()
+    .toLowerCase();
 
   if (!value || value === 'transparent') {
     return true;
@@ -523,7 +525,11 @@ export function fieldPlace(doc, wrapper) {
 export function fieldAt(doc, place) {
   const el = place.index < 0 ? null : doc.querySelectorAll(`[${SID_FIELD_ATTR}]`)[place.index];
 
-  if (!el || (el.getAttribute(SID_FIELD_ATTR) || '') !== place.field || (el.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) || '') !== place.uid) {
+  if (
+    !el ||
+    (el.getAttribute(SID_FIELD_ATTR) || '') !== place.field ||
+    (el.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) || '') !== place.uid
+  ) {
     return null;
   }
 
@@ -633,7 +639,14 @@ export function openBreakpointOverview(win) {
   // nearest size still in, as if its button had been picked. None left in
   // (the sizes changed since): the size being edited comes back.
   if (hiddenSizes.has(active)) {
-    const next = specs.find((spec) => spec.handle === nearestSize(specs.map((spec) => ({ ...spec, hidden: hiddenSizes.has(spec.handle) })), active));
+    const next = specs.find(
+      (spec) =>
+        spec.handle ===
+        nearestSize(
+          specs.map((spec) => ({ ...spec, hidden: hiddenSizes.has(spec.handle) })),
+          active
+        )
+    );
 
     if (next) {
       ask('lp:set-device', { win, key: next.device });
@@ -770,7 +783,20 @@ function build(win, host, specs) {
     item.append(label, el);
     canvas.appendChild(item);
 
-    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, active: false, expectTop: null };
+    return {
+      spec,
+      item,
+      label,
+      el,
+      src: '',
+      ready: false,
+      stale: false,
+      height: 0,
+      unbind: null,
+      hidden,
+      active: false,
+      expectTop: null,
+    };
   });
 
   sizer.appendChild(canvas);
@@ -853,7 +879,12 @@ function widths() {
 function place() {
   const { contents, layer } = overviewState;
   const view = contents.ownerDocument.defaultView;
-  const box = contentBox(contents.getBoundingClientRect(), view.getComputedStyle(contents), contents.clientWidth, contents.clientHeight);
+  const box = contentBox(
+    contents.getBoundingClientRect(),
+    view.getComputedStyle(contents),
+    contents.clientWidth,
+    contents.clientHeight
+  );
 
   setStyle(layer, 'left', `${box.left}px`);
   setStyle(layer, 'top', `${box.top}px`);
@@ -966,11 +997,23 @@ function placePreview() {
   const rect = entry.el.getBoundingClientRect();
   const view = scroller.getBoundingClientRect();
 
-  ask('lp:preview-slot', { win, slot: { left: rect.left, top: rect.top, width: entry.spec.width, height: entry.height, scale: zoom } });
+  ask('lp:preview-slot', {
+    win,
+    slot: { left: rect.left, top: rect.top, width: entry.spec.width, height: entry.height, scale: zoom },
+  });
   // Cut in the scroller, not the layer: the layer takes no pointer events of
   // its own, the scroller paints the gutter and takes the clicks — the hole
   // has to be in it for the preview beneath to show and be hit.
-  setStyle(scroller, 'clip-path', holePolygon(view.width, view.height, { left: rect.left - view.left, top: rect.top - view.top, width: rect.width, height: rect.height }));
+  setStyle(
+    scroller,
+    'clip-path',
+    holePolygon(view.width, view.height, {
+      left: rect.left - view.left,
+      top: rect.top - view.top,
+      width: rect.width,
+      height: rect.height,
+    })
+  );
 }
 
 /**
@@ -1285,7 +1328,11 @@ function anchorsOf(win) {
     const chrome = el.getAttribute(CHROME_ATTR);
 
     if (position && position !== 'fixed' && position !== 'sticky') {
-      anchors.push({ id: chrome === null ? el.getAttribute(SID_ATTR) : `chrome:${chrome}`, top: rect.top + win.scrollY, height: rect.height });
+      anchors.push({
+        id: chrome === null ? el.getAttribute(SID_ATTR) : `chrome:${chrome}`,
+        top: rect.top + win.scrollY,
+        height: rect.height,
+      });
     }
   }
 
@@ -1550,7 +1597,11 @@ function onPreviewWheel(event) {
   const rect = overviewState.scroller.getBoundingClientRect();
   const z = overviewState.zoom;
 
-  wheel(event, { x: slot.left - rect.left + event.clientX * z, y: slot.top - rect.top + event.clientY * z }, overviewState.main?.contentWindow);
+  wheel(
+    event,
+    { x: slot.left - rect.left + event.clientX * z, y: slot.top - rect.top + event.clientY * z },
+    overviewState.main?.contentWindow
+  );
 }
 
 /**
@@ -1560,7 +1611,9 @@ function onPreviewWheel(event) {
  */
 function windowAt(x, y) {
   const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-  const hit = shown().find((entry) => inside(entry.el.getBoundingClientRect()) || inside(entry.label.getBoundingClientRect()));
+  const hit = shown().find(
+    (entry) => inside(entry.el.getBoundingClientRect()) || inside(entry.label.getBoundingClientRect())
+  );
 
   if (!hit || hit.active) {
     return overviewState.main?.contentWindow || null;
@@ -1612,7 +1665,11 @@ function onPanStart(event) {
   const rect = scroller.getBoundingClientRect();
 
   // Not on a scrollbar: those keep working as scrollbars.
-  if (event.button !== 0 || event.clientX - rect.left >= scroller.clientWidth || event.clientY - rect.top >= scroller.clientHeight) {
+  if (
+    event.button !== 0 ||
+    event.clientX - rect.left >= scroller.clientWidth ||
+    event.clientY - rect.top >= scroller.clientHeight
+  ) {
     return;
   }
 
@@ -1654,9 +1711,12 @@ function onPanEnd(event) {
   // the fields edit — the same door as its button in the top bar — and the
   // preview moves into its place.
   if (event.type === 'pointerup' && !isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
-    const inside = (r) => event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+    const inside = (r) =>
+      event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
     // The frame or the label above it (its name and width).
-    const hit = shown().find((entry) => inside(entry.el.getBoundingClientRect()) || inside(entry.label.getBoundingClientRect()));
+    const hit = shown().find(
+      (entry) => inside(entry.el.getBoundingClientRect()) || inside(entry.label.getBoundingClientRect())
+    );
 
     if (hit && !hit.active) {
       ask('lp:set-device', { win: overviewState.win, key: hit.spec.device });
@@ -1680,7 +1740,12 @@ function activeBreakpoint(win) {
 
   const { contents } = overviewState;
   const view = contents.ownerDocument.defaultView;
-  const box = contentBox(contents.getBoundingClientRect(), view.getComputedStyle(contents), contents.clientWidth, contents.clientHeight);
+  const box = contentBox(
+    contents.getBoundingClientRect(),
+    view.getComputedStyle(contents),
+    contents.clientWidth,
+    contents.clientHeight
+  );
 
   return bpFromWidth(box.width || 1200, win);
 }
@@ -1948,7 +2013,12 @@ function revealActive() {
   const frame = entry.el.getBoundingClientRect();
   const start = scroller.scrollLeft;
   const ring = RING_PX * 2;
-  const next = revealScroll(start, scroller.clientWidth, frame.left - view.left + start - ring, frame.right - view.left + start + ring);
+  const next = revealScroll(
+    start,
+    scroller.clientWidth,
+    frame.left - view.left + start - ring,
+    frame.right - view.left + start + ring
+  );
 
   if (next !== start) {
     glideTo(next);

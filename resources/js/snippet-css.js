@@ -36,7 +36,9 @@ function withoutComments(text) {
 
 /** No blank edge lines, the common indent gone, no trailing spaces. */
 export function dedentBody(raw) {
-  const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = String(raw || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n');
 
   while (lines.length && !lines[0].trim()) {
     lines.shift();

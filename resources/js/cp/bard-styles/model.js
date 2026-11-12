@@ -74,7 +74,9 @@ export function identFrom(name) {
 
 /** Is the button text an inline svg (drawn as markup) rather than letters? */
 export function identIsSvg(ident) {
-  return String(ident || '').trimStart().startsWith('<');
+  return String(ident || '')
+    .trimStart()
+    .startsWith('<');
 }
 
 /** The same test the server makes before it lets markup into the toolbar. */
@@ -85,7 +87,11 @@ export function identOk(ident) {
     return value.length <= 6;
   }
 
-  return value.startsWith('<svg') && value.length <= 4000 && !/<script|<foreignObject|\son[a-z]+\s*=|javascript:/i.test(value);
+  return (
+    value.startsWith('<svg') &&
+    value.length <= 4000 &&
+    !/<script|<foreignObject|\son[a-z]+\s*=|javascript:/i.test(value)
+  );
 }
 
 /** Problems with one group, as `{ field: code }`. */
@@ -138,7 +144,13 @@ export function styleProblems(style, styles, groupHandles) {
       out.value = 'value_format';
     }
   } else {
-    if (!/^-?[A-Za-z_][A-Za-z0-9_-]*( -?[A-Za-z_][A-Za-z0-9_-]*)*$/.test(String(style.class || '').trim().replace(/\s+/g, ' '))) {
+    if (
+      !/^-?[A-Za-z_][A-Za-z0-9_-]*( -?[A-Za-z_][A-Za-z0-9_-]*)*$/.test(
+        String(style.class || '')
+          .trim()
+          .replace(/\s+/g, ' ')
+      )
+    ) {
       out.class = 'class_format';
     }
 
@@ -175,7 +187,9 @@ export function styleForSave(style) {
       out.target = 'block';
     }
   } else {
-    out.class = String(style.class || '').trim().replace(/\s+/g, ' ');
+    out.class = String(style.class || '')
+      .trim()
+      .replace(/\s+/g, ' ');
 
     if (String(style.cp_css || '').trim()) {
       out.cp_css = String(style.cp_css).trim();

@@ -109,7 +109,8 @@ async function copyAsNewSection(win, doc, uid, row, display) {
         icon: made.icon || null,
         hide: made.hidden === true,
         fields: meta.definitions,
-        group_display: (data.section_types || []).find((type) => type?.handle === made.handle)?.group_display || made.group,
+        group_display:
+          (data.section_types || []).find((type) => type?.handle === made.handle)?.group_display || made.group,
       },
       made.group
     );
@@ -150,7 +151,9 @@ function askName(win, doc, uid, row, name) {
     onOk: (display) => {
       void copyAsNewSection(win, doc, uid, row, display)
         .catch((err) => {
-          win.Statamic?.$toast?.error(t(win, err?.reason === 'bad_name' ? 'section_new_bad_name' : 'section_copy_failed'));
+          win.Statamic?.$toast?.error(
+            t(win, err?.reason === 'bad_name' ? 'section_new_bad_name' : 'section_copy_failed')
+          );
         })
         .finally(close);
     },

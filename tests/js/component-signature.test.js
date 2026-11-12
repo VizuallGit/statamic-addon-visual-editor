@@ -40,5 +40,8 @@ test('the dock type names the component the preview marks', () => {
 test('the attribute is spelled the same in PHP (ComponentMark::ATTR) and here', () => {
   const php = readFileSync(new URL('../../src/ComponentMark.php', import.meta.url), 'utf8');
 
-  assert.ok(php.includes(`public const ATTR = '${COMPONENT_ATTR}';`), 'ComponentMark::ATTR is the attribute component-signature.js asks the preview for');
+  assert.ok(
+    php.includes(`public const ATTR = '${COMPONENT_ATTR}';`),
+    'ComponentMark::ATTR is the attribute component-signature.js asks the preview for'
+  );
 });

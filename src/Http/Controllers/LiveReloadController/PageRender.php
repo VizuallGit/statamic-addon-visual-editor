@@ -84,8 +84,8 @@ final class PageRender
     /** The page's HTML as a browser would get it, or null when it is not a page. */
     public function html(): ?string
     {
-        static::flushPushStacks();
-        static::forgetViteManifests();
+        self::flushPushStacks();
+        self::forgetViteManifests();
 
         $outer = app('request');
         $session = $this->poll->hasSession() ? $this->poll->session() : null;

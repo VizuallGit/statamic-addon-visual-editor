@@ -24,10 +24,11 @@ const CLASS = /\.((?:\\[0-9a-fA-F]{1,6}[ \t\n]?|\\[^\n0-9a-fA-F]|[\w-]|[^\x00-\x
 
 /** The class names in a selector, unescaped: `.md\:card>*` → `['md:card']`. */
 export function classTokens(selector) {
-  return [...String(selector || '').matchAll(CLASS)].map((m) => m[1].replace(
-    /\\([0-9a-fA-F]{1,6})[ \t\n]?|\\(.)/g,
-    (_, hex, ch) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : ch)
-  ));
+  return [...String(selector || '').matchAll(CLASS)].map((m) =>
+    m[1].replace(/\\([0-9a-fA-F]{1,6})[ \t\n]?|\\(.)/g, (_, hex, ch) =>
+      hex ? String.fromCodePoint(parseInt(hex, 16)) : ch
+    )
+  );
 }
 
 /**
@@ -133,7 +134,9 @@ function snapshot(sheet) {
 }
 
 function snapshotsOf(doc) {
-  return siteLinks(doc).map((link) => link.sheet && snapshot(link.sheet)).filter(Boolean);
+  return siteLinks(doc)
+    .map((link) => link.sheet && snapshot(link.sheet))
+    .filter(Boolean);
 }
 
 /** Every class the built stylesheets have rules for, as built; null with no built sheet to read (a dev server). */
@@ -269,7 +272,11 @@ function replaceRules(snap, want) {
     head++;
   }
 
-  while (tail < live.length - head && tail < want.length - head && live[live.length - 1 - tail] === want[want.length - 1 - tail]) {
+  while (
+    tail < live.length - head &&
+    tail < want.length - head &&
+    live[live.length - 1 - tail] === want[want.length - 1 - tail]
+  ) {
     tail++;
   }
 
@@ -308,10 +315,14 @@ export function swapSiteCss(doc, href, onLoad = () => {}) {
 
     fresh.removeAttribute('integrity');
     fresh.setAttribute('href', href);
-    fresh.addEventListener('load', () => {
-      link.remove();
-      onLoad();
-    }, { once: true });
+    fresh.addEventListener(
+      'load',
+      () => {
+        link.remove();
+        onLoad();
+      },
+      { once: true }
+    );
     fresh.addEventListener('error', () => fresh.remove(), { once: true });
     link.after(fresh);
   }

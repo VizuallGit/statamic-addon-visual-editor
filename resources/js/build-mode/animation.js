@@ -98,7 +98,11 @@ export const EFFECTS = [
 ];
 
 /** The timing fields: the size each fill measures against, and its step, in ms. */
-export const TIMING_RANGE = { delay: { max: 1000, step: 10 }, duration: { max: 1500, step: 10 }, step: { max: 500, step: 10 } };
+export const TIMING_RANGE = {
+  delay: { max: 1000, step: 10 },
+  duration: { max: 1500, step: 10 },
+  step: { max: 500, step: 10 },
+};
 
 /** The curves the editor names; anything else is a spring (`linear(…)`) or a curve of the author's own. */
 export const EASES = [
@@ -110,7 +114,14 @@ export const EASES = [
 ];
 
 const TIMING = { duration: '--anim-duration', delay: '--anim-delay', step: '--anim-step' };
-const ORDER = ['--anim-step-curve', '--anim-ease', ...EFFECTS.map((effect) => effect.name), '--anim-clip-to', '--anim-dir', ...Object.keys(SETTINGS)];
+const ORDER = [
+  '--anim-step-curve',
+  '--anim-ease',
+  ...EFFECTS.map((effect) => effect.name),
+  '--anim-clip-to',
+  '--anim-dir',
+  ...Object.keys(SETTINGS),
+];
 const RUNTIME_TAG = '{{ sve_animation }}';
 const RUNTIME_RE = /\s*\{\{\s*sve_animation\s*\}\}/;
 const CLIP_RE = /^inset\((\d*\.?\d+)%\s+0\s+0\s+0\)$/;
@@ -150,7 +161,11 @@ export function presetsFor(kind, builtIn, own) {
 
 /** A preset's timing, in ms, for only the keys it has. */
 function timingOf(preset) {
-  return Object.fromEntries(Object.keys(TIMING).filter((key) => Number.isFinite(preset?.timing?.[key])).map((key) => [key, preset.timing[key]]));
+  return Object.fromEntries(
+    Object.keys(TIMING)
+      .filter((key) => Number.isFinite(preset?.timing?.[key]))
+      .map((key) => [key, preset.timing[key]])
+  );
 }
 
 /**
@@ -202,8 +217,15 @@ export function recipePreset(anim, presets) {
     return null;
   }
 
-  return (presets || []).find((preset) => preset.kind === anim.target
-    && [...Object.entries(preset.vars || {}), ...Object.entries(timingOf(preset))].every(([key, value]) => sameValue(recipeValue(anim, key), value))) || null;
+  return (
+    (presets || []).find(
+      (preset) =>
+        preset.kind === anim.target &&
+        [...Object.entries(preset.vars || {}), ...Object.entries(timingOf(preset))].every(([key, value]) =>
+          sameValue(recipeValue(anim, key), value)
+        )
+    ) || null
+  );
 }
 
 /** The name a preset's value stands under. */
@@ -215,7 +237,12 @@ export function presetName(name) {
 export function presetRules(presets) {
   return (presets || [])
     .filter((preset) => timed(preset.kind))
-    .map((preset) => `[data-anim-preset="${preset.handle}"] { ${Object.entries(preset.vars).map(([name, value]) => `${presetName(name)}: ${value};`).join(' ')} }`)
+    .map(
+      (preset) =>
+        `[data-anim-preset="${preset.handle}"] { ${Object.entries(preset.vars)
+          .map(([name, value]) => `${presetName(name)}: ${value};`)
+          .join(' ')} }`
+    )
     .join('\n');
 }
 
@@ -267,7 +294,8 @@ export function animationOf(html, node) {
     delay: toMs(timing[TIMING.delay]),
     step: toMs(timing[TIMING.step]),
     vars,
-    switch: on === 'switch' ? elementAttrs(html, node).find((attr) => SWITCH_ATTRS.includes(attr.name))?.value || null : null,
+    switch:
+      on === 'switch' ? elementAttrs(html, node).find((attr) => SWITCH_ATTRS.includes(attr.name))?.value || null : null,
     pause: target === 'ticker' && readAttribute(html, node, 'data-anim-pause') !== null,
   };
 }
@@ -319,7 +347,9 @@ export function withAnimation(html, path, anim) {
 function withSwitch(source, path, name) {
   const next = withoutAlpineAttr(source, path, 'x-bind:data-anim-active');
 
-  return name ? withAlpineAttr(next, path, ':data-anim-active', name) : withoutAlpineAttr(next, path, ':data-anim-active');
+  return name
+    ? withAlpineAttr(next, path, ':data-anim-active', name)
+    : withoutAlpineAttr(next, path, ':data-anim-active');
 }
 
 /** The preset with this handle, or null. */
@@ -343,17 +373,19 @@ export function isChanged(anim) {
  * read as one (a preset's circle reveal) — `raw` shows it as written.
  */
 export function effectsOf(anim, preset) {
-  return effectsFor(anim).map((effect) => {
-    const raw = valueOf(anim, preset, effect.name);
+  return effectsFor(anim)
+    .map((effect) => {
+      const raw = valueOf(anim, preset, effect.name);
 
-    if (raw === null || raw === 'none') {
-      return null;
-    }
+      if (raw === null || raw === 'none') {
+        return null;
+      }
 
-    const value = effect.key === 'clip' ? clipPercent(raw) : number(raw);
+      const value = effect.key === 'clip' ? clipPercent(raw) : number(raw);
 
-    return value === effect.neutral ? null : { ...effect, value, raw };
-  }).filter(Boolean);
+      return value === effect.neutral ? null : { ...effect, value, raw };
+    })
+    .filter(Boolean);
 }
 
 /** A saved preset's names: the effects, the 3D turns the editor does not list, and the curve. AnimationPresets.php keeps the same. */
@@ -480,9 +512,13 @@ function effectsFor(anim) {
 export function withEffect(anim, preset, key, value) {
   const effect = EFFECTS.find((e) => e.key === key);
   const vars = { ...(anim.vars || {}) };
-  const own = effect.key === 'clip'
-    ? { '--anim-clip': value === null ? 'none' : `inset(${value}% 0 0 0)`, '--anim-clip-to': value === null ? 'none' : 'inset(0)' }
-    : { [effect.name]: value === null ? `${effect.neutral}${effect.unit}` : `${value}${effect.unit}` };
+  const own =
+    effect.key === 'clip'
+      ? {
+          '--anim-clip': value === null ? 'none' : `inset(${value}% 0 0 0)`,
+          '--anim-clip-to': value === null ? 'none' : 'inset(0)',
+        }
+      : { [effect.name]: value === null ? `${effect.neutral}${effect.unit}` : `${value}${effect.unit}` };
 
   for (const [name, written] of Object.entries(own)) {
     const presetValue = preset?.vars?.[name] ?? null;
@@ -583,7 +619,9 @@ export function springEase(stiffness, damping, mass, samples = 40) {
 }
 
 function short(n) {
-  return String(Number(n.toFixed(3))).replace(/^0\./, '.').replace(/^-0\./, '-.');
+  return String(Number(n.toFixed(3)))
+    .replace(/^0\./, '.')
+    .replace(/^-0\./, '-.');
 }
 
 function number(raw) {
@@ -644,7 +682,9 @@ export function ownValues(anim) {
   }
 
   const rank = (name) => (ORDER.includes(name) ? ORDER.indexOf(name) : ORDER.length);
-  const timing = Object.entries(TIMING).filter(([key]) => Number.isFinite(anim[key])).map(([key, name]) => [name, toSeconds(anim[key])]);
+  const timing = Object.entries(TIMING)
+    .filter(([key]) => Number.isFinite(anim[key]))
+    .map(([key, name]) => [name, toSeconds(anim[key])]);
 
   return [...timing, ...Object.entries(anim.vars || {}).sort(([a], [b]) => rank(a) - rank(b))];
 }
@@ -660,7 +700,10 @@ function ownTokens(value) {
 
 /** A value as a Tailwind class carries it: no space after a comma, `_` for any other. */
 function toClass(value) {
-  return String(value).trim().replace(/\s*,\s*/g, ',').replace(/\s+/g, '_');
+  return String(value)
+    .trim()
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\s+/g, '_');
 }
 
 /** A class's value as CSS reads it, its commas spaced as the editor writes its curves. */
@@ -671,7 +714,9 @@ function fromClass(text) {
 /** The file with the element's own `[--anim-*:…]` classes replaced by these values, after its other classes; a class left empty goes. */
 function withOwnClasses(source, node, values) {
   const before = readClassAttr(source, node.from, node.openTo)?.value ?? '';
-  let after = ownTokens(before).reverse().reduce((text, { token }) => replaceToken(text, token, ''), before);
+  let after = ownTokens(before)
+    .reverse()
+    .reduce((text, { token }) => replaceToken(text, token, ''), before);
 
   for (const [name, value] of values) {
     after = appendToken(after, `[${name}:${toClass(value)}]`);
@@ -701,7 +746,8 @@ function withoutVars(style) {
 }
 
 function animates(source) {
-  const any = (nodes) => nodes.some((node) => (!node.kind && readAttribute(source, node, 'data-anim') !== null) || any(node.children || []));
+  const any = (nodes) =>
+    nodes.some((node) => (!node.kind && readAttribute(source, node, 'data-anim') !== null) || any(node.children || []));
 
   return any(parseTemplateTree(source));
 }

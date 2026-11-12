@@ -49,7 +49,6 @@ const TICK_MS = 16;
 
 const PREVIEW_ID = 'live-preview-iframe';
 
-
 let resumed = false;
 
 function previewWindow(doc) {

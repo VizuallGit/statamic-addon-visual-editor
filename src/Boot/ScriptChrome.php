@@ -28,7 +28,7 @@ final class ScriptChrome
      * config honest (a handle, stable) and the match right in every language (a
      * label, as the blueprint actually spells it).
      *
-     * @return array<string, array<int, string>>  global set handle => lowercased labels
+     * @return array<string, array<int, string>> global set handle => lowercased labels
      */
     public static function hiddenGlobalsTabs(): array
     {
@@ -42,7 +42,7 @@ final class ScriptChrome
 
         // One set or one per half — the tabs to leave out are named the same way
         // either way, so every set that carries a half gets the same treatment.
-        foreach (static::chromeGlobalHandles() as $handle) {
+        foreach (self::chromeGlobalHandles() as $handle) {
             if (! $set = GlobalSet::findByHandle($handle)) {
                 continue;
             }
@@ -114,13 +114,13 @@ final class ScriptChrome
      */
     public static function templates(): array
     {
-        $styles = static::styles();
+        $styles = self::styles();
         $out = [];
 
         foreach (['header', 'footer'] as $half) {
             $styled = $half.'/'.$styles[$half];
             $styledPath = SectionTemplate::path($styled);
-            $markers = static::markerFiles($half);
+            $markers = self::markerFiles($half);
 
             if ($markers === []) {
                 $out[$half] = ['type' => $styled, 'styled' => true];
@@ -142,7 +142,7 @@ final class ScriptChrome
                 }
             }
 
-            $out[$half] = ['type' => static::handleFor($markers[0]) ?? $styled, 'styled' => false];
+            $out[$half] = ['type' => self::handleFor($markers[0]) ?? $styled, 'styled' => false];
         }
 
         return $out;
@@ -151,7 +151,7 @@ final class ScriptChrome
     /** Forget the scanned views — a test writes its own between calls. */
     public static function flush(): void
     {
-        static::$markers = [];
+        self::$markers = [];
     }
 
     /** @var array<string, array<int, string>> */
@@ -165,8 +165,8 @@ final class ScriptChrome
      */
     protected static function markerFiles(string $half): array
     {
-        if (isset(static::$markers[$half])) {
-            return static::$markers[$half];
+        if (isset(self::$markers[$half])) {
+            return self::$markers[$half];
         }
 
         $root = realpath(resource_path('views'));
@@ -196,7 +196,7 @@ final class ScriptChrome
 
         usort($found, fn ($a, $b) => [substr_count($a, DIRECTORY_SEPARATOR), $a] <=> [substr_count($b, DIRECTORY_SEPARATOR), $b]);
 
-        return static::$markers[$half] = $found;
+        return self::$markers[$half] = $found;
     }
 
     /**

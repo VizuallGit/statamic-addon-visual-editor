@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import { isTypingTarget, zoomKey } from '../../resources/js/lib/zoom-keys.js';
 
 /** A keydown as the handlers see it; `target` answers `closest` with what it is inside. */
-const key = (k, extra = {}) => ({ key: k, defaultPrevented: false, altKey: false, ctrlKey: false, metaKey: false, target: inside(null), ...extra });
+const key = (k, extra = {}) => ({
+  key: k,
+  defaultPrevented: false,
+  altKey: false,
+  ctrlKey: false,
+  metaKey: false,
+  target: inside(null),
+  ...extra,
+});
 const inside = (match) => ({ closest: (selector) => (match && selector.includes(match) ? {} : null) });
 
 test('a plain + or = is a step in, a plain - a step out, any other key nothing', () => {

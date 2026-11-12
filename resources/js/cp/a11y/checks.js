@@ -17,8 +17,7 @@
 /** The editor's own furniture. Injected under ids of ours, and never the page. */
 const CHROME_SELECTOR = '[id^="__sve"], [id^="sve-"], [data-sve-ui]';
 
-const INTERACTIVE =
-  'a[href], button, [role="button"], input:not([type="hidden"]), select, textarea';
+const INTERACTIVE = 'a[href], button, [role="button"], input:not([type="hidden"]), select, textarea';
 
 /** WCAG 2.2 AA asks for 24×24 CSS pixels. */
 const MIN_TARGET = 24;
@@ -34,9 +33,27 @@ const MAX_ALT = 150;
  * reading "image" out loud has told the listener nothing they did not know.
  */
 const UNHELPFUL_ALT = new Set([
-  'image', 'images', 'picture', 'photo', 'photograph', 'graphic', 'icon', 'logo',
-  'spacer', 'placeholder', 'img', 'alt', 'untitled', 'banner',
-  'billede', 'billeder', 'foto', 'grafik', 'ikon', 'logo billede', 'pynt',
+  'image',
+  'images',
+  'picture',
+  'photo',
+  'photograph',
+  'graphic',
+  'icon',
+  'logo',
+  'spacer',
+  'placeholder',
+  'img',
+  'alt',
+  'untitled',
+  'banner',
+  'billede',
+  'billeder',
+  'foto',
+  'grafik',
+  'ikon',
+  'logo billede',
+  'pynt',
 ]);
 
 /**
@@ -45,10 +62,32 @@ const UNHELPFUL_ALT = new Set([
  * are a row of identical entries pointing at different places.
  */
 const VAGUE_LINK = new Set([
-  'click here', 'here', 'read more', 'more', 'learn more', 'link', 'this page',
-  'this link', 'continue', 'go', 'details', 'see more', 'view',
-  'klik her', 'her', 'læs mere', 'mere', 'se mere', 'se her', 'link', 'denne side',
-  'fortsæt', 'gå til', 'detaljer', 'vis mere', 'hertil',
+  'click here',
+  'here',
+  'read more',
+  'more',
+  'learn more',
+  'link',
+  'this page',
+  'this link',
+  'continue',
+  'go',
+  'details',
+  'see more',
+  'view',
+  'klik her',
+  'her',
+  'læs mere',
+  'mere',
+  'se mere',
+  'se her',
+  'link',
+  'denne side',
+  'fortsæt',
+  'gå til',
+  'detaljer',
+  'vis mere',
+  'hertil',
 ]);
 
 /**
@@ -184,7 +223,11 @@ function labelled(el) {
 
 /** Trimmed, folded and stripped of the punctuation people end links with. */
 function normalise(text) {
-  return text.toLowerCase().replace(/[\s\u00a0]+/g, ' ').replace(/[.,:;!?»«…\-–—>]+$/g, '').trim();
+  return text
+    .toLowerCase()
+    .replace(/[\s\u00a0]+/g, ' ')
+    .replace(/[.,:;!?»«…\-–—>]+$/g, '')
+    .trim();
 }
 
 /** alt="hero-image-2024.jpg" is an alt text nobody wrote. */
@@ -237,9 +280,7 @@ export function scanChecks(doc) {
   };
 
   const each = (selector, test) =>
-    [...body.querySelectorAll(selector)].filter(
-      (el) => rendered(el) && !hidden(el) && test(el)
-    );
+    [...body.querySelectorAll(selector)].filter((el) => rendered(el) && !hidden(el) && test(el));
 
   // --- Images -------------------------------------------------------------
   // No alt attribute at all: a screen reader falls back to reading the file
@@ -247,7 +288,11 @@ export function scanChecks(doc) {
   // to say "decorative" — so it is listed to be looked over, never as a fault.
   // Marking it wrong is how people learn to stop using it, and then every
   // spacer on the site starts announcing itself.
-  add('img_alt', 'error', each('img:not([alt])', () => true));
+  add(
+    'img_alt',
+    'error',
+    each('img:not([alt])', () => true)
+  );
   add(
     'img_alt_empty',
     'info',
@@ -275,11 +320,19 @@ export function scanChecks(doc) {
   );
 
   // --- Links ---------------------------------------------------------------
-  add('link_name', 'error', each('a[href]', (el) => !accessibleName(el)));
+  add(
+    'link_name',
+    'error',
+    each('a[href]', (el) => !accessibleName(el))
+  );
 
   // An anchor with no href is not a link: the keyboard never reaches it, no
   // matter what is bound to its click.
-  add('link_no_href', 'warning', each('a:not([href])', (el) => !el.getAttribute('role')));
+  add(
+    'link_no_href',
+    'warning',
+    each('a:not([href])', (el) => !el.getAttribute('role'))
+  );
 
   add(
     'link_dead',
@@ -317,14 +370,18 @@ export function scanChecks(doc) {
   add(
     'button_name',
     'error',
-    each('button, [role="button"], input[type="submit"], input[type="button"], input[type="image"]',
-      (el) => !accessibleName(el))
+    each(
+      'button, [role="button"], input[type="submit"], input[type="button"], input[type="image"]',
+      (el) => !accessibleName(el)
+    )
   );
   add(
     'field_label',
     'error',
-    each('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea',
-      (el) => !labelled(el))
+    each(
+      'input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea',
+      (el) => !labelled(el)
+    )
   );
 
   // Only icon-sized controls with no words in them. An inline link inside a
@@ -389,10 +446,13 @@ export function scanChecks(doc) {
   add(
     'table_header',
     'warning',
-    each('table', (el) =>
-      el.getAttribute('role') !== 'presentation' &&
-      el.rows.length > 1 &&
-      !el.querySelector('th, [role="columnheader"], [role="rowheader"]'))
+    each(
+      'table',
+      (el) =>
+        el.getAttribute('role') !== 'presentation' &&
+        el.rows.length > 1 &&
+        !el.querySelector('th, [role="columnheader"], [role="rowheader"]')
+    )
   );
 
   // --- The page itself -----------------------------------------------------
@@ -404,9 +464,7 @@ export function scanChecks(doc) {
     page('page_title', 'error');
   }
 
-  const mains = [...doc.querySelectorAll('main, [role="main"]')].filter(
-    (el) => !el.closest(CHROME_SELECTOR)
-  );
+  const mains = [...doc.querySelectorAll('main, [role="main"]')].filter((el) => !el.closest(CHROME_SELECTOR));
 
   if (!mains.length) {
     page('landmark_main', 'warning');

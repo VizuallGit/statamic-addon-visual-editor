@@ -46,7 +46,9 @@ const items = computed(() => (grid.value?.items || []).filter((item) => item.col
 const picked = computed(() => port.selectedPath());
 const least = computed(() => fewestTracks(items.value));
 const area = (col, row) => ({ gridColumn: `${col[0] + 1} / ${col[1] + 2}`, gridRow: `${row[0] + 1} / ${row[1] + 2}` });
-const cells = computed(() => Array.from({ length: cols.value * rows.value }, (_, i) => [i % cols.value, Math.floor(i / cols.value)]));
+const cells = computed(() =>
+  Array.from({ length: cols.value * rows.value }, (_, i) => [i % cols.value, Math.floor(i / cols.value)])
+);
 const free = computed(() => new Set((grid.value?.empty || []).map(([c, r]) => `${c}:${r}`)));
 
 function place() {
@@ -124,7 +126,10 @@ function onMove(event) {
   const { col, row } = now.item;
 
   if (now.kind === 'corner') {
-    now.target = { col: [col[0], col[0] + spanTo(col[0], at.cols, at.x) - 1], row: [row[0], row[0] + spanTo(row[0], at.rows, at.y) - 1] };
+    now.target = {
+      col: [col[0], col[0] + spanTo(col[0], at.cols, at.x) - 1],
+      row: [row[0], row[0] + spanTo(row[0], at.rows, at.y) - 1],
+    };
   } else {
     const wide = col[1] - col[0] + 1;
     const tall = row[1] - row[0] + 1;
@@ -231,13 +236,37 @@ onBeforeUnmount(() => {
     >
       <h3 class="bm-pop-head">
         <span>{{ port.t('grid_edit') }}</span>
-        <button type="button" class="bm-ib sm" :title="port.t('close')" :aria-label="port.t('close')" @click="emit('close')" v-html="ic('x')"></button>
+        <button
+          type="button"
+          class="bm-ib sm"
+          :title="port.t('close')"
+          :aria-label="port.t('close')"
+          @click="emit('close')"
+          v-html="ic('x')"
+        ></button>
       </h3>
       <div class="bm-pop-body">
         <p v-if="hint" class="fg-hint" v-html="hint"></p>
         <div class="fg-grid">
-          <BuildGridStep :path="path" part="cols" letter="C" :label="port.t('grid_columns')" :hit="parts.cols" :seen="cols || null" :min="least.cols" :max="MAX_TRACKS" />
-          <BuildGridStep :path="path" part="rows" letter="R" :label="port.t('grid_rows')" :hit="parts.rows" :seen="rows || null" :min="least.rows" />
+          <BuildGridStep
+            :path="path"
+            part="cols"
+            letter="C"
+            :label="port.t('grid_columns')"
+            :hit="parts.cols"
+            :seen="cols || null"
+            :min="least.cols"
+            :max="MAX_TRACKS"
+          />
+          <BuildGridStep
+            :path="path"
+            part="rows"
+            letter="R"
+            :label="port.t('grid_rows')"
+            :hit="parts.rows"
+            :seen="rows || null"
+            :min="least.rows"
+          />
         </div>
         <p v-if="!grid" class="fg-hint">{{ port.t('grid_not_shown') }}</p>
         <div v-else class="bm-gb-wrap">
@@ -251,7 +280,10 @@ onBeforeUnmount(() => {
             ref="board"
             class="bm-gb-board"
             :class="{ 'is-dragging': !!drag }"
-            :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, 2.25rem)` }"
+            :style="{
+              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${rows}, 2.25rem)`,
+            }"
             data-sve-build-grid-board
           >
             <div v-for="[c, r] in cells" :key="`${c}:${r}`" class="bm-gb-cell" :style="area([c, c], [r, r])">
@@ -270,14 +302,23 @@ onBeforeUnmount(() => {
               v-for="(item, n) in items"
               :key="item.path || `loop-${n}`"
               class="bm-gb-item"
-              :class="{ 'is-picked': item.path && item.path === picked, 'is-loop': !item.path, 'is-taken': drag?.item === item }"
+              :class="{
+                'is-picked': item.path && item.path === picked,
+                'is-loop': !item.path,
+                'is-taken': drag?.item === item,
+              }"
               :style="area(item.col, item.row)"
               :title="item.path ? port.t('grid_move') : ''"
               :data-sve-build-grid-item="item.path"
               @pointerdown="startDrag($event, item, 'move')"
             >
               <span class="bm-gb-label">{{ item.label }}</span>
-              <span v-if="item.path" class="bm-gb-corner" :title="port.t('grid_span')" @pointerdown="startDrag($event, item, 'corner')"></span>
+              <span
+                v-if="item.path"
+                class="bm-gb-corner"
+                :title="port.t('grid_span')"
+                @pointerdown="startDrag($event, item, 'corner')"
+              ></span>
             </div>
             <div v-if="drag?.moved" class="bm-gb-ghost" :style="area(drag.target.col, drag.target.row)"></div>
           </div>

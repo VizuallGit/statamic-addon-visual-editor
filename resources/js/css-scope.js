@@ -645,7 +645,9 @@ function cutRange(css, from, to) {
 function cutRule(css, from, to) {
   const { css: out, at } = cutRange(css, from, to);
 
-  return out[at] === '\n' && (at === 0 || out.slice(0, at).endsWith('\n\n')) ? out.slice(0, at) + out.slice(at + 1) : out;
+  return out[at] === '\n' && (at === 0 || out.slice(0, at).endsWith('\n\n'))
+    ? out.slice(0, at) + out.slice(at + 1)
+    : out;
 }
 
 /** The file's rule, with the comment the pane wrote in front of it when it is still there. */
@@ -869,10 +871,7 @@ export function renameCssClass(css, from, to) {
     return removeCssClassRule(css, from);
   }
 
-  return String(css || '').replace(
-    new RegExp(`(^|[^\\w-])\\.${escapeRe(from)}(\\s*\\{)`, 'g'),
-    `$1.${next}$2`,
-  );
+  return String(css || '').replace(new RegExp(`(^|[^\\w-])\\.${escapeRe(from)}(\\s*\\{)`, 'g'), `$1.${next}$2`);
 }
 
 export function removeCssClassRule(css, name) {

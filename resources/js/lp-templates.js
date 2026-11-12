@@ -67,15 +67,16 @@ export function openTemplateBoard(win, anchor = null) {
       drawer = openCpOverlay(win.document, FieldsetOverlay, {
         heading: t(win, 'template_board_title'),
         closeLabel: t(win, 'close'),
-        mount: (host) => board.mountTemplateBoard(win, host, {
-          // Shut before leaving: the unsaved question that may come next has
-          // to be seen, and the drawer sits above everything.
-          onOpen: (url) => {
-            board.unmountTemplateBoard(win);
-            drawer?.dismiss();
-            navigateFromLp(win, anchor, inLivePreview(win, url));
-          },
-        }),
+        mount: (host) =>
+          board.mountTemplateBoard(win, host, {
+            // Shut before leaving: the unsaved question that may come next has
+            // to be seen, and the drawer sits above everything.
+            onOpen: (url) => {
+              board.unmountTemplateBoard(win);
+              drawer?.dismiss();
+              navigateFromLp(win, anchor, inLivePreview(win, url));
+            },
+          }),
         onClose: () => board.unmountTemplateBoard(win),
       });
     } catch (err) {

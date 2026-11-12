@@ -27,21 +27,42 @@ function fakeApi(turns) {
 
 const TOOLS = {
   read_file: { description: 'Read', inputSchema: { type: 'object' }, execute: ({ path }) => `contents of ${path}` },
-  write_file: { description: 'Write', inputSchema: { type: 'object' }, execute: () => ({ content: [{ type: 'text', text: 'LOCKED: not in scope' }], isError: true }) },
+  write_file: {
+    description: 'Write',
+    inputSchema: { type: 'object' },
+    execute: () => ({ content: [{ type: 'text', text: 'LOCKED: not in scope' }], isError: true }),
+  },
 };
 
 test('the loop runs the tools Claude asks for and returns its last text', async () => {
   const api = fakeApi([
-    { stop_reason: 'tool_use', content: [{ type: 'text', text: 'Reading.' }, { type: 'tool_use', id: 't1', name: 'read_file', input: { path: 'a.html' } }] },
+    {
+      stop_reason: 'tool_use',
+      content: [
+        { type: 'text', text: 'Reading.' },
+        { type: 'tool_use', id: 't1', name: 'read_file', input: { path: 'a.html' } },
+      ],
+    },
     { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done: the heading is an h3 now.' }] },
   ]);
 
-  const out = await runLoop({ create: api.create, params: claudeParams('claude-opus-5-5'), prompt: 'Make it an h3', tools: TOOLS });
+  const out = await runLoop({
+    create: api.create,
+    params: claudeParams('claude-opus-5-5'),
+    prompt: 'Make it an h3',
+    tools: TOOLS,
+  });
 
   assert.deepEqual(out, { reply: 'Done: the heading is an h3 now.', stop: 'end_turn', turns: 2 });
-  assert.deepEqual(api.sent[1].body.messages[2], { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'contents of a.html' }] });
+  assert.deepEqual(api.sent[1].body.messages[2], {
+    role: 'user',
+    content: [{ type: 'tool_result', tool_use_id: 't1', content: 'contents of a.html' }],
+  });
   assert.equal(api.sent[1].body.messages[1].content[1].type, 'tool_use', 'the assistant turn goes back whole');
-  assert.deepEqual(api.sent[0].body.tools.map((tool) => tool.name), ['read_file', 'write_file']);
+  assert.deepEqual(
+    api.sent[0].body.tools.map((tool) => tool.name),
+    ['read_file', 'write_file']
+  );
 });
 
 test('a refused write comes back to Claude as an error result', async () => {
@@ -52,16 +73,33 @@ test('a refused write comes back to Claude as an error result', async () => {
 });
 
 test('a refusal or a cut-off answer runs no tools', async () => {
-  const api = fakeApi([{ stop_reason: 'max_tokens', content: [{ type: 'tool_use', id: 't1', name: 'write_file', input: { path: 'x' } }] }]);
+  const api = fakeApi([
+    { stop_reason: 'max_tokens', content: [{ type: 'tool_use', id: 't1', name: 'write_file', input: { path: 'x' } }] },
+  ]);
   let ran = false;
-  const out = await runLoop({ create: api.create, params: {}, prompt: 'x', tools: { write_file: { ...TOOLS.write_file, execute: () => { ran = true; } } } });
+  const out = await runLoop({
+    create: api.create,
+    params: {},
+    prompt: 'x',
+    tools: {
+      write_file: {
+        ...TOOLS.write_file,
+        execute: () => {
+          ran = true;
+        },
+      },
+    },
+  });
 
   assert.equal(out.stop, 'max_tokens');
   assert.equal(ran, false);
 });
 
 test('a loop that circles stops at the limit', async () => {
-  const turn = { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't', name: 'read_file', input: { path: 'a' } }] };
+  const turn = {
+    stop_reason: 'tool_use',
+    content: [{ type: 'tool_use', id: 't', name: 'read_file', input: { path: 'a' } }],
+  };
   const out = await runLoop({ create: async () => turn, params: {}, prompt: 'x', tools: TOOLS, maxTurns: 3 });
 
   assert.deepEqual(out, { reply: '', stop: 'max_turns', turns: 3 });
@@ -92,15 +130,27 @@ test('the site is read, its secrets and everything outside it are not', () => {
 
     assert.equal(read('resources/views/hero.antlers.html'), '<h2>{{ title }}</h2>\n<p>{{ text }}</p>');
     assert.equal(read('resources/views/hero.antlers.html', 2), '<h2>{{ title }}</h2>\n<p>{{ text }}</p>');
-    assert.equal(tools.read_file.execute({ path: 'resources/views/hero.antlers.html', offset: 2, limit: 1 }), '<p>{{ text }}</p>');
+    assert.equal(
+      tools.read_file.execute({ path: 'resources/views/hero.antlers.html', offset: 2, limit: 1 }),
+      '<p>{{ text }}</p>'
+    );
 
-    for (const secret of ['.env', 'resources/addons/visual-editor.yaml', 'users/a.yaml', '../etc/passwd', '/etc/passwd']) {
+    for (const secret of [
+      '.env',
+      'resources/addons/visual-editor.yaml',
+      'users/a.yaml',
+      '../etc/passwd',
+      '/etc/passwd',
+    ]) {
       assert.equal(read(secret).isError, true, secret);
     }
 
     assert.equal(tools.list_files.execute({ path: '' }), 'resources/');
     assert.equal(tools.list_files.execute({ path: 'resources' }), 'views/');
-    assert.equal(tools.search_files.execute({ pattern: 'title' }), 'resources/views/hero.antlers.html:1: <h2>{{ title }}</h2>');
+    assert.equal(
+      tools.search_files.execute({ pattern: 'title' }),
+      'resources/views/hero.antlers.html:1: <h2>{{ title }}</h2>'
+    );
     assert.equal(tools.search_files.execute({ pattern: 'sk-ant' }), 'No matches.');
   } finally {
     rmSync(site, { recursive: true, force: true });

@@ -2,10 +2,39 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/theme-panel/tokens.js';
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
-import { BORDERS, CHECK_SIZES, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
-import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from '../../resources/js/cp/theme-panel/highlights.js';
-import { buttonSample, checkSample, fieldSample, outlineButtonSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
-import { CONTAINER_WIDTHS, FULL_WIDTH, WIDTH_CLASSES, containerBase, widthClass, widthOf, widthRem } from '../../resources/js/lib/container-widths.js';
+import {
+  BORDERS,
+  CHECK_SIZES,
+  INPUT_TOKENS,
+  OPACITIES,
+  TITLE_TOKENS,
+  TRACKINGS,
+  TYPE_TOKENS,
+  isManaged,
+  withCurrent,
+} from '../../resources/js/cp/theme-panel/presets.js';
+import {
+  highlightNameProblem,
+  isHighlightValue,
+  nextHighlightName,
+  readHighlights,
+} from '../../resources/js/cp/theme-panel/highlights.js';
+import {
+  buttonSample,
+  checkSample,
+  fieldSample,
+  outlineButtonSample,
+  sampleColor,
+} from '../../resources/js/cp/theme-panel/samples.js';
+import {
+  CONTAINER_WIDTHS,
+  FULL_WIDTH,
+  WIDTH_CLASSES,
+  containerBase,
+  widthClass,
+  widthOf,
+  widthRem,
+} from '../../resources/js/lib/container-widths.js';
 
 const CSS = `@import "tailwindcss";
 
@@ -71,11 +100,14 @@ test('a changed token is rewritten in place, and only that line', () => {
 test('a new size lands in number order inside the scale; a removed one goes', () => {
   const out = writeTokens(CSS, { 'size-150': '1rem', 'size-300': '2rem', 'size-100': null });
 
-  assert.ok(out.includes(`    --size-sm: .9375rem;
+  assert.ok(
+    out.includes(`    --size-sm: .9375rem;
     --size-150: 1rem;
     --size-200: clamp(1rem, 0.9583rem + 0.2083vw, 1.125rem);
     --size-300: 2rem;
-`), out);
+`),
+    out
+  );
   assert.ok(!out.includes('--size-100'));
 });
 
@@ -123,9 +155,15 @@ test('a new size’s Tailwind lines land after their neighbours, in number order
     --spacing-container: var(--container-padding);
     --size-1200: 9rem;
 }`;
-  const out = writeTokens(css, { 'size-1300': '10rem', 'spacing-1300': 'var(--size-1300)', 'text-1300': 'var(--size-1300)' });
+  const out = writeTokens(css, {
+    'size-1300': '10rem',
+    'spacing-1300': 'var(--size-1300)',
+    'text-1300': 'var(--size-1300)',
+  });
 
-  assert.equal(out, `@theme {
+  assert.equal(
+    out,
+    `@theme {
     --text-900: var(--size-900);
     --text-1300: var(--size-1300);
     --spacing-1200: var(--size-1200);
@@ -133,7 +171,8 @@ test('a new size’s Tailwind lines land after their neighbours, in number order
     --spacing-container: var(--container-padding);
     --size-1200: 9rem;
     --size-1300: 10rem;
-}`);
+}`
+  );
 });
 
 test('body color, background and gutter reach the page on every render', () => {
@@ -173,7 +212,13 @@ test('an older Container is `wrapper`, and its widths keep that name', () => {
   const narrow = CONTAINER_WIDTHS.find((w) => w.key === 'narrow');
   assert.equal(widthClass(narrow), 'container-narrow');
   assert.equal(widthClass(narrow, 'wrapper'), 'wrapper-narrow');
-  assert.equal(widthClass(CONTAINER_WIDTHS.find((w) => w.key === 'normal'), 'wrapper'), '');
+  assert.equal(
+    widthClass(
+      CONTAINER_WIDTHS.find((w) => w.key === 'normal'),
+      'wrapper'
+    ),
+    ''
+  );
   assert.equal(widthClass(FULL_WIDTH, 'wrapper'), 'wrapper-full');
   assert.equal(widthRem(720), '45rem');
   assert.equal(widthRem(1366), '85.375rem');
@@ -232,11 +277,14 @@ test('writeTokens adds a highlight to the theme and removes a gone one', () => {
     --size-700: 1rem;
 }`;
 
-  assert.equal(writeTokens(css, { 'color-highlight-2': 'var(--color-primary)', 'color-highlight-1': null }), `@theme {
+  assert.equal(
+    writeTokens(css, { 'color-highlight-2': 'var(--color-primary)', 'color-highlight-1': null }),
+    `@theme {
     --color-primary: #112233;
     --size-700: 1rem;
     --color-highlight-2: var(--color-primary);
-}`);
+}`
+  );
 });
 
 test('the Title tokens are typography the page gets on every render', () => {
@@ -249,7 +297,10 @@ test('the Title tokens are typography the page gets on every render', () => {
 });
 
 test('the Title letter spacings run narrowest first, with normal in the middle', () => {
-  assert.deepEqual(TRACKINGS.map(([, value]) => value), ['-0.05em', '-0.025em', 'normal', '0.05em', '0.1em']);
+  assert.deepEqual(
+    TRACKINGS.map(([, value]) => value),
+    ['-0.05em', '-0.025em', 'normal', '0.05em', '0.1em']
+  );
 });
 
 const FORMS_CSS = `@theme {
@@ -291,7 +342,10 @@ test('every Forms token is one the page gets on every render, so the panel paint
 
 test('the Forms choices are written in rem/em and %, px only for border widths', () => {
   assert.deepEqual(OPACITIES, ['100%', '90%', '75%', '50%', '25%', '0%']);
-  assert.deepEqual(BORDERS.map(([, v]) => v), ['0', '1px', '2px']);
+  assert.deepEqual(
+    BORDERS.map(([, v]) => v),
+    ['0', '1px', '2px']
+  );
   assert.ok(CHECK_SIZES.every(([, v]) => /^[\d.]+em$/.test(v)));
 });
 
@@ -303,7 +357,14 @@ test('a value the list does not have is offered first; a listed one is not repea
 
 const FAMILIES = [
   { name: 'white', value: '#FFFFFF', steps: [] },
-  { name: 'gray', value: null, steps: [{ name: '300', value: '#d4d4d4' }, { name: '800', value: '#262626' }] },
+  {
+    name: 'gray',
+    value: null,
+    steps: [
+      { name: '300', value: '#d4d4d4' },
+      { name: '800', value: '#262626' },
+    ],
+  },
   { name: 'primary', value: '#bc6f35', steps: [{ name: '500', value: '#9e571e' }] },
 ];
 
@@ -317,14 +378,20 @@ test('a color token resolves through the theme for the sample', () => {
   assert.equal(sampleColor('var(--color-nope)', FAMILIES), null);
 });
 
-test('the sample field reads the tokens the way the site\'s input rule does', () => {
+test("the sample field reads the tokens the way the site's input rule does", () => {
   const ui = {
     families: FAMILIES,
     sizes: [{ name: 'size-sm', min: 15, max: 15 }],
     input: {
-      'input-bg': 'var(--color-primary)', 'input-bg-opacity': '50%', 'input-color': 'var(--color-gray-800)',
-      'input-size': 'var(--size-sm)', 'input-radius': 'var(--radius-lg)', 'input-border-width': '1px',
-      'input-border-color': 'var(--color-gray-300)', 'input-accent': 'var(--color-primary-500)', 'input-check-size': '1.4em',
+      'input-bg': 'var(--color-primary)',
+      'input-bg-opacity': '50%',
+      'input-color': 'var(--color-gray-800)',
+      'input-size': 'var(--size-sm)',
+      'input-radius': 'var(--radius-lg)',
+      'input-border-width': '1px',
+      'input-border-color': 'var(--color-gray-300)',
+      'input-accent': 'var(--color-primary-500)',
+      'input-check-size': '1.4em',
     },
   };
   const field = fieldSample(ui);
@@ -337,12 +404,20 @@ test('the sample field reads the tokens the way the site\'s input rule does', ()
   assert.deepEqual([checkSample(ui).accentColor, checkSample(ui).width], ['#9e571e', '1.4em']);
 });
 
-test('the outline button is the solid one with no fill, its text and ring the theme\'s gray-50', () => {
+test("the outline button is the solid one with no fill, its text and ring the theme's gray-50", () => {
   const ui = {
-    families: FAMILIES.map((f) => (f.name === 'gray' ? { ...f, steps: [{ name: '50', value: '#f7f7f8' }, ...f.steps] } : f)),
+    families: FAMILIES.map((f) =>
+      f.name === 'gray' ? { ...f, steps: [{ name: '50', value: '#f7f7f8' }, ...f.steps] } : f
+    ),
     sizes: [{ name: 'size-sm', min: 15, max: 15 }],
     type: { 'font-base': 'Inter, sans-serif', 'font-heading': 'Inter, sans-serif' },
-    button: { 'button-font': 'var(--font-base)', 'button-size': 'var(--size-sm)', 'button-weight': '700', 'button-radius': '0.25rem', 'button-transform': 'none' },
+    button: {
+      'button-font': 'var(--font-base)',
+      'button-size': 'var(--size-sm)',
+      'button-weight': '700',
+      'button-radius': '0.25rem',
+      'button-transform': 'none',
+    },
   };
   const solid = buttonSample(ui);
   const outline = outlineButtonSample(ui);
@@ -351,5 +426,8 @@ test('the outline button is the solid one with no fill, its text and ring the th
   assert.equal(outline.background, 'transparent');
   assert.equal(outline.color, '#f7f7f8');
   assert.equal(outline.boxShadow, 'inset 0 0 0 1px #f7f7f8');
-  assert.deepEqual([outline.fontSize, outline.fontWeight, outline.borderRadius], [solid.fontSize, solid.fontWeight, solid.borderRadius]);
+  assert.deepEqual(
+    [outline.fontSize, outline.fontWeight, outline.borderRadius],
+    [solid.fontSize, solid.fontWeight, solid.borderRadius]
+  );
 });

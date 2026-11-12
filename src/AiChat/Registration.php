@@ -22,7 +22,7 @@ final class Registration
 {
     /**
      * @param  list<array{group?: mixed, handle?: mixed, display?: mixed, fieldset?: mixed}>  $requests
-     * @return list<string>  the handles added
+     * @return list<string> the handles added
      */
     public static function apply(array $requests): array
     {
@@ -38,7 +38,7 @@ final class Registration
         }
 
         try {
-            return static::add($requests);
+            return self::add($requests);
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
@@ -69,7 +69,7 @@ final class Registration
         $added = [];
 
         foreach ($requests as $request) {
-            $set = static::set($request, $groups, $taken);
+            $set = self::set($request, $groups, $taken);
 
             if ($set === null) {
                 continue;

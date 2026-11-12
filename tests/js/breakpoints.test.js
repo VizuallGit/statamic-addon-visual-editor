@@ -21,15 +21,99 @@ import {
 // The one list, always widest first — the order the buttons and tabs draw.
 // Which end is the base is the direction PHP derived; every row carries it.
 const DESKTOP = [
-  { handle: 'laptop', label: 'Laptop', device: 'Laptop', icon: 'laptop', base: true, direction: 'desktop', min: 64, unit: 'em', min_px: 1024, max: null, media: '', media_px: '', tw: '' },
-  { handle: 'tablet', label: 'Tablet', device: 'Tablet', icon: 'tablet', base: false, direction: 'desktop', min: 48, unit: 'em', min_px: 768, max: '1023.98px', media: '(width < 64em)', media_px: '(max-width: 1023.98px)', tw: 'max-lg' },
-  { handle: 'mobile', label: 'Mobile', device: 'Mobile', icon: 'mobile', base: false, direction: 'desktop', min: 0, unit: 'em', min_px: 0, max: '767.98px', media: '(width < 48em)', media_px: '(max-width: 767.98px)', tw: 'max-md' },
+  {
+    handle: 'laptop',
+    label: 'Laptop',
+    device: 'Laptop',
+    icon: 'laptop',
+    base: true,
+    direction: 'desktop',
+    min: 64,
+    unit: 'em',
+    min_px: 1024,
+    max: null,
+    media: '',
+    media_px: '',
+    tw: '',
+  },
+  {
+    handle: 'tablet',
+    label: 'Tablet',
+    device: 'Tablet',
+    icon: 'tablet',
+    base: false,
+    direction: 'desktop',
+    min: 48,
+    unit: 'em',
+    min_px: 768,
+    max: '1023.98px',
+    media: '(width < 64em)',
+    media_px: '(max-width: 1023.98px)',
+    tw: 'max-lg',
+  },
+  {
+    handle: 'mobile',
+    label: 'Mobile',
+    device: 'Mobile',
+    icon: 'mobile',
+    base: false,
+    direction: 'desktop',
+    min: 0,
+    unit: 'em',
+    min_px: 0,
+    max: '767.98px',
+    media: '(width < 48em)',
+    media_px: '(max-width: 767.98px)',
+    tw: 'max-md',
+  },
 ];
 
 const MOBILE = [
-  { handle: 'laptop', label: 'Laptop', device: 'Laptop', icon: 'laptop', base: false, direction: 'mobile', min: 64, unit: 'em', min_px: 1024, max: null, media: '(width >= 64em)', media_px: '(min-width: 1024px)', tw: 'lg' },
-  { handle: 'tablet', label: 'Tablet', device: 'Tablet', icon: 'tablet', base: false, direction: 'mobile', min: 48, unit: 'em', min_px: 768, max: null, media: '(width >= 48em)', media_px: '(min-width: 768px)', tw: 'md' },
-  { handle: 'mobile', label: 'Mobile', device: 'Mobile', icon: 'mobile', base: true, direction: 'mobile', min: 0, unit: 'em', min_px: 0, max: null, media: '', media_px: '', tw: '' },
+  {
+    handle: 'laptop',
+    label: 'Laptop',
+    device: 'Laptop',
+    icon: 'laptop',
+    base: false,
+    direction: 'mobile',
+    min: 64,
+    unit: 'em',
+    min_px: 1024,
+    max: null,
+    media: '(width >= 64em)',
+    media_px: '(min-width: 1024px)',
+    tw: 'lg',
+  },
+  {
+    handle: 'tablet',
+    label: 'Tablet',
+    device: 'Tablet',
+    icon: 'tablet',
+    base: false,
+    direction: 'mobile',
+    min: 48,
+    unit: 'em',
+    min_px: 768,
+    max: null,
+    media: '(width >= 48em)',
+    media_px: '(min-width: 768px)',
+    tw: 'md',
+  },
+  {
+    handle: 'mobile',
+    label: 'Mobile',
+    device: 'Mobile',
+    icon: 'mobile',
+    base: true,
+    direction: 'mobile',
+    min: 0,
+    unit: 'em',
+    min_px: 0,
+    max: null,
+    media: '',
+    media_px: '',
+    tw: '',
+  },
 ];
 
 const win = (rows) => ({ Statamic: { $config: { get: (key) => (key === 'sveBreakpoints' ? rows : undefined) } } });
@@ -41,7 +125,11 @@ test('the list is read as given, widest first, in both directions', () => {
 
   const w = win(DESKTOP);
   assert.equal(breakpoints(w), breakpoints(w), 'one normalised list per config array');
-  assert.notEqual(breakpoints(win([...DESKTOP])), breakpoints(w), 'a new config array is a new list — how a size added at runtime shows up');
+  assert.notEqual(
+    breakpoints(win([...DESKTOP])),
+    breakpoints(w),
+    'a new config array is a new list — how a size added at runtime shows up'
+  );
 });
 
 test('direction comes from the rows', () => {
@@ -144,7 +232,11 @@ test('a saved list lands where the page load would have put it, and the window i
   assert.equal(applyBreakpointList(w, { breakpoints: next, devices }), true);
 
   assert.deepEqual(bpHandles(w), ['wide', 'laptop', 'tablet', 'mobile'], 'breakpoints() reads the new array');
-  assert.deepEqual($config.get('livePreview.devices'), devices, 'the device buttons read the new widths through the dotted path');
+  assert.deepEqual(
+    $config.get('livePreview.devices'),
+    devices,
+    'the device buttons read the new widths through the dotted path'
+  );
   assert.equal($config.get('livePreview.enabled'), true, 'the rest of livePreview is kept');
   assert.equal(Object.hasOwn($config.values, 'livePreview.devices'), false, 'no key spelled with a dot');
   assert.equal(events.length, 1);

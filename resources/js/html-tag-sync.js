@@ -51,12 +51,7 @@ function tagNameNodeAt(state, pos) {
 function elementOf(tagName) {
   let node = tagName.parent;
 
-  while (
-    node &&
-    node.name !== 'OpenTag' &&
-    node.name !== 'SelfClosingTag' &&
-    !CLOSE_TAGS.has(node.name)
-  ) {
+  while (node && node.name !== 'OpenTag' && node.name !== 'SelfClosingTag' && !CLOSE_TAGS.has(node.name)) {
     node = node.parent;
   }
 
@@ -117,10 +112,7 @@ function pairChange(tr) {
     return null;
   }
 
-  const next =
-    tr.startState.doc.sliceString(name.from, fromA) +
-    inserted +
-    tr.startState.doc.sliceString(toA, name.to);
+  const next = tr.startState.doc.sliceString(name.from, fromA) + inserted + tr.startState.doc.sliceString(toA, name.to);
 
   if (!NAME_RE.test(next)) {
     return null;

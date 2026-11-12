@@ -34,10 +34,7 @@ export function sidTemplatePayload(el) {
   const row = el?.closest?.('[data-sid-orderable]');
   const containerTemplate =
     container?.getAttribute('data-sid-template') || el?.getAttribute?.('data-sid-template') || '';
-  const rowTemplate =
-    row?.getAttribute('data-sid-template') ||
-    container?.getAttribute('data-sid-row-template') ||
-    '';
+  const rowTemplate = row?.getAttribute('data-sid-template') || container?.getAttribute('data-sid-row-template') || '';
   const fieldDefaults = collectSidFieldDefaults(container || el);
   const extra = {};
 
@@ -107,10 +104,7 @@ export function setupInserters(win) {
 
     // Bard whole-field (inline_edit): uses its own empty-paragraph "+" / SetPicker,
     // not the Style 2 replicator inserter strip.
-    if (
-      container.hasAttribute('data-sid-inline-edit') ||
-      container.hasAttribute('data-sid-bard-sets')
-    ) {
+    if (container.hasAttribute('data-sid-inline-edit') || container.hasAttribute('data-sid-bard-sets')) {
       return;
     }
 
@@ -150,9 +144,7 @@ export function setupInserters(win) {
     // the "+" sat on the richtext. Only direct children, never nested fields.
     const blocks = [...container.children].filter(
       (child) =>
-        child.hasAttribute(SID_ATTR) ||
-        child.hasAttribute(ORDERABLE_ATTR) ||
-        child.hasAttribute(SID_FIELD_ATTR)
+        child.hasAttribute(SID_ATTR) || child.hasAttribute(ORDERABLE_ATTR) || child.hasAttribute(SID_FIELD_ATTR)
     );
 
     // A field that is full has nothing to offer. The Control Panel greys out its
@@ -196,8 +188,7 @@ export function setupInserters(win) {
         horizontal = style.flexDirection.startsWith('row');
       } else if (display === 'grid' || display === 'inline-grid') {
         horizontal =
-          style.gridAutoFlow.startsWith('column') ||
-          style.gridTemplateColumns.split(' ').filter(Boolean).length > 1;
+          style.gridAutoFlow.startsWith('column') || style.gridTemplateColumns.split(' ').filter(Boolean).length > 1;
       }
     }
 
@@ -243,10 +234,7 @@ export function repositionInserters(win) {
 
 function contentColumnRect(inst) {
   const kids = [...(inst.container?.children || [])].filter(
-    (child) =>
-      child.hasAttribute(SID_ATTR) ||
-      child.hasAttribute(ORDERABLE_ATTR) ||
-      child.hasAttribute(SID_FIELD_ATTR)
+    (child) => child.hasAttribute(SID_ATTR) || child.hasAttribute(ORDERABLE_ATTR) || child.hasAttribute(SID_FIELD_ATTR)
   );
   const fallback = inst.block.getBoundingClientRect();
 

@@ -51,7 +51,8 @@ const LAYER_ID = BUILD_COLUMNS_LAYER_ID;
 const STYLE_ID = '__sve-build-columns-css';
 export const PLUS =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-const MINUS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>';
+const MINUS =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>';
 const GRIP =
   '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
 /** How far a pressed handle moves before it is a drag, not a click. */
@@ -179,7 +180,13 @@ function box(el, left, top, width, height) {
 export function startColumnsOverlay(
   win,
   port,
-  { frame: frameOf = () => previewFrame(win), attr = HT_PATH_ATTR, updated = 'statamic:preview-updated', plus: withPlus = true, inside = false } = {}
+  {
+    frame: frameOf = () => previewFrame(win),
+    attr = HT_PATH_ATTR,
+    updated = 'statamic:preview-updated',
+    plus: withPlus = true,
+    inside = false,
+  } = {}
 ) {
   const doc = win.document;
   /** The document the layer is drawn in: the canvas's own (`inside`), else the Control Panel's over the frame. */
@@ -234,7 +241,15 @@ export function startColumnsOverlay(
       };
     }
 
-    return { at, scale, k: 1, min: MIN_CELL, x: (x) => at.left + x * scale, y: (y) => at.top + y * scale, fromEvent: (event) => ({ x: (event.clientX - at.left) / scale, y: (event.clientY - at.top) / scale }) };
+    return {
+      at,
+      scale,
+      k: 1,
+      min: MIN_CELL,
+      x: (x) => at.left + x * scale,
+      y: (y) => at.top + y * scale,
+      fromEvent: (event) => ({ x: (event.clientX - at.left) / scale, y: (event.clientY - at.top) / scale }),
+    };
   };
 
   const sizeLabel = () => {
@@ -254,7 +269,13 @@ export function startColumnsOverlay(
 
     // A grid with no tracks to read (none resolved yet): its box, so it still shows.
     if (!count) {
-      box(pool(grid.wrap, 'cell', 1, () => doc.createElement('div'))[0], v.x(m.box.x), v.y(m.box.y), m.box.w * v.scale, Math.max(m.box.h * v.scale, v.min));
+      box(
+        pool(grid.wrap, 'cell', 1, () => doc.createElement('div'))[0],
+        v.x(m.box.x),
+        v.y(m.box.y),
+        m.box.w * v.scale,
+        Math.max(m.box.h * v.scale, v.min)
+      );
     }
   };
 
@@ -266,7 +287,12 @@ export function startColumnsOverlay(
     const r0 = rows[Math.min(row[0], rows.length - 1)];
     const r1 = rows[Math.min(row[1], rows.length - 1)];
 
-    return [v.x(m.box.x + c0.start), v.y(m.box.y + r0.start), (c1.end - c0.start) * v.scale, Math.max((r1.end - r0.start) * v.scale, v.min)];
+    return [
+      v.x(m.box.x + c0.start),
+      v.y(m.box.y + r0.start),
+      (c1.end - c0.start) * v.scale,
+      Math.max((r1.end - r0.start) * v.scale, v.min),
+    ];
   };
 
   const pill = (wrap, n, make) => pool(wrap, `pill-${n}`, 1, make)[0];
@@ -308,7 +334,9 @@ export function startColumnsOverlay(
 
         const count = countsOf(grid, measureGrid(grid.el, attr))[kind];
 
-        port.setGridAt(grid.path, { [kind]: Math.max(1, Math.min(kind === 'cols' ? MAX_TRACKS : Infinity, count + sign)) });
+        port.setGridAt(grid.path, {
+          [kind]: Math.max(1, Math.min(kind === 'cols' ? MAX_TRACKS : Infinity, count + sign)),
+        });
       });
 
       return btn;
@@ -526,7 +554,15 @@ export function startColumnsOverlay(
 
     event.preventDefault();
     event.stopPropagation();
-    drag = { kind, path, from: { col: item.col, row: item.row }, down: { x: event.clientX, y: event.clientY }, moved: false, target: null, on: inside ? frameWin || win : win };
+    drag = {
+      kind,
+      path,
+      from: { col: item.col, row: item.row },
+      down: { x: event.clientX, y: event.clientY },
+      moved: false,
+      target: null,
+      on: inside ? frameWin || win : win,
+    };
 
     // A sheet over the frame while the handle is held: the frame under the pointer would take its moves.
     // Inside the canvas the handle holds the pointer itself (its moves are the page's), and the sheet keeps the cursor.
@@ -577,7 +613,10 @@ export function startColumnsOverlay(
     const rows = m.rows.length ? m.rows : [{ start: 0, end: m.box.h }];
 
     if (drag.kind === 'corner') {
-      drag.target = { col: [col[0], col[0] + spanTo(col[0], m.cols, fx) - 1], row: [row[0], row[0] + spanTo(row[0], rows, fy) - 1] };
+      drag.target = {
+        col: [col[0], col[0] + spanTo(col[0], m.cols, fx) - 1],
+        row: [row[0], row[0] + spanTo(row[0], rows, fy) - 1],
+      };
     } else {
       const wide = col[1] - col[0] + 1;
       const tall = row[1] - row[0] + 1;
@@ -746,7 +785,10 @@ export function startColumnsOverlay(
     place();
   }
 
-  const stopWatch = watch(() => [port.rev.value, port.selectedPath(), port.plusPath(), port.size?.()], () => win.requestAnimationFrame(find));
+  const stopWatch = watch(
+    () => [port.rev.value, port.selectedPath(), port.plusPath(), port.size?.()],
+    () => win.requestAnimationFrame(find)
+  );
 
   win.addEventListener('resize', schedule);
   win.addEventListener('scroll', schedule, true);

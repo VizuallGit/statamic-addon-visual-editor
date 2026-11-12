@@ -22,7 +22,8 @@ import { alpineUi as ui } from '../alpine/store.js';
         :title="ui.addLabel"
         :disabled="!ui.canEdit"
         @click.prevent.stop="ui.onAdd?.($event)"
-      >+</button>
+        >+</button
+      >
     </div>
 
     <div v-if="!ui.chips.length" class="sve-al-empty">{{ ui.emptyText }}</div>
@@ -45,7 +46,8 @@ import { alpineUi as ui } from '../alpine/store.js';
           class="sve-al-drop"
           :title="ui.dropTitle"
           @click.prevent.stop="ui.onDrop?.(chip.id)"
-        >−</button>
+          >−</button
+        >
       </span>
     </div>
   </div>
@@ -59,7 +61,10 @@ import { alpineUi as ui } from '../alpine/store.js';
   gap: 0.5rem;
   font-size: 0.6875rem;
 }
-.sve-al-empty { opacity: .6; padding: 0.25em 0.15em; }
+.sve-al-empty {
+  opacity: 0.6;
+  padding: 0.25em 0.15em;
+}
 .sve-al-head {
   display: flex;
   align-items: center;
@@ -69,21 +74,24 @@ import { alpineUi as ui } from '../alpine/store.js';
   padding-bottom: 0.55em;
   border-bottom: 1px solid rgba(128, 128, 128, 0.22);
 }
-.sve-al-gap { flex: 1 1 auto; min-width: 0; }
+.sve-al-gap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .sve-al-tag {
   flex: none;
   padding: 0.2em 0.45em;
   border-radius: 0.36em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
-  opacity: .8;
+  opacity: 0.8;
 }
 /* The names this tag declares. They are what every behaviour points at, so
    they sit at the top where you can read them before you pick one. */
 .sve-al-state {
   padding: 0.18em 0.5em;
   border-radius: 0.36em;
-  background: rgba(56, 88, 233, .28);
+  background: rgba(56, 88, 233, 0.28);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
   line-height: 1.4;
@@ -97,22 +105,35 @@ import { alpineUi as ui } from '../alpine/store.js';
   width: 1.6em;
   height: 1.6em;
   border-radius: 0.36em;
-  border: 1px solid rgba(128, 128, 128, .35);
+  border: 1px solid rgba(128, 128, 128, 0.35);
   cursor: pointer;
   font-size: 0.875rem;
   line-height: 1;
-  opacity: .75;
+  opacity: 0.75;
 }
-[data-sve-al-add]:hover { opacity: 1; background: rgba(128, 128, 128, .2); }
-[data-sve-al-add]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-[data-sve-al-add][disabled] { cursor: default; opacity: .35; }
+[data-sve-al-add]:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.2);
+}
+[data-sve-al-add]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+[data-sve-al-add][disabled] {
+  cursor: default;
+  opacity: 0.35;
+}
 .sve-al-chips {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.2rem 0.5rem 0 0;
 }
-.sve-al-chip-wrap { position: relative; display: flex; max-width: 100%; }
+.sve-al-chip-wrap {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+}
 [data-sve-al-chip] {
   all: unset;
   box-sizing: border-box;
@@ -123,21 +144,32 @@ import { alpineUi as ui } from '../alpine/store.js';
   min-width: 0;
   padding: 0.3em 0.6em;
   border-radius: 0.45em;
-  background: rgba(128, 128, 128, .16);
+  background: rgba(128, 128, 128, 0.16);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   line-height: 1.45;
   cursor: pointer;
 }
-[data-sve-al-chip]:hover { background: rgba(128, 128, 128, .28); }
-[data-sve-al-chip]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-[data-sve-al-chip][disabled] { cursor: default; opacity: .55; }
-.sve-al-name { flex: none; color: #7dd3fc; }
+[data-sve-al-chip]:hover {
+  background: rgba(128, 128, 128, 0.28);
+}
+[data-sve-al-chip]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+[data-sve-al-chip][disabled] {
+  cursor: default;
+  opacity: 0.55;
+}
+.sve-al-name {
+  flex: none;
+  color: #7dd3fc;
+}
 .sve-al-value {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: .8;
+  opacity: 0.8;
 }
 .sve-al-drop {
   all: unset;
@@ -151,7 +183,7 @@ import { alpineUi as ui } from '../alpine/store.js';
   width: 1.5em;
   height: 1.5em;
   border-radius: 50%;
-  border: 2px solid #1E1E21;
+  border: 2px solid #1e1e21;
   background: #e11d48;
   color: #fff;
   font-family: ui-sans-serif, system-ui, sans-serif;
@@ -161,6 +193,10 @@ import { alpineUi as ui } from '../alpine/store.js';
   cursor: pointer;
 }
 .sve-al-chip-wrap:hover .sve-al-drop,
-.sve-al-chip-wrap:focus-within .sve-al-drop { opacity: 1; }
-.sve-al-drop:hover { background: #f43f5e; }
+.sve-al-chip-wrap:focus-within .sve-al-drop {
+  opacity: 1;
+}
+.sve-al-drop:hover {
+  background: #f43f5e;
+}
 </style>

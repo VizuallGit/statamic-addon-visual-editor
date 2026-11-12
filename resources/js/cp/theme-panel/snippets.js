@@ -57,7 +57,9 @@ export async function loadSnippets(win) {
   try {
     const list = await request(win, LIST_API);
     const items = (Array.isArray(list?.items) ? list.items : []).filter((item) => item.kind === 'css');
-    const fresh = await Promise.all(items.map((item) => request(win, `${ONE_API}?name=${encodeURIComponent(item.name)}`)));
+    const fresh = await Promise.all(
+      items.map((item) => request(win, `${ONE_API}?name=${encodeURIComponent(item.name)}`))
+    );
 
     ui.snippets = mergeSnippetRows(ui.snippets, fresh);
   } catch {
@@ -94,7 +96,11 @@ async function save(win, row) {
       ? await request(win, ONE_API, { method: 'POST', body: JSON.stringify({ name, kind: 'css', css: row.body }) })
       : await request(win, `${ONE_API}/update`, {
           method: 'POST',
-          body: JSON.stringify({ name: row.savedName, css: row.body, ...(name !== row.savedName ? { rename: name } : {}) }),
+          body: JSON.stringify({
+            name: row.savedName,
+            css: row.body,
+            ...(name !== row.savedName ? { rename: name } : {}),
+          }),
         });
 
     row.name = made.name;

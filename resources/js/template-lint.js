@@ -29,8 +29,20 @@
 
 /** Tags that have no closing tag. */
 const VOID = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta',
-  'param', 'source', 'track', 'wbr',
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
 ]);
 
 /**
@@ -54,10 +66,27 @@ const IMPLICIT = new Set(['html', 'head', 'body']);
  * ever said. `collection:count` is the one that prints a number.
  */
 const PAIR_ONLY = new Set([
-  'if', 'unless', 'style_push', 'script_push', 'sve_defaults', 'once',
-  'noparse', 'foreach', 'forelse', 'loop', 'cache', 'nocache', 'scope',
-  'collection', 'nav', 'structure', 'taxonomy', 'users', 'search:results',
-  'form:create', 'form:errors',
+  'if',
+  'unless',
+  'style_push',
+  'script_push',
+  'sve_defaults',
+  'once',
+  'noparse',
+  'foreach',
+  'forelse',
+  'loop',
+  'cache',
+  'nocache',
+  'scope',
+  'collection',
+  'nav',
+  'structure',
+  'taxonomy',
+  'users',
+  'search:results',
+  'form:create',
+  'form:errors',
 ]);
 
 const SINGLE = new Set(['collection:count']);
@@ -273,9 +302,19 @@ function lintAntlers(src, tags, unclosed, problems, lists) {
 
   for (const open of stack) {
     if (pairOnly(open.name)) {
-      problems.push({ from: open.from, to: open.to, key: 'code_dock_problem_pair_unclosed', args: { name: open.name } });
+      problems.push({
+        from: open.from,
+        to: open.to,
+        key: 'code_dock_problem_pair_unclosed',
+        args: { name: open.name },
+      });
     } else if (isList(open)) {
-      problems.push({ from: open.from, to: open.to, key: 'code_dock_problem_list_unclosed', args: { name: open.name } });
+      problems.push({
+        from: open.from,
+        to: open.to,
+        key: 'code_dock_problem_list_unclosed',
+        args: { name: open.name },
+      });
     }
   }
 
@@ -298,12 +337,22 @@ function lintHtml(text, parser, branches, problems) {
   tree.iterate({
     enter(ref) {
       if (ref.name === 'MismatchedCloseTag') {
-        found.push({ from: ref.from, to: ref.to, key: 'code_dock_problem_tag_stray', args: { tag: tagNameAt(text, ref.from) } });
+        found.push({
+          from: ref.from,
+          to: ref.to,
+          key: 'code_dock_problem_tag_stray',
+          args: { tag: tagNameAt(text, ref.from) },
+        });
         return;
       }
 
       if (ref.name === 'IncompleteCloseTag') {
-        found.push({ from: ref.from, to: ref.to, key: 'code_dock_problem_tag_unfinished', args: { tag: tagNameAt(text, ref.from) } });
+        found.push({
+          from: ref.from,
+          to: ref.to,
+          key: 'code_dock_problem_tag_unfinished',
+          args: { tag: tagNameAt(text, ref.from) },
+        });
         return;
       }
 
@@ -420,22 +469,24 @@ export function lintTemplate(source, parser, options = {}) {
   const end = base + slice.length;
   const seen = new Set();
 
-  return problems
-    .filter((problem) => problem.from >= base && problem.from < end)
-    // A finding that reaches past the slice is underlined up to its edge.
-    .map((problem) => ({ ...problem, from: problem.from - base, to: Math.min(problem.to, end) - base }))
-    .sort((a, b) => a.from - b.from || a.to - b.to)
-    .filter((problem) => {
-      const id = `${problem.from}:${problem.key}`;
+  return (
+    problems
+      .filter((problem) => problem.from >= base && problem.from < end)
+      // A finding that reaches past the slice is underlined up to its edge.
+      .map((problem) => ({ ...problem, from: problem.from - base, to: Math.min(problem.to, end) - base }))
+      .sort((a, b) => a.from - b.from || a.to - b.to)
+      .filter((problem) => {
+        const id = `${problem.from}:${problem.key}`;
 
-      if (seen.has(id)) {
-        return false;
-      }
+        if (seen.has(id)) {
+          return false;
+        }
 
-      seen.add(id);
+        seen.add(id);
 
-      return true;
-    });
+        return true;
+      })
+  );
 }
 
 /**

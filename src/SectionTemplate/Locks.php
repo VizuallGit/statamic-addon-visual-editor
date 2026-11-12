@@ -30,7 +30,7 @@ final class Locks
             return false;
         }
 
-        foreach (static::unlockedPrefixes() as $prefix) {
+        foreach (self::unlockedPrefixes() as $prefix) {
             if ($handle === $prefix || str_starts_with($handle, $prefix.'/')) {
                 return false;
             }
@@ -79,17 +79,17 @@ final class Locks
 
     public static function stripLockMarker(string $contents): string
     {
-        return static::stripOneMarker($contents, 'sve-locked');
+        return self::stripOneMarker($contents, 'sve-locked');
     }
 
     public static function stripUnlockMarker(string $contents): string
     {
-        return static::stripOneMarker($contents, 'sve-unlocked');
+        return self::stripOneMarker($contents, 'sve-unlocked');
     }
 
     public static function stripMarkers(string $contents): string
     {
-        return static::stripUnlockMarker(static::stripLockMarker($contents));
+        return self::stripUnlockMarker(self::stripLockMarker($contents));
     }
 
     public static function fileIsLocked(string $path): bool
@@ -117,8 +117,8 @@ final class Locks
             return;
         }
 
-        $contents = static::stripMarkers($contents);
-        $marker = static::markerFor($locked, $handle);
+        $contents = self::stripMarkers($contents);
+        $marker = self::markerFor($locked, $handle);
 
         if ($marker !== null) {
             $contents = $marker."\n".$contents;
@@ -132,7 +132,7 @@ final class Locks
     }
 
     /**
-     * @return array<string, string>  absolute path → file contents
+     * @return array<string, string> absolute path → file contents
      */
     public static function lockedSnapshots(): array
     {
@@ -154,7 +154,7 @@ final class Locks
 
             $full = $file->getPathname();
 
-            if (static::fileIsLocked($full)) {
+            if (self::fileIsLocked($full)) {
                 $out[$full] = (string) file_get_contents($full);
             }
         }
@@ -193,7 +193,7 @@ final class Locks
             return true;
         }
 
-        return $handle !== '' && static::defaultsLocked($handle);
+        return $handle !== '' && self::defaultsLocked($handle);
     }
 
     /**
@@ -202,17 +202,17 @@ final class Locks
     public static function markerFor(bool $locked, string $handle): ?string
     {
         if ($handle === '') {
-            return $locked ? static::LOCK_MARKER : null;
+            return $locked ? self::LOCK_MARKER : null;
         }
 
-        $defaultsLocked = static::defaultsLocked($handle);
+        $defaultsLocked = self::defaultsLocked($handle);
 
         if ($locked && ! $defaultsLocked) {
-            return static::LOCK_MARKER;
+            return self::LOCK_MARKER;
         }
 
         if (! $locked && $defaultsLocked) {
-            return static::UNLOCK_MARKER;
+            return self::UNLOCK_MARKER;
         }
 
         return null;

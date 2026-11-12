@@ -82,8 +82,14 @@ test('a class is one chip, whichever file it is written in', () => {
     { name: 'case-card', file: 'base.css', selector: '.case-card h2', css: 'color: red;', kind: 'class' },
   ]);
 
-  assert.deepEqual(filterRows(rows, { chip: 'class' }).map((r) => r.name), ['btn', 'wrapper']);
-  assert.deepEqual(filterRows(rows, { chip: 'ambient' }).map((r) => r.name), ['case-card']);
+  assert.deepEqual(
+    filterRows(rows, { chip: 'class' }).map((r) => r.name),
+    ['btn', 'wrapper']
+  );
+  assert.deepEqual(
+    filterRows(rows, { chip: 'ambient' }).map((r) => r.name),
+    ['case-card']
+  );
 
   // Every row lands in exactly one of the two chips.
   for (const row of rows) {
@@ -101,18 +107,33 @@ test('there is no All and no Utilities: Classes comes first', () => {
 
 test('a class made only of @apply is not empty', () => {
   const [row] = classRows([
-    { name: 'card', file: 'site.css', selector: '@utility card', css: '@apply relative font-heading;', kind: 'utility' },
+    {
+      name: 'card',
+      file: 'site.css',
+      selector: '@utility card',
+      css: '@apply relative font-heading;',
+      kind: 'utility',
+    },
   ]);
   const labels = { tw_one: 'Tailwind class', tw_many: 'Tailwind classes', no_props: 'empty' };
 
   assert.deepEqual(row.classes, ['relative', 'font-heading']);
   assert.equal(rowSummary(row, labels), 'site.css · 2 Tailwind classes');
-  assert.deepEqual(filterRows([row], { chip: 'class', query: 'font-heading' }).map((r) => r.name), ['card']);
+  assert.deepEqual(
+    filterRows([row], { chip: 'class', query: 'font-heading' }).map((r) => r.name),
+    ['card']
+  );
 });
 
 test('a class with both says both, and one with neither says empty', () => {
   const [both] = classRows([
-    { name: 'card', file: 'site.css', selector: '@utility card', css: '@apply relative;\ncolor: red;', kind: 'utility' },
+    {
+      name: 'card',
+      file: 'site.css',
+      selector: '@utility card',
+      css: '@apply relative;\ncolor: red;',
+      kind: 'utility',
+    },
   ]);
   const [none] = classRows([{ name: 'gone', file: 'site.css', selector: '@utility gone', css: '', kind: 'utility' }]);
   const labels = { prop_one: 'property', tw_one: 'Tailwind class', no_props: 'empty' };
@@ -127,10 +148,23 @@ test('search looks at the name, the file and the properties', () => {
     { name: 'btn', file: 'classes.css', selector: '.btn', css: 'gap: 1em;', kind: 'class' },
   ]);
 
-  assert.deepEqual(filterRows(rows, { query: 'wrap' }).map((r) => r.name), ['wrapper']);
-  assert.deepEqual(filterRows(rows, { query: '.wrap' }).map((r) => r.name), ['wrapper'], 'a typed dot is not a miss');
-  assert.deepEqual(filterRows(rows, { chip: 'class', query: 'classes.css' }).map((r) => r.name), ['btn']);
-  assert.deepEqual(filterRows(rows, { query: 'padding' }).map((r) => r.name), ['wrapper']);
+  assert.deepEqual(
+    filterRows(rows, { query: 'wrap' }).map((r) => r.name),
+    ['wrapper']
+  );
+  assert.deepEqual(
+    filterRows(rows, { query: '.wrap' }).map((r) => r.name),
+    ['wrapper'],
+    'a typed dot is not a miss'
+  );
+  assert.deepEqual(
+    filterRows(rows, { chip: 'class', query: 'classes.css' }).map((r) => r.name),
+    ['btn']
+  );
+  assert.deepEqual(
+    filterRows(rows, { query: 'padding' }).map((r) => r.name),
+    ['wrapper']
+  );
 });
 
 test('the summary says where it lives and how much it sets', () => {
@@ -165,7 +199,9 @@ test('a class only the dock history still writes is not called unused', () => {
 
 test('usage reads as what it is', () => {
   const [used] = applyUsage(
-    classRows([{ name: 'wrapper', file: 'site.css', selector: '@utility wrapper', css: 'padding: 0;', kind: 'utility' }]),
+    classRows([
+      { name: 'wrapper', file: 'site.css', selector: '@utility wrapper', css: 'padding: 0;', kind: 'utility' },
+    ]),
     { wrapper: { now: 19, history: 139, files: ['resources/views/a.antlers.html'] } }
   );
 
@@ -174,7 +210,9 @@ test('usage reads as what it is', () => {
   assert.deepEqual(used.where, ['resources/views/a.antlers.html']);
 
   const [dead] = applyUsage(
-    classRows([{ name: 'split-gap-md', file: 'site.css', selector: '@utility split-gap-md', css: 'gap: 0;', kind: 'utility' }]),
+    classRows([
+      { name: 'split-gap-md', file: 'site.css', selector: '@utility split-gap-md', css: 'gap: 0;', kind: 'utility' },
+    ]),
     { 'split-gap-md': { now: 0, history: 0, files: [] } }
   );
 
@@ -182,19 +220,34 @@ test('usage reads as what it is', () => {
   assert.equal(chipKeeps('unused', dead), true);
 });
 
-test('the tab owns two files: site.css utilities and the site\'s own classes', () => {
+test("the tab owns two files: site.css utilities and the site's own classes", () => {
   const kept = ownedRules(
     [
-      { name: 'wrapper', file: 'resources/css/site.css', selector: '@utility wrapper', css: 'padding: 0;', kind: 'utility' },
+      {
+        name: 'wrapper',
+        file: 'resources/css/site.css',
+        selector: '@utility wrapper',
+        css: 'padding: 0;',
+        kind: 'utility',
+      },
       { name: 'btn', file: 'resources/css/custom-classes.css', selector: '.btn', css: 'gap: 1em;', kind: 'rule' },
-      { name: 'hero', file: 'resources/views/partials/page_sections/hero.antlers.html', selector: '.hero', css: '', kind: 'rule' },
+      {
+        name: 'hero',
+        file: 'resources/views/partials/page_sections/hero.antlers.html',
+        selector: '.hero',
+        css: '',
+        kind: 'rule',
+      },
       { name: 'cp-input', file: 'resources/css/cp.css', selector: '.dark .cp-input', css: '', kind: 'rule' },
       { name: 'link-parent', file: 'resources/css/base.css', selector: '.link-parent::after', css: '', kind: 'rule' },
     ],
     { entry: 'site.css', classes: 'custom-classes.css' }
   );
 
-  assert.deepEqual(kept.map((r) => r.name), ['wrapper', 'btn']);
+  assert.deepEqual(
+    kept.map((r) => r.name),
+    ['wrapper', 'btn']
+  );
 });
 
 test('a plain rule in site.css is not a class the tab offers', () => {
@@ -232,6 +285,9 @@ test('a class first used is a site utility the built sheet lacks, with or withou
   const utilities = new Set(['card', 'wrapper']);
   const built = new Set(['wrapper', 'pt-500']);
 
-  assert.deepEqual(firstUsedClasses(['card', 'md:card', 'wrapper', 'pt-500', 'hero-own'], utilities, built), ['card', 'md:card']);
+  assert.deepEqual(firstUsedClasses(['card', 'md:card', 'wrapper', 'pt-500', 'hero-own'], utilities, built), [
+    'card',
+    'md:card',
+  ]);
   assert.deepEqual(firstUsedClasses(['wrapper'], utilities, built), []);
 });

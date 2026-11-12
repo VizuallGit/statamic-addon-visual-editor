@@ -228,7 +228,8 @@ export function unlockHtml(html, node) {
 
   const from = node.wrapFrom ?? node.from;
   const markerLine = html.lastIndexOf('\n', node.lockFrom - 1) + 1;
-  const ownLine = /^[ \t]*$/.test(html.slice(markerLine, node.lockFrom)) && html.slice(node.lockFrom, from).includes('\n');
+  const ownLine =
+    /^[ \t]*$/.test(html.slice(markerLine, node.lockFrom)) && html.slice(node.lockFrom, from).includes('\n');
 
   if (ownLine) {
     const elementLine = html.lastIndexOf('\n', from - 1) + 1;

@@ -2,23 +2,23 @@
 
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
-use MarioHamann\StatamicVisualEditor\AiChat;
-use MarioHamann\StatamicVisualEditor\DockGhost;
-use MarioHamann\StatamicVisualEditor\AiCopy;
-use MarioHamann\StatamicVisualEditor\AnimationPresets;
-use MarioHamann\StatamicVisualEditor\CollectionPresets;
-use MarioHamann\StatamicVisualEditor\RowLimits;
-use MarioHamann\StatamicVisualEditor\SetMeta;
-use MarioHamann\StatamicVisualEditor\SetPreviewImages;
-use MarioHamann\StatamicVisualEditor\Stores;
 use Illuminate\Support\Facades\View;
 use Inertia\Inertia;
+use MarioHamann\StatamicVisualEditor\AiChat;
+use MarioHamann\StatamicVisualEditor\AiCopy;
+use MarioHamann\StatamicVisualEditor\AnimationPresets;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Breakpoints\Store;
+use MarioHamann\StatamicVisualEditor\CollectionPresets;
+use MarioHamann\StatamicVisualEditor\DockGhost;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\RowLimits;
 use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
+use MarioHamann\StatamicVisualEditor\SetMeta;
+use MarioHamann\StatamicVisualEditor\SetPreviewImages;
 use MarioHamann\StatamicVisualEditor\Shortcuts;
+use MarioHamann\StatamicVisualEditor\Stores;
 use MarioHamann\StatamicVisualEditor\ToolbarModes;
 use Statamic\Facades\User;
 use Statamic\Statamic;

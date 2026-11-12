@@ -187,7 +187,10 @@ export function indentOf(source, from) {
 
 /** The element's opening tag, as written and with Antlers blanked. */
 export function openTagOf(ctx) {
-  return { text: ctx.source.slice(ctx.node.from, ctx.node.openTo), masked: ctx.masked.slice(ctx.node.from, ctx.node.openTo) };
+  return {
+    text: ctx.source.slice(ctx.node.from, ctx.node.openTo),
+    masked: ctx.masked.slice(ctx.node.from, ctx.node.openTo),
+  };
 }
 
 export function hasAttr(maskedOpen, name) {
@@ -403,7 +406,11 @@ export function fieldLines(rows, row, indent, depth) {
       return [];
     }
 
-    return [`${indent}{{ ${row.var} }}`, ...bodyLines(rows, row, `${indent}${INDENT}`, depth + 1), `${indent}{{ /${row.var} }}`];
+    return [
+      `${indent}{{ ${row.var} }}`,
+      ...bodyLines(rows, row, `${indent}${INDENT}`, depth + 1),
+      `${indent}{{ /${row.var} }}`,
+    ];
   }
 
   const tag = BLOCK_TEXT_TYPES.has(row.type) ? 'div' : TITLE_HANDLE.test(row.var) ? 'h3' : 'p';

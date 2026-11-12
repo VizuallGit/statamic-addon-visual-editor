@@ -54,7 +54,11 @@ const shown = computed(() => [...CONTAINER_SIZES.map((size) => containerVariant(
 const nowAt = computed(() => {
   const width = around.value?.rem ?? Infinity;
 
-  return shown.value.filter((variant) => containerRem(variant) > width).sort((a, b) => containerRem(a) - containerRem(b))[0] || '';
+  return (
+    shown.value
+      .filter((variant) => containerRem(variant) > width)
+      .sort((a, b) => containerRem(a) - containerRem(b))[0] || ''
+  );
 });
 
 /* ---------------- a size of its own ---------------- */
@@ -64,9 +68,12 @@ const typed = ref('');
 const refused = ref(false);
 const input = ref(null);
 
-watch(() => props.path, () => {
-  typing.value = false;
-});
+watch(
+  () => props.path,
+  () => {
+    typing.value = false;
+  }
+);
 
 async function toggleCustom() {
   typing.value = !typing.value;
@@ -127,12 +134,9 @@ function toggle() {
       <span class="fg-cq__switch" aria-hidden="true"></span>
     </button>
     <div v-if="on" class="fg-seg bm-divided" role="group" :aria-label="port.t('container_queries')">
-      <button
-        type="button"
-        :aria-pressed="!now"
-        data-sve-build-container-size=""
-        @click="port.setContainerSize('')"
-      >{{ port.t('container_all') }}</button>
+      <button type="button" :aria-pressed="!now" data-sve-build-container-size="" @click="port.setContainerSize('')">{{
+        port.t('container_all')
+      }}</button>
       <button
         v-for="size in CONTAINER_SIZES"
         :key="size.key"
@@ -142,7 +146,8 @@ function toggle() {
         :data-now="nowAt === containerVariant(size.key) || undefined"
         :data-sve-build-container-size="size.key"
         @click="port.setContainerSize(containerVariant(size.key))"
-      >&lt; {{ size.rem }}</button>
+        >&lt; {{ size.rem }}</button
+      >
       <button
         v-for="variant in customs"
         :key="variant"
@@ -152,7 +157,8 @@ function toggle() {
         :data-now="nowAt === variant || undefined"
         :data-sve-build-container-size="variant"
         @click="port.setContainerSize(variant)"
-      >&lt; {{ containerLength(variant) }}</button>
+        >&lt; {{ containerLength(variant) }}</button
+      >
       <button
         type="button"
         class="fg-more"
@@ -161,7 +167,8 @@ function toggle() {
         :title="port.t('container_custom')"
         data-sve-build-container-more
         @click="toggleCustom"
-      >⋯</button>
+        >⋯</button
+      >
     </div>
     <div v-if="on && typing" class="fg-classpick" data-sve-build-container-custom>
       <input
@@ -174,7 +181,7 @@ function toggle() {
         @input="refused = false"
         @keydown.enter.prevent="submit"
         @keydown.esc="typing = false"
-      >
+      />
       <p v-if="refused" class="fg-hint" role="alert">{{ port.t('container_custom_unit') }}</p>
     </div>
   </div>

@@ -78,7 +78,7 @@ class SiteBuildTest extends TestCase
             ."    at Te (file:///x/node_modules/tailwindcss/dist/chunk.mjs:1:3861)\n"
             ."    at async tr (file:///x/node_modules/tailwindcss/dist/chunk.mjs:21:2743)\n";
 
-        $text = SiteBuild::failureText($stderr, "vite v8 building client environment for production...");
+        $text = SiteBuild::failureText($stderr, 'vite v8 building client environment for production...');
 
         $this->assertStringContainsString('CssSyntaxError: Missing closing } at .lr-broken', $text);
         $this->assertStringContainsString('[plugin @tailwindcss/vite:generate:build] resources/css/site.css', $text);

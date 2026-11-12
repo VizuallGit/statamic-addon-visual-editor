@@ -71,7 +71,19 @@ export function enableGhost(win, view) {
     return;
   }
 
-  const state = { win, view, gen: 0, timer: 0, abort: null, fieldsFor: null, fields: null, stopped: false, told: false, editing: false, counted: 0 };
+  const state = {
+    win,
+    view,
+    gen: 0,
+    timer: 0,
+    abort: null,
+    fieldsFor: null,
+    fields: null,
+    stopped: false,
+    told: false,
+    editing: false,
+    counted: 0,
+  };
 
   states.set(view, state);
   live.add(state);
@@ -115,7 +127,9 @@ function holdPalette(win) {
   }
 
   held.add(win);
-  win.Statamic.$commandPalette.preventIf(() => [...live].some((state) => state.win === win && (state.view.hasFocus || state.editing)));
+  win.Statamic.$commandPalette.preventIf(() =>
+    [...live].some((state) => state.win === win && (state.view.hasFocus || state.editing))
+  );
 }
 
 /* ---- The grey text itself ------------------------------------------------- */
@@ -177,7 +191,9 @@ export function parts() {
     },
     provide: (self) =>
       EditorView.decorations.from(self, (value) =>
-        value ? Decoration.set([Decoration.widget({ widget: new GhostWidget(value), side: 1 }).range(value.at)]) : Decoration.none
+        value
+          ? Decoration.set([Decoration.widget({ widget: new GhostWidget(value), side: 1 }).range(value.at)])
+          : Decoration.none
       ),
   });
 
@@ -277,7 +293,10 @@ function typed(update) {
   // Enter is plain `input` (insertNewlineAndIndent); `input.toolbar` — the
   // dock's buttons and our own Tab — is not counted.
   return update.transactions.some(
-    (tr) => tr.isUserEvent('input.type') || tr.isUserEvent('input.complete') || tr.annotation(Transaction.userEvent) === 'input'
+    (tr) =>
+      tr.isUserEvent('input.type') ||
+      tr.isUserEvent('input.complete') ||
+      tr.annotation(Transaction.userEvent) === 'input'
   );
 }
 
@@ -301,7 +320,10 @@ function cancel(state) {
 
 /** The pane's own lists hold the caret: the Tailwind/Antlers list or help mode's popup is open, and Tab is theirs. */
 function listOpen(state) {
-  return cm.autocomplete.completionStatus(state.view.state) === 'active' || !!state.win.document.querySelector('[data-sve-help-popup], [data-sve-help-loop]');
+  return (
+    cm.autocomplete.completionStatus(state.view.state) === 'active' ||
+    !!state.win.document.querySelector('[data-sve-help-popup], [data-sve-help-loop]')
+  );
 }
 
 /** Nothing else has the caret: the editor focused, no selection, no list or box open over it. */
@@ -334,7 +356,9 @@ async function ask(state, gen) {
 
   if (instant) {
     ghostIds += 1;
-    view.dispatch({ effects: parts().setGhost.of({ text: instant, at: head, id: ghostIds, line: lineBefore(full, pos) }) });
+    view.dispatch({
+      effects: parts().setGhost.of({ text: instant, at: head, id: ghostIds, line: lineBefore(full, pos) }),
+    });
     countGhost(win, 'shown');
 
     return;
@@ -346,7 +370,8 @@ async function ask(state, gen) {
     return;
   }
 
-  const writing = () => view.dispatch({ effects: parts().setGhost.of({ text: '', at: head, pending: t(win, 'code_dock_ghost_writing') }) });
+  const writing = () =>
+    view.dispatch({ effects: parts().setGhost.of({ text: '', at: head, pending: t(win, 'code_dock_ghost_writing') }) });
   let slow = 0;
 
   // A described block takes seconds: say so where it will stand. Any other
@@ -482,9 +507,11 @@ function openEdit(state) {
   state.editing = true;
 
   import('./ghost-edit.js')
-    .then((edit) => edit.openEditBox(state, () => {
-      state.editing = false;
-    }))
+    .then((edit) =>
+      edit.openEditBox(state, () => {
+        state.editing = false;
+      })
+    )
     .catch(() => {
       state.editing = false;
     });

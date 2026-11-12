@@ -58,7 +58,10 @@ export function watchClassesFirstUsed(win) {
         // Another build was running, and it may not have seen this file: the next save asks again.
         missing.forEach((name) => tried.delete(name));
       } else if (build) {
-        toast(win, 'error', 'tw_utility_not_built', { name: missing.join(' '), reason: t(win, `theme_utilities_reason_${build.reason || 'error'}`) });
+        toast(win, 'error', 'tw_utility_not_built', {
+          name: missing.join(' '),
+          reason: t(win, `theme_utilities_reason_${build.reason || 'error'}`),
+        });
       }
     } catch {
       toast(win, 'error', 'tw_utility_failed');

@@ -7,6 +7,7 @@ use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 use Statamic\Facades\Blueprint;
 use Statamic\Fields\Field;
+use Statamic\Fields\Fieldset;
 use Statamic\Fields\Value;
 
 class VisualEditTest extends TestCase
@@ -703,7 +704,7 @@ class VisualEditTest extends TestCase
 
         // The referenced field carries nothing the lookup needs — the sets live
         // entirely in the override above.
-        $fieldset = (new \Statamic\Fields\Fieldset)->setHandle('shared')->setContents([
+        $fieldset = (new Fieldset)->setHandle('shared')->setContents([
             'fields' => [
                 ['handle' => 'blocks', 'field' => ['type' => 'replicator', 'sets' => []]],
             ],

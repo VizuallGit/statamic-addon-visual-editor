@@ -23,7 +23,12 @@ export const LEVEL_TOKENS = HEADINGS.flatMap((h) => [`${h}-weight`, `${h}-line-h
  * (font, weight, line height) or to the CSS default (size-100, none, normal).
  */
 export const TITLE_TOKENS = [
-  'title-font', 'title-size', 'title-weight', 'title-line-height', 'title-text-transform', 'title-letter-spacing',
+  'title-font',
+  'title-size',
+  'title-weight',
+  'title-line-height',
+  'title-text-transform',
+  'title-letter-spacing',
 ];
 
 /**
@@ -34,10 +39,22 @@ export const TITLE_TOKENS = [
  * the body's, and then the section's, text color.
  */
 export const TYPE_TOKENS = [
-  'body-color', 'body-bg',
-  'font-base', 'font-size', 'body-weight', 'line-height',
-  'font-heading', 'heading-weight', 'heading-line-height', 'heading-text-transform',
-  'font-size-h1', 'font-size-h2', 'font-size-h3', 'font-size-h4', 'font-size-h5', 'font-size-h6',
+  'body-color',
+  'body-bg',
+  'font-base',
+  'font-size',
+  'body-weight',
+  'line-height',
+  'font-heading',
+  'heading-weight',
+  'heading-line-height',
+  'heading-text-transform',
+  'font-size-h1',
+  'font-size-h2',
+  'font-size-h3',
+  'font-size-h4',
+  'font-size-h5',
+  'font-size-h6',
   ...LEVEL_TOKENS,
   ...TITLE_TOKENS,
 ];
@@ -49,14 +66,22 @@ export const TYPE_TOKENS = [
  * `.block-title` in type.css: `var(--title-size, var(--size-100))`).
  */
 export const TYPE_DEFAULTS = {
-  'body-color': 'var(--color-primary-900)', 'body-bg': 'var(--color-white)',
-  'body-weight': '400', 'heading-weight': '700', 'heading-line-height': '1.1',
-  'title-size': 'var(--size-100)', 'title-letter-spacing': 'normal',
+  'body-color': 'var(--color-primary-900)',
+  'body-bg': 'var(--color-white)',
+  'body-weight': '400',
+  'heading-weight': '700',
+  'heading-line-height': '1.1',
+  'title-size': 'var(--size-100)',
+  'title-letter-spacing': 'normal',
 };
 
 /** The letter spacings the Title offers, narrowest first — the same five as the block's own field. */
 export const TRACKINGS = [
-  ['ultra_narrow', '-0.05em'], ['narrow', '-0.025em'], ['normal', 'normal'], ['wide', '0.05em'], ['ultra_wide', '0.1em'],
+  ['ultra_narrow', '-0.05em'],
+  ['narrow', '-0.025em'],
+  ['normal', 'normal'],
+  ['wide', '0.05em'],
+  ['ultra_wide', '0.1em'],
 ];
 
 export const BUTTON_TOKENS = ['button-font', 'button-size', 'button-weight', 'button-radius', 'button-transform'];
@@ -68,29 +93,60 @@ export const BUTTON_TOKENS = ['button-font', 'button-size', 'button-weight', 'bu
  * reads the button's.
  */
 export const INPUT_TOKENS = [
-  'input-bg', 'input-bg-opacity', 'input-color', 'input-size', 'input-radius',
-  'input-border-width', 'input-border-color', 'input-focus', 'input-accent', 'input-check-size',
+  'input-bg',
+  'input-bg-opacity',
+  'input-color',
+  'input-size',
+  'input-radius',
+  'input-border-width',
+  'input-border-color',
+  'input-focus',
+  'input-accent',
+  'input-check-size',
 ];
 
 /** How much of the field's background shows, solid first. */
 export const OPACITIES = ['100%', '90%', '75%', '50%', '25%', '0%'];
 
 /** The field's border width: px, the one unit a hairline is allowed. */
-export const BORDERS = [['none', '0'], ['thin', '1px'], ['thick', '2px']];
+export const BORDERS = [
+  ['none', '0'],
+  ['thin', '1px'],
+  ['thick', '2px'],
+];
 
 /** Checkbox and radio size, relative to the text beside them. */
-export const CHECK_SIZES = [['small', '1em'], ['normal', '1.1em'], ['large', '1.4em']];
+export const CHECK_SIZES = [
+  ['small', '1em'],
+  ['normal', '1.1em'],
+  ['large', '1.4em'],
+];
 
 /** Tailwind's font weights, what `var(--font-weight-*)` means. */
 export const WEIGHTS = [
-  ['thin', '100'], ['extralight', '200'], ['light', '300'], ['normal', '400'], ['medium', '500'],
-  ['semibold', '600'], ['bold', '700'], ['extrabold', '800'], ['black', '900'],
+  ['thin', '100'],
+  ['extralight', '200'],
+  ['light', '300'],
+  ['normal', '400'],
+  ['medium', '500'],
+  ['semibold', '600'],
+  ['bold', '700'],
+  ['extrabold', '800'],
+  ['black', '900'],
 ];
 
 /** Tailwind's radii, what `var(--radius-*)` means, plus none and pill. */
 export const RADII = [
-  ['none', '0'], ['xs', '0.125rem'], ['sm', '0.25rem'], ['md', '0.375rem'], ['lg', '0.5rem'],
-  ['xl', '0.75rem'], ['2xl', '1rem'], ['3xl', '1.5rem'], ['4xl', '2rem'], ['full', '999em'],
+  ['none', '0'],
+  ['xs', '0.125rem'],
+  ['sm', '0.25rem'],
+  ['md', '0.375rem'],
+  ['lg', '0.5rem'],
+  ['xl', '0.75rem'],
+  ['2xl', '1rem'],
+  ['3xl', '1.5rem'],
+  ['4xl', '2rem'],
+  ['full', '999em'],
 ];
 
 /**
@@ -111,7 +167,10 @@ export function literalOf(value, list, prefix) {
 
 /** The first family of a font stack, unquoted: `'Inter', 'Helvetica'` → `Inter`. */
 export function firstFamily(stack) {
-  return String(stack || '').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+  return String(stack || '')
+    .split(',')[0]
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
 }
 
 /**
@@ -119,7 +178,11 @@ export function firstFamily(stack) {
  * (`'Inter', 'Helvetica', 'Arial'`, `Roboto`) → `'Roboto', 'Helvetica', 'Arial'`.
  */
 export function withFamily(stack, family) {
-  const rest = String(stack || '').split(',').slice(1).map((s) => s.trim()).filter(Boolean);
+  const rest = String(stack || '')
+    .split(',')
+    .slice(1)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   return [`'${String(family).replace(/'/g, '')}'`, ...rest].join(', ');
 }
@@ -134,7 +197,8 @@ export function sizeRef(value) {
  * every render — the same list as its MANAGED pattern (app/Tags/ThemeTokens.php
  * on the site), so what the panel paints is what the page will get.
  */
-const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width(?:-[\w-]+)?|gutter|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-color|body-bg|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius|input-[\w-]+)$/;
+const MANAGED =
+  /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width(?:-[\w-]+)?|gutter|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-color|body-bg|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius|input-[\w-]+)$/;
 
 export function isManaged(name) {
   return MANAGED.test(name);

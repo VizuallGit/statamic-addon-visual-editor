@@ -1,16 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  latencySummary,
-  prune,
-  ratePerSecond,
-  summarizeLongTasks,
-} from '../../resources/js/cp/perf/editor-vitals.js';
+import { latencySummary, prune, ratePerSecond, summarizeLongTasks } from '../../resources/js/cp/perf/editor-vitals.js';
 
 test('long tasks are counted over the window, longest and total kept', () => {
   const tasks = [
-    { start: 0, duration: 80 },        // ended long ago: out
-    { start: 9500, duration: 120 },    // ended at 9620, before the window opens at 10000: out
+    { start: 0, duration: 80 }, // ended long ago: out
+    { start: 9500, duration: 120 }, // ended at 9620, before the window opens at 10000: out
     { start: 15000, duration: 60 },
     { start: 19900, duration: 300 },
   ];
@@ -41,5 +36,8 @@ test('latency keeps the last and the median', () => {
 
 test('prune drops what fell out of the window', () => {
   assert.deepEqual(prune([1, 5, 9, 12], 12, 5), [9, 12]);
-  assert.deepEqual(prune([{ t: 1 }, { t: 8 }], 10, 5, (x) => x.t), [{ t: 8 }]);
+  assert.deepEqual(
+    prune([{ t: 1 }, { t: 8 }], 10, 5, (x) => x.t),
+    [{ t: 8 }]
+  );
 });

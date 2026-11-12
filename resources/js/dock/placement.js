@@ -15,7 +15,15 @@
  */
 import { CODE_PANES } from '../cp/panel-zones/layout.js';
 import { BOTTOM_ZONE_ID, CODE_SLOT_ID, RIGHT_DOCK_ID } from '../lib/ids.js';
-import { addToZone, beginPaneDrag, codeTogether, settleZones, storedZones, zoneGripTitle, zonesOn } from '../panel-zones.js';
+import {
+  addToZone,
+  beginPaneDrag,
+  codeTogether,
+  settleZones,
+  storedZones,
+  zoneGripTitle,
+  zonesOn,
+} from '../panel-zones.js';
 import { t } from '../lib/i18n.js';
 
 export const SPLIT_ATTR = 'data-sve-dock-split';
@@ -23,10 +31,10 @@ const GRIP_ATTR = 'data-sve-zone-grip';
 const OFF_ATTR = 'data-sve-zone-off';
 
 const GRIP =
-  '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
-  + '<circle cx="9" cy="6" r="2"/><circle cx="15" cy="6" r="2"/>'
-  + '<circle cx="9" cy="12" r="2"/><circle cx="15" cy="12" r="2"/>'
-  + '<circle cx="9" cy="18" r="2"/><circle cx="15" cy="18" r="2"/></svg>';
+  '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+  '<circle cx="9" cy="6" r="2"/><circle cx="15" cy="6" r="2"/>' +
+  '<circle cx="9" cy="12" r="2"/><circle cx="15" cy="12" r="2"/>' +
+  '<circle cx="9" cy="18" r="2"/><circle cx="15" cy="18" r="2"/></svg>';
 
 let watch = null;
 
@@ -73,7 +81,9 @@ function syncGrips(win, dock) {
   };
 
   place(dock.querySelector('[data-sve-code-bar]'), 'code');
-  CODE_PANES.forEach((handle) => place(paneEl(dock, handle)?.querySelector('[data-sve-code-pane-label]'), `code_${handle}`));
+  CODE_PANES.forEach((handle) =>
+    place(paneEl(dock, handle)?.querySelector('[data-sve-code-pane-label]'), `code_${handle}`)
+  );
 
   if (dock._sveZoneGripBound) {
     return;

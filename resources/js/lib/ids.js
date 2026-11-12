@@ -45,8 +45,7 @@ export const LP_SIDE_DEFAULT_REM = 22;
 /** Idle icon opacity — same for toolbar + device chrome. */
 export const LP_ICON_IDLE_OPACITY = '0.7';
 export const LP_ICON_LOCKED_OPACITY = '0.25';
-export const LP_PRIMARY_FLAT =
-  'color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent)';
+export const LP_PRIMARY_FLAT = 'color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent)';
 
 // Right-hand panels
 export const SECTION_PICKER_ID = '__sve-section-picker';
@@ -106,8 +105,7 @@ export const LP_CONTROL_H = LP_CHROME_H - LP_CONTROL_PAD * 2;
 /** Count disc on the comments icon. Idle = same metal as the glyph, dark type; open = pale blue. */
 export const COMMENTS_BADGE_FG = 'var(--theme-color-primary, #4530D8)';
 export const COMMENTS_BADGE_IDLE_TYPE = '#18181b';
-export const COMMENTS_BADGE_ACTIVE_BG =
-  'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
+export const COMMENTS_BADGE_ACTIVE_BG = 'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
 /**
  * Ens mellemrum mellem topbar-items (ikoner, device/zoom, Save, go-back).
  * Ikke ekstra margin på udvidede felter — det gav skæve huller omkring Globals.
@@ -125,7 +123,11 @@ export const HEADER_FRAME_PREFIX = '__sve-frame-';
  * Per-user icons left out of the topbar, one list per mode of Live Preview,
  * JSON [tab key, …]; unset = every icon the mode may have shown.
  */
-export const TOOLBAR_HIDDEN_KEYS = { content: 'sve-toolbar-hidden-content', build: 'sve-toolbar-hidden-build', html: 'sve-toolbar-hidden-html' };
+export const TOOLBAR_HIDDEN_KEYS = {
+  content: 'sve-toolbar-hidden-content',
+  build: 'sve-toolbar-hidden-build',
+  html: 'sve-toolbar-hidden-html',
+};
 /** The old per-user order of the topbar icons, JSON [tab key, …] — read once and carried into TOOLBAR_GROUPS_KEY. */
 export const TOOLBAR_ORDER_KEY = 'sve-toolbar-order';
 /** Per-user groups of the topbar icons, JSON [{ id: 'g-…', name, tools: [tab key, …] }]; unset = one group, drawn order. */

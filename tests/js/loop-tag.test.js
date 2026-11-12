@@ -8,7 +8,9 @@ import { lintTemplate } from '../../resources/js/template-lint.js';
 
 /** The first loop of a kind, shaped like the tree's row (`antlers: 'loop'`). */
 const row = (text, loopKind) => {
-  const block = findAntlersBlocks(text).find((item) => item.kind === 'loop' && (!loopKind || item.loopKind === loopKind));
+  const block = findAntlersBlocks(text).find(
+    (item) => item.kind === 'loop' && (!loopKind || item.loopKind === loopKind)
+  );
 
   return block ? { ...block, antlers: 'loop' } : null;
 };
@@ -56,7 +58,10 @@ test('the paginate pair is not a loop row, the loops around it carry what they r
   const src = page(BLOG, true);
   const loops = findAntlersBlocks(src).filter((item) => item.kind === 'loop');
 
-  assert.deepEqual(loops.map((item) => item.name), ['collection', 'entries']);
+  assert.deepEqual(
+    loops.map((item) => item.name),
+    ['collection', 'entries']
+  );
   assert.equal(loops[0].paginate, true);
   assert.equal(loops[0].alias, 'entries');
   assert.equal(loops[0].offset, '1');
@@ -73,11 +78,15 @@ test('writeLoopTag writes and removes offset on a collection, after limit', () =
 });
 
 test('writeLoopTag leaves paginate and as where they are', () => {
-  const src = '{{ collection from="blog" limit="12" paginate="true" as="entries" }}\n  {{ entries }}{{ title }}{{ /entries }}\n{{ /collection }}';
+  const src =
+    '{{ collection from="blog" limit="12" paginate="true" as="entries" }}\n  {{ entries }}{{ title }}{{ /entries }}\n{{ /collection }}';
   const out = writeLoopTag(src, row(src, 'collection'), { offset: '2' });
 
   assert.match(out, /^\{\{ collection from="blog" limit="12" offset="2" paginate="true" as="entries" \}\}/);
-  assert.match(writeLoopTag(out, row(out, 'collection'), { offset: '' }), /^\{\{ collection from="blog" limit="12" paginate="true" as="entries" \}\}/);
+  assert.match(
+    writeLoopTag(out, row(out, 'collection'), { offset: '' }),
+    /^\{\{ collection from="blog" limit="12" paginate="true" as="entries" \}\}/
+  );
 });
 
 test('writeLoopTag writes offset on a field loop as a modifier, before limit', () => {
@@ -98,7 +107,10 @@ test('a nav loop takes no offset', () => {
 test('writeLoopPagination on: parameters, one wrapper, one pager', () => {
   const on = page(BLOG, true);
 
-  assert.match(on, /\{\{ collection from="blog" sort="date:desc" limit="3" offset="1" paginate="true" as="entries" \}\}/);
+  assert.match(
+    on,
+    /\{\{ collection from="blog" sort="date:desc" limit="3" offset="1" paginate="true" as="entries" \}\}/
+  );
   assert.equal(count(on, '{{ entries }}'), 1);
   assert.equal(count(on, '{{ /entries }}'), 1);
   assert.equal(count(on, '{{ paginate }}{{ partial:components/pagination }}{{ /paginate }}'), 1);
@@ -133,7 +145,8 @@ test('a loop without a limit gets a page size, and keeps it when pages go off', 
 });
 
 test('an alias already in use is kept, and its wrapper is not doubled', () => {
-  const src = '{{ collection from="blog" as="posts" }}\n  {{ posts }}\n    {{ title }}\n  {{ /posts }}\n{{ /collection }}';
+  const src =
+    '{{ collection from="blog" as="posts" }}\n  {{ posts }}\n    {{ title }}\n  {{ /posts }}\n{{ /collection }}';
   const on = page(src, true);
 
   assert.match(on, /paginate="true" as="posts"/);

@@ -44,28 +44,28 @@ final class Scan
                     }
                 }
 
-                static::walk($item, $scope, $set, $types, $globals, $eligible);
+                self::walk($item, $scope, $set, $types, $globals, $eligible);
             }
 
             return;
         }
 
         foreach ($node as $key => $value) {
-            static::walk($value, $scope, $set, $types, $globals, $key === $scope);
+            self::walk($value, $scope, $set, $types, $globals, $key === $scope);
         }
     }
 
     /** Writes the snapshot, making its folder if this is the first scan. */
     public static function write(array $snapshot): void
     {
-        $path = static::path();
+        $path = self::path();
         $dir = dirname($path);
 
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        file_put_contents($path, static::header().YAML::dump($snapshot));
+        file_put_contents($path, self::header().YAML::dump($snapshot));
         GitSync::after('library access');
     }
 

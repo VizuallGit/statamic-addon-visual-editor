@@ -161,9 +161,7 @@ export function selectorHits(selector, tokens) {
     );
   }
 
-  const tags = [...text.matchAll(/(^|[\s>+~,])([a-zA-Z][a-zA-Z0-9-]*)/g)].map((m) =>
-    m[2].toLowerCase()
-  );
+  const tags = [...text.matchAll(/(^|[\s>+~,])([a-zA-Z][a-zA-Z0-9-]*)/g)].map((m) => m[2].toLowerCase());
 
   return tags.length > 0 && tags.every((name) => tokens.tags.has(name));
 }
@@ -188,8 +186,7 @@ function verdict(selector, block, rest) {
     return 'keep';
   }
 
-  const onlyBlock =
-    hitsBlock.length === parts.length && !parts.some((part) => selectorHits(part, rest));
+  const onlyBlock = hitsBlock.length === parts.length && !parts.some((part) => selectorHits(part, rest));
 
   return onlyBlock ? 'move' : 'copy';
 }
@@ -248,6 +245,9 @@ export function splitCssForBlock(css, blockHtml, restHtml) {
 
   return {
     move: move.join('\n\n').trim(),
-    keep: keep.join('').replace(/\n{3,}/g, '\n\n').trim(),
+    keep: keep
+      .join('')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
   };
 }

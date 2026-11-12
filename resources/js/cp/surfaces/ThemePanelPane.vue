@@ -7,8 +7,26 @@
       <div data-sve-right-title :title="ui.labels.panel_subtitle">{{ ui.labels.panel_title }}</div>
       <div data-sve-right-actions>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
-        <button type="button" data-sve-close :aria-label="ui.labels.panel_close" :title="ui.labels.panel_close" @click="onClose">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        <button
+          type="button"
+          data-sve-close
+          :aria-label="ui.labels.panel_close"
+          :title="ui.labels.panel_close"
+          @click="onClose"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
     </div>
@@ -39,7 +57,18 @@
               <span v-for="c in swatches" :key="c.key" :style="{ background: c.color }"></span>
             </span>
             <span v-else class="sve-theme__fold-meta">{{ meta(s.key) }}</span>
-            <svg class="sve-theme__fold-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+            <svg
+              class="sve-theme__fold-chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="9 6 15 12 9 18" />
+            </svg>
           </button>
           <!-- The section's one "new": under Styles the chip says which. -->
           <button
@@ -53,7 +82,16 @@
             :disabled="addFor(s.key).off"
             @click="addFor(s.key).run()"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
           </button>
         </div>
 
@@ -72,7 +110,9 @@
 
     <div class="sve-theme__foot">
       <span class="sve-theme__status">{{ ui.status }}</span>
-      <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
+      <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{
+        ui.labels.panel_save
+      }}</button>
     </div>
   </div>
 </template>
@@ -99,22 +139,30 @@ const SECTIONS = [
   {
     key: 'colors',
     view: ThemeColorsTab,
-    icon: svg('<circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/>'),
+    icon: svg(
+      '<circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/>'
+    ),
   },
   {
     key: 'spacing',
     view: ThemeSpacingTab,
-    icon: svg('<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>'),
+    icon: svg(
+      '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>'
+    ),
   },
   {
     key: 'containers',
     view: ThemeContainersTab,
-    icon: svg('<rect x="7" y="4" width="10" height="16" rx="1.5"/><path d="M2 12h3"/><path d="m3.5 10.5-1.5 1.5 1.5 1.5"/><path d="M22 12h-3"/><path d="m20.5 10.5 1.5 1.5-1.5 1.5"/>'),
+    icon: svg(
+      '<rect x="7" y="4" width="10" height="16" rx="1.5"/><path d="M2 12h3"/><path d="m3.5 10.5-1.5 1.5 1.5 1.5"/><path d="M22 12h-3"/><path d="m20.5 10.5 1.5 1.5-1.5 1.5"/>'
+    ),
   },
   {
     key: 'fonts',
     view: ThemeFontsTab,
-    icon: svg('<path d="M21 14h-5"/><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16"/><path d="M4.5 13h6"/><path d="m3 16 4.5-9 4.5 9"/>'),
+    icon: svg(
+      '<path d="M21 14h-5"/><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16"/><path d="M4.5 13h6"/><path d="m3 16 4.5-9 4.5 9"/>'
+    ),
   },
   {
     key: 'type',
@@ -124,7 +172,9 @@ const SECTIONS = [
   {
     key: 'styles',
     view: ThemeStylesTab,
-    icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/><path d="M10 10h4"/><path d="M10 14h2"/>'),
+    icon: svg(
+      '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/><path d="M10 10h4"/><path d="M10 14h2"/>'
+    ),
   },
   {
     key: 'button',
@@ -228,15 +278,18 @@ function addFor(key) {
 }
 
 /** The palette on the Colors header: each color's base, or its first step. */
-const swatches = computed(() => ui.families
-  .map((f) => ({ key: f.key, color: f.value || f.steps[0]?.value }))
-  .filter((c) => c.color));
+const swatches = computed(() =>
+  ui.families.map((f) => ({ key: f.key, color: f.value || f.steps[0]?.value })).filter((c) => c.color)
+);
 
 /** What a closed section holds, in a few words on its header. */
 function meta(key) {
   if (key === 'spacing') {
     return ui.sizes.length
-      ? (ui.labels.panel_meta_spacing || '').replace(':count', ui.sizes.length).replace(':min', MIN_VIEWPORT).replace(':max', ui.maxViewport)
+      ? (ui.labels.panel_meta_spacing || '')
+          .replace(':count', ui.sizes.length)
+          .replace(':min', MIN_VIEWPORT)
+          .replace(':max', ui.maxViewport)
       : '';
   }
 
@@ -253,7 +306,9 @@ function meta(key) {
   }
 
   if (key === 'type') {
-    return [...new Set([firstFamily(ui.type['font-base']), firstFamily(ui.type['font-heading'])].filter(Boolean))].join(' · ');
+    return [...new Set([firstFamily(ui.type['font-base']), firstFamily(ui.type['font-heading'])].filter(Boolean))].join(
+      ' · '
+    );
   }
 
   return ui.labels[`panel_meta_${key}`] || '';
@@ -262,12 +317,16 @@ function meta(key) {
 const bodyEl = ref(null);
 
 // The section just opened starts at the top of the list, its header in sight.
-watch(() => ui.tab, (tab) => nextTick(() => {
-  const body = bodyEl.value;
-  const fold = tab ? body?.querySelector(`[data-sve-theme-fold="${tab}"]`) : null;
+watch(
+  () => ui.tab,
+  (tab) =>
+    nextTick(() => {
+      const body = bodyEl.value;
+      const fold = tab ? body?.querySelector(`[data-sve-theme-fold="${tab}"]`) : null;
 
-  if (fold) {
-    body.scrollTop = fold.offsetTop - body.firstElementChild.offsetTop;
-  }
-}));
+      if (fold) {
+        body.scrollTop = fold.offsetTop - body.firstElementChild.offsetTop;
+      }
+    })
+);
 </script>

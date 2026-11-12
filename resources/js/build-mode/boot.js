@@ -109,7 +109,14 @@ import {
 import { runTwTool, twToolActive } from '../tw-tool.js';
 import { openLogicPopup } from '../logic-popup.js';
 import { familyFor, loadFamilies, optionsForProperty } from '../tw-families.js';
-import { readClassAttr, splitClass, splitUtility, toggleToken, tokenizeClassValue, writeClassValue } from '../tw-parse.js';
+import {
+  readClassAttr,
+  splitClass,
+  splitUtility,
+  toggleToken,
+  tokenizeClassValue,
+  writeClassValue,
+} from '../tw-parse.js';
 import { htmlTargetFromCursor } from '../dock/style-modes.js';
 import { CLASSES_DEFAULT_EVENT, buildClassesShownByDefault } from '../build-classes-pref.js';
 import { addAt, findByPath, pathAt } from './place.js';
@@ -120,9 +127,26 @@ import { readGridAt, withCellAt, withGridAt, withGridReset, withPresetAt } from 
 import { isGrid, measureGrid, nextFreeCell } from './grid-measure.js';
 import { containerLength, contentWidthRem, isContainerVariant, sizeContainerOf } from './container-query.js';
 import { elementLabel } from '../cp/xray/measure.js';
-import { clickedAfter, fileOfItsOwn, inPageSections, makeSection, noFile, onSectionsLoop, onlySections, sectionKind, sectionRows } from './new-section.js';
+import {
+  clickedAfter,
+  fileOfItsOwn,
+  inPageSections,
+  makeSection,
+  noFile,
+  onSectionsLoop,
+  onlySections,
+  sectionKind,
+  sectionRows,
+} from './new-section.js';
 import { fromClass, rootFor, rootOf, variantChain } from './classes.js';
-import { contentAttributes, fieldEditOf, readAttribute, renameAttribute, withAttribute, withFieldEdit } from './attrs.js';
+import {
+  contentAttributes,
+  fieldEditOf,
+  readAttribute,
+  renameAttribute,
+  withAttribute,
+  withFieldEdit,
+} from './attrs.js';
 import { classTargetFor } from '../dock/class-target.js';
 import { createComputedValues, hoverText, inherits } from './computed-values.js';
 import { previewFrame } from '../lib/preview-frame.js';
@@ -142,7 +166,13 @@ import { isGallery, readGallery, withGalleryField, withGalleryImages } from './g
 import { wholeOwner } from './whole.js';
 import { svgClassRow, withSvgSrc } from './svg.js';
 import { elementFieldParam, elementFieldReady, mountElementField } from './element-fields.js';
-import { isTemplateField, makeTemplateField, templateFieldNames, templateFields, templateView } from './template-fields.js';
+import {
+  isTemplateField,
+  makeTemplateField,
+  templateFieldNames,
+  templateFields,
+  templateView,
+} from './template-fields.js';
 import { fieldDomId } from './canvas-fields.js';
 import { startColumnsOverlay } from './columns-overlay.js';
 import { CANVAS_PAINTED, startCanvas } from './canvas.js';
@@ -174,7 +204,11 @@ export function mountBuildPanel(win, host, hooks = {}) {
   resized?.observe(page.frame());
   // The grids drawn over the canvas, and the builder on the pick's (columns-overlay.js).
   // Drawn inside the canvas (`inside`): it scrolls with the page, with nothing to catch up on.
-  const stopColumns = startColumnsOverlay(win, port, page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false, inside: true } : {});
+  const stopColumns = startColumnsOverlay(
+    win,
+    port,
+    page ? { frame: page.frame, attr: CANVAS_PATH, updated: CANVAS_PAINTED, plus: false, inside: true } : {}
+  );
 
   return () => {
     page?.frame()?.contentWindow?.removeEventListener(CANVAS_PAINTED, countPaint);
@@ -261,7 +295,11 @@ function buildCanvas(win) {
 /** The port, on the editor. Exported for the bench test. */
 /** Is the element at `path` inside a loop: an item of many, not one thing on the page? */
 function inLoop(nodes, path) {
-  return (nodes || []).some((row) => path.startsWith(`${row.path}/`) && ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children, path)));
+  return (nodes || []).some(
+    (row) =>
+      path.startsWith(`${row.path}/`) &&
+      ((row.kind === 'antlers' && row.antlers === 'loop') || inLoop(row.children, path))
+  );
 }
 
 /** Where the dock's section is in the form, or null: the dock holds the header, the footer, a component, or nothing. */
@@ -402,7 +440,11 @@ export function createEditorPort(win, hooks = {}) {
       // and not in a field being typed in or in a menu that took it first.
       const el = event.target;
 
-      if (event.key !== 'Escape' || event.defaultPrevented || el?.closest?.('input, textarea, select, [contenteditable="true"]')) {
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        el?.closest?.('input, textarea, select, [contenteditable="true"]')
+      ) {
         return;
       }
 
@@ -593,10 +635,18 @@ export function createEditorPort(win, hooks = {}) {
         .fetch('/!/sve/component/meta', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(win) },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            Accept: 'application/json',
+            'X-CSRF-TOKEN': csrfToken(win),
+          },
           body: JSON.stringify({ name, ...meta }),
         })
-        .then((res) => (res.ok ? res.json() : null), () => null);
+        .then(
+          (res) => (res.ok ? res.json() : null),
+          () => null
+        );
     },
     /** The site's SVGs — the folder set under Visual Editor → SVG folder: `{ root, icons: [{ src, name, folder, svg }] }`. */
     svgs() {
@@ -816,9 +866,14 @@ export function createEditorPort(win, hooks = {}) {
       }
 
       return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => {
-        const rows = [...(model?.section || []), ...(model?.page?.find((group) => group.handle === 'this')?.items || [])];
+        const rows = [
+          ...(model?.section || []),
+          ...(model?.page?.find((group) => group.handle === 'this')?.items || []),
+        ];
 
-        return rows.some((row) => row.var === field && !row.parent && TEXT_FIELDS.includes(row.type)) ? { oneLine: true, field } : null;
+        return rows.some((row) => row.var === field && !row.parent && TEXT_FIELDS.includes(row.type))
+          ? { oneLine: true, field }
+          : null;
       });
     },
     /**
@@ -828,7 +883,14 @@ export function createEditorPort(win, hooks = {}) {
      * not an item of a loop, and the user may change fieldsets.
      */
     canOwnContent(path) {
-      return !!path && canEditFields(win) && !!currentSetHandle() && !ask('dock:chrome-kind') && ask('dock:is-locked') !== true && !inLoop(parseTemplateTree(html()), path);
+      return (
+        !!path &&
+        canEditFields(win) &&
+        !!currentSetHandle() &&
+        !ask('dock:chrome-kind') &&
+        ask('dock:is-locked') !== true &&
+        !inLoop(parseTemplateTree(html()), path)
+      );
     },
     /**
      * May this element's content become a field ("Editable in Edit Content")?
@@ -842,7 +904,13 @@ export function createEditorPort(win, hooks = {}) {
         return true;
       }
 
-      return !!path && canEditFields(win) && ask('dock:is-locked') !== true && templateFields(win)?.can === true && !inLoop(parseTemplateTree(html()), path);
+      return (
+        !!path &&
+        canEditFields(win) &&
+        ask('dock:is-locked') !== true &&
+        templateFields(win)?.can === true &&
+        !inLoop(parseTemplateTree(html()), path)
+      );
     },
     /**
      * A field of the dock's section's own set on this page, as the form holds
@@ -901,7 +969,12 @@ export function createEditorPort(win, hooks = {}) {
       }
 
       const job = port
-        .makeField(path, { kind: isOneLine(node.tag) ? 'text' : 'textarea', name: fieldNameFor(node.tag), value: read.text, hidden: true })
+        .makeField(path, {
+          kind: isOneLine(node.tag) ? 'text' : 'textarea',
+          name: fieldNameFor(node.tag),
+          value: read.text,
+          hidden: true,
+        })
         .then((handle) => {
           if (handle) {
             const now = typeof value === 'function' ? value() : value;
@@ -957,7 +1030,11 @@ export function createEditorPort(win, hooks = {}) {
         .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
           method: 'PATCH',
           credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfToken(win),
+          },
           body: JSON.stringify({ handle, field, hidden, display }),
         })
         .catch(() => null);
@@ -1010,7 +1087,11 @@ export function createEditorPort(win, hooks = {}) {
         .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
           method: 'DELETE',
           credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfToken(win),
+          },
           body: JSON.stringify({ handle, field }),
         })
         .catch(() => null);
@@ -1049,7 +1130,9 @@ export function createEditorPort(win, hooks = {}) {
 
       const node = path ? findByPath(parseTemplateTree(html()), path) : null;
 
-      return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) => (model?.section || []).filter((row) => !row.parent).map((row) => row.var));
+      return Promise.resolve(node ? ask('dock:data-model', { at: node.from }) : null).then((model) =>
+        (model?.section || []).filter((row) => !row.parent).map((row) => row.var)
+      );
     },
     /**
      * A new field in the open section's fieldset, holding `value` as its
@@ -1072,7 +1155,11 @@ export function createEditorPort(win, hooks = {}) {
         .fetch(`/!/sve/section-types/fields?${pageBuilderQuery(win)}`, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfToken(win),
+          },
           body: JSON.stringify({ handle, kind, name, value, hidden }),
         })
         .catch(() => null);
@@ -1119,13 +1206,23 @@ export function createEditorPort(win, hooks = {}) {
         // A hidden field is the section's own content, kept out of Edit Content:
         // nothing there to edit it, so no `visual_edit` points at it. In a
         // template's file, the field is the entries' own (template-fields.js).
-        const own = (model?.section || []).some((row) => row.var === name && !row.parent && !row.hidden && types.includes(row.type)) || (!currentSetHandle() && isTemplateField(win, name, types));
+        const own =
+          (model?.section || []).some(
+            (row) => row.var === name && !row.parent && !row.hidden && types.includes(row.type)
+          ) ||
+          (!currentSetHandle() && isTemplateField(win, name, types));
         const node = findByPath(parseTemplateTree(html()), path);
         const now = fieldEditOf(html(), node);
 
         // A link can hold two fields and its tag points at one: the tag stays on
         // the field still held, the text's before the address's.
-        const held = (field) => [readText(html(), node)?.text, readRichField(html(), node), readAttribute(html(), node, 'href'), readAttribute(html(), node, 'src')].some((part) => wholeTag(part ?? '') === field);
+        const held = (field) =>
+          [
+            readText(html(), node)?.text,
+            readRichField(html(), node),
+            readAttribute(html(), node, 'href'),
+            readAttribute(html(), node, 'src'),
+          ].some((part) => wholeTag(part ?? '') === field);
 
         if (now && now !== name && held(now) && (!own || !inline)) {
           return;
@@ -1164,7 +1261,9 @@ export function createEditorPort(win, hooks = {}) {
         return Promise.resolve([]);
       }
 
-      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) => wrongFields(text, model, types, options));
+      return Promise.resolve(ask('dock:data-model', { at: node.from })).then((model) =>
+        wrongFields(text, model, types, options)
+      );
     },
     /** What Bard holds as it is typed, on the canvas; the server's HTML follows (element-fields.js). */
     paintRich: (path, markup) => canvas?.paintInner(path, markup),
@@ -1203,7 +1302,10 @@ export function createEditorPort(win, hooks = {}) {
         return container;
       }
 
-      const variant = twVariant().split(':').find((part) => rows().some((row) => row.tw && row.tw === part)) || '';
+      const variant =
+        twVariant()
+          .split(':')
+          .find((part) => rows().some((row) => row.tw && row.tw === part)) || '';
 
       if (variant) {
         return rows().find((row) => row.tw === variant)?.handle || null;
@@ -1304,7 +1406,13 @@ export function createEditorPort(win, hooks = {}) {
 
       wantSiteDefs();
 
-      return path ? flowAt(html(), path, (name) => model.catalog.rule(name).includes('var(--flow-space') || siteReadsFlow(siteDefs, name)) : null;
+      return path
+        ? flowAt(
+            html(),
+            path,
+            (name) => model.catalog.rule(name).includes('var(--flow-space') || siteReadsFlow(siteDefs, name)
+          )
+        : null;
     },
     /**
      * The classes that set `--flow-space`: Tailwind's `@utility` ones in the
@@ -1317,10 +1425,15 @@ export function createEditorPort(win, hooks = {}) {
 
       wantSiteDefs();
 
-      return [...new Set([...names.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b)), ...siteFlowSpaces(siteDefs)])];
+      return [
+        ...new Set([...names.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b)), ...siteFlowSpaces(siteDefs)]),
+      ];
     },
     /* Grid: what the builder over the preview and Style's grid fields write (grid.js), at the pane's size and state */
-    gridAt: () => ({ variants: twVariant().split(':').filter(Boolean), chain: variantChain(rows(), port.size(), port.state()) }),
+    gridAt: () => ({
+      variants: twVariant().split(':').filter(Boolean),
+      chain: variantChain(rows(), port.size(), port.state()),
+    }),
     /**
      * What the element at `path`'s classes say at the size picked (grid.js
      * `readGrid`). The number a step goes from: a preview narrower than the
@@ -1368,7 +1481,9 @@ export function createEditorPort(win, hooks = {}) {
         return { ...at, scope: null };
       }
 
-      const sizes = at.variants.filter((part) => isContainerVariant(part) || rows().some((row) => row.tw && row.tw === part));
+      const sizes = at.variants.filter(
+        (part) => isContainerVariant(part) || rows().some((row) => row.tw && row.tw === part)
+      );
 
       return { variants: [...sizes, scope.variant], chain: variantChain(rows(), port.size(), scope.variant), scope };
     },
@@ -1407,7 +1522,11 @@ export function createEditorPort(win, hooks = {}) {
         return false;
       }
 
-      const next = writeClassValue(source, node, withOneOfUnder(readClassAttr(source, node.from, node.openTo)?.value || '', names, name, at.variants));
+      const next = writeClassValue(
+        source,
+        node,
+        withOneOfUnder(readClassAttr(source, node.from, node.openTo)?.value || '', names, name, at.variants)
+      );
 
       if (next === html()) {
         return false;
@@ -1460,14 +1579,21 @@ export function createEditorPort(win, hooks = {}) {
           empty: m.empty,
           // The cell a new child with no start lands in by itself (null when the grid's flow is not guessed at).
           next: m.empty.find((cell) => nextFreeCell(m, cell)) || null,
-          items: m.items.map((item) => ({ path: item.path, col: item.col, row: item.row, label: elementLabel(item.el.tagName, item.el.getAttribute('class')) })),
+          items: m.items.map((item) => ({
+            path: item.path,
+            col: item.col,
+            row: item.row,
+            label: elementLabel(item.el.tagName, item.el.getAttribute('class')),
+          })),
         };
       };
       const own = el && isGrid(el) ? read(el) : null;
       const up = el?.parentElement;
       const parent = up?.hasAttribute(CANVAS_PATH) && isGrid(up) ? read(up) : null;
       // A child of a flex row has an order among its siblings as a grid's does (Style's Order).
-      const flex = !!up?.hasAttribute(CANVAS_PATH) && /flex/.test(up.ownerDocument.defaultView?.getComputedStyle(up).display || '');
+      const flex =
+        !!up?.hasAttribute(CANVAS_PATH) &&
+        /flex/.test(up.ownerDocument.defaultView?.getComputedStyle(up).display || '');
 
       return { own, parent, item: parent?.items.find((one) => one.path === path) || null, flex };
     },
@@ -1514,13 +1640,20 @@ export function createEditorPort(win, hooks = {}) {
      */
     toggleContainerAt(at) {
       const html = ask('dock:html');
-      const row = typeof html === 'string' ? flattenHtmlTree(parseHtmlTree(html), new Set()).find((item) => item.path === at) : null;
+      const row =
+        typeof html === 'string'
+          ? flattenHtmlTree(parseHtmlTree(html), new Set()).find((item) => item.path === at)
+          : null;
 
       if (!row || row.kind === 'component') {
         return;
       }
 
-      const next = writeClassValue(html, row, toggleToken(readClassAttr(html, row.from, row.openTo)?.value || '', '@container'));
+      const next = writeClassValue(
+        html,
+        row,
+        toggleToken(readClassAttr(html, row.from, row.openTo)?.value || '', '@container')
+      );
 
       if (next !== html) {
         port.writeMoved(next, hooks.selectedPath?.() || '');
@@ -1535,7 +1668,9 @@ export function createEditorPort(win, hooks = {}) {
      * `inheritedKey` is the variant key `own` was inherited from (`@max-xl`), if it was.
      */
     seen(property, scaleProperty, own = '', inheritedKey = '') {
-      const read = shown.read(property, scaleProperty || property, (name) => fromClass(name, rootFor(name, port.scale(scaleProperty || property))));
+      const read = shown.read(property, scaleProperty || property, (name) =>
+        fromClass(name, rootFor(name, port.scale(scaleProperty || property)))
+      );
 
       if (!read) {
         return null;
@@ -1549,8 +1684,15 @@ export function createEditorPort(win, hooks = {}) {
       };
       const source = () => {
         // `p-500` sets padding-top too: a class counts for the property it sets and the sides under it.
-        const sets = (one) => !!one && (one === property || one === scaleProperty || property.startsWith(`${one}-`) || String(scaleProperty).startsWith(`${one}-`));
-        const from = port.classes.sourceOf((classes) => tokenizeClassValue(classes).some((tok) => sets(port.propertyOf(tok.text))));
+        const sets = (one) =>
+          !!one &&
+          (one === property ||
+            one === scaleProperty ||
+            property.startsWith(`${one}-`) ||
+            String(scaleProperty).startsWith(`${one}-`));
+        const from = port.classes.sourceOf((classes) =>
+          tokenizeClassValue(classes).some((tok) => sets(port.propertyOf(tok.text)))
+        );
 
         if (from) {
           return port.t('value_seen_class', { name: from });
@@ -1566,13 +1708,21 @@ export function createEditorPort(win, hooks = {}) {
           return under(sized.variants);
         }
 
-        return port.t(!inherits(property) ? 'value_seen_css' : read.token ? 'value_seen_theme' : 'value_seen_inherited');
+        return port.t(
+          !inherits(property) ? 'value_seen_css' : read.token ? 'value_seen_theme' : 'value_seen_inherited'
+        );
       };
 
       return {
         grey: own ? '' : read.words,
         raw: read.value,
-        tip: own || read.words ? hoverText(property, own || read.words, read.value, { rootPx: read.rootPx, source: own ? under(String(inheritedKey).split(':')) : source() }) : '',
+        tip:
+          own || read.words
+            ? hoverText(property, own || read.words, read.value, {
+                rootPx: read.rootPx,
+                source: own ? under(String(inheritedKey).split(':')) : source(),
+              })
+            : '',
       };
     },
     /** The colour a class paints with — the dot the Tailwind pane's menu draws beside it. */
@@ -1590,7 +1740,9 @@ export function createEditorPort(win, hooks = {}) {
 
       const root = canvas?.elementAt(hooks.selectedPath?.() || '')?.ownerDocument?.documentElement;
       const view = root?.ownerDocument.defaultView;
-      const m = view ? /^(-?[\d.]+)(rem|px)$/.exec(view.getComputedStyle(root).getPropertyValue(`--${name}`).trim()) : null;
+      const m = view
+        ? /^(-?[\d.]+)(rem|px)$/.exec(view.getComputedStyle(root).getPropertyValue(`--${name}`).trim())
+        : null;
 
       if (!m) {
         return null;
@@ -1618,7 +1770,10 @@ export function createEditorPort(win, hooks = {}) {
       const written = port.write(next, { select: path });
 
       if (written !== false) {
-        renderTwClasses(win, flattenHtmlTree(parseHtmlTree(next), new Set()).find((item) => item.path === path) || null);
+        renderTwClasses(
+          win,
+          flattenHtmlTree(parseHtmlTree(next), new Set()).find((item) => item.path === path) || null
+        );
       }
 
       return written;

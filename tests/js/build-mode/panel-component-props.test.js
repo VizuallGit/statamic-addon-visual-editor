@@ -18,7 +18,7 @@ test('the head stands while a component file is open, above Add and the element'
   const template = panel.slice(panel.indexOf('<template>'));
 
   assert.ok(template.includes('v-if="componentPropsUi.open" class="fg-head bm-chead"'));
-  assert.ok(template.indexOf('data-sve-build-chead') < template.indexOf("v-else-if=\"side === 'add'\""));
+  assert.ok(template.indexOf('data-sve-build-chead') < template.indexOf('v-else-if="side === \'add\'"'));
 });
 
 test('the panel opens on the props, and they replace Add or Content | Style', () => {
@@ -37,8 +37,11 @@ test('the props are the props panel itself, through the port, and leave with the
   assert.ok(panel.includes('onBeforeUnmount(() => unmountProps?.());'));
 });
 
-test('a click with a prop\'s target armed is the target\'s: the props stay', () => {
+test("a click with a prop's target armed is the target's: the props stay", () => {
   assert.ok(panel.includes('if (!componentPropsUi.bindingHandle) {'));
   assert.ok(panel.includes("{ flush: 'sync' }"));
-  assert.ok(boot.indexOf('clicks.value += 1;') < boot.indexOf("hooks.select?.(wholeOwner(html(), path) || path || '');"), 'counted before the pick disarms it');
+  assert.ok(
+    boot.indexOf('clicks.value += 1;') < boot.indexOf("hooks.select?.(wholeOwner(html(), path) || path || '');"),
+    'counted before the pick disarms it'
+  );
 });

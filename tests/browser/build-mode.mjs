@@ -103,8 +103,12 @@ function seed(prefs) {
   let yaml = readFileSync(USER_FILE, 'utf8').replace(/^ {2}sve_chrome:.*\n(?: {4}.*\n)*/m, '');
 
   if (prefs) {
-    const block = `  sve_chrome:\n${Object.entries(prefs).map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
-    yaml = /^preferences:\n/m.test(yaml) ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`) : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
+    const block = `  sve_chrome:\n${Object.entries(prefs)
+      .map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`)
+      .join('')}`;
+    yaml = /^preferences:\n/m.test(yaml)
+      ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`)
+      : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
   }
 
   writeFileSync(USER_FILE, yaml);
@@ -126,7 +130,10 @@ async function login(page) {
   await page.type('input[name="email"]', USER);
   await page.type('input[name="password"]', PASS);
   // Statamic may answer the POST with 409 (Inertia version) — the session is set either way.
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {}), page.keyboard.press('Enter')]);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {}),
+    page.keyboard.press('Enter'),
+  ]);
   await sleep(500);
 }
 
@@ -147,7 +154,9 @@ async function measureLoad(context) {
 
   const t0 = Date.now();
   const clicked = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('button')].find((el) => /^\s*live preview\s*$/i.test(el.textContent || ''));
+    const btn = [...document.querySelectorAll('button')].find((el) =>
+      /^\s*live preview\s*$/i.test(el.textContent || '')
+    );
     btn?.click();
 
     return !!btn;
@@ -168,7 +177,8 @@ async function measureLoad(context) {
     if (cp && !at.open) at.open = Date.now() - t0;
     if (cp && !at.toolbar && (await cp.$('#__sve-toolbar button').catch(() => null))) at.toolbar = Date.now() - t0;
     if (cp) preview = await frameOf(cp, '#live-preview-iframe').catch(() => null);
-    if (preview && (await preview.evaluate(() => !!document.querySelector('[id^="id-"]')).catch(() => false))) at.section = Date.now() - t0;
+    if (preview && (await preview.evaluate(() => !!document.querySelector('[id^="id-"]')).catch(() => false)))
+      at.section = Date.now() - t0;
     if (!at.section) await sleep(25);
   }
 
@@ -185,23 +195,36 @@ async function measureLoad(context) {
     await sleep(100);
   }
   at.quiet = cp
-    ? await cp.evaluate((start) => Math.round(performance.timeOrigin + Math.max(0, ...performance.getEntriesByType('resource').map((e) => e.responseEnd)) - start), t0).catch(() => null)
+    ? await cp
+        .evaluate(
+          (start) =>
+            Math.round(
+              performance.timeOrigin +
+                Math.max(0, ...performance.getEntriesByType('resource').map((e) => e.responseEnd)) -
+                start
+            ),
+          t0
+        )
+        .catch(() => null)
     : null;
 
   const build = buildFiles();
   const cpFacts = cp
-    ? await cp.evaluate((buildNames) => {
-        const js = performance.getEntriesByType('resource').filter((e) => /\.js(\?|$)/.test(e.name));
-        const names = js.map((e) => e.name.split('?')[0].split('/').pop());
+    ? await cp.evaluate(
+        (buildNames) => {
+          const js = performance.getEntriesByType('resource').filter((e) => /\.js(\?|$)/.test(e.name));
+          const names = js.map((e) => e.name.split('?')[0].split('/').pop());
 
-        return {
-          jsFiles: js.length,
-          jsEncoded: js.reduce((s, e) => s + (e.encodedBodySize || 0), 0),
-          jsDecoded: js.reduce((s, e) => s + (e.decodedBodySize || 0), 0),
-          buildLoaded: names.filter((n) => buildNames.includes(n)),
-          long: window.__bmLong || [],
-        };
-      }, [...build])
+          return {
+            jsFiles: js.length,
+            jsEncoded: js.reduce((s, e) => s + (e.encodedBodySize || 0), 0),
+            jsDecoded: js.reduce((s, e) => s + (e.decodedBodySize || 0), 0),
+            buildLoaded: names.filter((n) => buildNames.includes(n)),
+            long: window.__bmLong || [],
+          };
+        },
+        [...build]
+      )
     : null;
   const pvLong = preview ? await preview.evaluate(() => window.__bmLong || []).catch(() => []) : [];
 
@@ -211,7 +234,11 @@ async function measureLoad(context) {
 const longSummary = (tasks, from = 0) => {
   const hit = tasks.filter(([start]) => start >= from);
 
-  return { count: hit.length, totalMs: hit.reduce((s, [, d]) => s + d, 0), longestMs: hit.reduce((m, [, d]) => Math.max(m, d), 0) };
+  return {
+    count: hit.length,
+    totalMs: hit.reduce((s, [, d]) => s + d, 0),
+    longestMs: hit.reduce((m, [, d]) => Math.max(m, d), 0),
+  };
 };
 
 /**
@@ -231,49 +258,65 @@ async function timeSwitch(page, cp, mode) {
     return { error: `no ${SWITCH_TO(mode)}` };
   }
 
-  await cp.evaluate((m, panelId, away, selId) => {
-    const done = () => {
-      const col = document.querySelector('.live-preview-fields');
-      const panel = document.getElementById(panelId);
+  await cp.evaluate(
+    (m, panelId, away, selId) => {
+      const done = () => {
+        const col = document.querySelector('.live-preview-fields');
+        const panel = document.getElementById(panelId);
 
-      return m === 'visual'
-        ? !!(panel && panel.childElementCount && col?.hasAttribute(away))
-        : !panel && !col?.hasAttribute(away);
-    };
+        return m === 'visual'
+          ? !!(panel && panel.childElementCount && col?.hasAttribute(away))
+          : !panel && !col?.hasAttribute(away);
+      };
 
-    window.__bmSwitch = new Promise((resolve) => {
-      const btn = document.querySelector(`[data-sve-build-switch] [data-sve-build-mode="${m}"]`);
-      btn.addEventListener('pointerdown', () => {
-        const down = performance.now();
-        let frames = 0;
-        const tick = () => {
-          frames++;
-          if (done()) resolve({ ms: Math.round(performance.now() - down), frames, down: Math.round(down) });
-          else if (performance.now() - down > 10000) resolve({ ms: null, frames, down: Math.round(down), timeout: true });
-          else requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      }, { once: true, capture: true });
-    });
-    void selId;
-  }, mode, PANEL_ID, AWAY_ATTR, SELECTION_PANEL_ID);
+      window.__bmSwitch = new Promise((resolve) => {
+        const btn = document.querySelector(`[data-sve-build-switch] [data-sve-build-mode="${m}"]`);
+        btn.addEventListener(
+          'pointerdown',
+          () => {
+            const down = performance.now();
+            let frames = 0;
+            const tick = () => {
+              frames++;
+              if (done()) resolve({ ms: Math.round(performance.now() - down), frames, down: Math.round(down) });
+              else if (performance.now() - down > 10000)
+                resolve({ ms: null, frames, down: Math.round(down), timeout: true });
+              else requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+          },
+          { once: true, capture: true }
+        );
+      });
+      void selId;
+    },
+    mode,
+    PANEL_ID,
+    AWAY_ATTR,
+    SELECTION_PANEL_ID
+  );
 
   await page.mouse.click(rect.x, rect.y);
   const timed = await cp.evaluate(() => window.__bmSwitch);
   await sleep(150); // long tasks are reported after they end
   const long = longSummary(await cp.evaluate(() => window.__bmLong || []), timed.down);
-  const column = await cp.evaluate((panelId, selId) => {
-    const col = document.querySelector('.live-preview-fields');
-    const others = col ? [...col.children].filter((el) => el.id !== panelId && el.id !== selId) : [];
+  const column = await cp.evaluate(
+    (panelId, selId) => {
+      const col = document.querySelector('.live-preview-fields');
+      const others = col ? [...col.children].filter((el) => el.id !== panelId && el.id !== selId) : [];
 
-    return {
-      selectionPanel: !!document.getElementById(selId)?.childElementCount,
-      formNodes: others.length,
-      // The form, not Statamic's own empty placeholder beside it: the column
-      // holds a bare `<div style="display: none">` in Content as well.
-      formHiddenByDisplay: others.filter((el) => el.childElementCount > 0 && getComputedStyle(el).display === 'none').length,
-    };
-  }, PANEL_ID, SELECTION_PANEL_ID);
+      return {
+        selectionPanel: !!document.getElementById(selId)?.childElementCount,
+        formNodes: others.length,
+        // The form, not Statamic's own empty placeholder beside it: the column
+        // holds a bare `<div style="display: none">` in Content as well.
+        formHiddenByDisplay: others.filter((el) => el.childElementCount > 0 && getComputedStyle(el).display === 'none')
+          .length,
+      };
+    },
+    PANEL_ID,
+    SELECTION_PANEL_ID
+  );
 
   return { ...timed, long, column };
 }
@@ -297,9 +340,26 @@ try {
 
     const cpLong = longSummary(run.cp?.long || []);
     const pvLong = longSummary(run.pvLong);
-    perf.runs.push({ ...run.at, jsFiles: run.cp?.jsFiles, jsKB: Math.round((run.cp?.jsEncoded || 0) / 1024), jsDecodedKB: Math.round((run.cp?.jsDecoded || 0) / 1024), cpLong, pvLong, buildLoaded: run.cp?.buildLoaded || [] });
-    info(`first load ${i + 1}`, `open ${run.at.open} ms, toolbar ${run.at.toolbar} ms, section ${run.at.section} ms, quiet ${run.at.quiet} ms; CP JS ${run.cp?.jsFiles} files ${Math.round((run.cp?.jsEncoded || 0) / 1024)} KB; long tasks CP ${cpLong.count}× ${cpLong.totalMs} ms (longest ${cpLong.longestMs}), preview ${pvLong.count}× ${pvLong.totalMs} ms`);
-    step(`first load ${i + 1}: Content fetched no Build code`, !(run.cp?.buildLoaded || []).length, run.buildCount ? `${run.buildCount} Build files in the manifest, loaded: ${(run.cp?.buildLoaded || []).join(' ') || 'none'}` : 'no Build chunk in this build yet');
+    perf.runs.push({
+      ...run.at,
+      jsFiles: run.cp?.jsFiles,
+      jsKB: Math.round((run.cp?.jsEncoded || 0) / 1024),
+      jsDecodedKB: Math.round((run.cp?.jsDecoded || 0) / 1024),
+      cpLong,
+      pvLong,
+      buildLoaded: run.cp?.buildLoaded || [],
+    });
+    info(
+      `first load ${i + 1}`,
+      `open ${run.at.open} ms, toolbar ${run.at.toolbar} ms, section ${run.at.section} ms, quiet ${run.at.quiet} ms; CP JS ${run.cp?.jsFiles} files ${Math.round((run.cp?.jsEncoded || 0) / 1024)} KB; long tasks CP ${cpLong.count}× ${cpLong.totalMs} ms (longest ${cpLong.longestMs}), preview ${pvLong.count}× ${pvLong.totalMs} ms`
+    );
+    step(
+      `first load ${i + 1}: Content fetched no Build code`,
+      !(run.cp?.buildLoaded || []).length,
+      run.buildCount
+        ? `${run.buildCount} Build files in the manifest, loaded: ${(run.cp?.buildLoaded || []).join(' ') || 'none'}`
+        : 'no Build chunk in this build yet'
+    );
 
     if (last) await last.context.close();
     last = { context, page: run.page, cp: run.cpFrame };
@@ -341,12 +401,28 @@ try {
         break;
       }
 
-      step(`Build ${label}: the field tree is not rendered`, !toBuild.column.selectionPanel, `selection panel drawn=${toBuild.column.selectionPanel}`);
-      step(`Build ${label}: Statamic's form stays in the column, never display:none`, toBuild.column.formNodes > 0 && toBuild.column.formHiddenByDisplay === 0, JSON.stringify(toBuild.column));
+      step(
+        `Build ${label}: the field tree is not rendered`,
+        !toBuild.column.selectionPanel,
+        `selection panel drawn=${toBuild.column.selectionPanel}`
+      );
+      step(
+        `Build ${label}: Statamic's form stays in the column, never display:none`,
+        toBuild.column.formNodes > 0 && toBuild.column.formHiddenByDisplay === 0,
+        JSON.stringify(toBuild.column)
+      );
 
       if (i > 0) {
-        step(`switch ${label}: < 100 ms both ways`, toBuild.ms !== null && toBuild.ms < 100 && toContent.ms !== null && toContent.ms < 100, `→Build ${toBuild.ms} ms, →Content ${toContent.ms} ms`);
-        step(`switch ${label}: no long task > 50 ms`, toBuild.long.longestMs <= 50 && toContent.long.longestMs <= 50, `longest →Build ${toBuild.long.longestMs} ms, →Content ${toContent.long.longestMs} ms`);
+        step(
+          `switch ${label}: < 100 ms both ways`,
+          toBuild.ms !== null && toBuild.ms < 100 && toContent.ms !== null && toContent.ms < 100,
+          `→Build ${toBuild.ms} ms, →Content ${toContent.ms} ms`
+        );
+        step(
+          `switch ${label}: no long task > 50 ms`,
+          toBuild.long.longestMs <= 50 && toContent.long.longestMs <= 50,
+          `longest →Build ${toBuild.long.longestMs} ms, →Content ${toContent.long.longestMs} ms`
+        );
       }
     }
   }

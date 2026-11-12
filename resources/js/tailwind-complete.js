@@ -592,10 +592,7 @@ function variantOptions(query, catalog) {
  * ------------------------------------------------------------------ */
 
 function insideClassAttr(context) {
-  return !!(
-    context.matchBefore(/class\s*=\s*"[^"]*$/i) ||
-    context.matchBefore(/class\s*=\s*'[^']*$/i)
-  );
+  return !!(context.matchBefore(/class\s*=\s*"[^"]*$/i) || context.matchBefore(/class\s*=\s*'[^']*$/i));
 }
 
 function classTokenAt(state, pos) {

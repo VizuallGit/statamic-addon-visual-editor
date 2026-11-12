@@ -50,7 +50,7 @@ final class Tokens
     /** The word list for this site as it is now (give or take FRESH seconds). */
     public static function forSite(): string
     {
-        return Cache::remember('sve.dock-ghost.tokens', static::FRESH, fn () => static::vocabulary(TailwindTheme::css(), static::siteClasses()));
+        return Cache::remember('sve.dock-ghost.tokens', self::FRESH, fn () => self::vocabulary(TailwindTheme::css(), self::siteClasses()));
     }
 
     /**
@@ -88,7 +88,7 @@ final class Tokens
         $groups = [];
         $custom = [];
 
-        foreach (static::blocks($css, '@theme') as $block) {
+        foreach (self::blocks($css, '@theme') as $block) {
             preg_match_all('/(?<![\w-])--([a-zA-Z][\w-]*)\s*:/', $block, $matches);
 
             foreach ($matches[1] as $name) {
@@ -97,7 +97,7 @@ final class Tokens
                     continue;
                 }
 
-                $namespace = static::namespaceOf($name);
+                $namespace = self::namespaceOf($name);
 
                 if ($namespace === null) {
                     $custom['--'.$name] = true;
@@ -117,20 +117,20 @@ final class Tokens
 
         $lines = [];
 
-        foreach (static::NAMESPACES as $namespace => $label) {
+        foreach (self::NAMESPACES as $namespace => $label) {
             if (! empty($groups[$namespace])) {
-                $lines[] = "{$label}: ".static::compact(array_keys($groups[$namespace]));
+                $lines[] = "{$label}: ".self::compact(array_keys($groups[$namespace]));
             }
         }
 
         $own = array_values(array_unique(array_merge($utilities[1], $classes)));
 
         if ($own !== []) {
-            $lines[] = "The site's own classes (its CSS files and sections): ".static::compact($own);
+            $lines[] = "The site's own classes (its CSS files and sections): ".self::compact($own);
         }
 
         if ($custom !== []) {
-            $lines[] = 'Custom properties, for var(--…): '.static::compact(array_keys($custom));
+            $lines[] = 'Custom properties, for var(--…): '.self::compact(array_keys($custom));
         }
 
         if ($lines === []) {
@@ -144,7 +144,7 @@ final class Tokens
     /** Which theme namespace a variable belongs to, or null for the site's own. */
     protected static function namespaceOf(string $name): ?string
     {
-        foreach (array_keys(static::NAMESPACES) as $namespace) {
+        foreach (array_keys(self::NAMESPACES) as $namespace) {
             if ($name === $namespace || str_starts_with($name, $namespace.'-')) {
                 return $namespace;
             }
@@ -182,8 +182,8 @@ final class Tokens
             $out[] = count($steps) === 1 ? "{$stem}-{$steps[0]}" : "{$stem}-{".implode(',', $steps).'}';
         }
 
-        if (count($out) > static::MAX) {
-            $out = array_slice($out, 0, static::MAX);
+        if (count($out) > self::MAX) {
+            $out = array_slice($out, 0, self::MAX);
             $out[] = '…';
         }
 

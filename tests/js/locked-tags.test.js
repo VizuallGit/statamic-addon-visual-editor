@@ -15,17 +15,18 @@ const locked = (html) => {
 };
 
 test('the build plumbing is locked', () => {
-  assert.deepEqual(
-    locked('{{ vite src="resources/js/site.js" }}\n{{ yield_scripts }}'),
-    ['{{ vite src="resources/js/site.js" }}', '{{ yield_scripts }}']
-  );
+  assert.deepEqual(locked('{{ vite src="resources/js/site.js" }}\n{{ yield_scripts }}'), [
+    '{{ vite src="resources/js/site.js" }}',
+    '{{ yield_scripts }}',
+  ]);
 });
 
 test('the whole yield family and the theme tokens go with them', () => {
-  assert.deepEqual(
-    locked('{{ yield_minified }}{{ theme_tokens }}{{ vite src="resources/css/site.css" }}'),
-    ['{{ yield_minified }}', '{{ theme_tokens }}', '{{ vite src="resources/css/site.css" }}']
-  );
+  assert.deepEqual(locked('{{ yield_minified }}{{ theme_tokens }}{{ vite src="resources/css/site.css" }}'), [
+    '{{ yield_minified }}',
+    '{{ theme_tokens }}',
+    '{{ vite src="resources/css/site.css" }}',
+  ]);
 });
 
 test('everything a person actually writes stays editable', () => {
@@ -62,9 +63,7 @@ test('nothing in, nothing out', () => {
  * module imports the browser dock and cannot be loaded here.
  */
 const filter = EditorState.changeFilter.of((tr) =>
-  editedByHand((event) => tr.isUserEvent(event))
-    ? lockedRanges(tr.startState.doc.toString())
-    : true
+  editedByHand((event) => tr.isUserEvent(event)) ? lockedRanges(tr.startState.doc.toString()) : true
 );
 
 const HEAD = '<head>{{ vite src="resources/css/site.css" }}{{ theme_tokens }}</head>';

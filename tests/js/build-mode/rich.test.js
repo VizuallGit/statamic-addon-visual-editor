@@ -3,18 +3,29 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from '../../../resources/js/build-mode/rich.js';
+import {
+  isRichBlock,
+  readRich,
+  readRichField,
+  richOwner,
+  sameRich,
+  withRich,
+  withRichField,
+} from '../../../resources/js/build-mode/rich.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const first = (html) => parseTemplateTree(html)[0];
 
 test('a div of plain prose is rich text: paragraphs, headings, lists, bold, italic, links', () => {
-  const html = '<div>\n    <h2>Title</h2>\n    <p>One <strong>two</strong> <a href="/x" target="_blank">three</a></p>\n    <ul><li><p>Item</p></li></ul>\n</div>';
+  const html =
+    '<div>\n    <h2>Title</h2>\n    <p>One <strong>two</strong> <a href="/x" target="_blank">three</a></p>\n    <ul><li><p>Item</p></li></ul>\n</div>';
 
-  assert.deepEqual(readRich(html, first(html)), { html: '<h2>Title</h2>\n    <p>One <strong>two</strong> <a href="/x" target="_blank">three</a></p>\n    <ul><li><p>Item</p></li></ul>' });
+  assert.deepEqual(readRich(html, first(html)), {
+    html: '<h2>Title</h2>\n    <p>One <strong>two</strong> <a href="/x" target="_blank">three</a></p>\n    <ul><li><p>Item</p></li></ul>',
+  });
 });
 
-test('a class, an id or Antlers anywhere inside makes it a designer\'s markup, never handed to Bard', () => {
+test("a class, an id or Antlers anywhere inside makes it a designer's markup, never handed to Bard", () => {
   for (const html of [
     '<div><h2 class="text-800">Title</h2><p>Text</p></div>',
     '<div><p>Text <span>x</span></p></div>',
@@ -28,18 +39,23 @@ test('a class, an id or Antlers anywhere inside makes it a designer\'s markup, n
 });
 
 test('an empty div, loose text, and a div that is not a holder are not rich text', () => {
-  for (const html of ['<div></div>', '<div>Loose <p>x</p></div>', '<section><p>x</p></section>', '<p>Just a paragraph</p>']) {
+  for (const html of [
+    '<div></div>',
+    '<div>Loose <p>x</p></div>',
+    '<section><p>x</p></section>',
+    '<p>Just a paragraph</p>',
+  ]) {
     assert.equal(readRich(html, first(html)), null, html);
   }
 });
 
-test('the div\'s own attributes are its own: a styled div of prose is still rich text', () => {
+test("the div's own attributes are its own: a styled div of prose is still rich text", () => {
   const html = '<div class="flow-y max-w-[60ch]"><p>Text</p></div>';
 
   assert.deepEqual(readRich(html, first(html)), { html: '<p>Text</p>' });
 });
 
-test('written back, one block to a line at the div\'s indent plus one step', () => {
+test("written back, one block to a line at the div's indent plus one step", () => {
   const html = '<section>\n    <div>\n        <p>Old</p>\n    </div>\n</section>';
   const div = first(html).children[0];
 
@@ -67,7 +83,8 @@ test('what is not rich text is never rewritten', () => {
 });
 
 test('what stands in rich text belongs to it; other elements belong to none', () => {
-  const html = '<section><div class="prose"><p>One <strong>two</strong></p></div><div><h2>Three</h2><p>Four</p></div><div class="prose"><h2 class="x">Five</h2></div></section>';
+  const html =
+    '<section><div class="prose"><p>One <strong>two</strong></p></div><div><h2>Three</h2><p>Four</p></div><div class="prose"><h2 class="x">Five</h2></div></section>';
   const [rich, laidOut, classed] = parseTemplateTree(html)[0].children;
   const p = rich.children[0];
 
@@ -82,7 +99,7 @@ test('what stands in rich text belongs to it; other elements belong to none', ()
   assert.equal(richOwner(html, ''), '');
 });
 
-test('a field stands in rich text\'s place, and comes out again', () => {
+test("a field stands in rich text's place, and comes out again", () => {
   const html = '<div>\n    <p>Words</p>\n</div>';
   const bound = withRichField(html, parseTemplateTree(html)[0], '{{ content }}');
 

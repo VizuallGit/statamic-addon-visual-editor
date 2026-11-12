@@ -121,13 +121,26 @@ function onInput(value) {
           borderRadius: theme.radius,
           background: theme.input,
         }"
-        @mousedown="(e) => { stop(e); if (document.activeElement !== e.currentTarget) { e.preventDefault(); e.currentTarget.focus(); } }"
+        @mousedown="
+          (e) => {
+            stop(e);
+            if (document.activeElement !== e.currentTarget) {
+              e.preventDefault();
+              e.currentTarget.focus();
+            }
+          }
+        "
         @pointerdown="stop"
         @keydown="stop"
         @input="onInput($event.target.value)"
       ></textarea>
       <div class="sve-thread__actions">
-        <button type="button" class="is-primary" :style="{ background: theme.primary, borderRadius: theme.radius }" @click="send">
+        <button
+          type="button"
+          class="is-primary"
+          :style="{ background: theme.primary, borderRadius: theme.radius }"
+          @click="send"
+        >
           {{ submitLabel }}
         </button>
         <button

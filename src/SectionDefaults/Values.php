@@ -28,7 +28,7 @@ final class Values
         $values = [];
 
         foreach ((new Fields($items))->all() as $field) {
-            $value = static::defaultFor($field, $path.'.'.$field->handle());
+            $value = self::defaultFor($field, $path.'.'.$field->handle());
 
             // Nothing to store: leave the key out entirely rather than writing a
             // null, so Antlers falls through to whatever the partial does for a
@@ -57,15 +57,15 @@ final class Values
         // Nest it the way an inserted section stores it, or the picture has no
         // padding at all.
         if ($type === 'responsive') {
-            $nested = static::resolve($config['fields'] ?? [], $path.'.'.ResponsiveFieldtype::base());
+            $nested = self::resolve($config['fields'] ?? [], $path.'.'.ResponsiveFieldtype::base());
 
             return $nested === [] ? null : [ResponsiveFieldtype::base() => $nested];
         }
 
         // Grid: `default:` holds the rows; each row's own fields supply the rest.
         if ($type === 'grid' && is_array($default)) {
-            $default = static::rows($default, fn ($row, $index) => array_merge(
-                static::resolve($config['fields'] ?? [], $path.'.'.$index),
+            $default = self::rows($default, fn ($row, $index) => array_merge(
+                self::resolve($config['fields'] ?? [], $path.'.'.$index),
                 $row,
             ), $path);
         }
@@ -78,7 +78,7 @@ final class Values
         }
 
         if (in_array($type, ['replicator', 'bard'], true) && is_array($default)) {
-            $default = static::rows($default, function ($row, $index) use ($config, $path) {
+            $default = self::rows($default, function ($row, $index) use ($config, $path) {
                 if (empty($row['type']) || ! is_string($row['type'])) {
                     return $row;
                 }
@@ -91,12 +91,12 @@ final class Values
 
         // Group: one row's worth of nested fields, no list involved.
         if ($type === 'group') {
-            $nested = static::resolve($config['fields'] ?? [], $path);
+            $nested = self::resolve($config['fields'] ?? [], $path);
 
             $default = array_merge($nested, is_array($default) ? $default : []);
         }
 
-        return static::wrapResponsive($field, $default);
+        return self::wrapResponsive($field, $default);
     }
 
     /**
@@ -158,7 +158,7 @@ final class Values
             $row = $filler(is_array($row) ? $row : [], $index);
 
             if (empty($row['id'])) {
-                $row['id'] = static::id($path.'.'.$index);
+                $row['id'] = self::id($path.'.'.$index);
             }
 
             $filled[] = $row;

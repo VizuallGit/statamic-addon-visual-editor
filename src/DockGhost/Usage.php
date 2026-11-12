@@ -35,7 +35,7 @@ final class Usage
     /** @param  array<string, int>  $usage  Reply::usage's shape */
     public static function cost(string $model, array $usage): ?float
     {
-        $price = static::PRICES[$model] ?? null;
+        $price = self::PRICES[$model] ?? null;
 
         if ($price === null) {
             return null;
@@ -52,7 +52,7 @@ final class Usage
     /** One answer more on this month's account. */
     public static function record(string $model, string $mode, array $usage): void
     {
-        $dir = static::directory();
+        $dir = self::directory();
 
         if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
             return;
@@ -78,7 +78,7 @@ final class Usage
                 $month['tokens'][$kind] = ($month['tokens'][$kind] ?? 0) + (int) ($usage[$kind] ?? 0);
             }
 
-            $cost = static::cost($model, $usage);
+            $cost = self::cost($model, $usage);
 
             if ($cost !== null) {
                 $month['cost'] = round(($month['cost'] ?? 0) + $cost, 6);
@@ -101,7 +101,7 @@ final class Usage
     public static function month(?string $month = null): array
     {
         $month ??= date('Y-m');
-        $path = static::directory().'/'.$month.'.json';
+        $path = self::directory().'/'.$month.'.json';
         $data = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
         $data = is_array($data) ? $data : [];
 

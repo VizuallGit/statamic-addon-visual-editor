@@ -7,7 +7,12 @@
  */
 import { computed, nextTick, ref, watch } from 'vue';
 
-const { part, who = '', classes, t } = defineProps({
+const {
+  part,
+  who = '',
+  classes,
+  t,
+} = defineProps({
   part: { type: String, required: true },
   who: { type: String, default: '' },
   classes: { type: Object, required: true },
@@ -56,39 +61,90 @@ async function create() {
 }
 
 // The form takes the caret where New class was pressed.
-watch(() => part === 'foot' && picking.value && classes.askedBy() === who, (asked) => {
-  if (asked) {
-    nextTick(() => input.value?.focus());
-  }
-}, { immediate: true });
+watch(
+  () => part === 'foot' && picking.value && classes.askedBy() === who,
+  (asked) => {
+    if (asked) {
+      nextTick(() => input.value?.focus());
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
   <div v-if="part === 'line' && picking" class="sve-class-pick sve-class-pick__line">
     <p class="sve-class-pick__hint">{{ t('class_pick_hint') }}</p>
-    <button v-if="canChoose" type="button" class="sve-class-pick__small" :aria-pressed="allChosen" data-sve-build-class-choose-all @click="classes.chooseAll()">{{ t('class_choose_all') }}</button>
+    <button
+      v-if="canChoose"
+      type="button"
+      class="sve-class-pick__small"
+      :aria-pressed="allChosen"
+      data-sve-build-class-choose-all
+      @click="classes.chooseAll()"
+      >{{ t('class_choose_all') }}</button
+    >
   </div>
 
   <template v-if="part === 'foot'">
     <div v-if="picking" class="sve-class-pick sve-class-pick__form" data-sve-build-class-pick>
-      <input ref="input" v-model="classes.draft.value" type="text" spellcheck="false" :placeholder="t('class_name_placeholder')" :aria-label="t('class_name_placeholder')" @keydown.enter.prevent="create" @keydown.esc.prevent.stop="classes.stopPicking()" />
+      <input
+        ref="input"
+        v-model="classes.draft.value"
+        type="text"
+        spellcheck="false"
+        :placeholder="t('class_name_placeholder')"
+        :aria-label="t('class_name_placeholder')"
+        @keydown.enter.prevent="create"
+        @keydown.esc.prevent.stop="classes.stopPicking()"
+      />
       <p v-if="problem" class="sve-class-pick__hint" data-sve-build-class-problem>{{ t(`class_${problem}`) }}</p>
       <div class="sve-class-pick__acts">
-        <button type="button" class="sve-class-pick__new" :disabled="!canCreate" data-sve-build-class-create @click="create">{{ createLabel }}</button>
-        <button type="button" class="sve-class-pick__cancel" data-sve-build-class-cancel @click="classes.stopPicking()">{{ t('class_cancel') }}</button>
+        <button
+          type="button"
+          class="sve-class-pick__new"
+          :disabled="!canCreate"
+          data-sve-build-class-create
+          @click="create"
+          >{{ createLabel }}</button
+        >
+        <button
+          type="button"
+          class="sve-class-pick__cancel"
+          data-sve-build-class-cancel
+          @click="classes.stopPicking()"
+          >{{ t('class_cancel') }}</button
+        >
       </div>
     </div>
 
-    <p v-else-if="lockedTold" class="sve-class-pick sve-class-pick__hint" data-sve-build-class-locked-note>{{ t('class_locked', { name: lockedTold }) }}</p>
+    <p v-else-if="lockedTold" class="sve-class-pick sve-class-pick__hint" data-sve-build-class-locked-note>{{
+      t('class_locked', { name: lockedTold })
+    }}</p>
 
     <div v-if="outside.length" class="sve-class-pick sve-class-pick__outside" data-sve-build-class-outside>
       <div class="sve-class-pick__line">
         <p class="sve-class-pick__hint">{{ t('class_outside') }}</p>
-        <button v-if="joinable.length" type="button" class="sve-class-pick__small" data-sve-build-class-take-all @click="classes.takeIn(joinable)">{{ t('class_take_all') }}</button>
+        <button
+          v-if="joinable.length"
+          type="button"
+          class="sve-class-pick__small"
+          data-sve-build-class-take-all
+          @click="classes.takeIn(joinable)"
+          >{{ t('class_take_all') }}</button
+        >
       </div>
       <div class="sve-class-pick__rest">
         <template v-for="one in outside" :key="one.name">
-          <button v-if="one.joinable" type="button" class="sve-class-pick__take" :title="t('class_take_one', { name: one.name, target })" :data-sve-build-class-take="one.name" @click="classes.takeIn([one.name])">{{ one.name }}</button>
+          <button
+            v-if="one.joinable"
+            type="button"
+            class="sve-class-pick__take"
+            :title="t('class_take_one', { name: one.name, target })"
+            :data-sve-build-class-take="one.name"
+            @click="classes.takeIn([one.name])"
+            >{{ one.name }}</button
+          >
           <code v-else :title="t('class_stays', { name: one.name })">{{ one.name }}</code>
         </template>
       </div>
@@ -115,8 +171,12 @@ watch(() => part === 'foot' && picking.value && classes.askedBy() === who, (aske
   box-sizing: border-box;
   min-width: 0;
 }
-[data-sve-tw-class-bar] .sve-class-pick { margin: 0.4rem 0.5rem 0; }
-[data-sve-tw-class-foot] .sve-class-pick { margin: 0 0.5rem 0.4rem; }
+[data-sve-tw-class-bar] .sve-class-pick {
+  margin: 0.4rem 0.5rem 0;
+}
+[data-sve-tw-class-foot] .sve-class-pick {
+  margin: 0 0.5rem 0.4rem;
+}
 .sve-class-pick__line {
   display: flex;
   align-items: center;
@@ -144,8 +204,13 @@ watch(() => part === 'foot' && picking.value && classes.askedBy() === who, (aske
   font-weight: 500;
   cursor: pointer;
 }
-.sve-class-pick__small:hover { background: var(--cp-hover, #39393c); }
-.sve-class-pick__small[aria-pressed='true'] { background: var(--cp-accent-soft, rgba(56, 88, 233, 0.28)); color: var(--cp-accent-text, #b4c1ff); }
+.sve-class-pick__small:hover {
+  background: var(--cp-hover, #39393c);
+}
+.sve-class-pick__small[aria-pressed='true'] {
+  background: var(--cp-accent-soft, rgba(56, 88, 233, 0.28));
+  color: var(--cp-accent-text, #b4c1ff);
+}
 .sve-class-pick__form {
   display: grid;
   gap: 0.35rem;
@@ -165,11 +230,23 @@ watch(() => part === 'foot' && picking.value && classes.askedBy() === who, (aske
   font: 450 0.75rem var(--cp-mono);
   outline: 0;
 }
-.sve-class-pick__form input:focus { border-color: var(--cp-accent); }
+.sve-class-pick__form input:focus {
+  border-color: var(--cp-accent);
+}
 /* The dock is low: the name and its buttons on one line, so the classes keep the room. */
-[data-sve-tw-class-foot] .sve-class-pick__form { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-[data-sve-tw-class-foot] .sve-class-pick__form .sve-class-pick__hint { grid-column: 1 / -1; grid-row: 2; }
-.sve-class-pick__acts { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+[data-sve-tw-class-foot] .sve-class-pick__form {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+[data-sve-tw-class-foot] .sve-class-pick__form .sve-class-pick__hint {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.sve-class-pick__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .sve-class-pick__new,
 .sve-class-pick__cancel {
   all: unset;
@@ -179,16 +256,42 @@ watch(() => part === 'foot' && picking.value && classes.askedBy() === who, (aske
   font-size: 0.6875rem;
   cursor: pointer;
 }
-.sve-class-pick__new { background: var(--cp-accent); color: #fff; font-weight: 600; }
-.sve-class-pick__new:disabled { background: var(--cp-hover); color: var(--cp-faint); cursor: default; }
-.sve-class-pick__cancel { background: var(--cp-hover); color: var(--cp-ink); }
+.sve-class-pick__new {
+  background: var(--cp-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.sve-class-pick__new:disabled {
+  background: var(--cp-hover);
+  color: var(--cp-faint);
+  cursor: default;
+}
+.sve-class-pick__cancel {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
 .sve-class-pick__new:focus-visible,
 .sve-class-pick__cancel:focus-visible,
 .sve-class-pick__small:focus-visible,
-.sve-class-pick__take:focus-visible { outline: 2px solid var(--cp-accent-text, #b4c1ff); outline-offset: 1px; }
-.sve-class-pick__outside { display: grid; gap: 0.3rem; }
-.sve-class-pick__rest { display: flex; flex-wrap: wrap; gap: 0.25rem; min-width: 0; }
-.sve-class-pick__rest code { padding: 0.15rem 0.35rem; color: var(--cp-muted); font-size: 0.625rem; }
+.sve-class-pick__take:focus-visible {
+  outline: 2px solid var(--cp-accent-text, #b4c1ff);
+  outline-offset: 1px;
+}
+.sve-class-pick__outside {
+  display: grid;
+  gap: 0.3rem;
+}
+.sve-class-pick__rest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.sve-class-pick__rest code {
+  padding: 0.15rem 0.35rem;
+  color: var(--cp-muted);
+  font-size: 0.625rem;
+}
 .sve-class-pick__take {
   all: unset;
   box-sizing: border-box;
@@ -200,5 +303,9 @@ watch(() => part === 'foot' && picking.value && classes.askedBy() === who, (aske
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.sve-class-pick__take:hover { background: var(--cp-accent-soft); border-color: var(--cp-accent); color: var(--cp-accent-text); }
+.sve-class-pick__take:hover {
+  background: var(--cp-accent-soft);
+  border-color: var(--cp-accent);
+  color: var(--cp-accent-text);
+}
 </style>

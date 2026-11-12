@@ -116,11 +116,12 @@ function nestedRows(win, html, own) {
           key: prop.handle,
           handle: prop.handle,
           type: prop.type || 'text',
-          state: reads[prop.handle] !== undefined
-            ? `← ${reads[prop.handle]}`
-            : said[prop.handle] !== undefined && said[prop.handle] !== ''
-              ? said[prop.handle]
-              : t(win, 'component_props_nested_default'),
+          state:
+            reads[prop.handle] !== undefined
+              ? `← ${reads[prop.handle]}`
+              : said[prop.handle] !== undefined && said[prop.handle] !== ''
+                ? said[prop.handle]
+                : t(win, 'component_props_nested_default'),
           bound: reads[prop.handle] !== undefined,
         })),
         declared: fields,
@@ -181,7 +182,8 @@ function groupSummary(win, prop) {
   }
 
   const rows = readGroupValue(prop.default)?.rows.length || 0;
-  const rowsText = rows === 1 ? t(win, 'component_props_group_one_row') : t(win, 'component_props_group_rows', { count: rows });
+  const rowsText =
+    rows === 1 ? t(win, 'component_props_group_one_row') : t(win, 'component_props_group_rows', { count: rows });
   const sets = Array.isArray(prop.sets) ? prop.sets.length : 0;
 
   return sets ? `${t(win, 'component_props_group_sets', { count: sets })} · ${rowsText}` : rowsText;
@@ -216,13 +218,14 @@ function rowsFrom(win, props) {
       repeat: group && prop.repeat === true,
       fields: group && Array.isArray(prop.fields) ? prop.fields.map((field, at) => fieldRow(win, field, at)) : [],
       // A list's block types, each with fields of its own.
-      sets: group && Array.isArray(prop.sets)
-        ? prop.sets.map((set, at) => ({
-          key: at,
-          handle: set.handle || '',
-          fields: (Array.isArray(set.fields) ? set.fields : []).map((field, i) => fieldRow(win, field, i)),
-        }))
-        : [],
+      sets:
+        group && Array.isArray(prop.sets)
+          ? prop.sets.map((set, at) => ({
+              key: at,
+              handle: set.handle || '',
+              fields: (Array.isArray(set.fields) ? set.fields : []).map((field, i) => fieldRow(win, field, i)),
+            }))
+          : [],
     };
   });
 }
@@ -309,12 +312,11 @@ function typingInPanel(win) {
   }
 
   return (
-    /^(INPUT|TEXTAREA)$/.test(el.tagName)
-    || el.isContentEditable
-    || !!el.closest?.('[contenteditable="true"], .bard-fieldtype, .assets-fieldtype')
+    /^(INPUT|TEXTAREA)$/.test(el.tagName) ||
+    el.isContentEditable ||
+    !!el.closest?.('[contenteditable="true"], .bard-fieldtype, .assets-fieldtype')
   );
 }
-
 
 /**
  * The handle as the file will actually hold it.
@@ -449,7 +451,12 @@ export function paintComponentProps(win) {
         }
 
         const sets = (prop.sets || []).map((set) => ({ ...set, fields: [...(set.fields || [])] }));
-        const set = sets.length ? Math.max(0, sets.findIndex((one) => one.handle === list.type)) : null;
+        const set = sets.length
+          ? Math.max(
+              0,
+              sets.findIndex((one) => one.handle === list.type)
+            )
+          : null;
         const target = set === null ? [...(prop.fields || [])] : sets[set].fields;
         const value = readGroupValue(prop.default) || { fields: [], rows: [], off: [], types: [] };
 
@@ -601,7 +608,10 @@ export function paintComponentProps(win) {
     }
 
     openIndex = index;
-    commit(win, props.map((item, at) => (at === index ? change({ ...item }) : item)));
+    commit(
+      win,
+      props.map((item, at) => (at === index ? change({ ...item }) : item))
+    );
   };
 
   /** A copy of the group's block types, deep enough to change. */
@@ -618,7 +628,10 @@ export function paintComponentProps(win) {
   const editFields = (index, change, set = null) => {
     editGroup(index, (prop) => {
       if (set === null) {
-        return { ...prop, fields: change((Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field }))) };
+        return {
+          ...prop,
+          fields: change((Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field }))),
+        };
       }
 
       const sets = setsOf(prop);
@@ -662,7 +675,11 @@ export function paintComponentProps(win) {
       const sets = setsOf(prop);
 
       if (!sets.length) {
-        sets.push({ handle: 'item', label: '', fields: (Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field })) });
+        sets.push({
+          handle: 'item',
+          label: '',
+          fields: (Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field })),
+        });
       }
 
       sets.push({ handle: freeHandle(sets, 'block'), label: '', fields: [] });
@@ -743,7 +760,10 @@ export function paintComponentProps(win) {
         const clean = key === 'handle' ? normalizeHandle(value) : value;
 
         // In a list, `type`, `enabled` and `_id` are what Statamic's row carries.
-        if (key === 'handle' && (LOOP_NAMES.includes(clean) || (props[index]?.repeat === true && ROW_NAMES.includes(clean)))) {
+        if (
+          key === 'handle' &&
+          (LOOP_NAMES.includes(clean) || (props[index]?.repeat === true && ROW_NAMES.includes(clean)))
+        ) {
           return fields;
         }
 
@@ -800,10 +820,12 @@ export function paintComponentProps(win) {
 
     // A group's editor is its fields — a grid or a group of them — so a field
     // added or a switch to repeat is a different form, loaded again.
-    const fieldsKey = (fields) => (fields || []).map((field) => `${field.handle}:${field.type}:${optionsLine(field)}`).join(',');
-    const shape = prop.type === 'group'
-      ? `::${prop.repeat === true}::${fieldsKey(prop.fields)}::${(prop.sets || []).map((set) => `${set.handle}(${fieldsKey(set.fields)})`).join(';')}`
-      : '';
+    const fieldsKey = (fields) =>
+      (fields || []).map((field) => `${field.handle}:${field.type}:${optionsLine(field)}`).join(',');
+    const shape =
+      prop.type === 'group'
+        ? `::${prop.repeat === true}::${fieldsKey(prop.fields)}::${(prop.sets || []).map((set) => `${set.handle}(${fieldsKey(set.fields)})`).join(';')}`
+        : '';
 
     defaultValue.load(win, {
       key: `${src}::${prop.handle}::${prop.type}${shape}`,

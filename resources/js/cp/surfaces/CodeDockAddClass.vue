@@ -28,10 +28,12 @@ const props = defineProps({
 const value = ref(props.initial || '');
 const input = ref(null);
 
-onMounted(() => nextTick(() => {
-  input.value?.focus();
-  input.value?.select();
-}));
+onMounted(() =>
+  nextTick(() => {
+    input.value?.focus();
+    input.value?.select();
+  })
+);
 
 const typed = computed(() => value.value.trim().toLowerCase());
 const matches = computed(() => {
@@ -88,7 +90,7 @@ function submit() {
     :placeholder="placeholder"
     @keydown.enter.prevent="submit"
     @keydown.escape.stop.prevent="onClose?.()"
-  >
+  />
   <div v-if="taken" data-sve-css-add-hint>{{ taken }}</div>
   <template v-if="options.length">
     <div data-sve-css-add-existing>{{ existingLabel }}</div>
@@ -112,6 +114,7 @@ function submit() {
       :disabled="!!taken || !typed"
       @mousedown.prevent
       @click.prevent.stop="submit"
-    >{{ createLabel }}</button>
+      >{{ createLabel }}</button
+    >
   </template>
 </template>

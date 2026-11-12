@@ -5,7 +5,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  publishContainers, addContainer, onContainer, registerContainerSource, registerContainerEvents, activeContainers,
+  publishContainers,
+  addContainer,
+  onContainer,
+  registerContainerSource,
+  registerContainerEvents,
+  activeContainers,
   pageHasSectionField,
 } from '../../resources/js/lib/publish-containers.js';
 
@@ -19,7 +24,10 @@ test('addContainer keeps each container once and announces it to listeners', () 
   addContainer(a);
   addContainer(a);
   addContainer({ name: 'no-setter', values: {} });
-  assert.deepEqual(publishContainers.map((c) => c.name), ['a']);
+  assert.deepEqual(
+    publishContainers.map((c) => c.name),
+    ['a']
+  );
   assert.deepEqual(seen, ['a']);
 });
 
@@ -28,7 +36,10 @@ test('addContainer refuses a container that writes values but not meta', () => {
   // Kept, it came first in activeContainers and every meta write after it was skipped:
   // a duplicated or dropped-in section had no meta, and the sidebar stopped drawing.
   addContainer({ name: 'a', values: {}, meta: {}, setFieldValue() {}, setMeta() {} });
-  assert.deepEqual(publishContainers.map((c) => c.name), ['a']);
+  assert.deepEqual(
+    publishContainers.map((c) => c.name),
+    ['a']
+  );
   assert.equal(typeof activeContainers(emptyDoc)[0].setFieldMeta, 'function');
 });
 
@@ -40,15 +51,25 @@ test('onContainer replays containers that were already known', () => {
 
 test('registerContainerEvents subscribes once and follows created/destroyed', () => {
   const handlers = {};
-  const events = { $on: (name, fn) => { handlers[name] = fn; } };
+  const events = {
+    $on: (name, fn) => {
+      handlers[name] = fn;
+    },
+  };
   const win = { Statamic: { $events: events } };
   registerContainerEvents(win);
   registerContainerEvents(win);
   handlers['publish-container-created'](container('b'));
   handlers['publish-container-created']({ name: 'ignored', values: {} });
-  assert.deepEqual(publishContainers.map((c) => c.name), ['a', 'b']);
+  assert.deepEqual(
+    publishContainers.map((c) => c.name),
+    ['a', 'b']
+  );
   handlers['publish-container-destroyed']({ name: 'a' });
-  assert.deepEqual(publishContainers.map((c) => c.name), ['b']);
+  assert.deepEqual(
+    publishContainers.map((c) => c.name),
+    ['b']
+  );
 });
 
 test('activeContainers is newest first, then the registered sources last', () => {
@@ -56,7 +77,10 @@ test('activeContainers is newest first, then the registered sources last', () =>
   const panel = container('panel');
   registerContainerSource(() => panel);
   registerContainerSource(() => null);
-  assert.deepEqual(activeContainers(emptyDoc).map((c) => c.name), ['c', 'b', 'panel']);
+  assert.deepEqual(
+    activeContainers(emptyDoc).map((c) => c.name),
+    ['c', 'b', 'panel']
+  );
 });
 
 test('pageHasSectionField: a form whose values carry the page builder, empty or not', () => {
@@ -66,10 +90,14 @@ test('pageHasSectionField: a form whose values carry the page builder, empty or 
   assert.equal(pageHasSectionField(win, emptyDoc), false);
 
   // A ref, as Statamic hands values out, holding the field with no rows in it.
-  addContainer({ name: 'page', setFieldValue() {}, setFieldMeta() {}, values: { __v_isRef: true, value: { blocks: [] } } });
+  addContainer({
+    name: 'page',
+    setFieldValue() {},
+    setFieldMeta() {},
+    values: { __v_isRef: true, value: { blocks: [] } },
+  });
   assert.equal(pageHasSectionField(win, emptyDoc), true);
 
   // Without the setting the field is page_sections, which no form carries.
   assert.equal(pageHasSectionField({}, emptyDoc), false);
 });
-

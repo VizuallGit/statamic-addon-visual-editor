@@ -15,7 +15,8 @@ import { defineConfig } from 'vite';
 import statamic from '@statamic/cms/vite-plugin';
 
 const ADDON = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const SHARED = /\/(code-dock|tw-classes|tw-tool|tw-families|tw-parse|html-tree-parse|html-tree-edit|html-tree-icons|template-elements|breakpoints|cp\/bus|cp\/mount|lib\/[\w-]+)\.js$/;
+const SHARED =
+  /\/(code-dock|tw-classes|tw-tool|tw-families|tw-parse|html-tree-parse|html-tree-edit|html-tree-icons|template-elements|breakpoints|cp\/bus|cp\/mount|lib\/[\w-]+)\.js$/;
 
 export default defineConfig({
   root: ADDON,

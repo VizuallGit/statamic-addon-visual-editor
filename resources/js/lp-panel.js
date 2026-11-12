@@ -16,7 +16,24 @@ import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_PUBLISH_ID, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
+import {
+  COMMENTS_BADGE_ACTIVE_BG,
+  COMMENTS_BADGE_FG,
+  COMMENTS_BADGE_IDLE_TYPE,
+  LP_BACK_ID,
+  LP_CHROME_H,
+  LP_COLLAPSED_KEY,
+  LP_CONTROL_H,
+  LP_CONTROL_PAD,
+  LP_DOCKED_KEY,
+  LP_ICON_IDLE_OPACITY,
+  LP_MODE_KEY,
+  LP_PREVIEW_CHROME_ID,
+  LP_PRIMARY_FLAT,
+  LP_PUBLISH_ID,
+  LP_RELOAD_ID,
+  LP_TOOLBAR_GAP,
+} from './lib/ids.js';
 import { ensureLpPanelToggle } from './lp-width.js';
 import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
@@ -48,7 +65,6 @@ export const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
  */
 
 /** Same rem bounds on the left editor and the right dock. */
-
 
 // The panel runs in one of three modes, chosen in the header and remembered
 // across sessions:
@@ -304,11 +320,7 @@ export function paintLpSaveButton(win) {
     const highlight = isPublish || (isSave && !hasPublish);
     const idleSurface = 'rgba(128,128,128,.16)';
 
-    btn.style.setProperty(
-      'background',
-      highlight ? LP_PRIMARY_FLAT : idleSurface,
-      'important'
-    );
+    btn.style.setProperty('background', highlight ? LP_PRIMARY_FLAT : idleSurface, 'important');
     btn.style.setProperty('background-image', 'none', 'important');
     btn.style.setProperty('color', highlight ? '#fff' : 'currentColor', 'important');
     btn.style.setProperty('opacity', highlight ? '1' : LP_ICON_IDLE_OPACITY, 'important');

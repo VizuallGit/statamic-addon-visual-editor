@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Statamic\Facades\User;
 use Symfony\Component\Process\PhpExecutableFinder;
@@ -42,7 +43,7 @@ class PreviewRefresher
      * Refreshes what has gone stale.
      *
      * @param  string|null  $only  A single set handle or entry id, or everything.
-     * @return bool  Whether a run was started.
+     * @return bool Whether a run was started.
      */
     public static function kick(?string $only = null): bool
     {
@@ -80,7 +81,7 @@ class PreviewRefresher
             // still come out right, which matters more than the milliseconds.
             // In-process, the URLs come from this request already.
             dispatch(function () use ($only, $force) {
-                \Illuminate\Support\Facades\Artisan::call('sve:previews', array_filter([
+                Artisan::call('sve:previews', array_filter([
                     '--only' => $only,
                     '--force' => $force,
                 ]));

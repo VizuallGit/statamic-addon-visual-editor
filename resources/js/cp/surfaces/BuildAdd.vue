@@ -66,8 +66,11 @@ function setView(value) {
   window.localStorage.setItem(VIEW_KEY, value);
 }
 
-const groups = computed(() => addGroups({ htmlTools: port.lists.htmlTools, divs: port.lists.divs, headings: port.lists.headings }));
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const groups = computed(() =>
+  addGroups({ htmlTools: port.lists.htmlTools, divs: port.lists.divs, headings: port.lists.headings })
+);
+const esc = (s) =>
+  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 const label = (entry) => tileLabel(port, entry);
 const q = computed(() => query.value.trim().toLowerCase());
@@ -76,7 +79,12 @@ const withComponents = computed(() => sub.value !== 'el');
 
 const shown = computed(() =>
   groups.value
-    .map((group) => ({ ...group, items: group.items.filter((item) => !q.value || label(item).toLowerCase().includes(q.value) || item.id.includes(q.value)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !q.value || label(item).toLowerCase().includes(q.value) || item.id.includes(q.value)
+      ),
+    }))
     .filter((group) => group.items.length)
 );
 
@@ -84,7 +92,10 @@ watch(
   withComponents,
   (wanted) => {
     if (wanted && !components.value) {
-      port.components().then((items) => (components.value = items || []), () => (components.value = []));
+      port.components().then(
+        (items) => (components.value = items || []),
+        () => (components.value = [])
+      );
     }
   },
   { immediate: true }
@@ -92,20 +103,32 @@ watch(
 
 /** The categories in use, and the one chosen: '' is all. A search reads the name, the category and the description. */
 const category = ref('');
-const categories = computed(() => [...new Set((components.value || []).map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)));
+const categories = computed(() =>
+  [...new Set((components.value || []).map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+);
 const shownComponents = computed(() =>
   (components.value || []).filter(
     (item) =>
       (!category.value || item.category === category.value) &&
-      (!q.value || [item.name, item.category, item.description].some((text) => String(text || '').toLowerCase().includes(q.value)))
+      (!q.value ||
+        [item.name, item.category, item.description].some((text) =>
+          String(text || '')
+            .toLowerCase()
+            .includes(q.value)
+        ))
   )
 );
 
 /** A search hides a part with nothing to show; without one, Components says it is loading or empty. */
-const componentsPart = computed(() => withComponents.value && (!q.value || components.value === null || shownComponents.value.length > 0));
+const componentsPart = computed(
+  () => withComponents.value && (!q.value || components.value === null || shownComponents.value.length > 0)
+);
 const nothing = computed(() => !!q.value && !(withElements.value && shown.value.length) && !componentsPart.value);
 
-const humanize = (name) => String(name || '').replace(/[_-]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+const humanize = (name) =>
+  String(name || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^\w/, (c) => c.toUpperCase());
 
 /** Where the next tile lands, in words — the name in bold, as the sketch has it. */
 const target = computed(() => {
@@ -169,7 +192,10 @@ function press(entry, event) {
   if (entry.def?.svg) {
     const tile = event.currentTarget;
 
-    svgAt.value = { row: tile.getBoundingClientRect(), column: (tile.closest('[data-sve-build-root]') || tile).getBoundingClientRect() };
+    svgAt.value = {
+      row: tile.getBoundingClientRect(),
+      column: (tile.closest('[data-sve-build-root]') || tile).getBoundingClientRect(),
+    };
 
     return;
   }
@@ -205,7 +231,9 @@ function offFor(entry) {
 }
 
 /** A component needs a parent, like any element. */
-const noComponents = computed(() => !!(target.value.nofile || target.value.nowhere || target.value.locked || target.value.top));
+const noComponents = computed(
+  () => !!(target.value.nofile || target.value.nowhere || target.value.locked || target.value.top)
+);
 
 /** Loop, If, Grid and SVG open something first, so they are clicked, not dragged. */
 const draggable = (entry) => !entry.logic && entry.source !== 'columns' && !entry.def?.svg;
@@ -244,7 +272,9 @@ function ghostOf(tile, event) {
     root.style.width = `${box.width}px`;
     root.style.margin = `${-grabY}px 0 0 ${-grabX}px`;
     row.className = tile.parentElement?.className || 'bm-tiles';
-    ['title', 'disabled', 'data-sve-build-tile', 'data-sve-build-component'].forEach((name) => copy.removeAttribute(name));
+    ['title', 'disabled', 'data-sve-build-tile', 'data-sve-build-component'].forEach((name) =>
+      copy.removeAttribute(name)
+    );
     row.append(copy);
     root.append(row);
 
@@ -266,14 +296,23 @@ function grabPreset(event, preset) {
   );
 }
 
-const columnsEntry = computed(() => groups.value.flatMap((group) => group.items).find((item) => item.source === 'columns'));
+const columnsEntry = computed(() =>
+  groups.value.flatMap((group) => group.items).find((item) => item.source === 'columns')
+);
 </script>
 
 <template>
   <div v-if="picker" class="bm-picker">
     <h3>
       <span>{{ port.t('columns_title') }}</span>
-      <button type="button" class="bm-ib sm" :title="port.t('close')" :aria-label="port.t('close')" @click="picker = false" v-html="ic('x')"></button>
+      <button
+        type="button"
+        class="bm-ib sm"
+        :title="port.t('close')"
+        :aria-label="port.t('close')"
+        @click="picker = false"
+        v-html="ic('x')"
+      ></button>
     </h3>
     <p>{{ port.t('columns_note') }}</p>
     <BuildGridPicker :grab="grabPreset" @pick="(key) => add(columnsEntry, key)" />
@@ -297,7 +336,13 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
     <div class="bm-find">
       <label class="bm-search">
         <span v-html="ic('search')"></span>
-        <input v-model="query" type="text" autocomplete="off" :placeholder="port.t(SEARCH[sub])" :aria-label="port.t(SEARCH[sub])" />
+        <input
+          v-model="query"
+          type="text"
+          autocomplete="off"
+          :placeholder="port.t(SEARCH[sub])"
+          :aria-label="port.t(SEARCH[sub])"
+        />
       </label>
       <div class="bm-seg bm-view">
         <button
@@ -327,7 +372,9 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
             :disabled="offFor(entry)"
             :title="port.t('add_title')"
             :data-sve-build-tile="entry.id"
-            @pointerdown="draggable(entry) && !offFor(entry) && grab($event, label(entry), () => markupOf(entry), entry)"
+            @pointerdown="
+              draggable(entry) && !offFor(entry) && grab($event, label(entry), () => markupOf(entry), entry)
+            "
             @click="press(entry, $event)"
           >
             <span v-html="tileIcon(entry, port.lists.htmlIcons, port.lists.toolIcons)"></span>
@@ -342,8 +389,17 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
       <p v-if="components === null" class="bm-muted">{{ port.t('components_loading') }}</p>
       <p v-else-if="!components.length" class="bm-muted">{{ port.t('components_none') }}</p>
       <div v-if="categories.length" class="bm-cats" data-sve-build-cats>
-        <button type="button" :aria-pressed="!category" @click="category = ''">{{ port.t('component_category_all') }}</button>
-        <button v-for="name in categories" :key="name" type="button" :aria-pressed="category === name" @click="category = name">{{ name }}</button>
+        <button type="button" :aria-pressed="!category" @click="category = ''">{{
+          port.t('component_category_all')
+        }}</button>
+        <button
+          v-for="name in categories"
+          :key="name"
+          type="button"
+          :aria-pressed="category === name"
+          @click="category = name"
+          >{{ name }}</button
+        >
       </div>
       <div v-if="components && components.length" class="bm-tiles" :class="{ 'is-list': view === 'list' }">
         <button
@@ -368,7 +424,11 @@ const columnsEntry = computed(() => groups.value.flatMap((group) => group.items)
 
     <p v-if="nothing" class="bm-muted">{{ port.t('none_found', { q: query }) }}</p>
     <p v-if="withElements" class="bm-note">{{ port.t('logic_note') }}</p>
-    <p v-if="withComponents" class="bm-note" v-html="port.t('components_note', { path: '<code>resources/views/partials/components/</code>' })"></p>
+    <p
+      v-if="withComponents"
+      class="bm-note"
+      v-html="port.t('components_note', { path: '<code>resources/views/partials/components/</code>' })"
+    ></p>
     <p class="bm-note" v-html="port.t('add_note', { later: `<i class='bm-soon'>${esc(port.t('later'))}</i>` })"></p>
   </template>
 </template>

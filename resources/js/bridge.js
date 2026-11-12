@@ -11,7 +11,6 @@ import { initBridge } from './bridge/outline-nav.js';
 // Bridge script — injected into the Live Preview iframe.
 // Only activates when running inside an iframe (window.self !== window.top).
 
-
 export const ACTIVE_ATTR = 'data-sid-active';
 export const HOVER_ATTR = 'data-sid-hover';
 export const INNER_ATTR = 'data-sid-inner';

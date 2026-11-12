@@ -55,7 +55,16 @@ function button(tab) {
  * sends. With `preview`, a preview iframe whose window collects what the CP
  * posts to it (`win.toPreview`).
  */
-function fakeWin({ tabs = ['settings', 'pages', 'globals', 'xray'], site = {}, rows = ROWS, stored = {}, header = true, mac = true, preview = false, modes = null } = {}) {
+function fakeWin({
+  tabs = ['settings', 'pages', 'globals', 'xray'],
+  site = {},
+  rows = ROWS,
+  stored = {},
+  header = true,
+  mac = true,
+  preview = false,
+  modes = null,
+} = {}) {
   const store = new Map(Object.entries(stored));
   const buttons = Object.fromEntries(tabs.map((tab) => [tab, button(tab)]));
   const bar = {
@@ -64,7 +73,12 @@ function fakeWin({ tabs = ['settings', 'pages', 'globals', 'xray'], site = {}, r
   };
   const listeners = [];
   const toPreview = [];
-  const frame = preview ? { contentDocument: null, contentWindow: { postMessage: (message, origin) => toPreview.push({ message, origin }) } } : null;
+  const frame = preview
+    ? {
+        contentDocument: null,
+        contentWindow: { postMessage: (message, origin) => toPreview.push({ message, origin }) },
+      }
+    : null;
   const config = {
     sveShortcuts: { builtIn: BUILT_IN, site, locked: ['mod+s', 'mod+t'], labels: { 'tool:pages': 'Pages' } },
     sveBreakpoints: rows,
@@ -130,7 +144,15 @@ register('lp:set-device', (payload) => devices.push(payload.key));
 test('the actions are every icon in the bar, Page settings and hidden ones included, and every size', () => {
   const win = fakeWin({ stored: { [TOOLBAR_HIDDEN_KEY]: '["xray"]' } });
 
-  assert.deepEqual(shortcutActions(win), ['tool:settings', 'tool:pages', 'tool:globals', 'tool:xray', 'size:laptop', 'size:tablet', 'size:mobile']);
+  assert.deepEqual(shortcutActions(win), [
+    'tool:settings',
+    'tool:pages',
+    'tool:globals',
+    'tool:xray',
+    'size:laptop',
+    'size:tablet',
+    'size:mobile',
+  ]);
 });
 
 test('a tool without an icon here has no shortcut: AI is not in the bar', () => {
@@ -140,11 +162,13 @@ test('a tool without an icon here has no shortcut: AI is not in the bar', () => 
   assert.equal(active['tool:globals'], 'mod+g');
 });
 
-test('the site\'s layer is the setting and each size\'s row; the user\'s is their own preference', () => {
+test("the site's layer is the setting and each size's row; the user's is their own preference", () => {
   const win = fakeWin({
     site: { 'tool:pages': 'mod+alt+9' },
     rows: [{ ...ROWS[0], shortcut: 'mod+1' }, ROWS[1], ROWS[2]],
-    stored: { 'sve-shortcuts': JSON.stringify({ 'tool:globals': 'mod+alt+g', 'tool:forms': 'mod+f', 'size:tablet': 'mod+s' }) },
+    stored: {
+      'sve-shortcuts': JSON.stringify({ 'tool:globals': 'mod+alt+g', 'tool:forms': 'mod+f', 'size:tablet': 'mod+s' }),
+    },
   });
   const layers = shortcutLayers(win);
 
@@ -161,7 +185,7 @@ test('the site\'s layer is the setting and each size\'s row; the user\'s is thei
   });
 });
 
-test('a user\'s own: set, moved here from another action (none there, same layer), back to the site\'s, all reset', () => {
+test("a user's own: set, moved here from another action (none there, same layer), back to the site's, all reset", () => {
   const win = fakeWin();
   const changed = [];
   const off = on('shortcuts:changed', ({ win: target }) => changed.push(target));
@@ -186,7 +210,14 @@ test('a tool the mode may not have has no shortcut, and its keys press nothing; 
   const modes = { content: ['pages', 'globals'], build: ['pages', 'globals', 'xray'] };
   const win = fakeWin({ modes });
 
-  assert.deepEqual(shortcutActions(win), ['tool:settings', 'tool:pages', 'tool:globals', 'size:laptop', 'size:tablet', 'size:mobile']);
+  assert.deepEqual(shortcutActions(win), [
+    'tool:settings',
+    'tool:pages',
+    'tool:globals',
+    'size:laptop',
+    'size:tablet',
+    'size:mobile',
+  ]);
   startShortcuts(win);
   win.press({ key: 'X', code: 'KeyX', metaKey: true, shiftKey: true });
   assert.equal(win.buttons.xray.clicks, 0);
@@ -305,7 +336,11 @@ test('the preview gets the combos that run something — once per list: a pass t
   startShortcuts(win);
 
   assert.deepEqual(comboList(win), [['mod+alt+t', 'mod+comma', 'mod+d', 'mod+g', 'mod+m', 'mod+p', 'mod+shift+x']]);
-  assert.deepEqual(win.toPreview[0].message, { source: SOURCE, type: MSG.SVE_SHORTCUTS, combos: win.toPreview[0].message.combos });
+  assert.deepEqual(win.toPreview[0].message, {
+    source: SOURCE,
+    type: MSG.SVE_SHORTCUTS,
+    combos: win.toPreview[0].message.combos,
+  });
   assert.equal(win.toPreview[0].origin, 'http://cp.test');
 
   win.buttons.ai = button('ai');
@@ -315,7 +350,7 @@ test('the preview gets the combos that run something — once per list: a pass t
   assert.ok(comboList(win)[1].includes('mod+alt+a'));
 });
 
-test('a preview that asks always gets the list; a size added and a shortcut of the user\'s own send it again; no preview, nothing', () => {
+test("a preview that asks always gets the list; a size added and a shortcut of the user's own send it again; no preview, nothing", () => {
   const win = fakeWin({ preview: true });
 
   startShortcuts(win);
@@ -338,20 +373,38 @@ test('a preview that asks always gets the list; a size added and a shortcut of t
 
 test('Live Preview opened from the site: a key on the site page runs too — only while the editor is open', () => {
   const heard = [];
-  const host = { navigator: { platform: 'MacIntel' }, addEventListener: (type, fn, capture) => heard.push({ type, fn, capture }), removeEventListener: () => {} };
+  const host = {
+    navigator: { platform: 'MacIntel' },
+    addEventListener: (type, fn, capture) => heard.push({ type, fn, capture }),
+    removeEventListener: () => {},
+  };
   let open = true;
   const win = fakeWin();
 
   win.parent = host;
-  win.frameElement = { classList: { contains: (name) => name === 'sve-edit-overlay' }, hasAttribute: (name) => name === 'data-open' && open };
+  win.frameElement = {
+    classList: { contains: (name) => name === 'sve-edit-overlay' },
+    hasAttribute: (name) => name === 'data-open' && open,
+  };
   startShortcuts(win);
 
   const onKey = heard.find((item) => item.type === 'keydown');
   const press = () => {
     const event = {
-      key: 'p', code: 'KeyP', metaKey: true, ctrlKey: false, altKey: false, shiftKey: false, prevented: false, stopped: false,
-      preventDefault() { this.prevented = true; },
-      stopPropagation() { this.stopped = true; },
+      key: 'p',
+      code: 'KeyP',
+      metaKey: true,
+      ctrlKey: false,
+      altKey: false,
+      shiftKey: false,
+      prevented: false,
+      stopped: false,
+      preventDefault() {
+        this.prevented = true;
+      },
+      stopPropagation() {
+        this.stopped = true;
+      },
     };
 
     onKey.fn(event);

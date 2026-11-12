@@ -49,7 +49,15 @@ import { featureSaidOn } from '../lib/config.js';
 import { remToPx } from '../lib/dom.js';
 import { injectStyle } from '../lib/style.js';
 import { bindTips } from '../cp/tip.js';
-import { CODE_DOCK_ID, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LP_PREVIEW_CHROME_ID, TOOLBAR_ADD_ATTR, TOOLBAR_GROUP_ATTR } from '../lib/ids.js';
+import {
+  CODE_DOCK_ID,
+  HEADER_SURFACE,
+  HEADER_TOOLBAR_ID,
+  HTML_TREE_PANEL_ID,
+  LP_PREVIEW_CHROME_ID,
+  TOOLBAR_ADD_ATTR,
+  TOOLBAR_GROUP_ATTR,
+} from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { on } from '../cp/bus.js';
 import { EDITOR_MODES, buildDockShown, editorMode, setBuildDockShown, setEditorMode } from '../build-mode-host.js';
@@ -71,8 +79,24 @@ const MODES = ['content', 'visual'];
 /** The mode this user last pressed. Content writes nothing: it is where a Live Preview starts. */
 const MODE_KEY = 'sve-editor-mode';
 /** Each mode's word in `sveBuildStrings` — Vizuall Build's is still `mode_build`. */
-const LABEL_KEYS = { content: 'mode_content', visual: 'mode_build', dock: 'build_dock', undo_content: 'undo_content', undo_build: 'undo_build', redo_content: 'redo_content', redo_build: 'redo_build' };
-const FALLBACK = { content: 'Edit content', visual: 'Vizuall build', dock: 'HTML', undo_content: 'Undo', undo_build: 'Undo', redo_content: 'Redo', redo_build: 'Redo' };
+const LABEL_KEYS = {
+  content: 'mode_content',
+  visual: 'mode_build',
+  dock: 'build_dock',
+  undo_content: 'undo_content',
+  undo_build: 'undo_build',
+  redo_content: 'redo_content',
+  redo_build: 'redo_build',
+};
+const FALLBACK = {
+  content: 'Edit content',
+  visual: 'Vizuall build',
+  dock: 'HTML',
+  undo_content: 'Undo',
+  undo_build: 'Undo',
+  redo_content: 'Redo',
+  redo_build: 'Redo',
+};
 // Drawn like the toolbar's own icons (stroke 2, round): a pen writing the
 // content, a page laid out in blocks, and a form's rows. The HTML icon is the
 // dock's own, read when the switch is drawn — header-toolbar.js imports this
@@ -82,10 +106,8 @@ const ICONS = {
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
   visual:
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3h5a4 4 0 0 1 4 4v3"/><path d="M3 12v5a4 4 0 0 0 4 4h4"/><path d="M6.5 2 7.6 5.4 11 6.5 7.6 7.6 6.5 11 5.4 7.6 2 6.5 5.4 5.4Z"/><path d="m14 21 .6-2.9 4.7-4.7a1.5 1.5 0 0 1 2.1 2.1l-4.7 4.7Z"/><circle cx="12.5" cy="11" r=".6"/></svg>',
-  undo:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
-  redo:
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>',
+  undo: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
+  redo: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>',
 };
 
 function ensureStyles(doc) {
@@ -245,7 +267,10 @@ function paintUndo(holder) {
   const win = holder.ownerDocument.defaultView;
   const word = editorMode() === 'content' ? 'content' : 'build';
 
-  [['undo', history?.canUndo()], ['redo', history?.canRedo()]].forEach(([name, can]) => {
+  [
+    ['undo', history?.canUndo()],
+    ['redo', history?.canRedo()],
+  ].forEach(([name, can]) => {
     const btn = holder.querySelector(`[data-sve-undo="${name}"]`);
     const title = label(win, `${name}_${word}`);
 

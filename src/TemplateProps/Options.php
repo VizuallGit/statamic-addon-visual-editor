@@ -48,9 +48,9 @@ final class Options
 
         return [
             'bindings' => $bindings,
-            'collections' => static::collectionOptions(),
-            'fields' => static::fieldOptions(self::TEXT_KINDS),
-            'assetFields' => static::fieldOptions(self::ASSET_KINDS),
+            'collections' => self::collectionOptions(),
+            'fields' => self::fieldOptions(self::TEXT_KINDS),
+            'assetFields' => self::fieldOptions(self::ASSET_KINDS),
         ];
     }
 
@@ -66,7 +66,7 @@ final class Options
                 'field' => [
                     'type' => 'select',
                     'display' => __('sve::messages.template_prop_collection'),
-                    'options' => static::collectionOptions(),
+                    'options' => self::collectionOptions(),
                     'default' => $prop['fallback'],
                     'replicator_preview' => false,
                 ],
@@ -121,7 +121,7 @@ final class Options
                 continue;
             }
 
-            $out[$handle] = static::fieldsOf($collection, $kinds);
+            $out[$handle] = self::fieldsOf($collection, $kinds);
         }
 
         return $out;

@@ -18,7 +18,9 @@ const port = inject('sveBuild');
 const button = ref(null);
 const shown = computed(() => port.bindable(props.twin || props.property));
 const bound = computed(() => port.boundOf(props.property, props.twin));
-const title = computed(() => (bound.value ? port.t('css_mode_field_bound', { name: bound.value }) : port.t('css_mode_field_bind')));
+const title = computed(() =>
+  bound.value ? port.t('css_mode_field_bound', { name: bound.value }) : port.t('css_mode_field_bind')
+);
 </script>
 
 <template>

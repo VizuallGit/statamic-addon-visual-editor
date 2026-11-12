@@ -163,7 +163,10 @@ export function openEditBox(state, done) {
   const keep = element(doc, 'button', 'data-keep', t(win, 'code_dock_ghost_edit_keep'));
   const undo = element(doc, 'button', 'data-undo', t(win, 'code_dock_ghost_edit_undo'));
 
-  head.append(element(doc, 'span', null, `✦ ${t(win, editing ? 'code_dock_ghost_edit_title' : 'code_dock_ghost_insert_title')}`), hint);
+  head.append(
+    element(doc, 'span', null, `✦ ${t(win, editing ? 'code_dock_ghost_edit_title' : 'code_dock_ghost_insert_title')}`),
+    hint
+  );
   input.rows = 1;
   input.placeholder = t(win, editing ? 'code_dock_ghost_edit_placeholder' : 'code_dock_ghost_insert_placeholder');
   keep.type = 'button';

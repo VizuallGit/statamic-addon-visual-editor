@@ -15,75 +15,75 @@
  * `icon_html` som PHP har hentet — Statamics Icon kender ikke det navn.
  */
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const ui = window.__STATAMIC__?.ui;
-        const FieldtypeMixin = window.__STATAMIC__?.core?.FieldtypeMixin;
+  Statamic.booting(() => {
+    const ui = window.__STATAMIC__?.ui;
+    const FieldtypeMixin = window.__STATAMIC__?.core?.FieldtypeMixin;
 
-        if (!ui?.Button || !ui?.ButtonGroup || !FieldtypeMixin) {
-            console.warn('[icon-button-group] Statamic UI mangler — fieldtype ikke registreret');
+    if (!ui?.Button || !ui?.ButtonGroup || !FieldtypeMixin) {
+      console.warn('[icon-button-group] Statamic UI mangler — fieldtype ikke registreret');
+      return;
+    }
+
+    Statamic.$components.register('icon-button-group-fieldtype', {
+      mixins: [FieldtypeMixin],
+
+      components: {
+        Button: ui.Button,
+        ButtonGroup: ui.ButtonGroup,
+      },
+
+      computed: {
+        /**
+         * Muligheder kommer fra `preload()`, ikke fra config: PHP har
+         * allerede læst de tre skrivemåder og kender labelen.
+         */
+        options() {
+          return this.meta?.options ?? [];
+        },
+
+        showLabels() {
+          return Boolean(this.config.show_labels);
+        },
+
+        /** Teksten der står på blokken, når sættet er klappet sammen. */
+        replicatorPreview() {
+          if (!this.showFieldPreviews) {
             return;
-        }
+          }
 
-        Statamic.$components.register('icon-button-group-fieldtype', {
-            mixins: [FieldtypeMixin],
+          const option = this.options.find((o) => o.value === this.value);
 
-            components: {
-                Button: ui.Button,
-                ButtonGroup: ui.ButtonGroup,
-            },
+          return option ? option.label || option.value : this.value;
+        },
+      },
 
-            computed: {
-                /**
-                 * Muligheder kommer fra `preload()`, ikke fra config: PHP har
-                 * allerede læst de tre skrivemåder og kender labelen.
-                 */
-                options() {
-                    return this.meta?.options ?? [];
-                },
+      methods: {
+        /** Et klik på den valgte knap fravælger den, hvis feltet må ryddes. */
+        updateSelectedOption(value) {
+          this.update(this.value == value && this.config.clearable ? null : value);
+        },
 
-                showLabels() {
-                    return Boolean(this.config.show_labels);
-                },
+        label(option) {
+          return option.label || option.value;
+        },
 
-                /** Teksten der står på blokken, når sættet er klappet sammen. */
-                replicatorPreview() {
-                    if (!this.showFieldPreviews) {
-                        return;
-                    }
+        text(option) {
+          return !option.icon || this.showLabels ? this.label(option) : null;
+        },
 
-                    const option = this.options.find((o) => o.value === this.value);
+        /** Iconify tegnes i slottet; Statamic-navne går til `icon`. */
+        statamicIcon(option) {
+          return option.icon_html ? null : option.icon || null;
+        },
 
-                    return option ? option.label || option.value : this.value;
-                },
-            },
+        focus() {
+          this.$refs.button?.[0]?.focus();
+        },
+      },
 
-            methods: {
-                /** Et klik på den valgte knap fravælger den, hvis feltet må ryddes. */
-                updateSelectedOption(value) {
-                    this.update(this.value == value && this.config.clearable ? null : value);
-                },
-
-                label(option) {
-                    return option.label || option.value;
-                },
-
-                text(option) {
-                    return !option.icon || this.showLabels ? this.label(option) : null;
-                },
-
-                /** Iconify tegnes i slottet; Statamic-navne går til `icon`. */
-                statamicIcon(option) {
-                    return option.icon_html ? null : option.icon || null;
-                },
-
-                focus() {
-                    this.$refs.button?.[0]?.focus();
-                },
-            },
-
-            template: `
+      template: `
                 <ButtonGroup overflow="stack" ref="buttonGroup">
                     <Button
                         v-for="option in options"
@@ -109,6 +109,6 @@
                     </Button>
                 </ButtonGroup>
             `,
-        });
     });
+  });
 })();

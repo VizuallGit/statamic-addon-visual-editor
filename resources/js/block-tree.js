@@ -7,13 +7,7 @@ import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
-import {
-  applyHeaderTab,
-  findSetByVisualIdInput,
-  isGridRow,
-  sendToPreview,
-  setHeaderTab,
-} from './cp.js';
+import { applyHeaderTab, findSetByVisualIdInput, isGridRow, sendToPreview, setHeaderTab } from './cp.js';
 import { mountPane } from './cp/mount-pane.js';
 import { mountSurface } from './cp/mount.js';
 import {
@@ -42,7 +36,18 @@ import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { gridMeta, setMeta } from './lib/row-meta.js';
-import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
+import {
+  closeRightPanels,
+  globalSectionSet,
+  handleDuplicateRow,
+  handleHideRow,
+  handleRemoveRow,
+  mountSectionPicker,
+  placeGlobalsOverlay,
+  rowLocation,
+  savedSectionInfo,
+  syncPreviewInset,
+} from './section-library.js';
 import { handleMove } from './inline-edit.js';
 import { fillOutlinePane, showOutlinePane, watchOutlineInPreview } from './lazy/outline.js';
 import { selectRow } from './selection-panel.js';
@@ -66,7 +71,6 @@ import { MSG, SOURCE } from './lib/protocol.js';
 // A click hands the uid to the same `focusFromPreview` the outline uses. Rename
 // is the one write: it stores `_sve_label` on the row. The panel is redrawn from
 // scratch each time it opens.
-
 
 // Its own remembered width, and its own default. The tree is a column of short
 // labels, so it wants far less room than Theme Settings — sharing that panel's
@@ -295,11 +299,11 @@ export function closeListViewPanel(win) {
  */
 export function isBlockRow(value) {
   return (
-    !!value
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && typeof value.type === 'string'
-    && ('enabled' in value || '_visual_id' in value)
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    typeof value.type === 'string' &&
+    ('enabled' in value || '_visual_id' in value)
   );
 }
 
@@ -319,12 +323,12 @@ export function isBlockRow(value) {
  */
 export function isGridRowValue(value) {
   return (
-    !!value
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && !isBlockRow(value)
-    && typeof value.type !== 'string'
-    && ('_visual_id' in value || typeof value.id === 'string' || typeof value._id === 'string')
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    !isBlockRow(value) &&
+    typeof value.type !== 'string' &&
+    ('_visual_id' in value || typeof value.id === 'string' || typeof value._id === 'string')
   );
 }
 
@@ -436,8 +440,7 @@ export function listViewTree(win, doc) {
         const globalSet = globalSectionSet(win);
         const isGlobal = !grid && item.type === globalSet;
         const globalId = isGlobal ? firstEntryId(item[globalSet]) : '';
-        const custom =
-          typeof item._sve_label === 'string' ? item._sve_label.trim() : '';
+        const custom = typeof item._sve_label === 'string' ? item._sve_label.trim() : '';
 
         out.push({
           locked: !!el?.hasAttribute('data-row-locked'),
@@ -542,7 +545,10 @@ export const LISTVIEW_STYLE_ID = '__sve-listview-style';
  * whichever it is in, and every tint is mixed from that.
  */
 export function ensureListViewStyles(doc) {
-  injectStyle(doc, LISTVIEW_STYLE_ID, `
+  injectStyle(
+    doc,
+    LISTVIEW_STYLE_ID,
+    `
     [data-sve-lv-row] {
       all: unset;
       box-sizing: border-box;
@@ -713,7 +719,8 @@ export function ensureListViewStyles(doc) {
       background: rgba(255,255,255,.16);
       outline: 2px solid currentColor;
     }
-  `);
+  `
+  );
 }
 
 /** Every node in the tree, folded or not. */
@@ -1248,11 +1255,9 @@ export function watchListViewValues(win) {
   const values = container.values;
 
   if (typeof vueWatch === 'function' && values) {
-    const stop = vueWatch(
-      values.__v_isRef ? values : () => unwrapRef(values)?.[sectionField(win)],
-      schedule,
-      { deep: true }
-    );
+    const stop = vueWatch(values.__v_isRef ? values : () => unwrapRef(values)?.[sectionField(win)], schedule, {
+      deep: true,
+    });
 
     if (typeof stop === 'function') {
       listViewValuesUnhook.push(stop);
@@ -1416,9 +1421,7 @@ export function renderListView(win) {
       actions,
       handleLocked: !!item.locked,
       handleUnlockable: !!(item.locked && mayUnlockRows(win)),
-      handleTitle: item.locked
-        ? t(win, mayUnlockRows(win) ? 'listview_unlock' : 'listview_locked')
-        : '',
+      handleTitle: item.locked ? t(win, mayUnlockRows(win) ? 'listview_unlock' : 'listview_locked') : '',
       dim: !item.uid,
       draggable: !!(item.uid && !item.locked),
     };
@@ -1546,11 +1549,11 @@ export function renderListView(win) {
     const dragged = listViewVisible(listViewRoots).find((node) => node.uid === listViewDragUid);
 
     return (
-      dragged
-      && item
-      && dragged.uid !== item.uid
-      && dragged.parentUid === item.parentUid
-      && dragged.listKey === item.listKey
+      dragged &&
+      item &&
+      dragged.uid !== item.uid &&
+      dragged.parentUid === item.parentUid &&
+      dragged.listKey === item.listKey
     );
   };
 
@@ -1614,7 +1617,6 @@ export function renderListView(win) {
     }
   });
 }
-
 
 export function fillListViewPane(win, pane) {
   if (pane.querySelector('[data-sve-listview-list]')) {

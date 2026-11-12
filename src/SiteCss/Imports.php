@@ -65,7 +65,7 @@ final class Imports
             return false;
         }
 
-        if (static::isImported($rel)) {
+        if (self::isImported($rel)) {
             return true;
         }
 
@@ -76,8 +76,8 @@ final class Imports
         }
 
         $css = (string) file_get_contents($entry);
-        $line = static::importLine($rel);
-        $patched = static::insertImport($css, $line);
+        $line = self::importLine($rel);
+        $patched = self::insertImport($css, $line);
 
         if ($patched === $css) {
             return false;

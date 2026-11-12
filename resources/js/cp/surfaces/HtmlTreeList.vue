@@ -35,8 +35,8 @@ const shownSections = computed(() => {
     return ui.sections;
   }
 
-  return ui.sections.filter((sec) =>
-    matchesHtmlTreeRow(sec.row, query.value) || (sec.current && sec.ready && shownRows.value.length > 0)
+  return ui.sections.filter(
+    (sec) => matchesHtmlTreeRow(sec.row, query.value) || (sec.current && sec.ready && shownRows.value.length > 0)
   );
 });
 /** A frame row shows when nothing is searched for, or when it is what was. */
@@ -77,9 +77,7 @@ const frameFound = computed(
  * under it. On a page's own tree nothing stands above them, and the step was
  * an empty gutter in front of every section.
  */
-const underMain = computed(
-  () => !!ui.frame && (ui.frame.kind === 'main' || frameShown(ui.frame.main))
-);
+const underMain = computed(() => !!ui.frame && (ui.frame.kind === 'main' || frameShown(ui.frame.main)));
 const nothingFound = computed(
   () => !!query.value && !shownSections.value.length && !shownRows.value.length && !frameFound.value
 );
@@ -108,7 +106,6 @@ function wrapBind(sec) {
 
   return bind;
 }
-
 </script>
 
 <template>
@@ -135,7 +132,8 @@ function wrapBind(sec) {
         type="button"
         class="sve-ht-page-template__open"
         @click="ui.pageTemplate.onOpen($event.currentTarget)"
-      >{{ ui.pageTemplate.openLabel }}</button>
+        >{{ ui.pageTemplate.openLabel }}</button
+      >
     </div>
     <div v-else-if="!ui.rows.length && !ui.sections.length && !ui.frame" class="sve-ht-empty">{{ ui.emptyText }}</div>
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
@@ -155,7 +153,11 @@ function wrapBind(sec) {
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
-        <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
+        <HtmlTreeRow
+          v-else-if="!halfOnly && frameShown(ui.frame.header)"
+          :row="ui.frame.header"
+          :dim="frameDim('header')"
+        />
       </template>
       <!--
         Main and what it holds. With the layout open, main's own rows and the
@@ -163,53 +165,75 @@ function wrapBind(sec) {
         way a block's rows are its. Otherwise main is a shut row with the
         sections (or the slot where they go) stepping in under it.
       -->
-      <div v-if="!halfOnly" v-bind="ui.frame?.kind === 'main' ? { 'data-sve-ht-branch': '', 'data-sve-ht-cat': 'main' } : {}">
+      <div
+        v-if="!halfOnly"
+        v-bind="ui.frame?.kind === 'main' ? { 'data-sve-ht-branch': '', 'data-sve-ht-cat': 'main' } : {}"
+      >
         <template v-if="ui.frame?.kind === 'main'">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </template>
         <HtmlTreeRow v-else-if="ui.frame && frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
-        <div v-if="ui.frame?.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body :data-sve-ht-under-main="underMain ? '' : null">
+        <div
+          v-if="ui.frame?.kind === 'template'"
+          v-show="!ui.mainShut"
+          data-sve-ht-frame-body
+          :data-sve-ht-under-main="underMain ? '' : null"
+        >
           <div data-sve-ht-branch data-sve-ht-cat="main">
             <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
             <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
           </div>
         </div>
-      <div v-if="ui.sections.length || ui.frame" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body :data-sve-ht-under-main="underMain ? '' : null">
-        <!-- Standing elsewhere on a template's entry: the template, the way back. -->
-        <HtmlTreeRow v-if="ui.frame?.template && frameShown(ui.frame.template)" :row="ui.frame.template" :dim="frameDim('template')" />
-        <!--
+        <div
+          v-if="ui.sections.length || ui.frame"
+          v-show="!ui.frame || !ui.mainShut"
+          data-sve-ht-frame-body
+          :data-sve-ht-under-main="underMain ? '' : null"
+        >
+          <!-- Standing elsewhere on a template's entry: the template, the way back. -->
+          <HtmlTreeRow
+            v-if="ui.frame?.template && frameShown(ui.frame.template)"
+            :row="ui.frame.template"
+            :dim="frameDim('template')"
+          />
+          <!--
           No sections: the slot where they go, the same slot an empty block
           shows — it belongs to main, so it stands there whatever part of the
           frame is open.
         -->
-        <div v-if="ui.frame && !ui.frame.template && !ui.sections.length && !query" data-sve-ht-frame-slot :data-dim="frameDim('') ? '' : undefined">{{ ui.frameEmptyText }}</div>
-        <div
-          v-for="sec in shownSections"
-          :key="sec.uid"
-          v-bind="wrapBind(sec)"
-        >
-          <!--
+          <div
+            v-if="ui.frame && !ui.frame.template && !ui.sections.length && !query"
+            data-sve-ht-frame-slot
+            :data-dim="frameDim('') ? '' : undefined"
+            >{{ ui.frameEmptyText }}</div
+          >
+          <div v-for="sec in shownSections" :key="sec.uid" v-bind="wrapBind(sec)">
+            <!--
             Open: the file's own rows, the first of which IS this section — it
             carries the name and mark built alongside the shut row, so the two
             states say the same thing. Shut: that row, with nothing under it yet.
           -->
-          <template v-if="sec.ready">
-            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
-            <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
-          </template>
-          <!-- Inside a component, or another part of the frame, every section fades. -->
-          <HtmlTreeRow v-else :row="sec.row" :dim="frameDim('')" />
+            <template v-if="sec.ready">
+              <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+              <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+            </template>
+            <!-- Inside a component, or another part of the frame, every section fades. -->
+            <HtmlTreeRow v-else :row="sec.row" :dim="frameDim('')" />
+          </div>
         </div>
-      </div>
       </div>
       <template v-if="ui.frame">
         <div v-if="ui.frame.kind === 'footer'" data-sve-ht-branch data-sve-ht-cat="footer">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
-        <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="frameDim('footer')" />
+        <HtmlTreeRow
+          v-else-if="!halfOnly && frameShown(ui.frame.footer)"
+          :row="ui.frame.footer"
+          :dim="frameDim('footer')"
+        />
       </template>
     </template>
     <!--
@@ -235,8 +259,15 @@ function wrapBind(sec) {
       of the file, and its row — the page's sections — takes this one's place.
     -->
     <div v-for="field in shownMissing" :key="field" data-sve-ht-sections-missing :data-sve-ht-field="field">
-      <span>{{ ui.sectionsMissingText }}<template v-if="ui.sectionsMissing.length > 1"> · <code>{{ field }}</code></template></span>
-      <button type="button" data-sve-ht-sections-add @click="ui.onAddSections?.(field)">{{ ui.sectionsAddText }}</button>
+      <span
+        >{{ ui.sectionsMissingText
+        }}<template v-if="ui.sectionsMissing.length > 1">
+          · <code>{{ field }}</code></template
+        ></span
+      >
+      <button type="button" data-sve-ht-sections-add @click="ui.onAddSections?.(field)">{{
+        ui.sectionsAddText
+      }}</button>
     </div>
   </div>
 </template>

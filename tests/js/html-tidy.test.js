@@ -5,7 +5,10 @@ import { tidyHtml } from '../../resources/js/html-tidy.js';
 test('empty lines go, wherever they stand', () => {
   const messy = '<section>\n  <div>\n    <p>x</p>\n  </div>\n\n\n  <ul>\n    <li>a</li>\n  </ul>\n\n\n</section>\n';
 
-  assert.equal(tidyHtml(messy), '<section>\n  <div>\n    <p>x</p>\n  </div>\n  <ul>\n    <li>a</li>\n  </ul>\n</section>\n');
+  assert.equal(
+    tidyHtml(messy),
+    '<section>\n  <div>\n    <p>x</p>\n  </div>\n  <ul>\n    <li>a</li>\n  </ul>\n</section>\n'
+  );
 });
 
 test('a verbatim block keeps its own empty lines (an unindented file gets four spaces)', () => {

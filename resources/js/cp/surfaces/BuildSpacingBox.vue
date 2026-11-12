@@ -81,7 +81,9 @@ const sides = computed(() =>
       side,
       pos: POS[side],
       tool: kids.value.get(id),
-      fallbacks: sideFallbackTools(box.value, id).map((other) => kids.value.get(other)?.css).filter(Boolean),
+      fallbacks: sideFallbackTools(box.value, id)
+        .map((other) => kids.value.get(other)?.css)
+        .filter(Boolean),
     };
   }).filter((row) => row.tool)
 );
@@ -99,7 +101,8 @@ const sides = computed(() =>
         :aria-selected="box === item"
         :data-sve-build-box="item"
         @click="box = item"
-      ><span>{{ item }}</span></button>
+        ><span>{{ item }}</span></button
+      >
     </div>
     <div class="bm-seg bm-sp-unit" :title="port.t('spacing_unit')" :aria-label="port.t('spacing_unit')">
       <button
@@ -109,7 +112,8 @@ const sides = computed(() =>
         :aria-pressed="unit === item"
         :data-sve-build-unit="item"
         @click="setUnit(item)"
-      >{{ item }}</button>
+        >{{ item }}</button
+      >
       <button
         type="button"
         class="bm-sp-unit-more"
@@ -135,7 +139,8 @@ const sides = computed(() =>
           :aria-pressed="unit === item"
           :data-sve-build-unit-pick="item"
           @click="setUnit(item)"
-        >{{ item }}</button>
+          >{{ item }}</button
+        >
       </div>
     </div>
   </div>

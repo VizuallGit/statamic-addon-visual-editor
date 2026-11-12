@@ -141,12 +141,7 @@ export function optionsForProperty(property, model) {
     .sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
 
   const chosen = scale
-    ? [
-      scale,
-      ...roots
-        .filter((root) => model.catalog.isStatic(root) && root.startsWith(`${scale}-`))
-        .sort(),
-    ]
+    ? [scale, ...roots.filter((root) => model.catalog.isStatic(root) && root.startsWith(`${scale}-`)).sort()]
     : roots.slice().sort();
 
   // The site's own scale first (`py-500` before `py-0`) — every Style list,
@@ -229,10 +224,11 @@ export function familyFor(name, model) {
   }
 
   const property = propertyOf(model.catalog.css(name));
-  const options = groups.get(property)
+  const options =
+    groups.get(property) ||
     // An arbitrary value — `w-[37px]` — sets the same property as the scale
     // but is not on it. When there is only one group, it is the one.
-    || (groups.size === 1 ? [...groups.values()][0] : null);
+    (groups.size === 1 ? [...groups.values()][0] : null);
 
   if (!options?.length) {
     return null;

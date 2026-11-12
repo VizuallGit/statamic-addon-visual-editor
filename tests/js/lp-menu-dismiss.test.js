@@ -36,7 +36,14 @@ function target({ recording = false } = {}) {
 }
 
 function press(win, key, at) {
-  const event = { key, target: at, prevented: false, preventDefault() { this.prevented = true; } };
+  const event = {
+    key,
+    target: at,
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
 
   win.bound.get('keydown')(event);
 
@@ -47,7 +54,11 @@ test('Esc dismisses the menu, and the key is taken', () => {
   const win = fakeWin();
   let dismissed = 0;
 
-  bindMenuDismiss(win, () => false, () => (dismissed += 1));
+  bindMenuDismiss(
+    win,
+    () => false,
+    () => (dismissed += 1)
+  );
 
   assert.equal(press(win, 'Escape', target()).prevented, true);
   assert.equal(dismissed, 1);
@@ -59,7 +70,11 @@ test('Esc while a shortcut is being recorded in the menu ends the recording, not
   const win = fakeWin();
   let dismissed = 0;
 
-  bindMenuDismiss(win, () => false, () => (dismissed += 1));
+  bindMenuDismiss(
+    win,
+    () => false,
+    () => (dismissed += 1)
+  );
 
   const event = press(win, 'Escape', target({ recording: true }));
 
@@ -75,14 +90,22 @@ test('a key from the preview document, with no element to ask, still dismisses',
   const win = fakeWin();
   let dismissed = 0;
 
-  bindMenuDismiss(win, () => false, () => (dismissed += 1));
+  bindMenuDismiss(
+    win,
+    () => false,
+    () => (dismissed += 1)
+  );
   press(win, 'Escape', {});
   assert.equal(dismissed, 1);
 });
 
 test('unbind takes every listener off again', () => {
   const win = fakeWin();
-  const unbind = bindMenuDismiss(win, () => false, () => {});
+  const unbind = bindMenuDismiss(
+    win,
+    () => false,
+    () => {}
+  );
 
   assert.deepEqual([...win.bound.keys()], ['keydown']);
   assert.deepEqual([...win.document.bound.keys()], ['pointerdown']);

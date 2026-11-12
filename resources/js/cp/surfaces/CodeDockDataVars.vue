@@ -71,8 +71,12 @@ const shown = computed(() => {
         (row) =>
           !text ||
           row.var.toLowerCase().includes(text) ||
-          String(row.label || '').toLowerCase().includes(text) ||
-          String(row.parent || '').toLowerCase().includes(text)
+          String(row.label || '')
+            .toLowerCase()
+            .includes(text) ||
+          String(row.parent || '')
+            .toLowerCase()
+            .includes(text)
       ),
     }))
     .filter((group) => group.items.length);
@@ -161,8 +165,18 @@ function switchTo(id) {
 
 <template>
   <div data-sve-data-search>
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </svg>
     <input
       ref="input"
@@ -176,7 +190,7 @@ function switchTo(id) {
       @keydown.up.prevent="move(-1)"
       @keydown.enter.prevent="submit"
       @keydown.escape.stop
-    >
+    />
   </div>
 
   <div data-sve-data-tabs>
@@ -187,7 +201,8 @@ function switchTo(id) {
       data-sve-data-tab
       :data-active="!searching && tab === item.id ? '' : undefined"
       @click.prevent.stop="switchTo(item.id)"
-    >{{ item.label }}</button>
+      >{{ item.label }}</button
+    >
   </div>
 
   <div v-if="empty" data-sve-data-empty>

@@ -139,8 +139,7 @@ const READINGS = {
       n: group.count > 1 ? group.count : 0,
       tip: contrastTip(win, group),
     }),
-    empty: (found, win) =>
-      t(win, found.length ? 'contrast_all_good' : 'contrast_empty'),
+    empty: (found, win) => t(win, found.length ? 'contrast_all_good' : 'contrast_empty'),
   },
   tree: {
     scan: (doc) => scanTree(doc, { generic: treeUi.showAll }),

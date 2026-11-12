@@ -17,7 +17,12 @@ globalThis.Node ??= { ELEMENT_NODE: 1 };
 
 /** A document stand-in: elements by id, iframes, a head that records appends. */
 function fakeDocument({ byId = {}, iframes = [], meta = null } = {}) {
-  const head = { children: [], appendChild(el) { this.children.push(el); } };
+  const head = {
+    children: [],
+    appendChild(el) {
+      this.children.push(el);
+    },
+  };
 
   return {
     head,
@@ -25,7 +30,14 @@ function fakeDocument({ byId = {}, iframes = [], meta = null } = {}) {
     querySelector: (sel) => (sel === 'meta[name="csrf-token"]' ? meta : null),
     querySelectorAll: (sel) => (sel === 'iframe' ? iframes : []),
     createElement: (tag) => ({ tag, id: '', textContent: '' }),
-    body: { tag: 'body', children: [], appendChild(el) { el.parentElement = this; this.children.push(el); } },
+    body: {
+      tag: 'body',
+      children: [],
+      appendChild(el) {
+        el.parentElement = this;
+        this.children.push(el);
+      },
+    },
   };
 }
 
@@ -68,8 +80,15 @@ test('previewCopies lists the overview’s frames that hold a page, and none whi
   const open = fakeDocument({ byId: { 'live-preview-iframe': frame, '__sve-bp-overview': layer } });
 
   frame.ownerDocument = open;
-  assert.deepEqual(previewCopies(open).map((w) => w.name), ['mobile']);
-  assert.deepEqual(previewCopies({ document: open }).map((w) => w.name), ['mobile'], 'accepts a window too');
+  assert.deepEqual(
+    previewCopies(open).map((w) => w.name),
+    ['mobile']
+  );
+  assert.deepEqual(
+    previewCopies({ document: open }).map((w) => w.name),
+    ['mobile'],
+    'accepts a window too'
+  );
 });
 
 test('previewFrame prefers a preview nested inside the direct frame (CP embedded in a frame)', () => {
@@ -82,14 +101,22 @@ test('previewFrame prefers a preview nested inside the direct frame (CP embedded
 test('previewFrame scans other iframes when there is no direct one', () => {
   const inner = { contentDocument: fakeDocument() };
   const holder = { contentDocument: fakeDocument({ byId: { 'live-preview-iframe': inner } }) };
-  const crossOrigin = { get contentDocument() { throw new Error('blocked'); } };
+  const crossOrigin = {
+    get contentDocument() {
+      throw new Error('blocked');
+    },
+  };
   const doc = fakeDocument({ iframes: [crossOrigin, holder] });
   assert.equal(previewFrame(doc), inner);
 });
 
 test('previewDocument is null when nothing is on screen or the frame is cross-origin', () => {
   assert.equal(previewDocument(fakeDocument()), null);
-  const blocked = { get contentDocument() { throw new Error('blocked'); } };
+  const blocked = {
+    get contentDocument() {
+      throw new Error('blocked');
+    },
+  };
   assert.equal(previewDocument(fakeDocument({ byId: { 'live-preview-iframe': blocked } })), null);
 });
 
@@ -98,7 +125,10 @@ test('previewDocument is null when nothing is on screen or the frame is cross-or
 test('injectStyle creates the tag once and updates it in place afterwards', () => {
   const byId = {};
   const doc = fakeDocument({ byId });
-  doc.head.appendChild = (el) => { byId[el.id] = el; doc.head.children.push(el); };
+  doc.head.appendChild = (el) => {
+    byId[el.id] = el;
+    doc.head.children.push(el);
+  };
 
   const first = injectStyle(doc, 'x', 'a{}');
   assert.equal(first.id, 'x');
@@ -134,7 +164,14 @@ test('statamicTranslate uses window.__ when the CP provides it', () => {
 
 test('attachDock moves a dock under .live-preview only when it is not there yet', () => {
   const doc = fakeDocument();
-  const live = { tag: 'live-preview', children: [], appendChild(el) { el.parentElement = this; this.children.push(el); } };
+  const live = {
+    tag: 'live-preview',
+    children: [],
+    appendChild(el) {
+      el.parentElement = this;
+      this.children.push(el);
+    },
+  };
   doc.querySelector = (sel) => (sel === '.live-preview' ? live : null);
   const dock = {};
   assert.equal(dockParent(doc), live);

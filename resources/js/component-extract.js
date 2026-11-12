@@ -27,7 +27,10 @@ const API = '/!/sve/component';
  * component file starts at the left margin like any other template.
  */
 export function dedent(text) {
-  const lines = String(text || '').replace(/^\n+/, '').replace(/\s+$/, '').split('\n');
+  const lines = String(text || '')
+    .replace(/^\n+/, '')
+    .replace(/\s+$/, '')
+    .split('\n');
   let least = null;
 
   for (const line of lines) {
@@ -138,9 +141,14 @@ export function extractComponent(win, node, { onDone, onError } = {}) {
 /** The categories the site's components already have, for the dialog to offer. */
 function categoriesInUse(win) {
   return win
-    .fetch('/!/sve/components', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } })
+    .fetch('/!/sve/components', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+    })
     .then((res) => (res.ok ? res.json() : { items: [] }))
-    .then((data) => [...new Set((data.items || []).map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
+    .then((data) =>
+      [...new Set((data.items || []).map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+    )
     .catch(() => []);
 }
 
@@ -153,8 +161,18 @@ function openPrompt(win, node, html, parts, categories, { onDone, onError }) {
     cancelLabel: t(win, 'cancel'),
     saveLabel: t(win, 'component_create'),
     extras: [
-      { key: 'category', label: t(win, 'component_category'), placeholder: t(win, 'component_category_placeholder'), options: categories },
-      { key: 'description', label: t(win, 'component_description'), placeholder: t(win, 'component_description_placeholder'), rows: 3 },
+      {
+        key: 'category',
+        label: t(win, 'component_category'),
+        placeholder: t(win, 'component_category_placeholder'),
+        options: categories,
+      },
+      {
+        key: 'description',
+        label: t(win, 'component_description'),
+        placeholder: t(win, 'component_description_placeholder'),
+        rows: 3,
+      },
     ],
     onOk: (name, { category = '', description = '' } = {}) => {
       overlay.dismiss();
@@ -182,8 +200,7 @@ function openPrompt(win, node, html, parts, categories, { onDone, onError }) {
           });
 
           const source = ask('dock:html');
-          const next =
-            source.slice(0, fresh.from) + fresh.lead + made.tag + source.slice(fresh.to);
+          const next = source.slice(0, fresh.from) + fresh.lead + made.tag + source.slice(fresh.to);
 
           ask('dock:set-html', next);
 

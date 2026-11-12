@@ -23,7 +23,10 @@ function memoryStorage() {
 test('the page shown in Live Preview is the one the button goes back to', () => {
   const storage = memoryStorage();
 
-  rememberLastPage(storage, `${origin}/cp/collections/pages/entries/contact-id`, origin, { ...scope, title: 'Kontakt' });
+  rememberLastPage(storage, `${origin}/cp/collections/pages/entries/contact-id`, origin, {
+    ...scope,
+    title: 'Kontakt',
+  });
 
   assert.deepEqual(lastPage(storage, origin, { ...scope, previewable }), {
     url: `${origin}/cp/collections/pages/entries/contact-id?live-preview=1`,
@@ -35,7 +38,10 @@ test('switching pages moves the note along', () => {
   const storage = memoryStorage();
 
   rememberLastPage(storage, `${origin}/cp/collections/pages/entries/home-id`, origin, { ...scope, title: 'Forside' });
-  rememberLastPage(storage, `${origin}/cp/collections/pages/entries/contact-id`, origin, { ...scope, title: 'Kontakt' });
+  rememberLastPage(storage, `${origin}/cp/collections/pages/entries/contact-id`, origin, {
+    ...scope,
+    title: 'Kontakt',
+  });
 
   assert.equal(lastPage(storage, origin, { ...scope, previewable }).title, 'Kontakt');
 });
@@ -91,10 +97,13 @@ test('a note that is not ours, or points elsewhere, is no note', () => {
 test('no storage, or storage that refuses, is the front page without an error', () => {
   assert.equal(lastPage(null, origin, { ...scope, previewable }), null);
 
-  const refusing = { getItem: () => null, setItem: () => { throw new Error('quota'); } };
+  const refusing = {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error('quota');
+    },
+  };
 
-  assert.doesNotThrow(() =>
-    rememberLastPage(refusing, `${origin}/cp/collections/pages/entries/abc`, origin, scope)
-  );
+  assert.doesNotThrow(() => rememberLastPage(refusing, `${origin}/cp/collections/pages/entries/abc`, origin, scope));
   assert.doesNotThrow(() => rememberLastPage(null, `${origin}/cp/collections/pages/entries/abc`, origin, scope));
 });

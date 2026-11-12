@@ -166,7 +166,9 @@ function testedType(condition) {
  */
 export function enclosingList(html, at, props) {
   const source = String(html || '').replace(COMMENT_TAG, (chunk) => ' '.repeat(chunk.length));
-  const lists = new Set((props || []).filter((prop) => prop.type === 'group' && prop.repeat === true).map((prop) => prop.handle));
+  const lists = new Set(
+    (props || []).filter((prop) => prop.type === 'group' && prop.repeat === true).map((prop) => prop.handle)
+  );
   const open = [];
   let inner = null;
 
@@ -394,7 +396,8 @@ export function writeCallParam(html, row, handle, value, { bound = false } = {})
     const after = tag.slice(existing.to);
 
     // Taking the last parameter out leaves the space that was in front of it.
-    next = written === '' ? `${before.replace(/\s+$/, ' ')}${after.replace(/^\s+/, '')}` : `${before}${written}${after}`;
+    next =
+      written === '' ? `${before.replace(/\s+$/, ' ')}${after.replace(/^\s+/, '')}` : `${before}${written}${after}`;
   } else if (written === '') {
     return source;
   } else {

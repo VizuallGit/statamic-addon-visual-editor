@@ -22,9 +22,18 @@ import { readClassAttr, tokenizeClassValue } from '../tw-parse.js';
  * Tailwind's `@utility` ones come from the catalog.
  */
 export function siteFlowSpaces(defs) {
-  return [...new Set((defs || [])
-    .filter((row) => row.kind === 'rule' && row.selector === `.${row.name}` && /(?:^|[\s;{])--flow-space\s*:/.test(String(row.css || '')))
-    .map((row) => row.name))];
+  return [
+    ...new Set(
+      (defs || [])
+        .filter(
+          (row) =>
+            row.kind === 'rule' &&
+            row.selector === `.${row.name}` &&
+            /(?:^|[\s;{])--flow-space\s*:/.test(String(row.css || ''))
+        )
+        .map((row) => row.name)
+    ),
+  ];
 }
 
 /** Whether a class of the site's own stylesheets spaces children with the flow's room (`.flow-y > * + *`). */
@@ -45,15 +54,16 @@ export function flowAt(html, path, readsFlow) {
   let found = null;
 
   // The parent is the nearest element above: an `{{ if }}` or a loop in between is no box of its own.
-  const walk = (nodes, parent, direct) => nodes.some((node, at) => {
-    if (node.path === path) {
-      found = { node, parent, first: direct && at === 0 };
+  const walk = (nodes, parent, direct) =>
+    nodes.some((node, at) => {
+      if (node.path === path) {
+        found = { node, parent, first: direct && at === 0 };
 
-      return true;
-    }
+        return true;
+      }
 
-    return node.kind === 'antlers' ? walk(node.children || [], parent, false) : walk(node.children || [], node, true);
-  });
+      return node.kind === 'antlers' ? walk(node.children || [], parent, false) : walk(node.children || [], node, true);
+    });
 
   walk(parseTemplateTree(source), null, true);
 

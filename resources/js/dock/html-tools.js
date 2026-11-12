@@ -15,7 +15,16 @@ import { dockState } from '../dock/state.js';
 import { elementInsertPoint } from './insert-point.js';
 import { tagElement } from './element-markup.js';
 import { findHtmlClose, readHtmlTag, skipHtmlNoise, tagAtCursor } from './tag-scan.js';
-import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
+import {
+  CSS_ADD_ICON,
+  CSS_MENU_ID,
+  DOCK_ID,
+  HTML_DIVS,
+  HTML_HEADINGS,
+  HTML_TOOLS,
+  editors,
+  tags,
+} from '../code-dock.js';
 import { onEditorInput } from './save.js';
 import { closeCssMenu, indentFromPrevious, lineIndentOf, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssScope, flushCssScope, rememberBracketNames, rememberCssSelectors } from './scope.js';
@@ -139,9 +148,7 @@ export function insertHtmlSnippet(snippet, cursorFromStart, selectLength) {
   const pos = view.state.selection.main.head;
   const line = view.state.doc.lineAt(pos);
   const before = line.text.slice(0, pos - line.from);
-  const indent = line.text.trim()
-    ? lineIndentOf(line.text)
-    : indentFromPrevious(view, line) || lineIndentOf(line.text);
+  const indent = line.text.trim() ? lineIndentOf(line.text) : indentFromPrevious(view, line) || lineIndentOf(line.text);
 
   // Every line of a snippet of several stands at the line's indent, not the margin;
   // the caret moves along by what was put in front of it.
@@ -222,15 +229,7 @@ export function insertHtmlElement(snippet, cursorFromStart, selectLength) {
  * Working *inside* an existing element is what picking its row in the tree is
  * for, and that puts the caret in any row, whatever its tag.
  */
-const FILLED_TAGS = new Set([
-  'section',
-  'article',
-  'header',
-  'footer',
-  'main',
-  'nav',
-  'aside',
-]);
+const FILLED_TAGS = new Set(['section', 'article', 'header', 'footer', 'main', 'nav', 'aside']);
 
 /**
  * Tags that cannot hold one of their own.
@@ -323,10 +322,15 @@ export function applyHtmlTag(tag, classes = '') {
     const wrapped = selected.match(new RegExp(`^<${tag}(\\s[^>]*)?>([\\s\\S]*)</${tag}>$`, 'i'));
 
     if (wrapped) {
-      dispatchHtmlChanges(view, [{ from: sel.from, to: sel.to, insert: wrapped[2] }], {
-        anchor: sel.from,
-        head: sel.from + wrapped[2].length,
-      }, TOOLBAR_EVENT);
+      dispatchHtmlChanges(
+        view,
+        [{ from: sel.from, to: sel.to, insert: wrapped[2] }],
+        {
+          anchor: sel.from,
+          head: sel.from + wrapped[2].length,
+        },
+        TOOLBAR_EVENT
+      );
       finishHtmlEdit();
 
       return;
@@ -341,10 +345,15 @@ export function applyHtmlTag(tag, classes = '') {
       innerFrom = sel.from + `<ul>\n  <li>`.length;
     }
 
-    dispatchHtmlChanges(view, [{ from: sel.from, to: sel.to, insert }], {
-      anchor: innerFrom,
-      head: innerFrom + selected.length,
-    }, TOOLBAR_EVENT);
+    dispatchHtmlChanges(
+      view,
+      [{ from: sel.from, to: sel.to, insert }],
+      {
+        anchor: innerFrom,
+        head: innerFrom + selected.length,
+      },
+      TOOLBAR_EVENT
+    );
     finishHtmlEdit();
 
     return;
@@ -415,9 +424,7 @@ export function applyHtmlTag(tag, classes = '') {
   } else {
     const open = openTagFor(tag, classes);
     const snippet = `${open}</${tag}>`;
-    const caret = tag === 'a'
-      ? open.indexOf('""') + 1
-      : FILLED_TAGS.has(tag) ? open.length : snippet.length;
+    const caret = tag === 'a' ? open.indexOf('""') + 1 : FILLED_TAGS.has(tag) ? open.length : snippet.length;
 
     insertHtmlSnippet(snippet, caret);
   }
@@ -529,7 +536,11 @@ function paintHtmlToolStateInner(win) {
     const paging = tool.action === 'pagination';
     const on = paging
       ? !!loop?.paginate
-      : tool.id === 'heading' ? isHeadingTag(tag) : tool.id === 'div' ? tag === 'div' : tag === tool.tag;
+      : tool.id === 'heading'
+        ? isHeadingTag(tag)
+        : tool.id === 'div'
+          ? tag === 'div'
+          : tag === tool.tag;
 
     if (paging) {
       btn.toggleAttribute('data-in-loop', !!loop);

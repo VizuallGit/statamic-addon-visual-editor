@@ -33,11 +33,11 @@ final class Words
         $message = trim((string) $e->getMessage());
 
         return [
-            'title' => static::t('lp_error_title'),
-            'reason' => static::reason($e, $message),
-            'where' => static::where($e),
-            'solution' => static::solution($e),
-            'hint' => static::t('lp_error_hint'),
+            'title' => self::t('lp_error_title'),
+            'reason' => self::reason($e, $message),
+            'where' => self::where($e),
+            'solution' => self::solution($e),
+            'hint' => self::t('lp_error_hint'),
             'class' => get_class($e),
             'message' => $message,
         ];
@@ -46,13 +46,13 @@ final class Words
     /** The whole page: what to say, then the technical details folded away. */
     public static function html(Throwable $e): string
     {
-        $words = static::explain($e);
+        $words = self::explain($e);
         $esc = fn ($value) => e((string) $value);
 
-        $out = '<!doctype html><html lang="'.$esc(static::locale()).'"><head><meta charset="utf-8">'
+        $out = '<!doctype html><html lang="'.$esc(self::locale()).'"><head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width, initial-scale=1">'
             .'<title>'.$esc($words['title']).'</title>'
-            .'<style>'.static::css().'</style></head><body>'
+            .'<style>'.self::css().'</style></head><body>'
             .'<main data-sve-render-error>'
             .'<h1>'.$esc($words['title']).'</h1>'
             .'<p data-sve-reason>'.$esc($words['reason']).'</p>';
@@ -66,7 +66,7 @@ final class Words
         }
 
         $out .= '<p data-sve-hint>'.$esc($words['hint']).'</p>'
-            .'<details><summary>'.$esc(static::t('lp_error_details')).'</summary>'
+            .'<details><summary>'.$esc(self::t('lp_error_details')).'</summary>'
             .'<pre>'.$esc($words['class']."\n".$words['message']).'</pre></details>'
             .'</main></body></html>';
 
@@ -76,32 +76,32 @@ final class Words
     protected static function reason(Throwable $e, string $message): string
     {
         if ($e instanceof ModifierNotFoundException && preg_match('/\[(.+?)\]/', $message, $m)) {
-            return static::t('lp_error_modifier', ['name' => $m[1]]);
+            return self::t('lp_error_modifier', ['name' => $m[1]]);
         }
 
         if ($e instanceof AntlersException) {
             if (preg_match('/^Unclosed "([^"]+)" control structure/', $message, $m)) {
-                return static::t('lp_error_unclosed', ['name' => $m[1]]);
+                return self::t('lp_error_unclosed', ['name' => $m[1]]);
             }
 
             if (str_starts_with($message, 'Unpaired closing tag')) {
-                $name = trim(static::tag($e), " /\t\n");
+                $name = trim(self::tag($e), " /\t\n");
 
-                return static::t('lp_error_unpaired', ['name' => $name !== '' ? $name : '…']);
+                return self::t('lp_error_unpaired', ['name' => $name !== '' ? $name : '…']);
             }
 
             if (str_starts_with($message, 'Unexpected end of input')) {
-                return static::t('lp_error_unexpected_end');
+                return self::t('lp_error_unexpected_end');
             }
         }
 
-        return static::t('lp_error_generic', ['message' => $message !== '' ? $message : get_class($e)]);
+        return self::t('lp_error_generic', ['message' => $message !== '' ? $message : get_class($e)]);
     }
 
     /** The tag and line the exception points at, when it carries its node. */
     protected static function where(Throwable $e): string
     {
-        $tag = static::tag($e);
+        $tag = self::tag($e);
 
         if ($tag === '') {
             return '';
@@ -109,7 +109,7 @@ final class Words
 
         $line = $e->node->startPosition->line ?? null;
 
-        return static::t('lp_error_where', ['tag' => $tag, 'line' => $line === null ? '?' : (string) $line]);
+        return self::t('lp_error_where', ['tag' => $tag, 'line' => $line === null ? '?' : (string) $line]);
     }
 
     protected static function tag(Throwable $e): string
@@ -135,7 +135,7 @@ final class Words
         }
 
         if (preg_match('/^Did you mean `([^`]+)`\?$/', $description, $m)) {
-            return static::t('lp_error_suggest', ['name' => $m[1]]);
+            return self::t('lp_error_suggest', ['name' => $m[1]]);
         }
 
         return $description;
@@ -143,7 +143,7 @@ final class Words
 
     protected static function t(string $key, array $replace = []): string
     {
-        return (string) trans('sve::messages.'.$key, $replace, static::locale());
+        return (string) trans('sve::messages.'.$key, $replace, self::locale());
     }
 
     protected static function locale(): string

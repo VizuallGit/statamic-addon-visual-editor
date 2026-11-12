@@ -2,8 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
-use MarioHamann\StatamicVisualEditor\FieldsetFields;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
+use MarioHamann\StatamicVisualEditor\FieldsetFields;
 use MarioHamann\StatamicVisualEditor\PanelVisibility;
 use MarioHamann\StatamicVisualEditor\SiblingSync;
 use MarioHamann\StatamicVisualEditor\Traits\HandlesReplicatorSets;
@@ -62,6 +62,7 @@ class InjectVisualIdIntoBlueprint
                 }
 
                 $result[] = $fieldDef;
+
                 continue;
             }
 

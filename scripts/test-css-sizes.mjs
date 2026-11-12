@@ -6,7 +6,17 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { cssMediaBlocks, sizeOfQuery, queryUpperPx, blocksForSize, blocksToHide, foldRangesForSize, idRulesForSize, stripEmptySizeBlocks, emptySizeBlocks } from '../resources/js/css-sizes.js';
+import {
+  cssMediaBlocks,
+  sizeOfQuery,
+  queryUpperPx,
+  blocksForSize,
+  blocksToHide,
+  foldRangesForSize,
+  idRulesForSize,
+  stripEmptySizeBlocks,
+  emptySizeBlocks,
+} from '../resources/js/css-sizes.js';
 
 const SIZES = [
   { handle: 'laptop', base: true, max: null },
@@ -17,8 +27,10 @@ const SIZES = [
 let fails = 0;
 const is = (got, want, what) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { fails += 1; console.log('FEJL', what, '\n  fik: ', JSON.stringify(got), '\n  vil: ', JSON.stringify(want)); }
-  else console.log('ok  ', what);
+  if (!ok) {
+    fails += 1;
+    console.log('FEJL', what, '\n  fik: ', JSON.stringify(got), '\n  vil: ', JSON.stringify(want));
+  } else console.log('ok  ', what);
 };
 
 // --- grænsen læses ud af begge skrivemåder ----------------------------------
@@ -50,9 +62,21 @@ const topLevel = `
 `;
 const t1 = cssMediaBlocks(topLevel);
 is(t1.length, 3, 'to på øverste niveau + en i @scope');
-is(t1.map((b) => sizeOfQuery(b.query, SIZES)), ['tablet', 'mobile', 'tablet'], 'hver placeret rigtigt');
-is(t1.every((b) => topLevel.slice(b.from, b.to).startsWith('@media')), true, 'from peger på @media');
-is(t1.every((b) => topLevel.slice(b.to - 1, b.to) === '}'), true, 'to peger efter }');
+is(
+  t1.map((b) => sizeOfQuery(b.query, SIZES)),
+  ['tablet', 'mobile', 'tablet'],
+  'hver placeret rigtigt'
+);
+is(
+  t1.every((b) => topLevel.slice(b.from, b.to).startsWith('@media')),
+  true,
+  'from peger på @media'
+);
+is(
+  t1.every((b) => topLevel.slice(b.to - 1, b.to) === '}'),
+  true,
+  'to peger efter }'
+);
 is(blocksForSize(topLevel, SIZES, 'tablet').length, 2, 'tablet har to blokke');
 is(blocksToHide(topLevel, SIZES, 'laptop').length, 3, 'basis gemmer alle tre');
 is(blocksToHide(topLevel, SIZES, 'tablet').length, 1, 'tablet gemmer kun mobils');
@@ -73,9 +97,21 @@ const nested = `
 }`;
 const t2 = cssMediaBlocks(nested);
 is(t2.length, 2, 'hero-formen: to nestede størrelser findes');
-is(t2.map((b) => b.depth), [1, 1], 'og de ved de er ét niveau inde');
-is(t2.map((b) => sizeOfQuery(b.query, SIZES)), ['tablet', 'mobile'], 'begge placeret');
-is(blocksToHide(nested, SIZES, 'tablet').map((b) => b.query), ['(width < 48em)'], 'på tablet gemmes mobil');
+is(
+  t2.map((b) => b.depth),
+  [1, 1],
+  'og de ved de er ét niveau inde'
+);
+is(
+  t2.map((b) => sizeOfQuery(b.query, SIZES)),
+  ['tablet', 'mobile'],
+  'begge placeret'
+);
+is(
+  blocksToHide(nested, SIZES, 'tablet').map((b) => b.query),
+  ['(width < 48em)'],
+  'på tablet gemmes mobil'
+);
 is(blocksToHide(nested, SIZES, 'laptop').length, 2, 'på basis gemmes begge');
 
 // --- klammer i strenge, kommentarer og Antlers må ikke forvirre -------------
@@ -93,7 +129,10 @@ const shown = (css, active) => {
   const folds = foldRangesForSize(css, SIZES, active).sort((a, b) => a.from - b.from);
   let out = '';
   let at = 0;
-  for (const f of folds) { out += css.slice(at, f.from) + '…'; at = f.to; }
+  for (const f of folds) {
+    out += css.slice(at, f.from) + '…';
+    at = f.to;
+  }
   return (out + css.slice(at)).replace(/\s+/g, ' ').trim();
 };
 
@@ -115,8 +154,16 @@ const page = `.card {
 }`;
 
 is(shown(page, ''), page.replace(/\s+/g, ' ').trim(), 'Alle folder intet');
-is(shown(page, 'laptop'), '.card { color: red; padding: 2rem; … … } .only-base { margin: 0; }', 'Desktop: basis står, størrelserne helt væk');
-is(shown(page, 'tablet'), '.card {…@media (width < 64em) { padding: 1rem; }…}…', 'Tablet: kun tablet — basis og mobil væk');
+is(
+  shown(page, 'laptop'),
+  '.card { color: red; padding: 2rem; … … } .only-base { margin: 0; }',
+  'Desktop: basis står, størrelserne helt væk'
+);
+is(
+  shown(page, 'tablet'),
+  '.card {…@media (width < 64em) { padding: 1rem; }…}…',
+  'Tablet: kun tablet — basis og mobil væk'
+);
 is(shown(page, 'mobile'), '.card {…@media (width < 48em) { padding: 0.5rem; } }…', 'Mobil: kun mobil');
 
 // En regel uden noget for denne størrelse folder helt sammen.
@@ -125,7 +172,11 @@ is(shown(twoRules, 'mobile'), '.a {…@media (width < 48em) { color: blue; } }�
 
 // Nestet dybere: @scope om det hele.
 const scoped = `@scope(.x) { :scope { color: red; } @media (width < 48em) { :scope { color: blue; } } }`;
-is(shown(scoped, 'mobile'), '@scope(.x) {…@media (width < 48em) { :scope { color: blue; } } }', 'skelettet af @scope står stadig');
+is(
+  shown(scoped, 'mobile'),
+  '@scope(.x) {…@media (width < 48em) { :scope { color: blue; } } }',
+  'skelettet af @scope står stadig'
+);
 
 // --- tomme størrelser skrives ikke til filen --------------------------------
 const withEmpty = `.card {
@@ -139,9 +190,11 @@ const withEmpty = `.card {
   }
 }`;
 is(emptySizeBlocks(withEmpty, SIZES).length, 1, 'den tomme findes');
-is(stripEmptySizeBlocks(withEmpty, SIZES).replace(/\s+/g, ' ').trim(),
-   '.card { color: red; @media (width < 48em) { color: blue; } }',
-   'den tomme fjernes, den fyldte bliver');
+is(
+  stripEmptySizeBlocks(withEmpty, SIZES).replace(/\s+/g, ' ').trim(),
+  '.card { color: red; @media (width < 48em) { color: blue; } }',
+  'den tomme fjernes, den fyldte bliver'
+);
 is(stripEmptySizeBlocks(page, SIZES), page, 'intet tomt = teksten er urørt');
 
 // Kun mellemrum og kommentarer tæller ikke som indhold.
@@ -157,11 +210,17 @@ const site = process.argv[2] || '/Users/flemmingmeyer/Sites/vizuall-skabelon';
 const root = join(site, 'resources/views/partials/page_sections');
 
 if (existsSync(root)) {
-  let files = 0, found = 0, bad = 0, unplaced = 0;
+  let files = 0,
+    found = 0,
+    bad = 0,
+    unplaced = 0;
   const walk = (dir) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
-      if (e.isDirectory()) { walk(p); continue; }
+      if (e.isDirectory()) {
+        walk(p);
+        continue;
+      }
       if (!e.name.endsWith('.antlers.html')) continue;
       const m = readFileSync(p, 'utf8').match(/<style>([\s\S]*?)<\/style>/);
       if (!m) continue;
@@ -170,8 +229,14 @@ if (existsSync(root)) {
         found += 1;
         const text = m[1].slice(b.from, b.to);
         const bal = [...text].reduce((n, c) => n + (c === '{') - (c === '}'), 0);
-        if (bal !== 0) { bad += 1; console.log('  UBALANCERET i', p); }
-        if (!sizeOfQuery(b.query, SIZES)) { unplaced += 1; console.log('  uplaceret:', b.query, '—', p.split('/').slice(-2).join('/')); }
+        if (bal !== 0) {
+          bad += 1;
+          console.log('  UBALANCERET i', p);
+        }
+        if (!sizeOfQuery(b.query, SIZES)) {
+          unplaced += 1;
+          console.log('  uplaceret:', b.query, '—', p.split('/').slice(-2).join('/'));
+        }
       }
     }
   };
@@ -191,9 +256,21 @@ const naboer = `
 const tekst = (css, nodes) => nodes.map((n) => css.slice(n.from, n.to).replace(/\s+/g, ' ').slice(0, 30));
 
 is(tekst(naboer, idRulesForSize(naboer, SIZES, '')).length, 3, 'naboer: Alle giver alle tre');
-is(tekst(naboer, idRulesForSize(naboer, SIZES, 'laptop')), ['#id-{{ id }}{ --color-bg: red;'], 'naboer: Desktop er den yderste');
-is(tekst(naboer, idRulesForSize(naboer, SIZES, 'tablet')), ['#id-{{ id }}{ padding: 1em; }'], 'naboer: tablet er sin egen');
-is(tekst(naboer, idRulesForSize(naboer, SIZES, 'mobile')), ['#id-{{ id }}{ padding: 0; }'], 'naboer: mobil er sin egen');
+is(
+  tekst(naboer, idRulesForSize(naboer, SIZES, 'laptop')),
+  ['#id-{{ id }}{ --color-bg: red;'],
+  'naboer: Desktop er den yderste'
+);
+is(
+  tekst(naboer, idRulesForSize(naboer, SIZES, 'tablet')),
+  ['#id-{{ id }}{ padding: 1em; }'],
+  'naboer: tablet er sin egen'
+);
+is(
+  tekst(naboer, idRulesForSize(naboer, SIZES, 'mobile')),
+  ['#id-{{ id }}{ padding: 0; }'],
+  'naboer: mobil er sin egen'
+);
 
 // Indlejret: én #id-regel med størrelserne inde i sig (featured_section-formen).
 const indlejret = `
@@ -208,8 +285,16 @@ const indlejret = `
 
 is(tekst(indlejret, idRulesForSize(indlejret, SIZES, '')).length, 1, 'indlejret: Alle er hele reglen');
 is(tekst(indlejret, idRulesForSize(indlejret, SIZES, 'laptop')).length, 1, 'indlejret: Desktop er hele reglen');
-is(tekst(indlejret, idRulesForSize(indlejret, SIZES, 'tablet')), ['@media (width < 64em) { paddin'], 'indlejret: tablet er blokken inde i');
-is(tekst(indlejret, idRulesForSize(indlejret, SIZES, 'mobile')), ['@media (width < 48em) { paddin'], 'indlejret: mobil er blokken inde i');
+is(
+  tekst(indlejret, idRulesForSize(indlejret, SIZES, 'tablet')),
+  ['@media (width < 64em) { paddin'],
+  'indlejret: tablet er blokken inde i'
+);
+is(
+  tekst(indlejret, idRulesForSize(indlejret, SIZES, 'mobile')),
+  ['@media (width < 48em) { paddin'],
+  'indlejret: mobil er blokken inde i'
+);
 
 // @scope er designet, ikke ID-laget — det må aldrig komme med.
 is(idRulesForSize('@scope(.x) { :scope { color: red; } }', SIZES, '').length, 0, 'designet er ikke ID-laget');

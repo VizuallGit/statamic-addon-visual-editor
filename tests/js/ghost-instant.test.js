@@ -5,7 +5,15 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caretAt, fieldLines, foreignLoop, insideElement, instantSuggestion, listsOf, openLoop } from '../../resources/js/dock/ghost-instant.js';
+import {
+  caretAt,
+  fieldLines,
+  foreignLoop,
+  insideElement,
+  instantSuggestion,
+  listsOf,
+  openLoop,
+} from '../../resources/js/dock/ghost-instant.js';
 
 const ROWS = [
   { var: 'title', type: 'text', label: 'Title' },
@@ -24,14 +32,20 @@ function at(source, rows = ROWS) {
 }
 
 test('the caret is read: attribute, Antlers, opening tag, markup', () => {
-  assert.deepEqual(caretAt('<section id="id-{{ id }}" x-data="{ '), { kind: 'attribute', tag: 'section', attribute: 'x-data', quote: '"', value: '{ ' });
+  assert.deepEqual(caretAt('<section id="id-{{ id }}" x-data="{ '), {
+    kind: 'attribute',
+    tag: 'section',
+    attribute: 'x-data',
+    quote: '"',
+    value: '{ ',
+  });
   assert.equal(caretAt('<h2 {{ visual_').kind, 'antlers');
   assert.equal(caretAt('<ul class="list" ').kind, 'tag');
   assert.deepEqual(caretAt('<section>\n  <ul>\n    '), { kind: 'markup', fresh: true, indent: '    ', inside: 'ul' });
   assert.equal(insideElement('<ul><li>x</li><li><img src="a"><p>'), 'p');
 });
 
-test('the section\'s lists and the loop the caret stands in', () => {
+test("the section's lists and the loop the caret stands in", () => {
   assert.deepEqual([...listsOf(ROWS).keys()], ['entries']);
   assert.equal(openLoop('<ul>\n  {{ entries limit="3" }}\n    ', new Set(['entries'])), 'entries');
   assert.equal(openLoop('{{ entries }}<li></li>{{ /entries }}', new Set(['entries'])), null);
@@ -50,21 +64,24 @@ test('an empty line in a <ul>: the loop over the list, the item with its fields'
       '        {{ /if }}',
       '      </li>',
       '    {{ /entries }}',
-    ].join('\n'),
+    ].join('\n')
   );
 });
 
-test('the site\'s image component, when the file uses it', () => {
+test("the site's image component, when the file uses it", () => {
   const out = at('{{ partial:components/image :imagePath="hero" }}\n<ul>\n  |\n</ul>');
 
   assert.match(out, /\{\{ partial:components\/image :imagePath="profile_image" \}\}/);
 });
 
 test('inside the loop: the item; inside the item: its next field', () => {
-  assert.match(at('<ul>\n  {{ entries }}\n    |\n  {{ /entries }}\n</ul>'), /^<li \{\{ visual_edit orderable="true" \}\}>\n {6}<p \{\{ visual_edit field="text"/);
+  assert.match(
+    at('<ul>\n  {{ entries }}\n    |\n  {{ /entries }}\n</ul>'),
+    /^<li \{\{ visual_edit orderable="true" \}\}>\n {6}<p \{\{ visual_edit field="text"/
+  );
   assert.equal(
     at('<ul>\n  {{ entries }}\n    <li>\n      <p>{{ text }}</p>\n      |\n    </li>\n  {{ /entries }}\n</ul>'),
-    '<p {{ visual_edit field="name" inline_edit="true" }}>{{ name }}</p>',
+    '<p {{ visual_edit field="name" inline_edit="true" }}>{{ name }}</p>'
   );
 });
 
@@ -73,7 +90,10 @@ test('a list the file already loops over gets no second loop', () => {
 });
 
 test('an empty line elsewhere: the next field the file does not show, a title as a heading', () => {
-  assert.equal(at('<section>\n  |\n</section>'), '<h2 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h2>');
+  assert.equal(
+    at('<section>\n  |\n</section>'),
+    '<h2 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h2>'
+  );
   assert.equal(at('<section>\n  <h2>{{ title }}</h2>\n  |\n</section>'), '');
 });
 
@@ -98,13 +118,18 @@ test('where these rules have nothing, the AI is left to answer', () => {
 
 test('fields that are settings, not content, are not written', () => {
   assert.equal(fieldLines({ var: 'logo', type: 'toggle' }), null);
-  assert.deepEqual(fieldLines({ var: 'body', type: 'bard' }), ['<div {{ visual_edit field="body" inline_edit="true" }}>{{ body }}</div>']);
+  assert.deepEqual(fieldLines({ var: 'body', type: 'bard' }), [
+    '<div {{ visual_edit field="body" inline_edit="true" }}>{{ body }}</div>',
+  ]);
 });
 
 test('{{ visual_ points at the field the element shows: its content, else its attributes', () => {
   assert.equal(at('<li>\n  <b class="text-200" {{ visual_|>{{ name }}</b>'), 'edit field="name" inline_edit="true" }}');
   assert.equal(at('<img src="{{ profile_image:url }}" alt="" {{ visual_|>'), 'edit field="profile_image" }}');
-  assert.equal(at('{{ partial:components/image :imagePath="profile_image" }}<h2 {{ visual_|>{{ title }}</h2>'), 'edit field="title" inline_edit="true" }}');
+  assert.equal(
+    at('{{ partial:components/image :imagePath="profile_image" }}<h2 {{ visual_|>{{ title }}</h2>'),
+    'edit field="title" inline_edit="true" }}'
+  );
 });
 
 test('class=" on an element the file already styles: the same classes, the nearest first', () => {
@@ -114,7 +139,6 @@ test('class=" on an element the file already styles: the same classes, the neare
   assert.equal(at('<p class="|">'), '');
   assert.equal(at('<li class="{{ classes }}">a</li>\n<li class="|">'), '');
 });
-
 
 /* ---- A loop over other entries: shown, never edited ------------------------ */
 
@@ -136,7 +160,10 @@ function inLoop(source, loop = EMPLOYEES, rows = ROWS) {
 }
 
 test('the loop over other entries the caret stands in: collection, nav, taxonomy — closed or not', () => {
-  assert.deepEqual(foreignLoop('<ul>\n  {{ collection from="employees" }}\n    '), { kind: 'collection', handle: 'employees' });
+  assert.deepEqual(foreignLoop('<ul>\n  {{ collection from="employees" }}\n    '), {
+    kind: 'collection',
+    handle: 'employees',
+  });
   assert.deepEqual(foreignLoop('{{ collection:cases limit="3" }}<li>'), { kind: 'collection', handle: 'cases' });
   assert.deepEqual(foreignLoop('{{ nav:main }}<a>'), { kind: 'nav', handle: 'main' });
   assert.equal(foreignLoop('{{ collection from="employees" }}<li></li>{{ /collection }}\n'), null);
@@ -147,9 +174,12 @@ test('in a collection loop nothing gets visual_edit: not {{ visual_, not the ite
   assert.equal(inLoop('{{ collection from="employees" }}\n  <p {{ visual_|>{{ name }}</p>'), '');
   assert.equal(
     inLoop('<ul>\n  {{ collection from="employees" }}\n    |\n  {{ /collection }}\n</ul>'),
-    '<li>\n      <p>{{ name }}</p>\n      {{ if profile_image }}\n        <img src="{{ profile_image:url }}" alt="">\n      {{ /if }}\n      <p>{{ phone }}</p>\n    </li>',
+    '<li>\n      <p>{{ name }}</p>\n      {{ if profile_image }}\n        <img src="{{ profile_image:url }}" alt="">\n      {{ /if }}\n      <p>{{ phone }}</p>\n    </li>'
   );
-  assert.equal(inLoop('{{ collection from="employees" }}\n  <li>\n    <p>{{ name }}</p>\n    |'), '{{ if profile_image }}\n      <img src="{{ profile_image:url }}" alt="">\n    {{ /if }}');
+  assert.equal(
+    inLoop('{{ collection from="employees" }}\n  <li>\n    <p>{{ name }}</p>\n    |'),
+    '{{ if profile_image }}\n      <img src="{{ profile_image:url }}" alt="">\n    {{ /if }}'
+  );
 });
 
 test('the image component takes the image field in scope by name, never a guessed "image"', () => {

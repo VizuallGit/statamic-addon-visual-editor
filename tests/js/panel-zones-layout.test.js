@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CODE_KEYS, codeStaysTogether, dropTarget, isFixedPane, orderWith, parseZones, withZone, zoneOf } from '../../resources/js/cp/panel-zones/layout.js';
+import {
+  CODE_KEYS,
+  codeStaysTogether,
+  dropTarget,
+  isFixedPane,
+  orderWith,
+  parseZones,
+  withZone,
+  zoneOf,
+} from '../../resources/js/cp/panel-zones/layout.js';
 
 test('nothing stored is the editor as it was', () => {
   assert.equal(zoneOf({}, 'build'), 'left');
@@ -38,15 +47,33 @@ test('the Build panel and the dock panes are no tools to pin or close', () => {
 
 test('a pane goes before the one it was dropped on, the other zones keep their places', () => {
   assert.deepEqual(orderWith(['build', 'theme', 'ai'], ['build', 'theme'], ['ai'], 'theme'), ['build', 'ai', 'theme']);
-  assert.deepEqual(orderWith(['ai', 'comments'], ['build'], ['html_tree'], ''), ['build', 'html_tree', 'ai', 'comments']);
+  assert.deepEqual(orderWith(['ai', 'comments'], ['build'], ['html_tree'], ''), [
+    'build',
+    'html_tree',
+    'ai',
+    'comments',
+  ]);
   assert.deepEqual(orderWith(['a', 'b', 'c'], ['a', 'b', 'c'], ['a'], 'c'), ['b', 'a', 'c']);
 });
 
 const rect = (left, top, right, bottom) => ({ left, top, right, bottom });
 const areas = {
-  left: { rect: rect(0, 50, 300, 1000), panes: [{ key: 'build', rect: rect(0, 50, 300, 500) }, { key: 'theme', rect: rect(0, 500, 300, 1000) }] },
+  left: {
+    rect: rect(0, 50, 300, 1000),
+    panes: [
+      { key: 'build', rect: rect(0, 50, 300, 500) },
+      { key: 'theme', rect: rect(0, 500, 300, 1000) },
+    ],
+  },
   right: { rect: rect(1300, 50, 1600, 1000), panes: [] },
-  bottom: { rect: rect(300, 800, 1300, 1000), row: true, panes: [{ key: 'tree', rect: rect(300, 800, 800, 1000) }, { key: 'code_css', rect: rect(800, 800, 1300, 1000) }] },
+  bottom: {
+    rect: rect(300, 800, 1300, 1000),
+    row: true,
+    panes: [
+      { key: 'tree', rect: rect(300, 800, 800, 1000) },
+      { key: 'code_css', rect: rect(800, 800, 1300, 1000) },
+    ],
+  },
 };
 
 test('over the preview nothing moves', () => {

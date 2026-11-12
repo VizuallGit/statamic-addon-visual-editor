@@ -67,7 +67,7 @@ final class TemplateFields
         if ($entry && $entry->root()->get('template') === $view && ! in_array($entry->collectionHandle(), $stores, true)) {
             $blueprint = $entry->blueprint();
 
-            if ($blueprint && static::onlyFor($entry, $blueprint->handle())) {
+            if ($blueprint && self::onlyFor($entry, $blueprint->handle())) {
                 return [$blueprint];
             }
         }
@@ -80,7 +80,7 @@ final class TemplateFields
             }
 
             foreach ($collection->entryBlueprints() as $blueprint) {
-                if (! static::drawnElsewhere($collection->handle(), $blueprint->handle(), $view)) {
+                if (! self::drawnElsewhere($collection->handle(), $blueprint->handle(), $view)) {
                     $found[] = $blueprint;
                 }
             }
@@ -135,7 +135,7 @@ final class TemplateFields
     public static function add(string $view, $entry, string $kind, string $name, string $value): ?array
     {
         $config = AddField::config($kind, $value);
-        $targets = static::blueprints($view, $entry);
+        $targets = self::blueprints($view, $entry);
 
         if ($config === null || $targets === []) {
             return null;
@@ -145,7 +145,7 @@ final class TemplateFields
         $taken = [];
 
         foreach ($targets as $blueprint) {
-            $path = static::path($blueprint);
+            $path = self::path($blueprint);
 
             if ($path === null) {
                 return null;
@@ -153,7 +153,7 @@ final class TemplateFields
 
             $contents = YAML::file($path)->parse();
             $read[] = [$blueprint, $path, $contents];
-            $taken = array_merge($taken, static::fields($contents));
+            $taken = array_merge($taken, self::fields($contents));
         }
 
         $handle = AddField::handle($name, $taken, self::RESERVED);
@@ -162,13 +162,13 @@ final class TemplateFields
 
         // Every blueprint is checked before any is written: one refused leaves all as they were.
         foreach ($read as [$blueprint, $path, $contents]) {
-            $next = static::withField($contents, $field);
+            $next = self::withField($contents, $field);
 
             if ($next === null) {
                 return null;
             }
 
-            $planned[] = [$blueprint, $path, $next, count(static::fields($contents))];
+            $planned[] = [$blueprint, $path, $next, count(self::fields($contents))];
         }
 
         $written = [];
@@ -178,7 +178,7 @@ final class TemplateFields
         $copies = [];
 
         foreach ($planned as [$blueprint, $path, $next, $before]) {
-            $copies[$path] = static::keep($path, $blueprint);
+            $copies[$path] = self::keep($path, $blueprint);
             $hidden = Arr::pull($next, 'hide');
             $order = Arr::pull($next, 'order');
 
@@ -190,7 +190,7 @@ final class TemplateFields
                 ->save();
 
             // What landed on disk, read back: one field more and nothing less, or every copy goes back.
-            if (count(static::fields(YAML::file($path)->parse())) !== $before + 1) {
+            if (count(self::fields(YAML::file($path)->parse())) !== $before + 1) {
                 foreach ($copies as $file => $copy) {
                     File::copy($copy, $file);
                 }

@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use MarioHamann\StatamicVisualEditor\IconifyDefault;
+use Statamic\Facades\Blueprint;
 
 class IconifyDefaultTest extends TestCase
 {
@@ -110,7 +111,7 @@ class IconifyDefaultTest extends TestCase
 
     public function test_fallback_name_prefers_the_current_set(): void
     {
-        $blueprint = \Statamic\Facades\Blueprint::make()->setContents([
+        $blueprint = Blueprint::make()->setContents([
             'tabs' => [
                 'main' => [
                     'sections' => [

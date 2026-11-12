@@ -5,6 +5,8 @@ namespace MarioHamann\StatamicVisualEditor;
 use MarioHamann\StatamicVisualEditor\IconifyDefault\Defaults;
 use MarioHamann\StatamicVisualEditor\IconifyDefault\Svg;
 use Statamic\Fields\Value;
+use StatamicIconify\Fieldtypes\IconifyFieldtype;
+use StatamicIconify\Tags\IconifyTag;
 
 /**
  * Extra setting on Iconify fields: a text box for an Iconify name.
@@ -31,11 +33,11 @@ class IconifyDefault
 
     public static function register(): void
     {
-        if (! class_exists(\StatamicIconify\Fieldtypes\IconifyFieldtype::class)) {
+        if (! class_exists(IconifyFieldtype::class)) {
             return;
         }
 
-        \StatamicIconify\Fieldtypes\IconifyFieldtype::appendConfigFields([
+        IconifyFieldtype::appendConfigFields([
             self::KEY => [
                 'display' => __('sve::messages.iconify_default'),
                 'instructions' => __('sve::messages.iconify_default_instructions'),
@@ -51,7 +53,7 @@ class IconifyDefault
      */
     public static function registerTag(): void
     {
-        if (! class_exists(\StatamicIconify\Tags\IconifyTag::class)) {
+        if (! class_exists(IconifyTag::class)) {
             return;
         }
 

@@ -292,7 +292,7 @@ function createHost(win) {
   let saved = false;
   let failTimer = null;
   let swapTimer = null;
-  let   loadingHideTimer = null;
+  let loadingHideTimer = null;
   // The page the shown editor reports with `lp-ready`: its own URL and the
   // entry's public URL. Null until it has said, and whenever the frame goes.
   let page = null;
@@ -514,7 +514,8 @@ function createHost(win) {
     }
 
     root.classList.add('sve-morphing');
-    doc.startViewTransition(update)
+    doc
+      .startViewTransition(update)
       .finished.catch(() => {})
       .then(() => root.classList.remove('sve-morphing'));
   }
@@ -949,7 +950,10 @@ function whenSitePainted(win) {
       const fonts = win.document.fonts?.ready;
 
       if (fonts && typeof fonts.then === 'function') {
-        Promise.resolve(fonts).then(() => resolve(), () => resolve());
+        Promise.resolve(fonts).then(
+          () => resolve(),
+          () => resolve()
+        );
       } else {
         resolve();
       }

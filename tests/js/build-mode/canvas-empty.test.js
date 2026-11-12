@@ -4,7 +4,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY_CSS, fitRows, gridRoomOf, ownHeight, roomOf, rowsSpanned } from '../../../resources/js/build-mode/canvas-empty.js';
+import {
+  EMPTY_CSS,
+  fitRows,
+  gridRoomOf,
+  ownHeight,
+  roomOf,
+  rowsSpanned,
+} from '../../../resources/js/build-mode/canvas-empty.js';
 
 test('the rows a cell spans, as the browser computes its grid-row', () => {
   assert.equal(rowsSpanned('span 2', 'span 2'), 2);
@@ -14,7 +21,7 @@ test('the rows a cell spans, as the browser computes its grid-row', () => {
   assert.equal(rowsSpanned('1', '-1'), 1);
 });
 
-test('a cell of one row has the plain placeholder; of more, a row\'s room each and the gaps between', () => {
+test("a cell of one row has the plain placeholder; of more, a row's room each and the gaps between", () => {
   assert.equal(roomOf(1, '16px'), '');
   assert.equal(roomOf(2, '16px'), 'calc(2 * 4rem + 1 * 16px)');
   assert.equal(roomOf(3, 'normal'), 'calc(3 * 4rem + 2 * 0px)');
@@ -40,17 +47,30 @@ function box(css, parent = null) {
   return {
     css,
     parentElement: parent,
-    style: { getPropertyValue: (k) => own.get(k) || '', setProperty: (k, v) => own.set(k, v), removeProperty: (k) => own.delete(k) },
+    style: {
+      getPropertyValue: (k) => own.get(k) || '',
+      setProperty: (k, v) => own.set(k, v),
+      removeProperty: (k) => own.delete(k),
+    },
   };
 }
 
 function scopeOf(cells) {
-  const view = { getComputedStyle: (el) => ({ display: 'block', gridTemplateRows: 'none', rowGap: 'normal', gridRowStart: 'auto', gridRowEnd: 'auto', ...el.css }) };
+  const view = {
+    getComputedStyle: (el) => ({
+      display: 'block',
+      gridTemplateRows: 'none',
+      rowGap: 'normal',
+      gridRowStart: 'auto',
+      gridRowEnd: 'auto',
+      ...el.css,
+    }),
+  };
 
   return { ownerDocument: { defaultView: view }, matches: () => false, querySelectorAll: () => cells };
 }
 
-test('an empty grid gets a grid row\'s room for each row, one at the least, the gaps between included', () => {
+test("an empty grid gets a grid row's room for each row, one at the least, the gaps between included", () => {
   const grid = box({ display: 'grid', gridTemplateRows: '29px 29px', rowGap: '24px' });
   const one = box({ display: 'grid', gridTemplateRows: '64px', rowGap: '24px' });
   const none = box({ display: 'grid', gridTemplateRows: 'none', rowGap: '24px' });

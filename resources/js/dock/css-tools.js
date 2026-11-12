@@ -12,8 +12,32 @@ import { mountSurface } from '../cp/mount.js';
 import { buildScopedCss, matchBraces, tokenTreeFromHtml } from '../css-scope.js';
 import { closeClassTokenUi } from '../dock-class-tokens.js';
 import { dockState } from '../dock/state.js';
-import { flushCssScope, htmlEditorText, htmlFocusOk, htmlScopeEnabled, paintHtmlScope, rememberBracketNames, rememberCssSelectors, syncScopedHtml } from './scope.js';
-import { CSS_GRAYS, CSS_MENU_ID, CSS_SPACING, CSS_TOOLS, CSS_TOOL_ICONS, EditorState, EditorView, HANDLES, SCOPE_CLASS, TW_TOOL_ICONS, closeCompletion, editableOf, editors, readOnlyOf } from '../code-dock.js';
+import {
+  flushCssScope,
+  htmlEditorText,
+  htmlFocusOk,
+  htmlScopeEnabled,
+  paintHtmlScope,
+  rememberBracketNames,
+  rememberCssSelectors,
+  syncScopedHtml,
+} from './scope.js';
+import {
+  CSS_GRAYS,
+  CSS_MENU_ID,
+  CSS_SPACING,
+  CSS_TOOLS,
+  CSS_TOOL_ICONS,
+  EditorState,
+  EditorView,
+  HANDLES,
+  SCOPE_CLASS,
+  TW_TOOL_ICONS,
+  closeCompletion,
+  editableOf,
+  editors,
+  readOnlyOf,
+} from '../code-dock.js';
 import { cssSizeRows, cssStateSuffix, paintCssHead } from './css-sizes.js';
 import { paintHtmlToolState } from './html-tools.js';
 import { syncTwTarget } from './style-modes.js';
@@ -33,7 +57,9 @@ export function readParts() {
     } else if (handle === 'css') {
       // A size block nobody wrote in is a door held open, not a rule. It is
       // shown while you are looking around and taken out on the way to disk.
-      parts.css = dockState.lastWin ? stripEmptySizeBlocks(dockState.cssFull, cssSizeRows(dockState.lastWin)) : dockState.cssFull;
+      parts.css = dockState.lastWin
+        ? stripEmptySizeBlocks(dockState.cssFull, cssSizeRows(dockState.lastWin))
+        : dockState.cssFull;
 
       // And a class written at the top of the file belongs in the section's
       // scope. Only moved where there is a scope on the element to move it
@@ -59,7 +85,9 @@ export function cssEditorText() {
   // it is the root element's — the view a click on the section row gives,
   // from the first open.
   const focused = htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length);
-  const tree = tokenTreeFromHtml(focused ? dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to) : dockState.htmlFull);
+  const tree = tokenTreeFromHtml(
+    focused ? dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to) : dockState.htmlFull
+  );
 
   if (!tree.length) {
     dockState.cssPane = 'empty';
@@ -188,11 +216,19 @@ function cssValueOf(text) {
   const decl = cssDeclaration(text);
   const idx = decl.indexOf(':');
 
-  return idx === -1 ? '' : decl.slice(idx + 1).replace(/;$/, '').trim().toLowerCase();
+  return idx === -1
+    ? ''
+    : decl
+        .slice(idx + 1)
+        .replace(/;$/, '')
+        .trim()
+        .toLowerCase();
 }
 
 export function normalizeFlexValue(value) {
-  const v = String(value || '').trim().toLowerCase();
+  const v = String(value || '')
+    .trim()
+    .toLowerCase();
 
   if (v === 'start' || v === 'flex-start' || v === 'left' || v === 'top') {
     return 'flex-start';
@@ -474,7 +510,10 @@ function cssRuleSelector(view, rule) {
     }
   }
 
-  return text.slice(from, rule.open).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+  return text
+    .slice(from, rule.open)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .trim();
 }
 
 /**
@@ -524,9 +563,7 @@ function cssStateRule(view, rule) {
   const open = next.indexOf('{', at + insert.indexOf('&'));
   const close = open === -1 ? -1 : matchBraces(next, open);
 
-  return close === -1
-    ? rule
-    : { from: open + 1, to: close, text: next.slice(open + 1, close), open };
+  return close === -1 ? rule : { from: open + 1, to: close, text: next.slice(open + 1, close), open };
 }
 
 /** The whitespace at the start of the line a position sits on. */
@@ -548,9 +585,7 @@ export function applyRuleDecls(updates) {
   // A state is a second rule, not a second declaration: `:hover` belongs on
   // the selector. Only make one when there is something to put in it —
   // clearing a property must never leave an empty `:hover` behind.
-  const rule = updates.some((item) => item.value != null)
-    ? cssStateRule(view, atCursor)
-    : atCursor;
+  const rule = updates.some((item) => item.value != null) ? cssStateRule(view, atCursor) : atCursor;
 
   if (!rule) {
     const snippet = updates
@@ -901,9 +936,7 @@ function paintCssToolStateInner(win) {
   const decls = tw ? {} : currentFlexDecls();
   // Is this a flex container? Asked of whichever language is on screen, so
   // alignment appears under the same condition in both.
-  const flexOn = tw
-    ? isFlexDisplay(twActiveClass('display'))
-    : isFlexDisplay(decls.display);
+  const flexOn = tw ? isFlexDisplay(twActiveClass('display')) : isFlexDisplay(decls.display);
   const flexDir = normalizeFlexValue(decls['flex-direction']) || (flexOn ? 'row' : '');
 
   /** Is this property set on the rule under the cursor / the picked tag? */
@@ -915,9 +948,7 @@ function paintCssToolStateInner(win) {
 
       // A named group is lit from the group, not from a property: a border
       // width sets two of them and so has no family to ask about.
-      return item.twGroup
-        ? !!twGroupActive(item.twGroup)
-        : !!item.tw && !!twActiveClass(item.tw);
+      return item.twGroup ? !!twGroupActive(item.twGroup) : !!item.tw && !!twActiveClass(item.tw);
     }
 
     return !!item.css && item.css in decls;
@@ -960,7 +991,6 @@ function paintCssToolStateInner(win) {
   });
 }
 
-
 /**
  * A value was picked: close the menu, and fold the door it came from.
  *
@@ -989,9 +1019,11 @@ export function closeCssMenu(doc) {
 
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open], [data-sve-code-history][data-open]').forEach((el) =>
-    el.removeAttribute('data-open')
-  );
+  doc
+    ?.querySelectorAll(
+      '[data-sve-css-tool][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open], [data-sve-code-history][data-open]'
+    )
+    .forEach((el) => el.removeAttribute('data-open'));
 }
 
 /** Close CSS/HTML tool menus and CodeMirror suggestions — they sit above Statamic pickers. */
@@ -1012,8 +1044,7 @@ function loadThemeColors(win) {
     return dockState.cssColorsPromise;
   }
 
-  const cpUrl =
-    win.Statamic?.$config?.get?.('cpUrl') || `/${win.Statamic?.$config?.get?.('cpRoute') || 'cp'}`;
+  const cpUrl = win.Statamic?.$config?.get?.('cpUrl') || `/${win.Statamic?.$config?.get?.('cpRoute') || 'cp'}`;
 
   dockState.cssColorsPromise = win
     .fetch(`${cpUrl}/color-scheme/swatches`, {

@@ -21,17 +21,57 @@ import { chromeSet } from './chrome-prefs.js';
 import { ensurePanel } from './lazy-panels.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
-import { frameDocumentUrl, isLivePreviewDocumentUrl, lastPreviewUrl, replayLivePreview, watchPreviewRenders } from './lp-replay.js';
+import {
+  frameDocumentUrl,
+  isLivePreviewDocumentUrl,
+  lastPreviewUrl,
+  replayLivePreview,
+  watchPreviewRenders,
+} from './lp-replay.js';
 import { injectStyle } from './lib/style.js';
-import { CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, GLOBALS_PICKER_ID, LIBRARY_BUTTON_ID, LP_ICON_IDLE_OPACITY, LP_MODE_ID, LP_WIDTH_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import {
+  CHROME_DESIGNS_ID,
+  GLOBALS_PANEL_ID,
+  GLOBALS_PICKER_ID,
+  LIBRARY_BUTTON_ID,
+  LP_ICON_IDLE_OPACITY,
+  LP_MODE_ID,
+  LP_WIDTH_ID,
+  SECTION_PICKER_ID,
+} from './lib/ids.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { setMeta } from './lib/row-meta.js';
-import { attachGlobalsOverlay, closeRightPanels, editorOverlayCss, hideGlobalsPanel, isSectionLibraryLocked, leaveFocusLock, libraryMatchesQuery, libraryWentStale, mountInLivePreviewEditor, newRowId, openSectionPicker, parkGlobalsOverlay, pinGlobalsPanelLeft, releaseLeftEdgeIfFree, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import {
+  attachGlobalsOverlay,
+  closeRightPanels,
+  editorOverlayCss,
+  hideGlobalsPanel,
+  isSectionLibraryLocked,
+  leaveFocusLock,
+  libraryMatchesQuery,
+  libraryWentStale,
+  mountInLivePreviewEditor,
+  newRowId,
+  openSectionPicker,
+  parkGlobalsOverlay,
+  pinGlobalsPanelLeft,
+  releaseLeftEdgeIfFree,
+  showGlobalsPanel,
+  syncPreviewInset,
+  syncSectionLibraryAvailability,
+} from './section-library.js';
 import { hasUnsavedGlobalSection } from './global-section.js';
-import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, pressChromeSave, warmChromeInlinePages } from './chrome.js';
+import {
+  chromeContainer,
+  chromeHost,
+  closeChromeInline,
+  openChromeInline,
+  pressChromeSave,
+  warmChromeInlinePages,
+} from './chrome.js';
 import { hasUnsavedChanges } from './open-in-preview.js';
 import { confirmLeaveGlobalsOverlay, handleRequestCloseChrome } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
@@ -154,9 +194,7 @@ export function ensurePreviewOutsideDismiss(win) {
     }
 
     try {
-      win.document.body?.dispatchEvent(
-        new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true })
-      );
+      win.document.body?.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
     } catch {
       /* nothing to dismiss with */
     }
@@ -430,10 +468,7 @@ export function hasUnsavedGlobals(win) {
   }
 
   const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-  const hidden =
-    !panel ||
-    panel.hasAttribute('data-sve-chrome-hidden') ||
-    panel.style.visibility === 'hidden';
+  const hidden = !panel || panel.hasAttribute('data-sve-chrome-hidden') || panel.style.visibility === 'hidden';
 
   // Prefetch loads Theme Settings off-screen; its hydrate must not count as edits.
   if (hidden) {
@@ -514,10 +549,7 @@ export function clearGlobalsDirtyMarks(win) {
   // Re-baseline the iframe value poll so the post-save form snapshot
   // doesn't immediately re-mark chrome as dirty.
   try {
-    iwin.postMessage(
-      { source: SOURCE, type: MSG.SVE_GLOBALS_SAVED },
-      win.location.origin
-    );
+    iwin.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVED }, win.location.origin);
   } catch {
     /* ignore */
   }
@@ -605,10 +637,7 @@ export function saveGlobalsPanel(win, done) {
     return;
   }
 
-  iwin.postMessage(
-    { source: SOURCE, type: MSG.SVE_GLOBALS_SAVE },
-    win.location.origin
-  );
+  iwin.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVE }, win.location.origin);
 }
 
 /**
@@ -1019,17 +1048,13 @@ export function openGlobalsPanel(win, set, options = {}) {
         setActiveChromeKind(null);
       };
 
-      confirmLeaveGlobalsOverlay(
-        win,
-        switchSet,
-        () => {
-          const picker = win.document.getElementById(GLOBALS_PICKER_ID);
+      confirmLeaveGlobalsOverlay(win, switchSet, () => {
+        const picker = win.document.getElementById(GLOBALS_PICKER_ID);
 
-          if (picker && previousHandle) {
-            picker.value = previousHandle;
-          }
+        if (picker && previousHandle) {
+          picker.value = previousHandle;
         }
-      );
+      });
 
       return;
     }
@@ -1083,10 +1108,7 @@ export function openGlobalsPanel(win, set, options = {}) {
   save.addEventListener('click', () => {
     const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
-    frame?.contentWindow?.postMessage(
-      { source: SOURCE, type: MSG.SVE_GLOBALS_SAVE },
-      win.location.origin
-    );
+    frame?.contentWindow?.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVE }, win.location.origin);
   });
   actions.appendChild(save);
 
@@ -1224,7 +1246,6 @@ export function ensureGlobalsPicker(win) {
   wrap.appendChild(select);
   header.appendChild(wrap);
 }
-
 
 /** A "Sektioner" toggle in the LP header that opens/closes the section library. */
 export function ensureSectionLibraryButton(win) {
@@ -1477,7 +1498,6 @@ export function initGlobalsPanelFrame(win) {
         }
       }
     });
-
   };
 
   // When set (e.g. "header"), chrome focus hides every other publish tab so you
@@ -1513,9 +1533,7 @@ export function initGlobalsPanelFrame(win) {
       return false;
     }
 
-    const tabs = [...doc.querySelectorAll('button[role="tab"]')].filter(
-      (el) => el.offsetParent !== null
-    );
+    const tabs = [...doc.querySelectorAll('button[role="tab"]')].filter((el) => el.offsetParent !== null);
     const tab = tabs.find((el) => {
       const text = (el.textContent || '').trim().toLowerCase();
 
@@ -1777,8 +1795,7 @@ export function initGlobalsPanelFrame(win) {
       const panel = win.frameElement?.closest?.(`#${GLOBALS_PANEL_ID}`);
 
       return (
-        !!panel &&
-        (panel.hidden || panel.hasAttribute('data-sve-chrome-hidden') || panel.style.visibility === 'hidden')
+        !!panel && (panel.hidden || panel.hasAttribute('data-sve-chrome-hidden') || panel.style.visibility === 'hidden')
       );
     } catch {
       return false;
@@ -2013,14 +2030,12 @@ export function buildChromeModeToggle(win, mode) {
   const row = doc.createElement('div');
 
   row.setAttribute(CHROME_MODE_TOGGLE_ATTR, '');
-  row.style.cssText =
-    'display:flex;gap:4px;padding:2px 10px 0;flex:0 0 auto;';
+  row.style.cssText = 'display:flex;gap:4px;padding:2px 10px 0;flex:0 0 auto;';
 
   const track = doc.createElement('div');
 
   track.style.cssText =
-    'display:flex;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
-    'background:rgba(128,128,128,.12);';
+    'display:flex;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' + 'background:rgba(128,128,128,.12);';
 
   const makeBtn = (key, label) => {
     const btn = doc.createElement('button');
@@ -2101,8 +2116,7 @@ export function setChromeSidebarMode(win, mode) {
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
   if (designs) {
-    designs.style.cssText =
-      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
+    designs.style.cssText = 'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
     designs.setAttribute('data-sve-chrome-hidden', '1');
   }
 
@@ -2212,8 +2226,7 @@ export function openChromeDesignsPanel(win, kind) {
   const render = () => {
     const activeKind = panel.getAttribute('data-sve-chrome-kind') === 'footer' ? 'footer' : 'header';
 
-    titleEl.textContent =
-      activeKind === 'footer' ? t(win, 'tab_footer') : t(win, 'tab_header');
+    titleEl.textContent = activeKind === 'footer' ? t(win, 'tab_footer') : t(win, 'tab_header');
     hintEl.textContent = t(win, 'chrome_library_hint');
     searchEl.placeholder = t(win, 'chrome_search_placeholder');
     gridEl.innerHTML = '';
@@ -2226,9 +2239,7 @@ export function openChromeDesignsPanel(win, kind) {
       return;
     }
 
-    const filtered = styles.filter((item) =>
-      libraryMatchesQuery({ ...item, title: item.label || item.title }, query)
-    );
+    const filtered = styles.filter((item) => libraryMatchesQuery({ ...item, title: item.label || item.title }, query));
 
     if (!filtered.length) {
       gridEl.appendChild(empty(t(win, 'library_no_matches')));
@@ -2331,12 +2342,15 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
   if (container) {
     container.setFieldValue(`${kind === 'footer' ? 'footer' : 'header'}_style`, style);
 
-    win.document.getElementById(CHROME_DESIGNS_ID)?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
-      const on = el.getAttribute('data-sve-chrome-style') === style;
+    win.document
+      .getElementById(CHROME_DESIGNS_ID)
+      ?.querySelectorAll('[data-sve-chrome-style]')
+      .forEach((el) => {
+        const on = el.getAttribute('data-sve-chrome-style') === style;
 
-      el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
-      el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
-    });
+        el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
+        el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
+      });
 
     return;
   }

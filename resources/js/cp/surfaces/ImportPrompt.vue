@@ -129,7 +129,7 @@ function onNameKey(event) {
         :placeholder="namePlaceholder"
         data-sve-import-name
         @keydown="onNameKey"
-      >
+      />
 
       <span class="sve-dialog__label">{{ modeLabel }}</span>
       <div class="sve-import__modes" role="group" :aria-label="modeLabel">
@@ -139,14 +139,16 @@ function onNameKey(event) {
           :aria-pressed="mode === 'tailwind' ? 'true' : 'false'"
           data-sve-import-mode="tailwind"
           @click="mode = 'tailwind'"
-        >{{ tailwindLabel }}</button>
+          >{{ tailwindLabel }}</button
+        >
         <button
           type="button"
           :class="{ 'is-on': mode === 'css' }"
           :aria-pressed="mode === 'css' ? 'true' : 'false'"
           data-sve-import-mode="css"
           @click="mode = 'css'"
-        >{{ cssModeLabel }}</button>
+          >{{ cssModeLabel }}</button
+        >
       </div>
       <p v-if="mode === 'css' ? cssNote : modeNote" class="sve-dialog__note">
         {{ mode === 'css' ? cssNote : modeNote }}
@@ -191,13 +193,19 @@ function onNameKey(event) {
       </template>
 
       <div class="sve-import__adders">
-        <button v-if="!showCss" type="button" class="is-add-pane" data-sve-import-add-css @click="openCss">{{ addCssLabel }}</button>
-        <button v-if="!showJs" type="button" class="is-add-pane" data-sve-import-add-js @click="openJs">{{ addJsLabel }}</button>
+        <button v-if="!showCss" type="button" class="is-add-pane" data-sve-import-add-css @click="openCss">{{
+          addCssLabel
+        }}</button>
+        <button v-if="!showJs" type="button" class="is-add-pane" data-sve-import-add-js @click="openJs">{{
+          addJsLabel
+        }}</button>
       </div>
 
       <div class="sve-dialog__actions">
         <button type="button" class="is-cancel" :disabled="busy" @click="onClose">{{ cancelLabel }}</button>
-        <button type="button" class="is-primary" :disabled="busy" data-sve-import-ok @click="submit">{{ saveLabel }}</button>
+        <button type="button" class="is-primary" :disabled="busy" data-sve-import-ok @click="submit">{{
+          saveLabel
+        }}</button>
       </div>
     </div>
   </div>

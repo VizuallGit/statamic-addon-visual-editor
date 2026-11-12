@@ -3,13 +3,36 @@
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */
 import CodeDockDataVars from '../cp/surfaces/CodeDockDataVars.vue';
-import { cachedDataVars, dataVarSnippet, dataVarsCollection, dataVarsKey, dataVarsScope, dataVarsSet, fetchDataVars, groupsWithValues, withValues } from '../data-vars.js';
+import {
+  cachedDataVars,
+  dataVarSnippet,
+  dataVarsCollection,
+  dataVarsKey,
+  dataVarsScope,
+  dataVarsSet,
+  fetchDataVars,
+  groupsWithValues,
+  withValues,
+} from '../data-vars.js';
 import { onlyTypes } from '../data-var-types.js';
 import { fieldEditAt } from './field-edit.js';
 import { loopScopeAt } from '../antlers-blocks.js';
 import { mountSurface } from '../cp/mount.js';
-import { ANTLERS_SNIPPET_GROUPS, ANTLERS_SNIPPETS, antlersSnippet, expandAntlersSnippet, indentAntlersSnippet } from '../antlers-snippets.js';
-import { VISUAL_EDIT_SNIPPET_GROUPS, VISUAL_EDIT_SNIPPETS, VISUAL_EDIT_TAG, findVisualEditInRange, hasAttr, visualEditSnippet } from '../visual-edit-snippets.js';
+import {
+  ANTLERS_SNIPPET_GROUPS,
+  ANTLERS_SNIPPETS,
+  antlersSnippet,
+  expandAntlersSnippet,
+  indentAntlersSnippet,
+} from '../antlers-snippets.js';
+import {
+  VISUAL_EDIT_SNIPPET_GROUPS,
+  VISUAL_EDIT_SNIPPETS,
+  VISUAL_EDIT_TAG,
+  findVisualEditInRange,
+  hasAttr,
+  visualEditSnippet,
+} from '../visual-edit-snippets.js';
 import { t } from '../lib/i18n.js';
 import { unwrapRef } from '../lib/values.js';
 import { activeContainers } from '../lib/publish-containers.js';
@@ -40,7 +63,11 @@ export function closeDataMenu(doc) {
   dataMenuUnhook = null;
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-data-vars][data-open], [data-sve-antlers-btn][data-open], [data-sve-visual-edit-btn][data-open], [data-sve-snippet-btn][data-open]').forEach((el) => el.removeAttribute('data-open'));
+  doc
+    ?.querySelectorAll(
+      '[data-sve-data-vars][data-open], [data-sve-antlers-btn][data-open], [data-sve-visual-edit-btn][data-open], [data-sve-snippet-btn][data-open]'
+    )
+    .forEach((el) => el.removeAttribute('data-open'));
 }
 
 /**
@@ -135,7 +162,9 @@ export function scopeDataRows(win, at) {
     return Promise.resolve([]);
   }
 
-  return fetchDataVars(win, query).then((raw) => (raw?.scope?.groups || []).flatMap((group) => (Array.isArray(group.items) ? group.items : [])));
+  return fetchDataVars(win, query).then((raw) =>
+    (raw?.scope?.groups || []).flatMap((group) => (Array.isArray(group.items) ? group.items : []))
+  );
 }
 
 /** The page's own values — the whole entry, not the section inside it. */
@@ -258,7 +287,11 @@ function giveFieldItsEdit(view, at, name) {
       from += 1;
     }
 
-    while (end < doc.length - from && end < next.length - from && doc[doc.length - 1 - end] === next[next.length - 1 - end]) {
+    while (
+      end < doc.length - from &&
+      end < next.length - from &&
+      doc[doc.length - 1 - end] === next[next.length - 1 - end]
+    ) {
       end += 1;
     }
 
@@ -313,9 +346,7 @@ export function openDataVarsMenu(win, anchor, onPick, at, types, single = false)
    */
   const tabsFor = (raw) =>
     [
-      raw?.scope?.groups?.length
-        ? { id: 'scope', label: raw.scope.label || t(win, 'data_vars_tab_loop') }
-        : null,
+      raw?.scope?.groups?.length ? { id: 'scope', label: raw.scope.label || t(win, 'data_vars_tab_loop') } : null,
       { id: 'section', label: t(win, 'data_vars_tab_section') },
       { id: 'page', label: t(win, 'data_vars_tab_page') },
       { id: 'site', label: t(win, 'data_vars_tab_site') },
@@ -466,7 +497,10 @@ export function pickerButton(win, host, attr, icon, title) {
 
 /** The first line of a snippet, as the row's hint — `|` (the caret) taken out. */
 function snippetHint(snippet) {
-  return String(snippet || '').replace(/\|/g, '').split('\n')[0].trim();
+  return String(snippet || '')
+    .replace(/\|/g, '')
+    .split('\n')[0]
+    .trim();
 }
 
 export function bindDataVars(win, dock) {
@@ -560,9 +594,7 @@ function insertAntlersSnippet(id) {
   }
 
   const line = view.state.doc.lineAt(pos);
-  const indent = line.text.trim()
-    ? lineIndentOf(line.text)
-    : indentFromPrevious(view, line) || lineIndentOf(line.text);
+  const indent = line.text.trim() ? lineIndentOf(line.text) : indentFromPrevious(view, line) || lineIndentOf(line.text);
   const { text, cursor } = expandAntlersSnippet(spec.snippet);
 
   insertHtmlSnippet(indentAntlersSnippet(text, indent), cursor);
@@ -692,9 +724,7 @@ function insertVisualEditSnippet(id) {
 
   const pos = view.state.selection.main.head;
   const line = view.state.doc.lineAt(pos);
-  const indent = line.text.trim()
-    ? lineIndentOf(line.text)
-    : indentFromPrevious(view, line) || lineIndentOf(line.text);
+  const indent = line.text.trim() ? lineIndentOf(line.text) : indentFromPrevious(view, line) || lineIndentOf(line.text);
   const raw = spec.standalone || `{{ ${VISUAL_EDIT_TAG} ${spec.attr} }}`;
   const { text, cursor } = expandAntlersSnippet(raw);
 

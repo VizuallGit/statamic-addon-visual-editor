@@ -44,8 +44,43 @@ const draft = ref('');
 /** The attribute whose value takes the caret when its row comes: one just made. */
 const fresh = ref('');
 
-const ARIA_NAMES = ['label', 'labelledby', 'describedby', 'hidden', 'expanded', 'controls', 'current', 'live', 'pressed', 'selected', 'haspopup', 'level'];
-const ROLES = ['button', 'link', 'navigation', 'region', 'img', 'presentation', 'none', 'list', 'listitem', 'group', 'dialog', 'tablist', 'tab', 'tabpanel', 'banner', 'contentinfo', 'complementary', 'main', 'note', 'status', 'alert'];
+const ARIA_NAMES = [
+  'label',
+  'labelledby',
+  'describedby',
+  'hidden',
+  'expanded',
+  'controls',
+  'current',
+  'live',
+  'pressed',
+  'selected',
+  'haspopup',
+  'level',
+];
+const ROLES = [
+  'button',
+  'link',
+  'navigation',
+  'region',
+  'img',
+  'presentation',
+  'none',
+  'list',
+  'listitem',
+  'group',
+  'dialog',
+  'tablist',
+  'tab',
+  'tabpanel',
+  'banner',
+  'contentinfo',
+  'complementary',
+  'main',
+  'note',
+  'status',
+  'alert',
+];
 const ids = { aria: `sve-build-aria-${props.path}`, role: `sve-build-role-${props.path}` };
 
 function add(group) {
@@ -112,7 +147,15 @@ function toggleContrast() {
     <section class="bm-attrs-group" data-sve-build-attrs-data>
       <header class="bm-attrs-head">
         <span class="fg-lab">{{ port.t('attrs_data') }}</span>
-        <button v-if="!locked" type="button" class="bm-attrs-add" :title="port.t('attrs_add_data')" data-sve-build-attrs-add="data" @mousedown.prevent @click="add('data')">
+        <button
+          v-if="!locked"
+          type="button"
+          class="bm-attrs-add"
+          :title="port.t('attrs_add_data')"
+          data-sve-build-attrs-add="data"
+          @mousedown.prevent
+          @click="add('data')"
+        >
           <span v-html="ic('plus')"></span>data
         </button>
       </header>
@@ -126,13 +169,29 @@ function toggleContrast() {
         :focus-value="fresh === row.name.toLowerCase()"
         :readonly="locked"
       />
-      <BuildAttrRow v-if="draft === 'data'" key="draft-data" :path="path" prefix="data-" draft @create="create" @cancel="draft = ''" />
+      <BuildAttrRow
+        v-if="draft === 'data'"
+        key="draft-data"
+        :path="path"
+        prefix="data-"
+        draft
+        @create="create"
+        @cancel="draft = ''"
+      />
     </section>
 
     <section class="bm-attrs-group" data-sve-build-attrs-aria>
       <header class="bm-attrs-head">
         <span class="fg-lab">{{ port.t('attrs_aria') }}</span>
-        <button v-if="!locked" type="button" class="bm-attrs-add" :title="port.t('attrs_add_aria')" data-sve-build-attrs-add="aria" @mousedown.prevent @click="add('aria')">
+        <button
+          v-if="!locked"
+          type="button"
+          class="bm-attrs-add"
+          :title="port.t('attrs_add_aria')"
+          data-sve-build-attrs-add="aria"
+          @mousedown.prevent
+          @click="add('aria')"
+        >
           <span v-html="ic('plus')"></span>aria
         </button>
       </header>
@@ -147,13 +206,30 @@ function toggleContrast() {
         :focus-value="fresh === row.name.toLowerCase()"
         :readonly="locked"
       />
-      <BuildAttrRow v-if="draft === 'aria'" key="draft-aria" :path="path" prefix="aria-" :names="ids.aria" draft @create="create" @cancel="draft = ''" />
+      <BuildAttrRow
+        v-if="draft === 'aria'"
+        key="draft-aria"
+        :path="path"
+        prefix="aria-"
+        :names="ids.aria"
+        draft
+        @create="create"
+        @cancel="draft = ''"
+      />
     </section>
 
     <section class="bm-attrs-group" data-sve-build-attrs-role>
       <header class="bm-attrs-head">
         <span class="fg-lab">{{ port.t('attrs_role') }}</span>
-        <button v-if="!locked && !role" type="button" class="bm-attrs-add" :title="port.t('attrs_add_role')" data-sve-build-attrs-add="role" @mousedown.prevent @click="add('role')">
+        <button
+          v-if="!locked && !role"
+          type="button"
+          class="bm-attrs-add"
+          :title="port.t('attrs_add_role')"
+          data-sve-build-attrs-add="role"
+          @mousedown.prevent
+          @click="add('role')"
+        >
           <span v-html="ic('plus')"></span>role
         </button>
       </header>

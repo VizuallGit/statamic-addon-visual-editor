@@ -63,7 +63,9 @@ const shown = computed(() => {
 });
 
 const resetTitle = computed(() =>
-  props.inherited ? say('shortcut_reset', { combo: formatCombo(props.inherited, props.mac) }) : say('shortcut_reset_none')
+  props.inherited
+    ? say('shortcut_reset', { combo: formatCombo(props.inherited, props.mac) })
+    : say('shortcut_reset_none')
 );
 
 async function focusKey() {
@@ -189,7 +191,8 @@ function keepThere() {
       @click="start"
       @keydown="onKey"
       @blur="recording && stop()"
-    >{{ shown.text }}</button>
+      >{{ shown.text }}</button
+    >
     <button
       v-if="value && !recording && !asking"
       type="button"
@@ -198,7 +201,8 @@ function keepThere() {
       :aria-label="resetTitle"
       data-sve-shortcut-reset
       @click="finish('')"
-    >↺</button>
+      >↺</button
+    >
     <span
       v-if="asking"
       class="sve-shortcut__note"
@@ -207,7 +211,9 @@ function keepThere() {
       data-sve-shortcut-ask
     >
       {{ say('shortcut_used_by', { name: asking.other.label }) }}
-      <button type="button" class="sve-shortcut__choice is-primary" data-sve-shortcut-move @click="moveHere">{{ say('shortcut_move') }}</button>
+      <button type="button" class="sve-shortcut__choice is-primary" data-sve-shortcut-move @click="moveHere">{{
+        say('shortcut_move')
+      }}</button>
       <button type="button" class="sve-shortcut__choice" @click="keepThere">{{ say('shortcut_cancel') }}</button>
     </span>
     <span v-else-if="note" class="sve-shortcut__note" role="status">{{ note }}</span>

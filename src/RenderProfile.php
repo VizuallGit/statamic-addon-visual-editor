@@ -34,7 +34,7 @@ final class RenderProfile
      */
     public static function run(string $url): array
     {
-        $entry = static::entryFor($url);
+        $entry = self::entryFor($url);
 
         if (! $entry) {
             return ['ok' => false, 'reason' => 'not_found'];
@@ -58,7 +58,7 @@ final class RenderProfile
             $resolver->register('antlers', fn () => $engine);
         }
 
-        return static::summarize($url, $total, $ledger->rows());
+        return self::summarize($url, $total, $ledger->rows());
     }
 
     /**
@@ -97,7 +97,7 @@ final class RenderProfile
 
         $out = array_values(array_filter(
             $out,
-            fn ($row) => $totalMs <= 0 || $row['excl'] / $totalMs >= static::MIN_SHARE
+            fn ($row) => $totalMs <= 0 || self::MIN_SHARE <= $row['excl'] / $totalMs
         ));
 
         return [
@@ -107,7 +107,7 @@ final class RenderProfile
             'sections_ms' => (int) round(min($sections, $totalMs)),
             'layout_ms' => (int) round(max(0, $totalMs - min($sections, $totalMs))),
             'renders' => array_sum(array_column($rows, 'n')),
-            'templates' => array_slice($out, 0, static::MAX_ROWS),
+            'templates' => array_slice($out, 0, self::MAX_ROWS),
         ];
     }
 

@@ -63,7 +63,11 @@ function cleanElement(over) {
     return null;
   }
 
-  const vars = Object.fromEntries(Object.entries(isMap(over.vars) ? over.vars : {}).filter(([name, value]) => VAR_RE.test(name) && typeof value === 'string' && value !== ''));
+  const vars = Object.fromEntries(
+    Object.entries(isMap(over.vars) ? over.vars : {}).filter(
+      ([name, value]) => VAR_RE.test(name) && typeof value === 'string' && value !== ''
+    )
+  );
   const clean = {};
 
   if (Object.keys(vars).length) {
@@ -175,7 +179,10 @@ export function overrideTo(override, path, template, next) {
     }
   }
 
-  out = next?.preset && next.preset !== (template?.preset || '') ? withOverrideValue(out, path, 'preset', next.preset) : withoutOverrideKey(out, path, 'preset');
+  out =
+    next?.preset && next.preset !== (template?.preset || '')
+      ? withOverrideValue(out, path, 'preset', next.preset)
+      : withoutOverrideKey(out, path, 'preset');
 
   return next?.off && !template?.off ? withOverrideValue(out, path, 'off', true) : withoutOverrideKey(out, path, 'off');
 }
@@ -185,7 +192,10 @@ export function prune(override, html) {
   const now = readOverride(override);
   const tree = parseTemplateTree(String(html ?? ''));
 
-  return { ...now, elements: Object.fromEntries(Object.entries(now.elements).filter(([path]) => findByPath(tree, path))) };
+  return {
+    ...now,
+    elements: Object.fromEntries(Object.entries(now.elements).filter(([path]) => findByPath(tree, path))),
+  };
 }
 
 export function isEmpty(override) {
@@ -214,7 +224,11 @@ export function overriddenKeys(over) {
     return [];
   }
 
-  return [...Object.keys(over.vars || {}), ...(over.preset !== null && over.preset !== undefined ? ['preset'] : []), ...(over.off ? ['off'] : [])];
+  return [
+    ...Object.keys(over.vars || {}),
+    ...(over.preset !== null && over.preset !== undefined ? ['preset'] : []),
+    ...(over.off ? ['off'] : []),
+  ];
 }
 
 /** Whether the template's root carries the mirror class. */

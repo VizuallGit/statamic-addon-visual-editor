@@ -47,19 +47,63 @@ import { activeChromeKind } from '../globals-panel.js';
 import { LAYOUT_TEMPLATE_TYPE } from '../lib/ids.js';
 import { previewDocument } from '../lib/preview-frame.js';
 import { dockState } from '../dock/state.js';
-import { bindBack, bindLayoutWatch, bindPaneToggles, bindResize, bindSplitters, ensureStyle, isPanelFrame, observeDockLayout, paintBack, paintPaneButtons, placeDock, previewBottomPad, setPath, setStatus, shieldDock, stopObservingDockLayout, storedPanes } from './layout.js';
+import {
+  bindBack,
+  bindLayoutWatch,
+  bindPaneToggles,
+  bindResize,
+  bindSplitters,
+  ensureStyle,
+  isPanelFrame,
+  observeDockLayout,
+  paintBack,
+  paintPaneButtons,
+  placeDock,
+  previewBottomPad,
+  setPath,
+  setStatus,
+  shieldDock,
+  stopObservingDockLayout,
+  storedPanes,
+} from './layout.js';
 import { DATA_ICON, DOCK_ID, HANDLES, SCOPE_ICON, UNLOCK_ID, css, editors, html, loadCm } from '../code-dock.js';
 import { bindCssTools, bindHtmlTidy, bindHtmlTools, bindStyleMode } from './toolbars.js';
 import { bindCssAddClass } from './html-tools.js';
 import { bindHistory } from './history-strip.js';
 import { attachHelp } from './help-attach.js';
 import { attachGhost } from './ghost-attach.js';
-import { bindHtmlScope, clearHtmlScopeRange, currentFullHtml, currentSectionValues, flushCssScope, goBackTemplate, htmlEditorText, htmlScopeEnabled, openNestedTemplate, openRenameClassMenu, paintHtmlScope, paintLock, showHtmlFull, showHtmlScope, syncScopedHtml, writeHandleEditor, writeHtmlEditor } from './scope.js';
+import {
+  bindHtmlScope,
+  clearHtmlScopeRange,
+  currentFullHtml,
+  currentSectionValues,
+  flushCssScope,
+  goBackTemplate,
+  htmlEditorText,
+  htmlScopeEnabled,
+  openNestedTemplate,
+  openRenameClassMenu,
+  paintHtmlScope,
+  paintLock,
+  showHtmlFull,
+  showHtmlScope,
+  syncScopedHtml,
+  writeHandleEditor,
+  writeHtmlEditor,
+} from './scope.js';
 import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
 import { mountEditor, paintHostWait } from './editor.js';
 import { paintStyleMode, syncTwTarget } from './style-modes.js';
 import { closeCssMenu, cssEditorText, paintCssToolState, readParts, sameParts, writeParts } from './css-tools.js';
-import { ensureTwCss, flushSave, isChromeTemplateType, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
+import {
+  ensureTwCss,
+  flushSave,
+  isChromeTemplateType,
+  onEditorInput,
+  primeTailwindCompile,
+  refreshPreview,
+  resetTailwindCompile,
+} from './save.js';
 import { closeDataMenu, dataVarsModelAt, openDataVarsMenu } from './data-vars.js';
 import { minimalChange } from '../lib/minimal-change.js';
 
@@ -678,8 +722,7 @@ export function relayoutCodeDock(win) {
  */
 function pageSectionType(win, doc, uid) {
   if (uid) {
-    const sectionUid =
-      topLevelSectionUid(uid, doc) || topLevelSectionUid(uid, win.document) || uid;
+    const sectionUid = topLevelSectionUid(uid, doc) || topLevelSectionUid(uid, win.document) || uid;
     const row = setRowForUid(sectionUid, doc) || setRowForUid(sectionUid, win.document);
 
     return renderedSectionType(win, row).trim();
@@ -758,7 +801,10 @@ function frameKindOnDock() {
   // A collection's own template: the page's content, inside main. An own
   // page's file (lib/own-page.js) is the same thing for one page: a file of
   // its own, drawn in the real preview, that tiles and picks go into.
-  if (dockState.lastWin && (type === collectionViewType(dockState.lastWin) || type === ownPageType(dockState.lastWin))) {
+  if (
+    dockState.lastWin &&
+    (type === collectionViewType(dockState.lastWin) || type === ownPageType(dockState.lastWin))
+  ) {
     return 'template';
   }
 
@@ -1085,7 +1131,9 @@ register('dock:data-menu', ({ anchor, onPick, at, types, single } = {}) => {
 
   return true;
 });
-register('dock:data-model', ({ at } = {}) => (dockState.lastWin ? dataVarsModelAt(dockState.lastWin, at) : Promise.resolve(null)));
+register('dock:data-model', ({ at } = {}) =>
+  dockState.lastWin ? dataVarsModelAt(dockState.lastWin, at) : Promise.resolve(null)
+);
 /**
  * The open file's declared fields, and a change to them.
  *
@@ -1120,9 +1168,7 @@ register('dock:component-src', () => componentSrcOf(currentTemplateType()));
  * component passed through on the way in — with the component src each one
  * is, when it is one. The HTML tree draws them around the open component.
  */
-register('dock:type-stack', () =>
-  dockState.typeStack.map((type) => ({ type, src: componentSrcOf(type) }))
-);
+register('dock:type-stack', () => dockState.typeStack.map((type) => ({ type, src: componentSrcOf(type) })));
 
 /**
  * What a way out of the open component would say and do.
@@ -1519,4 +1565,3 @@ function shiftFocus(focus, before, after) {
 
   return { from: focus.from, to: Math.max(focus.from, focus.to + delta) };
 }
-

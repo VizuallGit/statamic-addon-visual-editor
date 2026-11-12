@@ -8,156 +8,162 @@
  * window.fetch before any module runs. A classic script does; a module cannot.
  */
 (function () {
-    'use strict';
+  'use strict';
 
-    var orig = window.fetch;
+  var orig = window.fetch;
 
-    if (!orig || orig.__sveDedupeCpFetch) {
-        return;
+  if (!orig || orig.__sveDedupeCpFetch) {
+    return;
+  }
+
+  var inflight = Object.create(null);
+  var cache = Object.create(null);
+
+  function urlOf(input) {
+    if (typeof input === 'string') {
+      return input;
     }
 
-    var inflight = Object.create(null);
-    var cache = Object.create(null);
-
-    function urlOf(input) {
-        if (typeof input === 'string') {
-            return input;
-        }
-
-        if (input && typeof input.url === 'string') {
-            return input.url;
-        }
-
-        return '';
+    if (input && typeof input.url === 'string') {
+      return input.url;
     }
 
-    function methodOf(input, init) {
-        if (init && init.method) {
-            return String(init.method).toUpperCase();
-        }
+    return '';
+  }
 
-        if (input && typeof input === 'object' && input.method) {
-            return String(input.method).toUpperCase();
-        }
-
-        return 'GET';
+  function methodOf(input, init) {
+    if (init && init.method) {
+      return String(init.method).toUpperCase();
     }
 
-    function cacheKey(input, init) {
-        var raw;
-        var path;
-
-        if (methodOf(input, init) !== 'GET') {
-            return null;
-        }
-
-        raw = urlOf(input);
-
-        if (!raw) {
-            return null;
-        }
-
-        try {
-            path = new URL(raw, window.location.origin).pathname.replace(/\/+$/, '');
-        } catch (err) {
-            path = String(raw).split('?')[0].replace(/\/+$/, '');
-        }
-
-        if (path === '/color-scheme/swatches' || path.slice(-22) === '/color-scheme/swatches') {
-            return 'swatches';
-        }
-
-        if (path === '/iconify/config' || path.slice(-15) === '/iconify/config') {
-            return 'iconify-config';
-        }
-
-        return null;
+    if (input && typeof input === 'object' && input.method) {
+      return String(input.method).toUpperCase();
     }
 
-    function replay(stored) {
-        return new Response(stored.body, {
-            status: stored.status,
-            statusText: stored.statusText,
-            headers: stored.headers,
-        });
+    return 'GET';
+  }
+
+  function cacheKey(input, init) {
+    var raw;
+    var path;
+
+    if (methodOf(input, init) !== 'GET') {
+      return null;
     }
 
-    function storeFrom(res) {
-        var headers = {};
+    raw = urlOf(input);
 
-        if (res.headers && typeof res.headers.forEach === 'function') {
-            res.headers.forEach(function (value, name) {
-                headers[name] = value;
-            });
-        }
-
-        return res.text().then(function (body) {
-            return {
-                ok: res.ok,
-                status: res.status,
-                statusText: res.statusText,
-                headers: headers,
-                body: body,
-            };
-        });
+    if (!raw) {
+      return null;
     }
 
-    window.fetch = function (input, init) {
-        var key = cacheKey(input, init);
-        var pending;
-
-        if (!key) {
-            return orig.apply(this, arguments);
-        }
-
-        if (cache[key]) {
-            return Promise.resolve(replay(cache[key]));
-        }
-
-        pending = inflight[key];
-
-        if (!pending) {
-            pending = orig.apply(this, arguments).then(storeFrom).then(function (stored) {
-                delete inflight[key];
-
-                if (stored.ok) {
-                    cache[key] = stored;
-                }
-
-                return stored;
-            }, function (err) {
-                delete inflight[key];
-                throw err;
-            });
-
-            inflight[key] = pending;
-        }
-
-        return pending.then(replay);
-    };
-
-    // The theme panel writes the colours to site.css, and the swatch route
-    // reads that file: the body kept here is a palette that no longer exists.
-    // Drop it on save, so the next picker to ask is served the saved colours
-    // — a reload of the whole CP used to be the only way to see them.
-    //
-    // A CP form can sit in an iframe, and the panel fires on the window it
-    // lives in, so all three are listened to. addEventListener ignores the
-    // same function twice on one target, so the usual case costs nothing.
-    function forgetSwatches() {
-        delete cache.swatches;
-        delete inflight.swatches;
+    try {
+      path = new URL(raw, window.location.origin).pathname.replace(/\/+$/, '');
+    } catch (err) {
+      path = String(raw).split('?')[0].replace(/\/+$/, '');
     }
 
-    [window, window.parent, window.top].forEach(function (w) {
-        try {
-            if (w) {
-                w.addEventListener('sve:site-css-saved', forgetSwatches);
-            }
-        } catch (err) {
-            /* cross-origin */
-        }
+    if (path === '/color-scheme/swatches' || path.slice(-22) === '/color-scheme/swatches') {
+      return 'swatches';
+    }
+
+    if (path === '/iconify/config' || path.slice(-15) === '/iconify/config') {
+      return 'iconify-config';
+    }
+
+    return null;
+  }
+
+  function replay(stored) {
+    return new Response(stored.body, {
+      status: stored.status,
+      statusText: stored.statusText,
+      headers: stored.headers,
     });
+  }
 
-    window.fetch.__sveDedupeCpFetch = true;
+  function storeFrom(res) {
+    var headers = {};
+
+    if (res.headers && typeof res.headers.forEach === 'function') {
+      res.headers.forEach(function (value, name) {
+        headers[name] = value;
+      });
+    }
+
+    return res.text().then(function (body) {
+      return {
+        ok: res.ok,
+        status: res.status,
+        statusText: res.statusText,
+        headers: headers,
+        body: body,
+      };
+    });
+  }
+
+  window.fetch = function (input, init) {
+    var key = cacheKey(input, init);
+    var pending;
+
+    if (!key) {
+      return orig.apply(this, arguments);
+    }
+
+    if (cache[key]) {
+      return Promise.resolve(replay(cache[key]));
+    }
+
+    pending = inflight[key];
+
+    if (!pending) {
+      pending = orig
+        .apply(this, arguments)
+        .then(storeFrom)
+        .then(
+          function (stored) {
+            delete inflight[key];
+
+            if (stored.ok) {
+              cache[key] = stored;
+            }
+
+            return stored;
+          },
+          function (err) {
+            delete inflight[key];
+            throw err;
+          }
+        );
+
+      inflight[key] = pending;
+    }
+
+    return pending.then(replay);
+  };
+
+  // The theme panel writes the colours to site.css, and the swatch route
+  // reads that file: the body kept here is a palette that no longer exists.
+  // Drop it on save, so the next picker to ask is served the saved colours
+  // — a reload of the whole CP used to be the only way to see them.
+  //
+  // A CP form can sit in an iframe, and the panel fires on the window it
+  // lives in, so all three are listened to. addEventListener ignores the
+  // same function twice on one target, so the usual case costs nothing.
+  function forgetSwatches() {
+    delete cache.swatches;
+    delete inflight.swatches;
+  }
+
+  [window, window.parent, window.top].forEach(function (w) {
+    try {
+      if (w) {
+        w.addEventListener('sve:site-css-saved', forgetSwatches);
+      }
+    } catch (err) {
+      /* cross-origin */
+    }
+  });
+
+  window.fetch.__sveDedupeCpFetch = true;
 })();

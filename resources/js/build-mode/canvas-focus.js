@@ -50,9 +50,15 @@ const CSS_ID = '__sve-build-focus-css';
 /** The focus classes the bridge puts on <html>. */
 const FOCUS_CLASS = /^sve-(chrome-focus-(header|footer)|chrome-focus|global-focus|component-focus)$/;
 /** The bridge's rules for being inside something — not its hover affordances. */
-const FOCUS_RULE = /html\.sve-(chrome-focus-(header|footer)|global-focus|component-focus)\b|^\[data-sve-global-focused\]/;
+const FOCUS_RULE =
+  /html\.sve-(chrome-focus-(header|footer)|global-focus|component-focus)\b|^\[data-sve-global-focused\]/;
 /** The marks the bridge puts on elements while inside — the body the canvas copies carries them. */
-const STATE_ATTRS = ['data-sve-chrome-focused', 'data-sve-global-focused', 'data-sve-component-focused', 'data-sve-component-dim'];
+const STATE_ATTRS = [
+  'data-sve-chrome-focused',
+  'data-sve-global-focused',
+  'data-sve-component-focused',
+  'data-sve-component-dim',
+];
 
 const elementOf = (node) => (node?.nodeType === 1 ? node : node?.parentElement || null);
 
@@ -104,7 +110,9 @@ export function canvasFocus(win, { page, onState }) {
     const want = [...from.classList].filter((name) => FOCUS_CLASS.test(name));
     const root = doc.documentElement;
 
-    [...root.classList].filter((name) => FOCUS_CLASS.test(name) && !want.includes(name)).forEach((name) => root.classList.remove(name));
+    [...root.classList]
+      .filter((name) => FOCUS_CLASS.test(name) && !want.includes(name))
+      .forEach((name) => root.classList.remove(name));
     want.forEach((name) => root.classList.add(name));
   }
 
@@ -269,7 +277,11 @@ export function canvasFocus(win, { page, onState }) {
     const dialog = openCpOverlay(win.document, ChoiceDialog, {
       title: title?.textContent || '',
       body: body?.textContent || '',
-      buttons: buttons.map((btn, i) => ({ value: String(i), label: btn.textContent, variant: i === buttons.length - 1 ? 'primary' : 'ghost' })),
+      buttons: buttons.map((btn, i) => ({
+        value: String(i),
+        label: btn.textContent,
+        variant: i === buttons.length - 1 ? 'primary' : 'ghost',
+      })),
       onPick: (value) => finish(Number(value)),
       // Escape or the backdrop: the bridge's first button, its Cancel.
       onClose: () => finish(0),
@@ -391,7 +403,9 @@ export function canvasFocus(win, { page, onState }) {
 
     event.preventDefault();
     event.stopPropagation();
-    real.dispatchEvent(new view.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+    real.dispatchEvent(
+      new view.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true })
+    );
   }
 
   /** The real preview's document, as the canvas binds it (canvas.js bindReal). */

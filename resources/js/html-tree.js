@@ -4,7 +4,14 @@
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { t } from './lib/i18n.js';
-import { canCreateSections, insertTemplateElement, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
+import {
+  canCreateSections,
+  insertTemplateElement,
+  isHiddenType,
+  isStaticType,
+  libraryStale,
+  updateSectionType,
+} from './section-create.js';
 import { canEditFields, openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.js';
 import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
@@ -76,7 +83,13 @@ import {
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
-import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields, sectionRootTag } from './lib/config.js';
+import {
+  collectionTemplatesCollection,
+  featureOn,
+  sectionField,
+  sectionLoopFields,
+  sectionRootTag,
+} from './lib/config.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
 import { ownPageSections, ownPageType, rememberOwnPage } from './lib/own-page.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
@@ -87,7 +100,13 @@ import { activeContainers, pageHasSectionField } from './lib/publish-containers.
 import { persistDockedPanel } from './lp-panel.js';
 import { setMeta } from './lib/row-meta.js';
 import { leaveSelection, selectRow } from './selection-panel.js';
-import { closeRightPanels, dismissChromeForPageEdit, handleRemoveRow, renderedSectionType, syncPreviewInset } from './section-library.js';
+import {
+  closeRightPanels,
+  dismissChromeForPageEdit,
+  handleRemoveRow,
+  renderedSectionType,
+  syncPreviewInset,
+} from './section-library.js';
 import { GLOBAL_SECTION_CONTAINER } from './global-section.js';
 import { confirmCloseDiscard, navigateFromLp } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
@@ -424,7 +443,10 @@ export function htmlTreePanel(doc) {
 }
 
 export function ensureHtmlTreeStyles(doc) {
-  injectStyle(doc, HTML_TREE_STYLE_ID, `
+  injectStyle(
+    doc,
+    HTML_TREE_STYLE_ID,
+    `
     /* Where a row's content starts, in from the row's own edge: a small
        0.375rem, so the twist sits near the edge rather than behind a gutter.
        The open section's box takes its own border and padding back out of it
@@ -1074,7 +1096,8 @@ export function ensureHtmlTreeStyles(doc) {
       opacity: 1;
       font-weight: inherit;
     }
-  `);
+  `
+  );
 }
 
 function dockHtml() {
@@ -1177,12 +1200,7 @@ function prefetchSectionTemplates(win, sections) {
   for (const section of sections) {
     const type = section.type;
 
-    if (
-      !type
-      || htmlTreeTemplates.has(type)
-      || htmlTreeFetching.has(type)
-      || htmlTreePrefetch.includes(type)
-    ) {
+    if (!type || htmlTreeTemplates.has(type) || htmlTreeFetching.has(type) || htmlTreePrefetch.includes(type)) {
       continue;
     }
 
@@ -1334,9 +1352,7 @@ function htmlTreeSections(win, doc) {
 
       // Every id the row answers to. Which one the dock was handed is the
       // template's choice, and the three need not agree.
-      const ids = [row._visual_id, row.id, row._id].filter(
-        (id) => typeof id === 'string' && id !== ''
-      );
+      const ids = [row._visual_id, row.id, row._id].filter((id) => typeof id === 'string' && id !== '');
 
       if (!ids.length) {
         return;
@@ -1376,11 +1392,11 @@ function htmlTreeSections(win, doc) {
         // sections of one type may be called two things. The alias is the
         // file's, shared by every section that renders through it.
         label:
-          custom
-          || (typeof alias === 'string' && alias.trim() ? alias.trim() : '')
-          || setMeta(win, type)?.display
-          || humanizeHandle(type)
-          || type,
+          custom ||
+          (typeof alias === 'string' && alias.trim() ? alias.trim() : '') ||
+          setMeta(win, type)?.display ||
+          humanizeHandle(type) ||
+          type,
         // Its first tag's mark — the one it unfolds into. The set's own icon
         // used to go here, so the same section wore one shut and another open.
         // A section that is one component call unfolds into the component: the
@@ -1530,10 +1546,7 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   // The panel draws the section from the form's values: nothing to mount,
   // nothing to wait for.
   selectRow(win, section.uid, 'tree');
-  sendToPreview(
-    { source: SOURCE, type: MSG.SVE_ACTIVATE, ids: section.ids },
-    win
-  );
+  sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: section.ids }, win);
 
   // Two sections can share a template, and then the dock has nothing to reload
   // and nothing to announce — but the row that is open has still changed.
@@ -1626,9 +1639,11 @@ function foldedIds(roots) {
 
   const walk = (nodes, depth) => {
     for (const node of nodes) {
-      if (node.children.length
-        ? htmlTreeShut(node, depth)
-        : emptyFolds && (node.kind === 'antlers' || node.hollow) && htmlTreeFolds.has(node.path)) {
+      if (
+        node.children.length
+          ? htmlTreeShut(node, depth)
+          : emptyFolds && (node.kind === 'antlers' || node.hollow) && htmlTreeFolds.has(node.path)
+      ) {
         shut.add(node.id);
       }
 
@@ -1809,9 +1824,11 @@ export function renderHtmlTree(win) {
 
   // The clicked section is open once its file is on screen — not merely once
   // the dock has said which file it is going to fetch.
-  if (htmlTreePendingUid
-    && (htmlTreePendingUid === liveUid || !sections.length)
-    && (htmlTreePendingSame || html !== htmlTreePendingHtml)) {
+  if (
+    htmlTreePendingUid &&
+    (htmlTreePendingUid === liveUid || !sections.length) &&
+    (htmlTreePendingSame || html !== htmlTreePendingHtml)
+  ) {
     win.clearTimeout(htmlTreePendingTimer);
     htmlTreePendingUid = '';
     htmlTreeReseat = false;
@@ -1830,9 +1847,7 @@ export function renderHtmlTree(win) {
     }
   }
 
-  const pendingUid = sections.some((section) => section.uid === htmlTreePendingUid)
-    ? htmlTreePendingUid
-    : '';
+  const pendingUid = sections.some((section) => section.uid === htmlTreePendingUid) ? htmlTreePendingUid : '';
   // Which section is unfolded, and whether this file is one of the page's
   // sections at all. Header, footer and a collection's own template are not,
   // and a list of sections around their markup would be claiming otherwise.
@@ -1941,10 +1956,12 @@ export function renderHtmlTree(win) {
   // that the first <header>/<footer>. Not simply the file's first tag — a
   // scope like {{ site_foot }}, a style block or a comment may stand around
   // it, and the tree stands on the element, as it stands on <main>.
-  const chromeMarker = frameKind === 'header' || frameKind === 'footer'
-    ? findNodeWhere(roots, (node) => html.slice(node.from, node.openTo).includes(`data-sve-chrome="${frameKind}"`))
-    : null;
-  const chromeNode = chromeMarker || (frameKind === 'header' || frameKind === 'footer' ? findNodeByTag(roots, frameKind) : null);
+  const chromeMarker =
+    frameKind === 'header' || frameKind === 'footer'
+      ? findNodeWhere(roots, (node) => html.slice(node.from, node.openTo).includes(`data-sve-chrome="${frameKind}"`))
+      : null;
+  const chromeNode =
+    chromeMarker || (frameKind === 'header' || frameKind === 'footer' ? findNodeByTag(roots, frameKind) : null);
 
   if (chromeNode) {
     expandHtmlTreePath(chromeNode.path);
@@ -1954,12 +1971,9 @@ export function renderHtmlTree(win) {
   // file's — <main> on the layout, the half's own element at the root — no
   // rows: a header drawn around a section's rows is worse than a moment of
   // nothing, and the dock says when the file lands.
-  const landed = frameKind === 'main'
-    ? !!mainNode
-    : frameKind === 'header' || frameKind === 'footer' ? !!chromeNode : true;
-  const rows = pageView || !landed
-    ? []
-    : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
+  const landed =
+    frameKind === 'main' ? !!mainNode : frameKind === 'header' || frameKind === 'footer' ? !!chromeNode : true;
+  const rows = pageView || !landed ? [] : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
 
   // A page's own file or a collection's template emptied of every element is
   // a page with nothing on it yet — said so, and the plus stays to add to it.
@@ -2321,21 +2335,29 @@ export function renderHtmlTree(win) {
           ? t(win, `html_tree_frame_${chromeKind}`)
           : row === mainRaw
             ? t(win, 'html_tree_frame_main')
-            : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
+            : isRoot && openSection
+              ? base
+              : htmlTreeDisplayName(base, row.path, aliases),
       current: row.id === htmlTreeActiveId,
       letter: icon.letter || '',
-      svg: chromeKind && row.id === chromeRootId
-        ? HTML_ICONS[chromeKind]
-        : row === mainRaw
-          ? HTML_ICONS.main
-          : isRoot && openSection ? openSection.svg : icon.svg || '',
+      svg:
+        chromeKind && row.id === chromeRootId
+          ? HTML_ICONS[chromeKind]
+          : row === mainRaw
+            ? HTML_ICONS.main
+            : isRoot && openSection
+              ? openSection.svg
+              : icon.svg || '',
       frame: chromeKind && row.id === chromeRootId ? chromeKind : row === mainRaw ? 'main' : '',
       // The frame's rows wear the frame's own families — header, main,
       // footer — each with its colour in the Live Preview settings. The
       // <body> wears main's.
-      cat: chromeKind && row.id === chromeRootId
-        ? chromeKind
-        : row === mainRaw || body ? 'main' : frameCall || tagFamily(row.tag, row.kind, row.antlers),
+      cat:
+        chromeKind && row.id === chromeRootId
+          ? chromeKind
+          : row === mainRaw || body
+            ? 'main'
+            : frameCall || tagFamily(row.tag, row.kind, row.antlers),
       // The first tag of the open component's own file. It is the component,
       // so it is not offered to be made one (the menu).
       componentRoot: isRoot && inComponent,
@@ -2400,40 +2422,41 @@ export function renderHtmlTree(win) {
   // The page's sections: listed under main on a section's file, and — dimmed,
   // to click back out to — around the header's, the footer's or the layout's.
   // Not inside a component: there the tree is the component alone.
-  htmlTreeUi.sections = pageBuilder && !inComponent && (inSections || frameKind || pageView || sectionsInLoop)
-    ? sections.map((section) => {
-        const current = !!openUid && section.uid === openUid;
-        // Tags are drawn as soon as there are tags: from the cache the moment
-        // it is clicked, and otherwise when the dock answers. Until then the
-        // section is one row — lit and shut, about to unfold.
-        const ready = current && (!pendingUid || !!htmlTreeAhead);
+  htmlTreeUi.sections =
+    pageBuilder && !inComponent && (inSections || frameKind || pageView || sectionsInLoop)
+      ? sections.map((section) => {
+          const current = !!openUid && section.uid === openUid;
+          // Tags are drawn as soon as there are tags: from the cache the moment
+          // it is clicked, and otherwise when the dock answers. Until then the
+          // section is one row — lit and shut, about to unfold.
+          const ready = current && (!pendingUid || !!htmlTreeAhead);
 
-        return {
-          ...section,
-          current,
-          ready,
-          // Shut, a section is drawn by the same component as every other row,
-          // from a row built here. Open, it IS the first row of its own file —
-          // so the name and the mark computed here are stamped onto that row
-          // below, and the two states cannot drift apart.
-          row: {
-            id: `sec:${section.uid}`,
-            section: section.uid,
-            tag: section.tag,
-            name: section.label,
-            kind: '',
-            svg: section.svg,
-            cat: section.cat,
-            letter: '',
-            depth: 0,
-            hasChildren: true,
-            shut: true,
+          return {
+            ...section,
             current,
-            hidden: !section.enabled,
-          },
-        };
-      })
-    : [];
+            ready,
+            // Shut, a section is drawn by the same component as every other row,
+            // from a row built here. Open, it IS the first row of its own file —
+            // so the name and the mark computed here are stamped onto that row
+            // below, and the two states cannot drift apart.
+            row: {
+              id: `sec:${section.uid}`,
+              section: section.uid,
+              tag: section.tag,
+              name: section.label,
+              kind: '',
+              svg: section.svg,
+              cat: section.cat,
+              letter: '',
+              depth: 0,
+              hasChildren: true,
+              shut: true,
+              current,
+              hidden: !section.enabled,
+            },
+          };
+        })
+      : [];
   htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind, false, !!bodyRaw);
   htmlTreeUi.ownFile = ownFileRow(win, htmlTreeUi.sections.length > 0);
 
@@ -2663,9 +2686,10 @@ function nextOutside(rows, row) {
 /** Scroll the preview to the header, the footer, or the content between them. */
 function scrollPreviewToFrame(win, kind) {
   const pdoc = previewDocument(win);
-  const el = kind === 'main' || kind === 'template'
-    ? pdoc?.querySelector('main')
-    : pdoc?.querySelector(`[data-sve-chrome="${kind}"]`);
+  const el =
+    kind === 'main' || kind === 'template'
+      ? pdoc?.querySelector('main')
+      : pdoc?.querySelector(`[data-sve-chrome="${kind}"]`);
 
   el?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
 }
@@ -2931,12 +2955,7 @@ function finishHtmlTreeRename(win, save) {
       // — renaming one FAQ must leave the other FAQ its name.
       writeSectionLabel(win, row.sectionRoot, htmlTreeUi.draft);
     } else {
-      writeHtmlTreeLabel(
-        ask('dock:current-type') || '',
-        row.path,
-        htmlTreeUi.draft,
-        row.base || row.klass
-      );
+      writeHtmlTreeLabel(ask('dock:current-type') || '', row.path, htmlTreeUi.draft, row.base || row.klass);
     }
   }
 
@@ -2952,7 +2971,9 @@ function finishHtmlTreeRename(win, save) {
  */
 function writeSectionLabel(win, uid, label) {
   const field = sectionField(win) || 'page_sections';
-  const next = String(label || '').replace(/\s+/g, ' ').trim();
+  const next = String(label || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   for (const container of activeContainers(win.document) || []) {
     const values = unwrapRef(container.values);
@@ -3015,7 +3036,17 @@ function toggleVideoHold(win, id) {
   const uid = String(ask('dock:current-uid') || '');
 
   rememberVideoHolds(win, type, held);
-  sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.videoNth, on }, win);
+  sendToPreview(
+    {
+      source: SOURCE,
+      type: MSG.SVE_VIDEO_HOLD,
+      uid,
+      uids: uid ? topLevelSectionIds(uid, win.document) : [],
+      nth: row.videoNth,
+      on,
+    },
+    win
+  );
   renderHtmlTree(win);
 }
 
@@ -3122,7 +3153,20 @@ function flipAlpineState(win, row, item) {
   const uid = chrome ? '' : String(ask('dock:current-uid') || '');
 
   rememberAlpineStates(win, type, states);
-  sendToPreview({ source: SOURCE, type: MSG.SVE_ALPINE_STATE, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], chrome, nth: row.alpineNth, key: item.key, value, on }, win);
+  sendToPreview(
+    {
+      source: SOURCE,
+      type: MSG.SVE_ALPINE_STATE,
+      uid,
+      uids: uid ? topLevelSectionIds(uid, win.document) : [],
+      chrome,
+      nth: row.alpineNth,
+      key: item.key,
+      value,
+      on,
+    },
+    win
+  );
   renderHtmlTree(win);
 }
 
@@ -3423,7 +3467,9 @@ const MORE_ICONS = {
   down: MENU_ICON('<path d="M12 5v14M6 13l6 6 6-6"/>'),
   save: MENU_ICON('<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/>'),
   add: MENU_ICON('<path d="M12 5v14M5 12h14"/>'),
-  fieldset: MENU_ICON('<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/>'),
+  fieldset: MENU_ICON(
+    '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/>'
+  ),
   lock: MENU_ICON('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
   unlock: MENU_ICON('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-.9"/>'),
 };
@@ -3435,15 +3481,21 @@ const MORE_ICONS = {
 function sectionMoreItems(win, section) {
   const sections = htmlTreeUi.sections || [];
   const at = sections.findIndex((item) => item.uid === section.uid);
-  const post = (type, extra = {}) => () => {
-    closeHtmlTreeMenu();
-    win.postMessage({ source: SOURCE, type, uid: section.uid, ...extra }, win.location.origin);
-    // A move changes the values on the next task; the rows are read from them.
-    win.setTimeout(() => renderHtmlTree(win), 60);
-  };
+  const post =
+    (type, extra = {}) =>
+    () => {
+      closeHtmlTreeMenu();
+      win.postMessage({ source: SOURCE, type, uid: section.uid, ...extra }, win.location.origin);
+      // A move changes the values on the next task; the rows are read from them.
+      win.setTimeout(() => renderHtmlTree(win), 60);
+    };
   const items = [
     { label: t(win, 'move_up'), icon: MORE_ICONS.up, onPick: at > 0 ? post(MSG.MOVE, { direction: -1 }) : null },
-    { label: t(win, 'move_down'), icon: MORE_ICONS.down, onPick: at >= 0 && at < sections.length - 1 ? post(MSG.MOVE, { direction: 1 }) : null },
+    {
+      label: t(win, 'move_down'),
+      icon: MORE_ICONS.down,
+      onPick: at >= 0 && at < sections.length - 1 ? post(MSG.MOVE, { direction: 1 }) : null,
+    },
     { label: t(win, 'html_tree_save_section'), icon: MORE_ICONS.save, onPick: post(MSG.SAVE_SECTION) },
     { label: t(win, 'add_section_below'), icon: MORE_ICONS.add, onPick: post(MSG.ADD_SET) },
   ];
@@ -3475,7 +3527,11 @@ function lockMoreItem(win, row) {
   const open = htmlTreeUi.canEdit && (!row.locked || htmlTreeUi.canUnlock);
 
   return {
-    label: row.locked ? (htmlTreeUi.canUnlock ? htmlTreeUi.unlockTitle : htmlTreeUi.lockedByTitle) : htmlTreeUi.lockTitle,
+    label: row.locked
+      ? htmlTreeUi.canUnlock
+        ? htmlTreeUi.unlockTitle
+        : htmlTreeUi.lockedByTitle
+      : htmlTreeUi.lockTitle,
     icon: row.locked ? MORE_ICONS.unlock : MORE_ICONS.lock,
     onPick: open
       ? () => {
@@ -3747,9 +3803,7 @@ function openHtmlTreeMenu(win, event, id, { anchor = null, lead = [] } = {}) {
         extractComponent(win, row, {
           onDone: () => renderHtmlTree(win),
           onError: (err) => {
-            win.alert(
-              err?.status === 409 ? t(win, 'component_exists') : t(win, 'component_failed')
-            );
+            win.alert(err?.status === 409 ? t(win, 'component_exists') : t(win, 'component_failed'));
           },
         });
       },

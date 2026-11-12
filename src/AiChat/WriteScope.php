@@ -51,12 +51,12 @@ final class WriteScope
         }
 
         return [
-            'open' => static::OPEN,
-            'closed' => static::CLOSED,
+            'open' => self::OPEN,
+            'closed' => self::CLOSED,
             'files' => [],
             'create' => [],
-            'assets' => static::ASSETS,
-            'rules' => static::RULES,
+            'assets' => self::ASSETS,
+            'rules' => self::RULES,
         ];
     }
 }

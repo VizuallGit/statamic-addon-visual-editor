@@ -9,7 +9,17 @@
       <option v-if="inherit !== null" value="">{{ inheritLabel }}</option>
       <option v-for="o in list" :key="o.value" :value="o.value">{{ o.label }}</option>
     </select>
-    <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    <svg
+      class="sve-theme__chevron"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   </span>
 </template>
 
@@ -35,9 +45,13 @@ const props = defineProps({
 });
 
 /** A value the list does not have (written by hand in site.css) is still a choice. */
-const list = computed(() => (props.value && !props.options.some((o) => o.value === props.value)
-  ? [{ value: props.value, label: props.value, short: props.value }, ...props.options]
-  : props.options));
+const list = computed(() =>
+  props.value && !props.options.some((o) => o.value === props.value)
+    ? [{ value: props.value, label: props.value, short: props.value }, ...props.options]
+    : props.options
+);
 
-const shown = computed(() => (props.value ? list.value.find((o) => o.value === props.value)?.short || props.value : props.inherit ?? ''));
+const shown = computed(() =>
+  props.value ? list.value.find((o) => o.value === props.value)?.short || props.value : (props.inherit ?? '')
+);
 </script>

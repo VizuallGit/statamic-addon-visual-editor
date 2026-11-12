@@ -146,18 +146,28 @@ watch(
   }
 );
 
-onMounted(() => { log('SelectionPanel mounted'); nextTick(() => emit('painted')); });
+onMounted(() => {
+  log('SelectionPanel mounted');
+  nextTick(() => emit('painted'));
+});
 onBeforeUnmount(() => log('SelectionPanel unmount'));
 </script>
 
 <template>
-  <div v-if="resolvedSelection" ref="rootEl" class="sve-sel" data-sve-selection-panel :data-sve-selection-kind="resolvedSelection.kind">
+  <div
+    v-if="resolvedSelection"
+    ref="rootEl"
+    class="sve-sel"
+    data-sve-selection-panel
+    :data-sve-selection-kind="resolvedSelection.kind"
+  >
     <header class="sve-sel__head">
       <div class="sve-sel__id">
         <span class="sve-sel__tile" :ref="setTile"></span>
         <h2 class="sve-sel__title">{{ resolvedSelection.display }}</h2>
         <button type="button" class="sve-sel__back" @click="goBack">
-          <span v-if="resolvedParent" aria-hidden="true" class="sve-sel__arrow">&#8249;</span><span>{{ backLabel() }}</span>
+          <span v-if="resolvedParent" aria-hidden="true" class="sve-sel__arrow">&#8249;</span
+          ><span>{{ backLabel() }}</span>
         </button>
       </div>
       <p v-if="resolvedSelection.instructions" class="sve-sel__desc">{{ resolvedSelection.instructions }}</p>

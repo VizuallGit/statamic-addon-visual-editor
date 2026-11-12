@@ -58,12 +58,23 @@ function onKey(event) {
     <div class="sve-dialog" @click.stop>
       <div class="sve-dialog__title">{{ heading }}</div>
       <label>{{ nameLabel }}</label>
-      <input ref="input" v-model="name" type="text" :placeholder="placeholder" @keydown="onKey">
+      <input ref="input" v-model="name" type="text" :placeholder="placeholder" @keydown="onKey" />
       <template v-for="extra in extras" :key="extra.key">
         <label>{{ extra.label }}</label>
-        <textarea v-if="extra.rows" v-model="answers[extra.key]" :rows="extra.rows" :placeholder="extra.placeholder"></textarea>
+        <textarea
+          v-if="extra.rows"
+          v-model="answers[extra.key]"
+          :rows="extra.rows"
+          :placeholder="extra.placeholder"
+        ></textarea>
         <template v-else>
-          <input v-model="answers[extra.key]" type="text" :placeholder="extra.placeholder" :list="`sve-prompt-${extra.key}`" @keydown="onKey">
+          <input
+            v-model="answers[extra.key]"
+            type="text"
+            :placeholder="extra.placeholder"
+            :list="`sve-prompt-${extra.key}`"
+            @keydown="onKey"
+          />
           <datalist :id="`sve-prompt-${extra.key}`">
             <option v-for="option in extra.options || []" :key="option" :value="option"></option>
           </datalist>

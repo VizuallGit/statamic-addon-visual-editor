@@ -24,7 +24,7 @@ final class Declarations
                 continue;
             }
 
-            $out .= static::declaration($handle, $value);
+            $out .= self::declaration($handle, $value);
         }
 
         return $out;

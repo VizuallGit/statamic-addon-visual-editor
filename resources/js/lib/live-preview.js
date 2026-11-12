@@ -16,10 +16,7 @@ import { LP_COVER_ID } from './ids.js';
 
 /** Statamic's Live Preview header — the real one, not the addon's cover. */
 export function lpHeader(doc) {
-  return (
-    [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${LP_COVER_ID}`)) ??
-    null
-  );
+  return [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${LP_COVER_ID}`)) ?? null;
 }
 
 /** The left editor pane. */

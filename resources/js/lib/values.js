@@ -81,7 +81,11 @@ export function firstEntryId(value) {
 
 /** `hero/style_1` → "Style 1", `bg_color` → "Bg color": a handle as a label. */
 export function humanizeHandle(handle) {
-  const name = String(handle || '').split('/').pop().replace(/[-_]+/g, ' ').trim();
+  const name = String(handle || '')
+    .split('/')
+    .pop()
+    .replace(/[-_]+/g, ' ')
+    .trim();
 
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
 }

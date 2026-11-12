@@ -144,7 +144,10 @@ export function fitRows(scope) {
     return;
   }
 
-  const cells = [...(scope.matches(`[${CANVAS_EMPTY}]`) ? [scope] : []), ...scope.querySelectorAll(`[${CANVAS_EMPTY}]`)];
+  const cells = [
+    ...(scope.matches(`[${CANVAS_EMPTY}]`) ? [scope] : []),
+    ...scope.querySelectorAll(`[${CANVAS_EMPTY}]`),
+  ];
   const rooms = cells.map((el) => {
     const own = view.getComputedStyle(el);
 

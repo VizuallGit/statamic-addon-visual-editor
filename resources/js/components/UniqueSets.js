@@ -60,25 +60,25 @@ const guarded = new WeakSet();
  * nærmeste forfader der overhovedet er et replicator-felt.
  */
 function ownerField(vm) {
-    const sets = vm.$props?.sets;
-    let fallback = null;
+  const sets = vm.$props?.sets;
+  let fallback = null;
 
-    for (let parent = vm.$parent; parent; parent = parent.$parent) {
-        if (!parent.config?.sets || !Array.isArray(parent.value)) continue;
+  for (let parent = vm.$parent; parent; parent = parent.$parent) {
+    if (!parent.config?.sets || !Array.isArray(parent.value)) continue;
 
-        if (sets && parent.setConfigs === sets) return parent;
+    if (sets && parent.setConfigs === sets) return parent;
 
-        if (!fallback) fallback = parent;
-    }
+    if (!fallback) fallback = parent;
+  }
 
-    return fallback;
+  return fallback;
 }
 
 /** De typer feltet siger kun må optræde én gang. */
 function uniqueHandles(field) {
-    const handles = field?.config?.[CONFIG_KEY];
+  const handles = field?.config?.[CONFIG_KEY];
 
-    return Array.isArray(handles) ? handles : [];
+  return Array.isArray(handles) ? handles : [];
 }
 
 /**
@@ -88,32 +88,32 @@ function uniqueHandles(field) {
  * DETS `value` og kan ikke forveksles med disse.
  */
 function blockedHandles(field) {
-    const unique = uniqueHandles(field);
+  const unique = uniqueHandles(field);
 
-    if (!unique.length) return [];
+  if (!unique.length) return [];
 
-    const rows = Array.isArray(field.value) ? field.value : [];
-    const used = new Set(rows.map(row => row?.type).filter(Boolean));
+  const rows = Array.isArray(field.value) ? field.value : [];
+  const used = new Set(rows.map((row) => row?.type).filter(Boolean));
 
-    return unique.filter(handle => used.has(handle));
+  return unique.filter((handle) => used.has(handle));
 }
 
 /** De typer denne vælger skal holde tilbage. */
 function blockedForPicker(vm) {
-    const field = ownerField(vm);
+  const field = ownerField(vm);
 
-    return field ? blockedHandles(field) : [];
+  return field ? blockedHandles(field) : [];
 }
 
 /** Navnet på et set, som det står i menuen. */
 function setDisplay(field, handle) {
-    for (const group of field?.config?.sets ?? []) {
-        const set = (group?.sets ?? []).find(s => s?.handle === handle);
+  for (const group of field?.config?.sets ?? []) {
+    const set = (group?.sets ?? []).find((s) => s?.handle === handle);
 
-        if (set) return statamicTranslate(set.display || set.handle);
-    }
+    if (set) return statamicTranslate(set.display || set.handle);
+  }
 
-    return handle;
+  return handle;
 }
 
 /**
@@ -124,55 +124,55 @@ function setDisplay(field, handle) {
  * søgning og gruppevalg er klaret inden vi rører noget.
  */
 function extendSetPicker() {
-    const picker = Statamic.$app.component('set-picker');
+  const picker = Statamic.$app.component('set-picker');
 
-    const superVisibleSets = picker?.computed?.visibleSets;
-    const superGroupedItems = picker?.computed?.groupedItems;
+  const superVisibleSets = picker?.computed?.visibleSets;
+  const superGroupedItems = picker?.computed?.groupedItems;
 
-    if (typeof superVisibleSets !== 'function' || typeof superGroupedItems !== 'function') {
-        console.warn('[unique-sets] set-picker ser anderledes ud end forventet — "kun én af hver" filtrerer ikke menuen');
+  if (typeof superVisibleSets !== 'function' || typeof superGroupedItems !== 'function') {
+    console.warn('[unique-sets] set-picker ser anderledes ud end forventet — "kun én af hver" filtrerer ikke menuen');
 
-        return;
-    }
+    return;
+  }
 
-    if (picker.__uniqueSets) return;
+  if (picker.__uniqueSets) return;
 
-    picker.__uniqueSets = true;
+  picker.__uniqueSets = true;
 
-    // De to computeds byttes PÅ selve komponenten — der registreres ikke en ny.
-    //
-    // Replicatoren slår ikke vælgeren op på navn; den importerer den direkte, så
-    // en ny `set-picker`-registrering ville stå ubrugt hen. Men det er det samme
-    // objekt der er meldt ind globalt, så retter man i det, rammer det begge veje.
-    //
-    // Det skal ske i `configuring()` og ikke senere: Vue fletter en komponents
-    // options én gang og gemmer resultatet, og et globalt mixin gør netop det.
-    // Her er ingen instanser lavet endnu, så flettingen ser den rigtige udgave.
-    picker.computed.visibleSets = function () {
-        const sets = superVisibleSets.call(this);
-        const blocked = blockedForPicker(this);
+  // De to computeds byttes PÅ selve komponenten — der registreres ikke en ny.
+  //
+  // Replicatoren slår ikke vælgeren op på navn; den importerer den direkte, så
+  // en ny `set-picker`-registrering ville stå ubrugt hen. Men det er det samme
+  // objekt der er meldt ind globalt, så retter man i det, rammer det begge veje.
+  //
+  // Det skal ske i `configuring()` og ikke senere: Vue fletter en komponents
+  // options én gang og gemmer resultatet, og et globalt mixin gør netop det.
+  // Her er ingen instanser lavet endnu, så flettingen ser den rigtige udgave.
+  picker.computed.visibleSets = function () {
+    const sets = superVisibleSets.call(this);
+    const blocked = blockedForPicker(this);
 
-        if (!blocked.length || !Array.isArray(sets)) return sets;
+    if (!blocked.length || !Array.isArray(sets)) return sets;
 
-        return sets.filter(set => !blocked.includes(set?.handle));
-    };
+    return sets.filter((set) => !blocked.includes(set?.handle));
+  };
 
-    picker.computed.groupedItems = function () {
-        const groups = superGroupedItems.call(this);
-        const blocked = blockedForPicker(this);
+  picker.computed.groupedItems = function () {
+    const groups = superGroupedItems.call(this);
+    const blocked = blockedForPicker(this);
 
-        if (!blocked.length || !groups) return groups;
+    if (!blocked.length || !groups) return groups;
 
-        return Object.fromEntries(
-            Object.entries(groups).map(([key, group]) => [
-                key,
-                {
-                    ...group,
-                    items: (group?.items ?? []).filter(set => !blocked.includes(set?.handle)),
-                },
-            ])
-        );
-    };
+    return Object.fromEntries(
+      Object.entries(groups).map(([key, group]) => [
+        key,
+        {
+          ...group,
+          items: (group?.items ?? []).filter((set) => !blocked.includes(set?.handle)),
+        },
+      ])
+    );
+  };
 }
 
 /**
@@ -184,16 +184,18 @@ function extendSetPicker() {
  * LockedRows.js, og af samme grund.
  */
 function safeToHide(el) {
-    return !el.querySelector('[data-replicator-set], [data-grid-row]')
-        && !el.querySelector('.publish-fields, [class*="-fieldtype"], input, textarea, select');
+  return (
+    !el.querySelector('[data-replicator-set], [data-grid-row]') &&
+    !el.querySelector('.publish-fields, [class*="-fieldtype"], input, textarea, select')
+  );
 }
 
 /** Alle de typer vælgeren overhovedet kan tilbyde. */
 function offeredHandles(vm) {
-    return (vm.$props?.sets ?? [])
-        .flatMap(group => (group?.sets ?? []))
-        .filter(set => set && !set.hide)
-        .map(set => set.handle);
+  return (vm.$props?.sets ?? [])
+    .flatMap((group) => group?.sets ?? [])
+    .filter((set) => set && !set.hide)
+    .map((set) => set.handle);
 }
 
 /**
@@ -203,22 +205,22 @@ function offeredHandles(vm) {
  * type er brugt op — er der bare én tilbage, bliver knappen stående.
  */
 function applyToPicker(vm, blocked) {
-    const root = vueRootElement(vm);
+  const root = vueRootElement(vm);
 
-    if (!root) return;
+  if (!root) return;
 
-    const offered = offeredHandles(vm);
-    const exhausted = offered.length > 0 && offered.every(handle => blocked.includes(handle));
+  const offered = offeredHandles(vm);
+  const exhausted = offered.length > 0 && offered.every((handle) => blocked.includes(handle));
 
-    if (exhausted && !safeToHide(root)) return;
+  if (exhausted && !safeToHide(root)) return;
 
-    root.toggleAttribute(PICKER_ATTR, exhausted);
+  root.toggleAttribute(PICKER_ATTR, exhausted);
 
-    if (exhausted) {
-        root.style.setProperty('display', 'none', 'important');
-    } else {
-        root.style.removeProperty('display');
-    }
+  if (exhausted) {
+    root.style.setProperty('display', 'none', 'important');
+  } else {
+    root.style.removeProperty('display');
+  }
 }
 
 /**
@@ -231,53 +233,55 @@ function applyToPicker(vm, blocked) {
  * Metoden byttes på selve instansen. Går det ikke, beholder vi den vi har.
  */
 function guardAddSet(field) {
-    if (guarded.has(field)) return;
+  if (guarded.has(field)) return;
 
-    const original = field.addSet;
+  const original = field.addSet;
 
-    if (typeof original !== 'function') return;
+  if (typeof original !== 'function') return;
 
-    guarded.add(field);
+  guarded.add(field);
 
-    try {
-        // Alle argumenter gives videre som de kom. "+" mellem to rækker sender et
-        // andet sted end knappen nederst — skrev vi dem af én for én, ville en ny
-        // blok lande i bunden hver gang.
-        field.addSet = function (...args) {
-            const handle = args[0];
+  try {
+    // Alle argumenter gives videre som de kom. "+" mellem to rækker sender et
+    // andet sted end knappen nederst — skrev vi dem af én for én, ville en ny
+    // blok lande i bunden hver gang.
+    field.addSet = function (...args) {
+      const handle = args[0];
 
-            if (blockedHandles(field).includes(handle)) {
-                window.Statamic?.$toast?.error?.(
-                    `"${setDisplay(field, handle)}" kan kun tilføjes én gang.`
-                );
+      if (blockedHandles(field).includes(handle)) {
+        window.Statamic?.$toast?.error?.(`"${setDisplay(field, handle)}" kan kun tilføjes én gang.`);
 
-                return;
-            }
+        return;
+      }
 
-            return original.apply(this, args);
-        };
-    } catch {
-        // Kan metoden ikke byttes, er filtreringen af menuen alene om det.
-    }
+      return original.apply(this, args);
+    };
+  } catch {
+    // Kan metoden ikke byttes, er filtreringen af menuen alene om det.
+  }
 }
 
 function stamp(vm) {
-    if (vm.config?.sets && uniqueHandles(vm).length) guardAddSet(vm);
+  if (vm.config?.sets && uniqueHandles(vm).length) guardAddSet(vm);
 
-    if (!isSetPicker(vm)) return;
+  if (!isSetPicker(vm)) return;
 
-    const field = ownerField(vm);
+  const field = ownerField(vm);
 
-    if (!field || !uniqueHandles(field).length) return;
+  if (!field || !uniqueHandles(field).length) return;
 
-    applyToPicker(vm, blockedHandles(field));
+  applyToPicker(vm, blockedHandles(field));
 }
 
 Statamic.configuring(() => {
-    extendSetPicker();
+  extendSetPicker();
 
-    Statamic.$app.mixin({
-        mounted() { stamp(this); },
-        updated() { stamp(this); },
-    });
+  Statamic.$app.mixin({
+    mounted() {
+      stamp(this);
+    },
+    updated() {
+      stamp(this);
+    },
+  });
 });

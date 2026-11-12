@@ -5,7 +5,14 @@
 import { mountPane } from '../cp/mount-pane.js';
 import { alpineUi } from '../cp/alpine/store.js';
 import AlpinePanel from '../cp/surfaces/AlpinePanel.vue';
-import { ALPINE_BEHAVIOURS, ALPINE_GROUPS, behaviourHint, fillName, stateNames, tagAttrs } from '../alpine-behaviours.js';
+import {
+  ALPINE_BEHAVIOURS,
+  ALPINE_GROUPS,
+  behaviourHint,
+  fillName,
+  stateNames,
+  tagAttrs,
+} from '../alpine-behaviours.js';
 import CodeDockMenu from '../cp/surfaces/CodeDockMenu.vue';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
@@ -56,11 +63,7 @@ function setAlpineAttr(win, name, value) {
     return;
   }
 
-  dispatchHtmlChanges(
-    view,
-    [{ from: target.from - offset, to: target.openTo - offset, insert: next }],
-    null
-  );
+  dispatchHtmlChanges(view, [{ from: target.from - offset, to: target.openTo - offset, insert: next }], null);
   paintAlpine(win);
 }
 
@@ -91,11 +94,7 @@ function removeAlpineAttr(win, name) {
 
   const next = open.slice(0, from) + open.slice(found.to);
 
-  dispatchHtmlChanges(
-    view,
-    [{ from: target.from - offset, to: target.openTo - offset, insert: next }],
-    null
-  );
+  dispatchHtmlChanges(view, [{ from: target.from - offset, to: target.openTo - offset, insert: next }], null);
   paintAlpine(win);
 }
 
@@ -150,8 +149,7 @@ function alpineOwnStates(win) {
 
   const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
   const html = scoped ? dockState.htmlFull : view.state.doc.toString();
-  const data = tagAttrs(html.slice(target.from, target.openTo))
-    .find((attr) => attr.name === 'x-data');
+  const data = tagAttrs(html.slice(target.from, target.openTo)).find((attr) => attr.name === 'x-data');
 
   return data ? stateNames(data.value) : [];
 }
@@ -182,9 +180,7 @@ function openAlpineMenu(win, anchor) {
   // Inherited: the switch lives on a tag above this one. Offering `x-data`
   // here offers the one thing that would break it — see `alpineOwnStates`.
   const inherited = !staged && !alpineOwnStates(win).length;
-  const groups = ALPINE_GROUPS.filter((group) => (
-    group.id === 'state' ? !inherited : !staged
-  ));
+  const groups = ALPINE_GROUPS.filter((group) => (group.id === 'state' ? !inherited : !staged));
   const choices = groups.flatMap((group) => {
     const rows = ALPINE_BEHAVIOURS.filter((item) => item.group === group.id);
 
@@ -246,7 +242,9 @@ function openAlpineMenu(win, anchor) {
 function askAlpineName(win, anchor, behaviour, states) {
   const doc = win.document;
   const apply = (name) => {
-    const clean = String(name || '').trim().replace(/[^\w$]/g, '');
+    const clean = String(name || '')
+      .trim()
+      .replace(/[^\w$]/g, '');
 
     closeCssMenu(doc);
 

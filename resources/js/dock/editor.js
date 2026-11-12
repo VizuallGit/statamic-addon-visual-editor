@@ -15,7 +15,33 @@ import { bracketClassCompletions, loadClassDefs, takenClassMarks } from './class
 import { antlersCompletions } from './antlers-complete.js';
 import { vscTheme } from '../lib/codemirror.js';
 import { dockState } from '../dock/state.js';
-import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
+import {
+  Decoration,
+  EditorState,
+  EditorView,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  cm,
+  codeFolding,
+  completionKeymap,
+  defaultKeymap,
+  editableOf,
+  editors,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  historyKeymap,
+  hoverTooltip,
+  htmlLanguage,
+  indentWithTab,
+  keymap,
+  lineNumbers,
+  readOnlyOf,
+  tags,
+} from '../code-dock.js';
 import { applyCssFolds, cssSizeRows, paintCssHead } from './css-sizes.js';
 import { flushSave, onEditorInput } from './save.js';
 import { languageOf } from './layout.js';
@@ -120,11 +146,8 @@ function cssIdExtension() {
 
   cssIdUi = StateField.define({
     create: (state) => build(state),
-    update: (value, tr) => (
-      tr.docChanged || tr.effects.some((effect) => effect.is(cssIdEffect))
-        ? build(tr.state)
-        : value
-    ),
+    update: (value, tr) =>
+      tr.docChanged || tr.effects.some((effect) => effect.is(cssIdEffect)) ? build(tr.state) : value,
     provide: (field) => EditorView.decorations.from(field),
   });
 
@@ -244,9 +267,7 @@ export function mountEditor(win, handle, parent) {
         ]),
         saveKey,
         EditorView.lineWrapping,
-        ...(handle === 'html' || handle === 'css'
-          ? partialUi().extensions
-          : []),
+        ...(handle === 'html' || handle === 'css' ? partialUi().extensions : []),
         ...(handle === 'html' ? antlersUi().extensions : []),
         ...(handle === 'html' ? problemsUi(win).extensions : []),
         // Plumbing the reader may see but not change: {{ vite }}, {{ yield_* }}.

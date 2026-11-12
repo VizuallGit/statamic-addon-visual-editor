@@ -12,7 +12,8 @@ import { cssUi as ui } from '../css/store.js';
       :disabled="!ui.canEdit"
       @click.prevent.stop
       @dblclick.prevent.stop="ui.onTag?.($event)"
-    >&lt;{{ ui.tag }}&gt;</button>
+      >&lt;{{ ui.tag }}&gt;</button
+    >
     <span v-if="ui.scope" class="sve-css-scope">{{ ui.scope }}</span>
     <!-- The name is taken: the site styles it in these files already. A click brings those rules in. -->
     <button
@@ -22,7 +23,8 @@ import { cssUi as ui } from '../css/store.js';
       :title="ui.scopeElsewhereTitle"
       :disabled="!ui.canEdit"
       @click.prevent.stop="ui.onScopeImport?.()"
-    >{{ ui.scopeElsewhere.join(', ') }}</button>
+      >{{ ui.scopeElsewhere.join(', ') }}</button
+    >
     <button
       v-for="size in ui.sizes"
       :key="size.key"
@@ -32,7 +34,8 @@ import { cssUi as ui } from '../css/store.js';
       :data-active="size.active ? '' : undefined"
       :disabled="!ui.canEdit"
       @click.prevent.stop="ui.onSize?.(size.key)"
-    >{{ size.label }}</button>
+      >{{ size.label }}</button
+    >
     <button
       type="button"
       data-sve-css-state
@@ -41,7 +44,18 @@ import { cssUi as ui } from '../css/store.js';
       @click.prevent.stop="ui.onState?.($event)"
     >
       {{ ui.stateLabel }}
-      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </svg>
     </button>
     <span class="sve-css-gap"></span>
     <span v-if="ui.note" class="sve-css-note">{{ ui.note }}</span>
@@ -61,7 +75,10 @@ import { cssUi as ui } from '../css/store.js';
   font-size: 0.6875rem;
   border-bottom: 1px solid rgba(128, 128, 128, 0.22);
 }
-.sve-css-gap { flex: 1 1 auto; min-width: 0; }
+.sve-css-gap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .sve-css-tag {
   all: unset;
   flex: none;
@@ -72,14 +89,22 @@ import { cssUi as ui } from '../css/store.js';
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
-  opacity: .8;
+  opacity: 0.8;
 }
-.sve-css-tag:hover { opacity: 1; background: rgba(128, 128, 128, .2); }
-.sve-css-tag:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-.sve-css-tag[disabled] { cursor: default; }
+.sve-css-tag:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.2);
+}
+.sve-css-tag:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+.sve-css-tag[disabled] {
+  cursor: default;
+}
 .sve-css-scope {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  opacity: .55;
+  opacity: 0.55;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -102,10 +127,15 @@ import { cssUi as ui } from '../css/store.js';
   color: #fca5a5;
   background: rgba(248, 113, 113, 0.14);
 }
-.sve-css-scope-taken:hover { background: rgba(248, 113, 113, 0.28); }
-.sve-css-scope-taken[disabled] { cursor: default; opacity: .6; }
+.sve-css-scope-taken:hover {
+  background: rgba(248, 113, 113, 0.28);
+}
+.sve-css-scope-taken[disabled] {
+  cursor: default;
+  opacity: 0.6;
+}
 .sve-css-note {
-  opacity: .5;
+  opacity: 0.5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -117,16 +147,22 @@ import { cssUi as ui } from '../css/store.js';
   cursor: pointer;
   padding: 0.2em 0.5em;
   border-radius: 0.36em;
-  border: 1px solid rgba(128, 128, 128, .35);
+  border: 1px solid rgba(128, 128, 128, 0.35);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
   line-height: 1.4;
-  opacity: .7;
+  opacity: 0.7;
 }
 [data-sve-css-size]:hover,
-[data-sve-css-state]:hover { opacity: 1; background: rgba(128, 128, 128, .18); }
+[data-sve-css-state]:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.18);
+}
 [data-sve-css-size]:focus-visible,
-[data-sve-css-state]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
+[data-sve-css-state]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
 [data-sve-css-size][data-active],
 [data-sve-css-state][data-active] {
   opacity: 1;
@@ -135,11 +171,16 @@ import { cssUi as ui } from '../css/store.js';
   border-color: transparent;
 }
 [data-sve-css-size][disabled],
-[data-sve-css-state][disabled] { cursor: default; opacity: .35; }
+[data-sve-css-state][disabled] {
+  cursor: default;
+  opacity: 0.35;
+}
 [data-sve-css-state] {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
 }
-[data-sve-css-state] svg { opacity: .7; }
+[data-sve-css-state] svg {
+  opacity: 0.7;
+}
 </style>

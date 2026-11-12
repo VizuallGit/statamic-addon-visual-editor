@@ -3,14 +3,14 @@
 
   <label class="sve-theme__search">
     <input
-        type="search"
-        :value="ui.classQuery"
-        :placeholder="ui.labels.classes_search"
-        spellcheck="false"
-        autocomplete="off"
-        data-sve-class-search
-        @input="h.onClassQuery($event.target.value)"
-    >
+      type="search"
+      :value="ui.classQuery"
+      :placeholder="ui.labels.classes_search"
+      spellcheck="false"
+      autocomplete="off"
+      data-sve-class-search
+      @input="h.onClassQuery($event.target.value)"
+    />
   </label>
 
   <nav class="sve-theme__filters" role="tablist">
@@ -33,7 +33,9 @@
   <!-- A chip with nothing in it says so and offers the first one; a search that finds nothing says that. -->
   <div v-if="!shown.length && creates" class="sve-theme__none" data-sve-class-none>
     <p class="sve-theme__empty">{{ ui.labels[`classes_none_${ui.classChip}`] }}</p>
-    <button type="button" class="sve-theme__add" data-sve-class-create @click="creates">{{ ui.labels.classes_create }}</button>
+    <button type="button" class="sve-theme__add" data-sve-class-create @click="creates">{{
+      ui.labels.classes_create
+    }}</button>
   </div>
   <p v-else-if="!shown.length" class="sve-theme__empty">{{ ui.labels.classes_empty }}</p>
 
@@ -48,8 +50,24 @@
       <!-- A class wears its dot; a recipe the `&` its nested rules hang off — a body with no selector of its own. -->
       <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'snippet' ? '&' : '.' }}</span>
       <span class="sve-theme__row-text">
-        <span class="sve-theme__token">{{ row.name || '…' }}<svg v-if="isLocked(row)" class="sve-theme__locked" data-sve-utility-locked viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></span>
-        <span class="sve-theme__meta">{{ row.kind === 'variable' ? (row.value || '…') : rowSummary(row, labels) }}</span>
+        <span class="sve-theme__token"
+          >{{ row.name || '…'
+          }}<svg
+            v-if="isLocked(row)"
+            class="sve-theme__locked"
+            data-sve-utility-locked
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="5" y="11" width="14" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg
+        ></span>
+        <span class="sve-theme__meta">{{ row.kind === 'variable' ? row.value || '…' : rowSummary(row, labels) }}</span>
       </span>
       <span v-if="row.ambient" class="sve-theme__badge">{{ ui.labels.classes_ambient }}</span>
       <span v-if="usage(row)" class="sve-theme__usage" :class="{ 'is-unused': row.now === 0 }">{{ usage(row) }}</span>
@@ -70,7 +88,7 @@
               autocomplete="off"
               data-sve-prop-name
               @input="h.onPropName(row.key, $event.target.value)"
-            >
+            />
           </span>
         </label>
         <label class="sve-theme__field">
@@ -83,10 +101,12 @@
               autocomplete="off"
               data-sve-prop-value
               @input="h.onPropValue(row.key, $event.target.value)"
-            >
+            />
           </span>
         </label>
-        <button type="button" class="sve-theme__remove" @click="h.onRemoveProp(row.key)">{{ ui.labels.props_remove }}</button>
+        <button type="button" class="sve-theme__remove" @click="h.onRemoveProp(row.key)">{{
+          ui.labels.props_remove
+        }}</button>
       </template>
 
       <p v-if="row.ambient" class="sve-theme__hint">{{ ui.labels.classes_ambient_why }}</p>
@@ -100,7 +120,10 @@
 
         <label class="sve-theme__field">
           <span class="sve-theme__label">{{ ui.labels.classes_snippet_name }}</span>
-          <span class="sve-theme__input" :class="{ 'is-bad': snippet(row).problem && snippet(row).problem !== 'braces' }">
+          <span
+            class="sve-theme__input"
+            :class="{ 'is-bad': snippet(row).problem && snippet(row).problem !== 'braces' }"
+          >
             <input
               type="text"
               :value="snippet(row).name"
@@ -108,11 +131,13 @@
               autocomplete="off"
               data-sve-snippet-name
               @input="h.onSnippetName(row.key, $event.target.value)"
-            >
+            />
           </span>
         </label>
 
-        <p v-if="/@apply\b/.test(snippet(row).body)" class="sve-theme__hint" data-sve-snippet-apply>{{ ui.labels.classes_snippet_apply }}</p>
+        <p v-if="/@apply\b/.test(snippet(row).body)" class="sve-theme__hint" data-sve-snippet-apply>{{
+          ui.labels.classes_snippet_apply
+        }}</p>
 
         <ThemeUtilityEditor
           :value="snippet(row).body"
@@ -129,7 +154,8 @@
             data-sve-snippet-save
             :disabled="!snippetDirty(snippet(row)) || !!snippet(row).problem || snippet(row).saving"
             @click="h.onSaveSnippet(row.key)"
-          >{{ ui.labels.classes_snippet_save }}</button>
+            >{{ ui.labels.classes_snippet_save }}</button
+          >
           <button type="button" class="sve-theme__remove" data-sve-snippet-remove @click="h.onRemoveSnippet(row.key)">
             {{ ui.labels.classes_snippet_remove }}
           </button>
@@ -151,7 +177,7 @@
               autocomplete="off"
               data-sve-class-name
               @input="rename(row, $event.target.value)"
-            >
+            />
           </span>
         </label>
 
@@ -165,7 +191,9 @@
           :read-only="isLocked(row)"
         />
 
-        <p v-if="edit(row).kind === 'class'" class="sve-theme__hint" data-sve-class-no-variants>{{ ui.labels.classes_no_variants }}</p>
+        <p v-if="edit(row).kind === 'class'" class="sve-theme__hint" data-sve-class-no-variants>{{
+          ui.labels.classes_no_variants
+        }}</p>
         <p v-if="isLocked(row)" class="sve-theme__hint" data-sve-utility-locked-hint>
           {{ ui.canLock ? ui.labels.utilities_locked_hint : ui.labels.utilities_locked_hint_ask }}
         </p>
@@ -177,7 +205,8 @@
           :disabled="utilityUnsaved(row)"
           :title="utilityUnsaved(row) ? ui.labels.utilities_lock_save_first : undefined"
           @click="h.onLockUtility(edit(row).entry.key)"
-        >{{ isLocked(row) ? ui.labels.utilities_unlock : ui.labels.utilities_lock }}</button>
+          >{{ isLocked(row) ? ui.labels.utilities_unlock : ui.labels.utilities_lock }}</button
+        >
         <button v-if="!isLocked(row)" type="button" class="sve-theme__remove" @click="remove(row)">
           {{ ui.labels.classes_remove }}
         </button>
@@ -203,7 +232,16 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, filterRows, rowSummary, snippetRows, usageLabel, variableRows } from '../theme-panel/site-classes.js';
+import {
+  CLASS_CHIPS,
+  CLASS_CHIPS_ALWAYS,
+  chipKeeps,
+  filterRows,
+  rowSummary,
+  snippetRows,
+  usageLabel,
+  variableRows,
+} from '../theme-panel/site-classes.js';
 import { snippetDirty } from '../theme-panel/snippet-rows.js';
 import { dedent } from '../theme-panel/utilities.js';
 import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
@@ -227,7 +265,11 @@ function usage(row) {
 }
 
 /** Everything the theme defines, in one list: the two class files and var.css. */
-const allRows = computed(() => [...ui.classRows, ...variableRows(ui.props, ui.varsFile || 'var.css'), ...snippetRows(ui.snippets)]);
+const allRows = computed(() => [
+  ...ui.classRows,
+  ...variableRows(ui.props, ui.varsFile || 'var.css'),
+  ...snippetRows(ui.snippets),
+]);
 
 const shown = computed(() => filterRows(allRows.value, { chip: ui.classChip, query: ui.classQuery }));
 
@@ -257,11 +299,16 @@ const shownChips = computed(() =>
  * The custom properties `var(` should offer: the site's own from var.css, and
  * the theme's colours and sizes, which are what a rule reaches for most.
  */
-const tokens = computed(() => [
-  ...(ui.props || []).map((p) => `--${p.name}`),
-  ...(ui.families || []).flatMap((f) => [`--color-${f.name}`, ...(f.steps || []).map((s) => `--color-${f.name}-${s.name || s}`)]),
-  ...(ui.sizes || []).map((s) => `--size-${s.name}`),
-].filter((n) => n && !n.endsWith('-')));
+const tokens = computed(() =>
+  [
+    ...(ui.props || []).map((p) => `--${p.name}`),
+    ...(ui.families || []).flatMap((f) => [
+      `--color-${f.name}`,
+      ...(f.steps || []).map((s) => `--color-${f.name}-${s.name || s}`),
+    ]),
+    ...(ui.sizes || []).map((s) => `--size-${s.name}`),
+  ].filter((n) => n && !n.endsWith('-'))
+);
 
 function propFor(row) {
   return (ui.props || []).find((p) => p.key === row.key) || { name: '', value: '', fresh: true };
@@ -269,7 +316,16 @@ function propFor(row) {
 
 /** The live snippet behind a row — the row itself is a projection, the edits live in `ui.snippets`. */
 function snippet(row) {
-  return (ui.snippets || []).find((s) => s.key === row.key) || { name: '', savedName: '', body: '', savedBody: '', problem: null, saving: false };
+  return (
+    (ui.snippets || []).find((s) => s.key === row.key) || {
+      name: '',
+      savedName: '',
+      body: '',
+      savedBody: '',
+      problem: null,
+      saving: false,
+    }
+  );
 }
 
 function edit(row) {

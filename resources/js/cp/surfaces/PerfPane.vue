@@ -17,9 +17,7 @@ const badges = computed(() => ({
   files: ui.state === 'done' && ui.found.files ? ui.found.files : 0,
 }));
 
-const visibleFiles = computed(() =>
-  rows.picked ? rows.files.filter((row) => row.kind === rows.picked) : rows.files
-);
+const visibleFiles = computed(() => (rows.picked ? rows.files.filter((row) => row.kind === rows.picked) : rows.files));
 </script>
 
 <template>
@@ -29,7 +27,19 @@ const visibleFiles = computed(() =>
       <div data-sve-right-actions>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
     </div>
@@ -74,12 +84,7 @@ const visibleFiles = computed(() =>
         <div class="sve-perf-section">
           <div class="sve-perf-section-title">{{ server.rowsTitle }}</div>
           <div class="sve-perf-list">
-            <div
-              v-for="row in server.rows"
-              :key="row.key"
-              class="sve-perf-row is-static"
-              :data-level="row.level"
-            >
+            <div v-for="row in server.rows" :key="row.key" class="sve-perf-row is-static" :data-level="row.level">
               <span class="sve-perf-tag">{{ row.tag }}</span>
               <span class="sve-perf-rowbody">
                 <span class="sve-perf-title">{{ row.title }}</span>
@@ -133,7 +138,8 @@ const visibleFiles = computed(() =>
           type="button"
           :class="{ 'is-on': psi.strategy === item.key }"
           @click="psi.onStrategy?.(item.key)"
-        >{{ item.label }}</button>
+          >{{ item.label }}</button
+        >
       </div>
 
       <div v-if="psi.state === 'running'" class="sve-perf-wait">
@@ -180,12 +186,7 @@ const visibleFiles = computed(() =>
 
         <div v-if="psi.opportunities.length" class="sve-perf-section">
           <div class="sve-perf-section-title">{{ psi.opportunitiesTitle }}</div>
-          <div
-            v-for="row in psi.opportunities"
-            :key="row.key"
-            class="sve-perf-row is-static"
-            :data-level="row.level"
-          >
+          <div v-for="row in psi.opportunities" :key="row.key" class="sve-perf-row is-static" :data-level="row.level">
             <span class="sve-perf-tag">{{ row.time }}</span>
             <span class="sve-perf-rowbody">
               <span class="sve-perf-title">{{ row.label }}</span>

@@ -18,7 +18,8 @@
  */
 
 /** Properties a field may show without a class. */
-const READABLE = /^(font-family|font-size|font-weight|line-height|letter-spacing|color|background-color|border-color|border-radius|opacity|gap|row-gap|column-gap|text-indent|(padding|margin)(-(top|right|bottom|left|block|inline|block-start|block-end|inline-start|inline-end))?|border(-(top|right|bottom|left))?-width)$/;
+const READABLE =
+  /^(font-family|font-size|font-weight|line-height|letter-spacing|color|background-color|border-color|border-radius|opacity|gap|row-gap|column-gap|text-indent|(padding|margin)(-(top|right|bottom|left|block|inline|block-start|block-end|inline-start|inline-end))?|border(-(top|right|bottom|left))?-width)$/;
 
 /** Properties that pass from parent to child. */
 const INHERITS = /^(font-|line-height|letter-spacing|color$|text-indent)/;
@@ -44,7 +45,9 @@ export function isNothing(property, value) {
 export function hexOf(value) {
   const m = /^rgb\(\s*(\d+),\s*(\d+),\s*(\d+)\s*\)$/.exec(String(value || '').trim());
 
-  return m ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : String(value || '');
+  return m
+    ? `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`
+    : String(value || '');
 }
 
 const pixelsOf = (value) => {
@@ -66,7 +69,10 @@ export function wordsFor(property, value, { rootPx = 16, fontPx = 16 } = {}) {
   const v = String(value ?? '').trim();
 
   if (property === 'font-family') {
-    return v.split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+    return v
+      .split(',')[0]
+      .trim()
+      .replace(/^['"]|['"]$/g, '');
   }
 
   if (!/^[^\s(]+(\([^)]*\))?$/.test(v)) {
@@ -185,7 +191,12 @@ export function createComputedValues({ element, scale, css }) {
       const names = tokensFor(el, scaleProperty, fontPx).get(style.getPropertyValue(scaleProperty).trim()) || [];
       const token = bestToken(names);
 
-      return { value, words: (token && tokenWord(token)) || wordsFor(property, value, { rootPx, fontPx }), token, rootPx };
+      return {
+        value,
+        words: (token && tokenWord(token)) || wordsFor(property, value, { rootPx, fontPx }),
+        token,
+        rootPx,
+      };
     },
     /** The sheet changed: what a class gives may have too. */
     forget() {

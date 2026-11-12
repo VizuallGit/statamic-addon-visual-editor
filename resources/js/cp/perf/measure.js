@@ -205,10 +205,7 @@ function observeVitals(frameWin) {
  * where the layout numbers were taken.
  */
 async function scrollThrough(win, frameWin, doc) {
-  const height = Math.max(
-    doc.body?.scrollHeight || 0,
-    doc.documentElement?.scrollHeight || 0
-  );
+  const height = Math.max(doc.body?.scrollHeight || 0, doc.documentElement?.scrollHeight || 0);
   const steps = Math.min(MAX_SCROLL_STEPS, Math.ceil(height / VIEWPORT_H));
 
   for (let step = 1; step <= steps; step += 1) {

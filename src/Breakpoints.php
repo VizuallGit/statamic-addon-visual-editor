@@ -37,11 +37,17 @@ use MarioHamann\StatamicVisualEditor\Breakpoints\Rows;
 class Breakpoints
 {
     public const DEFAULTS = Rows::DEFAULTS;
+
     public const UNITS = Rows::UNITS;
+
     public const ROOT_PX = Rows::ROOT_PX;
+
     public const MAX = Rows::MAX;
+
     public const MIN = Rows::MIN;
+
     public const LABEL_KEYS = Labels::LABEL_KEYS;
+
     public const DIRECTIONS = Rows::DIRECTIONS;
 
     /** Ikonerne der kan vælges pr. breakpoint. Navnet slås op i cp-shell/preview-chrome.js. */

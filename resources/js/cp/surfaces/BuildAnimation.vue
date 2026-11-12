@@ -162,7 +162,8 @@ const PATHS = {
   tap: '<path d="M9 11V5a2 2 0 0 1 4 0v6M13 10a2 2 0 0 1 4 0v4a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-3-4a2 2 0 0 1 3-2l1 1"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
   move: '<path d="M12 2v20M2 12h20M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3"/>',
-  ticker: '<rect x="3" y="8" width="5" height="5" rx="1"/><rect x="10" y="8" width="5" height="5" rx="1"/><rect x="17" y="8" width="4" height="5" rx="1"/><path d="M15 18H7M9 16l-2 2 2 2"/>',
+  ticker:
+    '<rect x="3" y="8" width="5" height="5" rx="1"/><rect x="10" y="8" width="5" height="5" rx="1"/><rect x="17" y="8" width="4" height="5" rx="1"/><path d="M15 18H7M9 16l-2 2 2 2"/>',
   stack: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M7 7h10M9 4h6"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
 };
@@ -192,7 +193,12 @@ const framed = (p, more = '') => `style="${tint(p)};${stroke}${more}"`;
 
 /** The library's kinds, drawn as the canvas draws them, in KINDS' order: each opens its gallery. */
 const ART = [
-  { key: 'self', word: 'anim_r_self', target: 'self', art: `<rect x="20" y="10" width="24" height="22" rx="3" ${framed(30)}/><path d="M32 6V2M29 5l3-3 3 3" style="${stroke}"/>` },
+  {
+    key: 'self',
+    word: 'anim_r_self',
+    target: 'self',
+    art: `<rect x="20" y="10" width="24" height="22" rx="3" ${framed(30)}/><path d="M32 6V2M29 5l3-3 3 3" style="${stroke}"/>`,
+  },
   {
     key: 'children',
     word: 'anim_r_children',
@@ -223,7 +229,12 @@ const ART = [
     target: 'words',
     art: `<rect x="6" y="15" width="14" height="10" rx="2" style="${tint(50)}"/><rect x="23" y="15" width="18" height="10" rx="2" style="${tint(30)}"/><rect x="44" y="15" width="14" height="10" rx="2" style="${tint(12)}"/>`,
   },
-  { key: 'mouse', word: 'anim_r_mouse', recipe: 'mouse', art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>` },
+  {
+    key: 'mouse',
+    word: 'anim_r_mouse',
+    recipe: 'mouse',
+    art: `<circle cx="26" cy="20" r="10" ${framed(30)}/><path d="M40 22l4 10 1.5-4 4-1.5z" style="fill:var(--bm-accent)"/>`,
+  },
   // Not a kind of data-anim: the element flies to the next page (BuildPageTransition.vue).
   {
     key: 'page',
@@ -232,9 +243,14 @@ const ART = [
   },
 ];
 const TILES = [...KINDS, 'page'].map((kind) => ART.find((tile) => tile.key === kind));
-const counts = computed(() => ({ ...Object.fromEntries(KINDS.map((kind) => [kind, presetsFor(kind, PRESETS, own.value).length])), page: MOTIONS.length }));
+const counts = computed(() => ({
+  ...Object.fromEntries(KINDS.map((kind) => [kind, presetsFor(kind, PRESETS, own.value).length])),
+  page: MOTIONS.length,
+}));
 /** The element's page transition, said on its tile instead of the count. */
-const pageTransition = computed(() => pageTransitionOf(html.value, findByPath(parseTemplateTree(html.value), path.value)));
+const pageTransition = computed(() =>
+  pageTransitionOf(html.value, findByPath(parseTemplateTree(html.value), path.value))
+);
 const tileNote = (key) =>
   key === 'page' && pageTransition.value
     ? `${t('pt_on')} · ${t(`pt_${pageTransition.value.motion || 'spring'}`)}`
@@ -267,7 +283,9 @@ const chipIcon = computed(() => {
 const chipSub = computed(() => (plays.value ? label(preset.value) || anim.value.preset || t('anim_own') : ''));
 
 /** ▶ shows something only where the motion runs in time: not on hover, while scrolling, on a stack or toward the mouse. */
-const playable = computed(() => (plays.value ? !['hover', 'scroll'].includes(anim.value.on) : anim.value?.target === 'ticker'));
+const playable = computed(() =>
+  plays.value ? !['hover', 'scroll'].includes(anim.value.on) : anim.value?.target === 'ticker'
+);
 /**
  * The editor's tag: the name the HTML tree gives the element, when it was
  * given one (html-tree-labels.js, per template), else its tag and first
@@ -283,7 +301,9 @@ const tagName = computed(() => {
     return named;
   }
 
-  const first = String(props.node.classes || '').split(/\s+/).find((name) => /^[a-z_-]/i.test(name) && !name.includes('{'));
+  const first = String(props.node.classes || '')
+    .split(/\s+/)
+    .find((name) => /^[a-z_-]/i.test(name) && !name.includes('{'));
 
   return first ? `${props.node.tag}.${first}` : props.node.tag;
 });
@@ -308,7 +328,8 @@ function writeLook(next) {
 }
 
 /** Nulstil: the line's keys out of the section's difference, so the template's value shows again. */
-const reset = (keys) => writeOverride(keys.reduce((now, key) => withoutOverrideKey(now, path.value, key), override.value));
+const reset = (keys) =>
+  writeOverride(keys.reduce((now, key) => withoutOverrideKey(now, path.value, key), override.value));
 
 /** Spejlvend: the class on the template's root under Alle, the section's flip under Kun denne sektion. */
 function toggleFlip() {
@@ -326,7 +347,10 @@ const Dot = defineComponent({
   name: 'BuildAnimationDot',
   props: { keys: { type: Array, required: true } },
   setup(own) {
-    return () => (own.keys.some((key) => dots.value.has(key)) ? h('i', { class: 'bm-anim-dot', 'data-sve-build-anim-dot': '', title: t('anim_override') }) : null);
+    return () =>
+      own.keys.some((key) => dots.value.has(key))
+        ? h('i', { class: 'bm-anim-dot', 'data-sve-build-anim-dot': '', title: t('anim_override') })
+        : null;
   },
 });
 
@@ -335,9 +359,19 @@ const Reset = defineComponent({
   name: 'BuildAnimationReset',
   props: { keys: { type: Array, required: true } },
   setup(own) {
-    return () => (own.keys.some((key) => dots.value.has(key))
-      ? h('button', { type: 'button', class: 'bm-anim-reset', 'data-sve-build-anim-reset': own.keys[0], onClick: () => reset(own.keys) }, t('anim_reset'))
-      : null);
+    return () =>
+      own.keys.some((key) => dots.value.has(key))
+        ? h(
+            'button',
+            {
+              type: 'button',
+              class: 'bm-anim-reset',
+              'data-sve-build-anim-reset': own.keys[0],
+              onClick: () => reset(own.keys),
+            },
+            t('anim_reset')
+          )
+        : null;
   },
 });
 
@@ -412,7 +446,14 @@ const newName = ref('');
 const saving = ref(false);
 const nameInput = ref(null);
 const toSave = computed(() => (base.value ? presetToSave(base.value, basePreset.value) : null));
-const SAVE_NOTES = { children: 'anim_save_note_timed', words: 'anim_save_note_timed', ticker: 'anim_save_note_ticker', stack: 'anim_save_note_stack', parallax: 'anim_save_note_moves', mouse: 'anim_save_note_moves' };
+const SAVE_NOTES = {
+  children: 'anim_save_note_timed',
+  words: 'anim_save_note_timed',
+  ticker: 'anim_save_note_ticker',
+  stack: 'anim_save_note_stack',
+  parallax: 'anim_save_note_moves',
+  mouse: 'anim_save_note_moves',
+};
 
 /** Save and create ask for the name at once; start and edit leave the focus on the values, which come first. */
 function askName(ask, name = '') {
@@ -458,7 +499,9 @@ function presetFrom(p, mode) {
 const editorTitle = computed(() => {
   const mode = asking.value?.mode;
 
-  return mode === 'edit' || mode === 'start' ? port.t(`anim_${mode === 'edit' ? 'edit_preset' : 'start_from'}`, { name: label(asking.value.preset) }) : recipe.value;
+  return mode === 'edit' || mode === 'start'
+    ? port.t(`anim_${mode === 'edit' ? 'edit_preset' : 'start_from'}`, { name: label(asking.value.preset) })
+    : recipe.value;
 });
 const NAME_HEADS = { save: 'anim_save_preset', create: 'anim_create_preset' };
 
@@ -518,7 +561,9 @@ async function saveLook() {
 
   const look = toSave.value;
   const edit = ask.mode === 'edit';
-  const saved = edit ? await updatePreset(ask.preset.handle, { vars: look.vars, timing: look.timing, label: name }) : await savePreset(name, look);
+  const saved = edit
+    ? await updatePreset(ask.preset.handle, { vars: look.vars, timing: look.timing, label: name })
+    : await savePreset(name, look);
 
   saving.value = false;
 
@@ -588,16 +633,20 @@ function play(event) {
  * that has finished show nothing, so the canvas plays it again on the paint
  * that brings them, not when the file is written.
  */
-const drawn = (el) => (el
-  ? [
-      el.getAttribute('data-anim'),
-      el.getAttribute('data-anim-preset'),
-      el.getAttribute('data-anim-on'),
-      el.hasAttribute('data-anim-off'),
-      ...[...el.classList].filter((name) => name.startsWith('[--anim-')).sort(),
-      ...[...el.style].filter((name) => name.startsWith('--anim-')).sort().map((name) => `${name}:${el.style.getPropertyValue(name)}`),
-    ].join('\n')
-  : null);
+const drawn = (el) =>
+  el
+    ? [
+        el.getAttribute('data-anim'),
+        el.getAttribute('data-anim-preset'),
+        el.getAttribute('data-anim-on'),
+        el.hasAttribute('data-anim-off'),
+        ...[...el.classList].filter((name) => name.startsWith('[--anim-')).sort(),
+        ...[...el.style]
+          .filter((name) => name.startsWith('--anim-'))
+          .sort()
+          .map((name) => `${name}:${el.style.getPropertyValue(name)}`),
+      ].join('\n')
+    : null;
 
 const MOTION_ID = 'sve-anim-canvas-motion';
 
@@ -616,19 +665,22 @@ function showMotion() {
 
 let seen = { path: path.value, drawn: drawn(canvasEl()) };
 
-watch(() => port.painted.value, () => {
-  showMotion();
+watch(
+  () => port.painted.value,
+  () => {
+    showMotion();
 
-  const el = canvasEl();
-  const now = drawn(el);
-  const changed = seen.path === path.value && seen.drawn !== null && now !== seen.drawn;
+    const el = canvasEl();
+    const now = drawn(el);
+    const changed = seen.path === path.value && seen.drawn !== null && now !== seen.drawn;
 
-  seen = { path: path.value, drawn: now };
+    seen = { path: path.value, drawn: now };
 
-  if (changed) {
-    replay(el);
+    if (changed) {
+      replay(el);
+    }
   }
-});
+);
 
 /* The chip's ⋯ menu. */
 const menu = ref(false);
@@ -654,9 +706,12 @@ const panelEl = () => root.value?.closest('.sve-build');
 
 /** The stage plays again on every change, as the canvas promises ("spiller når du ændrer noget"). */
 const take = ref(0);
-watch(() => JSON.stringify(shown.value), () => {
-  take.value += 1;
-});
+watch(
+  () => JSON.stringify(shown.value),
+  () => {
+    take.value += 1;
+  }
+);
 
 const stageStyle = computed(() => Object.fromEntries(ownValues(shown.value)));
 
@@ -691,16 +746,20 @@ const missing = computed(() => (shown.value ? missingEffects(shown.value, shownP
 const hasEffects = computed(() => plays.value || moves(anim.value?.target));
 /** What the effects mean here: on a hover, while scrolling, for a parallax or the mouse, and for words, where the page cuts the heading. */
 const NOTES = { parallax: 'anim_parallax_note', mouse: 'anim_mouse_note', words: 'anim_words_note' };
-const effectsNote = computed(() => ({ hover: 'anim_hover_note', scroll: 'anim_scroll_note' })[anim.value?.on] || NOTES[anim.value?.target] || '');
+const effectsNote = computed(
+  () => ({ hover: 'anim_hover_note', scroll: 'anim_scroll_note' })[anim.value?.on] || NOTES[anim.value?.target] || ''
+);
 
 /** While scrolling the scroll is the clock: no delay, duration or wait between children or words. */
-const timing = computed(() => (anim.value?.on === 'scroll'
-  ? []
-  : [
-      ['delay', 'anim_delay'],
-      ['duration', 'anim_duration'],
-      ...(stepped(anim.value?.target) ? [['step', 'anim_step']] : []),
-    ]));
+const timing = computed(() =>
+  anim.value?.on === 'scroll'
+    ? []
+    : [
+        ['delay', 'anim_delay'],
+        ['duration', 'anim_duration'],
+        ...(stepped(anim.value?.target) ? [['step', 'anim_step']] : []),
+      ]
+);
 const staggers = computed(() => stepped(anim.value?.target) && anim.value.on !== 'scroll');
 
 /* A ticker's and a stack's own lengths, in rem; the runtime's own is written as nothing. */
@@ -743,7 +802,11 @@ function setEaseCss(css) {
 }
 
 function setEase(key) {
-  setEaseCss(key === 'spring' ? springEase(spring.value.stiffness, spring.value.damping, spring.value.mass) : EASES.find(([k]) => k === key)[1]);
+  setEaseCss(
+    key === 'spring'
+      ? springEase(spring.value.stiffness, spring.value.damping, spring.value.mass)
+      : EASES.find(([k]) => k === key)[1]
+  );
 }
 
 /* ---------------- the curve ---------------- */
@@ -804,7 +867,14 @@ const graph = ref(null);
 const dragging = ref(null);
 const draft = ref(null);
 const points = computed(() => draft.value ?? bezierOf(easeRaw.value));
-const bezierText = computed(() => (points.value ? points.value.map(short).join(', ').replace(/(^|\s)0\./g, '$1.') : easeRaw.value));
+const bezierText = computed(() =>
+  points.value
+    ? points.value
+        .map(short)
+        .join(', ')
+        .replace(/(^|\s)0\./g, '$1.')
+    : easeRaw.value
+);
 
 /** A spring's linear() as the graph's line: stops without a place share out the room between the ones with one. */
 const springLine = computed(() => {
@@ -872,7 +942,9 @@ function setBezier(event) {
   const numbers = event.target.value.split(',').map((n) => Number(n.trim()));
 
   if (numbers.length === 4 && numbers.every(Number.isFinite)) {
-    setEaseCss(bezierCss([Math.min(1, Math.max(0, numbers[0])), numbers[1], Math.min(1, Math.max(0, numbers[2])), numbers[3]]));
+    setEaseCss(
+      bezierCss([Math.min(1, Math.max(0, numbers[0])), numbers[1], Math.min(1, Math.max(0, numbers[2])), numbers[3]])
+    );
   } else {
     event.target.value = bezierText.value;
   }
@@ -885,11 +957,21 @@ const size = (el) => ({ width: el.offsetWidth, height: el.offsetHeight });
 
 function placeCurve() {
   if (curvePop.value && curveBtn.value && editor.value) {
-    curveSpot.value = besideSpot(curveBtn.value.getBoundingClientRect(), editor.value.getBoundingClientRect(), size(curvePop.value), view());
+    curveSpot.value = besideSpot(
+      curveBtn.value.getBoundingClientRect(),
+      editor.value.getBoundingClientRect(),
+      size(curvePop.value),
+      view()
+    );
   }
 
   if (galleryPop.value && galleryBtn.value && editor.value) {
-    gallerySpot.value = besideSpot(galleryBtn.value.getBoundingClientRect(), editor.value.getBoundingClientRect(), size(galleryPop.value), view());
+    gallerySpot.value = besideSpot(
+      galleryBtn.value.getBoundingClientRect(),
+      editor.value.getBoundingClientRect(),
+      size(galleryPop.value),
+      view()
+    );
   }
 }
 
@@ -908,12 +990,16 @@ function place() {
 
 let sized = null;
 
-watch([editor, curvePop, galleryPop], ([e, c, g]) => {
-  sized?.disconnect();
-  sized = new ResizeObserver(place);
-  [e, c, g, e ? panelEl() : null].filter(Boolean).forEach((el) => sized.observe(el));
-  place();
-}, { flush: 'post' });
+watch(
+  [editor, curvePop, galleryPop],
+  ([e, c, g]) => {
+    sized?.disconnect();
+    sized = new ResizeObserver(place);
+    [e, c, g, e ? panelEl() : null].filter(Boolean).forEach((el) => sized.observe(el));
+    place();
+  },
+  { flush: 'post' }
+);
 
 watch(anim, (now) => {
   if (!now) {
@@ -1049,7 +1135,12 @@ const Num = defineComponent({
       }
 
       event.preventDefault();
-      start = { x: event.clientX, value: own.value, width: event.currentTarget.getBoundingClientRect().width, moved: false };
+      start = {
+        x: event.clientX,
+        value: own.value,
+        width: event.currentTarget.getBoundingClientRect().width,
+        moved: false,
+      };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up, { once: true });
     };
@@ -1104,7 +1195,9 @@ const Num = defineComponent({
 <template>
   <div ref="root" class="bm-anim" data-sve-build-animation>
     <section class="bm-anim-block is-first">
-      <div class="bm-anim-head"><span>{{ t('anim_on_element') }}</span></div>
+      <div class="bm-anim-head"
+        ><span>{{ t('anim_on_element') }}</span></div
+      >
       <div v-if="anim" ref="menuEl" class="bm-anim-chipwrap">
         <button
           ref="chip"
@@ -1119,10 +1212,30 @@ const Num = defineComponent({
           <b>{{ recipe }}</b>
           <span v-if="chipSub" class="bm-anim-chip__sub">· {{ chipSub }}</span>
         </button>
-        <button type="button" class="bm-anim-chip__more" :aria-expanded="menu" :aria-label="t('anim_remove')" data-sve-build-anim-more @click="menu = !menu" v-html="icon('dots', 12)"></button>
+        <button
+          type="button"
+          class="bm-anim-chip__more"
+          :aria-expanded="menu"
+          :aria-label="t('anim_remove')"
+          data-sve-build-anim-more
+          @click="menu = !menu"
+          v-html="icon('dots', 12)"
+        ></button>
         <div v-if="menu" class="bm-anim-menu" role="menu">
-          <button v-if="playable" type="button" role="menuitem" data-sve-build-anim-play @click="menu = false; play($event)"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
-          <button type="button" role="menuitem" data-sve-build-anim-remove @click="remove"><span v-html="icon('trash', 12)"></span>{{ t('anim_remove') }}</button>
+          <button
+            v-if="playable"
+            type="button"
+            role="menuitem"
+            data-sve-build-anim-play
+            @click="
+              menu = false;
+              play($event);
+            "
+            ><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button
+          >
+          <button type="button" role="menuitem" data-sve-build-anim-remove @click="remove"
+            ><span v-html="icon('trash', 12)"></span>{{ t('anim_remove') }}</button
+          >
         </div>
       </div>
       <p v-else class="bm-anim-none" data-sve-build-anim-none>{{ t('anim_none') }}</p>
@@ -1130,7 +1243,9 @@ const Num = defineComponent({
     </section>
 
     <section v-if="plays" class="bm-anim-block" data-sve-build-anim-triggers>
-      <div class="bm-anim-head"><span>{{ t('anim_triggers') }}</span></div>
+      <div class="bm-anim-head"
+        ><span>{{ t('anim_triggers') }}</span></div
+      >
       <div class="bm-anim-triggers">
         <button
           v-for="[on, ic, word] in TRIGGERS"
@@ -1153,9 +1268,21 @@ const Num = defineComponent({
 
     <section class="bm-anim-block" data-sve-build-anim-library>
       <BuildPageTransition v-if="gallery === 'page'" :node="node" back @back="gallery = null" />
-      <BuildAnimationGallery v-else-if="gallery" :kind="gallery" :current="anim?.target === gallery ? currentPreset : ''" back @back="gallery = null" @pick="useTile" @create="createPreset(gallery)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
+      <BuildAnimationGallery
+        v-else-if="gallery"
+        :kind="gallery"
+        :current="anim?.target === gallery ? currentPreset : ''"
+        back
+        @back="gallery = null"
+        @pick="useTile"
+        @create="createPreset(gallery)"
+        @edit="presetFrom($event, 'edit')"
+        @start="presetFrom($event, 'start')"
+      />
       <template v-else>
-        <div class="bm-anim-head"><span>{{ t('anim_library') }}</span></div>
+        <div class="bm-anim-head"
+          ><span>{{ t('anim_library') }}</span></div
+        >
         <div class="bm-anim-lib">
           <button
             v-for="tile in TILES"
@@ -1179,7 +1306,12 @@ const Num = defineComponent({
         class="sve-build bm-anim-scrim"
         aria-hidden="true"
         data-sve-build-anim-scrim
-        :style="{ left: `${panelSpot.left}px`, top: `${panelSpot.top}px`, width: `${panelSpot.width}px`, height: `${panelSpot.height}px` }"
+        :style="{
+          left: `${panelSpot.left}px`,
+          top: `${panelSpot.top}px`,
+          width: `${panelSpot.width}px`,
+          height: `${panelSpot.height}px`,
+        }"
         @click="open = false"
       ></div>
 
@@ -1190,19 +1322,43 @@ const Num = defineComponent({
         role="dialog"
         :aria-label="recipe"
         data-sve-build-anim-editor
-        :style="{ left: `${editorSpot.left}px`, top: `${editorSpot.top}px`, width: editorSpot.width ? `${editorSpot.width}px` : null }"
+        :style="{
+          left: `${editorSpot.left}px`,
+          top: `${editorSpot.top}px`,
+          width: editorSpot.width ? `${editorSpot.width}px` : null,
+        }"
       >
         <header class="bm-anim-pop__head">
           <b>{{ editorTitle }}</b>
           <span class="bm-anim-pop__tag">{{ tagName }}</span>
-          <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="open = false" v-html="icon('x', 12)"></button>
+          <button
+            type="button"
+            class="bm-anim-pop__x"
+            :aria-label="t('close')"
+            @click="open = false"
+            v-html="icon('x', 12)"
+          ></button>
         </header>
         <div class="bm-anim-pop__body">
           <section v-if="hasRow" class="bm-anim-block is-first">
-            <div class="bm-anim-head"><span>{{ t('anim_scope') }}</span></div>
+            <div class="bm-anim-head"
+              ><span>{{ t('anim_scope') }}</span></div
+            >
             <span class="bm-seg" role="group" :aria-label="t('anim_scope')" data-sve-build-anim-scope>
-              <button type="button" :aria-pressed="scope === 'all'" data-sve-build-anim-scope-all @click="scope = 'all'">{{ t('anim_scope_all') }}</button>
-              <button type="button" :aria-pressed="scope === 'section'" data-sve-build-anim-scope-section @click="scope = 'section'">{{ t('anim_scope_section') }}</button>
+              <button
+                type="button"
+                :aria-pressed="scope === 'all'"
+                data-sve-build-anim-scope-all
+                @click="scope = 'all'"
+                >{{ t('anim_scope_all') }}</button
+              >
+              <button
+                type="button"
+                :aria-pressed="scope === 'section'"
+                data-sve-build-anim-scope-section
+                @click="scope = 'section'"
+                >{{ t('anim_scope_section') }}</button
+              >
             </span>
             <p class="bm-anim-hint">{{ t('anim_scope_note') }}</p>
           </section>
@@ -1221,16 +1377,29 @@ const Num = defineComponent({
           <p v-if="reduced" class="bm-anim-reduced" data-sve-build-anim-reduced>{{ t('anim_reduced_note') }}</p>
 
           <section class="bm-anim-block is-first">
-            <p v-if="section" class="bm-anim-hint" data-sve-build-anim-template-only>{{ t('anim_scope_template_only') }}</p>
+            <p v-if="section" class="bm-anim-hint" data-sve-build-anim-template-only>{{
+              t('anim_scope_template_only')
+            }}</p>
             <template v-if="plays">
               <div class="bm-anim-line">
                 <span>{{ t('anim_trigger') }}</span>
                 <span class="bm-anim-box">
                   <span class="bm-anim-box__val">{{ t(`anim_on_${anim.on}`) }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="anim.on" :disabled="section" :aria-label="t('anim_trigger')" data-sve-build-anim-trigger @change="pickTrigger($event.target.value)">
+                  <select
+                    :value="anim.on"
+                    :disabled="section"
+                    :aria-label="t('anim_trigger')"
+                    data-sve-build-anim-trigger
+                    @change="pickTrigger($event.target.value)"
+                  >
                     <option v-if="hoverGone" value="hover" disabled>{{ t('anim_on_hover') }}</option>
-                    <option v-for="[on, , word] in TRIGGERS" :key="on" :value="on" :disabled="on === 'switch' && !switches.length">
+                    <option
+                      v-for="[on, , word] in TRIGGERS"
+                      :key="on"
+                      :value="on"
+                      :disabled="on === 'switch' && !switches.length"
+                    >
                       {{ t(word) }}
                     </option>
                   </select>
@@ -1241,14 +1410,28 @@ const Num = defineComponent({
                 <span class="bm-anim-box">
                   <code class="bm-anim-box__val">{{ anim.switch }}</code>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="anim.switch" :disabled="section" :aria-label="t('anim_switch')" data-sve-build-anim-switch @change="write({ ...anim, switch: $event.target.value })">
+                  <select
+                    :value="anim.switch"
+                    :disabled="section"
+                    :aria-label="t('anim_switch')"
+                    data-sve-build-anim-switch
+                    @change="write({ ...anim, switch: $event.target.value })"
+                  >
                     <option v-for="name in switches" :key="name" :value="name">{{ name }}</option>
                   </select>
                 </span>
               </div>
               <div class="bm-anim-line">
                 <span>{{ t('anim_preset') }}<Dot :keys="['preset']" /></span>
-                <button ref="galleryBtn" type="button" class="bm-anim-box" :aria-expanded="galleryOpen" :aria-label="t('anim_preset_pick')" data-sve-build-anim-preset @click="galleryOpen = !galleryOpen">
+                <button
+                  ref="galleryBtn"
+                  type="button"
+                  class="bm-anim-box"
+                  :aria-expanded="galleryOpen"
+                  :aria-label="t('anim_preset_pick')"
+                  data-sve-build-anim-preset
+                  @click="galleryOpen = !galleryOpen"
+                >
                   <span class="bm-anim-box__val">{{ presetText }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
                 </button>
@@ -1256,24 +1439,57 @@ const Num = defineComponent({
               </div>
               <div v-if="anim.on === 'view'" class="bm-anim-line">
                 <span>{{ t('anim_repeat') }}</span>
-                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.repeat" :disabled="section" :aria-label="t('anim_repeat')" data-sve-build-anim-repeat @click="write({ ...anim, repeat: !anim.repeat })"></button>
+                <button
+                  type="button"
+                  role="switch"
+                  class="bm-anim-switch"
+                  :aria-checked="anim.repeat"
+                  :disabled="section"
+                  :aria-label="t('anim_repeat')"
+                  data-sve-build-anim-repeat
+                  @click="write({ ...anim, repeat: !anim.repeat })"
+                ></button>
               </div>
             </template>
             <div v-else class="bm-anim-line">
               <span>{{ t('anim_preset') }}</span>
-              <button ref="galleryBtn" type="button" class="bm-anim-box" :aria-expanded="galleryOpen" :aria-label="t('anim_preset_pick')" data-sve-build-anim-preset @click="galleryOpen = !galleryOpen">
+              <button
+                ref="galleryBtn"
+                type="button"
+                class="bm-anim-box"
+                :aria-expanded="galleryOpen"
+                :aria-label="t('anim_preset_pick')"
+                data-sve-build-anim-preset
+                @click="galleryOpen = !galleryOpen"
+              >
                 <span class="bm-anim-box__val">{{ recipeText }}</span>
                 <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
               </button>
             </div>
             <div class="bm-anim-line">
               <span>{{ t('anim_active') }}<Dot :keys="['off']" /></span>
-              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="!shown.off" :aria-label="t('anim_active')" data-sve-build-anim-active @click="toggleActive"></button>
+              <button
+                type="button"
+                role="switch"
+                class="bm-anim-switch"
+                :aria-checked="!shown.off"
+                :aria-label="t('anim_active')"
+                data-sve-build-anim-active
+                @click="toggleActive"
+              ></button>
               <Reset :keys="['off']" />
             </div>
             <div class="bm-anim-line">
               <span>{{ t('anim_flip') }}<Dot :keys="['flip']" /></span>
-              <button type="button" role="switch" class="bm-anim-switch" :aria-checked="flipped" :aria-label="t('anim_flip')" data-sve-build-anim-flip @click="toggleFlip"></button>
+              <button
+                type="button"
+                role="switch"
+                class="bm-anim-switch"
+                :aria-checked="flipped"
+                :aria-label="t('anim_flip')"
+                data-sve-build-anim-flip
+                @click="toggleFlip"
+              ></button>
               <Reset :keys="['flip']" />
             </div>
           </section>
@@ -1294,14 +1510,26 @@ const Num = defineComponent({
                   v-html="icon('plus', 12)"
                 ></button>
                 <div v-if="addMenu" class="bm-anim-menu" role="menu">
-                  <button v-for="effect in missing" :key="effect.key" type="button" role="menuitem" :data-sve-build-anim-add-item="effect.key" @click="pickEffect(effect)">
+                  <button
+                    v-for="effect in missing"
+                    :key="effect.key"
+                    type="button"
+                    role="menuitem"
+                    :data-sve-build-anim-add-item="effect.key"
+                    @click="pickEffect(effect)"
+                  >
                     {{ t(`anim_fx_${effect.key}`) }}
                   </button>
                 </div>
               </span>
             </div>
             <p v-if="effectsNote" class="bm-anim-hint" data-sve-build-anim-effects-note>{{ t(effectsNote) }}</p>
-            <div v-for="effect in effects" :key="effect.key" class="bm-anim-line is-effect" :data-sve-build-anim-effect="effect.key">
+            <div
+              v-for="effect in effects"
+              :key="effect.key"
+              class="bm-anim-line is-effect"
+              :data-sve-build-anim-effect="effect.key"
+            >
               <span>{{ t(`anim_fx_${effect.key}`) }}<Dot :keys="effectKeys(effect)" /></span>
               <Num
                 :value="effect.value"
@@ -1314,20 +1542,30 @@ const Num = defineComponent({
                 :decimal="decimal"
                 @set="(v) => setEffect(effect.key, v)"
               />
-              <button type="button" class="bm-anim-minus" :aria-label="t('anim_remove')" @click="setEffect(effect.key, null)" v-html="icon('minus', 12)"></button>
+              <button
+                type="button"
+                class="bm-anim-minus"
+                :aria-label="t('anim_remove')"
+                @click="setEffect(effect.key, null)"
+                v-html="icon('minus', 12)"
+              ></button>
               <Reset :keys="effectKeys(effect)" />
             </div>
             <div v-if="missing.length" class="bm-anim-more">
               <span>+</span>
               <template v-for="(effect, i) in missing" :key="effect.key">
                 <span v-if="i" aria-hidden="true">·</span>
-                <button type="button" :data-sve-build-anim-add="effect.key" @click="addEffect(effect)">{{ t(`anim_fx_${effect.key}`) }}</button>
+                <button type="button" :data-sve-build-anim-add="effect.key" @click="addEffect(effect)">{{
+                  t(`anim_fx_${effect.key}`)
+                }}</button>
               </template>
             </div>
           </section>
 
           <section v-if="plays" class="bm-anim-block" data-sve-build-anim-timing>
-            <div class="bm-anim-head"><span>{{ t('anim_timing') }}</span></div>
+            <div class="bm-anim-head"
+              ><span>{{ t('anim_timing') }}</span></div
+            >
             <div v-for="[key, word] in timing" :key="key" class="bm-anim-line" :data-sve-build-anim-time="key">
               <span>{{ t(word) }}<Dot :keys="[`--anim-${key}`]" /></span>
               <Num
@@ -1344,9 +1582,16 @@ const Num = defineComponent({
             <div v-if="staggers" class="bm-anim-line">
               <span>{{ t('anim_step_curve') }}<Dot :keys="['--anim-step-curve']" /></span>
               <span class="bm-anim-box">
-                <span class="bm-anim-box__val">{{ stepCurve === '1.5' ? t('anim_step_faster') : stepCurve === '1' ? t('anim_step_linear') : stepCurve }}</span>
+                <span class="bm-anim-box__val">{{
+                  stepCurve === '1.5' ? t('anim_step_faster') : stepCurve === '1' ? t('anim_step_linear') : stepCurve
+                }}</span>
                 <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                <select :value="stepCurve" :aria-label="t('anim_step_curve')" data-sve-build-anim-step-curve @change="setVar('--anim-step-curve', $event.target.value === '1' ? null : $event.target.value)">
+                <select
+                  :value="stepCurve"
+                  :aria-label="t('anim_step_curve')"
+                  data-sve-build-anim-step-curve
+                  @change="setVar('--anim-step-curve', $event.target.value === '1' ? null : $event.target.value)"
+                >
                   <option value="1">{{ t('anim_step_linear') }}</option>
                   <option value="1.5">{{ t('anim_step_faster') }}</option>
                   <option v-if="stepCurve !== '1' && stepCurve !== '1.5'" :value="stepCurve">{{ stepCurve }}</option>
@@ -1360,7 +1605,12 @@ const Num = defineComponent({
                 <span class="bm-anim-box">
                   <span class="bm-anim-box__val">{{ t(`anim_ease_${ease}`) }}</span>
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
-                  <select :value="ease" :aria-label="t('anim_ease')" data-sve-build-anim-ease @change="setEase($event.target.value)">
+                  <select
+                    :value="ease"
+                    :aria-label="t('anim_ease')"
+                    data-sve-build-anim-ease
+                    @change="setEase($event.target.value)"
+                  >
                     <option v-for="[key] in EASES" :key="key" :value="key">{{ t(`anim_ease_${key}`) }}</option>
                     <option value="spring">{{ t('anim_ease_spring') }}</option>
                     <option v-if="ease === 'custom'" value="custom" disabled>{{ t('anim_ease_custom') }}</option>
@@ -1390,39 +1640,80 @@ const Num = defineComponent({
           </section>
 
           <section v-if="SETTING_FIELDS[anim.target]" class="bm-anim-block" data-sve-build-anim-settings>
-            <div class="bm-anim-head"><span>{{ t('anim_settings') }}</span></div>
+            <div class="bm-anim-head"
+              ><span>{{ t('anim_settings') }}</span></div
+            >
             <p class="bm-anim-hint">{{ t(`anim_${anim.target}_note`) }}</p>
             <template v-if="anim.target === 'ticker'">
               <div class="bm-anim-line" data-sve-build-anim-ticker-time>
                 <span>{{ t('anim_ticker_time') }}<Dot :keys="['--anim-duration']" /></span>
-                <Num :value="tickerSeconds" unit="s" :max="60" :min="1" :step="0.5" blank :decimal="decimal" @set="(v) => setTime('duration', v === null ? null : v * 1000)" />
+                <Num
+                  :value="tickerSeconds"
+                  unit="s"
+                  :max="60"
+                  :min="1"
+                  :step="0.5"
+                  blank
+                  :decimal="decimal"
+                  @set="(v) => setTime('duration', v === null ? null : v * 1000)"
+                />
                 <Reset :keys="['--anim-duration']" />
               </div>
             </template>
-            <div v-for="[name, word, range] in SETTING_FIELDS[anim.target]" :key="name" class="bm-anim-line" :data-sve-build-anim-setting="name">
+            <div
+              v-for="[name, word, range] in SETTING_FIELDS[anim.target]"
+              :key="name"
+              class="bm-anim-line"
+              :data-sve-build-anim-setting="name"
+            >
               <span>{{ t(word) }}<Dot :keys="[name]" /></span>
-              <Num :value="remOf(name)" unit="rem" :max="range.max" :step="range.step" blank :decimal="decimal" @set="(v) => setRem(name, v)" />
+              <Num
+                :value="remOf(name)"
+                unit="rem"
+                :max="range.max"
+                :step="range.step"
+                blank
+                :decimal="decimal"
+                @set="(v) => setRem(name, v)"
+              />
               <Reset :keys="[name]" />
             </div>
             <template v-if="anim.target === 'ticker'">
               <div class="bm-anim-line">
                 <span>{{ t('anim_ticker_dir') }}<Dot :keys="['--anim-dir']" /></span>
                 <span class="bm-anim-seg" data-sve-build-anim-ticker-dir>
-                  <button type="button" :aria-pressed="!reversed" @click="setVar('--anim-dir', null)">{{ t('anim_dir_left') }}</button>
-                  <button type="button" :aria-pressed="reversed" @click="setVar('--anim-dir', 'reverse')">{{ t('anim_dir_right') }}</button>
+                  <button type="button" :aria-pressed="!reversed" @click="setVar('--anim-dir', null)">{{
+                    t('anim_dir_left')
+                  }}</button>
+                  <button type="button" :aria-pressed="reversed" @click="setVar('--anim-dir', 'reverse')">{{
+                    t('anim_dir_right')
+                  }}</button>
                 </span>
                 <Reset :keys="['--anim-dir']" />
               </div>
               <div class="bm-anim-line">
                 <span>{{ t('anim_ticker_pause') }}</span>
-                <button type="button" role="switch" class="bm-anim-switch" :aria-checked="anim.pause" :disabled="section" :aria-label="t('anim_ticker_pause')" data-sve-build-anim-pause @click="write({ ...anim, pause: !anim.pause })"></button>
+                <button
+                  type="button"
+                  role="switch"
+                  class="bm-anim-switch"
+                  :aria-checked="anim.pause"
+                  :disabled="section"
+                  :aria-label="t('anim_ticker_pause')"
+                  data-sve-build-anim-pause
+                  @click="write({ ...anim, pause: !anim.pause })"
+                ></button>
               </div>
             </template>
           </section>
 
           <section v-if="naming" class="bm-anim-block bm-anim-naming" data-sve-build-anim-naming>
-            <div class="bm-anim-head"><span>{{ asking.preset ? editorTitle : t(NAME_HEADS[asking.mode]) }}</span></div>
-            <p class="bm-anim-hint">{{ t(asking.mode === 'edit' ? 'anim_edit_note' : SAVE_NOTES[anim.target] || 'anim_save_note') }}</p>
+            <div class="bm-anim-head"
+              ><span>{{ asking.preset ? editorTitle : t(NAME_HEADS[asking.mode]) }}</span></div
+            >
+            <p class="bm-anim-hint">{{
+              t(asking.mode === 'edit' ? 'anim_edit_note' : SAVE_NOTES[anim.target] || 'anim_save_note')
+            }}</p>
             <input
               ref="nameInput"
               v-model="newName"
@@ -1435,15 +1726,36 @@ const Num = defineComponent({
               @keydown.enter.prevent="saveLook"
             />
             <div class="bm-anim-foot">
-              <button type="button" class="bm-anim-btn" data-sve-build-anim-save-cancel @click="cancelNaming">{{ t('anim_cancel') }}</button>
-              <button type="button" class="bm-anim-btn is-primary" :disabled="!newName.trim() || saving" data-sve-build-anim-save-confirm @click="saveLook">{{ t(asking.mode === 'edit' ? 'anim_save_changes' : 'anim_save') }}</button>
+              <button type="button" class="bm-anim-btn" data-sve-build-anim-save-cancel @click="cancelNaming">{{
+                t('anim_cancel')
+              }}</button>
+              <button
+                type="button"
+                class="bm-anim-btn is-primary"
+                :disabled="!newName.trim() || saving"
+                data-sve-build-anim-save-confirm
+                @click="saveLook"
+                >{{ t(asking.mode === 'edit' ? 'anim_save_changes' : 'anim_save') }}</button
+              >
             </div>
           </section>
           <section v-else class="bm-anim-block bm-anim-foot">
-            <button v-if="playable" type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button>
+            <button v-if="playable" type="button" class="bm-anim-btn" data-sve-build-anim-replay @click="play"
+              ><span v-html="icon('play', 12)"></span>{{ t('anim_play') }}</button
+            >
             <span class="bm-anim-foot__end">
-              <button v-if="canUpdate" type="button" class="bm-anim-btn" :disabled="saving" data-sve-build-anim-update @click="updateLook">{{ t('anim_update_preset') }}</button>
-              <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{ t('anim_save_preset') }}</button>
+              <button
+                v-if="canUpdate"
+                type="button"
+                class="bm-anim-btn"
+                :disabled="saving"
+                data-sve-build-anim-update
+                @click="updateLook"
+                >{{ t('anim_update_preset') }}</button
+              >
+              <button type="button" class="bm-anim-btn is-primary" data-sve-build-anim-save @click="startNaming">{{
+                t('anim_save_preset')
+              }}</button>
             </span>
           </section>
         </div>
@@ -1460,11 +1772,24 @@ const Num = defineComponent({
       >
         <header class="bm-anim-pop__head">
           <b>{{ recipe }}</b>
-          <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="galleryOpen = false" v-html="icon('x', 12)"></button>
+          <button
+            type="button"
+            class="bm-anim-pop__x"
+            :aria-label="t('close')"
+            @click="galleryOpen = false"
+            v-html="icon('x', 12)"
+          ></button>
         </header>
         <div class="bm-anim-pop__body">
           <section class="bm-anim-block is-first">
-            <BuildAnimationGallery :kind="anim.target" :current="currentPreset" @pick="usePreset" @create="createPreset(anim.target)" @edit="presetFrom($event, 'edit')" @start="presetFrom($event, 'start')" />
+            <BuildAnimationGallery
+              :kind="anim.target"
+              :current="currentPreset"
+              @pick="usePreset"
+              @create="createPreset(anim.target)"
+              @edit="presetFrom($event, 'edit')"
+              @start="presetFrom($event, 'start')"
+            />
           </section>
         </div>
       </div>
@@ -1480,13 +1805,31 @@ const Num = defineComponent({
       >
         <header class="bm-anim-pop__head">
           <b>{{ t('anim_ease') }}</b>
-          <button type="button" class="bm-anim-pop__x" :aria-label="t('close')" @click="curveOpen = false" v-html="icon('x', 12)"></button>
+          <button
+            type="button"
+            class="bm-anim-pop__x"
+            :aria-label="t('close')"
+            @click="curveOpen = false"
+            v-html="icon('x', 12)"
+          ></button>
         </header>
         <div class="bm-anim-pop__body">
           <section class="bm-anim-block is-first">
             <span class="bm-anim-seg">
-              <button type="button" :aria-pressed="curveMode === 'ease'" data-sve-build-anim-mode="ease" @click="setMode('ease')">{{ t('anim_ease_ease') }}</button>
-              <button type="button" :aria-pressed="curveMode === 'spring'" data-sve-build-anim-mode="spring" @click="setMode('spring')">{{ t('anim_ease_spring') }}</button>
+              <button
+                type="button"
+                :aria-pressed="curveMode === 'ease'"
+                data-sve-build-anim-mode="ease"
+                @click="setMode('ease')"
+                >{{ t('anim_ease_ease') }}</button
+              >
+              <button
+                type="button"
+                :aria-pressed="curveMode === 'spring'"
+                data-sve-build-anim-mode="spring"
+                @click="setMode('spring')"
+                >{{ t('anim_ease_spring') }}</button
+              >
             </span>
 
             <template v-if="curveMode === 'ease'">
@@ -1497,25 +1840,56 @@ const Num = defineComponent({
                   <span class="bm-anim-caret" v-html="icon('caret', 10)"></span>
                   <select :value="ease" :aria-label="t('anim_ease')" @change="setEase($event.target.value)">
                     <option v-for="[key] in EASES" :key="key" :value="key">{{ t(`anim_ease_${key}`) }}</option>
-                    <option v-if="ease === 'custom' || ease === 'spring'" :value="ease" disabled>{{ t(`anim_ease_${ease}`) }}</option>
+                    <option v-if="ease === 'custom' || ease === 'spring'" :value="ease" disabled>{{
+                      t(`anim_ease_${ease}`)
+                    }}</option>
                   </select>
                 </span>
               </div>
               <div class="bm-anim-line">
                 <span>{{ t('anim_duration') }}</span>
-                <Num :value="duration" unit="ms" :max="TIMING_RANGE.duration.max" :step="TIMING_RANGE.duration.step" blank :decimal="decimal" @set="(v) => setTime('duration', v)" />
+                <Num
+                  :value="duration"
+                  unit="ms"
+                  :max="TIMING_RANGE.duration.max"
+                  :step="TIMING_RANGE.duration.step"
+                  blank
+                  :decimal="decimal"
+                  @set="(v) => setTime('duration', v)"
+                />
               </div>
               <div class="bm-anim-line">
                 <span>{{ t('anim_bezier') }}</span>
                 <span class="bm-anim-box">
-                  <input class="bm-anim-bezier" type="text" :value="bezierText" :readonly="!points" :aria-label="t('anim_bezier')" data-sve-build-anim-bezier @change="setBezier" @keydown.enter="$event.target.blur()" />
+                  <input
+                    class="bm-anim-bezier"
+                    type="text"
+                    :value="bezierText"
+                    :readonly="!points"
+                    :aria-label="t('anim_bezier')"
+                    data-sve-build-anim-bezier
+                    @change="setBezier"
+                    @keydown.enter="$event.target.blur()"
+                  />
                 </span>
               </div>
             </template>
             <template v-else>
-              <div v-for="[key, word, range] in SPRING" :key="key" class="bm-anim-line" :data-sve-build-anim-spring="key">
+              <div
+                v-for="[key, word, range] in SPRING"
+                :key="key"
+                class="bm-anim-line"
+                :data-sve-build-anim-spring="key"
+              >
                 <span>{{ t(word) }}</span>
-                <Num :value="spring[key]" :max="range.max" :min="range.min" :step="range.step" :decimal="decimal" @set="(v) => setSpring(key, v)" />
+                <Num
+                  :value="spring[key]"
+                  :max="range.max"
+                  :min="range.min"
+                  :step="range.step"
+                  :decimal="decimal"
+                  @set="(v) => setSpring(key, v)"
+                />
               </div>
             </template>
 
@@ -1538,16 +1912,41 @@ const Num = defineComponent({
                 <template v-if="points">
                   <line :x1="gx(0)" :y1="gy(0)" :x2="gx(points[0])" :y2="gy(points[1])" class="g-arm" />
                   <line :x1="gx(1)" :y1="gy(1)" :x2="gx(points[2])" :y2="gy(points[3])" class="g-arm" />
-                  <path :d="`M ${gx(0)} ${gy(0)} C ${gx(points[0])} ${gy(points[1])}, ${gx(points[2])} ${gy(points[3])}, ${gx(1)} ${gy(1)}`" class="g-curve" />
-                  <circle :cx="gx(points[0])" :cy="gy(points[1])" r="5" class="g-h1" data-sve-build-anim-handle="0" @pointerdown="grab(0, $event)" />
-                  <circle :cx="gx(points[2])" :cy="gy(points[3])" r="5" class="g-h2" data-sve-build-anim-handle="1" @pointerdown="grab(1, $event)" />
-                  <text :x="gx(points[0]) - 4" :y="gy(points[1]) - 8" font-size="9" class="g-text">{{ short(points[0]) }}, {{ short(points[1]) }}</text>
-                  <text :x="gx(points[2]) + 8" :y="gy(points[3]) + 3" font-size="9" class="g-text">{{ short(points[2]) }}, {{ short(points[3]) }}</text>
+                  <path
+                    :d="`M ${gx(0)} ${gy(0)} C ${gx(points[0])} ${gy(points[1])}, ${gx(points[2])} ${gy(points[3])}, ${gx(1)} ${gy(1)}`"
+                    class="g-curve"
+                  />
+                  <circle
+                    :cx="gx(points[0])"
+                    :cy="gy(points[1])"
+                    r="5"
+                    class="g-h1"
+                    data-sve-build-anim-handle="0"
+                    @pointerdown="grab(0, $event)"
+                  />
+                  <circle
+                    :cx="gx(points[2])"
+                    :cy="gy(points[3])"
+                    r="5"
+                    class="g-h2"
+                    data-sve-build-anim-handle="1"
+                    @pointerdown="grab(1, $event)"
+                  />
+                  <text :x="gx(points[0]) - 4" :y="gy(points[1]) - 8" font-size="9" class="g-text">
+                    {{ short(points[0]) }}, {{ short(points[1]) }}
+                  </text>
+                  <text :x="gx(points[2]) + 8" :y="gy(points[3]) + 3" font-size="9" class="g-text">
+                    {{ short(points[2]) }}, {{ short(points[3]) }}
+                  </text>
                 </template>
                 <polyline v-else :points="springLine" class="g-curve" />
               </svg>
             </div>
-            <div class="bm-anim-strip" :style="{ '--strip-ease': easeRaw, '--strip-time': `${duration}ms` }" data-sve-build-anim-strip>
+            <div
+              class="bm-anim-strip"
+              :style="{ '--strip-ease': easeRaw, '--strip-time': `${duration}ms` }"
+              data-sve-build-anim-strip
+            >
               <i class="bm-anim-strip__sq"></i>
               <span class="bm-anim-strip__room"></span>
               <span class="bm-anim-strip__line"></span>
@@ -1573,157 +1972,744 @@ const Num = defineComponent({
  * --bm-faint, stroke.tertiary --bm-line, stroke.secondary --bm-edge.
  * `bm-anim-` only, under the panel's root.
  */
-.sve-build .bm-scroll:has(> .bm-anim) { padding: 0; border-top-width: 0; }
-.sve-build .bm-anim, .sve-build.bm-anim-pop { --bm-quiet: color-mix(in srgb, var(--bm-ink) 38%, transparent); }
-.sve-build .bm-anim { padding-bottom: 0.25rem; }
-.sve-build .bm-anim-ic { flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.sve-build .bm-anim-block { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.625rem 0.75rem; border-top: 1px solid var(--bm-line); }
-.sve-build .bm-anim-block.is-first { border-top: 0; }
-:root[data-sve-zones] .sve-build .bm-anim > .bm-anim-block { padding-inline: 0; }
-.sve-build .bm-anim-head { display: flex; align-items: center; font-size: 0.75rem; font-weight: 600; }
-.sve-build .bm-anim-head__add { position: relative; display: flex; margin-left: auto; font-weight: 400; }
-.sve-build .bm-anim-head__plus { display: flex; color: var(--bm-muted); }
-.sve-build .bm-anim-head__plus:hover { color: var(--bm-ink); }
-.sve-build .bm-anim-none { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
+.sve-build .bm-scroll:has(> .bm-anim) {
+  padding: 0;
+  border-top-width: 0;
+}
+.sve-build .bm-anim,
+.sve-build.bm-anim-pop {
+  --bm-quiet: color-mix(in srgb, var(--bm-ink) 38%, transparent);
+}
+.sve-build .bm-anim {
+  padding-bottom: 0.25rem;
+}
+.sve-build .bm-anim-ic {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sve-build .bm-anim-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-top: 1px solid var(--bm-line);
+}
+.sve-build .bm-anim-block.is-first {
+  border-top: 0;
+}
+:root[data-sve-zones] .sve-build .bm-anim > .bm-anim-block {
+  padding-inline: 0;
+}
+.sve-build .bm-anim-head {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.sve-build .bm-anim-head__add {
+  position: relative;
+  display: flex;
+  margin-left: auto;
+  font-weight: 400;
+}
+.sve-build .bm-anim-head__plus {
+  display: flex;
+  color: var(--bm-muted);
+}
+.sve-build .bm-anim-head__plus:hover {
+  color: var(--bm-ink);
+}
+.sve-build .bm-anim-none {
+  color: var(--bm-muted);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+}
 
 /* Chip */
-.sve-build .bm-anim-chipwrap { position: relative; }
-.sve-build .bm-anim-chip { display: flex; align-items: center; gap: 0.5rem; width: 100%; height: 1.75rem; padding: 0 1.75rem 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid transparent; text-align: start; }
-.sve-build .bm-anim-chip:hover { background: var(--bm-hover); }
-.sve-build .bm-anim-chip[aria-pressed='true'] { background: color-mix(in srgb, var(--bm-accent) 22%, transparent); border-color: color-mix(in srgb, var(--bm-accent) 50%, transparent); }
-.sve-build .bm-anim-chip__ic { display: flex; color: var(--bm-muted); }
-.sve-build .bm-anim-chip[aria-pressed='true'] .bm-anim-chip__ic { color: var(--bm-accent); }
-.sve-build .bm-anim-chip b { flex: none; font-weight: 600; }
-.sve-build .bm-anim-chip__sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bm-muted); }
-.sve-build .bm-anim-chip__more { position: absolute; top: 50%; right: 0.25rem; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 0.25rem; color: var(--bm-muted); transform: translateY(-50%); }
-.sve-build .bm-anim-chip__more:hover { background: var(--bm-hover); color: var(--bm-ink); }
-.sve-build .bm-anim-menu { position: absolute; top: calc(100% + 0.25rem); right: 0; z-index: 5; display: grid; min-width: 11rem; padding: 0.25rem; border: 1px solid var(--bm-edge); border-radius: 0.5rem; background: var(--bm-panel); box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4); }
-.sve-build .bm-anim-menu button { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; text-align: start; }
-.sve-build .bm-anim-menu button:hover { background: var(--bm-hover); }
+.sve-build .bm-anim-chipwrap {
+  position: relative;
+}
+.sve-build .bm-anim-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 1.75rem;
+  padding: 0 1.75rem 0 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+  border: 1px solid transparent;
+  text-align: start;
+}
+.sve-build .bm-anim-chip:hover {
+  background: var(--bm-hover);
+}
+.sve-build .bm-anim-chip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--bm-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--bm-accent) 50%, transparent);
+}
+.sve-build .bm-anim-chip__ic {
+  display: flex;
+  color: var(--bm-muted);
+}
+.sve-build .bm-anim-chip[aria-pressed='true'] .bm-anim-chip__ic {
+  color: var(--bm-accent);
+}
+.sve-build .bm-anim-chip b {
+  flex: none;
+  font-weight: 600;
+}
+.sve-build .bm-anim-chip__sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bm-muted);
+}
+.sve-build .bm-anim-chip__more {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.25rem;
+  color: var(--bm-muted);
+  transform: translateY(-50%);
+}
+.sve-build .bm-anim-chip__more:hover {
+  background: var(--bm-hover);
+  color: var(--bm-ink);
+}
+.sve-build .bm-anim-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 5;
+  display: grid;
+  min-width: 11rem;
+  padding: 0.25rem;
+  border: 1px solid var(--bm-edge);
+  border-radius: 0.5rem;
+  background: var(--bm-panel);
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4);
+}
+.sve-build .bm-anim-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.375rem;
+  text-align: start;
+}
+.sve-build .bm-anim-menu button:hover {
+  background: var(--bm-hover);
+}
 
 /* Triggers */
-.sve-build .bm-anim-triggers { display: flex; flex-direction: column; gap: 0.0625rem; margin-inline: -0.5rem; }
-.sve-build .bm-anim-trigger { display: flex; align-items: center; gap: 0.625rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; text-align: start; }
-.sve-build .bm-anim-trigger:hover { background: color-mix(in srgb, var(--bm-raise) 60%, transparent); }
-.sve-build .bm-anim-trigger[aria-pressed='true'] { background: var(--bm-raise); }
-.sve-build .bm-anim-trigger__ic { display: flex; color: var(--bm-accent); }
-.sve-build .bm-anim-trigger__word { flex: 1; min-width: 0; }
-.sve-build .bm-anim-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; padding-left: 1.875rem; color: var(--bm-faint); font-size: 0.625rem; }
-.sve-build .bm-anim-switches code { padding: 0.0625rem 0.3125rem; border-radius: 0.25rem; background: var(--bm-hover); color: var(--bm-muted); font-size: 0.625rem; white-space: nowrap; }
+.sve-build .bm-anim-triggers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  margin-inline: -0.5rem;
+}
+.sve-build .bm-anim-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.375rem;
+  text-align: start;
+}
+.sve-build .bm-anim-trigger:hover {
+  background: color-mix(in srgb, var(--bm-raise) 60%, transparent);
+}
+.sve-build .bm-anim-trigger[aria-pressed='true'] {
+  background: var(--bm-raise);
+}
+.sve-build .bm-anim-trigger__ic {
+  display: flex;
+  color: var(--bm-accent);
+}
+.sve-build .bm-anim-trigger__word {
+  flex: 1;
+  min-width: 0;
+}
+.sve-build .bm-anim-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  padding-left: 1.875rem;
+  color: var(--bm-faint);
+  font-size: 0.625rem;
+}
+.sve-build .bm-anim-switches code {
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 0.25rem;
+  background: var(--bm-hover);
+  color: var(--bm-muted);
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
 
 /* Library */
-.sve-build .bm-anim-lib { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; }
-.sve-build .bm-anim-tile { display: flex; flex-direction: column; align-items: center; gap: 0.375rem; padding: 0.625rem 0.375rem 0.5rem; border-radius: 0.5rem; background: var(--bm-raise); transition: background 0.12s; }
-.sve-build .bm-anim-tile:hover { background: var(--bm-hover); }
-.sve-build .bm-anim-tile svg { width: 4rem; height: 2.5rem; }
-.sve-build .bm-anim-tile > span { color: var(--bm-muted); font-size: 0.625rem; line-height: 1.2; text-align: center; }
-.sve-build .bm-anim-tile__n { margin-top: -0.25rem; color: var(--bm-faint); font-size: 0.5625rem; }
+.sve-build .bm-anim-lib {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+.sve-build .bm-anim-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.625rem 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--bm-raise);
+  transition: background 0.12s;
+}
+.sve-build .bm-anim-tile:hover {
+  background: var(--bm-hover);
+}
+.sve-build .bm-anim-tile svg {
+  width: 4rem;
+  height: 2.5rem;
+}
+.sve-build .bm-anim-tile > span {
+  color: var(--bm-muted);
+  font-size: 0.625rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.sve-build .bm-anim-tile__n {
+  margin-top: -0.25rem;
+  color: var(--bm-faint);
+  font-size: 0.5625rem;
+}
 
 /* SmallBtn */
-.sve-build .bm-anim-btn { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.625rem; padding: 0 0.625rem; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
-.sve-build .bm-anim-btn:hover { background: var(--bm-hover); }
-.sve-build .bm-anim-btn.is-primary { background: var(--bm-accent); color: #fff; }
-.sve-build .bm-anim-btn.is-primary:hover { background: color-mix(in srgb, var(--bm-accent) 85%, #fff); }
-.sve-build .bm-anim-btn:disabled { opacity: 0.5; cursor: default; }
+.sve-build .bm-anim-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.625rem;
+  padding: 0 0.625rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+  color: var(--bm-ink);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sve-build .bm-anim-btn:hover {
+  background: var(--bm-hover);
+}
+.sve-build .bm-anim-btn.is-primary {
+  background: var(--bm-accent);
+  color: #fff;
+}
+.sve-build .bm-anim-btn.is-primary:hover {
+  background: color-mix(in srgb, var(--bm-accent) 85%, #fff);
+}
+.sve-build .bm-anim-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 /* Popover: the editor over the panel, the curve beside the editor (lib/beside.js) */
-.sve-build.bm-anim-pop { position: fixed; z-index: 99999; display: flex; flex-direction: column; width: 20rem; height: auto; max-height: calc(100vh - 1rem); border: 1px solid var(--bm-edge); border-radius: 0.75rem; box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45); overflow: hidden; }
-.sve-build.bm-anim-pop.is-curve { width: 16.875rem; }
-.sve-build.bm-anim-pop.is-gallery { width: 17.5rem; }
-.sve-build .bm-anim-pop__head { flex: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 0.75rem; }
-.sve-build .bm-anim-pop__head b { font-weight: 600; }
-.sve-build .bm-anim-pop__tag { padding: 0.0625rem 0.375rem; border-radius: 0.25rem; background: var(--bm-hover); color: var(--bm-muted); font-size: 0.625rem; }
-.sve-build .bm-anim-pop__x { display: flex; margin-left: auto; color: var(--bm-faint); }
-.sve-build .bm-anim-pop__x:hover { color: var(--bm-ink); }
-.sve-build .bm-anim-pop__body { min-height: 0; overflow: auto; }
+.sve-build.bm-anim-pop {
+  position: fixed;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  width: 20rem;
+  height: auto;
+  max-height: calc(100vh - 1rem);
+  border: 1px solid var(--bm-edge);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.sve-build.bm-anim-pop.is-curve {
+  width: 16.875rem;
+}
+.sve-build.bm-anim-pop.is-gallery {
+  width: 17.5rem;
+}
+.sve-build .bm-anim-pop__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+}
+.sve-build .bm-anim-pop__head b {
+  font-weight: 600;
+}
+.sve-build .bm-anim-pop__tag {
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--bm-hover);
+  color: var(--bm-muted);
+  font-size: 0.625rem;
+}
+.sve-build .bm-anim-pop__x {
+  display: flex;
+  margin-left: auto;
+  color: var(--bm-faint);
+}
+.sve-build .bm-anim-pop__x:hover {
+  color: var(--bm-ink);
+}
+.sve-build .bm-anim-pop__body {
+  min-height: 0;
+  overflow: auto;
+}
 
 /* Stage: the page's own runtime.css on the kind's shape */
-.sve-build .bm-anim-stage { position: relative; display: flex; align-items: center; justify-content: center; height: 8rem; background: var(--bm-bg); overflow: hidden; }
-.sve-build .bm-anim-stage__set { display: flex; flex-direction: column; gap: 0.5rem; }
-.sve-build .bm-anim-stage__set > i { display: block; border-radius: 0.3125rem; background: color-mix(in srgb, var(--bm-accent) 50%, transparent); border: 1px solid color-mix(in srgb, var(--bm-accent) 90%, transparent); }
+.sve-build .bm-anim-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 8rem;
+  background: var(--bm-bg);
+  overflow: hidden;
+}
+.sve-build .bm-anim-stage__set {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sve-build .bm-anim-stage__set > i {
+  display: block;
+  border-radius: 0.3125rem;
+  background: color-mix(in srgb, var(--bm-accent) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bm-accent) 90%, transparent);
+}
 /* The gallery's shapes (BuildAnimationGallery.vue), twice their size: one box for an element, three bars for children, three words for words */
-.sve-build .bm-anim-stage__set.is-self > i { width: 7rem; height: 3.5rem; }
-.sve-build .bm-anim-stage__set.is-children > i { width: 7.5rem; height: 1.25rem; }
-.sve-build .bm-anim-stage__set.is-words { flex-direction: row; }
-.sve-build .bm-anim-stage__set.is-words > i { height: 1.5rem; border-radius: 0.25rem; }
-.sve-build .bm-anim-stage__set.is-words > i:nth-child(1) { width: 2.75rem; }
-.sve-build .bm-anim-stage__set.is-words > i:nth-child(2) { width: 3.75rem; }
-.sve-build .bm-anim-stage__set.is-words > i:nth-child(3) { width: 2.25rem; }
-.sve-build .bm-anim-reduced { margin: 0; padding: 0.4375rem 0.75rem; border-top: 1px solid var(--bm-line); background: color-mix(in srgb, var(--bm-accent) 8%, transparent); color: var(--bm-faint); font-size: 0.6875rem; line-height: 1.4; }
+.sve-build .bm-anim-stage__set.is-self > i {
+  width: 7rem;
+  height: 3.5rem;
+}
+.sve-build .bm-anim-stage__set.is-children > i {
+  width: 7.5rem;
+  height: 1.25rem;
+}
+.sve-build .bm-anim-stage__set.is-words {
+  flex-direction: row;
+}
+.sve-build .bm-anim-stage__set.is-words > i {
+  height: 1.5rem;
+  border-radius: 0.25rem;
+}
+.sve-build .bm-anim-stage__set.is-words > i:nth-child(1) {
+  width: 2.75rem;
+}
+.sve-build .bm-anim-stage__set.is-words > i:nth-child(2) {
+  width: 3.75rem;
+}
+.sve-build .bm-anim-stage__set.is-words > i:nth-child(3) {
+  width: 2.25rem;
+}
+.sve-build .bm-anim-reduced {
+  margin: 0;
+  padding: 0.4375rem 0.75rem;
+  border-top: 1px solid var(--bm-line);
+  background: color-mix(in srgb, var(--bm-accent) 8%, transparent);
+  color: var(--bm-faint);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
 
 /* Line, Box, Select, Num, Seg, Switch */
-.sve-build .bm-anim-line { display: grid; grid-template-columns: 5.75rem minmax(0, 1fr); align-items: center; gap: 0.5rem; }
-.sve-build .bm-anim-line > span:first-child { color: var(--bm-muted); font-size: 0.6875rem; white-space: nowrap; }
-.sve-build .bm-anim-line.is-effect { grid-template-columns: 5.75rem minmax(0, 1fr) 1rem; }
-.sve-build .bm-anim-box { position: relative; display: flex; align-items: center; gap: 0.375rem; min-width: 0; height: 1.625rem; padding: 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); }
-.sve-build .bm-anim-box:hover { background: var(--bm-hover); }
-.sve-build .bm-anim-box__val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sve-build .bm-anim-caret { display: flex; color: var(--bm-faint); }
-.sve-build .bm-anim-box select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.sve-build .bm-anim-box:has(select:focus-visible), .sve-build button.bm-anim-box:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
-.sve-build button.bm-anim-box { width: 100%; text-align: start; }
-.sve-build button.bm-anim-box[aria-expanded='true'] { background: var(--bm-hover); }
-.sve-build .bm-anim-num { position: relative; display: flex; align-items: center; min-width: 0; height: 1.625rem; padding: 0 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); overflow: hidden; cursor: ew-resize; touch-action: none; }
-.sve-build .bm-anim-num.is-raw { cursor: default; }
-.sve-build .bm-anim-num__fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--bm-hover); pointer-events: none; }
-.sve-build .bm-anim-num__in { position: relative; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--bm-ink); font: inherit; cursor: inherit; pointer-events: none; }
-.sve-build .bm-anim-num__in:focus { outline: 0; cursor: text; pointer-events: auto; }
-.sve-build .bm-anim-num:has(.bm-anim-num__in:focus) { outline: 2px solid var(--bm-accent); outline-offset: 1px; cursor: text; }
-.sve-build .bm-anim-num__unit { position: relative; color: var(--bm-faint); font-size: 0.625rem; pointer-events: none; }
-.sve-build .bm-anim-seg { display: flex; gap: 0.125rem; padding: 0.125rem; border-radius: 0.375rem; background: var(--bm-raise); }
-.sve-build .bm-anim-seg button { flex: 1; padding: 0.25rem 0.375rem; border-radius: 0.25rem; color: var(--bm-faint); font-size: 0.6875rem; white-space: nowrap; text-align: center; }
-.sve-build .bm-anim-seg button:hover { color: var(--bm-ink); }
-.sve-build .bm-anim-seg button[aria-pressed='true'] { background: var(--bm-accent); color: #fff; }
-.sve-build .bm-anim-switch { position: relative; justify-self: end; width: 1.75rem; height: 1rem; border-radius: 0.5rem; background: var(--bm-hover); transition: background 0.15s; }
-.sve-build .bm-anim-switch::after { content: ''; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--bm-ink); transition: left 0.15s; }
-.sve-build .bm-anim-switch[aria-checked='true'] { background: var(--bm-accent); }
-.sve-build .bm-anim-switch[aria-checked='true']::after { left: 0.875rem; }
-.sve-build .bm-anim-switch:disabled, .sve-build .bm-anim-box:has(select:disabled) { opacity: 0.5; }
-.sve-build .bm-anim-box select:disabled { cursor: default; }
+.sve-build .bm-anim-line {
+  display: grid;
+  grid-template-columns: 5.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+.sve-build .bm-anim-line > span:first-child {
+  color: var(--bm-muted);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.sve-build .bm-anim-line.is-effect {
+  grid-template-columns: 5.75rem minmax(0, 1fr) 1rem;
+}
+.sve-build .bm-anim-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+}
+.sve-build .bm-anim-box:hover {
+  background: var(--bm-hover);
+}
+.sve-build .bm-anim-box__val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-build .bm-anim-caret {
+  display: flex;
+  color: var(--bm-faint);
+}
+.sve-build .bm-anim-box select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.sve-build .bm-anim-box:has(select:focus-visible),
+.sve-build button.bm-anim-box:focus-visible {
+  outline: 2px solid var(--bm-accent);
+  outline-offset: 1px;
+}
+.sve-build button.bm-anim-box {
+  width: 100%;
+  text-align: start;
+}
+.sve-build button.bm-anim-box[aria-expanded='true'] {
+  background: var(--bm-hover);
+}
+.sve-build .bm-anim-num {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+  overflow: hidden;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.sve-build .bm-anim-num.is-raw {
+  cursor: default;
+}
+.sve-build .bm-anim-num__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--bm-hover);
+  pointer-events: none;
+}
+.sve-build .bm-anim-num__in {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bm-ink);
+  font: inherit;
+  cursor: inherit;
+  pointer-events: none;
+}
+.sve-build .bm-anim-num__in:focus {
+  outline: 0;
+  cursor: text;
+  pointer-events: auto;
+}
+.sve-build .bm-anim-num:has(.bm-anim-num__in:focus) {
+  outline: 2px solid var(--bm-accent);
+  outline-offset: 1px;
+  cursor: text;
+}
+.sve-build .bm-anim-num__unit {
+  position: relative;
+  color: var(--bm-faint);
+  font-size: 0.625rem;
+  pointer-events: none;
+}
+.sve-build .bm-anim-seg {
+  display: flex;
+  gap: 0.125rem;
+  padding: 0.125rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+}
+.sve-build .bm-anim-seg button {
+  flex: 1;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.25rem;
+  color: var(--bm-faint);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  text-align: center;
+}
+.sve-build .bm-anim-seg button:hover {
+  color: var(--bm-ink);
+}
+.sve-build .bm-anim-seg button[aria-pressed='true'] {
+  background: var(--bm-accent);
+  color: #fff;
+}
+.sve-build .bm-anim-switch {
+  position: relative;
+  justify-self: end;
+  width: 1.75rem;
+  height: 1rem;
+  border-radius: 0.5rem;
+  background: var(--bm-hover);
+  transition: background 0.15s;
+}
+.sve-build .bm-anim-switch::after {
+  content: '';
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--bm-ink);
+  transition: left 0.15s;
+}
+.sve-build .bm-anim-switch[aria-checked='true'] {
+  background: var(--bm-accent);
+}
+.sve-build .bm-anim-switch[aria-checked='true']::after {
+  left: 0.875rem;
+}
+.sve-build .bm-anim-switch:disabled,
+.sve-build .bm-anim-box:has(select:disabled) {
+  opacity: 0.5;
+}
+.sve-build .bm-anim-box select:disabled {
+  cursor: default;
+}
 
 /* This section's own: the dot beside the name, Nulstil under the value */
-.sve-build .bm-anim-dot { display: inline-block; width: 0.375rem; height: 0.375rem; margin-left: 0.3125rem; border-radius: 50%; background: var(--bm-accent); vertical-align: middle; }
-.sve-build .bm-anim-reset { grid-column: 2 / -1; justify-self: start; margin-top: -0.25rem; color: var(--bm-accent); font-size: 0.625rem; }
-.sve-build .bm-anim-reset:hover { text-decoration: underline; }
+.sve-build .bm-anim-dot {
+  display: inline-block;
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-left: 0.3125rem;
+  border-radius: 50%;
+  background: var(--bm-accent);
+  vertical-align: middle;
+}
+.sve-build .bm-anim-reset {
+  grid-column: 2 / -1;
+  justify-self: start;
+  margin-top: -0.25rem;
+  color: var(--bm-accent);
+  font-size: 0.625rem;
+}
+.sve-build .bm-anim-reset:hover {
+  text-decoration: underline;
+}
 
 /* Effects */
-.sve-build .bm-anim-minus { display: flex; color: var(--bm-faint); }
-.sve-build .bm-anim-minus:hover { color: var(--bm-ink); }
-.sve-build .bm-anim-more { display: flex; flex-wrap: wrap; gap: 0.25rem; color: var(--bm-faint); font-size: 0.625rem; }
-.sve-build .bm-anim-more button:hover { color: var(--bm-ink); text-decoration: underline; }
+.sve-build .bm-anim-minus {
+  display: flex;
+  color: var(--bm-faint);
+}
+.sve-build .bm-anim-minus:hover {
+  color: var(--bm-ink);
+}
+.sve-build .bm-anim-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  color: var(--bm-faint);
+  font-size: 0.625rem;
+}
+.sve-build .bm-anim-more button:hover {
+  color: var(--bm-ink);
+  text-decoration: underline;
+}
 
 /* Curve */
-.sve-build .bm-anim-ease { display: grid; grid-template-columns: minmax(0, 1fr) 1.625rem; gap: 0.375rem; }
-.sve-build .bm-anim-curvebtn { display: flex; align-items: center; justify-content: center; height: 1.625rem; border-radius: 0.375rem; background: var(--bm-raise); border: 1px solid color-mix(in srgb, var(--bm-accent) 60%, transparent); color: var(--bm-accent); }
-.sve-build .bm-anim-curvebtn:hover, .sve-build .bm-anim-curvebtn[aria-pressed='true'] { background: color-mix(in srgb, var(--bm-accent) 22%, transparent); }
-.sve-build .bm-anim-bezier { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--bm-ink); font: 0.6875rem var(--bm-mono); }
-.sve-build .bm-anim-bezier:focus { outline: 0; }
-.sve-build .bm-anim-graph { display: flex; justify-content: center; padding: 0.5rem; border-radius: 0.5rem; background: var(--bm-bg); }
-.sve-build .bm-anim-graph svg { width: 10.5rem; height: 10.5rem; overflow: visible; touch-action: none; }
-.sve-build .bm-anim-graph .g-line { fill: none; stroke: var(--bm-line); }
-.sve-build .bm-anim-graph .g-diag { stroke: var(--bm-quiet); stroke-dasharray: 3 3; }
-.sve-build .bm-anim-graph .g-arm { stroke: var(--bm-faint); stroke-dasharray: 2 2; }
-.sve-build .bm-anim-graph .g-curve { fill: none; stroke: var(--bm-accent); stroke-width: 2; stroke-linejoin: round; }
-.sve-build .bm-anim-graph .g-h1 { fill: var(--bm-ink); cursor: grab; }
-.sve-build .bm-anim-graph .g-h2 { fill: var(--bm-accent); cursor: grab; }
-.sve-build .bm-anim-graph .g-text { fill: var(--bm-faint); pointer-events: none; }
-.sve-build .bm-anim-strip { position: relative; display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; border-radius: 0.375rem; background: var(--bm-raise); }
-.sve-build .bm-anim-strip__sq { position: absolute; top: 50%; left: 0.5rem; width: 0.875rem; height: 0.875rem; border-radius: 0.1875rem; background: var(--bm-accent); transform: translateY(-50%); transition: left var(--strip-time, 0.6s) var(--strip-ease, ease); }
-.sve-build .bm-anim-strip:hover .bm-anim-strip__sq { left: calc(100% - 1.875rem - 1px); }
-.sve-build .bm-anim-strip__room { flex: none; width: 0.875rem; height: 0.875rem; }
-.sve-build .bm-anim-strip__line { flex: 1; height: 0; border-top: 1px dashed var(--bm-quiet); }
-.sve-build .bm-anim-strip__end { flex: none; width: 1px; height: 0.875rem; background: var(--bm-faint); }
-.sve-build .bm-anim-strip__hint { color: var(--bm-faint); font-size: 0.625rem; text-align: center; }
-.sve-build .bm-anim-note { color: var(--bm-muted); font-size: 0.6875rem; line-height: 1.45; }
-.sve-build .bm-anim-foot { flex-direction: row; justify-content: space-between; }
-.sve-build .bm-anim-foot__end { display: flex; gap: 0.375rem; margin-left: auto; }
-.sve-build .bm-anim-foot:not(:has(> *)) { display: none; }
-.sve-build .bm-anim-naming .bm-anim-foot { display: flex; justify-content: flex-end; gap: 0.375rem; }
-.sve-build .bm-anim-name { height: 1.625rem; padding: 0 0.5rem; border: 0; border-radius: 0.375rem; background: var(--bm-raise); color: var(--bm-ink); font: inherit; }
-.sve-build .bm-anim-name:focus { outline: 0.125rem solid var(--bm-accent); outline-offset: 1px; }
-.sve-build .bm-anim-hint { margin: 0; color: var(--bm-faint); font-size: 0.625rem; line-height: 1.45; }
-.sve-build .bm-anim-box code.bm-anim-box__val { font: 0.6875rem var(--bm-mono); }
+.sve-build .bm-anim-ease {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.625rem;
+  gap: 0.375rem;
+}
+.sve-build .bm-anim-curvebtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.625rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+  border: 1px solid color-mix(in srgb, var(--bm-accent) 60%, transparent);
+  color: var(--bm-accent);
+}
+.sve-build .bm-anim-curvebtn:hover,
+.sve-build .bm-anim-curvebtn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--bm-accent) 22%, transparent);
+}
+.sve-build .bm-anim-bezier {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bm-ink);
+  font: 0.6875rem var(--bm-mono);
+}
+.sve-build .bm-anim-bezier:focus {
+  outline: 0;
+}
+.sve-build .bm-anim-graph {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--bm-bg);
+}
+.sve-build .bm-anim-graph svg {
+  width: 10.5rem;
+  height: 10.5rem;
+  overflow: visible;
+  touch-action: none;
+}
+.sve-build .bm-anim-graph .g-line {
+  fill: none;
+  stroke: var(--bm-line);
+}
+.sve-build .bm-anim-graph .g-diag {
+  stroke: var(--bm-quiet);
+  stroke-dasharray: 3 3;
+}
+.sve-build .bm-anim-graph .g-arm {
+  stroke: var(--bm-faint);
+  stroke-dasharray: 2 2;
+}
+.sve-build .bm-anim-graph .g-curve {
+  fill: none;
+  stroke: var(--bm-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.sve-build .bm-anim-graph .g-h1 {
+  fill: var(--bm-ink);
+  cursor: grab;
+}
+.sve-build .bm-anim-graph .g-h2 {
+  fill: var(--bm-accent);
+  cursor: grab;
+}
+.sve-build .bm-anim-graph .g-text {
+  fill: var(--bm-faint);
+  pointer-events: none;
+}
+.sve-build .bm-anim-strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+}
+.sve-build .bm-anim-strip__sq {
+  position: absolute;
+  top: 50%;
+  left: 0.5rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 0.1875rem;
+  background: var(--bm-accent);
+  transform: translateY(-50%);
+  transition: left var(--strip-time, 0.6s) var(--strip-ease, ease);
+}
+.sve-build .bm-anim-strip:hover .bm-anim-strip__sq {
+  left: calc(100% - 1.875rem - 1px);
+}
+.sve-build .bm-anim-strip__room {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.sve-build .bm-anim-strip__line {
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed var(--bm-quiet);
+}
+.sve-build .bm-anim-strip__end {
+  flex: none;
+  width: 1px;
+  height: 0.875rem;
+  background: var(--bm-faint);
+}
+.sve-build .bm-anim-strip__hint {
+  color: var(--bm-faint);
+  font-size: 0.625rem;
+  text-align: center;
+}
+.sve-build .bm-anim-note {
+  color: var(--bm-muted);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+}
+.sve-build .bm-anim-foot {
+  flex-direction: row;
+  justify-content: space-between;
+}
+.sve-build .bm-anim-foot__end {
+  display: flex;
+  gap: 0.375rem;
+  margin-left: auto;
+}
+.sve-build .bm-anim-foot:not(:has(> *)) {
+  display: none;
+}
+.sve-build .bm-anim-naming .bm-anim-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+.sve-build .bm-anim-name {
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: var(--bm-raise);
+  color: var(--bm-ink);
+  font: inherit;
+}
+.sve-build .bm-anim-name:focus {
+  outline: 0.125rem solid var(--bm-accent);
+  outline-offset: 1px;
+}
+.sve-build .bm-anim-hint {
+  margin: 0;
+  color: var(--bm-faint);
+  font-size: 0.625rem;
+  line-height: 1.45;
+}
+.sve-build .bm-anim-box code.bm-anim-box__val {
+  font: 0.6875rem var(--bm-mono);
+}
 
 /* Scrim: the panel dimmed and softened under the editor; the canvas beside it stays clear */
-.sve-build.bm-anim-scrim { position: fixed; z-index: 99998; height: auto; min-height: 0; background: color-mix(in srgb, var(--bm-bg) 55%, transparent); -webkit-backdrop-filter: blur(0.1875rem); backdrop-filter: blur(0.1875rem); }
+.sve-build.bm-anim-scrim {
+  position: fixed;
+  z-index: 99998;
+  height: auto;
+  min-height: 0;
+  background: color-mix(in srgb, var(--bm-bg) 55%, transparent);
+  -webkit-backdrop-filter: blur(0.1875rem);
+  backdrop-filter: blur(0.1875rem);
+}
 </style>

@@ -103,26 +103,29 @@ const state = {
 };
 
 function ensureStyle(doc) {
-  injectStyle(doc, STYLE_ID,
-    `@keyframes sve-lp-publish-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.86)}}`
-    + `#${LP_PUBLISH_ID}[data-busy] svg[data-icon="publish"]{animation:sve-lp-publish-pulse 1.1s ease-in-out infinite;transform-origin:50% 50%}`
-    + `#${LP_PUBLISH_ID}[data-busy]{cursor:progress}`
-    + `#${LP_PUBLISH_ID} svg[data-icon="done"]{display:none}`
-    + `#${LP_PUBLISH_ID}[data-done] svg[data-icon="done"]{display:block}`
-    + `#${LP_PUBLISH_ID}[data-done] svg[data-icon="publish"]{display:none}`
-    + `#${PROGRESS_ID},#${CARD_ID}{position:fixed;z-index:2147483645;transform:translateX(-50%);box-sizing:border-box;width:max-content;max-width:min(52rem,calc(100vw - 2rem));background:var(--theme-color-content-bg,#1c1c1c);color:currentColor;border:1px solid color-mix(in srgb,currentColor 12%,transparent);border-radius:.65rem;padding:.4rem .7rem;box-shadow:0 1rem 2.5rem rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,sans-serif}`
-    + `#${PROGRESS_ID} .sve-sp-steps{display:flex;gap:.4rem;flex-wrap:nowrap;align-items:center}`
-    + `.sve-sp-step{display:inline-flex;align-items:center;gap:.35em;font-size:.75rem;padding:.2em .65em;border-radius:999px;border:1px solid color-mix(in srgb,currentColor 12%,transparent);opacity:.55;white-space:nowrap}`
-    + `.sve-sp-step.is-on{opacity:1;border-color:var(--theme-color-primary,#4f46e5);background:color-mix(in srgb,var(--theme-color-primary,#4f46e5) 14%,transparent)}`
-    + `.sve-sp-step.is-done{opacity:1}`
-    + `.sve-sp-dot{width:.45em;height:.45em;border-radius:50%;background:currentColor;opacity:.4}`
-    + `.sve-sp-step.is-on .sve-sp-dot{opacity:1;background:var(--theme-color-primary,#4f46e5);animation:sve-lp-publish-pulse 1.1s ease-in-out infinite}`
-    + `.sve-sp-time{font-size:.75rem;line-height:1;margin-left:.15rem;white-space:nowrap}`
-    + `#${CARD_ID}{display:flex;align-items:center;gap:.75rem}`
-    + `#${CARD_ID} .sve-sp-title{flex:0 0 auto;font-size:.875rem;font-weight:600;white-space:nowrap}`
-    + `#${CARD_ID} .sve-sp-body{font-size:.8125rem;line-height:1.3;opacity:.7}`
-    + `#${CARD_ID} a{font-size:.8125rem;line-height:1.2;white-space:nowrap;color:#fff;text-decoration:underline;text-underline-offset:.15em}`
-    + `#${CARD_ID} .sve-sp-x{all:unset;cursor:pointer;font-size:1rem;line-height:1;opacity:.5;padding:.1rem .25rem;flex-shrink:0}`);
+  injectStyle(
+    doc,
+    STYLE_ID,
+    `@keyframes sve-lp-publish-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.86)}}` +
+      `#${LP_PUBLISH_ID}[data-busy] svg[data-icon="publish"]{animation:sve-lp-publish-pulse 1.1s ease-in-out infinite;transform-origin:50% 50%}` +
+      `#${LP_PUBLISH_ID}[data-busy]{cursor:progress}` +
+      `#${LP_PUBLISH_ID} svg[data-icon="done"]{display:none}` +
+      `#${LP_PUBLISH_ID}[data-done] svg[data-icon="done"]{display:block}` +
+      `#${LP_PUBLISH_ID}[data-done] svg[data-icon="publish"]{display:none}` +
+      `#${PROGRESS_ID},#${CARD_ID}{position:fixed;z-index:2147483645;transform:translateX(-50%);box-sizing:border-box;width:max-content;max-width:min(52rem,calc(100vw - 2rem));background:var(--theme-color-content-bg,#1c1c1c);color:currentColor;border:1px solid color-mix(in srgb,currentColor 12%,transparent);border-radius:.65rem;padding:.4rem .7rem;box-shadow:0 1rem 2.5rem rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,sans-serif}` +
+      `#${PROGRESS_ID} .sve-sp-steps{display:flex;gap:.4rem;flex-wrap:nowrap;align-items:center}` +
+      `.sve-sp-step{display:inline-flex;align-items:center;gap:.35em;font-size:.75rem;padding:.2em .65em;border-radius:999px;border:1px solid color-mix(in srgb,currentColor 12%,transparent);opacity:.55;white-space:nowrap}` +
+      `.sve-sp-step.is-on{opacity:1;border-color:var(--theme-color-primary,#4f46e5);background:color-mix(in srgb,var(--theme-color-primary,#4f46e5) 14%,transparent)}` +
+      `.sve-sp-step.is-done{opacity:1}` +
+      `.sve-sp-dot{width:.45em;height:.45em;border-radius:50%;background:currentColor;opacity:.4}` +
+      `.sve-sp-step.is-on .sve-sp-dot{opacity:1;background:var(--theme-color-primary,#4f46e5);animation:sve-lp-publish-pulse 1.1s ease-in-out infinite}` +
+      `.sve-sp-time{font-size:.75rem;line-height:1;margin-left:.15rem;white-space:nowrap}` +
+      `#${CARD_ID}{display:flex;align-items:center;gap:.75rem}` +
+      `#${CARD_ID} .sve-sp-title{flex:0 0 auto;font-size:.875rem;font-weight:600;white-space:nowrap}` +
+      `#${CARD_ID} .sve-sp-body{font-size:.8125rem;line-height:1.3;opacity:.7}` +
+      `#${CARD_ID} a{font-size:.8125rem;line-height:1.2;white-space:nowrap;color:#fff;text-decoration:underline;text-underline-offset:.15em}` +
+      `#${CARD_ID} .sve-sp-x{all:unset;cursor:pointer;font-size:1rem;line-height:1;opacity:.5;padding:.1rem .25rem;flex-shrink:0}`
+  );
 }
 
 /**

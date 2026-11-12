@@ -2,7 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { PAGE_TRANSITIONS_KEY, pageTransitionsOn, setPageTransitionsOn } from '../../resources/js/page-transitions-pref.js';
+import {
+  PAGE_TRANSITIONS_KEY,
+  pageTransitionsOn,
+  setPageTransitionsOn,
+} from '../../resources/js/page-transitions-pref.js';
 import { CHROME_KEYS } from '../../resources/js/chrome-prefs.js';
 
 const read = (path) => readFileSync(fileURLToPath(new URL(`../../${path}`, import.meta.url)), 'utf8');
@@ -52,7 +56,7 @@ test('a change is saved to the server at once, so the next preview render has it
   assert.equal(win.posts[1].prefs[PAGE_TRANSITIONS_KEY], undefined);
 });
 
-test('the key travels with the user\'s preferences, in the browser and on the server', () => {
+test("the key travels with the user's preferences, in the browser and on the server", () => {
   assert.ok(CHROME_KEYS.includes(PAGE_TRANSITIONS_KEY));
   assert.match(read('src/Http/Controllers/ChromePrefsController.php'), /'sve-page-transitions',/);
   assert.match(read('src/Http/Middleware/InjectBridgeScript.php'), /PAGE_TRANSITIONS_KEY = 'sve-page-transitions'/);

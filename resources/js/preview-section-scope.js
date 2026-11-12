@@ -47,9 +47,7 @@ function rowIds(row) {
 }
 
 function fingerprint(rows) {
-  return (rows || [])
-    .map((row) => rowIds(row)[0] || '')
-    .join('\n');
+  return (rows || []).map((row) => rowIds(row)[0] || '').join('\n');
 }
 
 function cloneRows(rows) {

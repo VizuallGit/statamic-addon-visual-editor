@@ -41,7 +41,15 @@ import { tagChoices, tagRefusal } from './lib/tag-choices.js';
 import { retag } from './lib/retag.js';
 import { dataStateLabel, dataStates, isDataState, withGroup } from './lib/data-states.js';
 import { GROUP_STATES, groupHost } from './lib/group-host.js';
-import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty, ownValueLabels, ownVariables } from './tw-families.js';
+import {
+  colorFor,
+  cssFor,
+  familyFor,
+  loadFamilies,
+  optionsForProperty,
+  ownValueLabels,
+  ownVariables,
+} from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
 import { findClassTags, findPartials } from './dock-partials.js';
 import { twUi } from './cp/tailwind/store.js';
@@ -100,10 +108,35 @@ const STATES = ['', 'dark', 'hover', 'focus', 'active', 'group-hover', 'group-fo
  * paragraph the element holds. Picked like a state, written the same way.
  */
 const PROSE_VARIANTS = [
-  'prose-headings', 'prose-lead', 'prose-h1', 'prose-h2', 'prose-h3', 'prose-h4', 'prose-h5', 'prose-h6',
-  'prose-p', 'prose-a', 'prose-blockquote', 'prose-figure', 'prose-figcaption', 'prose-strong', 'prose-em',
-  'prose-kbd', 'prose-code', 'prose-pre', 'prose-ol', 'prose-ul', 'prose-li', 'prose-table', 'prose-thead',
-  'prose-tr', 'prose-th', 'prose-td', 'prose-img', 'prose-video', 'prose-hr',
+  'prose-headings',
+  'prose-lead',
+  'prose-h1',
+  'prose-h2',
+  'prose-h3',
+  'prose-h4',
+  'prose-h5',
+  'prose-h6',
+  'prose-p',
+  'prose-a',
+  'prose-blockquote',
+  'prose-figure',
+  'prose-figcaption',
+  'prose-strong',
+  'prose-em',
+  'prose-kbd',
+  'prose-code',
+  'prose-pre',
+  'prose-ol',
+  'prose-ul',
+  'prose-li',
+  'prose-table',
+  'prose-thead',
+  'prose-tr',
+  'prose-th',
+  'prose-td',
+  'prose-img',
+  'prose-video',
+  'prose-hr',
 ];
 
 /**
@@ -168,11 +201,16 @@ function variantKey() {
  * `@md`, `@min-[30rem]`, `@max-md/card` (build-mode/container-query.js
  * `isContainerVariant`). `@container` itself is a class, not a size.
  */
-const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$|^@(?!container(?:$|\/))(?:(?:min|max)-)?(?:[a-z0-9]+|\[[^\]]+\])(?:\/[\w-]+)?$/;
+const BP_SHAPED =
+  /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$|^@(?!container(?:$|\/))(?:(?:min|max)-)?(?:[a-z0-9]+|\[[^\]]+\])(?:\/[\w-]+)?$/;
 
 /** The screen size a group belongs to — `max-lg:hover` belongs to `max-lg`. */
 function groupBp(key) {
-  return String(key || '').split(':').find((part) => BP_SHAPED.test(part)) || '';
+  return (
+    String(key || '')
+      .split(':')
+      .find((part) => BP_SHAPED.test(part)) || ''
+  );
 }
 
 /**
@@ -234,7 +272,10 @@ export function twClassesHost(doc) {
 }
 
 function ensureStyles(doc) {
-  injectStyle(doc, STYLE_ID, `
+  injectStyle(
+    doc,
+    STYLE_ID,
+    `
     #${MENU_ID} {
       position: fixed;
       z-index: 100000;
@@ -410,7 +451,8 @@ function ensureStyles(doc) {
       padding: 0.4em 0.5em;
       opacity: .55;
     }
-  `);
+  `
+  );
 }
 
 /**
@@ -616,7 +658,11 @@ function nodeFor(row) {
 
 /** The call as the file has it now — found again by where it starts, so a stale pick reads nothing. */
 function componentCall(html) {
-  return (node.tagCall ? findClassTags(html) : findPartials(html)).find((call) => call.from === node.from && call.src === node.src) || null;
+  return (
+    (node.tagCall ? findClassTags(html) : findPartials(html)).find(
+      (call) => call.from === node.from && call.src === node.src
+    ) || null
+  );
 }
 
 /**
@@ -731,7 +777,9 @@ function commit(win, html, nextValue) {
 function commitTag(win, html, nextValue) {
   const call = node.component ? componentCall(html) : null;
   const next = node.component
-    ? call ? writeCallParam(html, call, node.param, nextValue) : html
+    ? call
+      ? writeCallParam(html, call, node.param, nextValue)
+      : html
     : writeClassValue(html, node, nextValue);
 
   if (next === html) {
@@ -754,18 +802,57 @@ function commitTag(win, html, nextValue) {
  * file keeps whatever order it has until one of the two is used.
  */
 const ORDER = [
-  'display', 'position', 'inset', 'top', 'right', 'bottom', 'left', 'z-index',
-  'flex-direction', 'flex-wrap', 'justify-content', 'align-items',
-  'gap', 'column-gap', 'row-gap',
-  'margin', 'margin-inline', 'margin-block',
-  'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-  'padding', 'padding-inline', 'padding-block',
-  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-  'width', 'min-width', 'max-width', 'height', 'min-height', 'max-height',
-  'font-family', 'font-size', 'font-weight', 'line-height', 'text-align',
-  'text-transform', 'text-decoration-line', 'font-style',
-  'color', 'background-color', 'border-color', 'border-radius',
-  'fill', 'stroke', 'outline-color', 'overflow',
+  'display',
+  'position',
+  'inset',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'z-index',
+  'flex-direction',
+  'flex-wrap',
+  'justify-content',
+  'align-items',
+  'gap',
+  'column-gap',
+  'row-gap',
+  'margin',
+  'margin-inline',
+  'margin-block',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'padding',
+  'padding-inline',
+  'padding-block',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'width',
+  'min-width',
+  'max-width',
+  'height',
+  'min-height',
+  'max-height',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'line-height',
+  'text-align',
+  'text-transform',
+  'text-decoration-line',
+  'font-style',
+  'color',
+  'background-color',
+  'border-color',
+  'border-radius',
+  'fill',
+  'stroke',
+  'outline-color',
+  'overflow',
 ];
 
 function rankOf(name) {
@@ -817,7 +904,11 @@ export function twSortClasses(win) {
   });
 
   const slots = [...items].sort((a, b) => a.from - b.from).map((item) => ({ from: item.from, to: item.to }));
-  const next = reorderTokens(current.value, slots, sorted.map((item) => item.raw));
+  const next = reorderTokens(
+    current.value,
+    slots,
+    sorted.map((item) => item.raw)
+  );
 
   if (next !== current.value) {
     commit(win, current.html, next);
@@ -905,7 +996,9 @@ export function twPickedClasses() {
 
   return {
     tag: node.component ? '' : String(node.tag || ''),
-    raws: currentChips(current.value).filter((chip) => !chip.dynamic).map((chip) => chip.raw),
+    raws: currentChips(current.value)
+      .filter((chip) => !chip.dynamic)
+      .map((chip) => chip.raw),
   };
 }
 
@@ -970,7 +1063,9 @@ export function twSetOneOf(win, set, name) {
     return;
   }
 
-  const worn = currentChips(current.value).filter((chip) => !chip.dynamic && set.includes(chip.raw)).sort((a, b) => b.from - a.from);
+  const worn = currentChips(current.value)
+    .filter((chip) => !chip.dynamic && set.includes(chip.raw))
+    .sort((a, b) => b.from - a.from);
   let next = current.value;
 
   worn.forEach((chip, index) => {
@@ -1001,9 +1096,7 @@ function currentChips(value) {
 function variantChips(value) {
   const key = variantKey();
 
-  return currentChips(value).filter(
-    (chip) => !chip.dynamic && chip.variants.join(':') === key
-  );
+  return currentChips(value).filter((chip) => !chip.dynamic && chip.variants.join(':') === key);
 }
 
 /**
@@ -1025,7 +1118,14 @@ function variantChips(value) {
 function withoutCovered(value, name) {
   const base = splitClass(name).base;
   const chips = variantChips(value).filter((chip) => !chip.important);
-  const gone = new Set(chips.some((chip) => chip.name === base) ? coveredBy(chips.map((chip) => chip.name), base) : []);
+  const gone = new Set(
+    chips.some((chip) => chip.name === base)
+      ? coveredBy(
+          chips.map((chip) => chip.name),
+          base
+        )
+      : []
+  );
   let next = value;
 
   chips
@@ -1040,24 +1140,32 @@ function withoutCovered(value, name) {
 
 function setClassValueWith(value, name) {
   const slot = slotOf(name);
-  const existing = variantChips(value).find(
-    (chip) => chip.name === name || (slot && slotOf(chip.name) === slot)
-  );
+  const existing = variantChips(value).find((chip) => chip.name === name || (slot && slotOf(chip.name) === slot));
 
   if (existing?.name === name) {
     return replaceToken(value, existing, '');
   }
 
   if (existing) {
-    return withoutCovered(replaceToken(value, existing, buildClass({
-      variants: existing.variants,
-      name,
-      modifier: existing.modifier,
-      important: existing.important,
-    })), name);
+    return withoutCovered(
+      replaceToken(
+        value,
+        existing,
+        buildClass({
+          variants: existing.variants,
+          name,
+          modifier: existing.modifier,
+          important: existing.important,
+        })
+      ),
+      name
+    );
   }
 
-  return withoutCovered(appendToken(value, buildClass({ variants: variantList(), name, modifier: '', important: '' })), name);
+  return withoutCovered(
+    appendToken(value, buildClass({ variants: variantList(), name, modifier: '', important: '' })),
+    name
+  );
 }
 
 export function twSetClass(win, name) {
@@ -1113,9 +1221,7 @@ function classValueWith(value, typed) {
   const slot = slotOf(splitUtility(base).name);
   const key = variants.join(':');
   const existing = slot
-    ? chips.find(
-      (chip) => !chip.dynamic && chip.variants.join(':') === key && slotOf(chip.name) === slot
-    )
+    ? chips.find((chip) => !chip.dynamic && chip.variants.join(':') === key && slotOf(chip.name) === slot)
     : null;
 
   return {
@@ -1178,7 +1284,9 @@ function keepPreview(win) {
 
 function sendPreview(win, detail) {
   if (classTarget && typeof detail?.value === 'string') {
-    win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail: { ...detail, value: classTarget.preview(detail.value) } }));
+    win.document.dispatchEvent(
+      new win.CustomEvent(EVENT.TW_PREVIEW, { detail: { ...detail, value: classTarget.preview(detail.value) } })
+    );
 
     return;
   }
@@ -1200,11 +1308,11 @@ function chipValueWith(current, chip, nextName) {
 
   const nextRaw = nextName
     ? buildClass({
-      variants: chip.variants,
-      name: nextName,
-      modifier: chip.modifier,
-      important: chip.important,
-    })
+        variants: chip.variants,
+        name: nextName,
+        modifier: chip.modifier,
+        important: chip.important,
+      })
     : '';
 
   return replaceToken(current.value, chip, nextRaw);
@@ -1339,7 +1447,12 @@ function renameAt(win, target, name) {
 }
 
 export function twOpenTagMenu(win, anchor) {
-  openMenu(win, anchor, TwTagMenu, tagMenuProps(win, node?.tag, (name) => twSetTag(win, name)));
+  openMenu(
+    win,
+    anchor,
+    TwTagMenu,
+    tagMenuProps(win, node?.tag, (name) => twSetTag(win, name))
+  );
 }
 
 export function twHasNode() {
@@ -1485,7 +1598,11 @@ function showStateMenu(win, anchor, states, write) {
       data: states.length
         ? [
             { var: none, id: '' },
-            ...states.map((state) => ({ var: dataStateLabel(state.id), id: state.id, value: state.id === variantState ? '●' : `<${state.tag}>` })),
+            ...states.map((state) => ({
+              var: dataStateLabel(state.id),
+              id: state.id,
+              value: state.id === variantState ? '●' : `<${state.tag}>`,
+            })),
           ]
         : [],
     },
@@ -1755,7 +1872,11 @@ export function twSetFieldClass(win, name, own) {
  * also writes a value the scale does not have (`10px`, `calc(…)`, `--gutter`),
  * once Tailwind compiles it.
  */
-export function twOpenValueMenu(win, anchor, { property, names = null, title = '', own = null, free = null, after } = {}) {
+export function twOpenValueMenu(
+  win,
+  anchor,
+  { property, names = null, title = '', own = null, free = null, after } = {}
+) {
   if (!currentValue()) {
     return;
   }
@@ -1781,10 +1902,10 @@ export function twOpenValueMenu(win, anchor, { property, names = null, title = '
     options: optionRows(win, options, own?.name || ''),
     free: free
       ? (text) => {
-        const name = free(text);
+          const name = free(text);
 
-        return name && model?.catalog?.resolve(name) ? name : '';
-      }
+          return name && model?.catalog?.resolve(name) ? name : '';
+        }
       : null,
     // The own-value mode: the site's variables to reach for, its words, and
     // the CSS a typed value comes to (TwClassMenu).
@@ -1851,7 +1972,10 @@ export function twValueOptions(win, property) {
       continue;
     }
 
-    const value = css.slice(colon + 1).replace(/;+\s*$/, '').trim();
+    const value = css
+      .slice(colon + 1)
+      .replace(/;+\s*$/, '')
+      .trim();
 
     if (!value || seen.has(value)) {
       continue;
@@ -2128,29 +2252,31 @@ function render(win) {
         ? 'tw_classes_component_none'
         : node.component && node.param && !current
           ? 'tw_classes_component_bound'
-          : parsed.groups.length ? 'tw_classes_none_size' : 'tw_classes_none'
+          : parsed.groups.length
+            ? 'tw_classes_none_size'
+            : 'tw_classes_none'
   );
-  twUi.groups = parsed.groups.filter((group) => groupInSize(group.key)).map((group) => ({
-    key: group.key,
-    current: group.key === twUi.variant,
-    chips: group.items.map((item, index) => {
-      const chip = {
-        ...item,
-        ...(item.dynamic ? null : chipHost?.mark(item.raw)),
-        id: `${group.key}-${index}-${item.from}`,
-        locked: item.dynamic || !twUi.canEdit,
-        open: false,
-        color: item.dynamic ? '' : chipColor(win, item.name),
-        title: item.dynamic
-          ? t(win, 'tw_classes_dynamic')
-          : cssFor(item.name, model) || item.raw,
-      };
+  twUi.groups = parsed.groups
+    .filter((group) => groupInSize(group.key))
+    .map((group) => ({
+      key: group.key,
+      current: group.key === twUi.variant,
+      chips: group.items.map((item, index) => {
+        const chip = {
+          ...item,
+          ...(item.dynamic ? null : chipHost?.mark(item.raw)),
+          id: `${group.key}-${index}-${item.from}`,
+          locked: item.dynamic || !twUi.canEdit,
+          open: false,
+          color: item.dynamic ? '' : chipColor(win, item.name),
+          title: item.dynamic ? t(win, 'tw_classes_dynamic') : cssFor(item.name, model) || item.raw,
+        };
 
-      chips.set(chip.id, chip);
+        chips.set(chip.id, chip);
 
-      return chip;
-    }),
-  }));
+        return chip;
+      }),
+    }));
 
   const host = twClassesHost(win.document);
 

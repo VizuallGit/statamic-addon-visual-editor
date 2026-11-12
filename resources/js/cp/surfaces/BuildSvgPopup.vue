@@ -89,7 +89,14 @@ onBeforeUnmount(() => {
     >
       <h3 class="bm-pop-head">
         <span>{{ port.t('svg_title') }}</span>
-        <button type="button" class="bm-ib sm" :title="port.t('close')" :aria-label="port.t('close')" @click="emit('close')" v-html="ic('x')"></button>
+        <button
+          type="button"
+          class="bm-ib sm"
+          :title="port.t('close')"
+          :aria-label="port.t('close')"
+          @click="emit('close')"
+          v-html="ic('x')"
+        ></button>
       </h3>
       <div class="bm-pop-body">
         <BuildSvgPicker @pick="(src) => emit('pick', src)" />

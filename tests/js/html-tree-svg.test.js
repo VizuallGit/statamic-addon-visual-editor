@@ -22,7 +22,7 @@ const FILE = [
 const rows = (html) => flattenHtmlTree(parseTemplateTree(html), new Set());
 const svgs = (html) => rows(html).filter((row) => row.kind === 'svg');
 
-test('a named file is a row in its place, with the tag\'s own offsets', () => {
+test("a named file is a row in its place, with the tag's own offsets", () => {
   const all = rows(FILE);
   const hero = all.find((row) => row.kind === 'svg' && row.src === 'set-icons/hero');
   const from = FILE.indexOf('{{ svg src=');
@@ -34,7 +34,7 @@ test('a named file is a row in its place, with the tag\'s own offsets', () => {
   assert.equal(hero.to, FILE.indexOf('}}', from) + 2);
   assert.match(hero.path, /\/i\d+:svg$/, 'inside the div, a step of its own');
   assert.deepEqual(
-    all.map((row) => row.kind === 'svg' ? `svg ${row.label}` : row.tag),
+    all.map((row) => (row.kind === 'svg' ? `svg ${row.label}` : row.tag)),
     ['section', 'div', 'svg hero', 'h2', 'svg logo'],
     'in document order, among the tags'
   );
@@ -44,12 +44,19 @@ test('{{ svg:logo }} names its file in the tag', () => {
   const logo = svgs(FILE).find((row) => row.label === 'logo');
 
   assert.equal(logo.src, 'logo');
-  assert.equal(findByPath(parseTemplateTree(FILE), logo.path).call, 'svg:logo', 'the tag\'s own name, for the Tailwind pane');
+  assert.equal(
+    findByPath(parseTemplateTree(FILE), logo.path).call,
+    'svg:logo',
+    "the tag's own name, for the Tailwind pane"
+  );
 });
 
 test('the tags keep their paths', () => {
   const without = FILE.replace(/\{\{ svg[^}]*\}\}/g, '');
-  const tags = (html) => rows(html).filter((row) => !row.kind).map((row) => row.path);
+  const tags = (html) =>
+    rows(html)
+      .filter((row) => !row.kind)
+      .map((row) => row.path);
 
   assert.deepEqual(tags(FILE), tags(without));
 });
@@ -78,16 +85,19 @@ test('a file read from a field is a row too, marked dynamic', () => {
     ],
     'a tag with no file at all draws nothing and gets no row'
   );
-  assert.equal(describeAt(FIELDS, found[1].path).node.dynamic, true, 'Build knows the file is a field\'s');
+  assert.equal(describeAt(FIELDS, found[1].path).node.dynamic, true, "Build knows the file is a field's");
   assert.equal(describeAt(FIELDS, found[3].path).node.dynamic, false);
 });
 
-test('the pick tree leaves a field\'s svg out: the tags after it are stamped where they are', () => {
+test("the pick tree leaves a field's svg out: the tags after it are stamped where they are", () => {
   const div = serializePickTree(parseTemplateTree(FIELDS))[0];
   const bg = svgs(FIELDS).find((row) => row.src === 'arrow-bg');
 
-  assert.deepEqual(div.children.map((node) => node.tag), ['span', 'svg']);
-  assert.equal(div.children[1].path, bg.path, 'the <svg> drawn for arrow-bg is arrow-bg\'s, not the icon\'s');
+  assert.deepEqual(
+    div.children.map((node) => node.tag),
+    ['span', 'svg']
+  );
+  assert.equal(div.children[1].path, bg.path, "the <svg> drawn for arrow-bg is arrow-bg's, not the icon's");
 });
 
 test('not in a comment, not inside an opening tag', () => {
@@ -99,7 +109,10 @@ test('not in a comment, not inside an opening tag', () => {
     '</div>',
   ].join('\n');
 
-  assert.deepEqual(svgs(html).map((row) => row.src), ['d']);
+  assert.deepEqual(
+    svgs(html).map((row) => row.src),
+    ['d']
+  );
 });
 
 test('an svg row has no tag of its own to write into', () => {

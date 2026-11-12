@@ -29,10 +29,17 @@ function evaluate(body, names) {
   return new Function(`${body}\nreturn { ${names.join(', ')} };`)();
 }
 
-const html = evaluate(slice('export const HTML_HEADINGS', 'export const CSS_SPACING'), ['HTML_HEADINGS', 'HTML_DIVS', 'HTML_TOOLS']);
+const html = evaluate(slice('export const HTML_HEADINGS', 'export const CSS_SPACING'), [
+  'HTML_HEADINGS',
+  'HTML_DIVS',
+  'HTML_TOOLS',
+]);
 const tools = evaluate(slice('const boxKids', 'export const CSS_LENGTHS'), ['CSS_TOOLS']);
 const twIcons = evaluate(slice('export const TW_TOOL_ICONS', 'export const HISTORY_ICON'), ['TW_TOOL_ICONS']);
-const cssIcons = evaluate(slice('export const CSS_TOOL_ICONS', '\nexport ', SOURCE.indexOf('export const CSS_TOOL_ICONS') + 1), ['CSS_TOOL_ICONS']);
+const cssIcons = evaluate(
+  slice('export const CSS_TOOL_ICONS', '\nexport ', SOURCE.indexOf('export const CSS_TOOL_ICONS') + 1),
+  ['CSS_TOOL_ICONS']
+);
 
 export const HTML_HEADINGS = html.HTML_HEADINGS;
 export const HTML_DIVS = html.HTML_DIVS;
@@ -43,7 +50,10 @@ export const CSS_TOOL_ICONS = cssIcons.CSS_TOOL_ICONS;
 
 /* The Tailwind pane's state menu and the top bar's device icons, read the same way. */
 const TW = readFileSync(fileURLToPath(new URL('../../../resources/js/tw-classes.js', import.meta.url)), 'utf8');
-const CHROME = readFileSync(fileURLToPath(new URL('../../../resources/js/cp-shell/preview-chrome.js', import.meta.url)), 'utf8');
+const CHROME = readFileSync(
+  fileURLToPath(new URL('../../../resources/js/cp-shell/preview-chrome.js', import.meta.url)),
+  'utf8'
+);
 
 function block(source, from, to) {
   const start = source.indexOf(from);
@@ -58,7 +68,9 @@ function block(source, from, to) {
 
 const states = evaluate(block(TW, 'const STATES = [', '\n/**\n * The typography'), ['STATES']);
 const prose = evaluate(block(TW, 'const PROSE_VARIANTS = [', '];') + '];', ['PROSE_VARIANTS']);
-const devices = evaluate(block(CHROME, 'export const LP_DEVICE_ICONS = {', 'export function lpConfiguredDevices'), ['LP_DEVICE_ICONS']);
+const devices = evaluate(block(CHROME, 'export const LP_DEVICE_ICONS = {', 'export function lpConfiguredDevices'), [
+  'LP_DEVICE_ICONS',
+]);
 
 export const STATES = states.STATES;
 export const PROSE_VARIANTS = prose.PROSE_VARIANTS;

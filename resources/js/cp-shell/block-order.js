@@ -3,19 +3,46 @@
  * only the imports are new. See the barrel cp.js for what the shell exports.
  */
 import { emit, register } from '../cp/bus.js';
-import { BP_CHANGED_EVENT, bpBase, bpDevice, bpForDevice, bpFromWidth, bpInherits, breakpoints } from '../breakpoints.js';
+import {
+  BP_CHANGED_EVENT,
+  bpBase,
+  bpDevice,
+  bpForDevice,
+  bpFromWidth,
+  bpInherits,
+  breakpoints,
+} from '../breakpoints.js';
 import { bindTips, hideTip } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { featureOn } from '../lib/config.js';
-import { LP_CONTROL_H, LP_ICON_BTN_STYLE, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_PREVIEW_CHROME_ID, LP_TOOLBAR_GAP, SITE_CANVAS_ID } from '../lib/ids.js';
+import {
+  LP_CONTROL_H,
+  LP_ICON_BTN_STYLE,
+  LP_ICON_IDLE_OPACITY,
+  LP_ICON_LOCKED_OPACITY,
+  LP_PREVIEW_CHROME_ID,
+  LP_TOOLBAR_GAP,
+  SITE_CANVAS_ID,
+} from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { zoomKey } from '../lib/zoom-keys.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { lpModeSeparator, paintLpActiveControl, paintLpSaveButton, syncLpRightBarGaps } from '../lp-panel.js';
-import { LP_DEVICE_ICONS, LP_DEVICE_KEY, LP_SCALE_DEVICE_TO_PANE, LP_ZOOM_DEFAULT, LP_ZOOM_KEY, LP_ZOOM_STEPS, lpChromeActiveDevice, lpConfiguredDevices, lpDeviceKeys, lpStoredDevice } from './preview-chrome.js';
+import {
+  LP_DEVICE_ICONS,
+  LP_DEVICE_KEY,
+  LP_SCALE_DEVICE_TO_PANE,
+  LP_ZOOM_DEFAULT,
+  LP_ZOOM_KEY,
+  LP_ZOOM_STEPS,
+  lpChromeActiveDevice,
+  lpConfiguredDevices,
+  lpDeviceKeys,
+  lpStoredDevice,
+} from './preview-chrome.js';
 import { FRAMED_CONTROL_STYLE, HEADER_GROUP_STYLE, HEADER_TOOLBAR_ID } from './header-toolbar.js';
 import { hideStatamicLpClose } from './grid-rows.js';
 import { ensureBreakpointAddButton } from './breakpoint-add-button.js';
@@ -92,11 +119,7 @@ export function currentBp(win) {
 
 /** Does this list name exactly the blocks that exist right now? */
 export function describesBlocks(list, ids) {
-  return (
-    Array.isArray(list) &&
-    list.length === ids.length &&
-    [...list].sort().join('') === [...ids].sort().join('')
-  );
+  return Array.isArray(list) && list.length === ids.length && [...list].sort().join('') === [...ids].sort().join('');
 }
 
 /**
@@ -463,9 +486,7 @@ export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win), reaso
   }
 
   try {
-    win.dispatchEvent(
-      new CustomEvent('sve:breakpoint', { detail: { bp, device: deviceKey, reason } })
-    );
+    win.dispatchEvent(new CustomEvent('sve:breakpoint', { detail: { bp, device: deviceKey, reason } }));
   } catch {
     /* ignore */
   }
@@ -884,8 +905,7 @@ export function applyLpZoom(win, percent = lpStoredZoom(win)) {
 
 /** Hide Statamic's Pop out / device <Select…> — our chrome replaces them. */
 export function hideStatamicLpChrome(header) {
-  const ours = (el) =>
-    el?.closest?.(`#${LP_PREVIEW_CHROME_ID}`) || el?.closest?.(`#${HEADER_TOOLBAR_ID}`);
+  const ours = (el) => el?.closest?.(`#${LP_PREVIEW_CHROME_ID}`) || el?.closest?.(`#${HEADER_TOOLBAR_ID}`);
 
   const hide = (el) => {
     if (!el || ours(el) || el.classList.contains('sve-off')) {
@@ -1005,7 +1025,11 @@ function lpZoomStep(win, dir) {
 function onLpZoomKey(win, event) {
   const dir = zoomKey(event);
 
-  if (!dir || !win.document.getElementById(LP_PREVIEW_CHROME_ID)?.isConnected || win.document.getElementById(SITE_CANVAS_ID)) {
+  if (
+    !dir ||
+    !win.document.getElementById(LP_PREVIEW_CHROME_ID)?.isConnected ||
+    win.document.getElementById(SITE_CANVAS_ID)
+  ) {
     return;
   }
 
@@ -1037,8 +1061,7 @@ export function ensureLpPreviewChrome(win) {
   if (!chrome) {
     chrome = doc.createElement('div');
     chrome.id = LP_PREVIEW_CHROME_ID;
-    chrome.style.cssText =
-      `display:inline-flex;align-items:center;gap:${LP_TOOLBAR_GAP}px;flex-shrink:0;`;
+    chrome.style.cssText = `display:inline-flex;align-items:center;gap:${LP_TOOLBAR_GAP}px;flex-shrink:0;`;
     bindTips(win, chrome);
 
     const devices = doc.createElement('div');
@@ -1084,8 +1107,7 @@ export function ensureLpPreviewChrome(win) {
       overview.dataset.overview = '';
       overview.title = t(win, 'bp_overview_button');
       overview.setAttribute('aria-pressed', 'false');
-      overview.innerHTML =
-        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="${LP_ICON_IDLE_OPACITY}"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><path d="M17.25 14v6.5M14 17.25h6.5"/></svg>`;
+      overview.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="${LP_ICON_IDLE_OPACITY}"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><path d="M17.25 14v6.5M14 17.25h6.5"/></svg>`;
       overview.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
       overview.addEventListener('click', () => {
         overviewModule().then((m) => m.toggleBreakpointOverview(win));
@@ -1127,8 +1149,7 @@ export function ensureLpPreviewChrome(win) {
     zoomOut.title = t(win, 'zoom_out');
     zoomOut.innerHTML =
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>';
-    zoomOut.style.cssText =
-      `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
+    zoomOut.style.cssText = `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
     zoomOut.addEventListener('click', () => lpZoomStep(win, 'out'));
 
     const zoomLabel = doc.createElement('button');
@@ -1160,8 +1181,7 @@ export function ensureLpPreviewChrome(win) {
     zoomIn.title = t(win, 'zoom_in');
     zoomIn.innerHTML =
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>';
-    zoomIn.style.cssText =
-      `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
+    zoomIn.style.cssText = `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
     zoomIn.addEventListener('click', () => lpZoomStep(win, 'in'));
 
     zoom.appendChild(zoomOut);
@@ -1219,11 +1239,8 @@ export function ensureLpPreviewChrome(win) {
       btn.dataset.device = key;
       btn.title = key === 'Responsive' ? t(win, 'device_full') : row?.label || key;
       btn.innerHTML =
-        key === 'Responsive'
-          ? LP_DEVICE_ICONS.Responsive
-          : LP_DEVICE_ICONS[row?.icon] || LP_DEVICE_ICONS.desktop;
-      btn.style.cssText =
-        `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
+        key === 'Responsive' ? LP_DEVICE_ICONS.Responsive : LP_DEVICE_ICONS[row?.icon] || LP_DEVICE_ICONS.desktop;
+      btn.style.cssText = `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
       btn.addEventListener('click', () => setLpDevice(win, key));
       devicesEl.appendChild(btn);
     });
@@ -1361,9 +1378,7 @@ export function paintLpPreviewChrome(win) {
       label.style.whiteSpace = 'nowrap';
     }
 
-    const title = auto
-      ? t(win, 'zoom_auto', { percent })
-      : t(win, 'zoom_level', { percent });
+    const title = auto ? t(win, 'zoom_auto', { percent }) : t(win, 'zoom_level', { percent });
 
     if (label.title !== title) {
       label.title = title;

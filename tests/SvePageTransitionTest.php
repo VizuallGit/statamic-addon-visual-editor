@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Tags\SvePageTransition;
 
@@ -28,7 +29,7 @@ class SvePageTransitionTest extends TestCase
 
     public function test_the_landing_route_is_registered(): void
     {
-        $this->assertTrue(\Illuminate\Support\Facades\Route::has('sve.page-transition.landing'));
+        $this->assertTrue(Route::has('sve.page-transition.landing'));
     }
 
     public function test_live_preview_still_turns_them_off_after_it(): void

@@ -65,7 +65,7 @@ final class Declaration
         }
 
         return [
-            'props' => static::decode($match[1]),
+            'props' => self::decode($match[1]),
             'rest' => (string) preg_replace(self::BLOCK, '', $contents, 1),
         ];
     }
@@ -93,13 +93,13 @@ final class Declaration
     public static function wrap(array $props, string $body): string
     {
         $clean = Schema::normalize($props);
-        $open = static::open($clean);
+        $open = self::open($clean);
 
         if ($open !== '') {
             $body = $open."\n".rtrim($body)."\n".self::PAIR_CLOSE."\n";
         }
 
-        return static::block($clean).$body;
+        return self::block($clean).$body;
     }
 
     /**
@@ -127,7 +127,7 @@ final class Declaration
                 continue;
             }
 
-            $params[] = Schema::param($handle).'="'.static::parameterValue((string) ($prop['default'] ?? '')).'"';
+            $params[] = Schema::param($handle).'="'.self::parameterValue((string) ($prop['default'] ?? '')).'"';
         }
 
         return $params === [] ? '' : '{{ sve_defaults '.implode(' ', $params).' }}';

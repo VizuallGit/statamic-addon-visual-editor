@@ -40,7 +40,8 @@ export const cm = { view, state, autocomplete };`,
   './scope.js': 'export function currentFullHtml() { return window.__view.state.doc.toString(); }',
   './dock-api.js': "export function currentTemplateType() { return window.__type || 'hero/style_2'; }",
   './html-tools.js': 'export function finishHtmlEdit() { window.__finished += 1; }',
-  './data-vars.js': 'export function sectionDataRows() { return Promise.resolve(window.__rows); }\nexport function scopeDataRows() { return Promise.resolve(window.__scopeRows || []); }',
+  './data-vars.js':
+    'export function sectionDataRows() { return Promise.resolve(window.__rows); }\nexport function scopeDataRows() { return Promise.resolve(window.__scopeRows || []); }',
 };
 
 const MAIN = `import { EditorView, keymap } from '@codemirror/view';
@@ -177,7 +178,10 @@ const state = () =>
     counts: JSON.parse(localStorage.getItem('sve-code-dock-ghost-counts') || 'null'),
     taken: JSON.parse(localStorage.getItem('sve-code-dock-ghost-taken') || '[]'),
     palette: window.__palette.map((fn) => fn()),
-    selection: (() => { const r = window.__view.state.selection.main; return window.__view.state.sliceDoc(r.from, r.to); })(),
+    selection: (() => {
+      const r = window.__view.state.selection.main;
+      return window.__view.state.sliceDoc(r.from, r.to);
+    })(),
     toasts: window.__toasts.slice(),
     finished: window.__finished,
   }));
@@ -190,7 +194,11 @@ await page.keyboard.type('{{ visual_');
 await pause(700);
 let s = await state();
 check('one request after the pause', s.requests === 1, `requests ${s.requests}`);
-check('the request holds the file before the caret', s.last?.before === '<h2 class="x" {{ visual_', JSON.stringify(s.last?.before));
+check(
+  'the request holds the file before the caret',
+  s.last?.before === '<h2 class="x" {{ visual_',
+  JSON.stringify(s.last?.before)
+);
 check('… and after it', s.last?.after === '>{{ title }}</h2>', JSON.stringify(s.last?.after));
 check('… and the section', s.last?.section === 'hero/style_2', JSON.stringify(s.last?.section));
 check('grey text stands at the caret', s.ghost === ANSWER, JSON.stringify(s.ghost));
@@ -232,19 +240,31 @@ await page.keyboard.press('ArrowRight');
 await page.keyboard.up(MOD);
 await pause(50);
 s = await state();
-check('⌘→ takes the next word', s.doc === '<h2 class="x" {{ visual_edit>{{ title }}</h2>' && s.ghost === ANSWER.slice(4), `${s.doc} | ${JSON.stringify(s.ghost)}`);
+check(
+  '⌘→ takes the next word',
+  s.doc === '<h2 class="x" {{ visual_edit>{{ title }}</h2>' && s.ghost === ANSWER.slice(4),
+  `${s.doc} | ${JSON.stringify(s.ghost)}`
+);
 
 // 4. Escape leaves it.
 await page.keyboard.press('Escape');
 await pause(50);
 s = await state();
-check('Escape clears the grey text, the file as it was', s.ghost === null && s.doc === '<h2 class="x" {{ visual_edit>{{ title }}</h2>', s.doc);
+check(
+  'Escape clears the grey text, the file as it was',
+  s.ghost === null && s.doc === '<h2 class="x" {{ visual_edit>{{ title }}</h2>',
+  s.doc
+);
 
 // 5. Tab without grey text is the pane's own Tab.
 await page.keyboard.press('Tab');
 await pause(50);
 s = await state();
-check('Tab with no grey text does what it did before (indent)', !s.doc.includes('field=') && s.doc !== '<h2 class="x" {{ visual_edit>{{ title }}</h2>', s.doc);
+check(
+  'Tab with no grey text does what it did before (indent)',
+  !s.doc.includes('field=') && s.doc !== '<h2 class="x" {{ visual_edit>{{ title }}</h2>',
+  s.doc
+);
 
 // 6. An answer for a caret that has moved is dropped. The section has a
 // title row here: what the rules cannot finish still goes to the AI, with the rows.
@@ -258,7 +278,11 @@ await pause(500);
 await page.keyboard.press('ArrowLeft');
 await pause(900);
 s = await state();
-check('an answer for a moved caret never shows', s.ghost === null && s.requests === 1, `ghost ${JSON.stringify(s.ghost)} requests ${s.requests}`);
+check(
+  'an answer for a moved caret never shows',
+  s.ghost === null && s.requests === 1,
+  `ghost ${JSON.stringify(s.ghost)} requests ${s.requests}`
+);
 
 // 7. Mid-word: nothing is asked.
 await start('<h2>{{ ti|le }}</h2>', { body: { ok: true, text: 'x' } });
@@ -273,7 +297,11 @@ await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<div da
 await page.keyboard.type('<p');
 await pause(600);
 s = await state();
-check('nothing is asked while help mode\'s popup is open', s.requests === 0 && s.ghost === null, `requests ${s.requests}`);
+check(
+  "nothing is asked while help mode's popup is open",
+  s.requests === 0 && s.ghost === null,
+  `requests ${s.requests}`
+);
 await page.evaluate(() => document.querySelector('[data-sve-help-popup]').remove());
 
 // 9. A blur clears it.
@@ -284,20 +312,37 @@ const shown = (await state()).ghost;
 await page.focus('#out');
 await pause(50);
 s = await state();
-check('leaving the editor clears the grey text', shown !== null && s.ghost === null, `shown ${JSON.stringify(shown)} after ${JSON.stringify(s.ghost)}`);
+check(
+  'leaving the editor clears the grey text',
+  shown !== null && s.ghost === null,
+  `shown ${JSON.stringify(shown)} after ${JSON.stringify(s.ghost)}`
+);
 
 // 11. A comment and Enter: a whole block, "Writing …" while it comes.
-const BLOCK = '<article class="card flow-y">\n    <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>\n  </article>';
+const BLOCK =
+  '<article class="card flow-y">\n    <h3 {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</h3>\n  </article>';
 await start('<div>\n  {{# card with the title #}}|\n</div>', { body: { ok: true, text: BLOCK }, delay: 400 });
 await page.keyboard.press('Enter');
 await pause(500);
 s = await state();
-check('Enter under a comment asks for a block', s.requests === 1 && s.last?.mode === 'comment', `requests ${s.requests} mode ${s.last?.mode}`);
-check('"Writing …" stands at the caret while it comes', s.pending === 'code_dock_ghost_writing', JSON.stringify(s.pending));
+check(
+  'Enter under a comment asks for a block',
+  s.requests === 1 && s.last?.mode === 'comment',
+  `requests ${s.requests} mode ${s.last?.mode}`
+);
+check(
+  '"Writing …" stands at the caret while it comes',
+  s.pending === 'code_dock_ghost_writing',
+  JSON.stringify(s.pending)
+);
 await page.keyboard.press('Tab');
 await pause(20);
 s = await state();
-check('Tab does nothing to "Writing …"', !s.doc.includes('code_dock_ghost_writing') && !s.doc.includes('<article'), s.doc);
+check(
+  'Tab does nothing to "Writing …"',
+  !s.doc.includes('code_dock_ghost_writing') && !s.doc.includes('<article'),
+  s.doc
+);
 await pause(450);
 s = await state();
 check('the block stands as grey text, many lines', s.ghost === BLOCK && s.pending === null, JSON.stringify(s.ghost));
@@ -305,7 +350,11 @@ await page.keyboard.press('Tab');
 await pause(50);
 s = await state();
 check('Tab writes the block', s.doc === `<div>\n  {{# card with the title #}}\n  ${BLOCK}\n</div>`, s.doc);
-check('what was taken is remembered with the line it followed', s.taken.at(-1)?.text === BLOCK.slice(0, 200) && s.taken.at(-1)?.line === '{{# card with the title #}}', JSON.stringify(s.taken.at(-1)));
+check(
+  'what was taken is remembered with the line it followed',
+  s.taken.at(-1)?.text === BLOCK.slice(0, 200) && s.taken.at(-1)?.line === '{{# card with the title #}}',
+  JSON.stringify(s.taken.at(-1))
+);
 check('shown and taken are counted', s.counts?.shown >= 1 && s.counts?.taken >= 1, JSON.stringify(s.counts));
 
 // 12. The next question carries what was taken.
@@ -313,10 +362,17 @@ await start('<div>\n  |\n</div>', { body: { ok: true, text: '' } });
 await page.keyboard.type('<p');
 await pause(600);
 s = await state();
-check('the next request carries the author\'s taken suggestions', Array.isArray(s.last?.taken) && s.last.taken.some((row) => row.text === BLOCK.slice(0, 200)), JSON.stringify(s.last?.taken?.length));
+check(
+  "the next request carries the author's taken suggestions",
+  Array.isArray(s.last?.taken) && s.last.taken.some((row) => row.text === BLOCK.slice(0, 200)),
+  JSON.stringify(s.last?.taken?.length)
+);
 
 // 13. ⌘K on a selection: the box, the palette held, the rewrite, Esc puts it back.
-await start('<div>\n  |<h2>{{ title }}</h2>\n</div>', { body: { ok: true, text: '<h3 class="text-secondary">{{ title }}</h3>' }, delay: 200 });
+await start('<div>\n  |<h2>{{ title }}</h2>\n</div>', {
+  body: { ok: true, text: '<h3 class="text-secondary">{{ title }}</h3>' },
+  delay: 200,
+});
 await page.evaluate(() => {
   const view = window.__view;
   const from = view.state.doc.toString().indexOf('<h2>');
@@ -324,7 +380,11 @@ await page.evaluate(() => {
   view.dispatch({ selection: { anchor: from, head: from + '<h2>{{ title }}</h2>'.length } });
 });
 s = await state();
-check('Statamic\'s ⌘K palette is held back while the editor has the focus', s.palette.length === 1 && s.palette[0] === true, JSON.stringify(s.palette));
+check(
+  "Statamic's ⌘K palette is held back while the editor has the focus",
+  s.palette.length === 1 && s.palette[0] === true,
+  JSON.stringify(s.palette)
+);
 await page.keyboard.down(MOD);
 await page.keyboard.press('k');
 await page.keyboard.up(MOD);
@@ -336,14 +396,29 @@ await page.keyboard.type('make it an h3 in the secondary colour');
 await page.keyboard.press('Enter');
 await pause(50);
 s = await state();
-check('Enter sends the instruction with the selection', s.lastUrl === '/!/sve/dock-ghost/edit' && s.last?.instruction === 'make it an h3 in the secondary colour' && s.last?.selection === '<h2>{{ title }}</h2>', JSON.stringify(s.last));
+check(
+  'Enter sends the instruction with the selection',
+  s.lastUrl === '/!/sve/dock-ghost/edit' &&
+    s.last?.instruction === 'make it an h3 in the secondary colour' &&
+    s.last?.selection === '<h2>{{ title }}</h2>',
+  JSON.stringify(s.last)
+);
 await pause(300);
 s = await state();
-check('the answer replaces the selection and is selected', s.doc === '<div>\n  <h3 class="text-secondary">{{ title }}</h3>\n</div>' && s.selection === '<h3 class="text-secondary">{{ title }}</h3>', s.doc);
+check(
+  'the answer replaces the selection and is selected',
+  s.doc === '<div>\n  <h3 class="text-secondary">{{ title }}</h3>\n</div>' &&
+    s.selection === '<h3 class="text-secondary">{{ title }}</h3>',
+  s.doc
+);
 await page.keyboard.press('Escape');
 await pause(50);
 s = await state();
-check('Esc puts back what stood there and closes the box', s.doc === '<div>\n  <h2>{{ title }}</h2>\n</div>' && !s.box, s.doc);
+check(
+  'Esc puts back what stood there and closes the box',
+  s.doc === '<div>\n  <h2>{{ title }}</h2>\n</div>' && !s.box,
+  s.doc
+);
 
 // 14. ⌘K again, Enter keeps it — counted, remembered.
 await page.evaluate(() => {
@@ -363,9 +438,13 @@ await pause(400);
 await page.keyboard.press('Enter');
 await pause(50);
 s = await state();
-check('Enter keeps the rewrite and closes the box', s.doc === '<div>\n  <h3 class="text-secondary">{{ title }}</h3>\n</div>' && !s.box, s.doc);
+check(
+  'Enter keeps the rewrite and closes the box',
+  s.doc === '<div>\n  <h3 class="text-secondary">{{ title }}</h3>\n</div>' && !s.box,
+  s.doc
+);
 check('… counted as asked and kept', s.counts?.edits === 2 && s.counts?.kept === 1, JSON.stringify(s.counts));
-check('… and remembered as the author\'s way', s.taken.at(-1)?.line === '⌘K h3', JSON.stringify(s.taken.at(-1)));
+check("… and remembered as the author's way", s.taken.at(-1)?.line === '⌘K h3', JSON.stringify(s.taken.at(-1)));
 
 // 15. Out of the editor, Statamic's ⌘K is Statamic's again.
 await page.focus('#out');
@@ -388,17 +467,29 @@ await start('<h2 class="x" |>{{ title }}</h2>', { body: { ok: true, text: 'from 
 await page.keyboard.type('{{ visual_');
 await pause(400);
 s = await state();
-check('with the section\'s fields, {{ visual_ is finished at once, without the AI', s.ghost === 'edit field="title" inline_edit="true" }}' && s.requests === 0, `${JSON.stringify(s.ghost)} requests ${s.requests}`);
+check(
+  "with the section's fields, {{ visual_ is finished at once, without the AI",
+  s.ghost === 'edit field="title" inline_edit="true" }}' && s.requests === 0,
+  `${JSON.stringify(s.ghost)} requests ${s.requests}`
+);
 
 await start('<ul class="list">|\n</ul>', { body: { ok: true, text: 'from the AI' } });
 await page.keyboard.press('Enter');
 await pause(400);
 s = await state();
-check('Enter in a <ul>: the loop over the list, at once', s.requests === 0 && !!s.ghost?.startsWith('{{ entries }}') && s.ghost.includes('{{ /entries }}'), `${JSON.stringify(s.ghost)} requests ${s.requests}`);
+check(
+  'Enter in a <ul>: the loop over the list, at once',
+  s.requests === 0 && !!s.ghost?.startsWith('{{ entries }}') && s.ghost.includes('{{ /entries }}'),
+  `${JSON.stringify(s.ghost)} requests ${s.requests}`
+);
 await page.keyboard.press('Tab');
 await pause(50);
 s = await state();
-check('… and Tab writes it', s.doc.includes('{{ entries }}') && s.doc.includes('{{ name }}') && s.doc.includes('{{ /entries }}'), s.doc);
+check(
+  '… and Tab writes it',
+  s.doc.includes('{{ entries }}') && s.doc.includes('{{ name }}') && s.doc.includes('{{ /entries }}'),
+  s.doc
+);
 
 // Last, because it stops this editor asking: no key: said once, then no more asking.
 await start('<div>\n  |\n</div>', { status: 422, body: { message: 'Grey text needs an Anthropic API key' } });

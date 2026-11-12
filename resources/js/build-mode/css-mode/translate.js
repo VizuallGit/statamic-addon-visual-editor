@@ -193,13 +193,17 @@ export function planOf(rule, themeValue = () => undefined) {
   }
 
   const literal = (value) => value.replace(LITERAL, (all, name) => themeValue(name) ?? all);
-  const local = new Map(read.decls.filter((decl) => decl.prop.startsWith('--tw-')).map((decl) => [decl.prop, literal(decl.value)]));
+  const local = new Map(
+    read.decls.filter((decl) => decl.prop.startsWith('--tw-')).map((decl) => [decl.prop, literal(decl.value)])
+  );
   const plan = { decls: [], parts: [], keyframes: '' };
   const clean = (value) => tidy(resolvePlumbing(value, local));
 
   for (const [name, value] of local) {
     // A shadow's size holds what its colour falls back on; its variable names a theme value.
-    const text = clean(name === '--tw-drop-shadow' && local.has('--tw-drop-shadow-size') ? local.get('--tw-drop-shadow-size') : value);
+    const text = clean(
+      name === '--tw-drop-shadow' && local.has('--tw-drop-shadow-size') ? local.get('--tw-drop-shadow-size') : value
+    );
     const part = partOfVariable(name, text);
 
     if (part) {
@@ -230,7 +234,10 @@ export function planOf(rule, themeValue = () => undefined) {
     }
   }
 
-  if ((!plan.parts.length && !plan.decls.length) || [...plan.decls, ...plan.parts].some((one) => /--tw-/.test(one.value))) {
+  if (
+    (!plan.parts.length && !plan.decls.length) ||
+    [...plan.decls, ...plan.parts].some((one) => /--tw-/.test(one.value))
+  ) {
     return null;
   }
 
@@ -241,10 +248,18 @@ export function planOf(rule, themeValue = () => undefined) {
   return plan;
 }
 
-const same = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const same = (value) =>
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 const MIX = /^color-mix\(in oklab, (.+) (\d+(?:\.\d+)?)%, transparent\)$/;
 const hardOf = (plan) => plan.decls.filter((decl) => !decl.soft);
-const partsKey = (prop, list) => `${prop}|${list.map(([key, value]) => `${key}=${same(value)}`).sort().join('&')}`;
+const partsKey = (prop, list) =>
+  `${prop}|${list
+    .map(([key, value]) => `${key}=${same(value)}`)
+    .sort()
+    .join('&')}`;
 
 /** A part's own words inside its function: `blur(3px)` is `3px`. */
 const innerOf = (value) => /^[a-zA-Z-]+\((.*)\)$/s.exec(value)?.[1] ?? value;
@@ -305,7 +320,10 @@ export function createTranslator({ ruleOf, themeValue = () => undefined, scale, 
       const plan = planFor(name);
 
       if (plan?.parts.length) {
-        const key = partsKey(plan.parts[0].prop, plan.parts.map((part) => [part.key, part.value]));
+        const key = partsKey(
+          plan.parts[0].prop,
+          plan.parts.map((part) => [part.key, part.value])
+        );
 
         if (!byParts.has(key)) {
           byParts.set(key, name);
@@ -353,7 +371,9 @@ export function createTranslator({ ruleOf, themeValue = () => undefined, scale, 
     }
 
     const names = scale(prop) || [];
-    const row = names.find((name) => !name.includes('/') && says(name, prop, value)) || (namedSorted().byProp.get(prop) || []).find((name) => says(name, prop, value));
+    const row =
+      names.find((name) => !name.includes('/') && says(name, prop, value)) ||
+      (namedSorted().byProp.get(prop) || []).find((name) => says(name, prop, value));
 
     if (row) {
       return row;
@@ -361,7 +381,11 @@ export function createTranslator({ ruleOf, themeValue = () => undefined, scale, 
 
     const root = rootOf(names);
     const inner = String(value).trim().replace(/\s+/g, '_');
-    const typed = root ? [toClass(root, value, kindOf(prop)), `${root}-[${inner}]`].find((name) => !name.replace(/\[.*\]/, '').includes('/') && says(name, prop, value)) : '';
+    const typed = root
+      ? [toClass(root, value, kindOf(prop)), `${root}-[${inner}]`].find(
+          (name) => !name.replace(/\[.*\]/, '').includes('/') && says(name, prop, value)
+        )
+      : '';
 
     return typed || `[${prop}:${inner}]`;
   }
@@ -390,7 +414,8 @@ export function createTranslator({ ruleOf, themeValue = () => undefined, scale, 
       const words = ['filter', 'backdrop-filter', 'transform'].includes(prop) ? innerOf(value) : value;
       const typed = root ? `${root}-[${words.trim().replace(/\s+/g, '_')}]` : '';
       const said = typed ? planFor(typed)?.parts : null;
-      const fits = said?.length === 1 && said[0].prop === prop && said[0].key === key && same(said[0].value) === same(value);
+      const fits =
+        said?.length === 1 && said[0].prop === prop && said[0].key === key && same(said[0].value) === same(value);
 
       return one ? [one] : fits ? [typed] : [];
     });
@@ -428,7 +453,10 @@ export function planUpdates(plan, previous, here = new Map(), reaching = here) {
   const out = [];
 
   for (const decl of previous?.decls || []) {
-    if (!plan?.decls.some((one) => one.prop === decl.prop) && (!decl.soft || same(here.get(decl.prop)) === same(decl.value))) {
+    if (
+      !plan?.decls.some((one) => one.prop === decl.prop) &&
+      (!decl.soft || same(here.get(decl.prop)) === same(decl.value))
+    ) {
       out.push({ prop: decl.prop, value: null });
     }
   }
@@ -460,9 +488,13 @@ export function planUpdates(plan, previous, here = new Map(), reaching = here) {
 export function planIsOn(plan, here, ownOf) {
   const hard = hardOf(plan);
 
-  return (hard.length > 0 || plan.parts.length > 0)
-    && hard.every((decl) => same(here.get(decl.prop)) === same(decl.value))
-    && plan.parts.every((part) => (part.value === '' ? !ownOf(part.prop).has(part.key) : same(ownOf(part.prop).get(part.key)) === same(part.value)));
+  return (
+    (hard.length > 0 || plan.parts.length > 0) &&
+    hard.every((decl) => same(here.get(decl.prop)) === same(decl.value)) &&
+    plan.parts.every((part) =>
+      part.value === '' ? !ownOf(part.prop).has(part.key) : same(ownOf(part.prop).get(part.key)) === same(part.value)
+    )
+  );
 }
 
 /** An animation's steps as the file holds them, from Tailwind's own tree of them. */
@@ -481,7 +513,8 @@ export function printKeyframes(node) {
 const NUMBERS = ['integer', 'float', 'range'];
 const COLORS = ['theme_color_picker', 'color'];
 const WORDS = ['select', 'button_group', 'icon_button_group', 'text'];
-const LENGTH = /^((padding|margin)(-[a-z-]+)?|gap|row-gap|column-gap|(min-|max-)?(width|height)|inset|top|right|bottom|left|font-size|letter-spacing|text-indent|border(-[a-z]+)*-radius|border(-[a-z]+)?-width|outline-offset|text-decoration-thickness|text-underline-offset)$/;
+const LENGTH =
+  /^((padding|margin)(-[a-z-]+)?|gap|row-gap|column-gap|(min-|max-)?(width|height)|inset|top|right|bottom|left|font-size|letter-spacing|text-indent|border(-[a-z]+)*-radius|border(-[a-z]+)?-width|outline-offset|text-decoration-thickness|text-underline-offset)$/;
 const COUNT = /^(z-index|opacity|line-height|font-weight|columns|aspect-ratio)$/;
 const UNIT_OF = { rotate: 'deg', 'transition-duration': 'ms', 'transition-delay': 'ms' };
 
@@ -527,7 +560,9 @@ export function boundValue(property, tag, { type = '', current = '', unit = 'rem
     return `url(${tag})`;
   }
 
-  return fits?.length && (NUMBERS.includes(type) || /^-?\d*\.?\d+$/.test(String(current).trim())) ? `${tag}${fits.unit || unit}` : tag;
+  return fits?.length && (NUMBERS.includes(type) || /^-?\d*\.?\d+$/.test(String(current).trim()))
+    ? `${tag}${fits.unit || unit}`
+    : tag;
 }
 
 /** How a Style field shows a value that comes from a field: `{{ gap }}rem` → `gap rem`. */

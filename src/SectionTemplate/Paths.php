@@ -46,7 +46,7 @@ final class Paths
         }
 
         return [
-            'base' => static::directory(),
+            'base' => self::directory(),
             'rel' => $handle,
         ];
     }
@@ -57,7 +57,7 @@ final class Paths
      */
     public static function writablePath(string $handle): ?string
     {
-        $located = static::locate($handle);
+        $located = self::locate($handle);
 
         if ($located === null) {
             return null;
@@ -97,7 +97,7 @@ final class Paths
 
     public static function path(string $handle): ?string
     {
-        $located = static::locate($handle);
+        $located = self::locate($handle);
 
         if ($located === null) {
             return null;
@@ -154,7 +154,7 @@ final class Paths
             }
         }
 
-        $base = realpath(static::directory());
+        $base = realpath(self::directory());
 
         if ($base === false || $real === $base || ! str_starts_with($real, $base.DIRECTORY_SEPARATOR)) {
             return null;

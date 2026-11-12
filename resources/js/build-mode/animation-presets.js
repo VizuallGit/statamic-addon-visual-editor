@@ -31,7 +31,12 @@ function post(win, url, body) {
   return win.fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(win) },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      Accept: 'application/json',
+      'X-CSRF-TOKEN': csrfToken(win),
+    },
     body: JSON.stringify(body),
   });
 }
@@ -52,7 +57,12 @@ export async function savePreset(label, { kind, vars, timing }, win = window) {
 
 /** «Update preset» and the pencil: one of the site's own takes the element's look and timing, and a new name when given → the preset, or null when the server said no. */
 export async function updatePreset(handle, { vars, timing, label = null }, win = window) {
-  const res = await post(win, '/!/sve/animation-presets', { handle, vars, timing, ...(label === null ? {} : { label }) }).catch(() => null);
+  const res = await post(win, '/!/sve/animation-presets', {
+    handle,
+    vars,
+    timing,
+    ...(label === null ? {} : { label }),
+  }).catch(() => null);
   const data = res?.ok ? await res.json() : null;
 
   if (!data?.preset) {

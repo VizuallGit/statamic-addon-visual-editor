@@ -34,7 +34,16 @@ export function elementAttrs(html, node) {
     const raw = open.slice(attr.from, attr.to);
     const at = raw.indexOf('=');
 
-    return { ...attr, value: at === -1 ? '' : raw.slice(at + 1).trim().replace(/^["']|["']$/g, '') };
+    return {
+      ...attr,
+      value:
+        at === -1
+          ? ''
+          : raw
+              .slice(at + 1)
+              .trim()
+              .replace(/^["']|["']$/g, ''),
+    };
   });
 }
 
@@ -54,7 +63,9 @@ export function withAlpineAttr(html, path, name, value) {
   const at = found ? null : open.search(/\s|\/?>$/);
   const next = found
     ? open.slice(0, found.from) + written + open.slice(found.to)
-    : at === -1 ? open : `${open.slice(0, at)} ${written}${open.slice(at)}`;
+    : at === -1
+      ? open
+      : `${open.slice(0, at)} ${written}${open.slice(at)}`;
 
   return html.slice(0, node.from) + next + html.slice(node.openTo);
 }
@@ -100,20 +111,22 @@ export function statesInScope(html, path) {
   const out = [];
   const seen = new Set();
 
-  chainTo(parseTemplateTree(html), path).reverse().forEach((node) => {
-    if (node.kind) {
-      return;
-    }
-
-    const data = elementAttrs(html, node).find((attr) => attr.name === 'x-data');
-
-    stateNames(data?.value || '').forEach((name) => {
-      if (!seen.has(name)) {
-        seen.add(name);
-        out.push({ name, path: node.path, tag: node.tag });
+  chainTo(parseTemplateTree(html), path)
+    .reverse()
+    .forEach((node) => {
+      if (node.kind) {
+        return;
       }
+
+      const data = elementAttrs(html, node).find((attr) => attr.name === 'x-data');
+
+      stateNames(data?.value || '').forEach((name) => {
+        if (!seen.has(name)) {
+          seen.add(name);
+          out.push({ name, path: node.path, tag: node.tag });
+        }
+      });
     });
-  });
 
   return out;
 }
@@ -190,7 +203,9 @@ export function withStateFor(html, a, b, name) {
   const roots = parseTemplateTree(html);
 
   // Already declared where both reach it — at any height: written again lower down, it would hide that one.
-  if (sharedChain(roots, a, b).some((node) => !node.kind && stateNames(xDataOf(html, node)?.value || '').includes(name))) {
+  if (
+    sharedChain(roots, a, b).some((node) => !node.kind && stateNames(xDataOf(html, node)?.value || '').includes(name))
+  ) {
     return html;
   }
 
@@ -218,7 +233,10 @@ export const STATEMENT = {
 
 /** A trigger's statement beside the ones it already runs: `@click` is one attribute, and a button may do two things. */
 function joined(existing, statement) {
-  const parts = String(existing || '').split(';').map((part) => part.trim()).filter(Boolean);
+  const parts = String(existing || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean);
 
   return parts.includes(statement) ? parts.join('; ') : [...parts, statement].join('; ');
 }

@@ -12,22 +12,29 @@ const tile = (id) => items.find((item) => item.id === id);
 const TEXT = { heading: 'New heading', text: 'Text', button: 'Button', link: 'Link', item: 'Item' };
 const write = (id, opts = {}) => markupFor(tile(id), { text: TEXT, ...opts });
 
-test('the dock\'s snippets, exactly', () => {
+test("the dock's snippets, exactly", () => {
   assert.equal(write('image'), '<img src="" alt="">');
   assert.equal(write('video'), '<video src="" controls playsinline preload="metadata"></video>');
   assert.equal(write('loop'), '{{ items }}\n\n{{ /items }}');
   assert.equal(write('if'), '{{ if true }}\n\n{{ /if }}');
 });
 
-test('the div menu\'s classes, and nothing of Build\'s own', () => {
+test("the div menu's classes, and nothing of Build's own", () => {
   assert.equal(write('container'), '<div class="container"></div>');
   assert.equal(write('flex'), '<div class="flex"></div>');
   assert.equal(write('div'), '<div></div>');
-  assert.equal(markupFor(items.find((i) => i.id === 'div:flex-col'), {}), '<div class="flex flex-col"></div>');
+  assert.equal(
+    markupFor(
+      items.find((i) => i.id === 'div:flex-col'),
+      {}
+    ),
+    '<div class="flex flex-col"></div>'
+  );
 });
 
-test('a section opens with the site\'s own section attributes, as the toolbar\'s does', () => {
-  const attrs = 'id="id-{{ id }}" class="[ {{ _class }} ]" {{ visual_edit outline_inside="true" section_orderable="true" }}';
+test("a section opens with the site's own section attributes, as the toolbar's does", () => {
+  const attrs =
+    'id="id-{{ id }}" class="[ {{ _class }} ]" {{ visual_edit outline_inside="true" section_orderable="true" }}';
 
   assert.equal(write('section', { sectionTag: attrs }), `<section ${attrs}></section>`);
   assert.equal(write('section'), '<section></section>');
@@ -47,18 +54,37 @@ test('elements that hold text start with a word to see and click', () => {
   assert.equal(markupFor(tile('heading'), { text: { heading: 'A <b> & c' } }), '<h2>A &lt;b&gt; &amp; c</h2>');
 });
 
-test('a grid comes empty with one row at the least: its columns stacked at the narrowest size, the site\'s gutter between', () => {
-  assert.equal(columnsMarkup('3', 'max-md'), '<div class="grid grid-cols-3 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>');
+test("a grid comes empty with one row at the least: its columns stacked at the narrowest size, the site's gutter between", () => {
+  assert.equal(
+    columnsMarkup('3', 'max-md'),
+    '<div class="grid grid-cols-3 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>'
+  );
   assert.equal(columnsMarkup('1', 'max-md'), '<div class="grid grid-cols-1 grid-rows-1 gap-gutter"></div>');
-  assert.equal(columnsMarkup('21', 'max-sm'), '<div class="grid grid-cols-[2fr_1fr] grid-rows-1 max-sm:grid-cols-1 gap-gutter"></div>');
-  assert.equal(write('grid', { preset: '4', mobile: 'max-md' }), '<div class="grid grid-cols-4 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>');
+  assert.equal(
+    columnsMarkup('21', 'max-sm'),
+    '<div class="grid grid-cols-[2fr_1fr] grid-rows-1 max-sm:grid-cols-1 gap-gutter"></div>'
+  );
+  assert.equal(
+    write('grid', { preset: '4', mobile: 'max-md' }),
+    '<div class="grid grid-cols-4 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>'
+  );
   assert.ok(!write('grid', { preset: '6', mobile: 'max-md' }).includes('<div></div>'), 'no cell divs');
 });
 
-test('a grid\'s rows are its class, back to one at the narrowest size; any preset Style has, the same classes', () => {
-  assert.equal(columnsMarkup('2x2', 'max-md'), '<div class="grid grid-cols-2 grid-rows-2 max-md:grid-cols-1 max-md:grid-rows-1 gap-gutter"></div>');
+test("a grid's rows are its class, back to one at the narrowest size; any preset Style has, the same classes", () => {
+  assert.equal(
+    columnsMarkup('2x2', 'max-md'),
+    '<div class="grid grid-cols-2 grid-rows-2 max-md:grid-cols-1 max-md:grid-rows-1 gap-gutter"></div>'
+  );
   assert.equal(columnsMarkup('3x3', ''), '<div class="grid grid-cols-3 grid-rows-3 gap-gutter"></div>');
-  assert.equal(columnsMarkup('121', 'max-md'), '<div class="grid grid-cols-[1fr_2fr_1fr] grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>');
-  assert.equal(write('grid', {}), '<div class="grid grid-cols-2 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>', 'no preset: two columns, one row');
+  assert.equal(
+    columnsMarkup('121', 'max-md'),
+    '<div class="grid grid-cols-[1fr_2fr_1fr] grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>'
+  );
+  assert.equal(
+    write('grid', {}),
+    '<div class="grid grid-cols-2 grid-rows-1 max-md:grid-cols-1 gap-gutter"></div>',
+    'no preset: two columns, one row'
+  );
   assert.equal(columnsMarkup('nope', 'max-md'), columnsMarkup('2', 'max-md'));
 });

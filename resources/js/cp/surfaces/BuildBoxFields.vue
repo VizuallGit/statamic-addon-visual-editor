@@ -24,10 +24,21 @@ const props = defineProps({
 const port = inject('sveBuild');
 const box = computed(() => props.tool.id);
 const kids = computed(() => kidsById(props.tool));
-const fallbacks = (id) => sideFallbackTools(box.value, id).map((other) => kids.value.get(other)?.css).filter(Boolean);
+const fallbacks = (id) =>
+  sideFallbackTools(box.value, id)
+    .map((other) => kids.value.get(other)?.css)
+    .filter(Boolean);
 
 const link = ref('');
-const ICONS = { 'block-start': 'padT', 'block-end': 'padB', 'inline-start': 'padL', 'inline-end': 'padR', block: 'padY', inline: 'padX', all: 'sides' };
+const ICONS = {
+  'block-start': 'padT',
+  'block-end': 'padB',
+  'inline-start': 'padL',
+  'inline-end': 'padR',
+  block: 'padY',
+  inline: 'padX',
+  all: 'sides',
+};
 const ORDER = ['block-start', 'block-end', 'inline-start', 'inline-end'];
 
 const rows = computed(() => {

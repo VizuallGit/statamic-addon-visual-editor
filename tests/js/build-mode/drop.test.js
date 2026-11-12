@@ -3,7 +3,16 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding, treeLanding } from '../../../resources/js/build-mode/drop.js';
+import {
+  dropInto,
+  dropMove,
+  dropNew,
+  dropWhere,
+  dropZones,
+  movable,
+  sectionLanding,
+  treeLanding,
+} from '../../../resources/js/build-mode/drop.js';
 import { findByPath } from '../../../resources/js/build-mode/place.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
@@ -89,7 +98,10 @@ test('inside goes where Add puts it: a section fills its container, Columns thei
 
   const grid = dropNew(FILE, GRID, 'inside', P);
 
-  assert.ok(grid.html.includes('            <div>\n                <p>New</p>\n            </div>\n        </div>'), grid.html);
+  assert.ok(
+    grid.html.includes('            <div>\n                <p>New</p>\n            </div>\n        </div>'),
+    grid.html
+  );
   assert.equal(dropInto(FILE, GRID), COL2);
   assert.equal(tagAt(grid.html, grid.path), 'p');
 });
@@ -111,7 +123,10 @@ test('a move is the tree’s (its whitespace too), and the moved element’s new
 
   const down = dropMove(FILE, H2, GRID, 'after');
 
-  assert.ok(order(down.html, 'class="grid', '<div></div>', '</div>', '<h2>Title</h2>', '</div>\n</section>'), down.html);
+  assert.ok(
+    order(down.html, 'class="grid', '<div></div>', '</div>', '<h2>Title</h2>', '</div>\n</section>'),
+    down.html
+  );
   assert.equal(down.path, '0:section/0:div/1:h2');
 });
 
@@ -179,7 +194,8 @@ test('a section of its own beside one of the page’s: after it, or after the on
 });
 
 test('a tile over the HTML tree lands as it would over the same element on the canvas', () => {
-  const at = (path, y, height = 30, more = {}) => treeLanding(ROOTS, { row: { path, y, height, ...more }, section: null });
+  const at = (path, y, height = 30, more = {}) =>
+    treeLanding(ROOTS, { row: { path, y, height, ...more }, section: null });
 
   // A box: before, inside, after by the row's thirds.
   assert.deepEqual(at(WRAPPER, 2), { path: WRAPPER, where: 'before' });
@@ -210,13 +226,29 @@ test('a section tile over the tree lands beside the page’s section it is in', 
   const rows = [['a', 'a-id'], ['b'], ['c', 'c-id']];
   const hit = (uid, y, row = null) => ({ row, section: { uid, y, height: 100 } });
 
-  assert.deepEqual(treeLanding(ROOTS, hit('b', 10), { section: 'always', rows }), { where: 'before', section: true, ids: rows[1], afterUid: 'a' });
-  assert.deepEqual(treeLanding(ROOTS, hit('c-id', 90), { section: 'always', rows }), { where: 'after', section: true, ids: rows[2], afterUid: 'c' });
+  assert.deepEqual(treeLanding(ROOTS, hit('b', 10), { section: 'always', rows }), {
+    where: 'before',
+    section: true,
+    ids: rows[1],
+    afterUid: 'a',
+  });
+  assert.deepEqual(treeLanding(ROOTS, hit('c-id', 90), { section: 'always', rows }), {
+    where: 'after',
+    section: true,
+    ids: rows[2],
+    afterUid: 'c',
+  });
   assert.deepEqual(treeLanding(ROOTS, hit('a', 10), { section: 'always', rows }).afterUid, null);
   // Section goes beside the section even over one of the file's rows.
-  assert.equal(treeLanding(ROOTS, hit('b', 90, { path: WRAPPER, y: 15, height: 30 }), { section: 'always', rows }).section, true);
+  assert.equal(
+    treeLanding(ROOTS, hit('b', 90, { path: WRAPPER, y: 15, height: 30 }), { section: 'always', rows }).section,
+    true
+  );
   // Another tile over a row of the file goes into the file; off its rows, beside the section.
-  assert.deepEqual(treeLanding(ROOTS, hit('b', 90, { path: WRAPPER, y: 15, height: 30 }), { section: 'container', rows }), { path: WRAPPER, where: 'inside' });
+  assert.deepEqual(
+    treeLanding(ROOTS, hit('b', 90, { path: WRAPPER, y: 15, height: 30 }), { section: 'container', rows }),
+    { path: WRAPPER, where: 'inside' }
+  );
   assert.equal(treeLanding(ROOTS, hit('b', 90), { section: 'container', rows }).afterUid, 'b');
   // A tile that is never a section: nothing beside a section.
   assert.equal(treeLanding(ROOTS, hit('b', 90), { rows }), null);

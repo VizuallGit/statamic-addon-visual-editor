@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bridgeState } from '../../resources/js/bridge/state.js';
-import { createShortcutKeyHandler, installShortcuts, previewShortcuts, setShortcuts } from '../../resources/js/bridge/shortcuts.js';
+import {
+  createShortcutKeyHandler,
+  installShortcuts,
+  previewShortcuts,
+  setShortcuts,
+} from '../../resources/js/bridge/shortcuts.js';
 import { MSG, SOURCE } from '../../resources/js/lib/protocol.js';
 
 /** A preview window: its parent collects what is posted up. */
@@ -46,8 +51,13 @@ test('a fresh preview listens in capture on the window and asks the CP for the l
 
   installShortcuts(win);
 
-  assert.deepEqual(win.listeners.map((item) => [item.type, item.capture]), [['keydown', true]]);
-  assert.deepEqual(win.posted, [{ message: { source: SOURCE, type: MSG.SVE_SHORTCUTS_REQUEST }, origin: 'http://site.test' }]);
+  assert.deepEqual(
+    win.listeners.map((item) => [item.type, item.capture]),
+    [['keydown', true]]
+  );
+  assert.deepEqual(win.posted, [
+    { message: { source: SOURCE, type: MSG.SVE_SHORTCUTS_REQUEST }, origin: 'http://site.test' },
+  ]);
 });
 
 test('the list from the CP is kept clean; a press of one is kept from the browser and sent up, anything else is left alone', () => {
@@ -60,7 +70,11 @@ test('the list from the CP is kept clean; a press of one is kept from the browse
   assert.deepEqual(previewShortcuts(), ['mod+g', 'mod+shift+x']);
   assert.equal(win.press({ key: 'g', code: 'KeyG', metaKey: true }), true, '⌘G: the browser does not get it');
   assert.equal(win.press({ key: 'X', code: 'KeyX', metaKey: true, shiftKey: true }), true);
-  assert.equal(win.press({ key: 'p', code: 'KeyP', metaKey: true }), false, '⌘P runs nothing here: the browser keeps it');
+  assert.equal(
+    win.press({ key: 'p', code: 'KeyP', metaKey: true }),
+    false,
+    '⌘P runs nothing here: the browser keeps it'
+  );
   assert.equal(win.press({ key: 'g', code: 'KeyG' }), false, 'typing');
   assert.deepEqual(
     win.posted.map((item) => item.message),
@@ -71,7 +85,7 @@ test('the list from the CP is kept clean; a press of one is kept from the browse
   );
 });
 
-test('while an inline edit is open the keys are the text\'s: nothing is kept, nothing is sent', () => {
+test("while an inline edit is open the keys are the text's: nothing is kept, nothing is sent", () => {
   const win = fakePreview();
 
   installShortcuts(win);
@@ -98,7 +112,21 @@ test('a new list replaces the old whole; Windows reads Ctrl as mod', () => {
 
   assert.deepEqual(previewShortcuts(), ['mod+m']);
 
-  const event = { key: 'm', code: 'KeyM', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false, defaultPrevented: false, getModifierState: () => false, preventDefault() { this.defaultPrevented = true; } };
+  const event = {
+    key: 'm',
+    code: 'KeyM',
+    ctrlKey: true,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    repeat: false,
+    isComposing: false,
+    defaultPrevented: false,
+    getModifierState: () => false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+  };
 
   onKeydown(event);
   assert.equal(event.defaultPrevented, true);

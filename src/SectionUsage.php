@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Statamic\Contracts\Auth\User;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -222,7 +223,7 @@ class SectionUsage
     }
 
     /** Whether the current user may edit every entry that uses it. */
-    public static function allEditable(array $usages, ?\Statamic\Contracts\Auth\User $user): bool
+    public static function allEditable(array $usages, ?User $user): bool
     {
         if (! $user) {
             return false;

@@ -41,15 +41,15 @@ CSS;
     /** @return list<array{family: string, file: string, format: string, weight: string, style: string, unicodeRange: ?string, end: int}> */
     public static function faces(?string $css = null): array
     {
-        $css ??= static::css();
+        $css ??= self::css();
         $faces = [];
 
-        preg_match_all(self::FACE, static::uncommented($css), $blocks, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        preg_match_all(self::FACE, self::uncommented($css), $blocks, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
         foreach ($blocks as $block) {
             $body = $block[1][0];
-            $family = static::descriptor($body, 'font-family');
-            $src = static::descriptor($body, 'src');
+            $family = self::descriptor($body, 'font-family');
+            $src = self::descriptor($body, 'src');
 
             if ($family === null || $src === null || ! preg_match('/url\(\s*["\']?([^"\')]+)["\']?\s*\)/i', $src, $url)) {
                 continue;
@@ -59,11 +59,11 @@ CSS;
 
             $faces[] = [
                 'family' => trim($family, " \t\n\r\"'"),
-                'file' => static::relative(trim($url[1])),
+                'file' => self::relative(trim($url[1])),
                 'format' => strtolower($format[1] ?? ''),
-                'weight' => (string) preg_replace('/\s+/', ' ', static::descriptor($body, 'font-weight') ?? '400'),
-                'style' => strtolower(static::descriptor($body, 'font-style') ?? 'normal'),
-                'unicodeRange' => static::descriptor($body, 'unicode-range'),
+                'weight' => (string) preg_replace('/\s+/', ' ', self::descriptor($body, 'font-weight') ?? '400'),
+                'style' => strtolower(self::descriptor($body, 'font-style') ?? 'normal'),
+                'unicodeRange' => self::descriptor($body, 'unicode-range'),
                 'end' => $block[0][1] + strlen($block[0][0]),
             ];
         }
@@ -74,7 +74,7 @@ CSS;
     /** @return list<string> the `@import` URLs, in file order */
     public static function imports(?string $css = null): array
     {
-        preg_match_all(self::IMPORT, static::uncommented($css ?? static::css()), $matches);
+        preg_match_all(self::IMPORT, self::uncommented($css ?? self::css()), $matches);
 
         return array_values(array_unique($matches[1]));
     }
@@ -87,8 +87,8 @@ CSS;
      */
     public static function addFaces(string $family, array $faces): int
     {
-        $css = static::css() ?: self::HEADER;
-        $known = array_map(fn ($face) => strtolower($face['file']), static::faces($css));
+        $css = self::css() ?: self::HEADER;
+        $known = array_map(fn ($face) => strtolower($face['file']), self::faces($css));
         $blocks = [];
 
         foreach ($faces as $face) {
@@ -96,7 +96,7 @@ CSS;
 
             if (! in_array($key, $known, true)) {
                 $known[] = $key;
-                $blocks[] = static::block($family, $face);
+                $blocks[] = self::block($family, $face);
             }
         }
 
@@ -104,7 +104,7 @@ CSS;
             return 0;
         }
 
-        $mine = array_filter(static::faces($css), fn ($face) => strcasecmp($face['family'], $family) === 0);
+        $mine = array_filter(self::faces($css), fn ($face) => strcasecmp($face['family'], $family) === 0);
         $text = implode("\n", $blocks);
 
         if ($mine) {
@@ -114,7 +114,7 @@ CSS;
             $css = rtrim($css)."\n\n/* {$family} */\n{$text}\n";
         }
 
-        static::write($css);
+        self::write($css);
 
         return count($blocks);
     }
@@ -122,9 +122,9 @@ CSS;
     /** Add `@import url("…");` for a kit, after the last import or before the first rule. */
     public static function addImport(string $url): bool
     {
-        $css = static::css() ?: self::HEADER;
+        $css = self::css() ?: self::HEADER;
 
-        if (in_array($url, static::imports($css), true)) {
+        if (in_array($url, self::imports($css), true)) {
             return false;
         }
 
@@ -132,7 +132,7 @@ CSS;
 
         // Only rules count: the header says "One @font-face per file", and an
         // import put there sits inside the comment, where no browser reads it.
-        $rules = static::uncommented($css);
+        $rules = self::uncommented($css);
 
         if (preg_match_all(self::IMPORT, $rules, $imports, PREG_OFFSET_CAPTURE) && $imports[0]) {
             $last = end($imports[0]);
@@ -151,7 +151,7 @@ CSS;
             $css = rtrim($css)."\n\n".$line."\n";
         }
 
-        static::write($css);
+        self::write($css);
 
         return true;
     }

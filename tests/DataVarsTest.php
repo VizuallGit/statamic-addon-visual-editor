@@ -10,7 +10,7 @@ class DataVarsTest extends TestCase
     /** @return array<string, array<string, mixed>> keyed by variable name */
     protected function walk(array $fields): array
     {
-                $out = [];
+        $out = [];
 
         foreach (Rows::walk($fields) as $row) {
             $out[$row['var']] = $row;
@@ -143,7 +143,7 @@ class DataVarsTest extends TestCase
             ],
         ]]);
 
-                $titles = array_filter(Rows::walk([[
+        $titles = array_filter(Rows::walk([[
             'handle' => 'list',
             'field' => [
                 'type' => 'replicator',

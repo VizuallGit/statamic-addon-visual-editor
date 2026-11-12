@@ -21,7 +21,18 @@ import { openSectionPicker, syncPreviewInset } from '../section-library.js';
 import { ensurePreviewOutsideDismiss, initGlobalsPanelFrame } from '../globals-panel.js';
 import { listenForGlobalsValues } from '../chrome.js';
 import { initOpenInPreview, watchEntrySaves } from '../open-in-preview.js';
-import { CP_STYLES, armSetPickerSearchSilence, autoOpenLivePreview, createMessageListener, findPrecedingBardSetNode, getUidFromSet, interceptLivePreviewOpen, isEmbeddedInSite, previewPainted, sendToPreview } from './add-section.js';
+import {
+  CP_STYLES,
+  armSetPickerSearchSilence,
+  autoOpenLivePreview,
+  createMessageListener,
+  findPrecedingBardSetNode,
+  getUidFromSet,
+  interceptLivePreviewOpen,
+  isEmbeddedInSite,
+  previewPainted,
+  sendToPreview,
+} from './add-section.js';
 import { applyHeaderTab, scheduleHtmlTreePrefetch } from './header-toolbar.js';
 import { handleFieldFocus, isSetCollapsed } from './sets.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
@@ -58,10 +69,7 @@ export function assetCounter(doc) {
 
 export function checkedAssetToggles(doc) {
   return [...doc.querySelectorAll('[role="checkbox"], input[type="checkbox"]')].filter(
-    (el) =>
-      el.checked === true ||
-      el.getAttribute('aria-checked') === 'true' ||
-      el.dataset?.state === 'checked'
+    (el) => el.checked === true || el.getAttribute('aria-checked') === 'true' || el.dataset?.state === 'checked'
   );
 }
 
@@ -118,11 +126,15 @@ export function guardAssetLimit(win) {
   );
 
   // Closing the asset editor with the keyboard is not a click.
-  doc.addEventListener('keyup', (event) => {
-    if (event.key === 'Escape' || event.key === 'Enter') {
-      check();
-    }
-  }, true);
+  doc.addEventListener(
+    'keyup',
+    (event) => {
+      if (event.key === 'Escape' || event.key === 'Enter') {
+        check();
+      }
+    },
+    true
+  );
 }
 
 // The "where is this edited?" conditions live in lib/live-preview.js: addon.js
@@ -147,8 +159,7 @@ function guardEditorDirtyPopstate(win) {
   win.addEventListener(
     'popstate',
     (event) => {
-      const editing =
-        !!win.document.querySelector('.live-preview-editor') || win.parent !== win;
+      const editing = !!win.document.querySelector('.live-preview-editor') || win.parent !== win;
 
       if (!editing) {
         return;
@@ -202,10 +213,7 @@ export function initCp(win = window) {
   // preview has painted, then restore it *before* `lp-ready` so the fade-in
   // already has the sidebar / dock. Remounting during boot still drops ready.
   try {
-    if (
-      isEmbeddedInSite(win) &&
-      new URLSearchParams(win.location.search).get('live-preview') === '1'
-    ) {
+    if (isEmbeddedInSite(win) && new URLSearchParams(win.location.search).get('live-preview') === '1') {
       sveState.dockRestorePaused = true;
     }
   } catch {
@@ -417,8 +425,7 @@ export function initCp(win = window) {
 
     if (contentEditable && !event.target.closest('[data-node-view-wrapper]')) {
       const prevBardSet = findPrecedingBardSetNode(event.target, contentEditable);
-      const afterSetUid =
-        prevBardSet?.querySelector('[data-visual-id]')?.getAttribute('data-visual-id') ?? null;
+      const afterSetUid = prevBardSet?.querySelector('[data-visual-id]')?.getAttribute('data-visual-id') ?? null;
       const hoverKey = `${uid}::${afterSetUid}`;
 
       if (hoverKey === lastCpHoverUid) {
@@ -492,8 +499,7 @@ export function initCp(win = window) {
     if (contentEditable && !event.target.closest('[data-node-view-wrapper]')) {
       const prevBardSet = findPrecedingBardSetNode(event.target, contentEditable);
 
-      message.afterSetUid =
-        prevBardSet?.querySelector('[data-visual-id]')?.getAttribute('data-visual-id') ?? null;
+      message.afterSetUid = prevBardSet?.querySelector('[data-visual-id]')?.getAttribute('data-visual-id') ?? null;
     }
 
     // Sync the CP active state immediately so the clicked set is outlined

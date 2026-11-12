@@ -11,7 +11,7 @@ import { isEditorDrawn, isLivePreviewControl } from '../../resources/js/lib/live
 function element({ text = '', title = null, attributes = {} } = {}) {
   return {
     textContent: text,
-    getAttribute: (name) => (name === 'title' ? title : attributes[name] ?? null),
+    getAttribute: (name) => (name === 'title' ? title : (attributes[name] ?? null)),
     attributes: Object.entries(attributes).map(([name, value]) => ({ name, value })),
   };
 }
@@ -24,7 +24,10 @@ test("Statamic's button is known by its words, in any CP language", () => {
 });
 
 test("the editor's own Live Preview links are not Statamic's control", () => {
-  const topBar = element({ text: 'Live Preview', attributes: { 'data-sve-home-preview': '', href: '/cp/x?live-preview=1' } });
+  const topBar = element({
+    text: 'Live Preview',
+    attributes: { 'data-sve-home-preview': '', href: '/cp/x?live-preview=1' },
+  });
   const rowLabel = element({ text: 'Open in Live Preview', attributes: { 'data-sve-open-preview': '' } });
 
   assert.equal(isEditorDrawn(topBar), true);

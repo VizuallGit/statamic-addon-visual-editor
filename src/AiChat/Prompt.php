@@ -22,7 +22,7 @@ final class Prompt
 
     public static function modeInstructions(string $mode): string
     {
-        if (static::modeOf($mode) === 'write') {
+        if (self::modeOf($mode) === 'write') {
             return <<<'TXT'
 WRITE MODE — output only. Do not write, create, edit or delete any files. Do not use file-writing tools.
 The user wants the result in the chat so they can copy or insert it.
@@ -114,8 +114,8 @@ TXT;
      */
     public static function prompt(string $handle, array $messages, string $mode = 'write', ?array $write = null): string
     {
-        $mode = static::modeOf($mode);
-        $target = static::targetFiles($handle);
+        $mode = self::modeOf($mode);
+        $target = self::targetFiles($handle);
         $path = $handle !== '' ? SectionTemplate::path($handle) : null;
         $parts = $path
             ? SectionTemplate::split((string) file_get_contents($path), $handle)
@@ -136,7 +136,7 @@ TXT;
         }
 
         $rules = AiRules::text();
-        $modeBlock = static::modeInstructions($mode);
+        $modeBlock = self::modeInstructions($mode);
 
         // What Statamic says about itself, from the installed version. Framed as
         // background rather than instruction: it describes a CMS, while the
@@ -174,11 +174,11 @@ Do not write another section's files.
 Only create new files if they explicitly ask for a new section type / new set / new fieldset.
 TXT)
             : ($mode === 'write'
-                ? <<<TXT
+                ? <<<'TXT'
 No section is selected.
 Write a complete section they can paste. Use the frame under "New section".
 TXT
-                : <<<TXT
+                : <<<'TXT'
 No section is selected.
 If they ask to change "the heading" or "this section", tell them to click a section in the preview first.
 Create new files only when they explicitly ask for a new section type, fieldset or YAML file.
@@ -193,7 +193,7 @@ TXT;
         }
 
         $folders = $mode === 'write'
-            ? <<<TXT
+            ? <<<'TXT'
 You may READ these folders for context:
 - resources/fieldsets/
 - resources/blueprints/
@@ -203,13 +203,13 @@ You may READ these folders for context:
 
 In Write mode, skip adding to ai-rules.md — mention the rule in the reply instead.
 TXT
-            : <<<TXT
+            : <<<'TXT'
 You may READ the whole site for context: resources/fieldsets/, resources/blueprints/, resources/views/, resources/css/, resources/visual-editor/ai-rules.md.
 
 When the user or a designer says how they want things built ("we always wrap in .wrapper", "remember this", "make that a rule", "sådan gør vi"), call add_rule with the rule in their words. Existing rules are never changed. Then follow the new rule in the same turn.
 TXT;
 
-        $writeScope = static::writeScope($write);
+        $writeScope = self::writeScope($write);
         $houseStyle = HouseStyle::prompt($handle);
 
         return <<<TXT

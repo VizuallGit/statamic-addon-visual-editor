@@ -29,7 +29,15 @@
 
 import { ref, watch } from 'vue';
 import { emit, on } from '../cp/bus.js';
-import { applyClasses, bodyWithClasses, compilerCss, lockedUtilities, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
+import {
+  applyClasses,
+  bodyWithClasses,
+  compilerCss,
+  lockedUtilities,
+  utilityBodies,
+  utilityNameProblem,
+  writeUtilities,
+} from '../cp/theme-panel/utilities.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from '../cp/theme-panel/utility-paint.js';
 import { watchClassesFirstUsed } from './class-first-use.js';
 import { pageDocuments, postSiteCss, readSiteCss, storeUtility, toast } from './tw-utility.js';
@@ -121,7 +129,10 @@ function createClassTarget(win) {
     return loading;
   }
 
-  const tagTokens = () => tokenizeClassValue(twTagClasses()).filter((tok) => !tok.dynamic).map((tok) => tok.text);
+  const tagTokens = () =>
+    tokenizeClassValue(twTagClasses())
+      .filter((tok) => !tok.dynamic)
+      .map((tok) => tok.text);
 
   /** The utilities in site.css, plain names: `tab-*` is a family of classes, not one to put on an element. */
   function names() {
@@ -202,13 +213,18 @@ function createClassTarget(win) {
 
         if (build?.ok && build.css) {
           // The new sheet replaces what was painted; clicks made since are drawn on it again.
-          pageDocuments(win).forEach((doc) => swapSiteCss(doc, build.css, () => {
-            if (target.value === name && good !== value) {
-              void draw(name, good).catch(() => {});
-            }
-          }));
+          pageDocuments(win).forEach((doc) =>
+            swapSiteCss(doc, build.css, () => {
+              if (target.value === name && good !== value) {
+                void draw(name, good).catch(() => {});
+              }
+            })
+          );
         } else if (build) {
-          toast(win, 'error', 'tw_utility_not_built', { name, reason: i18n(win, `theme_utilities_reason_${build.reason || 'error'}`) });
+          toast(win, 'error', 'tw_utility_not_built', {
+            name,
+            reason: i18n(win, `theme_utilities_reason_${build.reason || 'error'}`),
+          });
         }
       } catch {
         toast(win, 'error', 'tw_utility_failed');
@@ -284,7 +300,10 @@ function createClassTarget(win) {
           });
       },
       /** What the element would look like: the tag's own classes, with this class's in its place. */
-      preview: (value) => tagTokens().map((token) => (token === name ? value : token)).join(' '),
+      preview: (value) =>
+        tagTokens()
+          .map((token) => (token === name ? value : token))
+          .join(' '),
     };
 
     openPane = pane;
@@ -359,7 +378,9 @@ function createClassTarget(win) {
     take(raw) {
       if (picking.value) {
         if (!isSite(raw)) {
-          chosen.value = chosen.value.includes(raw) ? chosen.value.filter((one) => one !== raw) : [...chosen.value, raw];
+          chosen.value = chosen.value.includes(raw)
+            ? chosen.value.filter((one) => one !== raw)
+            : [...chosen.value, raw];
           twRefresh(win);
         }
 
@@ -407,11 +428,14 @@ function createClassTarget(win) {
   on('dock:html-changed', bump);
 
   // The class came off the element: back to the element.
-  watch(() => (rev.value, !!target.value && !tagTokens().includes(target.value)), (off) => {
-    if (off) {
-      edit('');
+  watch(
+    () => (rev.value, !!target.value && !tagTokens().includes(target.value)),
+    (off) => {
+      if (off) {
+        edit('');
+      }
     }
-  });
+  );
 
   // Another element picked: what was chosen belonged to the one before.
   watch(() => (rev.value, twPickedPath()), stopPicking);
@@ -468,7 +492,10 @@ function createClassTarget(win) {
     stopPicking,
     chipHost,
     /** What the element carries besides the open class: `joinable` can go in it. */
-    outside: () => tagTokens().filter((token) => token !== target.value && token !== '[' && token !== ']').map((name) => ({ name, joinable: canJoin(name) })),
+    outside: () =>
+      tagTokens()
+        .filter((token) => token !== target.value && token !== '[' && token !== ']')
+        .map((name) => ({ name, joinable: canJoin(name) })),
     takeIn,
     chooseAll,
     allChosen: () => {
@@ -479,7 +506,11 @@ function createClassTarget(win) {
     canChoose: () => tagTokens().some(canJoin),
     /** The first class on the element whose `@apply` holds what `has(applyClasses)` looks for. */
     sourceOf(has) {
-      return tagTokens().find((token) => isSite(token) && token !== target.value && has(applyClasses(bodies.value.get(token) || ''))) || '';
+      return (
+        tagTokens().find(
+          (token) => isSite(token) && token !== target.value && has(applyClasses(bodies.value.get(token) || ''))
+        ) || ''
+      );
     },
     /** Why `name` cannot be a new class: `bad_name`, `taken`, or '' when it can. */
     problem(name) {

@@ -11,7 +11,9 @@ defineProps({
 <template>
   <div v-if="kind === 'colors'" data-sve-css-swatches>
     <button type="button" data-sve-css-clear title="Clear" @click.prevent.stop="onClear">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l6 6M8 2L2 8"/></svg>
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 2l6 6M8 2L2 8" />
+      </svg>
     </button>
     <button
       v-for="swatch in swatches"

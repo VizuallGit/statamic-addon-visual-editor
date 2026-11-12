@@ -72,17 +72,23 @@ test('pair-only tags must close; single tags may stand alone', () => {
 });
 
 test("statamic's loop tags must close, by their first word", () => {
-  assert.deepEqual(findings('<ul>\n{{ collection in="services" }}\n<li>{{ title }}</li>\n</ul>'), ['pair_unclosed:collection']);
+  assert.deepEqual(findings('<ul>\n{{ collection in="services" }}\n<li>{{ title }}</li>\n</ul>'), [
+    'pair_unclosed:collection',
+  ]);
   assert.deepEqual(findings('{{ collection:blog limit="3" }}<b>{{ title }}</b>{{ /collection }}'), []);
   assert.deepEqual(findings('{{ nav:collection:pages }}<a>{{ title }}</a>{{ /nav }}'), []);
   assert.deepEqual(findings('{{ collection:count from="blog" }}'), []);
   // Closed with the opening tag again: two openings, neither closed.
-  assert.deepEqual(findings('{{ collection from="services" }}\n<b>{{ title }}</b>\n{{ collection }}'), ['pair_unclosed:collection', 'pair_unclosed:collection']);
+  assert.deepEqual(findings('{{ collection from="services" }}\n<b>{{ title }}</b>\n{{ collection }}'), [
+    'pair_unclosed:collection',
+    'pair_unclosed:collection',
+  ]);
 });
 
 test('a field the fieldset calls a list must close; a value of it may stand', () => {
   const lists = ['blocks', 'items'];
-  const keys = (src) => lintTemplate(src, parser, { lists }).map((p) => `${p.key.replace('code_dock_problem_', '')}:${p.args.name}`);
+  const keys = (src) =>
+    lintTemplate(src, parser, { lists }).map((p) => `${p.key.replace('code_dock_problem_', '')}:${p.args.name}`);
 
   assert.deepEqual(keys('<ul>{{ blocks }}<li>{{ title }}</li></ul>'), ['list_unclosed:blocks']);
   assert.deepEqual(keys('<ul>{{ blocks }}<li>{{ title }}</li>{{ /blocks }}</ul>'), []);
@@ -102,10 +108,16 @@ test('a slice of the file is judged by the file: a branch picked in the tree is 
 
   // Picked alone, the `{{ else }}` row has no `{{ if }}` in front of it, and its `{{ /if }}` closes nothing.
   assert.deepEqual(findings(after.slice(0, after.indexOf('\n</div>'))), ['branch_stray:else', 'pair_stray:if']);
-  assert.deepEqual(lintTemplate(after.slice(0, after.indexOf('\n</div>')), parser, { before: before + slice, after: '\n</div>' }), []);
+  assert.deepEqual(
+    lintTemplate(after.slice(0, after.indexOf('\n</div>')), parser, { before: before + slice, after: '\n</div>' }),
+    []
+  );
 
   // A `<div>` opened in the slice and closed after it is nobody's mistake either.
-  assert.deepEqual(lintTemplate('<div class="a">\n  <p>x</p>', parser, { before: '<section>\n', after: '\n</div>\n</section>' }), []);
+  assert.deepEqual(
+    lintTemplate('<div class="a">\n  <p>x</p>', parser, { before: '<section>\n', after: '\n</div>\n</section>' }),
+    []
+  );
 });
 
 test('a slice reports what is inside it, in its own offsets, and leaves the rest of the file alone', () => {

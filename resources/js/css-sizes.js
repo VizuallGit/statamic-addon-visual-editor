@@ -53,8 +53,16 @@ export function queryEdge(query) {
   }
 
   const patterns = hasMax
-    ? [/\bmax-width\s*:\s*([\d.]+)(px|em|rem)/, /\bwidth\s*<=?\s*([\d.]+)(px|em|rem)/, /([\d.]+)(px|em|rem)\s*>=?\s*width\b/]
-    : [/\bmin-width\s*:\s*([\d.]+)(px|em|rem)/, /\bwidth\s*>=?\s*([\d.]+)(px|em|rem)/, /([\d.]+)(px|em|rem)\s*<=?\s*width\b/];
+    ? [
+        /\bmax-width\s*:\s*([\d.]+)(px|em|rem)/,
+        /\bwidth\s*<=?\s*([\d.]+)(px|em|rem)/,
+        /([\d.]+)(px|em|rem)\s*>=?\s*width\b/,
+      ]
+    : [
+        /\bmin-width\s*:\s*([\d.]+)(px|em|rem)/,
+        /\bwidth\s*>=?\s*([\d.]+)(px|em|rem)/,
+        /([\d.]+)(px|em|rem)\s*<=?\s*width\b/,
+      ];
 
   for (const pattern of patterns) {
     const m = text.match(pattern);

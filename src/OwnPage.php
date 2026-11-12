@@ -38,7 +38,7 @@ final class OwnPage
      */
     public static function is($entry): bool
     {
-        $view = static::viewOf($entry);
+        $view = self::viewOf($entry);
 
         if ($view === null) {
             return false;
@@ -83,11 +83,11 @@ final class OwnPage
 
         foreach (Entry::all() as $entry) {
             // Most pages name no template of their own: only those are asked the rest.
-            if (! $entry->get('template') || in_array($entry->collectionHandle(), $stores, true) || $entry->hasOrigin() || ! static::is($entry)) {
+            if (! $entry->get('template') || in_array($entry->collectionHandle(), $stores, true) || $entry->hasOrigin() || ! self::is($entry)) {
                 continue;
             }
 
-            $found[] = ['entry' => $entry, 'view' => static::viewOf($entry)];
+            $found[] = ['entry' => $entry, 'view' => self::viewOf($entry)];
         }
 
         usort($found, fn ($a, $b) => strnatcasecmp((string) $a['entry']->value('title'), (string) $b['entry']->value('title')));
@@ -101,7 +101,7 @@ final class OwnPage
      */
     public static function canMake($entry): bool
     {
-        if (! $entry || in_array($entry->collectionHandle(), Stores::all(), true) || $entry->hasOrigin() || static::is($entry)) {
+        if (! $entry || in_array($entry->collectionHandle(), Stores::all(), true) || $entry->hasOrigin() || self::is($entry)) {
             return false;
         }
 
@@ -117,7 +117,7 @@ final class OwnPage
      */
     public static function make($entry): ?array
     {
-        if (! static::canMake($entry)) {
+        if (! self::canMake($entry)) {
             return null;
         }
 
@@ -129,14 +129,14 @@ final class OwnPage
         // them, with the loop the pages' own template has. Without any, the
         // field goes and the file starts empty.
         $keeps = SectionField::in($from) && count((array) $entry->get($sections)) > 0;
-        $stripped = $keeps ? $contents : static::withoutField($contents, $sections);
+        $stripped = $keeps ? $contents : self::withoutField($contents, $sections);
 
         if ($stripped === null) {
             return null;
         }
 
         $base = Str::slug((string) ($entry->slug() ?: $entry->value('title') ?: 'page')) ?: 'page';
-        [$handle, $view] = static::names($collection, $base);
+        [$handle, $view] = self::names($collection, $base);
         $title = (string) ($entry->value('title') ?: $entry->slug());
 
         Arr::pull($stripped, 'hide');
@@ -152,7 +152,7 @@ final class OwnPage
         // Read back: the copy holds every field but the sections. Otherwise it goes again.
         $written = $blueprint->path();
 
-        if (! is_file($written) || static::count(YAML::file($written)->parse()) !== static::count($stripped)) {
+        if (! is_file($written) || self::count(YAML::file($written)->parse()) !== self::count($stripped)) {
             File::delete($written);
 
             return null;
@@ -168,7 +168,7 @@ final class OwnPage
         try {
             File::ensureDirectoryExists(dirname($file));
 
-            if (File::put($file, $keeps ? static::sectionsLoop($sections) : static::starter()) === false) {
+            if (File::put($file, $keeps ? self::sectionsLoop($sections) : self::starter()) === false) {
                 throw new \RuntimeException("The view {$view} could not be written.");
             }
 
@@ -244,7 +244,7 @@ final class OwnPage
                 }
 
                 $fields = is_array($section['fields'] ?? null) ? $section['fields'] : [];
-                $section['fields'] = array_values(array_filter($fields, fn ($field) => ! static::bringsField($field, $handle)));
+                $section['fields'] = array_values(array_filter($fields, fn ($field) => ! self::bringsField($field, $handle)));
                 $contents['tabs'][$tabKey]['sections'][$sectionKey] = $section;
             }
         }

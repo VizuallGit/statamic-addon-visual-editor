@@ -40,7 +40,11 @@ export function claudeParams(model) {
 
 /** The tools in the API's shape. */
 export function apiTools(tools) {
-  return Object.entries(tools).map(([name, tool]) => ({ name, description: tool.description, input_schema: tool.inputSchema }));
+  return Object.entries(tools).map(([name, tool]) => ({
+    name,
+    description: tool.description,
+    input_schema: tool.inputSchema,
+  }));
 }
 
 /**
@@ -50,7 +54,12 @@ export function apiTools(tools) {
  */
 export async function toolResult(tools, call) {
   const tool = tools[call.name];
-  const result = (content, isError = false) => ({ type: 'tool_result', tool_use_id: call.id, content, ...(isError ? { is_error: true } : {}) });
+  const result = (content, isError = false) => ({
+    type: 'tool_result',
+    tool_use_id: call.id,
+    content,
+    ...(isError ? { is_error: true } : {}),
+  });
 
   if (!tool) {
     return result(`There is no tool named ${call.name}.`, true);

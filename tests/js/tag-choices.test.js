@@ -24,7 +24,9 @@ test('a link can stop being one: text, never a heading', () => {
 test('text can become a link; layout and lists turn into each other', () => {
   assert.ok(tagChoices('p').includes('a'));
   assert.equal(tagChoices('div'), LAYOUT_TAGS);
-  assert.ok(tagChoices('ul').includes('div') && tagChoices('div').includes('ol') && tagChoices('section').includes('nav'));
+  assert.ok(
+    tagChoices('ul').includes('div') && tagChoices('div').includes('ol') && tagChoices('section').includes('nav')
+  );
 });
 
 test('a list item and what has a shape of its own', () => {
@@ -58,15 +60,19 @@ test('retag renames both ends from where the element starts — never <h3>…</h
 });
 
 test('a link that stops being one loses href, target, rel and the visual_edit on its address — its text stays', () => {
-  const html = '<p><a href="{{ link }}" target="_blank" rel="noopener" class="btn" aria-label="Go" {{ visual_edit field="link" }}>{{ link_text }}</a></p>';
+  const html =
+    '<p><a href="{{ link }}" target="_blank" rel="noopener" class="btn" aria-label="Go" {{ visual_edit field="link" }}>{{ link_text }}</a></p>';
 
   assert.equal(retag(html, 3, 'span'), '<p><span class="btn" aria-label="Go">{{ link_text }}</span></p>');
 });
 
-test('a visual_edit on the link\'s text stays when the link goes', () => {
+test("a visual_edit on the link's text stays when the link goes", () => {
   const html = '<a href="/x" {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</a>';
 
-  assert.equal(retag(html, 0, 'strong'), '<strong {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</strong>');
+  assert.equal(
+    retag(html, 0, 'strong'),
+    '<strong {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</strong>'
+  );
 });
 
 test('retag refuses what Custom refuses, and a void element is renamed alone', () => {

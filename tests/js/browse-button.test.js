@@ -20,11 +20,14 @@ test('the shown Browse button, by either of its words', () => {
   assert.equal(browseButton(field(button('Browse Assets', false), button('Browse'))).textContent.trim(), 'Browse');
 });
 
-test('Statamic\'s translation is asked, so a Danish Control Panel finds it too', () => {
+test("Statamic's translation is asked, so a Danish Control Panel finds it too", () => {
   globalThis.window.__ = (key) => ({ 'Browse Assets': 'Gennemse filer', Browse: 'Gennemse' })[key] || key;
 
   try {
-    assert.equal(browseButton(field(button('Browse Assets'), button('Gennemse filer'))).textContent.trim(), 'Gennemse filer');
+    assert.equal(
+      browseButton(field(button('Browse Assets'), button('Gennemse filer'))).textContent.trim(),
+      'Gennemse filer'
+    );
   } finally {
     delete globalThis.window.__;
   }

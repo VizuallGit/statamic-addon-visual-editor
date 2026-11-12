@@ -51,24 +51,28 @@ if (original?.includes('sve_test_lead') || original?.includes('sve-test-gruppe')
 const POPUP = '[data-sve-bard-styles]';
 
 async function pointIn(frame, selector, nth = 0) {
-  const r = await frame.evaluate((sel, n) => {
-    const seen = [...document.querySelectorAll(sel)].filter((el) => {
+  const r = await frame.evaluate(
+    (sel, n) => {
+      const seen = [...document.querySelectorAll(sel)].filter((el) => {
+        const b = el.getBoundingClientRect();
+
+        return b.width > 0 && b.height > 0;
+      });
+      const el = seen[n];
+
+      if (!el) {
+        return null;
+      }
+
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+
       const b = el.getBoundingClientRect();
 
-      return b.width > 0 && b.height > 0;
-    });
-    const el = seen[n];
-
-    if (!el) {
-      return null;
-    }
-
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
-
-    const b = el.getBoundingClientRect();
-
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-  }, selector, nth);
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    },
+    selector,
+    nth
+  );
 
   if (!r) {
     throw new Error(`nothing visible for ${selector} [${nth}]`);
@@ -88,7 +92,10 @@ async function click(page, frame, selector, nth = 0) {
   const { x, y } = await pointIn(frame, selector, nth);
   const t0 = Date.now();
 
-  while (Date.now() - t0 < 8000 && (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))) {
+  while (
+    Date.now() - t0 < 8000 &&
+    (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))
+  ) {
     await sleep(100);
   }
 
@@ -126,7 +133,11 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate(() => [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click());
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click()
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -145,12 +156,26 @@ async function openPopup(page, cp) {
   return waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-bs-row]`).length > 0, POPUP, 15000);
 }
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-page.on('console', (m) => m.type() === 'error' && !/422/.test(m.text()) && errors.push(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 400 && !(r.status() === 422 && r.url().includes('/bard-style/styles')) && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'console',
+  (m) => m.type() === 'error' && !/422/.test(m.text()) && errors.push(`console: ${m.text().slice(0, 200)}`)
+);
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 400 &&
+    !(r.status() === 422 && r.url().includes('/bard-style/styles')) &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -173,33 +198,52 @@ try {
   let cp = await openLivePreview(page);
 
   // ── The icon and the list ───────────────────────────────────────────────
-  const title = await cp.evaluate(() => document.querySelector('#__sve-toolbar button[data-tab="bard_styles"]')?.title || '');
+  const title = await cp.evaluate(
+    () => document.querySelector('#__sve-toolbar button[data-tab="bard_styles"]')?.title || ''
+  );
 
   step('top bar has the text styles icon', !!title, title);
-  step('popup opens with the site\'s styles', await openPopup(page, cp));
+  step("popup opens with the site's styles", await openPopup(page, cp));
   await shot(page, 'open');
 
   const api = await cp.evaluate(async () => {
-    const res = await fetch(`${Statamic.$config.get('cpRoot') || '/cp'}/bard-style/styles`, { headers: { Accept: 'application/json' } });
+    const res = await fetch(`${Statamic.$config.get('cpRoot') || '/cp'}/bard-style/styles`, {
+      headers: { Accept: 'application/json' },
+    });
 
     return res.json();
   });
   const rows = await rowCount(cp);
 
-  step('one row per style the addon serves', rows === api.styles.length, `${rows} rows, ${api.styles.length} styles, source ${api.source}`);
-  step('Title is in the list', await cp.evaluate((p) => !!document.querySelector(`${p} [data-sve-bs-row="title"]`), POPUP));
+  step(
+    'one row per style the addon serves',
+    rows === api.styles.length,
+    `${rows} rows, ${api.styles.length} styles, source ${api.source}`
+  );
+  step(
+    'Title is in the list',
+    await cp.evaluate((p) => !!document.querySelector(`${p} [data-sve-bs-row="title"]`), POPUP)
+  );
 
   // ── A group ─────────────────────────────────────────────────────────────
   await click(page, cp, `${POPUP} [data-sve-bs-tab="groups"]`);
   await click(page, cp, `${POPUP} [data-sve-bs-add]`);
   await type(page, cp, '#sve-bs-gname', 'Sve Test Gruppe');
-  step('a group\'s handle follows its name', (await value(cp, '#sve-bs-ghandle')) === 'sve-test-gruppe', await value(cp, '#sve-bs-ghandle'));
+  step(
+    "a group's handle follows its name",
+    (await value(cp, '#sve-bs-ghandle')) === 'sve-test-gruppe',
+    await value(cp, '#sve-bs-ghandle')
+  );
 
   // ── A paragraph style in it ─────────────────────────────────────────────
   await click(page, cp, `${POPUP} [data-sve-bs-tab="styles"]`);
   await click(page, cp, `${POPUP} [data-sve-bs-add]`);
   await type(page, cp, '#sve-bs-name', 'Sve Test Lead');
-  step('a style\'s handle follows its name', (await value(cp, '#sve-bs-handle')) === 'sve_test_lead', await value(cp, '#sve-bs-handle'));
+  step(
+    "a style's handle follows its name",
+    (await value(cp, '#sve-bs-handle')) === 'sve_test_lead',
+    await value(cp, '#sve-bs-handle')
+  );
   step('its button text follows too', (await value(cp, '#sve-bs-ident')) === 'Sv', await value(cp, '#sve-bs-ident'));
 
   await click(page, cp, `${POPUP} [data-sve-bs-type="paragraph"]`);
@@ -220,23 +264,45 @@ try {
   await click(page, cp, `${POPUP} [data-sve-bs-add]`);
   await click(page, cp, `${POPUP} [data-sve-bs-save]`);
   await sleep(300);
-  step('a style without a name is not saved', !!(await cp.$(`${POPUP} .sve-bs__row.is-bad`)) && (await text(cp, `${POPUP} [data-sve-bs-status]`)).length > 0, await text(cp, `${POPUP} [data-sve-bs-status]`));
+  step(
+    'a style without a name is not saved',
+    !!(await cp.$(`${POPUP} .sve-bs__row.is-bad`)) && (await text(cp, `${POPUP} [data-sve-bs-status]`)).length > 0,
+    await text(cp, `${POPUP} [data-sve-bs-status]`)
+  );
   step('nothing was written', (existsSync(SETTINGS) ? readFileSync(SETTINGS, 'utf8') : null) === original);
   await click(page, cp, `${POPUP} [data-sve-bs-delete]`);
 
   // ── Save ────────────────────────────────────────────────────────────────
   await click(page, cp, `${POPUP} [data-sve-bs-save]`);
-  step('saves', await waitFor(cp, (p) => !!document.querySelector(`${p} [data-sve-bs-reload]`), POPUP, 10000), await text(cp, `${POPUP} [data-sve-bs-status]`));
+  step(
+    'saves',
+    await waitFor(cp, (p) => !!document.querySelector(`${p} [data-sve-bs-reload]`), POPUP, 10000),
+    await text(cp, `${POPUP} [data-sve-bs-status]`)
+  );
 
   const saved = existsSync(SETTINGS) ? readFileSync(SETTINGS, 'utf8') : '';
 
-  step('the settings file has the style', /handle: sve_test_lead\n\s+type: paragraph[\s\S]*?class: sve-test-lead[\s\S]*?group: sve-test-gruppe/.test(saved));
+  step(
+    'the settings file has the style',
+    /handle: sve_test_lead\n\s+type: paragraph[\s\S]*?class: sve-test-lead[\s\S]*?group: sve-test-gruppe/.test(saved)
+  );
   step('the settings file has the group', /handle: sve-test-gruppe\n\s+name: 'Sve Test Gruppe'/.test(saved));
-  step('nothing else in the list moved', saved.replace(/  -\n    handle: sve-test-gruppe\n[\s\S]*?(?=styles:)/, '').replace(/  -\n    handle: sve_test_lead\n[\s\S]*?group: sve-test-gruppe\n/, '') === original);
+  step(
+    'nothing else in the list moved',
+    saved
+      .replace(/  -\n    handle: sve-test-gruppe\n[\s\S]*?(?=styles:)/, '')
+      .replace(/  -\n    handle: sve_test_lead\n[\s\S]*?group: sve-test-gruppe\n/, '') === original
+  );
 
-  const nextLoad = await cp.evaluate(async (entry) => (await fetch(entry, { credentials: 'same-origin' })).text(), ENTRY);
+  const nextLoad = await cp.evaluate(
+    async (entry) => (await fetch(entry, { credentials: 'same-origin' })).text(),
+    ENTRY
+  );
 
-  step('the next CP load hands Bard the new style', nextLoad.includes('sve_test_lead') && nextLoad.includes('bard-styles-source'));
+  step(
+    'the next CP load hands Bard the new style',
+    nextLoad.includes('sve_test_lead') && nextLoad.includes('bard-styles-source')
+  );
   await shot(page, 'saved');
 
   // ── Closing with unsaved changes asks first ─────────────────────────────
@@ -245,7 +311,10 @@ try {
   await page.keyboard.press('Escape');
   step('Escape with changes asks first', await waitFor(cp, () => !!document.querySelector('.sve-dialog'), null, 5000));
   await click(page, cp, '.sve-dialog button.danger');
-  step('Discard closes without saving', await waitFor(cp, (p) => !document.querySelector(p), POPUP, 5000) && readFileSync(SETTINGS, 'utf8') === saved);
+  step(
+    'Discard closes without saving',
+    (await waitFor(cp, (p) => !document.querySelector(p), POPUP, 5000)) && readFileSync(SETTINGS, 'utf8') === saved
+  );
 
   // ── Take both away again ────────────────────────────────────────────────
   step('popup opens again', await openPopup(page, cp));
@@ -265,7 +334,9 @@ try {
   await sleep(6000);
   cp = await (await page.$('iframe.sve-edit-overlay'))?.contentFrame();
 
-  const reloaded = await (cp || page.mainFrame()).evaluate(() => Array.isArray(Statamic.$config.get('bard-styles'))).catch(() => false);
+  const reloaded = await (cp || page.mainFrame())
+    .evaluate(() => Array.isArray(Statamic.$config.get('bard-styles')))
+    .catch(() => false);
 
   step('Reload now loads the page again', reloaded && !(await cp?.$(POPUP)), `${before} → ${page.url()}`);
 

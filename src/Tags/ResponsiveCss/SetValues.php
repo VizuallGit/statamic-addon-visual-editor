@@ -23,7 +23,7 @@ final class SetValues
         }
 
         if ($set instanceof Value) {
-            return static::setToArray($set->value());
+            return self::setToArray($set->value());
         }
 
         if (is_array($set)) {

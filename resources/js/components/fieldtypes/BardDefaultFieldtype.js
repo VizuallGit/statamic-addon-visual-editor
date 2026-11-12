@@ -11,155 +11,155 @@
  */
 import { t } from '../../lib/i18n.js';
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { inject, computed, watch } = window.Vue;
+  Statamic.booting(() => {
+    const { inject, computed, watch } = window.Vue;
 
-        function publishValues(ctx) {
-            return ctx?.values?.value ?? ctx?.values ?? {};
+    function publishValues(ctx) {
+      return ctx?.values?.value ?? ctx?.values ?? {};
+    }
+
+    /** CP-brugerens sprog — samme sveStrings som live preview. */
+    function textOf(node) {
+      if (!node || typeof node !== 'object') return '';
+      if (node.type === 'text') return node.text || '';
+
+      return (node.content || []).map(textOf).join('');
+    }
+
+    /**
+     * YAML-default er ProseMirror (`{ type: heading }`). CP'et arbejder med
+     * `{ kind }`. Begge tæller, så en default skrevet i hånden vises her.
+     */
+    function asBlocks(value) {
+      if (!Array.isArray(value)) return [];
+
+      return value.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        if (item.kind) return [item];
+
+        if (item.type === 'paragraph') {
+          return [{ kind: 'paragraph', text: textOf(item) }];
         }
 
-        /** CP-brugerens sprog — samme sveStrings som live preview. */
-        function textOf(node) {
-            if (!node || typeof node !== 'object') return '';
-            if (node.type === 'text') return node.text || '';
+        if (item.type === 'heading') {
+          const level = Number(item.attrs?.level) || 2;
 
-            return (node.content || []).map(textOf).join('');
+          return [{ kind: 'heading', level, text: textOf(item) }];
         }
 
-        /**
-         * YAML-default er ProseMirror (`{ type: heading }`). CP'et arbejder med
-         * `{ kind }`. Begge tæller, så en default skrevet i hånden vises her.
-         */
-        function asBlocks(value) {
-            if (!Array.isArray(value)) return [];
-
-            return value.flatMap((item) => {
-                if (!item || typeof item !== 'object') return [];
-                if (item.kind) return [item];
-
-                if (item.type === 'paragraph') {
-                    return [{ kind: 'paragraph', text: textOf(item) }];
-                }
-
-                if (item.type === 'heading') {
-                    const level = Number(item.attrs?.level) || 2;
-
-                    return [{ kind: 'heading', level, text: textOf(item) }];
-                }
-
-                if (item.type === 'text') {
-                    return [{ kind: 'text', text: item.text || '' }];
-                }
-
-                if (item.type) {
-                    return [{ kind: 'raw', node: item }];
-                }
-
-                return [];
-            });
+        if (item.type === 'text') {
+          return [{ kind: 'text', text: item.text || '' }];
         }
 
-        Statamic.$components.register('bard-default-fieldtype', {
-            props: {
-                value: { default: () => [] },
-                config: { type: Object, default: () => ({}) },
-            },
+        if (item.type) {
+          return [{ kind: 'raw', node: item }];
+        }
 
-            emits: ['update:value'],
+        return [];
+      });
+    }
 
-            setup(props, { emit }) {
-                const publishContext = inject('PublishContainerContext', null);
+    Statamic.$components.register('bard-default-fieldtype', {
+      props: {
+        value: { default: () => [] },
+        config: { type: Object, default: () => ({}) },
+      },
 
-                const inline = computed(() => !!publishValues(publishContext).inline);
+      emits: ['update:value'],
 
-                const headingLevels = [1, 2, 3];
+      setup(props, { emit }) {
+        const publishContext = inject('PublishContainerContext', null);
 
-                const blocks = computed(() => asBlocks(props.value));
+        const inline = computed(() => !!publishValues(publishContext).inline);
 
-                const inlineText = computed(() => {
-                    const first = blocks.value.find(block => block.kind === 'text' || block.kind === 'paragraph' || block.kind === 'heading');
+        const headingLevels = [1, 2, 3];
 
-                    return first?.text ?? '';
-                });
+        const blocks = computed(() => asBlocks(props.value));
 
-                function emitBlocks(next) {
-                    emit('update:value', next);
-                }
+        const inlineText = computed(() => {
+          const first = blocks.value.find(
+            (block) => block.kind === 'text' || block.kind === 'paragraph' || block.kind === 'heading'
+          );
 
-                function add() {
-                    emitBlocks([...asBlocks(props.value), { kind: 'paragraph', text: '' }]);
-                }
+          return first?.text ?? '';
+        });
 
-                function update(index, patch) {
-                    emitBlocks(blocks.value.map((block, i) => (i === index ? { ...block, ...patch } : block)));
-                }
+        function emitBlocks(next) {
+          emit('update:value', next);
+        }
 
-                function remove(index) {
-                    emitBlocks(blocks.value.filter((_, i) => i !== index));
-                }
+        function add() {
+          emitBlocks([...asBlocks(props.value), { kind: 'paragraph', text: '' }]);
+        }
 
-                function setType(index, value) {
-                    if (value === 'paragraph') {
-                        update(index, { kind: 'paragraph', level: undefined });
-                        return;
-                    }
+        function update(index, patch) {
+          emitBlocks(blocks.value.map((block, i) => (i === index ? { ...block, ...patch } : block)));
+        }
 
-                    update(index, { kind: 'heading', level: Number(value.slice(1)) });
-                }
+        function remove(index) {
+          emitBlocks(blocks.value.filter((_, i) => i !== index));
+        }
 
-                function levelsFor(block) {
-                    const levels = [...headingLevels];
+        function setType(index, value) {
+          if (value === 'paragraph') {
+            update(index, { kind: 'paragraph', level: undefined });
+            return;
+          }
 
-                    if (block.kind === 'heading' && block.level && !levels.includes(block.level)) {
-                        levels.push(block.level);
-                        levels.sort((a, b) => a - b);
-                    }
+          update(index, { kind: 'heading', level: Number(value.slice(1)) });
+        }
 
-                    return levels;
-                }
+        function levelsFor(block) {
+          const levels = [...headingLevels];
 
-                function setInlineText(text) {
-                    const trimmed = text ?? '';
-                    const rest = blocks.value.filter(block => block.kind === 'raw');
+          if (block.kind === 'heading' && block.level && !levels.includes(block.level)) {
+            levels.push(block.level);
+            levels.sort((a, b) => a - b);
+          }
 
-                    emitBlocks(trimmed === '' && !rest.length
-                        ? []
-                        : [{ kind: 'text', text: trimmed }, ...rest]);
-                }
+          return levels;
+        }
 
-                watch(inline, (now, was) => {
-                    if (was === undefined || now === was) return;
+        function setInlineText(text) {
+          const trimmed = text ?? '';
+          const rest = blocks.value.filter((block) => block.kind === 'raw');
 
-                    const editable = blocks.value.filter(block => block.kind !== 'raw');
-                    const raw = blocks.value.filter(block => block.kind === 'raw');
-                    const text = editable[0]?.text ?? '';
+          emitBlocks(trimmed === '' && !rest.length ? [] : [{ kind: 'text', text: trimmed }, ...rest]);
+        }
 
-                    if (now) {
-                        emitBlocks(text === '' && !raw.length ? [] : [{ kind: 'text', text }, ...raw]);
-                        return;
-                    }
+        watch(inline, (now, was) => {
+          if (was === undefined || now === was) return;
 
-                    emitBlocks(text === '' && !raw.length ? [] : [{ kind: 'paragraph', text }, ...raw]);
-                });
+          const editable = blocks.value.filter((block) => block.kind !== 'raw');
+          const raw = blocks.value.filter((block) => block.kind === 'raw');
+          const text = editable[0]?.text ?? '';
 
-                return {
-                    inline,
-                    headingLevels,
-                    blocks,
-                    inlineText,
-                    add,
-                    update,
-                    remove,
-                    setType,
-                    setInlineText,
-                    levelsFor,
-                    t: (key, replacements) => t(window, key, replacements),
-                };
-            },
+          if (now) {
+            emitBlocks(text === '' && !raw.length ? [] : [{ kind: 'text', text }, ...raw]);
+            return;
+          }
 
-            template: `
+          emitBlocks(text === '' && !raw.length ? [] : [{ kind: 'paragraph', text }, ...raw]);
+        });
+
+        return {
+          inline,
+          headingLevels,
+          blocks,
+          inlineText,
+          add,
+          update,
+          remove,
+          setType,
+          setInlineText,
+          levelsFor,
+          t: (key, replacements) => t(window, key, replacements),
+        };
+      },
+
+      template: `
                 <div class="flex flex-col gap-2">
                     <div v-if="inline">
                         <input
@@ -220,6 +220,6 @@ import { t } from '../../lib/i18n.js';
                     </template>
                 </div>
             `,
-        });
     });
+  });
 })();

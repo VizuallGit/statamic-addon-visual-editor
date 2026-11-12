@@ -94,9 +94,7 @@ export function lockedUi() {
       field,
       style,
       EditorState.changeFilter.of((tr) =>
-        editedByHand((event) => tr.isUserEvent(event))
-          ? allLocked(tr.startState.doc.toString())
-          : true
+        editedByHand((event) => tr.isUserEvent(event)) ? allLocked(tr.startState.doc.toString()) : true
       ),
     ],
   };

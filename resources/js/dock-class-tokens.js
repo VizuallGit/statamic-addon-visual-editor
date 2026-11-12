@@ -215,7 +215,7 @@ export function bindClassTokenNav(win, view, { onRename, isLocked, setHover, tit
       event.stopPropagation();
       openRename(hit);
     },
-    true,
+    true
   );
 
   view.scrollDOM?.addEventListener('scroll', dismiss);

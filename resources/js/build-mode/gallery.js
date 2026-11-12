@@ -53,7 +53,10 @@ export function readGallery(source, node) {
     return { field: /^\{\{\s*([^\s}|]+)/.exec(html.slice(loop.from, loop.openTo))?.[1] || null, urls: [] };
   }
 
-  return { field: null, urls: (node?.children || []).map((img) => readAttribute(html, img, 'src') || '').filter(Boolean) };
+  return {
+    field: null,
+    urls: (node?.children || []).map((img) => readAttribute(html, img, 'src') || '').filter(Boolean),
+  };
 }
 
 function classesOf(html, node) {

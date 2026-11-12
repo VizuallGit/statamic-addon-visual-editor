@@ -5,8 +5,33 @@
 import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { bridgeState } from '../bridge/state.js';
 import { normText } from './messages.js';
-import { caretAtEndOf, collectBlockClassesFromStyles, controlsFrom, currentBlockEl, editableFromWrapper, highlightSpansToBraces, placeCaretFromPoint, positionEditToolbar, removeBardSetInserter, removeEditToolbar, sendEditInput, syncSidPlaceholders, updateBardSetInserter, updateEditToolbarState } from './inline-edit.js';
-import { ACTIVE_ATTR, EDITING_ATTR, EDIT_INPUT_DEBOUNCE, HOVER_ATTR, HOVER_CLEAR_DELAY, INNER_ATTR, MOUSE_ACTIVE_CLASS, SECTION_ORDERABLE_ATTR, SID_FIELD_ATTR } from '../bridge.js';
+import {
+  caretAtEndOf,
+  collectBlockClassesFromStyles,
+  controlsFrom,
+  currentBlockEl,
+  editableFromWrapper,
+  highlightSpansToBraces,
+  placeCaretFromPoint,
+  positionEditToolbar,
+  removeBardSetInserter,
+  removeEditToolbar,
+  sendEditInput,
+  syncSidPlaceholders,
+  updateBardSetInserter,
+  updateEditToolbarState,
+} from './inline-edit.js';
+import {
+  ACTIVE_ATTR,
+  EDITING_ATTR,
+  EDIT_INPUT_DEBOUNCE,
+  HOVER_ATTR,
+  HOVER_CLEAR_DELAY,
+  INNER_ATTR,
+  MOUSE_ACTIVE_CLASS,
+  SECTION_ORDERABLE_ATTR,
+  SID_FIELD_ATTR,
+} from '../bridge.js';
 import { applyOutlineTone, showMoveControl } from './drag.js';
 import { hideMoveControl, pointerInMoveControlGap } from './row-caps-move.js';
 import { blockHolding, createEditToolbar, hoverBeltEl, pointerInHoverBeltGap } from './row-toolbar.js';
@@ -47,11 +72,7 @@ export function startEditing(win, data) {
 
     // Inline Bard (headline etc.) augments to bare text/spans — no <p> child
     // like richtext. The wrapper IS the single block; skip child mapping.
-    if (
-      bardInline &&
-      nodes.length === 1 &&
-      normText(wrapper.textContent) === nodes[0].text
-    ) {
+    if (bardInline && nodes.length === 1 && normText(wrapper.textContent) === nodes[0].text) {
       lockedEls = [];
     } else {
       // An empty field still renders its placeholder as real markup — the
@@ -106,9 +127,7 @@ export function startEditing(win, data) {
         blocks.push(found);
       }
 
-      lockedEls = kids.filter(
-        (kid) => !blocks.includes(kid) && !placeholderKids.includes(kid)
-      );
+      lockedEls = kids.filter((kid) => !blocks.includes(kid) && !placeholderKids.includes(kid));
     }
   } else {
     el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
@@ -125,7 +144,12 @@ export function startEditing(win, data) {
   try {
     const raw = wrapper.getAttribute('data-sid-bard-buttons');
 
-    bardButtons = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : null;
+    bardButtons = raw
+      ? raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : null;
 
     const stylesRaw = wrapper.getAttribute('data-sid-bard-styles');
 
@@ -492,18 +516,12 @@ function updateMoveControlFromPointer(win, event) {
   }
 
   const moveEl =
-    rowEl ||
-    event.target.closest('[data-sid-move]') ||
-    event.target.closest(`[${SECTION_ORDERABLE_ATTR}]`);
+    rowEl || event.target.closest('[data-sid-move]') || event.target.closest(`[${SECTION_ORDERABLE_ATTR}]`);
 
   if (bridgeState.editing) {
     const editRoot = bridgeState.editing.wrapper || bridgeState.editing.el;
 
-    if (
-      moveEl &&
-      editRoot &&
-      (moveEl === editRoot || moveEl.contains(editRoot) || editRoot.contains(moveEl))
-    ) {
+    if (moveEl && editRoot && (moveEl === editRoot || moveEl.contains(editRoot) || editRoot.contains(moveEl))) {
       hideMoveControl(win);
 
       return;
@@ -571,9 +589,7 @@ export function createMouseMoveHandler(win) {
   const syncHoverOverride = (target) => {
     // Any pinned outline (click/CP focus or CP hover) that isn't the element
     // under the cursor gets suppressed while preview-hovering another field.
-    const pinned =
-      win.document.querySelector(`[${ACTIVE_ATTR}]`) ||
-      win.document.querySelector(`[${HOVER_ATTR}]`);
+    const pinned = win.document.querySelector(`[${ACTIVE_ATTR}]`) || win.document.querySelector(`[${HOVER_ATTR}]`);
     const hoveringOther = !!(target && pinned && target !== pinned);
 
     win.document.documentElement.classList.toggle(HOVER_OVERRIDE, hoveringOther);
@@ -674,7 +690,10 @@ export function createMouseMoveHandler(win) {
 
       // Don't yank the control out from under a parked pointer — the user may
       // have stopped moving to click hide/delete.
-      if (!(bridgeState.moveCtrlEl && (bridgeState.moveCtrlEl.matches(':hover') || bridgeState.moveTargetEl?.matches(':hover')))) {
+      if (!(
+        bridgeState.moveCtrlEl &&
+        (bridgeState.moveCtrlEl.matches(':hover') || bridgeState.moveTargetEl?.matches(':hover'))
+      )) {
         hideMoveControl(win);
       }
 

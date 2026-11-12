@@ -53,18 +53,49 @@ const rows = computed(() => flatten(ui.tree));
           :aria-selected="ui.kind === tab.key"
           :data-sve-site-files-tab="tab.key"
           @click="onTab(tab.key)"
-        >{{ tab.label }}</button>
+          >{{ tab.label }}</button
+        >
       </div>
       <span class="sve-site-css__root">{{ ui.root }}</span>
       <span class="sve-site-css__status">{{ ui.status }}</span>
       <button type="button" class="sve-site-css__icon" :title="ui.reloadTitle" :disabled="!ui.path" @click="onReload">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.8"/><path d="M21 3v6h-6"/></svg>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M21 12a9 9 0 1 1-3.2-6.8" />
+          <path d="M21 3v6h-6" />
+        </svg>
       </button>
-      <button type="button" class="sve-site-css__plain" :disabled="!ui.path" @click="onRename">{{ ui.renameLabel }}</button>
-      <button type="button" class="sve-site-css__danger" :disabled="!ui.path" @click="onDelete">{{ ui.deleteLabel }}</button>
-      <button type="button" class="sve-site-css__save" :disabled="!ui.path || !ui.dirty" @click="onSave">{{ ui.saveLabel }}</button>
+      <button type="button" class="sve-site-css__plain" :disabled="!ui.path" @click="onRename">{{
+        ui.renameLabel
+      }}</button>
+      <button type="button" class="sve-site-css__danger" :disabled="!ui.path" @click="onDelete">{{
+        ui.deleteLabel
+      }}</button>
+      <button type="button" class="sve-site-css__save" :disabled="!ui.path || !ui.dirty" @click="onSave">{{
+        ui.saveLabel
+      }}</button>
       <button type="button" class="sve-site-css__icon" title="Close" @click="onClose">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
       </button>
     </div>
     <div class="sve-site-css__body">
@@ -72,7 +103,12 @@ const rows = computed(() => flatten(ui.tree));
         <div class="sve-site-css__side-label">{{ ui.title }}</div>
         <div class="sve-site-css__tree">
           <template v-for="row in rows" :key="row.path">
-            <div v-if="row.type === 'dir'" class="sve-site-css__dir" :style="{ paddingLeft: 16 + row.depth * 14 + 'px' }">{{ row.name }}</div>
+            <div
+              v-if="row.type === 'dir'"
+              class="sve-site-css__dir"
+              :style="{ paddingLeft: 16 + row.depth * 14 + 'px' }"
+              >{{ row.name }}</div
+            >
             <button
               v-else
               type="button"
@@ -80,7 +116,8 @@ const rows = computed(() => flatten(ui.tree));
               :class="{ 'is-on': ui.path === row.path }"
               :style="{ paddingLeft: 16 + row.depth * 14 + 'px' }"
               @click="onSelect(row.path)"
-            >{{ row.name }}</button>
+              >{{ row.name }}</button
+            >
           </template>
         </div>
         <button type="button" class="sve-site-css__add" @click="onAdd">{{ ui.addLabel }}</button>
@@ -93,7 +130,7 @@ const rows = computed(() => flatten(ui.tree));
         <div v-if="ui.kind === 'svg' && ui.path" class="sve-site-css__svg" data-sve-site-svg-preview>
           <span class="sve-site-css__svg-label">{{ ui.previewLabel }}</span>
           <div class="sve-site-css__svg-box">
-            <img v-if="svgSrc" :src="svgSrc" alt="">
+            <img v-if="svgSrc" :src="svgSrc" alt="" />
           </div>
         </div>
         <div data-sve-site-css-host class="sve-site-css__host"></div>
@@ -110,9 +147,12 @@ const rows = computed(() => flatten(ui.tree));
   z-index: 40;
   display: flex;
   flex-direction: column;
-  background: #1E1E21;
+  background: #1e1e21;
   color: #d4d4d4;
-  font: 500 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+  font:
+    500 13px/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 .sve-site-css__bar {
   display: flex;
@@ -173,10 +213,24 @@ const rows = computed(() => flatten(ui.tree));
   justify-content: center;
   border-radius: 8px;
   background:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.06) 75%),
-    linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.06) 75%);
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.06) 25%,
+      transparent 25%,
+      transparent 75%,
+      rgba(255, 255, 255, 0.06) 75%
+    ),
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.06) 25%,
+      transparent 25%,
+      transparent 75%,
+      rgba(255, 255, 255, 0.06) 75%
+    );
   background-size: 16px 16px;
-  background-position: 0 0, 8px 8px;
+  background-position:
+    0 0,
+    8px 8px;
   color: #fff;
 }
 .sve-site-css__svg-box img {
@@ -302,7 +356,10 @@ const rows = computed(() => flatten(ui.tree));
   border-radius: 8px;
   background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
   color: #fff;
-  font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 13px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
   cursor: pointer;
 }
 .sve-site-css__add:hover {
@@ -333,7 +390,10 @@ const rows = computed(() => flatten(ui.tree));
   color: #fff;
   height: 26px;
   padding: 0 10px;
-  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 12px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
   cursor: pointer;
 }
 .sve-site-css__host {

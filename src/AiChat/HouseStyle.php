@@ -64,7 +64,7 @@ final class HouseStyle
 
         $out = [];
 
-        foreach (array_slice($found, 0, static::COUNT) as $row) {
+        foreach (array_slice($found, 0, self::COUNT) as $row) {
             $import = SectionTypes::fieldsetOf($row['handle']);
 
             $out[] = [
@@ -81,7 +81,7 @@ final class HouseStyle
     /** The block for the prompt, or '' when the site has no sections yet. */
     public static function prompt(string $exclude = ''): string
     {
-        $newest = static::newest($exclude);
+        $newest = self::newest($exclude);
 
         if ($newest === []) {
             return '';
@@ -93,7 +93,7 @@ final class HouseStyle
             $list .= "- {$row['handle']}: {$row['partial']}".($row['fieldset'] ? " (fieldset {$row['fieldset']})" : '')."\n";
         }
 
-        $first = Conversation::clip((string) @file_get_contents(base_path($newest[0]['partial'])), static::CLIP);
+        $first = Conversation::clip((string) @file_get_contents(base_path($newest[0]['partial'])), self::CLIP);
 
         return <<<TXT
 HOUSE STYLE — the site's newest sections. This is how the designer builds now.

@@ -111,9 +111,9 @@ export function highlightRanges(source) {
 
     const closing = CLOSING.test(body);
     const family =
-      families.get(from)
-      || (closing && CLOSES_IF.test(body) ? 'if' : '')
-      || (closing && CLOSES_PARTIAL.test(body) ? 'component' : '');
+      families.get(from) ||
+      (closing && CLOSES_IF.test(body) ? 'if' : '') ||
+      (closing && CLOSES_PARTIAL.test(body) ? 'component' : '');
 
     // One mark per tag, never nested: the builder wants its ranges in order,
     // and a name inside a tag it has already been handed is not in order.
@@ -176,9 +176,7 @@ export function antlersDecorations(cm) {
       return 'sve-cm-antlers sve-cm-antlers-close';
     }
 
-    return cls.endsWith('-close')
-      ? `sve-cm-${cls.slice(0, -'-close'.length)} sve-cm-antlers-close`
-      : `sve-cm-${cls}`;
+    return cls.endsWith('-close') ? `sve-cm-${cls.slice(0, -'-close'.length)} sve-cm-antlers-close` : `sve-cm-${cls}`;
   };
   const markFor = (cls) => {
     if (!marks.has(cls)) {

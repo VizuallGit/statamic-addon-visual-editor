@@ -37,7 +37,10 @@ test('a list answered after a reset goes to whoever asked, and is not kept', asy
 
   assert.equal(asked(), 2, 'asked again: the old answer was not kept');
   answers[1]({ section: [{ var: 'text' }, { var: 'heading', hidden: true }] });
-  assert.deepEqual((await fresh).section.map((row) => row.var), ['text', 'heading']);
+  assert.deepEqual(
+    (await fresh).section.map((row) => row.var),
+    ['text', 'heading']
+  );
 });
 
 test('a list answered with no reset in between is kept', async () => {

@@ -2,6 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\SiteCss\Root;
+
 /**
  * The class names this site writes itself.
  *
@@ -100,7 +102,7 @@ class SiteClasses
 
         if (is_dir($cssRoot)) {
             foreach (static::files($cssRoot) as $path) {
-                $file = static::relativeToBase($path, $cssRoot, \MarioHamann\StatamicVisualEditor\SiteCss\Root::relativeRoot());
+                $file = static::relativeToBase($path, $cssRoot, Root::relativeRoot());
 
                 $css = (string) @file_get_contents($path);
 

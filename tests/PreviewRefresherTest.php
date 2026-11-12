@@ -2,16 +2,16 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use Illuminate\Console\OutputStyle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\PreviewRefresher;
 use MarioHamann\StatamicVisualEditor\SetPreviewGenerator;
-use Illuminate\Console\OutputStyle;
+use Statamic\Facades\User;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Statamic\Facades\User;
 
 /**
  * Where the detached preview run sends its browser.

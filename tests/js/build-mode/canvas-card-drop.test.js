@@ -11,7 +11,7 @@ const boxes = [
   { top: 300, bottom: 400 },
 ];
 
-test('above the first section\'s middle is the top of the page', () => {
+test("above the first section's middle is the top of the page", () => {
   assert.equal(sectionBefore(boxes, 10), -1);
   assert.equal(sectionBefore(boxes, 50), -1);
 });
@@ -37,6 +37,6 @@ test('a page that already fits does not zoom', () => {
   assert.equal(zoomScale(932, 400), 0);
 });
 
-test('a very long page stops at the bridge\'s floor', () => {
+test("a very long page stops at the bridge's floor", () => {
   assert.equal(zoomScale(932, 1000000), 0.02);
 });

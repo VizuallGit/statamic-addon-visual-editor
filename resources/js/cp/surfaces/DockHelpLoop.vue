@@ -50,7 +50,8 @@ function replaceWith(el, name, commit) {
           :data-active="choice.id === inspect.loopKind ? '' : undefined"
           :disabled="!canEdit"
           @click="on.kind(choice.id)"
-        >{{ choice.label }}</button>
+          >{{ choice.label }}</button
+        >
       </div>
 
       <select
@@ -90,7 +91,7 @@ function replaceWith(el, name, commit) {
           @keydown.stop
           @keydown.enter.prevent="on.commit($event.target.value)"
           @blur="on.commit($event.target.value)"
-        >
+        />
         <button
           type="button"
           data-sve-help-data
@@ -121,7 +122,7 @@ function replaceWith(el, name, commit) {
             :checked="inspect.nav.includeHome"
             :disabled="!canEdit"
             @change="on.includeHome($event.target.checked)"
-          >
+          />
           <span>{{ inspect.nav.homeLabel }}</span>
         </label>
       </template>
@@ -151,7 +152,7 @@ function replaceWith(el, name, commit) {
             @keydown.stop
             @keydown.enter.prevent="on.sortField($event.target.value)"
             @blur="on.sortField($event.target.value)"
-          >
+          />
           <button
             v-if="inspect.sort.pickable"
             type="button"
@@ -160,7 +161,9 @@ function replaceWith(el, name, commit) {
             :disabled="!canEdit"
             v-html="DATA"
             @mousedown.prevent
-            @click.stop.prevent="on.pickData($event.currentTarget, (name) => replaceWith(sortField, name, on.sortField))"
+            @click.stop.prevent="
+              on.pickData($event.currentTarget, (name) => replaceWith(sortField, name, on.sortField))
+            "
           ></button>
         </div>
 
@@ -175,7 +178,7 @@ function replaceWith(el, name, commit) {
           @keydown.stop
           @keydown.enter.prevent="on.limit($event.target.value)"
           @blur="on.limit($event.target.value)"
-        >
+        />
 
         <div data-sve-help-sub>{{ inspect.offset.title }}</div>
         <input
@@ -188,7 +191,7 @@ function replaceWith(el, name, commit) {
           @keydown.stop
           @keydown.enter.prevent="on.offset($event.target.value)"
           @blur="on.offset($event.target.value)"
-        >
+        />
       </template>
     </div>
   </div>

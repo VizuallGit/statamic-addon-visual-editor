@@ -12,7 +12,18 @@ import { RIGHT_DOCK_ID, relayoutRightDock } from '../right-dock.js';
 import { chromeSet, clearChromePrefs } from '../chrome-prefs.js';
 import { bindMenuDismiss, dropMenu } from '../lp-menu-dismiss.js';
 import { injectStyle } from '../lib/style.js';
-import { ENTRY_EDIT_PATH, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_MODE_ID, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PUBLISH_ID, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM } from '../lib/ids.js';
+import {
+  ENTRY_EDIT_PATH,
+  LP_BACK_ID,
+  LP_CHROME_H,
+  LP_COLLAPSED_KEY,
+  LP_MODE_ID,
+  LP_MODE_KEY,
+  LP_PREVIEW_CHROME_ID,
+  LP_PUBLISH_ID,
+  LP_RELOAD_ID,
+  LP_SIDE_DEFAULT_REM,
+} from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { remToPx } from '../lib/dom.js';
 import { csrfToken } from '../lib/csrf.js';
@@ -24,7 +35,18 @@ import { closeRightPanels, syncPreviewInset } from '../section-library.js';
 import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, saveGlobalsPanel } from '../globals-panel.js';
 import { clearEntryBaseline, markEntryFormClean, scheduleEntryBaseline } from '../inline-edit.js';
 import { clearSectionsStash, hasUnsavedGlobalSection, saveGlobalSectionPanel } from '../global-section.js';
-import { disarmUnloadWarning, discardChanges, dismissDirtyWarning, forgetOrigin, hasUnsavedChanges, leaveQuietly, onEntrySave, originForCurrentEntry, publishButtonIn, saveButtonIn } from '../open-in-preview.js';
+import {
+  disarmUnloadWarning,
+  discardChanges,
+  dismissDirtyWarning,
+  forgetOrigin,
+  hasUnsavedChanges,
+  leaveQuietly,
+  onEntrySave,
+  originForCurrentEntry,
+  publishButtonIn,
+  saveButtonIn,
+} from '../open-in-preview.js';
 import { confirmUnsaved, saveThenNavigate } from '../pages.js';
 import { isEmbeddedInSite, postToHost, sendToPreview } from './add-section.js';
 import { HEADER_TOOLBAR_ID, LP_ICON_BTN_STYLE, applyHeaderTab } from './header-toolbar.js';
@@ -49,7 +71,10 @@ export const GRID_DONE_ATTR = 'data-sve-grid-done';
 export const GRID_STYLE_ID = 'sve-grid-accordion-style';
 
 export function ensureGridStyle(doc) {
-  injectStyle(doc, GRID_STYLE_ID, `
+  injectStyle(
+    doc,
+    GRID_STYLE_ID,
+    `
     [${GRID_ROW_ATTR}] > header { cursor: pointer; }
     [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] > *:not(header) { display: none !important; }
     [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] > header { border-bottom-color: transparent; }
@@ -63,7 +88,8 @@ export function ensureGridStyle(doc) {
       pointer-events: none; margin-left: 4px;
     }
     [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] .sve-grid-chevron { transform: rotate(-90deg); }
-  `);
+  `
+  );
 }
 
 /** Prefer text / textarea / Bard — skip icons, assets, empty controls, etc. */
@@ -96,10 +122,7 @@ export function gridRowTitle(row) {
     const fields = row.querySelectorAll('.publish-fields input, .publish-fields textarea');
 
     for (const field of fields) {
-      const type = (
-        field.getAttribute('type') ||
-        (field.tagName === 'TEXTAREA' ? 'textarea' : 'text')
-      ).toLowerCase();
+      const type = (field.getAttribute('type') || (field.tagName === 'TEXTAREA' ? 'textarea' : 'text')).toLowerCase();
 
       if (!['text', 'search', 'url', 'email', 'tel', 'textarea'].includes(type)) {
         continue;
@@ -119,7 +142,7 @@ export function gridRowTitle(row) {
     }
 
     for (const editable of row.querySelectorAll(
-      '.publish-fields .ProseMirror, .publish-fields [contenteditable="true"]',
+      '.publish-fields .ProseMirror, .publish-fields [contenteditable="true"]'
     )) {
       const value = (editable.textContent || '').replace(/\s+/g, ' ').trim();
 
@@ -503,9 +526,7 @@ export function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, af
     const button = publishButtonIn(win.document);
     // After an explicit save we already cleared dirty marks — only wait for the
     // Publish button to enable (Statamic may still be finishing its UI update).
-    const blocked = afterSave
-      ? button?.disabled === true
-      : hasUnsavedChanges(win) || button?.disabled === true;
+    const blocked = afterSave ? button?.disabled === true : hasUnsavedChanges(win) || button?.disabled === true;
 
     if (blocked) {
       if (++attempts > 50) {
@@ -594,7 +615,6 @@ const LP_NEW_TAB_ICON_SVG =
   '<path d="M10 14 21 3"></path>' +
   '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"></path></svg>';
 
-
 export function isOurLpChromeButton(button) {
   return (
     !button ||
@@ -674,13 +694,14 @@ export function collectStatamicLpCloseButtons(header) {
   }
 
   const save = findLpSaveButton(header);
-  const scope =
-    header.closest('.live-preview, [data-live-preview], .live-preview-ui') || header;
+  const scope = header.closest('.live-preview, [data-live-preview], .live-preview-ui') || header;
   // Only the bar's own buttons. The scope is widened because Statamic's ×
   // may sit outside the header element — never into the publish form, where
   // an asset row's "Remove" (×) was being taken for it and hidden.
   const buttons = [...scope.querySelectorAll('button')].filter(
-    (button) => !isOurLpChromeButton(button) && !button.closest('.form-group, [class*="fieldtype"], .publish-fields, [data-sve-panel-column]')
+    (button) =>
+      !isOurLpChromeButton(button) &&
+      !button.closest('.form-group, [class*="fieldtype"], .publish-fields, [data-sve-panel-column]')
   );
 
   return buttons.filter((button) => {
@@ -845,24 +866,17 @@ export function tellPreviewWherePillIs(win, pill) {
   }
 
   if (!pill) {
-    sendToPreview(
-      { source: SOURCE, type: MSG.SVE_PILL_BOX, bottom: 0, left: 99999 },
-      win
-    );
+    sendToPreview({ source: SOURCE, type: MSG.SVE_PILL_BOX, bottom: 0, left: 99999 }, win);
 
     return;
   }
 
   const f = frame.getBoundingClientRect();
   const r = pill.getBoundingClientRect();
-  const overlaps =
-    r.bottom > f.top && r.top < f.bottom && r.right > f.left && r.left < f.right;
+  const overlaps = r.bottom > f.top && r.top < f.bottom && r.right > f.left && r.left < f.right;
 
   if (!overlaps) {
-    sendToPreview(
-      { source: SOURCE, type: MSG.SVE_PILL_BOX, bottom: 0, left: 99999 },
-      win
-    );
+    sendToPreview({ source: SOURCE, type: MSG.SVE_PILL_BOX, bottom: 0, left: 99999 }, win);
 
     return;
   }
@@ -1332,11 +1346,7 @@ export function openLpBackMenu(win, pill) {
 
   const dismiss = () => dropMenu(menu);
 
-  menu._sveUnbind = bindMenuDismiss(
-    win,
-    (target) => menu.contains(target) || pill.contains(target),
-    dismiss
-  );
+  menu._sveUnbind = bindMenuDismiss(win, (target) => menu.contains(target) || pill.contains(target), dismiss);
 
   menu.focus();
 }

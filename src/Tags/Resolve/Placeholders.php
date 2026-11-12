@@ -25,7 +25,7 @@ final class Placeholders
 
         if (preg_match('/^(h[1-6]|paragraph|p):(.+)$/is', $spec, $m)) {
             return [
-                'as' => static::normalizeAs($m[1]),
+                'as' => self::normalizeAs($m[1]),
                 'text' => trim($m[2]),
             ];
         }
@@ -48,7 +48,7 @@ final class Placeholders
 
         $as = strtolower(trim($as));
 
-        if ($as === '' ) {
+        if ($as === '') {
             return null;
         }
 

@@ -86,9 +86,7 @@ export function moveClassesIntoScope(css, html, scopeClass) {
 
   const scope = scopeBlocks(source)[0];
   const indent = innerIndent(source, scope);
-  const moved = stray
-    .map((rule) => reindent(source.slice(rule.from, rule.to), source, rule.from, indent))
-    .join('\n\n');
+  const moved = stray.map((rule) => reindent(source.slice(rule.from, rule.to), source, rule.from, indent)).join('\n\n');
 
   // Cut from the back so an earlier removal cannot move a later one, then put
   // the lot inside the scope in the order they were written.

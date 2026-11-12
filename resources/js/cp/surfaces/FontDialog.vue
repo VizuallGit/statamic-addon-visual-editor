@@ -5,7 +5,16 @@
         <span class="sve-fontdlg__title">{{ title }}</span>
         <!-- data-sve-close: ours, so the hider for Statamic's own Live Preview × leaves it alone. -->
         <button type="button" class="sve-theme__ghost" data-sve-close :title="ui.labels.panel_close" @click="onClose">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       </header>
 
@@ -19,7 +28,8 @@
           :aria-selected="source === key"
           :data-sve-font-source="key"
           @click="source = key"
-        >{{ ui.labels[`fonts_source_${key}`] }}</button>
+          >{{ ui.labels[`fonts_source_${key}`] }}</button
+        >
       </nav>
 
       <FontGoogle v-if="source === 'google'" :win="win" @detail="(name) => (detail = name)" @installed="done" />

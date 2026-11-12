@@ -5,31 +5,62 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { BUILD_TOOLS, STYLE_FIELDS, STYLE_FRONT, STYLE_GROUPS, addGroups, elementKind, holdsElements, inMore, startsFile, styleGroups } from '../../../resources/js/build-mode/catalog.js';
+import {
+  BUILD_TOOLS,
+  STYLE_FIELDS,
+  STYLE_FRONT,
+  STYLE_GROUPS,
+  addGroups,
+  elementKind,
+  holdsElements,
+  inMore,
+  startsFile,
+  styleGroups,
+} from '../../../resources/js/build-mode/catalog.js';
 import { CHROME_KEYS } from '../../../resources/js/chrome-prefs.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 import { CSS_TOOLS, HTML_DIVS, HTML_HEADINGS, HTML_TOOLS } from './dock-lists.js';
 
 const dock = { htmlTools: HTML_TOOLS, divs: HTML_DIVS, headings: HTML_HEADINGS };
 
-test('Add shows the brief\'s groups, in order, every tile resolved', () => {
+test("Add shows the brief's groups, in order, every tile resolved", () => {
   const groups = addGroups(dock);
   const ids = (id) => groups.find((g) => g.id === id).items.map((item) => item.id);
 
   assert.deepEqual(groups.map((g) => g.id).slice(0, 4), ['layout', 'basic', 'logic', 'tags']);
   assert.deepEqual(ids('layout'), ['section', 'container', 'grid', 'flex', 'div', 'list', 'ol']);
-  assert.deepEqual(ids('basic'), ['heading', 'text', 'richtext', 'button', 'link', 'image', 'gallery', 'svg', 'video', 'divider']);
+  assert.deepEqual(ids('basic'), [
+    'heading',
+    'text',
+    'richtext',
+    'button',
+    'link',
+    'image',
+    'gallery',
+    'svg',
+    'video',
+    'divider',
+  ]);
   assert.deepEqual(ids('logic'), ['loop', 'if']);
   assert.deepEqual(ids('tags'), ['article', 'aside', 'nav', 'header', 'footer', 'figure']);
 });
 
-test('a tile the dock has is the dock\'s own definition, not a copy', () => {
+test("a tile the dock has is the dock's own definition, not a copy", () => {
   const items = addGroups(dock).flatMap((g) => g.items);
   const byId = (id) => items.find((item) => item.id === id);
 
-  assert.equal(byId('image').def, HTML_TOOLS.find((t) => t.id === 'img'));
-  assert.equal(byId('container').def, HTML_DIVS.find((d) => d.id === 'container'));
-  assert.equal(byId('loop').def, HTML_TOOLS.find((t) => t.id === 'loop'));
+  assert.equal(
+    byId('image').def,
+    HTML_TOOLS.find((t) => t.id === 'img')
+  );
+  assert.equal(
+    byId('container').def,
+    HTML_DIVS.find((d) => d.id === 'container')
+  );
+  assert.equal(
+    byId('loop').def,
+    HTML_TOOLS.find((t) => t.id === 'loop')
+  );
   assert.equal(byId('heading').headings, HTML_HEADINGS);
 });
 
@@ -43,12 +74,21 @@ test('the top of a file takes a Section, a plain Div, a Loop or an If, and nothi
 test('what the dock has and no group names shows up under Other, by itself', () => {
   const other = addGroups(dock).find((g) => g.id === 'other');
 
-  assert.ok(other.items.some((item) => item.id === 'li'), 'list item');
+  assert.ok(
+    other.items.some((item) => item.id === 'li'),
+    'list item'
+  );
   assert.ok(other.items.some((item) => item.id === 'div:flex-col' && item.lang === 'code_dock_div_flex_col'));
-  assert.ok(!other.items.some((item) => ['component', 'pagination', 'div'].includes(item.id)), 'not elements, or tiles already');
+  assert.ok(
+    !other.items.some((item) => ['component', 'pagination', 'div'].includes(item.id)),
+    'not elements, or tiles already'
+  );
 
   const more = addGroups({ ...dock, htmlTools: [...HTML_TOOLS, { id: 'table', title: 'table', tag: 'table' }] });
-  assert.ok(more.find((g) => g.id === 'other').items.some((item) => item.id === 'table'), 'a tool added to the dock later');
+  assert.ok(
+    more.find((g) => g.id === 'other').items.some((item) => item.id === 'table'),
+    'a tool added to the dock later'
+  );
 });
 
 test('a dock element that is gone is left out, not drawn dead', () => {
@@ -57,19 +97,28 @@ test('a dock element that is gone is left out, not drawn dead', () => {
   assert.ok(!groups.flatMap((g) => g.items).some((item) => item.id === 'video'));
 });
 
-test('Style draws every CSS_TOOLS tool once, in the brief\'s families', () => {
+test("Style draws every CSS_TOOLS tool once, in the brief's families", () => {
   const groups = styleGroups(CSS_TOOLS);
   const drawn = groups.flatMap((g) => g.tools.map((t) => t.id));
 
-  assert.deepEqual(groups.map((g) => g.id).slice(0, 9), STYLE_GROUPS.map((g) => g.id));
+  assert.deepEqual(
+    groups.map((g) => g.id).slice(0, 9),
+    STYLE_GROUPS.map((g) => g.id)
+  );
   for (const tool of CSS_TOOLS) {
     assert.equal(drawn.filter((id) => id === tool.id).length, 1, tool.id);
   }
-  assert.equal(groups.find((g) => g.id === 'spacing').tools[0], CSS_TOOLS.find((t) => t.id === 'padding'));
+  assert.equal(
+    groups.find((g) => g.id === 'spacing').tools[0],
+    CSS_TOOLS.find((t) => t.id === 'padding')
+  );
   BUILD_TOOLS.forEach((tool) => assert.ok(drawn.includes(tool.id), tool.id));
   assert.ok(!groups.some((g) => g.id === 'other'), 'today every tool has a family');
 
-  const later = styleGroups([...CSS_TOOLS, { id: 'tw-blur', title: 'Blur', css: 'filter', tw: 'filter', menu: 'values' }]);
+  const later = styleGroups([
+    ...CSS_TOOLS,
+    { id: 'tw-blur', title: 'Blur', css: 'filter', tw: 'filter', menu: 'values' },
+  ]);
   assert.equal(later.find((g) => g.id === 'other').tools[0].id, 'tw-blur');
 });
 
@@ -91,14 +140,38 @@ test('an element is named from the file: tag and classes', () => {
   const roots = parseTemplateTree(html);
   const cls = (n) => (/class="([^"]*)"/.exec(html.slice(n.from, n.openTo)) || [])[1] || '';
   const kinds = [];
-  const walk = (nodes, parent) => nodes.forEach((n) => { kinds.push(elementKind(n, cls(n), parent, parent ? cls(parent) : '')); walk(n.children, n); });
+  const walk = (nodes, parent) =>
+    nodes.forEach((n) => {
+      kinds.push(elementKind(n, cls(n), parent, parent ? cls(parent) : ''));
+      walk(n.children, n);
+    });
   walk(roots, null);
 
-  assert.deepEqual(kinds, ['section', 'container', 'columns', 'column', 'heading', 'text', 'column', 'button', 'link', 'image', 'divider', 'grid', 'tag', 'flex', 'component', 'if', 'div']);
+  assert.deepEqual(kinds, [
+    'section',
+    'container',
+    'columns',
+    'column',
+    'heading',
+    'text',
+    'column',
+    'button',
+    'link',
+    'image',
+    'divider',
+    'grid',
+    'tag',
+    'flex',
+    'component',
+    'if',
+    'div',
+  ]);
 });
 
 test('what can hold elements', () => {
-  const roots = parseTemplateTree('<div><ul><li></li></ul><p></p><img src=""><figure></figure></div>{{ if a }}{{ /if }}');
+  const roots = parseTemplateTree(
+    '<div><ul><li></li></ul><p></p><img src=""><figure></figure></div>{{ if a }}{{ /if }}'
+  );
   const [div, ifRow] = roots;
   const [ul, p, img, figure] = div.children;
 
@@ -126,13 +199,35 @@ test('Style keeps the agreed fields in front, and the rest of a family under Mor
   assert.equal(inMore('effects', 'overflow'), true);
 
   // Every STYLE_FIELDS name in front is a real field of its family, so a typo cannot fold one away unseen.
-  const drawn = new Set(['position', 'width', 'height', 'max-width', 'font-size', 'font-weight', 'line-height', 'text-align', 'color', 'background-color', 'border-width', 'border-radius', 'border-color', 'opacity', 'box-shadow']);
+  const drawn = new Set([
+    'position',
+    'width',
+    'height',
+    'max-width',
+    'font-size',
+    'font-weight',
+    'line-height',
+    'text-align',
+    'color',
+    'background-color',
+    'border-width',
+    'border-radius',
+    'border-color',
+    'opacity',
+    'box-shadow',
+  ]);
 
   for (const [family, names] of Object.entries(STYLE_FRONT)) {
-    assert.ok(STYLE_GROUPS.some((group) => group.id === family), family);
+    assert.ok(
+      STYLE_GROUPS.some((group) => group.id === family),
+      family
+    );
 
     for (const name of names) {
-      assert.ok(drawn.has(name) || (STYLE_FIELDS[family] || []).some((field) => field.label === name), `${family}: ${name}`);
+      assert.ok(
+        drawn.has(name) || (STYLE_FIELDS[family] || []).some((field) => field.label === name),
+        `${family}: ${name}`
+      );
     }
   }
 });

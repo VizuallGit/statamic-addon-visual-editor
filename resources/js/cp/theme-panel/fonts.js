@@ -125,7 +125,9 @@ export function refreshPageFonts(docs) {
   const href = `${ui.fontsStylesheet}?v=${Date.now()}`;
 
   for (const doc of docs) {
-    const old = [...doc.querySelectorAll('link[rel="stylesheet"]')].find((l) => (l.getAttribute('href') || '').split('?')[0].endsWith(ui.fontsStylesheet));
+    const old = [...doc.querySelectorAll('link[rel="stylesheet"]')].find((l) =>
+      (l.getAttribute('href') || '').split('?')[0].endsWith(ui.fontsStylesheet)
+    );
     const link = doc.createElement('link');
 
     link.rel = 'stylesheet';

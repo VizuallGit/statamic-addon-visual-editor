@@ -39,9 +39,7 @@ export function sectionFieldLists(setEl) {
     return levels;
   };
 
-  const lists = [...setEl.querySelectorAll(FIELD_LIST)].filter(
-    (el) => el.closest(SELECTORS.anySet) === setEl
-  );
+  const lists = [...setEl.querySelectorAll(FIELD_LIST)].filter((el) => el.closest(SELECTORS.anySet) === setEl);
 
   if (!lists.length) {
     return [];
@@ -101,7 +99,8 @@ export const PANEL_ICONS = {
   },
   image: {
     box: '2.15 2.15 19.7 19.7',
-    paths: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+    paths:
+      '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
   },
   block: {
     box: '2.15 5.15 19.7 13.7',
@@ -109,7 +108,8 @@ export const PANEL_ICONS = {
   },
   settings: {
     box: '1.45 1.45 21.1 21.1',
-    paths: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11.5 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4Z"/>',
+    paths:
+      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11.5 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4Z"/>',
   },
 };
 
@@ -168,14 +168,16 @@ export function panelIcon(doc, name) {
     }
 
     const [prefix, icon] = name.split(':');
-    const pending = cached ?? fetch(`https://api.iconify.design/${prefix}/${icon}.svg`)
-      .then((res) => (res.ok ? res.text() : ''))
-      .then((markup) => {
-        iconifyCache.set(name, markup);
+    const pending =
+      cached ??
+      fetch(`https://api.iconify.design/${prefix}/${icon}.svg`)
+        .then((res) => (res.ok ? res.text() : ''))
+        .then((markup) => {
+          iconifyCache.set(name, markup);
 
-        return markup;
-      })
-      .catch(() => '');
+          return markup;
+        })
+        .catch(() => '');
 
     iconifyCache.set(name, pending);
     pending.then((markup) => markup && adoptSvg(holder, markup));

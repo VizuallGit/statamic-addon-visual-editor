@@ -38,7 +38,15 @@ test('a <div> with a bare visual_edit: every part but section_orderable; each go
   const html = '<div {{ visual_edit }}>text</div>';
   const rows = visualEditPartRows(html, open(html));
 
-  assert.deepEqual(ids(rows), ['ve:inline_edit', 've:field', 've:outline_inside', 've:orderable', 've:insertable', 've:popup', 've:toolbar']);
+  assert.deepEqual(ids(rows), [
+    've:inline_edit',
+    've:field',
+    've:outline_inside',
+    've:orderable',
+    've:insertable',
+    've:popup',
+    've:toolbar',
+  ]);
 
   const inline = rows[0];
 
@@ -58,7 +66,15 @@ test('a part the tag has is not offered again; a section may take section_ordera
   const html = '<section id="id-{{ id }}" class="wrapper" {{ visual_edit outline_inside="true" }}>\n</section>';
   const rows = visualEditPartRows(html, open(html, 'section'));
 
-  assert.deepEqual(ids(rows), ['ve:inline_edit', 've:field', 've:orderable', 've:insertable', 've:popup', 've:toolbar', 've:section_orderable']);
+  assert.deepEqual(ids(rows), [
+    've:inline_edit',
+    've:field',
+    've:orderable',
+    've:insertable',
+    've:popup',
+    've:toolbar',
+    've:section_orderable',
+  ]);
   assert.equal(
     apply(html, rows.at(-1)),
     '<section id="id-{{ id }}" class="wrapper" {{ visual_edit outline_inside="true" section_orderable="true" }}>\n</section>'
@@ -68,7 +84,13 @@ test('a part the tag has is not offered again; a section may take section_ordera
 test('a visual_edit with a field already points: no field row', () => {
   const html = '<div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>';
 
-  assert.deepEqual(ids(visualEditPartRows(html, open(html))), ['ve:outline_inside', 've:orderable', 've:insertable', 've:popup', 've:toolbar']);
+  assert.deepEqual(ids(visualEditPartRows(html, open(html))), [
+    've:outline_inside',
+    've:orderable',
+    've:insertable',
+    've:popup',
+    've:toolbar',
+  ]);
 });
 
 test('the fields: one row each, writing field="var", labelled by the field', () => {

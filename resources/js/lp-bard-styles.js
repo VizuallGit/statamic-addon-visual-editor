@@ -32,9 +32,11 @@ let requestClose = null;
  * for on save.
  */
 export function bardStylesAllowed(win) {
-  return win.Statamic?.$config?.get?.('sveFeatures')?.bard_styles === true
-    && win.Statamic?.$config?.get?.('bard-styles-source') !== undefined
-    && win.Statamic?.$permissions?.has?.('configure fields') === true;
+  return (
+    win.Statamic?.$config?.get?.('sveFeatures')?.bard_styles === true &&
+    win.Statamic?.$config?.get?.('bard-styles-source') !== undefined &&
+    win.Statamic?.$permissions?.has?.('configure fields') === true
+  );
 }
 
 function request(win, method, body) {
@@ -67,10 +69,12 @@ function list(win, path) {
 
 /** The theme's fluid sizes (`size-500` …) and colors (`--primary-500` …). */
 function tokens(win) {
-  return Promise.all([list(win, '/bard-style/size-vars'), list(win, '/color-scheme/swatches')]).then(([sizes, swatches]) => ({
-    sizes: sizes.map((row) => row?.handle).filter(Boolean),
-    colors: swatches.map((row) => row?.var).filter(Boolean),
-  }));
+  return Promise.all([list(win, '/bard-style/size-vars'), list(win, '/color-scheme/swatches')]).then(
+    ([sizes, swatches]) => ({
+      sizes: sizes.map((row) => row?.handle).filter(Boolean),
+      colors: swatches.map((row) => row?.var).filter(Boolean),
+    })
+  );
 }
 
 /**

@@ -41,7 +41,17 @@ export function bindPreviewRoom(win) {
     const leftOpen = sveState.lpCollapsed === false;
     const rightOpen = isRightDockOpen(win);
     const room = el.getBoundingClientRect().width - (parseFloat(el.style.paddingRight) || 0);
-    const step = roomStep({ room, min: remToPx(win, LP_PREVIEW_MIN_REM), slack: remToPx(win, 1), rightOpen, leftOpen, autoRight, autoLeft, rightWidth, leftWidth });
+    const step = roomStep({
+      room,
+      min: remToPx(win, LP_PREVIEW_MIN_REM),
+      slack: remToPx(win, 1),
+      rightOpen,
+      leftOpen,
+      autoRight,
+      autoLeft,
+      rightWidth,
+      leftWidth,
+    });
 
     if (!step) {
       return;

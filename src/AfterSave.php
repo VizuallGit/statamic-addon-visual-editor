@@ -40,7 +40,7 @@ final class AfterSave extends DefaultPreferences
 
     public function supply(): self
     {
-        $option = static::option();
+        $option = self::option();
 
         if ($option === null) {
             return $this;

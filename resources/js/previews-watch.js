@@ -183,9 +183,7 @@ export function checkPreviews(win, mode) {
     // when what was stale is current now (a run somebody else started): an
     // open panel fetches them again.
     if (first.running || (watch.lastStale > 0 && last.stale === 0)) {
-      win.document
-        .getElementById(SECTION_PICKER_ID)
-        ?.dispatchEvent(new win.CustomEvent('sve-library-preview-ready'));
+      win.document.getElementById(SECTION_PICKER_ID)?.dispatchEvent(new win.CustomEvent('sve-library-preview-ready'));
     }
 
     watch.lastStale = last.stale;

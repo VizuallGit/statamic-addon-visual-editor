@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
 use MarioHamann\StatamicVisualEditor\Stores;
 use MarioHamann\StatamicVisualEditor\TemplateBoard;
 use Statamic\Facades\Collection;
@@ -209,7 +210,7 @@ class TemplateBoardTest extends TestCase
         file_put_contents($presets.'/search.antlers.html', "<h1>{collection}</h1>\n");
         config(['statamic-visual-editor.template_board.presets' => $presets]);
 
-        $controller = new \MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
+        $controller = new TemplateBoardController;
         $starter = new \ReflectionMethod($controller, 'starter');
 
         try {

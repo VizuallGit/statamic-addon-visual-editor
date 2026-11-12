@@ -30,11 +30,11 @@ final class Audience
             return false;
         }
 
-        if (static::audience() === 'everyone') {
+        if (self::audience() === 'everyone') {
             return true;
         }
 
-        $roles = static::roles();
+        $roles = self::roles();
 
         if ($roles === []) {
             return false; // "certain roles", none named — nothing to apply to
@@ -59,7 +59,7 @@ final class Audience
      */
     public static function audience(): string
     {
-        return Features::setting(static::SCOPE, 'everyone') === 'roles'
+        return Features::setting(self::SCOPE, 'everyone') === 'roles'
             ? 'roles'
             : 'everyone';
     }
@@ -67,6 +67,6 @@ final class Audience
     /** The role handles the limit applies to. */
     public static function roles(): array
     {
-        return Scan::strings(Features::setting(static::ROLES, []));
+        return Scan::strings(Features::setting(self::ROLES, []));
     }
 }

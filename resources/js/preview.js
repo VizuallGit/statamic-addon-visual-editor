@@ -395,9 +395,7 @@ function morphChromeOnly(updated, kind) {
   }
 
   // Re-assert focus class after morph (belt + suspenders with overlay CSS).
-  document.documentElement.classList.add(
-    kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header'
-  );
+  document.documentElement.classList.add(kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header');
   document.documentElement.classList.remove(
     kind === 'footer' ? 'sve-chrome-focus-header' : 'sve-chrome-focus-footer',
     'sve-chrome-focus'
@@ -487,9 +485,7 @@ function morphFullBody(updated) {
   const kind = focusedChromeKind();
 
   if (kind) {
-    document.documentElement.classList.add(
-      kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header'
-    );
+    document.documentElement.classList.add(kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header');
   }
 }
 
@@ -611,7 +607,13 @@ async function applyUpdate(url, sectionUids) {
   // The breakpoint overview's copies follow this render (mirror.js). The
   // overview sets the hook while it is open and takes it away with itself;
   // closed, the property does not exist and this line does nothing.
-  window.__sveMirror?.({ html: text, chromeKind, sectionUids: sectionUids || null, scoped, themeScale: lastThemeScaleCss });
+  window.__sveMirror?.({
+    html: text,
+    chromeKind,
+    sectionUids: sectionUids || null,
+    scoped,
+    themeScale: lastThemeScaleCss,
+  });
 }
 
 /**
@@ -664,9 +666,7 @@ window.addEventListener('message', (event) => {
 
   if (isGlobalsChannel(event.data?.name)) {
     globalsActive = !!event.data.active;
-    chromeKindFromParent = event.data.active
-      ? normalizeChromeKind(event.data.chromeKind)
-      : null;
+    chromeKindFromParent = event.data.active ? normalizeChromeKind(event.data.chromeKind) : null;
 
     if (event.data.url) {
       applyUpdate(event.data.url);

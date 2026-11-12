@@ -97,7 +97,11 @@
   border-radius: 0.3125rem;
   background: #161618;
   color: #fff;
-  font: 700 0.6875rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    700 0.6875rem/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 .sve-bs__svg {
   display: inline-flex;
@@ -216,7 +220,10 @@
   border: 1px solid #3c3c3c;
   background: #2a2a2d;
   color: #e5e5e5;
-  font: 400 1rem/1.5 ui-sans-serif, system-ui, sans-serif;
+  font:
+    400 1rem/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
   overflow-wrap: anywhere;
 }
 .sve-bs__preview :where(p) {

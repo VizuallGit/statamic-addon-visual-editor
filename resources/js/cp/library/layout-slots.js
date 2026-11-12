@@ -60,7 +60,10 @@ export function loadLayoutSlots(win) {
 
   const mine = epoch;
   const request = win
-    .fetch(URL, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+    .fetch(URL, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    })
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       if (mine === epoch) {
@@ -106,14 +109,15 @@ export function layoutCards(win, tab, { query = '', onChange = () => {} } = {}) 
       return {
         ...card,
         // In use (or already in the layout): faded, not draggable.
-        opts: card.state === 'in'
-          ? { disabled: true, previewUrl }
-          : {
-              previewUrl,
-              onDrop: () => drop(win, card, onChange),
-              dropLabel: t(win, card.kind === 'section' ? 'layout_drop_main' : 'layout_drop_here'),
-              target: card.kind === 'section' ? 'main' : 'frame',
-            },
+        opts:
+          card.state === 'in'
+            ? { disabled: true, previewUrl }
+            : {
+                previewUrl,
+                onDrop: () => drop(win, card, onChange),
+                dropLabel: t(win, card.kind === 'section' ? 'layout_drop_main' : 'layout_drop_here'),
+                target: card.kind === 'section' ? 'main' : 'frame',
+              },
       };
     }),
   };

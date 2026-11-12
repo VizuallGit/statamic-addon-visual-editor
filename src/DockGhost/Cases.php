@@ -26,7 +26,7 @@ final class Cases
      */
     public static function fromFile(string $section, string $source): array
     {
-        return array_merge(static::visualEdit($section, $source), static::nextLine($section, $source));
+        return array_merge(self::visualEdit($section, $source), self::nextLine($section, $source));
     }
 
     /**
@@ -70,7 +70,7 @@ final class Cases
     /** @return list<array{section: string, kind: string, before: string, after: string, expected: string}> */
     public static function visualEdit(string $section, string $source): array
     {
-        preg_match_all(static::VISUAL_EDIT, $source, $matches, PREG_OFFSET_CAPTURE);
+        preg_match_all(self::VISUAL_EDIT, $source, $matches, PREG_OFFSET_CAPTURE);
 
         $out = [];
 

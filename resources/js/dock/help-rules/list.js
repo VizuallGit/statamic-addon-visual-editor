@@ -26,7 +26,10 @@ export function listRule(ctx) {
     return [];
   }
 
-  const loops = unusedFirst(source, rowsInScope(ctx).filter((row) => ROW_LOOP_TYPES.has(row.type)));
+  const loops = unusedFirst(
+    source,
+    rowsInScope(ctx).filter((row) => ROW_LOOP_TYPES.has(row.type))
+  );
 
   return loops.map((loop) => {
     const base = indentOf(source, node.from);

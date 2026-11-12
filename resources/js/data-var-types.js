@@ -31,18 +31,22 @@ function fits(row, types, single) {
 }
 
 function fitting(rows, types, inLoop, single) {
-  return (rows || [])
-    .filter((row) => fits(row, types, single) && (inLoop || !row.parent))
-    // The list's LOOP mark says a pair is coming. Nothing here writes a pair.
-    .map((row) => (row.loop ? { ...row, loop: false } : row));
+  return (
+    (rows || [])
+      .filter((row) => fits(row, types, single) && (inLoop || !row.parent))
+      // The list's LOOP mark says a pair is coming. Nothing here writes a pair.
+      .map((row) => (row.loop ? { ...row, loop: false } : row))
+  );
 }
 
 function fittingGroups(groups, types, inLoop, single) {
-  return (groups || [])
-    // A collection's fields print only inside its loop, which one tag cannot open.
-    .filter((group) => inLoop || !group.loop)
-    .map((group) => ({ ...group, items: fitting(group.items, types, inLoop, single) }))
-    .filter((group) => group.items.length);
+  return (
+    (groups || [])
+      // A collection's fields print only inside its loop, which one tag cannot open.
+      .filter((group) => inLoop || !group.loop)
+      .map((group) => ({ ...group, items: fitting(group.items, types, inLoop, single) }))
+      .filter((group) => group.items.length)
+  );
 }
 
 /**

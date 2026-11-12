@@ -73,11 +73,11 @@ const BLOCKED_ITEMS = ['Delete Set', 'Duplicate Set', 'Delete Row', 'Duplicate R
  * der ikke ligger en anden række imellem den og feltets rod.
  */
 function ownRows(root) {
-    return Array.from(root.querySelectorAll(ROW_SELECTOR)).filter((row) => {
-        const parentRow = row.parentElement?.closest(ROW_SELECTOR);
+  return Array.from(root.querySelectorAll(ROW_SELECTOR)).filter((row) => {
+    const parentRow = row.parentElement?.closest(ROW_SELECTOR);
 
-        return !parentRow || !root.contains(parentRow);
-    });
+    return !parentRow || !root.contains(parentRow);
+  });
 }
 
 /**
@@ -91,8 +91,10 @@ function ownRows(root) {
  * netop de sektioner der havde låsen slået til.
  */
 function safeToHide(el) {
-    return !el.querySelector(ROW_SELECTOR)
-        && !el.querySelector('.publish-fields, [class*="-fieldtype"], input, textarea, select');
+  return (
+    !el.querySelector(ROW_SELECTOR) &&
+    !el.querySelector('.publish-fields, [class*="-fieldtype"], input, textarea, select')
+  );
 }
 
 /**
@@ -105,24 +107,23 @@ function safeToHide(el) {
  * der selv er et felt med rækker, ejer den.
  */
 function belongsToLockedField(vm) {
-    for (let parent = vm.$parent; parent; parent = parent.$parent) {
-        const config = parent.config;
+  for (let parent = vm.$parent; parent; parent = parent.$parent) {
+    const config = parent.config;
 
-        if (!config) continue;
+    if (!config) continue;
 
-        if (config[CONFIG_KEY] === true) return true;
+    if (config[CONFIG_KEY] === true) return true;
 
-        // Et andet felt ligger imellem: så er det dét felt der ejer knappen.
-        if (config.sets || config.fields) return false;
-    }
+    // Et andet felt ligger imellem: så er det dét felt der ejer knappen.
+    if (config.sets || config.fields) return false;
+  }
 
-    return false;
+  return false;
 }
 
 /** Feltets egne "Tilføj"-vælgere i DOM'en — reserve, hvis træet ikke rakte. */
 function ownPickers(root) {
-    return Array.from(root.querySelectorAll(`[${PICKER_ATTR}]`))
-        .filter(picker => !picker.closest(ROW_SELECTOR));
+  return Array.from(root.querySelectorAll(`[${PICKER_ATTR}]`)).filter((picker) => !picker.closest(ROW_SELECTOR));
 }
 
 /**
@@ -133,17 +134,17 @@ function ownPickers(root) {
  * `button_label` og ellers CP'ets oversættelse, så det ikke er dansk hardcodet.
  */
 function ownAddButtons(root, config) {
-    // Både feltets eget label, CP'ets oversættelse og den engelske original:
-    // panelet er ikke altid på samme sprog som resten af CP'et.
-    const labels = new Set(
-        [config.button_label, statamicTranslate('Add Set'), 'Add Set']
-            .filter(Boolean)
-            .map(label => label.trim().toLowerCase())
-    );
+  // Både feltets eget label, CP'ets oversættelse og den engelske original:
+  // panelet er ikke altid på samme sprog som resten af CP'et.
+  const labels = new Set(
+    [config.button_label, statamicTranslate('Add Set'), 'Add Set']
+      .filter(Boolean)
+      .map((label) => label.trim().toLowerCase())
+  );
 
-    return Array.from(root.querySelectorAll('button, [role="button"]'))
-        .filter(el => !el.closest(ROW_SELECTOR))
-        .filter(el => labels.has(el.textContent.trim().toLowerCase()));
+  return Array.from(root.querySelectorAll('button, [role="button"]'))
+    .filter((el) => !el.closest(ROW_SELECTOR))
+    .filter((el) => labels.has(el.textContent.trim().toLowerCase()));
 }
 
 /**
@@ -154,29 +155,28 @@ function ownAddButtons(root, config) {
  * hvor håndtaget var.
  */
 function lockHost(row) {
-    return row.querySelector(':scope > header')
-        ?? row.querySelector(':scope > td[class*="drag-handle"]');
+  return row.querySelector(':scope > header') ?? row.querySelector(':scope > td[class*="drag-handle"]');
 }
 
 /** Rækken et element hører til — den nærmeste, ikke en låst forfader. */
 function ownRow(el) {
-    return el?.closest?.(ROW_SELECTOR) ?? null;
+  return el?.closest?.(ROW_SELECTOR) ?? null;
 }
 
 /** Feltet en række hører til — det felt hvis egne rækker den er en af. */
 function fieldOf(row) {
-    return row.parentElement?.closest(`[${FIELD_ATTR}]`) ?? null;
+  return row.parentElement?.closest(`[${FIELD_ATTR}]`) ?? null;
 }
 
 /** Hængelåsens titel, sat efter rækkens tilstand. */
 function paintToggle(row) {
-    const button = lockHost(row)?.querySelector(`:scope > [${TOGGLE_ATTR}]`);
+  const button = lockHost(row)?.querySelector(`:scope > [${TOGGLE_ATTR}]`);
 
-    if (!button) return;
+  if (!button) return;
 
-    const title = statamicTranslate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
+  const title = statamicTranslate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
 
-    if (button.title !== title) button.title = title;
+  if (button.title !== title) button.title = title;
 }
 
 /**
@@ -190,14 +190,14 @@ function paintToggle(row) {
  * steder ville sige hver sit om samme blok.
  */
 function toggleRow(row) {
-    const unlock = !row.hasAttribute(UNLOCKED_ATTR);
-    const field = fieldOf(row);
+  const unlock = !row.hasAttribute(UNLOCKED_ATTR);
+  const field = fieldOf(row);
 
-    (field ? ownRows(field) : [row]).forEach((sibling) => {
-        sibling.toggleAttribute(UNLOCKED_ATTR, unlock);
-        sibling.toggleAttribute(LOCKED_ATTR, !unlock);
-        paintToggle(sibling);
-    });
+  (field ? ownRows(field) : [row]).forEach((sibling) => {
+    sibling.toggleAttribute(UNLOCKED_ATTR, unlock);
+    sibling.toggleAttribute(LOCKED_ATTR, !unlock);
+    paintToggle(sibling);
+  });
 }
 
 /**
@@ -217,32 +217,32 @@ function toggleRow(row) {
  * Editorens egen "gå ind i"-pil sættes bagest af samme grund.
  */
 function ensureToggle(row) {
-    const host = lockHost(row);
+  const host = lockHost(row);
 
-    if (!host || host.querySelector(`:scope > [${TOGGLE_ATTR}]`)) return;
+  if (!host || host.querySelector(`:scope > [${TOGGLE_ATTR}]`)) return;
 
-    const button = document.createElement('button');
+  const button = document.createElement('button');
 
-    button.type = 'button';
-    button.setAttribute(TOGGLE_ATTR, '');
-    button.title = statamicTranslate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
+  button.type = 'button';
+  button.setAttribute(TOGGLE_ATTR, '');
+  button.title = statamicTranslate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
 
-    button.addEventListener('click', (e) => {
-        // Kun rigtige klik. Både Statamic og visual editoren folder sæt ud ved at
-        // sende et `MouseEvent` afsted selv, og et svar på et af dem ville lukke
-        // for den handling der var på vej.
-        if (!e.isTrusted) return;
+  button.addEventListener('click', (e) => {
+    // Kun rigtige klik. Både Statamic og visual editoren folder sæt ud ved at
+    // sende et `MouseEvent` afsted selv, og et svar på et af dem ville lukke
+    // for den handling der var på vej.
+    if (!e.isTrusted) return;
 
-        e.preventDefault();
-        e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
 
-        // Kun super admins tager låsen af — se mayUnlock().
-        if (!mayUnlock()) return;
+    // Kun super admins tager låsen af — se mayUnlock().
+    if (!mayUnlock()) return;
 
-        toggleRow(row);
-    });
+    toggleRow(row);
+  });
 
-    host.appendChild(button);
+  host.appendChild(button);
 }
 
 /**
@@ -258,7 +258,7 @@ function ensureToggle(row) {
  * fjernede menupunkter — virker ens begge steder.
  */
 function inVisualEditorPanel(el) {
-    return !!el.closest?.('.live-preview-editor');
+  return !!el.closest?.('.live-preview-editor');
 }
 
 /**
@@ -270,53 +270,53 @@ function inVisualEditorPanel(el) {
  * formularen og klikket i panelet — svarer ens.
  */
 function mayUnlock() {
-    return !!window.Statamic?.$permissions?.has?.('super');
+  return !!window.Statamic?.$permissions?.has?.('super');
 }
 
 function stamp(vm) {
-    const root = vueRootElement(vm);
+  const root = vueRootElement(vm);
 
-    if (!root) return;
+  if (!root) return;
 
-    if (isSetPicker(vm)) {
-        root.setAttribute(PICKER_ATTR, '');
+  if (isSetPicker(vm)) {
+    root.setAttribute(PICKER_ATTR, '');
 
-        if (belongsToLockedField(vm) && safeToHide(root) && !inVisualEditorPanel(root)) {
-            root.setAttribute(PICKER_LOCKED_ATTR, '');
-        }
+    if (belongsToLockedField(vm) && safeToHide(root) && !inVisualEditorPanel(root)) {
+      root.setAttribute(PICKER_LOCKED_ATTR, '');
     }
+  }
 
-    const config = vm.config;
+  const config = vm.config;
 
-    if (!config) return;
+  if (!config) return;
 
-    // Alt der gentager rækker: replicator og bard har sets, grid har fields.
-    // Markeringen låser ingenting; den gør bare feltet til en grænse, så en låst
-    // replicator ikke skjuler "Tilføj" i de felter der ligger inde i rækkerne.
-    //
-    // Bevidst ingen kontrol af `vm.value` her: konfigurationen bæres af flere
-    // komponenter omkring feltet, og ikke alle har rækkerne som en almindelig
-    // array. Kræver man det, rammer låsen ingenting.
-    if (config.sets || config.fields) root.setAttribute(FIELD_ATTR, '');
+  // Alt der gentager rækker: replicator og bard har sets, grid har fields.
+  // Markeringen låser ingenting; den gør bare feltet til en grænse, så en låst
+  // replicator ikke skjuler "Tilføj" i de felter der ligger inde i rækkerne.
+  //
+  // Bevidst ingen kontrol af `vm.value` her: konfigurationen bæres af flere
+  // komponenter omkring feltet, og ikke alle har rækkerne som en almindelig
+  // array. Kræver man det, rammer låsen ingenting.
+  if (config.sets || config.fields) root.setAttribute(FIELD_ATTR, '');
 
-    if (config[CONFIG_KEY] !== true) return;
+  if (config[CONFIG_KEY] !== true) return;
 
-    root.setAttribute(FIELD_ATTR, '');
+  root.setAttribute(FIELD_ATTR, '');
 
-    ownRows(root).forEach((row) => {
-        // En række der er låst op bliver stående låst op — se UNLOCKED_ATTR.
-        // Det gælder også når det var bloktræet der låste op: træet skriver i de
-        // samme to attributter, så de to steder deler én tilstand.
-        if (!row.hasAttribute(UNLOCKED_ATTR)) row.setAttribute(LOCKED_ATTR, '');
+  ownRows(root).forEach((row) => {
+    // En række der er låst op bliver stående låst op — se UNLOCKED_ATTR.
+    // Det gælder også når det var bloktræet der låste op: træet skriver i de
+    // samme to attributter, så de to steder deler én tilstand.
+    if (!row.hasAttribute(UNLOCKED_ATTR)) row.setAttribute(LOCKED_ATTR, '');
 
-        ensureToggle(row);
-        paintToggle(row);
-    });
+    ensureToggle(row);
+    paintToggle(row);
+  });
 
-    [...ownPickers(root), ...ownAddButtons(root, config)]
-        .filter(safeToHide)
-        .filter(el => !inVisualEditorPanel(el))
-        .forEach(el => el.setAttribute(PICKER_LOCKED_ATTR, ''));
+  [...ownPickers(root), ...ownAddButtons(root, config)]
+    .filter(safeToHide)
+    .filter((el) => !inVisualEditorPanel(el))
+    .forEach((el) => el.setAttribute(PICKER_LOCKED_ATTR, ''));
 }
 
 /**
@@ -327,49 +327,57 @@ function stamp(vm) {
  * attributter til alle dropdowns, så både replicator og grid er dækket.
  */
 function watchDropdowns() {
-    let lockedTrigger = false;
+  let lockedTrigger = false;
 
-    document.addEventListener('pointerdown', (e) => {
-        const target = e.target instanceof Element ? e.target : null;
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      const target = e.target instanceof Element ? e.target : null;
 
-        // Den NÆRMESTE række, ikke en låst forfader. En låst blok må gerne rumme
-        // almindelige rækker, og de skal stadig kunne dubleres og slettes —
-        // spurgte man `closest('[data-row-locked]')`, ville de arve låsen.
-        lockedTrigger = !!ownRow(target)?.hasAttribute(LOCKED_ATTR);
-    }, true);
+      // Den NÆRMESTE række, ikke en låst forfader. En låst blok må gerne rumme
+      // almindelige rækker, og de skal stadig kunne dubleres og slettes —
+      // spurgte man `closest('[data-row-locked]')`, ville de arve låsen.
+      lockedTrigger = !!ownRow(target)?.hasAttribute(LOCKED_ATTR);
+    },
+    true
+  );
 
-    const blocked = () => BLOCKED_ITEMS.map(translate);
+  const blocked = () => BLOCKED_ITEMS.map(translate);
 
-    const prune = (content) => {
-        if (!lockedTrigger) return;
+  const prune = (content) => {
+    if (!lockedTrigger) return;
 
-        const labels = blocked();
+    const labels = blocked();
 
-        content.querySelectorAll('[data-ui-dropdown-item]').forEach((item) => {
-            if (labels.includes(item.textContent.trim())) item.remove();
-        });
-    };
+    content.querySelectorAll('[data-ui-dropdown-item]').forEach((item) => {
+      if (labels.includes(item.textContent.trim())) item.remove();
+    });
+  };
 
-    new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                if (node.nodeType !== Node.ELEMENT_NODE) continue;
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
-                if (node.matches('[data-ui-dropdown-content]')) prune(node);
+        if (node.matches('[data-ui-dropdown-content]')) prune(node);
 
-                node.querySelectorAll?.('[data-ui-dropdown-content]').forEach(prune);
-            }
-        }
-    }).observe(document.body, { childList: true, subtree: true });
+        node.querySelectorAll?.('[data-ui-dropdown-content]').forEach(prune);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
 }
 
 Statamic.configuring(() => {
-    Statamic.$app.mixin({
-        mounted() { stamp(this); },
-        updated() { stamp(this); },
-    });
+  Statamic.$app.mixin({
+    mounted() {
+      stamp(this);
+    },
+    updated() {
+      stamp(this);
+    },
+  });
 });
 
 Statamic.booting(() => {
-    watchDropdowns();
+  watchDropdowns();
 });

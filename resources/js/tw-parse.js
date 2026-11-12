@@ -199,9 +199,7 @@ export function groupClassTokens(value) {
   // dock always writes it first, but a file somebody typed by hand need not,
   // and the CSS side reads it wherever it is.
   const bracketStart = tokens.findIndex((token) => token.text === '[');
-  const bracketEnd = bracketStart === -1
-    ? -1
-    : tokens.findIndex((token, n) => n > bracketStart && token.text === ']');
+  const bracketEnd = bracketStart === -1 ? -1 : tokens.findIndex((token, n) => n > bracketStart && token.text === ']');
 
   if (bracketStart !== -1 && bracketEnd > bracketStart) {
     const inner = tokens.slice(bracketStart + 1, bracketEnd);
@@ -348,7 +346,9 @@ export function reorderTokens(value, slots, order) {
  */
 export function renameTag(source, node, next) {
   const text = String(source || '');
-  const name = String(next || '').trim().toLowerCase();
+  const name = String(next || '')
+    .trim()
+    .toLowerCase();
 
   if (!/^[a-z][a-z0-9-]*$/.test(name) || !node?.tag || name === node.tag.toLowerCase()) {
     return text;

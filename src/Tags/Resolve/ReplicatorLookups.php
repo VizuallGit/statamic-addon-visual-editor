@@ -2,6 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
+use Statamic\Facades\Fieldset;
+
 /**
  * A set's config by handle, and the replicator field inside it: the two
  * recursive walks the insert control and the dock's picker need. Split out of
@@ -17,22 +19,22 @@ final class ReplicatorLookups
         }
 
         foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = static::findSetConfig($tab, $setHandle, $depth + 1)) {
+            if ($found = self::findSetConfig($tab, $setHandle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach (($node['sections'] ?? []) as $section) {
-            if ($found = static::findSetConfig($section, $setHandle, $depth + 1)) {
+            if ($found = self::findSetConfig($section, $setHandle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
             if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+                $fieldset = Fieldset::find($item['import']);
 
-                if ($fieldset && $found = static::findSetConfig($fieldset->contents(), $setHandle, $depth + 1)) {
+                if ($fieldset && $found = self::findSetConfig($fieldset->contents(), $setHandle, $depth + 1)) {
                     return $found;
                 }
 
@@ -51,13 +53,13 @@ final class ReplicatorLookups
                         return $set;
                     }
 
-                    if ($found = static::findSetConfig($set, $setHandle, $depth + 1)) {
+                    if ($found = self::findSetConfig($set, $setHandle, $depth + 1)) {
                         return $found;
                     }
                 }
             }
 
-            if (isset($field['fields']) && $found = static::findSetConfig($field, $setHandle, $depth + 1)) {
+            if (isset($field['fields']) && $found = self::findSetConfig($field, $setHandle, $depth + 1)) {
                 return $found;
             }
         }
@@ -73,22 +75,22 @@ final class ReplicatorLookups
         }
 
         foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = static::findReplicatorConfig($tab, $handle, $depth + 1)) {
+            if ($found = self::findReplicatorConfig($tab, $handle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach (($node['sections'] ?? []) as $section) {
-            if ($found = static::findReplicatorConfig($section, $handle, $depth + 1)) {
+            if ($found = self::findReplicatorConfig($section, $handle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
             if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+                $fieldset = Fieldset::find($item['import']);
 
-                if ($fieldset && $found = static::findReplicatorConfig($fieldset->contents(), $handle, $depth + 1)) {
+                if ($fieldset && $found = self::findReplicatorConfig($fieldset->contents(), $handle, $depth + 1)) {
                     return $found;
                 }
 
@@ -107,13 +109,13 @@ final class ReplicatorLookups
 
             foreach (($field['sets'] ?? []) as $group) {
                 foreach (($group['sets'] ?? []) as $set) {
-                    if ($found = static::findReplicatorConfig($set, $handle, $depth + 1)) {
+                    if ($found = self::findReplicatorConfig($set, $handle, $depth + 1)) {
                         return $found;
                     }
                 }
             }
 
-            if (isset($field['fields']) && $found = static::findReplicatorConfig($field, $handle, $depth + 1)) {
+            if (isset($field['fields']) && $found = self::findReplicatorConfig($field, $handle, $depth + 1)) {
                 return $found;
             }
         }

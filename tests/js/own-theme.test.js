@@ -58,7 +58,10 @@ test('a declaration says which variables it reads', () => {
 test('the site’s own first, each side in the order it came', () => {
   const own = new Set(['py-500', 'py-gutter']);
 
-  assert.deepEqual(ownFirst(['py-0', 'py-500', 'py-1', 'py-gutter'], (name) => own.has(name)), ['py-500', 'py-gutter', 'py-0', 'py-1']);
+  assert.deepEqual(
+    ownFirst(['py-0', 'py-500', 'py-1', 'py-gutter'], (name) => own.has(name)),
+    ['py-500', 'py-gutter', 'py-0', 'py-1']
+  );
   assert.deepEqual(
     ownFirst([{ label: 'py-0' }, { label: 'py-500' }], (name) => own.has(name)).map((row) => row.label),
     ['py-500', 'py-0'],
@@ -69,7 +72,22 @@ test('the site’s own first, each side in the order it came', () => {
 test('a value menu offers the variables of its own kind first', () => {
   const vars = ['--color-primary-500', '--spacing-500', '--text-800', '--size-300'];
 
-  assert.deepEqual(varsForProperty(vars, 'color'), ['--color-primary-500', '--spacing-500', '--text-800', '--size-300']);
-  assert.deepEqual(varsForProperty(vars, 'font-size'), ['--text-800', '--size-300', '--color-primary-500', '--spacing-500']);
-  assert.deepEqual(varsForProperty(vars, 'padding-block'), ['--spacing-500', '--size-300', '--color-primary-500', '--text-800']);
+  assert.deepEqual(varsForProperty(vars, 'color'), [
+    '--color-primary-500',
+    '--spacing-500',
+    '--text-800',
+    '--size-300',
+  ]);
+  assert.deepEqual(varsForProperty(vars, 'font-size'), [
+    '--text-800',
+    '--size-300',
+    '--color-primary-500',
+    '--spacing-500',
+  ]);
+  assert.deepEqual(varsForProperty(vars, 'padding-block'), [
+    '--spacing-500',
+    '--size-300',
+    '--color-primary-500',
+    '--text-800',
+  ]);
 });

@@ -200,7 +200,10 @@ let buildWatched = false;
 function followBuild(win) {
   if (!buildWatched) {
     buildWatched = true;
-    watch(() => buildModeUi.on, () => syncComponentPropsHost(win));
+    watch(
+      () => buildModeUi.on,
+      () => syncComponentPropsHost(win)
+    );
   }
 }
 

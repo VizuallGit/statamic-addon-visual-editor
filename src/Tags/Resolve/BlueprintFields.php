@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use MarioHamann\StatamicVisualEditor\FieldsetFields;
+use Statamic\Facades\Fieldset;
 
 /**
  * Walking a blueprint: fields by handle, set and replicator config, the type
@@ -17,7 +18,7 @@ final class BlueprintFields
     /**
      * Same walk as {@see collectFieldsByHandle}, once per handle per request.
      *
-     * @return  list<array{handle?: string, config?: array, set?: string, chain?: array}>
+     * @return list<array{handle?: string, config?: array, set?: string, chain?: array}>
      */
     public static function fieldsByHandle($blueprint, string $handle, ?string $fieldType = null): array
     {
@@ -28,7 +29,7 @@ final class BlueprintFields
         }
 
         $matches = [];
-        static::collectFieldsByHandle($blueprint->contents(), $handle, $matches, $fieldType);
+        self::collectFieldsByHandle($blueprint->contents(), $handle, $matches, $fieldType);
 
         return self::$fieldsByHandle[$key] = $matches;
     }
@@ -53,21 +54,21 @@ final class BlueprintFields
 
         // Tabs (assoc: name => tab).
         foreach (($node['tabs'] ?? []) as $tab) {
-            static::collectFieldsByHandle($tab, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
+            self::collectFieldsByHandle($tab, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
         }
 
         // Sections (list).
         foreach (($node['sections'] ?? []) as $section) {
-            static::collectFieldsByHandle($section, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
+            self::collectFieldsByHandle($section, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
         }
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
             // Import reference — resolve the fieldset and recurse into it.
             if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+                $fieldset = Fieldset::find($item['import']);
 
                 if ($fieldset) {
-                    static::collectFieldsByHandle($fieldset->contents(), $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
+                    self::collectFieldsByHandle($fieldset->contents(), $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
                 }
 
                 continue;
@@ -81,7 +82,7 @@ final class BlueprintFields
             // work exactly as they do for an inline field — the overridden sets
             // are where a referenced replicator's own fields actually live.
             if (is_string($field)) {
-                $referenced = static::resolveFieldReference($field);
+                $referenced = self::resolveFieldReference($field);
 
                 $field = $referenced ? array_merge($referenced, (array) ($item['config'] ?? [])) : null;
             }
@@ -116,7 +117,7 @@ final class BlueprintFields
 
             // Grid/group nested fields.
             if (isset($field['fields'])) {
-                static::collectFieldsByHandle($field, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
+                self::collectFieldsByHandle($field, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
             }
 
             // Replicator/Bard set groups: sets => [group => ['sets' => [handle => ['fields' => ...]]]].
@@ -124,7 +125,7 @@ final class BlueprintFields
                 foreach (($group['sets'] ?? []) as $setHandle => $set) {
                     // Descend into every set, tagging matches with this set handle
                     // so the caller can prefer the one matching the current type.
-                    static::collectFieldsByHandle($set, $handle, $matches, $fieldType, (string) $setHandle, $depth + 1, [...$setChain, (string) $setHandle]);
+                    self::collectFieldsByHandle($set, $handle, $matches, $fieldType, (string) $setHandle, $depth + 1, [...$setChain, (string) $setHandle]);
                 }
             }
         }
@@ -135,7 +136,7 @@ final class BlueprintFields
     {
         $segments = explode('.', $reference);
         $fieldHandle = array_pop($segments);
-        $fieldset = \Statamic\Facades\Fieldset::find(implode('.', $segments));
+        $fieldset = Fieldset::find(implode('.', $segments));
 
         if (! $fieldset) {
             return null;
@@ -193,12 +194,11 @@ final class BlueprintFields
                 return $next;
             }
 
-            if ($found = static::typeChainTo($value, $uid, $next, $depth + 1)) {
+            if ($found = self::typeChainTo($value, $uid, $next, $depth + 1)) {
                 return $found;
             }
         }
 
         return null;
     }
-
 }

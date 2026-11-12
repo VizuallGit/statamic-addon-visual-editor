@@ -81,11 +81,15 @@ export function startPanelLook(doc) {
   doc.head.append(style);
 
   // Scroll does not bubble, and Style's scroller is the panel's or the CSS mode's wrapper.
-  doc.addEventListener('scroll', (event) => {
-    const box = event.target;
+  doc.addEventListener(
+    'scroll',
+    (event) => {
+      const box = event.target;
 
-    if (box?.matches?.('.bm-scroll, [data-sve-style-css]')) {
-      box.querySelector('.fg-top')?.toggleAttribute(SCROLLED, box.scrollTop > 0);
-    }
-  }, true);
+      if (box?.matches?.('.bm-scroll, [data-sve-style-css]')) {
+        box.querySelector('.fg-top')?.toggleAttribute(SCROLLED, box.scrollTop > 0);
+      }
+    },
+    true
+  );
 }

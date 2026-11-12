@@ -26,8 +26,8 @@ final class Scope
      *
      * @param  list<array{kind: string, handle: string}>  $chain
      * @return array{label: string, items: list<array<string, mixed>>, core: list<array<string, string>>}|null
-     *   Null when the chain leads somewhere with no fields to offer — the menu
-     *   then shows what it always showed rather than an empty tab.
+     *                                                                                                         Null when the chain leads somewhere with no fields to offer — the menu
+     *                                                                                                         then shows what it always showed rather than an empty tab.
      */
     public static function scopeFields(string $collection, string $set, array $chain): ?array
     {
@@ -78,7 +78,7 @@ final class Scope
         }
 
         for ($count = count($chain); $at < $count; $at++) {
-            $step = static::stepInto($fields, (string) $chain[$at]['handle']);
+            $step = self::stepInto($fields, (string) $chain[$at]['handle']);
 
             if (! $step) {
                 return null;
@@ -141,7 +141,7 @@ final class Scope
         }
 
         if ($field->type() === 'replicator' || $field->type() === 'bard') {
-            return ['fields' => static::setFields($config['sets'] ?? []), 'label' => $label, 'core' => [], 'entry' => false];
+            return ['fields' => self::setFields($config['sets'] ?? []), 'label' => $label, 'core' => [], 'entry' => false];
         }
 
         if ($field->type() === 'entries') {

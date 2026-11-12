@@ -42,11 +42,7 @@ function chromeFocusClass(kind) {
 }
 
 function clearChromeFocusClasses(doc) {
-  doc.documentElement.classList.remove(
-    'sve-chrome-focus',
-    'sve-chrome-focus-header',
-    'sve-chrome-focus-footer'
-  );
+  doc.documentElement.classList.remove('sve-chrome-focus', 'sve-chrome-focus-header', 'sve-chrome-focus-footer');
 }
 
 function applyChromeFocusClass(doc, kind) {
@@ -78,7 +74,11 @@ export function hasChromeFocusClass(doc, kind = null) {
 }
 
 export function rememberedChromeKind() {
-  return bridgeState.chromeFocusKindSticky || bridgeState.chromeFocusKind || (typeof window !== 'undefined' ? window.__sveChromeKind : null);
+  return (
+    bridgeState.chromeFocusKindSticky ||
+    bridgeState.chromeFocusKind ||
+    (typeof window !== 'undefined' ? window.__sveChromeKind : null)
+  );
 }
 
 function rememberChromeKind(kind) {

@@ -3,7 +3,6 @@
 namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use Illuminate\Support\Facades\Log;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
 use Statamic\Facades\Blueprint;
 
 /**
@@ -15,9 +14,7 @@ final class BardConfig
 {
     use ResolvesScope;
 
-    public function __construct(protected $params, protected $context)
-    {
-    }
+    public function __construct(protected $params, protected $context) {}
 
     /**
      * Resolves the Bard field's own toolbar config so the preview builds an

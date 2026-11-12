@@ -13,7 +13,7 @@ use Statamic\Statamic;
  * De lægges på Statamics EGNE klasser, ikke på addonets `Replicator`.
  * `appendConfigFields()` gemmer under `static::class`, så en registrering lagt
  * på addonets klasse ville forsvinde den dag den fil blev fjernet igen. Lagt her
- * læses de af {@see \MarioHamann\StatamicVisualEditor\Fieldtypes\Replicator}
+ * læses de af {@see Fieldtypes\Replicator}
  * gennem `extraConfigFieldItems()`, og de virker uændret uden den.
  *
  * Kaldes pr. CP-request fra {@see Http\Middleware\RegisterPanelVisibility},

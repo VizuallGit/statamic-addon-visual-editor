@@ -26,13 +26,13 @@ final class Caret
      */
     public static function of(string $before): array
     {
-        $tail = substr($before, -static::TAIL);
-        $open = static::openTag($tail);
+        $tail = substr($before, -self::TAIL);
+        $open = self::openTag($tail);
 
         if ($open !== null) {
             [$tag, $inside] = $open;
 
-            if (static::inAntlers($inside)) {
+            if (self::inAntlers($inside)) {
                 return ['kind' => 'antlers', 'tag' => $tag];
             }
 
@@ -43,11 +43,11 @@ final class Caret
             return ['kind' => 'tag', 'tag' => $tag];
         }
 
-        if (static::inAntlers($tail)) {
+        if (self::inAntlers($tail)) {
             return ['kind' => 'antlers'];
         }
 
-        return ['kind' => 'markup', 'fresh' => (bool) preg_match('/(?:\A|\n)[ \t]*\z/', $before), 'inside' => static::inside($tail)];
+        return ['kind' => 'markup', 'fresh' => (bool) preg_match('/(?:\A|\n)[ \t]*\z/', $before), 'inside' => self::inside($tail)];
     }
 
     /** The innermost element still open before the caret, or null. */
@@ -62,7 +62,7 @@ final class Caret
             $name = strtolower($name);
 
             if ($closing === '') {
-                if ($self === '' && ! in_array($name, static::VOID, true)) {
+                if ($self === '' && ! in_array($name, self::VOID, true)) {
                     $stack[] = $name;
                 }
 
@@ -85,7 +85,7 @@ final class Caret
         $tag = isset($caret['tag']) ? "<{$caret['tag']}>" : '';
 
         return match ($caret['kind']) {
-            'attribute' => "The caret is inside the value of {$caret['attribute']}={$caret['quote']}…{$caret['quote']} on {$tag}. Write only the rest of that value: no closing quote, nothing after it.".static::about($caret['attribute']),
+            'attribute' => "The caret is inside the value of {$caret['attribute']}={$caret['quote']}…{$caret['quote']} on {$tag}. Write only the rest of that value: no closing quote, nothing after it.".self::about($caret['attribute']),
             'antlers' => 'The caret is inside an Antlers tag {{ … }}: complete that tag and end it with }} unless <after> already does.',
             'tag' => "The caret is inside the opening tag {$tag}: write attributes only, no > and no content.",
             default => '',
@@ -120,7 +120,7 @@ final class Caret
         $inside = substr($tail, $lt);
 
         // A `>` that is not inside a quoted value or an Antlers tag closes it.
-        if (str_contains(static::bare($inside), '>')) {
+        if (str_contains(self::bare($inside), '>')) {
             return null;
         }
 

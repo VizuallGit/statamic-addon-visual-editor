@@ -28,203 +28,197 @@
  * kende noget til hvilket af dem der er tændt.
  */
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { ref, computed, onUnmounted } = window.Vue;
+  Statamic.booting(() => {
+    const { ref, computed, onUnmounted } = window.Vue;
 
-        Statamic.$components.register('column-span-fieldtype', {
-            props: {
-                value: { default: null },
-                meta: { type: Object, default: () => ({}) },
-                config: { type: Object, default: () => ({}) },
-                handle: { type: String, default: '' },
-                readOnly: { type: Boolean, default: false },
-            },
-            emits: ['update:value', 'focus', 'blur'],
+    Statamic.$components.register('column-span-fieldtype', {
+      props: {
+        value: { default: null },
+        meta: { type: Object, default: () => ({}) },
+        config: { type: Object, default: () => ({}) },
+        handle: { type: String, default: '' },
+        readOnly: { type: Boolean, default: false },
+      },
+      emits: ['update:value', 'focus', 'blur'],
 
-            setup(props, { emit }) {
-                const columns = computed(() => {
-                    const n = Number(props.meta?.columns ?? props.config?.columns ?? 12);
+      setup(props, { emit }) {
+        const columns = computed(() => {
+          const n = Number(props.meta?.columns ?? props.config?.columns ?? 12);
 
-                    return Number.isFinite(n) && n > 0 ? Math.round(n) : 12;
-                });
+          return Number.isFinite(n) && n > 0 ? Math.round(n) : 12;
+        });
 
-                const min = computed(() => {
-                    const n = Number(props.meta?.min ?? props.config?.min ?? 1);
+        const min = computed(() => {
+          const n = Number(props.meta?.min ?? props.config?.min ?? 1);
 
-                    return Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), columns.value) : 1;
-                });
+          return Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), columns.value) : 1;
+        });
 
-                /**
-                 * Værdien, uanset hvilken af de to former den har.
-                 *
-                 * Et tal er en bredde uden mening om hvor den ligger — sådan så
-                 * feltet ud før startkolonnen fandtes, og sådan ser hver eneste
-                 * gemt værdi fra dengang stadig ud.
-                 */
-                const placement = computed(() => {
-                    const raw = props.value;
+        /**
+         * Værdien, uanset hvilken af de to former den har.
+         *
+         * Et tal er en bredde uden mening om hvor den ligger — sådan så
+         * feltet ud før startkolonnen fandtes, og sådan ser hver eneste
+         * gemt værdi fra dengang stadig ud.
+         */
+        const placement = computed(() => {
+          const raw = props.value;
 
-                    if (raw === null || raw === undefined || raw === '') {
-                        return null;
-                    }
+          if (raw === null || raw === undefined || raw === '') {
+            return null;
+          }
 
-                    const source = typeof raw === 'object' ? raw : { span: raw, start: null };
-                    const span = Number(source.span ?? source.value);
+          const source = typeof raw === 'object' ? raw : { span: raw, start: null };
+          const span = Number(source.span ?? source.value);
 
-                    if (!Number.isFinite(span) || span < 1) {
-                        return null;
-                    }
+          if (!Number.isFinite(span) || span < 1) {
+            return null;
+          }
 
-                    const start = Number(source.start);
+          const start = Number(source.start);
 
-                    return {
-                        span: Math.min(Math.round(span), columns.value),
-                        start: Number.isFinite(start) && start > 0 ? Math.min(Math.round(start), columns.value) : null,
-                    };
-                });
+          return {
+            span: Math.min(Math.round(span), columns.value),
+            start: Number.isFinite(start) && start > 0 ? Math.min(Math.round(start), columns.value) : null,
+          };
+        });
 
-                // Under et træk viser striben det man er på vej til, ikke det der
-                // står gemt. Ellers halter den en håndbevægelse bagefter.
-                const hover = ref(null);
-                const shown = computed(() => hover.value ?? placement.value);
+        // Under et træk viser striben det man er på vej til, ikke det der
+        // står gemt. Ellers halter den en håndbevægelse bagefter.
+        const hover = ref(null);
+        const shown = computed(() => hover.value ?? placement.value);
 
-                const pct = computed(() =>
-                    shown.value === null ? null : Math.round((shown.value.span / columns.value) * 1000) / 10
-                );
+        const pct = computed(() =>
+          shown.value === null ? null : Math.round((shown.value.span / columns.value) * 1000) / 10
+        );
 
-                /** Første og sidste tændte celle. Uden start ligger blokken forrest. */
-                const range = computed(() => {
-                    if (shown.value === null) {
-                        return null;
-                    }
+        /** Første og sidste tændte celle. Uden start ligger blokken forrest. */
+        const range = computed(() => {
+          if (shown.value === null) {
+            return null;
+          }
 
-                    const from = shown.value.start ?? 1;
+          const from = shown.value.start ?? 1;
 
-                    return { from, to: from + shown.value.span - 1 };
-                });
+          return { from, to: from + shown.value.span - 1 };
+        });
 
-                const cells = computed(() => {
-                    const on = range.value;
+        const cells = computed(() => {
+          const on = range.value;
 
-                    return Array.from({ length: columns.value }, (_, i) => ({
-                        n: i + 1,
-                        on: on !== null && i + 1 >= on.from && i + 1 <= on.to,
-                    }));
-                });
+          return Array.from({ length: columns.value }, (_, i) => ({
+            n: i + 1,
+            on: on !== null && i + 1 >= on.from && i + 1 <= on.to,
+          }));
+        });
 
-                const clamp = (n) => Math.max(1, Math.min(columns.value, n));
+        const clamp = (n) => Math.max(1, Math.min(columns.value, n));
 
-                /** Hvilken kolonne peger musen på — målt på striben, ikke på cellen
-                 *  under markøren, så et træk hen over kanten også tæller med. */
-                const columnAt = (event, el) => {
-                    const rect = el.getBoundingClientRect();
+        /** Hvilken kolonne peger musen på — målt på striben, ikke på cellen
+         *  under markøren, så et træk hen over kanten også tæller med. */
+        const columnAt = (event, el) => {
+          const rect = el.getBoundingClientRect();
 
-                    if (rect.width <= 0) {
-                        return 1;
-                    }
+          if (rect.width <= 0) {
+            return 1;
+          }
 
-                    const ratio = (event.clientX - rect.left) / rect.width;
+          const ratio = (event.clientX - rect.left) / rect.width;
 
-                    return clamp(Math.ceil(ratio * columns.value));
-                };
+          return clamp(Math.ceil(ratio * columns.value));
+        };
 
-                const write = (next) => {
-                    if (props.readOnly) {
-                        return;
-                    }
+        const write = (next) => {
+          if (props.readOnly) {
+            return;
+          }
 
-                    // Uden start gemmes bare tallet, så en bredde bliver ved med at
-                    // se ud i YAML'en som en bredde altid har gjort.
-                    emit('update:value', next === null ? null : next.start === null ? next.span : { ...next });
-                };
+          // Uden start gemmes bare tallet, så en bredde bliver ved med at
+          // se ud i YAML'en som en bredde altid har gjort.
+          emit('update:value', next === null ? null : next.start === null ? next.span : { ...next });
+        };
 
-                // Trækket lever på window: slipper man uden for striben, skal
-                // værdien stadig sætte sig, og striben skal holde op med at følge
-                // musen.
-                let track = null;
-                const dragging = ref(false);
+        // Trækket lever på window: slipper man uden for striben, skal
+        // værdien stadig sætte sig, og striben skal holde op med at følge
+        // musen.
+        let track = null;
+        const dragging = ref(false);
 
-                const stopDrag = () => {
-                    dragging.value = false;
-                    hover.value = null;
+        const stopDrag = () => {
+          dragging.value = false;
+          hover.value = null;
 
-                    if (track) {
-                        window.removeEventListener('pointermove', track.move, true);
-                        window.removeEventListener('pointerup', track.up, true);
-                        track = null;
-                    }
-                };
+          if (track) {
+            window.removeEventListener('pointermove', track.move, true);
+            window.removeEventListener('pointerup', track.up, true);
+            track = null;
+          }
+        };
 
-                const onMove = (event) => {
-                    if (props.readOnly || dragging.value) {
-                        return;
-                    }
+        const onMove = (event) => {
+          if (props.readOnly || dragging.value) {
+            return;
+          }
 
-                    hover.value = { span: Math.max(min.value, columnAt(event, event.currentTarget)), start: null };
-                };
+          hover.value = { span: Math.max(min.value, columnAt(event, event.currentTarget)), start: null };
+        };
 
-                const onLeave = () => {
-                    if (!dragging.value) {
-                        hover.value = null;
-                    }
-                };
+        const onLeave = () => {
+          if (!dragging.value) {
+            hover.value = null;
+          }
+        };
 
-                const onDown = (event) => {
-                    if (props.readOnly || event.button !== 0) {
-                        return;
-                    }
+        const onDown = (event) => {
+          if (props.readOnly || event.button !== 0) {
+            return;
+          }
 
-                    const bar = event.currentTarget;
-                    const anchor = columnAt(event, bar);
+          const bar = event.currentTarget;
+          const anchor = columnAt(event, bar);
 
-                    event.preventDefault();
-                    dragging.value = true;
+          event.preventDefault();
+          dragging.value = true;
 
-                    // Blev der ikke trukket, var det et klik: en bredde, uden
-                    // mening om hvor den ligger. Skrevet med det samme, så striben
-                    // svarer på det første tryk og ikke først når man slipper.
-                    const asWidth = { span: Math.max(min.value, anchor), start: null };
+          // Blev der ikke trukket, var det et klik: en bredde, uden
+          // mening om hvor den ligger. Skrevet med det samme, så striben
+          // svarer på det første tryk og ikke først når man slipper.
+          const asWidth = { span: Math.max(min.value, anchor), start: null };
 
-                    hover.value = asWidth;
-                    write(asWidth);
+          hover.value = asWidth;
+          write(asWidth);
 
-                    const move = (e) => {
-                        const to = columnAt(e, bar);
+          const move = (e) => {
+            const to = columnAt(e, bar);
 
-                        // Tilbage på udgangscellen er det et klik igen — ikke et
-                        // interval på én kolonne. Ellers kunne en hånd der ryster
-                        // en anelse gøre en bredde til en fast plads.
-                        const next =
-                            to === anchor
-                                ? asWidth
-                                : { start: Math.min(anchor, to), span: Math.abs(to - anchor) + 1 };
+            // Tilbage på udgangscellen er det et klik igen — ikke et
+            // interval på én kolonne. Ellers kunne en hånd der ryster
+            // en anelse gøre en bredde til en fast plads.
+            const next = to === anchor ? asWidth : { start: Math.min(anchor, to), span: Math.abs(to - anchor) + 1 };
 
-                        if (
-                            next.span !== hover.value?.span ||
-                            next.start !== hover.value?.start
-                        ) {
-                            hover.value = next;
-                            write(next);
-                        }
-                    };
+            if (next.span !== hover.value?.span || next.start !== hover.value?.start) {
+              hover.value = next;
+              write(next);
+            }
+          };
 
-                    const up = () => stopDrag();
+          const up = () => stopDrag();
 
-                    track = { move, up };
-                    window.addEventListener('pointermove', move, true);
-                    window.addEventListener('pointerup', up, true);
-                };
+          track = { move, up };
+          window.addEventListener('pointermove', move, true);
+          window.addEventListener('pointerup', up, true);
+        };
 
-                const clear = () => write(null);
+        const clear = () => write(null);
 
-                onUnmounted(stopDrag);
+        onUnmounted(stopDrag);
 
-                return { columns, placement, shown, range, pct, cells, onMove, onLeave, onDown, clear };
-            },
+        return { columns, placement, shown, range, pct, cells, onMove, onLeave, onDown, clear };
+      },
 
-            template: `
+      template: `
                 <div class="column-span-fieldtype" style="display:flex;align-items:center;gap:0.75em;">
                     <div
                         class="column-span-bar"
@@ -278,6 +272,6 @@
                     </div>
                 </div>
             `,
-        });
     });
+  });
 })();

@@ -105,7 +105,7 @@ final class Rows
 
         $raw = is_string($raw) ? strtolower(trim($raw)) : '';
 
-        return in_array($raw, static::DIRECTIONS, true) ? $raw : 'desktop';
+        return in_array($raw, self::DIRECTIONS, true) ? $raw : 'desktop';
     }
 
     /**
@@ -127,7 +127,7 @@ final class Rows
         }
 
         if (! is_array($saved) || $saved === []) {
-            return static::DEFAULTS;
+            return self::DEFAULTS;
         }
 
         $rows = [];
@@ -137,18 +137,18 @@ final class Rows
                 continue;
             }
 
-            if (count($rows) >= static::MAX) {
+            if (count($rows) >= self::MAX) {
                 break;
             }
 
-            $handle = static::handle($row['handle'] ?? $row['device'] ?? '');
+            $handle = self::handle($row['handle'] ?? $row['device'] ?? '');
 
             if ($handle === '' || ! is_numeric($row['min'] ?? null)) {
                 continue;
             }
 
             $unit = strtolower(trim((string) ($row['unit'] ?? 'em')));
-            $unit = in_array($unit, static::UNITS, true) ? $unit : 'em';
+            $unit = in_array($unit, self::UNITS, true) ? $unit : 'em';
             $min = (float) $row['min'];
 
             $rows[$handle] = [
@@ -157,7 +157,7 @@ final class Rows
                 'device' => (string) ($row['device'] ?? ucfirst($handle)),
                 'min' => $min,
                 'unit' => $unit,
-                'width' => (int) ($row['width'] ?? max(360, (int) static::toPx($min, $unit))),
+                'width' => (int) ($row['width'] ?? max(360, (int) self::toPx($min, $unit))),
                 'height' => (int) ($row['height'] ?? 900),
                 'icon' => (string) ($row['icon'] ?? 'desktop'),
             ];
@@ -173,7 +173,7 @@ final class Rows
 
         // Uden et basis-breakpoint har ingenting et sted at stå: det der ikke
         // er en undtagelse, er reglen. Falder tilbage frem for at tegne intet.
-        return $rows === [] ? static::DEFAULTS : array_values($rows);
+        return $rows === [] ? self::DEFAULTS : array_values($rows);
     }
 
     /** Et handle er en datanøgle, ikke en overskrift. */
@@ -189,6 +189,6 @@ final class Rows
     /** En grænse i pixels, uanset hvilken enhed den er skrevet i. */
     public static function toPx(float $value, string $unit): float
     {
-        return $unit === 'px' ? $value : $value * static::ROOT_PX;
+        return $unit === 'px' ? $value : $value * self::ROOT_PX;
     }
 }

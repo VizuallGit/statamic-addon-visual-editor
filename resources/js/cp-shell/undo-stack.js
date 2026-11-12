@@ -74,8 +74,16 @@ export function createUndoStack({ read, write, same = (a, b) => a === b, limit =
         now = next;
       }
     },
-    undo: () => step(() => past, () => future),
-    redo: () => step(() => future, () => past),
+    undo: () =>
+      step(
+        () => past,
+        () => future
+      ),
+    redo: () =>
+      step(
+        () => future,
+        () => past
+      ),
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
   };

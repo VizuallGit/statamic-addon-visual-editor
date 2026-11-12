@@ -1,14 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { liveSheet, readBound, readRule, renameSelector, sizeKey, writeDeclarations } from '../../resources/js/build-mode/css-mode/rules.js';
-import { boundLabel, boundValue, createTranslator, fieldsFor, fillValue, parseDeclarations } from '../../resources/js/build-mode/css-mode/translate.js';
+import {
+  liveSheet,
+  readBound,
+  readRule,
+  renameSelector,
+  sizeKey,
+  writeDeclarations,
+} from '../../resources/js/build-mode/css-mode/rules.js';
+import {
+  boundLabel,
+  boundValue,
+  createTranslator,
+  fieldsFor,
+  fillValue,
+  parseDeclarations,
+} from '../../resources/js/build-mode/css-mode/translate.js';
 
 const ROWS = [
   { handle: 'desktop', base: true, direction: 'desktop', tw: '', media: '' },
   { handle: 'tablet', base: false, direction: 'desktop', max: '64em', tw: 'max-lg', media: '(width < 64em)' },
   { handle: 'mobile', base: false, direction: 'desktop', max: '48em', tw: 'max-md', media: '(width < 48em)' },
 ];
-const at = (selector, size = '') => ({ selector, size, rows: ROWS, query: ROWS.find((row) => row.handle === size)?.media || '' });
+const at = (selector, size = '') => ({
+  selector,
+  size,
+  rows: ROWS,
+  query: ROWS.find((row) => row.handle === size)?.media || '',
+});
 const set = (css, selector, prop, value, size = '') => writeDeclarations(css, at(selector, size), [{ prop, value }]);
 
 test('a first rule in an empty file', () => {
@@ -27,11 +46,14 @@ test('a value replaces its own declaration, and a new one joins the rule', () =>
   ]);
 });
 
-test('a class goes in the file\'s one @scope, an ID at the top of the file', () => {
+test("a class goes in the file's one @scope, an ID at the top of the file", () => {
   const css = '@scope(.{{ _class }}) {\n    .title { color: red; }\n}\n';
   const withClass = set(css, '.card', 'display', 'flex');
 
-  assert.match(withClass, /@scope\(\.\{\{ _class \}\}\) \{\n    \.title \{ color: red; \}\n    \.card \{\n        display: flex;\n    \}\n\}/);
+  assert.match(
+    withClass,
+    /@scope\(\.\{\{ _class \}\}\) \{\n    \.title \{ color: red; \}\n    \.card \{\n        display: flex;\n    \}\n\}/
+  );
 
   const withId = set(css, '#hero', 'display', 'flex');
 
@@ -51,7 +73,10 @@ test('a size uses the block the file has, never a second one', () => {
   const next = set(css, '.a', 'padding-top', '1rem', 'tablet');
 
   assert.equal(next.match(/@media/g).length, 1);
-  assert.deepEqual(readRule(next, '.a', ROWS).find((decl) => decl.size === 'tablet'), { size: 'tablet', prop: 'padding-top', value: '1rem' });
+  assert.deepEqual(
+    readRule(next, '.a', ROWS).find((decl) => decl.size === 'tablet'),
+    { size: 'tablet', prop: 'padding-top', value: '1rem' }
+  );
 });
 
 test('the same boundary in other words is the same block', () => {
@@ -70,7 +95,7 @@ test('a size block lands in cascade order, and after the base rule', () => {
   assert.ok(css.indexOf('green') < css.indexOf('64em'), 'base before the sizes');
 });
 
-test('a size written before the base rule\'s block order is never put ahead of the base', () => {
+test("a size written before the base rule's block order is never put ahead of the base", () => {
   const css = '@media (width < 64em) {\n    .b { color: blue; }\n}\n\n.a {\n    color: red;\n}\n';
   const next = set(css, '.a', 'color', 'green', 'tablet');
 
@@ -98,7 +123,10 @@ test('a size nested in the rule is that size', () => {
     { size: '', prop: 'color', value: 'red' },
     { size: 'mobile', prop: 'color', value: 'blue' },
   ]);
-  assert.match(set(css, '#id-{{ id }}', 'color', 'green', 'mobile'), /@media \(width < 48em\) \{\n {8}color: green;\n {4}\}/);
+  assert.match(
+    set(css, '#id-{{ id }}', 'color', 'green', 'mobile'),
+    /@media \(width < 48em\) \{\n {8}color: green;\n {4}\}/
+  );
 });
 
 test('other rules and comments stand untouched', () => {
@@ -108,13 +136,18 @@ test('other rules and comments stand untouched', () => {
   assert.ok(next.includes('/* top */'));
   assert.ok(next.includes('.ab { color: blue; }'));
   assert.ok(next.includes('color: green;'));
-  assert.deepEqual(readRule(next, '.a', ROWS).map((decl) => decl.prop), ['color', 'margin']);
+  assert.deepEqual(
+    readRule(next, '.a', ROWS).map((decl) => decl.prop),
+    ['color', 'margin']
+  );
 });
 
 test('a value with a semicolon in it is one value', () => {
   const css = set('', '.a', 'background-image', 'url("data:image/png;base64,AA")');
 
-  assert.deepEqual(readRule(css, '.a', ROWS), [{ size: '', prop: 'background-image', value: 'url("data:image/png;base64,AA")' }]);
+  assert.deepEqual(readRule(css, '.a', ROWS), [
+    { size: '', prop: 'background-image', value: 'url("data:image/png;base64,AA")' },
+  ]);
 });
 
 test('the base row and All are the same place', () => {
@@ -123,7 +156,7 @@ test('the base row and All are the same place', () => {
   assert.equal(sizeKey(ROWS, 'tablet'), 'tablet');
 });
 
-test('the canvas\'s sheet has no Antlers, and its sizes in cascade order', () => {
+test("the canvas's sheet has no Antlers, and its sizes in cascade order", () => {
   let css = set('', '#id-{{ id }}', 'color', 'red');
 
   css = set(css, '#id-{{ id }}', 'color', 'blue', 'mobile');
@@ -150,17 +183,25 @@ const COMPILED = {
   'bg-[url(/a;b.png)]': 'background-image: url(/a;b.png)',
 };
 const translator = createTranslator({
-  ruleOf: (name) => (COMPILED[name] ? `.x {\n  ${COMPILED[name].split(/;\s*(?![^(]*\))/).filter(Boolean).join(';\n  ')};\n}` : ''),
+  ruleOf: (name) =>
+    COMPILED[name]
+      ? `.x {\n  ${COMPILED[name]
+          .split(/;\s*(?![^(]*\))/)
+          .filter(Boolean)
+          .join(';\n  ')};\n}`
+      : '',
   scale: (prop) => ({ display: ['flex', 'block'], 'padding-top': ['pt-700', 'pt-800'] })[prop] || [],
 });
 
-test('a class is its declarations; what is left of Tailwind\'s plumbing has none', () => {
+test("a class is its declarations; what is left of Tailwind's plumbing has none", () => {
   assert.deepEqual(translator.planFor('flex').decls, [{ prop: 'display', value: 'flex' }]);
   assert.equal(translator.planFor('nothing'), null);
-  assert.deepEqual(translator.planFor('bg-[url(/a;b.png)]').decls, [{ prop: 'background-image', value: 'url(/a;b.png)' }]);
+  assert.deepEqual(translator.planFor('bg-[url(/a;b.png)]').decls, [
+    { prop: 'background-image', value: 'url(/a;b.png)' },
+  ]);
 });
 
-test('a declaration reads as the scale\'s row, a typed value, or any property', () => {
+test("a declaration reads as the scale's row, a typed value, or any property", () => {
   assert.equal(translator.nameFor('display', 'flex'), 'flex');
   assert.equal(translator.nameFor('padding-top', 'var(--spacing-700)'), 'pt-700');
   assert.equal(translator.nameFor('padding-top', '5rem'), 'pt-[5rem]');
@@ -168,34 +209,47 @@ test('a declaration reads as the scale\'s row, a typed value, or any property', 
 });
 
 test('declarations are split where they end', () => {
-  assert.deepEqual(parseDeclarations('a: b; c: url(x;y);'), [{ prop: 'a', value: 'b' }, { prop: 'c', value: 'url(x;y)' }]);
+  assert.deepEqual(parseDeclarations('a: b; c: url(x;y);'), [
+    { prop: 'a', value: 'b' },
+    { prop: 'c', value: 'url(x;y)' },
+  ]);
 });
 
 /* ---------------- renaming an ID ---------------- */
 
 test('renaming reaches every rule that names the ID, and nothing else', () => {
-  const css = '#a { color: red; }\n#ab { color: blue; }\n#a .b, .c { margin: 0; }\n@media (width < 48em) {\n    #a:hover { color: green; }\n}\n.d { background: url(#a); }\n';
+  const css =
+    '#a { color: red; }\n#ab { color: blue; }\n#a .b, .c { margin: 0; }\n@media (width < 48em) {\n    #a:hover { color: green; }\n}\n.d { background: url(#a); }\n';
   const next = renameSelector(css, '#a', '#z');
 
-  assert.equal(next, '#z { color: red; }\n#ab { color: blue; }\n#z .b, .c { margin: 0; }\n@media (width < 48em) {\n    #z:hover { color: green; }\n}\n.d { background: url(#a); }\n');
+  assert.equal(
+    next,
+    '#z { color: red; }\n#ab { color: blue; }\n#z .b, .c { margin: 0; }\n@media (width < 48em) {\n    #z:hover { color: green; }\n}\n.d { background: url(#a); }\n'
+  );
 });
 
 test('a dynamic ID is the same however its tag is spaced', () => {
-  const next = renameSelector('#titel-{{id}} { color: red; }\n#titel-{{ id }} .x { margin: 0; }\n', '#titel-{{ id }}', '#navn-{{ id }}');
+  const next = renameSelector(
+    '#titel-{{id}} { color: red; }\n#titel-{{ id }} .x { margin: 0; }\n',
+    '#titel-{{ id }}',
+    '#navn-{{ id }}'
+  );
 
   assert.equal(next, '#navn-{{ id }} { color: red; }\n#navn-{{ id }} .x { margin: 0; }\n');
 });
 
 /* ---------------- a style's value from a field ---------------- */
 
-test('a field\'s value is read apart from the values written by hand', () => {
+test("a field's value is read apart from the values written by hand", () => {
   const css = '#id-{{ id }} {\n    background-color: {{ bg_color }};\n    padding-top: 2rem;\n}\n';
 
-  assert.deepEqual(readBound(css, '#id-{{ id }}', ROWS), [{ size: '', prop: 'background-color', value: '{{ bg_color }}' }]);
+  assert.deepEqual(readBound(css, '#id-{{ id }}', ROWS), [
+    { size: '', prop: 'background-color', value: '{{ bg_color }}' },
+  ]);
   assert.deepEqual(readRule(css, '#id-{{ id }}', ROWS), [{ size: '', prop: 'padding-top', value: '2rem' }]);
 });
 
-test('a field\'s value replaces a value by hand, and a value by hand replaces it', () => {
+test("a field's value replaces a value by hand, and a value by hand replaces it", () => {
   let css = set('', '#a', 'color', 'red');
 
   css = set(css, '#a', 'color', '{{ c }}');

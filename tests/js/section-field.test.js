@@ -5,7 +5,12 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultSectionField, pageBuilderParams, pageBuilderQuery, sectionField } from '../../resources/js/lib/config.js';
+import {
+  defaultSectionField,
+  pageBuilderParams,
+  pageBuilderQuery,
+  sectionField,
+} from '../../resources/js/lib/config.js';
 import { addContainer, pageHasSectionField } from '../../resources/js/lib/publish-containers.js';
 
 const doc = { querySelector: () => null };
@@ -22,7 +27,13 @@ test('with no form on screen, the default field and nothing to name', () => {
 });
 
 test('outside Live Preview: a form whose values carry page_sections', () => {
-  addContainer({ name: 'page', setFieldValue() {}, setFieldMeta() {}, values: { page_sections: [] }, meta: { page_sections: { existing: {} } } });
+  addContainer({
+    name: 'page',
+    setFieldValue() {},
+    setFieldMeta() {},
+    values: { page_sections: [] },
+    meta: { page_sections: { existing: {} } },
+  });
 
   assert.equal(sectionField(win), 'page_sections');
   assert.equal(pageBuilderParams(win).sections_field, 'page_sections');
@@ -32,7 +43,8 @@ test('outside Live Preview: a form whose values carry page_sections', () => {
 test('the field the server marked in its meta wins, whatever it is called', () => {
   addContainer({
     name: 'lawyer',
-    setFieldValue() {}, setFieldMeta() {},
+    setFieldValue() {},
+    setFieldMeta() {},
     // Refs, as the publish container provides them.
     values: { __v_isRef: true, value: { title: 'Jens', lawyer_info: [] } },
     meta: {

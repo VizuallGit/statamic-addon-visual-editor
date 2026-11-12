@@ -108,9 +108,9 @@ export function loadTailwindCompiler(win) {
         if (!warned && state.missingPlugins.length) {
           warned = true;
           console.warn(
-            '[sve] site.css loads Tailwind plugins the Visual Editor does not carry, '
-            + 'so their classes stay with the Vite build: '
-            + state.missingPlugins.join(', ')
+            '[sve] site.css loads Tailwind plugins the Visual Editor does not carry, ' +
+              'so their classes stay with the Vite build: ' +
+              state.missingPlugins.join(', ')
           );
         }
 
@@ -164,12 +164,14 @@ export async function compileDraft(win, css, candidates) {
 export function loadTailwindDesign(win) {
   if (!designPromise) {
     designPromise = loadSite(win)
-      .then((site) => makeDesignSystem({
-        loadDesignSystem: __unstable__loadDesignSystem,
-        sources: { theme: themeSource, utilities: utilitiesSource },
-        site,
-        modules: MODULES,
-      }))
+      .then((site) =>
+        makeDesignSystem({
+          loadDesignSystem: __unstable__loadDesignSystem,
+          sources: { theme: themeSource, utilities: utilitiesSource },
+          site,
+          modules: MODULES,
+        })
+      )
       .catch((error) => {
         designPromise = null;
 

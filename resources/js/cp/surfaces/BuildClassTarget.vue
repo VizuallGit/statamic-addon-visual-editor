@@ -19,12 +19,26 @@ function done() {
 
 <template>
   <div v-if="target" class="fg-seg fg-target" data-sve-build-target>
-    <button type="button" class="fg-target__class" aria-pressed="true" :title="target" :data-sve-build-target-class="target" @click="done"><span>{{ target }}</span></button>
-    <button type="button" class="fg-target__done" data-sve-build-class-done @click="done">{{ port.t('class_done') }}</button>
+    <button
+      type="button"
+      class="fg-target__class"
+      aria-pressed="true"
+      :title="target"
+      :data-sve-build-target-class="target"
+      @click="done"
+      ><span>{{ target }}</span></button
+    >
+    <button type="button" class="fg-target__done" data-sve-build-class-done @click="done">{{
+      port.t('class_done')
+    }}</button>
   </div>
 
   <p v-if="target" class="fg-hint fg-target__note" data-sve-build-class-note>
-    {{ port.classes.empty() && !port.classes.ownCss() ? port.t('class_empty', { name: target }) : port.t('class_editing', { name: target }) }}
+    {{
+      port.classes.empty() && !port.classes.ownCss()
+        ? port.t('class_empty', { name: target })
+        : port.t('class_editing', { name: target })
+    }}
     <template v-if="port.classes.ownCss()"><br />{{ port.t('class_own_css', { name: target }) }}</template>
   </p>
 </template>

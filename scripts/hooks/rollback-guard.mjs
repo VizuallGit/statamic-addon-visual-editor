@@ -62,7 +62,18 @@ function recentHunks(base) {
   let file = '';
   let hunk = null;
 
-  const log = git('log', `-${RECENT}`, '--first-parent', '--format=@@commit %h %s', '-p', '--unified=0', base, '--', '.', ...SKIP);
+  const log = git(
+    'log',
+    `-${RECENT}`,
+    '--first-parent',
+    '--format=@@commit %h %s',
+    '-p',
+    '--unified=0',
+    base,
+    '--',
+    '.',
+    ...SKIP
+  );
 
   for (const line of log.split('\n')) {
     if (line.startsWith('@@commit ')) {
@@ -118,7 +129,11 @@ for (const row of input ? input.split('\n') : []) {
     process.exit(1);
   }
 
-  const changed = new Set(git('diff', '--name-only', remoteSha, localSha, '--', '.', ...SKIP).split('\n').filter(Boolean));
+  const changed = new Set(
+    git('diff', '--name-only', remoteSha, localSha, '--', '.', ...SKIP)
+      .split('\n')
+      .filter(Boolean)
+  );
 
   for (const hunk of recentHunks(remoteSha)) {
     if (changed.has(hunk.file) && rolledBack(hunk, remoteSha, localSha)) {

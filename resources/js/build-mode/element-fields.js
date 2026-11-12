@@ -53,7 +53,11 @@ export function elementFieldReady(kind) {
  *
  * @returns {() => void} unmount — a change still on its way is sent first
  */
-export function mountElementField(win, el, { kind, value, display, write, pick = null, pickTitle = '', paint = null, native, writeRaw = null }) {
+export function mountElementField(
+  win,
+  el,
+  { kind, value, display, write, pick = null, pickTitle = '', paint = null, native, writeRaw = null }
+) {
   const ui = reactive({
     ready: false,
     name: `sve-build-${kind}`,
@@ -208,7 +212,11 @@ export function elementFieldParam(win, kind, raw) {
     .fetch('/!/sve/element-fields', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': csrfToken(win),
+      },
       body: JSON.stringify({ kind, value: '', values: { [handle]: raw } }),
     })
     .then((res) => (res.ok ? res.json() : null))

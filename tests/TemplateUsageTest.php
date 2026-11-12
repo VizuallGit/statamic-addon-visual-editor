@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\TemplateUsage;
+use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 
@@ -67,7 +68,7 @@ class TemplateUsageTest extends TestCase
 
     public function test_the_sections_fields_are_those_of_the_pages_drawn_with_it(): void
     {
-        \Statamic\Facades\Blueprint::make('usage_page')->setNamespace('collections.usage_pages')->setContents([
+        Blueprint::make('usage_page')->setNamespace('collections.usage_pages')->setContents([
             'tabs' => ['main' => ['sections' => [['fields' => [
                 ['handle' => 'page_sections', 'field' => ['type' => 'replicator', 'sets' => []]],
             ]]]]],
@@ -78,7 +79,7 @@ class TemplateUsageTest extends TestCase
             // Services are not built from sections: nothing for a loop to go over.
             $this->assertSame([], TemplateUsage::of('usage_services/show')['sections_fields']);
         } finally {
-            \Statamic\Facades\Blueprint::find('collections.usage_pages.usage_page')?->delete();
+            Blueprint::find('collections.usage_pages.usage_page')?->delete();
         }
     }
 

@@ -227,7 +227,10 @@ test('nothing runs when the feature is off, and the loop ends when the header go
 
   fake.feature = true;
 
-  const win = fakeWindow([{ markup: 'm1', build: 'b1' }, { markup: 'm1', build: 'b1' }]);
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm1', build: 'b1' },
+  ]);
 
   ensureLpLiveReload(win);
   await tick();
@@ -240,7 +243,7 @@ test('nothing runs when the feature is off, and the loop ends when the header go
   await tick();
 
   assert.equal(win.urls.length, polled, 'no poll after Live Preview closed');
-  assert.equal(calls.refresh.length, 0, 'a change after the close is nobody\'s business');
+  assert.equal(calls.refresh.length, 0, "a change after the close is nobody's business");
 });
 
 test('a change that arrives while a refresh runs is refreshed once more after it', async () => {
@@ -279,7 +282,10 @@ test("the button's own refresh running → ours waits and runs after", async () 
   reset();
   fake.refreshResult = false;
 
-  const win = fakeWindow([{ markup: 'm1', build: 'b1' }, { markup: 'm2', build: 'b1', own: false }]);
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false },
+  ]);
 
   ensureLpLiveReload(win);
   await tick();
@@ -302,10 +308,39 @@ test("a changed file the dock has open goes into the dock's panes as the file on
   const parts = (html) => ({ html, css: '', js: '', tw: '', locked: false });
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>', parts: parts('<section>new</section>') }] },
-    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>', parts: parts('<section>x</section>') }] },
-    { markup: 'm4', build: 'b1', own: false, changed: [{ path: hero, content: '<section>both</section>', parts: parts('<section>both</section>') }, { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
-    { markup: 'm5', build: 'b1', own: true, changed: [{ path: hero, content: '<section>own</section>', parts: parts('<section>own</section>') }] },
+    {
+      markup: 'm2',
+      build: 'b1',
+      own: false,
+      changed: [{ path: hero, content: '<section>new</section>', parts: parts('<section>new</section>') }],
+    },
+    {
+      markup: 'm3',
+      build: 'b1',
+      own: false,
+      changed: [
+        {
+          path: 'resources/views/partials/page_sections/other.antlers.html',
+          content: '<section>x</section>',
+          parts: parts('<section>x</section>'),
+        },
+      ],
+    },
+    {
+      markup: 'm4',
+      build: 'b1',
+      own: false,
+      changed: [
+        { path: hero, content: '<section>both</section>', parts: parts('<section>both</section>') },
+        { path: 'resources/views/layout.antlers.html', content: '<html></html>' },
+      ],
+    },
+    {
+      markup: 'm5',
+      build: 'b1',
+      own: true,
+      changed: [{ path: hero, content: '<section>own</section>', parts: parts('<section>own</section>') }],
+    },
     { markup: 'm6', build: 'b1', own: false, changed: [{ path: hero, content: '', parts: parts('') }] },
     { markup: 'm7', build: 'b1', own: false, changed: [{ path: hero, content: '<section>raw</section>' }] },
   ]);
@@ -315,10 +350,17 @@ test("a changed file the dock has open goes into the dock's panes as the file on
 
   assert.deepEqual(
     calls.ask.filter(([what]) => what === 'dock:take-file').map(([, payload]) => [payload.type, payload.parts.html]),
-    [['hero/style_2', '<section>new</section>'], ['hero/style_2', '<section>both</section>']],
+    [
+      ['hero/style_2', '<section>new</section>'],
+      ['hero/style_2', '<section>both</section>'],
+    ],
     "the dock's file, twice; another file never; an own change never; an empty file never; a file without the server's split never"
   );
-  assert.equal(calls.ask.filter(([what]) => what === 'dock:set-html').length, 0, 'the dock is never written to as if typed');
+  assert.equal(
+    calls.ask.filter(([what]) => what === 'dock:set-html').length,
+    0,
+    'the dock is never written to as if typed'
+  );
   assert.deepEqual(
     calls.refresh,
     [['hero/style_2'], null, null, null, null],
@@ -337,14 +379,29 @@ test('a dock that refuses the file (locked, another file, typing of its own) lea
 
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>', parts: { html: '<section>new</section>', css: '', js: '', tw: '' } }] },
+    {
+      markup: 'm2',
+      build: 'b1',
+      own: false,
+      changed: [
+        {
+          path: 'resources/views/partials/page_sections/hero/style_2.antlers.html',
+          content: '<section>new</section>',
+          parts: { html: '<section>new</section>', css: '', js: '', tw: '' },
+        },
+      ],
+    },
     { markup: 'm3', build: 'b1', own: false, changed: null },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
-  assert.deepEqual(calls.refresh, [null, null], 'rendered both times, the whole page: the dock refused, and unknown files');
+  assert.deepEqual(
+    calls.refresh,
+    [null, null],
+    'rendered both times, the whole page: the dock refused, and unknown files'
+  );
 
   fake.header = false;
   ensureLpLiveReload(win);
@@ -359,13 +416,28 @@ test('with the instant switch off the dock is never asked, and every change rend
   const hero = 'resources/views/partials/page_sections/hero/style_2.antlers.html';
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>', parts: { html: '<section>new</section>', css: '', js: '', tw: '' } }] },
+    {
+      markup: 'm2',
+      build: 'b1',
+      own: false,
+      changed: [
+        {
+          path: hero,
+          content: '<section>new</section>',
+          parts: { html: '<section>new</section>', css: '', js: '', tw: '' },
+        },
+      ],
+    },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
-  assert.equal(calls.ask.filter(([what]) => what === 'dock:take-file' || what === 'dock:current-type').length, 0, 'the dock is not even asked what it shows');
+  assert.equal(
+    calls.ask.filter(([what]) => what === 'dock:take-file' || what === 'dock:current-type').length,
+    0,
+    'the dock is not even asked what it shows'
+  );
   assert.deepEqual(calls.refresh, [null], 'one render of the whole page');
 
   fake.header = false;

@@ -146,7 +146,9 @@ export function fromClass(name, prefix) {
  * last dash.
  */
 export function rootOf(names) {
-  const list = (Array.isArray(names) ? names : [names]).map((n) => splitUtility(splitClass(n).base).name).filter(Boolean);
+  const list = (Array.isArray(names) ? names : [names])
+    .map((n) => splitUtility(splitClass(n).base).name)
+    .filter(Boolean);
 
   if (!list.length) {
     return '';
@@ -265,9 +267,9 @@ export function variantChain(rows, handle, state = '') {
     : at === -1
       ? ['']
       : cascade
-        .slice(0, at + 1)
-        .reverse()
-        .map((row) => (row.base ? '' : row.tw || ''));
+          .slice(0, at + 1)
+          .reverse()
+          .map((row) => (row.base ? '' : row.tw || ''));
 
   return state ? [...sizes.map((size) => [size, state].filter(Boolean).join(':')), ...sizes] : sizes;
 }

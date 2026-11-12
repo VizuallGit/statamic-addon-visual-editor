@@ -105,7 +105,9 @@ async function make() {
         data-sve-build-editable-name
         @keydown.enter.prevent="make"
       />
-      <button type="button" class="bm-remove-file" :disabled="busy" data-sve-build-editable-make @click="make">{{ port.t('content_editable_make') }}</button>
+      <button type="button" class="bm-remove-file" :disabled="busy" data-sve-build-editable-make @click="make">{{
+        port.t('content_editable_make')
+      }}</button>
     </div>
     <p v-if="failed" class="bm-note" data-sve-build-editable-failed>{{ port.t('content_editable_failed') }}</p>
   </div>

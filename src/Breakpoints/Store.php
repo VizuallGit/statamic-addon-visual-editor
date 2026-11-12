@@ -29,7 +29,7 @@ final class Store
     /** The Control Panel user may change the addon's settings. */
     public static function editable(): bool
     {
-        $addon = Addon::get(static::ADDON_ID);
+        $addon = Addon::get(self::ADDON_ID);
         $user = User::current();
 
         return (bool) ($addon && $user && $user->can('editSettings', $addon));
@@ -51,9 +51,9 @@ final class Store
     {
         $existing = Rows::rows();
 
-        $row = static::validate($input, $existing);
+        $row = self::validate($input, $existing);
 
-        return static::write(array_merge($existing, [$row]));
+        return self::write(array_merge($existing, [$row]));
     }
 
     /**
@@ -88,7 +88,7 @@ final class Store
 
         $validator->validate();
 
-        return static::write(array_values(array_filter($existing, fn ($row) => $row['handle'] !== $handle)));
+        return self::write(array_values(array_filter($existing, fn ($row) => $row['handle'] !== $handle)));
     }
 
     /**
@@ -99,7 +99,7 @@ final class Store
      */
     protected static function write(array $rows): array
     {
-        Addon::get(static::ADDON_ID)->settings()->set('breakpoints', array_values($rows))->save();
+        Addon::get(self::ADDON_ID)->settings()->set('breakpoints', array_values($rows))->save();
 
         // AddonSettingsSaved forgets the cached list; this is the fresh one.
         return Breakpoints::forScript();

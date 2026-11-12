@@ -213,8 +213,7 @@ export function findAntlersBlocks(html) {
       for (let i = stack.length - 1; i >= 0; i -= 1) {
         // `{{ /if }}` closes whichever branch is open — by then the top of the
         // stack is the `elseif`, not the `if` that started it.
-        const hit =
-          wanted === 'if' ? stack[i].branchOf === 'if' : stack[i].name === wanted;
+        const hit = wanted === 'if' ? stack[i].branchOf === 'if' : stack[i].name === wanted;
 
         if (!hit) {
           continue;
@@ -328,9 +327,7 @@ export function findAntlersBlocks(html) {
     });
   }
 
-  return out
-    .filter((item) => item.to > item.openTo)
-    .sort((a, b) => a.from - b.from || b.to - a.to);
+  return out.filter((item) => item.to > item.openTo).sort((a, b) => a.from - b.from || b.to - a.to);
 }
 
 /**

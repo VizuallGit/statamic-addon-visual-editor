@@ -11,7 +11,9 @@ import test from 'node:test';
 const ROOT = new URL('../../resources/js/', import.meta.url).pathname;
 const DIR = join(ROOT, 'build-mode/css-mode');
 const FILES = [
-  ...readdirSync(DIR).filter((name) => name.endsWith('.js')).map((name) => join(DIR, name)),
+  ...readdirSync(DIR)
+    .filter((name) => name.endsWith('.js'))
+    .map((name) => join(DIR, name)),
   join(ROOT, 'cp/surfaces/BuildStyleCss.vue'),
   join(ROOT, 'cp/surfaces/BuildStyleMode.vue'),
   join(ROOT, 'cp/surfaces/BuildStyleSwitch.vue'),
@@ -20,7 +22,8 @@ const FILES = [
 const read = (file) => readFileSync(file, 'utf8');
 
 test('the demo imports nothing from the Tailwind pane or the kernel', () => {
-  const banned = /from\s+['"][^'"]*(tw-classes|tw-tool|tw-compile|class-target|preview\.js|overlay-host|bridge|live-reload-morph|\/canvas\.js|cp-shell)/;
+  const banned =
+    /from\s+['"][^'"]*(tw-classes|tw-tool|tw-compile|class-target|preview\.js|overlay-host|bridge|live-reload-morph|\/canvas\.js|cp-shell)/;
 
   for (const file of FILES) {
     assert.ok(!banned.test(read(file)), file);
@@ -28,7 +31,8 @@ test('the demo imports nothing from the Tailwind pane or the kernel', () => {
 });
 
 test('the demo calls no function that writes a class, and says no class changed', () => {
-  const banned = /\btw(SetClass|AddClass|DropClass|ReplaceClasses|SetFieldClass|SetClassTarget|SetChipHost|SetTag|SetGroup|Reorder|SortClasses|RestoreTag)\b|['"]tw:changed['"]|['"]dock:html-changed['"]|sve:tw-preview/;
+  const banned =
+    /\btw(SetClass|AddClass|DropClass|ReplaceClasses|SetFieldClass|SetClassTarget|SetChipHost|SetTag|SetGroup|Reorder|SortClasses|RestoreTag)\b|['"]tw:changed['"]|['"]dock:html-changed['"]|sve:tw-preview/;
 
   for (const file of FILES) {
     assert.ok(!banned.test(read(file)), file);
@@ -43,12 +47,15 @@ test('Style always has the switch, and the CSS side is a chunk of its own', () =
   assert.ok(!/sve-css-demo|cssDemoOn/.test(mode + read(join(DIR, 'flag.js'))), 'no way to turn it off');
 });
 
-test('the sheet is the demo\'s own, on the canvas document\'s root', () => {
+test("the sheet is the demo's own, on the canvas document's root", () => {
   const paint = read(join(DIR, 'paint.js'));
 
   assert.ok(paint.includes("const SHEET_ID = '__sve-build-css-mode'"));
   assert.ok(paint.includes('page.documentElement.append(sheet)'));
-  assert.ok(!/\.head\b|\.body\b/.test(paint.replace(/\/\*[\s\S]*?\*\//g, '')), 'never the head or body the canvas morphs');
+  assert.ok(
+    !/\.head\b|\.body\b/.test(paint.replace(/\/\*[\s\S]*?\*\//g, '')),
+    'never the head or body the canvas morphs'
+  );
 });
 
 test('the panel has one door to the demo', () => {
@@ -63,6 +70,9 @@ test('a Style field draws the data icon only when its port hands it one', () => 
     const field = read(join(ROOT, `cp/surfaces/${name}.vue`));
 
     assert.ok(/<component :is="port\.bindIcon" v-if="port\.bindIcon/.test(field), name);
-    assert.ok(!/css-mode|BuildDataBind/.test(field.replace(/\/\*[\s\S]*?\*\//g, '')), `${name} imports nothing of the demo`);
+    assert.ok(
+      !/css-mode|BuildDataBind/.test(field.replace(/\/\*[\s\S]*?\*\//g, '')),
+      `${name} imports nothing of the demo`
+    );
   }
 });

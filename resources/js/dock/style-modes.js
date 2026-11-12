@@ -10,7 +10,16 @@ import { closeTwMenu, renderTwClasses } from '../tw-classes.js';
 import { blocksForSize, idRulesForSize } from '../css-sizes.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
-import { CSS_MODE_ICON, DOCK_ID, ID_MODE_ICON, SCOPE_KEY, TW_MODE_ICON, VALUES_MODE_KEY, editors, html } from '../code-dock.js';
+import {
+  CSS_MODE_ICON,
+  DOCK_ID,
+  ID_MODE_ICON,
+  SCOPE_KEY,
+  TW_MODE_ICON,
+  VALUES_MODE_KEY,
+  editors,
+  html,
+} from '../code-dock.js';
 import { applyCssFolds, cssSizeRow, cssSizeRows, newSizeBlockSpot, newSizeQuery, paintCssHead } from './css-sizes.js';
 import { closeCssMenu, leadingCssIndent, paintCssToolState } from './css-tools.js';
 import { applyCssScope, flushCssScope, setHtmlAll, syncHtmlTree } from './scope.js';
@@ -97,9 +106,11 @@ function componentAtCursor() {
     return null;
   }
 
-  return flattenHtmlTree(parseTemplateTree(at.html), new Set()).find(
-    (row) => row.kind === 'component' && row.from <= at.pos && at.pos < row.to
-  ) || null;
+  return (
+    flattenHtmlTree(parseTemplateTree(at.html), new Set()).find(
+      (row) => row.kind === 'component' && row.from <= at.pos && at.pos < row.to
+    ) || null
+  );
 }
 
 /**
@@ -188,8 +199,10 @@ export function enterValuesRule(win) {
 
   if (found.length) {
     const node = found[0];
-    const at = Math.min(node.bodyTo, node.bodyFrom
-      + (text.slice(node.bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length);
+    const at = Math.min(
+      node.bodyTo,
+      node.bodyFrom + (text.slice(node.bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length
+    );
 
     view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
 
@@ -239,14 +252,11 @@ export function enterValuesRule(win) {
   // are nested in it. There the block IS the size's layer, and naming the rule
   // again inside itself would read as `#id-… #id-…`: a descendant of itself,
   // matching nothing.
-  const nested = idRulesForSize(text, rows, '')
-    .some((node) => spot.at > node.bodyFrom && spot.at <= node.bodyTo);
+  const nested = idRulesForSize(text, rows, '').some((node) => spot.at > node.bodyFrom && spot.at <= node.bodyTo);
   const head = nested
     ? `\n\n${spot.indent}@media ${newSizeQuery(row, text)} {\n${inner}`
     : `\n\n${spot.indent}@media ${newSizeQuery(row, text)} {\n${inner}#id-{{ id }} {\n${inner}    `;
-  const tail = nested
-    ? `\n${spot.indent}}${spot.suffix}`
-    : `\n${inner}}\n${spot.indent}}${spot.suffix}`;
+  const tail = nested ? `\n${spot.indent}}${spot.suffix}` : `\n${inner}}\n${spot.indent}}${spot.suffix}`;
 
   view.dispatch({
     changes: { from: spot.at, to: spot.at, insert: `${head}${tail}` },
@@ -275,7 +285,6 @@ export function setValuesMode(win, on) {
   paintCssHead(win);
   paintCssToolState(win);
 }
-
 
 /**
  * The CSS half of All (dock/all.js): the whole style block in the CSS pane,

@@ -125,7 +125,8 @@ function onSameRow(a, b) {
 
 function visibleColumnsOf(grid, win) {
   return [...grid.children].filter(
-    (el) => el.hasAttribute(SID_ATTR) && win.getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0
+    (el) =>
+      el.hasAttribute(SID_ATTR) && win.getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0
   );
 }
 
@@ -249,8 +250,7 @@ function gridTone(win, el) {
  * we are talking about" — so it should not be a second visual language.
  */
 function dashedRing(colour) {
-  const stripe = (deg) =>
-    `repeating-linear-gradient(${deg}deg, ${colour} 0 8px, transparent 8px 14px)`;
+  const stripe = (deg) => `repeating-linear-gradient(${deg}deg, ${colour} 0 8px, transparent 8px 14px)`;
 
   return [
     `${stripe(90)} top left / 100% 1px no-repeat`,
@@ -502,7 +502,10 @@ function stayOnOverlappedBlock(chrome, event) {
   const rect = chrome.block.getBoundingClientRect();
 
   return (
-    event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
   );
 }
 
@@ -610,7 +613,9 @@ export function maybeShowColumnChrome(win, event) {
     colChrome.mode === mode &&
     colChrome.block === block &&
     colChrome.handles.length === live.length &&
-    colChrome.handles.every((h, i) => h.side === live[i].side && h.pair?.a === live[i].pair?.a && h.pair?.b === live[i].pair?.b)
+    colChrome.handles.every(
+      (h, i) => h.side === live[i].side && h.pair?.a === live[i].pair?.a && h.pair?.b === live[i].pair?.b
+    )
   ) {
     return; // already showing exactly this
   }
@@ -929,10 +934,7 @@ export function finishWidthDrag(win, cancelled) {
       changes.push({ uid: b.getAttribute(SID_ATTR), span: total - applied });
     }
 
-    win.parent.postMessage(
-      { source: SOURCE, type: MSG.SVE_GRID_SPAN, field, changes },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type: MSG.SVE_GRID_SPAN, field, changes }, win.location.origin);
 
     return;
   }
@@ -969,4 +971,4 @@ export function finishWidthDrag(win, cancelled) {
 export const ORDERABLE_ATTR = 'data-sid-orderable';
 export const DRAG_THRESHOLD = 6; // px of movement before a press becomes a drag
 
- // one-shot: swallow the click that follows a drag
+// one-shot: swallow the click that follows a drag

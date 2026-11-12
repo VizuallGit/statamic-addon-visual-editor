@@ -6,7 +6,9 @@ import { compile } from 'tailwindcss';
 import { bakeTailwind, buildTailwind, makeTailwindCompiler } from '../../resources/js/tw-compile-core.js';
 
 // The same two stylesheets the CP chunk carries as `?raw` imports.
-const pkg = createRequire(import.meta.url).resolve('tailwindcss/package.json').replace(/package\.json$/, '');
+const pkg = createRequire(import.meta.url)
+  .resolve('tailwindcss/package.json')
+  .replace(/package\.json$/, '');
 const sources = {
   theme: readFileSync(pkg + 'theme.css', 'utf8'),
   utilities: readFileSync(pkg + 'utilities.css', 'utf8'),

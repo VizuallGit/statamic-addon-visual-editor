@@ -44,7 +44,7 @@ class SetPreviewGenerator
      *
      * @param  string|null  $only  A single set handle, or all of them when null.
      * @param  bool  $force  Re-shoot even the ones whose fingerprint still matches.
-     * @return array<string, string>  handle => "ok" | "fresh" | "excluded" | "skipped: …" | "error: …"
+     * @return array<string, string> handle => "ok" | "fresh" | "excluded" | "skipped: …" | "error: …"
      */
     public function generate(?string $only = null, bool $force = false): array
     {

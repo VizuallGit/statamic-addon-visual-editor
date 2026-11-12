@@ -56,6 +56,7 @@ function pick(cell) {
       :title="`justify-content: ${cell.main.slice(8)} · align-items: ${cell.cross.slice(6)}`"
       :data-sve-build-cell="cell.key"
       @click="pick(cell)"
-    ><i></i><i></i><i></i></button>
+      ><i></i><i></i><i></i
+    ></button>
   </div>
 </template>

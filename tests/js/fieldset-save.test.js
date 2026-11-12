@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { frameAxios, isSaveRequest, isSaveResponse, watchFieldsetSaves } from '../../resources/js/cp/surfaces/fieldset-save.js';
+import {
+  frameAxios,
+  isSaveRequest,
+  isSaveResponse,
+  watchFieldsetSaves,
+} from '../../resources/js/cp/surfaces/fieldset-save.js';
 
 /** An axios with interceptors that can be driven by hand. */
 function fakeAxios() {
@@ -50,7 +55,9 @@ test('the save is the PATCH to the update URL — not the edit page, not a GET',
   assert.ok(!isSaveRequest({ method: 'get', url: '/cp/fields/fieldsets/intro.style_1/edit' }));
   assert.ok(!isSaveRequest({ method: 'patch', url: '/cp/fields/fieldsets/intro.style_1/edit' }));
   assert.ok(!isSaveRequest({ method: 'patch', url: '/cp/collections/pages/entries/1' }));
-  assert.ok(isSaveRequest({ method: 'patch', url: '/cp/fields/blueprints/globals/header' }, /\/fields\/blueprints\/globals\//));
+  assert.ok(
+    isSaveRequest({ method: 'patch', url: '/cp/fields/blueprints/globals/header' }, /\/fields\/blueprints\/globals\//)
+  );
   assert.ok(isSaveResponse({ config: PATCH, status: 204 }));
   assert.ok(!isSaveResponse({ config: PATCH, status: 422 }));
 });
@@ -61,13 +68,15 @@ test('a save reports when it leaves and when it has landed, and Close can wait o
   const seen = [];
   let done = null;
 
-  assert.ok(watchFieldsetSaves(win, {
-    onSaving: (promise) => {
-      done = promise;
-      seen.push('saving');
-    },
-    onSaved: () => seen.push('saved'),
-  }));
+  assert.ok(
+    watchFieldsetSaves(win, {
+      onSaving: (promise) => {
+        done = promise;
+        seen.push('saving');
+      },
+      onSaved: () => seen.push('saved'),
+    })
+  );
 
   // Hooked once: a second ask does not stack a second set of interceptors.
   assert.ok(watchFieldsetSaves(win, { onSaved: () => seen.push('twice') }));
@@ -94,7 +103,12 @@ test('a refused save still settles the promise, and reports no save', async () =
   const seen = [];
   let done = null;
 
-  watchFieldsetSaves(win, { onSaving: (p) => { done = p; }, onSaved: () => seen.push('saved') });
+  watchFieldsetSaves(win, {
+    onSaving: (p) => {
+      done = p;
+    },
+    onSaved: () => seen.push('saved'),
+  });
 
   await axios.send({ ...PATCH }, { status: 422, error: true });
   await done;

@@ -132,7 +132,9 @@ export function writeClasses(css, changes) {
  * name CSS would read back), `taken` (one of that name already exists).
  */
 export function classNameProblem(name, taken = []) {
-  const n = String(name || '').trim().replace(/^\./, '');
+  const n = String(name || '')
+    .trim()
+    .replace(/^\./, '');
 
   if (!n) {
     return 'empty';

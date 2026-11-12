@@ -7,7 +7,24 @@ import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel } from '../lazy-panels.js';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import { mountSurface } from '../cp/mount.js';
-import { addBracketClassToTag, bracketClassTokens, bracketTokens, buildScopedCss, cssBalanced, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, hasTopLevelClassRule, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
+import {
+  addBracketClassToTag,
+  bracketClassTokens,
+  bracketTokens,
+  buildScopedCss,
+  cssBalanced,
+  cssClassSelectors,
+  diffBracketNames,
+  findClassRule,
+  firstClassName,
+  hasTopLevelClassRule,
+  mergeScopedCss,
+  pruneBracketCss,
+  rewriteBracketClassTokens,
+  sanitizeCssClassName,
+  syncCssWithBrackets,
+  tokenTreeFromHtml,
+} from '../css-scope.js';
 import { closePartialMenu } from '../dock-partials.js';
 import { closeClassTokenUi } from '../dock-class-tokens.js';
 import { t } from '../lib/i18n.js';
@@ -21,7 +38,17 @@ import { dockState } from '../dock/state.js';
 import { flushSave, onEditorInput } from './save.js';
 import { loadTemplate } from './dock-api.js';
 import { paintBack } from './layout.js';
-import { CSS_MENU_ID, DOCK_ID, LOCK_CLOSED_ICON, LOCK_OPEN_ICON, SCOPE_ICON, SCOPE_KEY, css, editors, html } from '../code-dock.js';
+import {
+  CSS_MENU_ID,
+  DOCK_ID,
+  LOCK_CLOSED_ICON,
+  LOCK_OPEN_ICON,
+  SCOPE_ICON,
+  SCOPE_KEY,
+  css,
+  editors,
+  html,
+} from '../code-dock.js';
 import { closeCssMenu, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssFolds } from './css-sizes.js';
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
@@ -145,7 +172,11 @@ export function syncScopedHtml() {
     return;
   }
 
-  if (dockState.htmlFocus.from < 0 || dockState.htmlFocus.from > dockState.htmlFull.length || dockState.htmlFocus.to < dockState.htmlFocus.from) {
+  if (
+    dockState.htmlFocus.from < 0 ||
+    dockState.htmlFocus.from > dockState.htmlFull.length ||
+    dockState.htmlFocus.to < dockState.htmlFocus.from
+  ) {
     dockState.htmlScopeActive = false;
     dockState.htmlFull = text;
     dockState.htmlFocus = null;
@@ -153,7 +184,8 @@ export function syncScopedHtml() {
     return;
   }
 
-  dockState.htmlFull = dockState.htmlFull.slice(0, dockState.htmlFocus.from) + text + dockState.htmlFull.slice(dockState.htmlFocus.to);
+  dockState.htmlFull =
+    dockState.htmlFull.slice(0, dockState.htmlFocus.from) + text + dockState.htmlFull.slice(dockState.htmlFocus.to);
   dockState.htmlFocus = { from: dockState.htmlFocus.from, to: dockState.htmlFocus.from + text.length };
 }
 
@@ -207,7 +239,13 @@ export function flushBracketSync(win) {
 }
 
 export function flushCssToHtml() {
-  if (dockState.applying || dockState.lastLocked || dockState.lastCssSelectorNames == null || dockState.lastBracketNames == null || dockState.cssPane === 'empty') {
+  if (
+    dockState.applying ||
+    dockState.lastLocked ||
+    dockState.lastCssSelectorNames == null ||
+    dockState.lastBracketNames == null ||
+    dockState.cssPane === 'empty'
+  ) {
     return;
   }
 
@@ -483,7 +521,11 @@ export function openRenameClassMenu(win, token) {
 }
 
 export function htmlEditorText() {
-  if (dockState.htmlScopePref && !dockState.htmlAll && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
+  if (
+    dockState.htmlScopePref &&
+    !dockState.htmlAll &&
+    htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)
+  ) {
     dockState.htmlScopeActive = true;
 
     return dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to);
@@ -670,7 +712,14 @@ function fullHtmlNow() {
   const text = editors.html?.state.doc.toString();
   const focus = dockState.htmlFocus;
 
-  if (text != null && dockState.htmlScopeActive && focus && focus.from >= 0 && focus.from <= dockState.htmlFull.length && focus.to >= focus.from) {
+  if (
+    text != null &&
+    dockState.htmlScopeActive &&
+    focus &&
+    focus.from >= 0 &&
+    focus.from <= dockState.htmlFull.length &&
+    focus.to >= focus.from
+  ) {
     return dockState.htmlFull.slice(0, focus.from) + text + dockState.htmlFull.slice(focus.to);
   }
 
@@ -897,7 +946,9 @@ export function setHtmlAll(win, on) {
     syncScopedHtml();
 
     const full = dockState.htmlFull || view.state.doc.toString();
-    const focus = htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, full.length) ? dockState.htmlFocus : null;
+    const focus = htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, full.length)
+      ? dockState.htmlFocus
+      : null;
 
     dockState.htmlScopeActive = false;
     dockState.htmlFull = full;
@@ -1005,9 +1056,7 @@ export function paintHtmlScope(win) {
   // stored setting is what keeps the two from drifting: the tree can also be
   // closed from its own ✕, or pushed aside when another pane takes the dock,
   // and neither of those comes through this button.
-  const shown = featureOn(win, 'html_tree') === false
-    ? dockState.htmlScopePref
-    : (htmlTreeOpen(win) || treeOpening);
+  const shown = featureOn(win, 'html_tree') === false ? dockState.htmlScopePref : htmlTreeOpen(win) || treeOpening;
 
   btn.setAttribute('aria-pressed', shown ? 'true' : 'false');
   btn.title = t(win, shown ? 'code_dock_html_scope_off' : 'code_dock_html_scope');

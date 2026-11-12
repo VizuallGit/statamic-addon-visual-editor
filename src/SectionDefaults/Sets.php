@@ -18,7 +18,7 @@ final class Sets
      */
     public static function setConfig(string $handle): ?array
     {
-        foreach (static::allSets() as $setHandle => $config) {
+        foreach (self::allSets() as $setHandle => $config) {
             if ($setHandle === $handle) {
                 return $config;
             }
@@ -41,7 +41,7 @@ final class Sets
         }
 
         $sets = [];
-        static::collect($fieldset->contents(), $sets);
+        self::collect($fieldset->contents(), $sets);
 
         return $sets;
     }
@@ -64,7 +64,7 @@ final class Sets
         }
 
         foreach ($node as $value) {
-            static::collect($value, $sets);
+            self::collect($value, $sets);
         }
     }
 }

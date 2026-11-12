@@ -194,7 +194,10 @@ export function canvasEdit({ port, setField, paint, find }) {
     }
 
     if (revert) {
-      el.innerHTML = before.split('<br>').map((part) => part.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])).join('<br>');
+      el.innerHTML = before
+        .split('<br>')
+        .map((part) => part.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]))
+        .join('<br>');
     }
 
     store(now, editedText(el));

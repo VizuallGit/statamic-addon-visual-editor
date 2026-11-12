@@ -49,7 +49,7 @@ final class ScriptCollections
             ->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),
-                'previewable' => static::previewable($collection, $site),
+                'previewable' => self::previewable($collection, $site),
                 'createUrl' => $collection->createEntryUrl($site),
             ])
             ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
@@ -77,7 +77,7 @@ final class ScriptCollections
 
         return Collection::all()
             ->filter(fn ($collection) => $user->can('edit', $collection))
-            ->mapWithKeys(fn ($collection) => [$collection->handle() => static::previewable($collection, $site)])
+            ->mapWithKeys(fn ($collection) => [$collection->handle() => self::previewable($collection, $site)])
             ->all();
     }
 

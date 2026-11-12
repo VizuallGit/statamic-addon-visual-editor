@@ -82,28 +82,40 @@ function solidPng(path, [r, g, b]) {
   const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: size }, () => [r, g, b]).flat())]);
   const raw = Buffer.concat(Array.from({ length: size }, () => row));
 
-  writeFileSync(path, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
+  writeFileSync(
+    path,
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk('IHDR', head),
+      chunk('IDAT', deflateSync(raw)),
+      chunk('IEND', Buffer.alloc(0)),
+    ])
+  );
 }
 
 async function pointIn(frame, selector, nth = 0) {
-  const r = await frame.evaluate((sel, n) => {
-    const seen = [...document.querySelectorAll(sel)].filter((el) => {
+  const r = await frame.evaluate(
+    (sel, n) => {
+      const seen = [...document.querySelectorAll(sel)].filter((el) => {
+        const b = el.getBoundingClientRect();
+
+        return b.width > 0 && b.height > 0;
+      });
+      const el = seen[n];
+
+      if (!el) {
+        return null;
+      }
+
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+
       const b = el.getBoundingClientRect();
 
-      return b.width > 0 && b.height > 0;
-    });
-    const el = seen[n];
-
-    if (!el) {
-      return null;
-    }
-
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
-
-    const b = el.getBoundingClientRect();
-
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-  }, selector, nth);
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    },
+    selector,
+    nth
+  );
 
   if (!r) {
     throw new Error(`nothing visible for ${selector} [${nth}]`);
@@ -123,7 +135,10 @@ async function click(page, frame, selector, nth = 0) {
   const { x, y } = await pointIn(frame, selector, nth);
   const t0 = Date.now();
 
-  while (Date.now() - t0 < 8000 && (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))) {
+  while (
+    Date.now() - t0 < 8000 &&
+    (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))
+  ) {
     await sleep(100);
   }
 
@@ -151,7 +166,11 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate(() => [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click());
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click()
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -175,19 +194,42 @@ async function openAi(page, cp) {
   return waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-tab]`).length > 0, PANEL, 15000);
 }
 
-const activeTab = (cp) => cp.evaluate((p) => document.querySelector(`${p} .sve-ai__tab.is-active`)?.dataset.sveAiTab || '', PANEL);
+const activeTab = (cp) =>
+  cp.evaluate((p) => document.querySelector(`${p} .sve-ai__tab.is-active`)?.dataset.sveAiTab || '', PANEL);
 const draftText = (cp) => cp.evaluate((p) => document.querySelector(`${p} [data-sve-ai-draft]`)?.value ?? null, PANEL);
-const draftImageCount = (cp) => cp.evaluate((p) => document.querySelectorAll(`${p} [data-sve-ai-draft-images] img[src*="/images/"]`).length, PANEL);
-const assistantRows = (cp) => cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`)].map((row) => row.textContent.trim()), PANEL);
+const draftImageCount = (cp) =>
+  cp.evaluate((p) => document.querySelectorAll(`${p} [data-sve-ai-draft-images] img[src*="/images/"]`).length, PANEL);
+const assistantRows = (cp) =>
+  cp.evaluate(
+    (p) => [...document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`)].map((row) => row.textContent.trim()),
+    PANEL
+  );
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 // The deliberate look-up of a closed chat answers 404; that one is the test's own.
-page.on('console', (m) => m.type() === 'error' && !(/404/.test(m.text()) && /\/ai-tabs\/[a-z0-9]+$/.test(m.location()?.url || '')) && errors.push(`console: ${m.text().slice(0, 160)} ${m.location()?.url || ''}`));
+page.on(
+  'console',
+  (m) =>
+    m.type() === 'error' &&
+    !(/404/.test(m.text()) && /\/ai-tabs\/[a-z0-9]+$/.test(m.location()?.url || '')) &&
+    errors.push(`console: ${m.text().slice(0, 160)} ${m.location()?.url || ''}`)
+);
 // A request cut off by the reload is the point of this test, not a failure.
-page.on('response', (r) => r.status() >= 400 && !(r.status() === 404 && r.url().includes('/ai-tabs/')) && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 400 &&
+    !(r.status() === 404 && r.url().includes('/ai-tabs/')) &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -218,21 +260,35 @@ try {
   step('the AI panel opens with its tabs', await openAi(page, cp));
 
   // ── A new tab, a draft and an image ─────────────────────────────────────
-  const before = await cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-tab]`)].map((t) => t.dataset.sveAiTab), PANEL);
+  const before = await cp.evaluate(
+    (p) => [...document.querySelectorAll(`${p} [data-sve-ai-tab]`)].map((t) => t.dataset.sveAiTab),
+    PANEL
+  );
 
   await click(page, cp, `${PANEL} [data-sve-ai-tab-add]`);
-  await waitFor(cp, ([p, ids]) => {
-    const on = document.querySelector(`${p} .sve-ai__tab.is-active`)?.dataset.sveAiTab;
+  await waitFor(
+    cp,
+    ([p, ids]) => {
+      const on = document.querySelector(`${p} .sve-ai__tab.is-active`)?.dataset.sveAiTab;
 
-    return on && !ids.includes(on);
-  }, [PANEL, before]);
+      return on && !ids.includes(on);
+    },
+    [PANEL, before]
+  );
   tab = await activeTab(cp);
   step('+ opens a new tab', !!tab && !before.includes(tab), tab);
 
   await click(page, cp, `${PANEL} [data-sve-ai-draft]`);
   await page.keyboard.type('Sve test: hvilken farve?', { delay: 5 });
   await (await cp.$(`${PANEL} [data-sve-ai-file]`)).uploadFile(red);
-  step('an added image lands in the box', await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-draft-images] img[src*="/images/"]`).length === 1, PANEL));
+  step(
+    'an added image lands in the box',
+    await waitFor(
+      cp,
+      (p) => document.querySelectorAll(`${p} [data-sve-ai-draft-images] img[src*="/images/"]`).length === 1,
+      PANEL
+    )
+  );
   await shot(page, 'draft');
   await sleep(1200);
 
@@ -240,7 +296,11 @@ try {
   cp = await openLivePreview(page);
   await openAi(page, cp);
   step('after a reload the same tab is open', (await activeTab(cp)) === tab, await activeTab(cp));
-  step('the draft is still in the box', (await draftText(cp)) === 'Sve test: hvilken farve?', JSON.stringify(await draftText(cp)));
+  step(
+    'the draft is still in the box',
+    (await draftText(cp)) === 'Sve test: hvilken farve?',
+    JSON.stringify(await draftText(cp))
+  );
   step('so is the image', (await draftImageCount(cp)) === 1);
 
   // ── Reload straight after typing: the beacon keeps the last word ────────
@@ -249,18 +309,37 @@ try {
   await page.keyboard.type(' X', { delay: 5 });
   cp = await openLivePreview(page);
   await openAi(page, cp);
-  step('a word typed just before the reload is kept', (await draftText(cp)) === 'Sve test: hvilken farve? X', JSON.stringify(await draftText(cp)));
+  step(
+    'a word typed just before the reload is kept',
+    (await draftText(cp)) === 'Sve test: hvilken farve? X',
+    JSON.stringify(await draftText(cp))
+  );
 
   // ── Ask about the image for real ────────────────────────────────────────
   await click(page, cp, `${PANEL} [data-sve-ai-draft]`);
   await page.keyboard.down('Meta');
   await page.keyboard.press('a');
   await page.keyboard.up('Meta');
-  await page.keyboard.type('What single color fills the attached image? Answer with one lowercase word only. Do not read or edit any files.', { delay: 2 });
+  await page.keyboard.type(
+    'What single color fills the attached image? Answer with one lowercase word only. Do not read or edit any files.',
+    { delay: 2 }
+  );
   await click(page, cp, `${PANEL} .sve-ai__form button[type="submit"]`);
-  step('the question shows with its image', await waitFor(cp, (p) => !!document.querySelector(`${p} [data-sve-ai-row="user"] img[data-sve-ai-sent-image]`), PANEL));
+  step(
+    'the question shows with its image',
+    await waitFor(
+      cp,
+      (p) => !!document.querySelector(`${p} [data-sve-ai-row="user"] img[data-sve-ai-sent-image]`),
+      PANEL
+    )
+  );
   step('the box is empty again', (await draftText(cp)) === '' && (await draftImageCount(cp)) === 0);
-  await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`).length > 0, PANEL, ANSWER_MS);
+  await waitFor(
+    cp,
+    (p) => document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`).length > 0,
+    PANEL,
+    ANSWER_MS
+  );
 
   const first = await assistantRows(cp);
 
@@ -274,9 +353,27 @@ try {
   await sleep(1500);
   cp = await openLivePreview(page);
   await openAi(page, cp);
-  step('after a reload mid-answer the question is there', await waitFor(cp, (p) => [...document.querySelectorAll(`${p} [data-sve-ai-row="user"]`)].some((row) => row.textContent.includes('single word OK')), PANEL));
-  step('and the tab is still waiting', !!(await cp.$(`${PANEL} [data-sve-ai-wait]`)) || (await assistantRows(cp)).length === 2);
-  await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`).length === 2, PANEL, ANSWER_MS);
+  step(
+    'after a reload mid-answer the question is there',
+    await waitFor(
+      cp,
+      (p) =>
+        [...document.querySelectorAll(`${p} [data-sve-ai-row="user"]`)].some((row) =>
+          row.textContent.includes('single word OK')
+        ),
+      PANEL
+    )
+  );
+  step(
+    'and the tab is still waiting',
+    !!(await cp.$(`${PANEL} [data-sve-ai-wait]`)) || (await assistantRows(cp)).length === 2
+  );
+  await waitFor(
+    cp,
+    (p) => document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`).length === 2,
+    PANEL,
+    ANSWER_MS
+  );
 
   const second = await assistantRows(cp);
 
@@ -285,9 +382,15 @@ try {
 
   // ── × deletes the chat ──────────────────────────────────────────────────
   await click(page, cp, `${PANEL} [data-sve-ai-tab="${tab}"] [data-sve-ai-tab-close]`);
-  step('× closes the tab', await waitFor(cp, ([p, id]) => !document.querySelector(`${p} [data-sve-ai-tab="${id}"]`), [PANEL, tab]));
+  step(
+    '× closes the tab',
+    await waitFor(cp, ([p, id]) => !document.querySelector(`${p} [data-sve-ai-tab="${id}"]`), [PANEL, tab])
+  );
 
-  const gone = await cp.evaluate(async (id) => (await fetch(`/!/sve/ai-tabs/${id}`, { headers: { Accept: 'application/json' } })).status, tab);
+  const gone = await cp.evaluate(
+    async (id) => (await fetch(`/!/sve/ai-tabs/${id}`, { headers: { Accept: 'application/json' } })).status,
+    tab
+  );
 
   step('the closed chat is gone from the server', gone === 404, String(gone));
   tab = '';
@@ -299,7 +402,19 @@ try {
   await shot(page, 'error');
 } finally {
   if (tab && cp) {
-    await cp.evaluate(async (id) => fetch(`/!/sve/ai-tabs/${id}`, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json' } }), tab).catch(() => {});
+    await cp
+      .evaluate(
+        async (id) =>
+          fetch(`/!/sve/ai-tabs/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              Accept: 'application/json',
+            },
+          }),
+        tab
+      )
+      .catch(() => {});
   }
 
   await browser.close();

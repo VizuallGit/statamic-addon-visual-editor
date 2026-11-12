@@ -39,7 +39,9 @@ export function imagePathWord(textBefore, pos) {
  */
 export function collectionOptions(collections, word) {
   const typed = String(word || '').toLowerCase();
-  const list = (Array.isArray(collections) ? collections : []).filter((row) => row && typeof row.handle === 'string' && row.handle);
+  const list = (Array.isArray(collections) ? collections : []).filter(
+    (row) => row && typeof row.handle === 'string' && row.handle
+  );
 
   if (typed.length >= 1 && 'collection'.startsWith(typed)) {
     return list;
@@ -51,7 +53,13 @@ export function collectionOptions(collections, word) {
     return [];
   }
 
-  return list.filter((row) => row.handle.toLowerCase().startsWith(after[1]) || String(row.title || '').toLowerCase().startsWith(after[1]));
+  return list.filter(
+    (row) =>
+      row.handle.toLowerCase().startsWith(after[1]) ||
+      String(row.title || '')
+        .toLowerCase()
+        .startsWith(after[1])
+  );
 }
 
 /**
@@ -83,7 +91,13 @@ export function fieldOptions(rows, word) {
       continue;
     }
 
-    const words = [name.toLowerCase(), ...String(row.label || '').toLowerCase().split(/[\s_-]+/), ...name.toLowerCase().split('_')];
+    const words = [
+      name.toLowerCase(),
+      ...String(row.label || '')
+        .toLowerCase()
+        .split(/[\s_-]+/),
+      ...name.toLowerCase().split('_'),
+    ];
 
     if (typed === '' || words.some((part) => part.startsWith(typed))) {
       seen.add(name);

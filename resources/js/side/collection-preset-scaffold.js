@@ -15,199 +15,211 @@ import { injectStyle } from '../lib/style.js';
 import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
 
 (function () {
-    'use strict';
+  'use strict';
 
-    mark('collection-preset-scaffold');
+  mark('collection-preset-scaffold');
 
-    var PANEL_ID = '__sve-collection-preset';
-    var PANEL_UI = '6';
+  var PANEL_ID = '__sve-collection-preset';
+  var PANEL_UI = '6';
 
-    var SELECT_CLASS = [
-        'h-10 w-64 max-w-full rounded-lg ps-3 pe-9',
-        'appearance-none bg-no-repeat',
-        'bg-white dark:bg-gray-900',
-        'border border-gray-300 dark:border-gray-700',
-        'text-gray-925 dark:text-gray-300',
-        'shadow-ui-sm antialiased',
-        'cursor-pointer',
-    ].join(' ');
+  var SELECT_CLASS = [
+    'h-10 w-64 max-w-full rounded-lg ps-3 pe-9',
+    'appearance-none bg-no-repeat',
+    'bg-white dark:bg-gray-900',
+    'border border-gray-300 dark:border-gray-700',
+    'text-gray-925 dark:text-gray-300',
+    'shadow-ui-sm antialiased',
+    'cursor-pointer',
+  ].join(' ');
 
-    var BUTTON_CLASS = [
-        'relative inline-flex items-center justify-center whitespace-nowrap shrink-0',
-        'font-medium antialiased cursor-pointer no-underline',
-        'px-4 h-10 text-sm gap-2 rounded-lg',
-        'bg-linear-to-b from-primary/90 to-primary hover:bg-primary-hover',
-        'text-white border border-primary-border shadow-ui-md',
-        'inset-shadow-2xs inset-shadow-white/25',
-        'disabled:opacity-60 disabled:text-white disabled:inset-shadow-none disabled:cursor-not-allowed',
-    ].join(' ');
+  var BUTTON_CLASS = [
+    'relative inline-flex items-center justify-center whitespace-nowrap shrink-0',
+    'font-medium antialiased cursor-pointer no-underline',
+    'px-4 h-10 text-sm gap-2 rounded-lg',
+    'bg-linear-to-b from-primary/90 to-primary hover:bg-primary-hover',
+    'text-white border border-primary-border shadow-ui-md',
+    'inset-shadow-2xs inset-shadow-white/25',
+    'disabled:opacity-60 disabled:text-white disabled:inset-shadow-none disabled:cursor-not-allowed',
+  ].join(' ');
 
-    function onScaffold() {
-        var path = window.location.pathname || '';
-        var match = path.match(/\/collections\/([^/]+)\/scaffold\/?$/);
-        if (match) {
-            return decodeURIComponent(match[1]);
-        }
-
-        if (!document.querySelector('label[for="field_index"]')) {
-            return null;
-        }
-
-        match = path.match(/\/collections\/([^/]+)\//);
-        return match ? decodeURIComponent(match[1]) : null;
+  function onScaffold() {
+    var path = window.location.pathname || '';
+    var match = path.match(/\/collections\/([^/]+)\/scaffold\/?$/);
+    if (match) {
+      return decodeURIComponent(match[1]);
     }
 
-    function presets() {
-        return collectionPresets(window);
+    if (!document.querySelector('label[for="field_index"]')) {
+      return null;
     }
 
-    function featureOn() {
-        return featureIsOn(window, 'collection_templates');
+    match = path.match(/\/collections\/([^/]+)\//);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function presets() {
+    return collectionPresets(window);
+  }
+
+  function featureOn() {
+    return featureIsOn(window, 'collection_templates');
+  }
+
+  function ensureSelectStyle() {
+    injectStyle(
+      document,
+      PANEL_ID + '-css',
+      [
+        '#' + PANEL_ID + ' select {',
+        '  -webkit-appearance: none;',
+        '  appearance: none;',
+        "  background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E\");",
+        '  background-repeat: no-repeat;',
+        '  background-position: right 0.85rem center;',
+        '  background-size: 0.85rem;',
+        '}',
+        '.dark #' + PANEL_ID + ' select {',
+        "  background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E\");",
+        '}',
+      ].join('\n')
+    );
+  }
+
+  function tableEl() {
+    var label = document.querySelector('label[for="field_index"]');
+    return label ? label.closest('table') : document.querySelector('table.data-table');
+  }
+
+  function buildPanel(handle, list) {
+    var panel = document.createElement('div');
+    panel.id = PANEL_ID;
+    panel.setAttribute('data-sve-preset-ui', PANEL_UI);
+    panel.className = 'rounded-xl px-4 py-5';
+    panel.style.margin = '0 0 1.25rem';
+    panel.style.backgroundColor = '#1E1E21';
+
+    var title = document.createElement('div');
+    title.textContent = t(window, 'collection_preset_label');
+    title.style.cssText = 'font-weight:600;margin-bottom:.35rem;';
+
+    var hint = document.createElement('p');
+    hint.textContent = list.length ? t(window, 'collection_preset_hint') : t(window, 'collection_preset_empty');
+    hint.style.cssText = 'font-size:.875rem;opacity:.8;margin:0 0 .75rem;';
+
+    panel.appendChild(title);
+    panel.appendChild(hint);
+
+    if (!list.length) {
+      return panel;
     }
 
-    function ensureSelectStyle() {
-        injectStyle(document, PANEL_ID + '-css', [
-            '#' + PANEL_ID + ' select {',
-            '  -webkit-appearance: none;',
-            '  appearance: none;',
-            '  background-image: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236b7280\' stroke-width=\'2\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M6 9l6 6 6-6\'/%3E%3C/svg%3E");',
-            '  background-repeat: no-repeat;',
-            '  background-position: right 0.85rem center;',
-            '  background-size: 0.85rem;',
-            '}',
-            '.dark #' + PANEL_ID + ' select {',
-            '  background-image: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%239ca3af\' stroke-width=\'2\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M6 9l6 6 6-6\'/%3E%3C/svg%3E");',
-            '}',
-        ].join('\n'));
-    }
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;';
 
-    function tableEl() {
-        var label = document.querySelector('label[for="field_index"]');
-        return label ? label.closest('table') : document.querySelector('table.data-table');
-    }
+    var select = document.createElement('select');
+    select.className = SELECT_CLASS;
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = t(window, 'collection_preset_none');
+    select.appendChild(blank);
+    list.forEach(function (preset) {
+      var option = document.createElement('option');
+      option.value = preset.handle;
+      option.textContent = preset.title || preset.handle;
+      select.appendChild(option);
+    });
 
-    function buildPanel(handle, list) {
-        var panel = document.createElement('div');
-        panel.id = PANEL_ID;
-        panel.setAttribute('data-sve-preset-ui', PANEL_UI);
-        panel.className = 'rounded-xl px-4 py-5';
-        panel.style.margin = '0 0 1.25rem';
-        panel.style.backgroundColor = '#1E1E21';
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('data-ui-button', '');
+    button.className = BUTTON_CLASS;
+    button.textContent = t(window, 'collection_preset_apply');
 
-        var title = document.createElement('div');
-        title.textContent = t(window, 'collection_preset_label');
-        title.style.cssText = 'font-weight:600;margin-bottom:.35rem;';
+    var error = document.createElement('div');
+    error.style.cssText = 'display:none;margin-top:.6rem;font-size:.875rem;color:#f87171;';
 
-        var hint = document.createElement('p');
-        hint.textContent = list.length
-            ? t(window, 'collection_preset_hint')
-            : t(window, 'collection_preset_empty');
-        hint.style.cssText = 'font-size:.875rem;opacity:.8;margin:0 0 .75rem;';
-
-        panel.appendChild(title);
-        panel.appendChild(hint);
-
-        if (!list.length) {
-            return panel;
-        }
-
-        var row = document.createElement('div');
-        row.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;';
-
-        var select = document.createElement('select');
-        select.className = SELECT_CLASS;
-        var blank = document.createElement('option');
-        blank.value = '';
-        blank.textContent = t(window, 'collection_preset_none');
-        select.appendChild(blank);
-        list.forEach(function (preset) {
-            var option = document.createElement('option');
-            option.value = preset.handle;
-            option.textContent = preset.title || preset.handle;
-            select.appendChild(option);
+    button.addEventListener('click', function () {
+      var preset = select.value;
+      if (!preset) {
+        select.focus();
+        return;
+      }
+      button.disabled = true;
+      error.style.display = 'none';
+      window
+        .fetch('/!/sve/collection-presets/apply', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken(window),
+            'X-Requested-With': 'XMLHttpRequest',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ collection: handle, preset: preset }),
+        })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok || !result.data || !result.data.redirect) {
+            throw new Error((result.data && result.data.message) || t(window, 'collection_preset_failed'));
+          }
+          window.location.href = result.data.redirect;
+        })
+        .catch(function (err) {
+          button.disabled = false;
+          error.textContent = err.message || t(window, 'collection_preset_failed');
+          error.style.display = 'block';
         });
+    });
 
-        var button = document.createElement('button');
-        button.type = 'button';
-        button.setAttribute('data-ui-button', '');
-        button.className = BUTTON_CLASS;
-        button.textContent = t(window, 'collection_preset_apply');
+    row.appendChild(select);
+    row.appendChild(button);
+    panel.appendChild(row);
+    panel.appendChild(error);
 
-        var error = document.createElement('div');
-        error.style.cssText = 'display:none;margin-top:.6rem;font-size:.875rem;color:#f87171;';
+    return panel;
+  }
 
-        button.addEventListener('click', function () {
-            var preset = select.value;
-            if (!preset) {
-                select.focus();
-                return;
-            }
-            button.disabled = true;
-            error.style.display = 'none';
-            window.fetch('/!/sve/collection-presets/apply', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(window),
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ collection: handle, preset: preset }),
-            })
-                .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
-                .then(function (result) {
-                    if (!result.ok || !result.data || !result.data.redirect) {
-                        throw new Error((result.data && result.data.message) || t(window, 'collection_preset_failed'));
-                    }
-                    window.location.href = result.data.redirect;
-                })
-                .catch(function (err) {
-                    button.disabled = false;
-                    error.textContent = err.message || t(window, 'collection_preset_failed');
-                    error.style.display = 'block';
-                });
-        });
+  function mount() {
+    var handle = onScaffold();
+    var table = tableEl();
+    var existing = document.getElementById(PANEL_ID);
 
-        row.appendChild(select);
-        row.appendChild(button);
-        panel.appendChild(row);
-        panel.appendChild(error);
-
-        return panel;
+    if (!handle) {
+      if (existing) {
+        existing.remove();
+      }
+      return;
     }
 
-    function mount() {
-        var handle = onScaffold();
-        var table = tableEl();
-        var existing = document.getElementById(PANEL_ID);
-
-        if (!handle) {
-            if (existing) {
-                existing.remove();
-            }
-            return;
-        }
-
-        if (featureOn() === false) {
-            return;
-        }
-
-        if (!table || !table.parentNode) {
-            return;
-        }
-
-        if (existing && existing.getAttribute('data-sve-preset-ui') === PANEL_UI && existing.parentNode === table.parentNode && existing.nextSibling === table) {
-            return;
-        }
-
-        if (existing) {
-            existing.remove();
-        }
-
-        ensureSelectStyle();
-        table.parentNode.insertBefore(buildPanel(handle, presets()), table);
+    if (featureOn() === false) {
+      return;
     }
 
-    window.setInterval(mount, 250);
+    if (!table || !table.parentNode) {
+      return;
+    }
+
+    if (
+      existing &&
+      existing.getAttribute('data-sve-preset-ui') === PANEL_UI &&
+      existing.parentNode === table.parentNode &&
+      existing.nextSibling === table
+    ) {
+      return;
+    }
+
+    if (existing) {
+      existing.remove();
+    }
+
+    ensureSelectStyle();
+    table.parentNode.insertBefore(buildPanel(handle, presets()), table);
+  }
+
+  window.setInterval(mount, 250);
 })();

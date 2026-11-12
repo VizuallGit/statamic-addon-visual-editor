@@ -8,7 +8,7 @@ function tagAt(html, needle) {
   return [from, html.indexOf('>', from) + 1];
 }
 
-test('the name goes into the tag\'s [ ] run, Tailwind after it left as it is', () => {
+test("the name goes into the tag's [ ] run, Tailwind after it left as it is", () => {
   const html = '<ul>\n  <li class="[ a ] flex bg-[#343434]">x</li>\n</ul>';
   const [from, to] = tagAt(html, '<li');
   const out = addBracketClassToTag(html, from, to, 'foo');
@@ -35,7 +35,10 @@ test('`to` follows the tag, so a second name lands in the same tag', () => {
   const second = addBracketClassToTag(first.html, 0, first.to, 'bar');
 
   assert.equal(second.html, '<li class="[ foo bar ] flex">x</li><li class="[ b ]">y</li>');
-  assert.deepEqual(bracketClassTokens(second.html).map((token) => token.name), ['foo', 'bar', 'b']);
+  assert.deepEqual(
+    bracketClassTokens(second.html).map((token) => token.name),
+    ['foo', 'bar', 'b']
+  );
 });
 
 test('no change when the tag already has the name, the range is not an opening tag, or the name is not a class', () => {
@@ -49,7 +52,7 @@ test('no change when the tag already has the name, the range is not an opening t
 });
 
 test('a class attribute with quotes inside it is left alone, not given a second class attribute', () => {
-  const html = '<li class="{{ open ? \'is-open\' : \'\' }}">x</li>';
+  const html = "<li class=\"{{ open ? 'is-open' : '' }}\">x</li>";
   const out = addBracketClassToTag(html, 0, html.indexOf('">') + 2, 'foo');
 
   assert.equal(out.html, html);

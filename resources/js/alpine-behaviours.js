@@ -244,7 +244,9 @@ export function tagAttrs(openTag) {
 
 /** The state names an `x-data` declares — `{ open: false, tab: 'one' }`. */
 export function stateNames(value) {
-  const inner = String(value || '').trim().replace(/^\{|\}$/g, '');
+  const inner = String(value || '')
+    .trim()
+    .replace(/^\{|\}$/g, '');
   const out = [];
   const re = /(^|,)\s*([a-zA-Z_$][\w$]*)\s*:/g;
   let m;

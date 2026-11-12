@@ -57,7 +57,12 @@ test('build changed → the built stylesheet is swapped, nothing re-rendered', (
     { markup: 'm1', build: 'b2', own: false, css: '/build/assets/site-b.css' }
   );
 
-  assert.deepEqual(step, { have: { markup: 'm1', build: 'b2' }, refresh: false, css: '/build/assets/site-b.css', changed: null });
+  assert.deepEqual(step, {
+    have: { markup: 'm1', build: 'b2' },
+    refresh: false,
+    css: '/build/assets/site-b.css',
+    changed: null,
+  });
 });
 
 test('build changed but the server names no stylesheet → adopted, nothing swapped', () => {
@@ -97,7 +102,10 @@ test('the files behind a foreign change come along; an own change or a server th
 
 test("dockTypeOf: a section partial's handle, '' for any other file", () => {
   assert.equal(dockTypeOf('resources/views/partials/page_sections/hero/style_2.antlers.html'), 'hero/style_2');
-  assert.equal(dockTypeOf('/srv/site/resources/views/partials/page_sections/media_textbox.antlers.html'), 'media_textbox');
+  assert.equal(
+    dockTypeOf('/srv/site/resources/views/partials/page_sections/media_textbox.antlers.html'),
+    'media_textbox'
+  );
   assert.equal(dockTypeOf('resources/views/layout.antlers.html'), '');
   assert.equal(dockTypeOf('resources/views/partials/components/card.antlers.html'), '');
   assert.equal(dockTypeOf(''), '');
@@ -109,7 +117,11 @@ test('sectionTypesOf: the types when every changed file is a section partial, nu
   const stats = { path: 'resources/views/partials/page_sections/content/stats.antlers.html' };
 
   assert.deepEqual(sectionTypesOf([hero, stats, hero]), ['hero/style_2', 'content/stats']);
-  assert.equal(sectionTypesOf([hero, { path: 'resources/views/layout.antlers.html' }]), null, 'the layout changed too: the whole page');
+  assert.equal(
+    sectionTypesOf([hero, { path: 'resources/views/layout.antlers.html' }]),
+    null,
+    'the layout changed too: the whole page'
+  );
   assert.equal(sectionTypesOf([]), null);
   assert.equal(sectionTypesOf(null), null, 'the server could not say');
 });

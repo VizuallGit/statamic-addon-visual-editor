@@ -18,7 +18,11 @@
  */
 import { previewFrame } from './lib/preview-frame.js';
 import { register } from './cp/bus.js';
-import { captureSectionPreviewScope, watchSectionPreviewScope, wrapSectionPreviewFrame } from './preview-section-scope.js';
+import {
+  captureSectionPreviewScope,
+  watchSectionPreviewScope,
+  wrapSectionPreviewFrame,
+} from './preview-section-scope.js';
 
 // The URL of the most recent preview render, replayed whenever something other
 // than the entry changes. Written only by watchPreviewRenders() below.
@@ -43,7 +47,6 @@ export function frameDocumentUrl(frame) {
 
   return frame?.getAttribute('src') || frame?.src || '';
 }
-
 
 /**
  * A tokenised Live Preview document — never a screenshot route or the public site.
@@ -72,15 +75,12 @@ export function isLivePreviewDocumentUrl(url, origin) {
     }
 
     return (
-      parsed.searchParams.has('token') ||
-      parsed.searchParams.has('live-preview') ||
-      parsed.searchParams.has('preview')
+      parsed.searchParams.has('token') || parsed.searchParams.has('live-preview') || parsed.searchParams.has('preview')
     );
   } catch {
     return false;
   }
 }
-
 
 /**
  * Replay the current Live Preview URL into the iframe.
@@ -121,7 +121,6 @@ export function replayLivePreview(win, opts) {
     '*'
   );
 }
-
 
 /**
  * Records the URL of each preview render. Statamic POSTs the entry's values and
@@ -180,7 +179,11 @@ export function watchPreviewRenders(win) {
     }
 
     return request.then((response) => {
-      response.clone().json().then(remember).catch(() => {});
+      response
+        .clone()
+        .json()
+        .then(remember)
+        .catch(() => {});
 
       return response;
     });
@@ -203,4 +206,3 @@ export function watchPreviewRenders(win) {
     return originalOpen.call(this, method, url, ...rest);
   };
 }
-

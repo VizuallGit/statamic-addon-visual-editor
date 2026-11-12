@@ -2,26 +2,77 @@
   <div class="sve-theme__section">
     <div class="sve-theme__viewport">
       <span class="sve-theme__device" :title="ui.labels.spacing_mobile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="6" y="2" width="12" height="20" rx="2.5" />
+          <path d="M11 18h2" />
+        </svg>
         {{ MIN_VIEWPORT }} px
       </span>
       <span aria-hidden="true">→</span>
       <span class="sve-theme__device" :title="ui.labels.spacing_container">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8M12 17v4" />
+        </svg>
       </span>
       <span class="sve-theme__input is-select">
-        <select data-sve-fluid-width :value="ui.fluidWidth" :aria-label="ui.labels.spacing_container" @change="h.onFluidWidth($event.target.value)">
-          <option v-if="!ui.fluidWidth" value="">{{ (ui.labels.spacing_fluid_custom || '').replace(':px', ui.maxViewport) }}</option>
-          <option v-for="w in widths" :key="w.key" :value="w.key" :disabled="!(w.px > MIN_VIEWPORT)">{{ w.label }}{{ w.px ? ` · ${w.px} px` : '' }}</option>
+        <select
+          data-sve-fluid-width
+          :value="ui.fluidWidth"
+          :aria-label="ui.labels.spacing_container"
+          @change="h.onFluidWidth($event.target.value)"
+        >
+          <option v-if="!ui.fluidWidth" value="">{{
+            (ui.labels.spacing_fluid_custom || '').replace(':px', ui.maxViewport)
+          }}</option>
+          <option v-for="w in widths" :key="w.key" :value="w.key" :disabled="!(w.px > MIN_VIEWPORT)"
+            >{{ w.label }}{{ w.px ? ` · ${w.px} px` : '' }}</option
+          >
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </div>
     <p class="sve-theme__hint">{{ ui.labels.spacing_viewport_hint }}</p>
 
     <div class="sve-theme__chart" aria-hidden="true">
       <span class="sve-theme__chart-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8M12 17v4" />
+        </svg>
       </span>
       <div class="sve-theme__bars is-desktop">
         <button
@@ -40,11 +91,23 @@
 
       <span></span>
       <div class="sve-theme__bar-names">
-        <span v-for="s in ui.sizes" :key="s.key" :class="{ 'is-selected': ui.selectedSize === s.key }">{{ short(s.name) }}</span>
+        <span v-for="s in ui.sizes" :key="s.key" :class="{ 'is-selected': ui.selectedSize === s.key }">{{
+          short(s.name)
+        }}</span>
       </div>
 
       <span class="sve-theme__chart-icon is-mobile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="6" y="2" width="12" height="20" rx="2.5" />
+          <path d="M11 18h2" />
+        </svg>
       </span>
       <div class="sve-theme__bars is-mobile">
         <button
@@ -81,7 +144,7 @@
             :aria-label="ui.labels.spacing_name"
             @input="h.onSizeName(s.key, $event.target.value)"
             @focus="h.onSelectSize(s.key)"
-          >
+          />
         </label>
         <span
           v-else
@@ -89,21 +152,57 @@
           :class="{ 'is-selected': ui.selectedSize === s.key }"
           :title="`--${s.name}`"
           @click="h.onSelectSize(s.key)"
-        >{{ s.name }}</span>
+          >{{ s.name }}</span
+        >
 
         <label class="sve-theme__input">
-          <input type="number" min="1" step="1" :value="round(s.min)" :aria-label="`${s.name} ${ui.labels.spacing_mobile}`" @input="h.onSize(s.key, 'min', $event.target.value)" @focus="h.onSelectSize(s.key)">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            :value="round(s.min)"
+            :aria-label="`${s.name} ${ui.labels.spacing_mobile}`"
+            @input="h.onSize(s.key, 'min', $event.target.value)"
+            @focus="h.onSelectSize(s.key)"
+          />
         </label>
         <label class="sve-theme__input">
-          <input type="number" min="1" step="1" :value="round(s.max)" :aria-label="`${s.name} ${ui.labels.spacing_desktop}`" @input="h.onSize(s.key, 'max', $event.target.value)" @focus="h.onSelectSize(s.key)">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            :value="round(s.max)"
+            :aria-label="`${s.name} ${ui.labels.spacing_desktop}`"
+            @input="h.onSize(s.key, 'max', $event.target.value)"
+            @focus="h.onSelectSize(s.key)"
+          />
         </label>
-        <button type="button" class="sve-theme__icon-button" :title="ui.labels.spacing_remove" @click="h.onRemoveSize(s.key)">
+        <button
+          type="button"
+          class="sve-theme__icon-button"
+          :title="ui.labels.spacing_remove"
+          @click="h.onRemoveSize(s.key)"
+        >
           <!-- A bin, not an ×: an × in Live Preview is taken for Statamic's own close button and hidden. -->
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 6h18" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
         </button>
       </template>
     </div>
-    <p v-if="ui.sizes.some((s) => s.problem)" class="sve-theme__problem" style="margin-left: 0">{{ ui.labels.spacing_name_problem }}</p>
+    <p v-if="ui.sizes.some((s) => s.problem)" class="sve-theme__problem" style="margin-left: 0">{{
+      ui.labels.spacing_name_problem
+    }}</p>
   </div>
 </template>
 
@@ -115,7 +214,9 @@ import { MIN_VIEWPORT } from '../theme-panel/sizes.js';
 defineProps({ h: { type: Object, required: true } });
 
 /** The container widths the sizes can stop growing at: Full width has no number, so it is not one. */
-const widths = computed(() => ui.widths.map((w) => ({ ...w, label: ui.labels[`containers_${w.key.replace('-', '_')}`] })));
+const widths = computed(() =>
+  ui.widths.map((w) => ({ ...w, label: ui.labels[`containers_${w.key.replace('-', '_')}`] }))
+);
 
 /** The largest desktop value: the bars are drawn against it, so desktop and mobile compare. */
 const largest = computed(() => Math.max(1, ...ui.sizes.map((s) => s.max)));

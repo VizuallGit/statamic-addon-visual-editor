@@ -49,9 +49,9 @@ function onKey(event) {
     <div class="sve-dialog" @click.stop>
       <div class="sve-dialog__title">{{ heading }}</div>
       <label>{{ nameLabel }}</label>
-      <input ref="input" v-model="name" type="text" :placeholder="placeholder" @keydown="onKey">
+      <input ref="input" v-model="name" type="text" :placeholder="placeholder" @keydown="onKey" />
       <label class="sve-dialog__check">
-        <input v-model="synced" type="checkbox">
+        <input v-model="synced" type="checkbox" />
         <span>{{ syncedHint }}</span>
       </label>
       <div class="sve-dialog__actions">

@@ -9,7 +9,7 @@ test('every family has a colour in both themes', () => {
   }
 });
 
-test('the dark set is the dock toolbar\'s own three', () => {
+test("the dark set is the dock toolbar's own three", () => {
   assert.equal(FAMILY_COLORS.dark.component, '#5eead4');
   assert.equal(FAMILY_COLORS.dark.loop, '#a5b4fc');
   assert.equal(FAMILY_COLORS.dark.if, '#e8c468');

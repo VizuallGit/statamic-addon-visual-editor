@@ -13,7 +13,25 @@ import { t } from '../lib/i18n.js';
 import { attachDock } from '../lib/dock-host.js';
 import { beginOverlayDrag } from '../lib/drag.js';
 import { dockState } from '../dock/state.js';
-import { BACK_ICON, CSS_MENU_ID, DEFAULT_HEIGHT, DOCK_ID, HANDLES, HEIGHT_KEY, MIN_HEIGHT, MIN_PANE, PANES, PANES_KEY, STYLE_ID, UNLOCK_ID, WIDTHS_KEY, css, editors, html, javascript } from '../code-dock.js';
+import {
+  BACK_ICON,
+  CSS_MENU_ID,
+  DEFAULT_HEIGHT,
+  DOCK_ID,
+  HANDLES,
+  HEIGHT_KEY,
+  MIN_HEIGHT,
+  MIN_PANE,
+  PANES,
+  PANES_KEY,
+  STYLE_ID,
+  UNLOCK_ID,
+  WIDTHS_KEY,
+  css,
+  editors,
+  html,
+  javascript,
+} from '../code-dock.js';
 import { DATA_MENU_ID } from './data-vars.js';
 import { relayoutCodeDock } from './dock-api.js';
 import { goBackTemplate } from './scope.js';
@@ -139,7 +157,10 @@ function storeWidths(win, widths) {
 }
 
 export function ensureStyle(doc) {
-  injectStyle(doc, STYLE_ID, `
+  injectStyle(
+    doc,
+    STYLE_ID,
+    `
 @keyframes sve-cm-wait { to { transform: rotate(360deg); } }
 #${DOCK_ID} {
   /* The tree's seven families, for the marks and the toolbar below. */
@@ -1607,7 +1628,8 @@ export function ensureStyle(doc) {
 #${DOCK_ID} .emmet-tracker {
   text-decoration: underline 1px #4ade80;
 }
-`);
+`
+  );
 }
 
 function editorRight(doc) {
@@ -1641,7 +1663,12 @@ function rightInset(doc) {
   ]) {
     const el = doc.getElementById(id);
 
-    if (!el || el.hasAttribute('data-sve-chrome-hidden') || el.hasAttribute('data-sve-right-closed') || el.style.display === 'none') {
+    if (
+      !el ||
+      el.hasAttribute('data-sve-chrome-hidden') ||
+      el.hasAttribute('data-sve-right-closed') ||
+      el.style.display === 'none'
+    ) {
       continue;
     }
 
@@ -1738,9 +1765,7 @@ function sizeEditorHosts(dock) {
   const dockH = dock.clientHeight;
   const bar = dock.querySelector('[data-sve-code-bar]');
   const banner = dock.querySelector('[data-sve-code-lock-banner]');
-  const bannerH = banner && winOf(dock)?.getComputedStyle(banner).display !== 'none'
-    ? banner.offsetHeight
-    : 0;
+  const bannerH = banner && winOf(dock)?.getComputedStyle(banner).display !== 'none' ? banner.offsetHeight : 0;
   const panesH = Math.max(64, dockH - (bar?.offsetHeight || 0) - bannerH);
   const panes = dock.querySelector('[data-sve-code-panes]');
   // Apart, each pane has the height of the slot it stands over, and the row of switches is in its chrome.
@@ -1895,10 +1920,12 @@ export function placeDock(win, dock) {
   const doc = win.document;
   attachDock(doc, dock);
 
-  if (placeDockPanes(win, dock, () => {
-    sizeEditorHosts(dock);
-    measureEditors();
-  })) {
+  if (
+    placeDockPanes(win, dock, () => {
+      sizeEditorHosts(dock);
+      measureEditors();
+    })
+  ) {
     sizeEditorHosts(dock);
 
     return;
@@ -1960,9 +1987,10 @@ export function bindResize(win, dock) {
     //
     // The bar is still draggable — by the grip above it, and by the empty space
     // between the controls, which is what people reach for anyway.
-    if (event.button !== 0 || event.target.closest(
-      'button, a, input, select, textarea, label, [role="button"], [contenteditable], .cm-editor'
-    )) {
+    if (
+      event.button !== 0 ||
+      event.target.closest('button, a, input, select, textarea, label, [role="button"], [contenteditable], .cm-editor')
+    ) {
       return;
     }
 
@@ -1976,10 +2004,7 @@ export function bindResize(win, dock) {
       win,
       'ns-resize',
       (e) => {
-        next = Math.min(
-          Math.max(MIN_HEIGHT, startH + (startY - e.clientY)),
-          Math.round(win.innerHeight * 0.7)
-        );
+        next = Math.min(Math.max(MIN_HEIGHT, startH + (startY - e.clientY)), Math.round(win.innerHeight * 0.7));
         dock.style.height = `${next}px`;
         previewBottomPad(win.document, next);
         measureEditors();

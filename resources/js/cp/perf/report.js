@@ -283,9 +283,11 @@ export function imageRow(win, img, i) {
   }
 
   if (img.factor >= 1.3) {
-    parts.push(t(win, 'perf_img_oversized', {
-      factor: img.factor.toLocaleString(undefined, { maximumFractionDigits: 1 }),
-    }));
+    parts.push(
+      t(win, 'perf_img_oversized', {
+        factor: img.factor.toLocaleString(undefined, { maximumFractionDigits: 1 }),
+      })
+    );
     level = img.factor >= 2 ? 'fail' : 'warn';
   }
 

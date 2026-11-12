@@ -31,7 +31,6 @@ export { t } from './lib/i18n.js';
 export { SELECTORS, GLOBALS_PANEL_PARAM } from './cp-selectors.js';
 export { stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
 
-
 export async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
 

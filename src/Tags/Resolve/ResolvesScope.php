@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use Illuminate\Support\Facades\Log;
 use MarioHamann\StatamicVisualEditor\SectionField;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
 
 /**
  * Where on the page the tag stands: the section type, the chain of sets down

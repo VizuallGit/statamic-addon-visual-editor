@@ -76,7 +76,11 @@ const bundle = await build({
     {
       name: 'dock-stubs',
       setup(b) {
-        b.onResolve({ filter: /^\.\// }, (args) => (/\/dock\/antlers-complete\.js$/.test(args.importer) && STUBS[args.path] ? { path: join(dir, args.path.slice(2)) } : undefined));
+        b.onResolve({ filter: /^\.\// }, (args) =>
+          /\/dock\/antlers-complete\.js$/.test(args.importer) && STUBS[args.path]
+            ? { path: join(dir, args.path.slice(2)) }
+            : undefined
+        );
       },
     },
   ],
@@ -105,11 +109,14 @@ await tab.goto(`http://127.0.0.1:${server.address().port}/`);
 async function start(source) {
   await tab.evaluate(
     (doc, caret) => {
-      window.__view.dispatch({ changes: { from: 0, to: window.__view.state.doc.length, insert: doc }, selection: { anchor: caret } });
+      window.__view.dispatch({
+        changes: { from: 0, to: window.__view.state.doc.length, insert: doc },
+        selection: { anchor: caret },
+      });
       window.__view.focus();
     },
     source.replace('|', ''),
-    source.indexOf('|'),
+    source.indexOf('|')
   );
   await pause(50);
 }
@@ -126,23 +133,43 @@ await start('<ul>\n  |\n</ul>');
 await tab.keyboard.type('{{ coll');
 await pause(300);
 let s = await state();
-check('{{ coll lists the site\'s collections, in the site\'s order', ['employees', 'pages', 'cases'].every((handle, i) => (s.options[i] || '').includes(`collection from="${handle}"`)), JSON.stringify(s.options));
+check(
+  "{{ coll lists the site's collections, in the site's order",
+  ['employees', 'pages', 'cases'].every((handle, i) => (s.options[i] || '').includes(`collection from="${handle}"`)),
+  JSON.stringify(s.options)
+);
 
 await tab.keyboard.type('ection:emp');
 await pause(300);
 s = await state();
-check('{{ collection:emp narrows it to employees', s.options.length === 1 && s.options[0].includes('collection from="employees"'), JSON.stringify(s.options));
+check(
+  '{{ collection:emp narrows it to employees',
+  s.options.length === 1 && s.options[0].includes('collection from="employees"'),
+  JSON.stringify(s.options)
+);
 await tab.keyboard.press('Enter');
 await pause(100);
 s = await state();
-check('Enter writes the loop for employees', s.doc === '<ul>\n  {{ collection from="employees" }}\n    \n  {{ /collection }}\n</ul>', JSON.stringify(s.doc));
-check('… with the caret on the item line', s.caret === '<ul>\n  {{ collection from="employees" }}\n    '.length, `caret ${s.caret}`);
+check(
+  'Enter writes the loop for employees',
+  s.doc === '<ul>\n  {{ collection from="employees" }}\n    \n  {{ /collection }}\n</ul>',
+  JSON.stringify(s.doc)
+);
+check(
+  '… with the caret on the item line',
+  s.caret === '<ul>\n  {{ collection from="employees" }}\n    '.length,
+  `caret ${s.caret}`
+);
 
 // 2. Inside the loop: {{ na offers the employee's name; Enter writes it and closes the tag.
 await tab.keyboard.type('<li>{{ na');
 await pause(300);
 s = await state();
-check('{{ na inside the loop offers name', s.options.some((text) => text.startsWith('name')) && !s.options.some((text) => text.startsWith('title')), JSON.stringify(s.options));
+check(
+  '{{ na inside the loop offers name',
+  s.options.some((text) => text.startsWith('name')) && !s.options.some((text) => text.startsWith('title')),
+  JSON.stringify(s.options)
+);
 await tab.keyboard.press('Enter');
 await pause(100);
 s = await state();
@@ -153,7 +180,11 @@ await start('<ul>\n  {{ collection from="employees" }}\n    <li>{{ | }}</li>\n  
 await tab.keyboard.type('ima');
 await pause(300);
 s = await state();
-check('{{ ima offers profile_image ("Profile image")', s.options.some((text) => text.startsWith('profile_image')), JSON.stringify(s.options));
+check(
+  '{{ ima offers profile_image ("Profile image")',
+  s.options.some((text) => text.startsWith('profile_image')),
+  JSON.stringify(s.options)
+);
 await tab.keyboard.press('Enter');
 await pause(100);
 s = await state();
@@ -164,18 +195,30 @@ await start('<section>\n  <h2>|</h2>\n</section>');
 await tab.keyboard.type('{{ ti');
 await pause(300);
 s = await state();
-check('outside a loop the section\'s own fields are offered', s.options.some((text) => text.startsWith('title')) && !s.options.some((text) => text.startsWith('name')), JSON.stringify(s.options));
+check(
+  "outside a loop the section's own fields are offered",
+  s.options.some((text) => text.startsWith('title')) && !s.options.some((text) => text.startsWith('name')),
+  JSON.stringify(s.options)
+);
 
 // 5. The image component in the loop: "image" typed finds profile_image, the only image field; Enter closes the quote.
 await start('<ul>\n  {{ collection from="employees" }}\n    <li>|</li>\n  {{ /collection }}\n</ul>');
 await tab.keyboard.type('{{ partial:components/image :imagePath="image');
 await pause(300);
 s = await state();
-check(':imagePath="image in the loop offers profile_image, and no text field', s.options.length === 1 && s.options[0].startsWith('profile_image'), JSON.stringify(s.options));
+check(
+  ':imagePath="image in the loop offers profile_image, and no text field',
+  s.options.length === 1 && s.options[0].startsWith('profile_image'),
+  JSON.stringify(s.options)
+);
 await tab.keyboard.press('Enter');
 await pause(100);
 s = await state();
-check('… Enter writes :imagePath="profile_image"', s.doc.includes('{{ partial:components/image :imagePath="profile_image"</li>'), JSON.stringify(s.doc));
+check(
+  '… Enter writes :imagePath="profile_image"',
+  s.doc.includes('{{ partial:components/image :imagePath="profile_image"</li>'),
+  JSON.stringify(s.doc)
+);
 
 await browser.close();
 server.close();

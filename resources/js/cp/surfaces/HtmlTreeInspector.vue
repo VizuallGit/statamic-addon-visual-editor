@@ -49,21 +49,15 @@ function replaceWith(el, name, commitFn) {
  * `:headline="title"` rather than the literal word "title".
  */
 function pickProp(event, row) {
-  ui.onInspectData?.(event.currentTarget, (name) =>
-    ui.onPropValue?.(row.handle, name, true)
-  );
+  ui.onInspectData?.(event.currentTarget, (name) => ui.onPropValue?.(row.handle, name, true));
 }
 
 function pickData(event) {
-  ui.onInspectData?.(event.currentTarget, (name) =>
-    replaceWith(field.value, name, (v) => ui.onInspectCommit?.(v))
-  );
+  ui.onInspectData?.(event.currentTarget, (name) => replaceWith(field.value, name, (v) => ui.onInspectCommit?.(v)));
 }
 
 function pickSortField(event) {
-  ui.onInspectData?.(event.currentTarget, (name) =>
-    replaceWith(sortField.value, name, (v) => ui.onLoopSortField?.(v))
-  );
+  ui.onInspectData?.(event.currentTarget, (name) => replaceWith(sortField.value, name, (v) => ui.onLoopSortField?.(v)));
 }
 </script>
 
@@ -111,10 +105,7 @@ function pickSortField(event) {
             @change="ui.onPropValue?.(row.handle, $event.target.value, false)"
           >
             <option value="">{{ row.placeholder || ui.inspect.inheritLabel }}</option>
-            <option
-              v-if="row.value && !row.options.includes(row.value)"
-              :value="row.value"
-            >{{ row.value }}</option>
+            <option v-if="row.value && !row.options.includes(row.value)" :value="row.value">{{ row.value }}</option>
             <option v-for="choice in row.options" :key="choice" :value="choice">{{ choice }}</option>
           </select>
           <input
@@ -154,7 +145,8 @@ function pickSortField(event) {
           :data-active="choice.id === ui.inspect.loopKind ? '' : undefined"
           :disabled="!ui.canEdit"
           @click="ui.onLoopKind?.(choice.id)"
-        >{{ choice.label }}</button>
+          >{{ choice.label }}</button
+        >
       </div>
 
       <select
@@ -194,7 +186,7 @@ function pickSortField(event) {
           @keydown.stop
           @keydown.enter.prevent="commit"
           @blur="commit"
-        >
+        />
         <button
           type="button"
           data-sve-ht-data
@@ -225,7 +217,7 @@ function pickSortField(event) {
             :checked="ui.inspect.nav.includeHome"
             :disabled="!ui.canEdit"
             @change="ui.onLoopIncludeHome?.($event.target.checked)"
-          >
+          />
           <span>{{ ui.inspect.nav.homeLabel }}</span>
         </label>
       </template>
@@ -255,7 +247,7 @@ function pickSortField(event) {
             @keydown.stop
             @keydown.enter.prevent="ui.onLoopSortField?.($event.target.value)"
             @blur="ui.onLoopSortField?.($event.target.value)"
-          >
+          />
           <button
             v-if="ui.inspect.sort.pickable"
             type="button"
@@ -279,7 +271,7 @@ function pickSortField(event) {
           @keydown.stop
           @keydown.enter.prevent="ui.onLoopLimit?.($event.target.value)"
           @blur="ui.onLoopLimit?.($event.target.value)"
-        >
+        />
 
         <div class="sve-ht-inspect__head sve-ht-inspect__head--sub">{{ ui.inspect.offset.title }}</div>
         <input
@@ -292,7 +284,7 @@ function pickSortField(event) {
           @keydown.stop
           @keydown.enter.prevent="ui.onLoopOffset?.($event.target.value)"
           @blur="ui.onLoopOffset?.($event.target.value)"
-        >
+        />
       </template>
 
       <div v-if="ui.inspect.branches?.length" class="sve-ht-inspect__add">
@@ -302,7 +294,8 @@ function pickSortField(event) {
           type="button"
           :disabled="!ui.canEdit"
           @click="ui.onAddBranch?.(branch.id)"
-        >{{ branch.label }}</button>
+          >{{ branch.label }}</button
+        >
       </div>
     </template>
   </div>

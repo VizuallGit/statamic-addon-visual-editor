@@ -481,7 +481,9 @@ export function placeToolbarButton(win, el) {
 
 /** Replace this mode's hidden list (Show all). An icon the mode may not have is not this user's to list. */
 export function setHiddenTools(win, keys) {
-  writeKeys(win, TOOLBAR_HIDDEN_KEYS[toolbarMode()], [...new Set(keys.filter((key) => validKey(key) && toolbarToolAllowed(win, key)))]);
+  writeKeys(win, TOOLBAR_HIDDEN_KEYS[toolbarMode()], [
+    ...new Set(keys.filter((key) => validKey(key) && toolbarToolAllowed(win, key))),
+  ]);
   syncToolbarLayout(win);
 }
 
@@ -719,7 +721,12 @@ export function pressToolbarTool(win, key) {
  */
 export function leaveToolbarToolsOutsideMode(win) {
   [...(barEl(win)?.querySelectorAll('button[data-tab]') || [])]
-    .filter((btn) => btn.getAttribute('aria-pressed') === 'true' && btn.dataset.tab !== DOCK_TAB && !toolbarToolAllowed(win, btn.dataset.tab))
+    .filter(
+      (btn) =>
+        btn.getAttribute('aria-pressed') === 'true' &&
+        btn.dataset.tab !== DOCK_TAB &&
+        !toolbarToolAllowed(win, btn.dataset.tab)
+    )
     .forEach((btn) => btn.click());
   syncToolbarLayout(win);
 }

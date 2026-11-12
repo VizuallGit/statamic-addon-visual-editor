@@ -5,7 +5,13 @@
  */
 
 export function slug(name) {
-  return String(name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'font';
+  return (
+    String(name)
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'font'
+  );
 }
 
 /** An installed family in the Control Panel, drawn under its own name so the CP's fonts never change. */

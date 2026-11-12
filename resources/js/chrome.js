@@ -24,8 +24,23 @@ import { unwrapRef } from './lib/values.js';
 import { containerContextName, publishContainers, whenContainerContext } from './lib/publish-containers.js';
 import { clearSelection, select } from './lib/selection.js';
 import { setLpMode } from './lp-panel.js';
-import { closeRightPanels, hideGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
-import { chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalsAcceptValues, notifyChromeDirty, notifyGlobalSectionDirty, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
+import {
+  closeRightPanels,
+  hideGlobalsPanel,
+  syncPreviewInset,
+  syncSectionLibraryAvailability,
+} from './section-library.js';
+import {
+  chromeGlobalHandle,
+  chromeIgnoreValuePostsUntil,
+  clearGlobalsStash,
+  globalsAcceptValues,
+  notifyChromeDirty,
+  notifyGlobalSectionDirty,
+  postGlobals,
+  setActiveChromeKind,
+  watchGlobalsPanelSaves,
+} from './globals-panel.js';
 import { flushPendingEditUntilPanel } from './inline-edit.js';
 import { fetchInertiaPage, postSectionValues } from './global-section.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';

@@ -27,7 +27,8 @@ export function blueprintFields(blueprint) {
   }
 
   const tabs = Array.isArray(blueprint.tabs) ? blueprint.tabs : [];
-  const sections = tabs.flatMap((tab) => (Array.isArray(tab.sections) ? tab.sections : []))
+  const sections = tabs
+    .flatMap((tab) => (Array.isArray(tab.sections) ? tab.sections : []))
     .concat(Array.isArray(blueprint.sections) ? blueprint.sections : []);
 
   return sections.flatMap((section) => (Array.isArray(section.fields) ? section.fields : []));
@@ -105,7 +106,11 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
   // A row path alternates field, index, field, index … — a Bard set adds
   // `attrs.values` after its index, which is folded away here and told
   // apart below by the field's type.
-  const segments = path.split('.').filter((part, i, all) => !(part === 'attrs' && all[i + 1] === 'values') && !(part === 'values' && all[i - 1] === 'attrs'));
+  const segments = path
+    .split('.')
+    .filter(
+      (part, i, all) => !(part === 'attrs' && all[i + 1] === 'values') && !(part === 'values' && all[i - 1] === 'attrs')
+    );
 
   if (segments.length % 2 !== 0) {
     why(`odd path ${path}`);
@@ -203,7 +208,11 @@ export function resolveTab(blueprint, handle) {
 
   const tab =
     tabs.find((candidate) => String(candidate?.handle || '').toLowerCase() === want) ||
-    tabs.find((candidate) => String(candidate?.display || '').toLowerCase().startsWith(want)) ||
+    tabs.find((candidate) =>
+      String(candidate?.display || '')
+        .toLowerCase()
+        .startsWith(want)
+    ) ||
     (tabs.length === 1 ? tabs[0] : null);
 
   if (!tab) {

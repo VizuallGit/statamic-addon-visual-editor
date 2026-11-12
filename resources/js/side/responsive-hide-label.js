@@ -10,55 +10,57 @@ import { mark } from '../lib/debug.js';
 import { bpBase } from '../breakpoints.js';
 
 (function () {
-    'use strict';
+  'use strict';
 
-    mark('responsive-hide-label');
+  mark('responsive-hide-label');
 
-    var pending = false;
+  var pending = false;
 
-    function baseBp() {
-        // breakpoints.js is the one reader of `sveBreakpoints` and falls back to
-        // the shipped list on its own; only the selector-safe spelling is ours.
-        return String(bpBase(window)).replace(/["\\]/g, '');
+  function baseBp() {
+    // breakpoints.js is the one reader of `sveBreakpoints` and falls back to
+    // the shipped list on its own; only the selector-safe spelling is ours.
+    return String(bpBase(window)).replace(/["\\]/g, '');
+  }
+
+  function hideCustom(root) {
+    if (!root || !root.querySelectorAll) {
+      return;
     }
 
-    function hideCustom(root) {
-        if (!root || !root.querySelectorAll) {
-            return;
-        }
-
-        root.querySelectorAll('.responsive-fieldtype-header > .responsive-fieldtype-label').forEach(function (el) {
-            el.style.setProperty('display', 'none', 'important');
-        });
-
-        // Kun basis-størrelsens header. Den er ikke en override, den er reglen,
-        // så den har ingen "arver fra"-linje at vise. Hvilken der er basis, er
-        // sitets egen liste — ikke altid `laptop`.
-        root.querySelectorAll('.responsive-fieldtype[data-bp="' + baseBp() + '"] > .responsive-fieldtype-header').forEach(function (el) {
-            el.style.setProperty('display', 'none', 'important');
-        });
-    }
-
-    function schedule() {
-        if (pending) {
-            return;
-        }
-
-        pending = true;
-        requestAnimationFrame(function () {
-            pending = false;
-            hideCustom(document);
-        });
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', schedule);
-    } else {
-        schedule();
-    }
-
-    new MutationObserver(schedule).observe(document.documentElement, {
-        childList: true,
-        subtree: true,
+    root.querySelectorAll('.responsive-fieldtype-header > .responsive-fieldtype-label').forEach(function (el) {
+      el.style.setProperty('display', 'none', 'important');
     });
+
+    // Kun basis-størrelsens header. Den er ikke en override, den er reglen,
+    // så den har ingen "arver fra"-linje at vise. Hvilken der er basis, er
+    // sitets egen liste — ikke altid `laptop`.
+    root
+      .querySelectorAll('.responsive-fieldtype[data-bp="' + baseBp() + '"] > .responsive-fieldtype-header')
+      .forEach(function (el) {
+        el.style.setProperty('display', 'none', 'important');
+      });
+  }
+
+  function schedule() {
+    if (pending) {
+      return;
+    }
+
+    pending = true;
+    requestAnimationFrame(function () {
+      pending = false;
+      hideCustom(document);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', schedule);
+  } else {
+    schedule();
+  }
+
+  new MutationObserver(schedule).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();

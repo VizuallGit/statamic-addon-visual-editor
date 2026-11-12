@@ -36,5 +36,6 @@ const own = computed(() => (props.hit ? [props.hit.name] : props.names));
     :title="port.t('field_reset', { name: label })"
     :aria-label="port.t('field_reset', { name: label })"
     @click.stop.prevent="own.forEach((name) => port.setClass(name))"
-  ><i></i><span v-html="ic('reset')"></span></button>
+    ><i></i><span v-html="ic('reset')"></span
+  ></button>
 </template>

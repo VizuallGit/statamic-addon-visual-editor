@@ -57,7 +57,8 @@ function closure(starts, dirs) {
 // build/assets: what the manifest names, and what those files import
 const named = new Set();
 for (const entry of Object.values(manifest)) {
-  for (const rel of [entry.file, ...(entry.css || []), ...(entry.assets || [])]) named.add(rel.replace(/^assets\//, ''));
+  for (const rel of [entry.file, ...(entry.css || []), ...(entry.assets || [])])
+    named.add(rel.replace(/^assets\//, ''));
 }
 const keepAssets = closure([...named], [ASSETS]);
 
@@ -65,7 +66,10 @@ const keepAssets = closure([...named], [ASSETS]);
 // first (what BuiltAssets::refreshLock does on the site after a good boot),
 // then everything older goes.
 const liveAddon = manifest['resources/js/addon.js']?.file?.replace(/^assets\//, '');
-if (!liveAddon) { console.error('manifest has no resources/js/addon.js'); process.exit(1); }
+if (!liveAddon) {
+  console.error('manifest has no resources/js/addon.js');
+  process.exit(1);
+}
 const keepLocked = closure([liveAddon], [ASSETS, LOCKED]);
 if (!DRY) {
   mkdirSync(LOCKED, { recursive: true });
@@ -77,16 +81,23 @@ if (!DRY) {
 
 function prune(dir, keep, label) {
   if (!existsSync(dir)) return { removed: 0, bytes: 0, kept: 0 };
-  let removed = 0, bytes = 0, kept = 0;
+  let removed = 0,
+    bytes = 0,
+    kept = 0;
   for (const name of readdirSync(dir)) {
     const file = join(dir, name);
     if (!statSync(file).isFile()) continue;
-    if (keep.has(name)) { kept++; continue; }
+    if (keep.has(name)) {
+      kept++;
+      continue;
+    }
     bytes += statSync(file).size;
     removed++;
     if (!DRY) unlinkSync(file);
   }
-  console.log(`${label}: kept ${kept}, ${DRY ? 'would remove' : 'removed'} ${removed} (${(bytes / 1e6).toFixed(1)} MB)`);
+  console.log(
+    `${label}: kept ${kept}, ${DRY ? 'would remove' : 'removed'} ${removed} (${(bytes / 1e6).toFixed(1)} MB)`
+  );
   return { removed, bytes, kept };
 }
 

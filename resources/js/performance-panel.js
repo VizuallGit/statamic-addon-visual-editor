@@ -47,7 +47,6 @@ import { persistDockedPanel } from './lp-panel.js';
 import { closeRightPanels, syncPreviewInset } from './section-library.js';
 import { scrollBehavior } from './scroll-pref.js';
 
-
 const STYLE_ID = '__sve-perf-style';
 const TABS = ['summary', 'images', 'files'];
 
@@ -160,12 +159,8 @@ export function frontendUrl(win, { bust = true } = {}) {
   // Statamic builds the preview address as the entry's own URL plus `target`
   // and `token`; the editor adds its own `sve_` flags on top. All of it comes
   // off, and what is left is the address a visitor types.
-  ['live-preview', 'token', 'target', 'statamic-preview'].forEach((key) =>
-    url.searchParams.delete(key)
-  );
-  [...url.searchParams.keys()]
-    .filter((key) => key.startsWith('sve_'))
-    .forEach((key) => url.searchParams.delete(key));
+  ['live-preview', 'token', 'target', 'statamic-preview'].forEach((key) => url.searchParams.delete(key));
+  [...url.searchParams.keys()].filter((key) => key.startsWith('sve_')).forEach((key) => url.searchParams.delete(key));
 
   // Only our own measurement wants the cache-buster. Google must be sent the
   // address as it really is: a query string it has never seen is a page with no
@@ -213,9 +208,7 @@ function render(win, raw) {
   perfUi.bars = barsOf(win, totals);
   perfUi.notes = notesOf(win, raw);
 
-  const images = sortRows(
-    raw.images.map((img, i) => ({ ...imageRow(win, img, i), bytes: img.bytes }))
-  );
+  const images = sortRows(raw.images.map((img, i) => ({ ...imageRow(win, img, i), bytes: img.bytes })));
   const files = raw.resources
     .slice()
     .sort((a, b) => b.bytes - a.bytes)
@@ -580,7 +573,10 @@ function paintEditor(win, sample) {
     {
       key: 'previewUpdate',
       label: t(win, 'perf_editor_preview_update'),
-      value: update.last === null ? t(win, 'perf_editor_type_something') : `${formatMs(update.last)} · ${t(win, 'perf_editor_median')} ${formatMs(update.median)}`,
+      value:
+        update.last === null
+          ? t(win, 'perf_editor_type_something')
+          : `${formatMs(update.last)} · ${t(win, 'perf_editor_median')} ${formatMs(update.median)}`,
       level: update.last === null ? 'info' : budgetLevel(update.median, 'previewUpdate'),
     },
   ];

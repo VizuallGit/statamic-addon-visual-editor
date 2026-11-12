@@ -81,7 +81,10 @@ const values = {
           type: 'richtext',
           richtext: [
             { type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] },
-            { type: 'set', attrs: { id: 'bs0', enabled: true, values: { type: 'pull_quote', _visual_id: 'v-bs0', quote: 'Said.' } } },
+            {
+              type: 'set',
+              attrs: { id: 'bs0', enabled: true, values: { type: 'pull_quote', _visual_id: 'v-bs0', quote: 'Said.' } },
+            },
           ],
         },
       ],
@@ -91,21 +94,30 @@ const values = {
 };
 
 test('blueprintFields flattens tabs and sections, and takes a flat list as is', () => {
-  assert.deepEqual(blueprintFields(blueprint).map((f) => f.handle), ['title', 'page_sections']);
+  assert.deepEqual(
+    blueprintFields(blueprint).map((f) => f.handle),
+    ['title', 'page_sections']
+  );
   assert.deepEqual(blueprintFields({ fields: [headline] }), [headline]);
   assert.deepEqual(blueprintFields(null), []);
 });
 
 test('setsOf flattens grouped and ungrouped sets alike', () => {
   const field = blueprintFields(blueprint)[1];
-  assert.deepEqual(setsOf(field).map((s) => s.handle), ['hero/style_2', 'plain']);
+  assert.deepEqual(
+    setsOf(field).map((s) => s.handle),
+    ['hero/style_2', 'plain']
+  );
 });
 
 test('a top-level section resolves to its set: paths, fields, name and no parent', () => {
   const row = resolveRow(values, blueprint, 'v-s1');
   assert.equal(row.path, 'page_sections.1');
   assert.equal(row.metaPath, 'page_sections.existing.s1');
-  assert.deepEqual(row.fields.map((f) => f.handle), ['blocks', 'sizes']);
+  assert.deepEqual(
+    row.fields.map((f) => f.handle),
+    ['blocks', 'sizes']
+  );
   assert.equal(row.kind, 'set');
   assert.equal(row.handle, 'hero/style_2');
   // The author's own label first, the set's display otherwise.
@@ -125,7 +137,7 @@ test('a block inside a section resolves two levels down, with its section as par
   assert.equal(row.parentUid, 'v-s1');
 });
 
-test('a Bard set resolves to its set: the node\'s attrs.values, meta by the node id, the block as parent', () => {
+test("a Bard set resolves to its set: the node's attrs.values, meta by the node id, the block as parent", () => {
   const row = resolveRow(values, blueprint, 'v-bs0');
 
   assert.equal(row.path, 'page_sections.1.blocks.1.richtext.1.attrs.values');
@@ -143,7 +155,10 @@ test('a grid row resolves to the grid field, by its _id', () => {
   assert.equal(row.kind, 'grid');
   assert.equal(row.path, 'page_sections.1.sizes.0');
   assert.equal(row.metaPath, 'page_sections.existing.s1.sizes.existing.g0');
-  assert.deepEqual(row.fields.map((f) => f.handle), ['label']);
+  assert.deepEqual(
+    row.fields.map((f) => f.handle),
+    ['label']
+  );
   assert.equal(row.display, 'Sizes');
   assert.equal(row.parentUid, 'v-s1');
 });
@@ -173,7 +188,11 @@ test('resolveTab draws a whole tab: by handle, by display, or the only one there
   const { resolveTab: tabOf } = { resolveTab };
   const bp = {
     tabs: [
-      { handle: 'header', display: 'Header', sections: [{ fields: [{ handle: 'style' }] }, { fields: [{ handle: 'widgets' }] }] },
+      {
+        handle: 'header',
+        display: 'Header',
+        sections: [{ fields: [{ handle: 'style' }] }, { fields: [{ handle: 'widgets' }] }],
+      },
       { handle: 'sidebar', display: 'Sidebar', sections: [{ fields: [{ handle: 'title' }] }] },
     ],
   };
@@ -181,7 +200,10 @@ test('resolveTab draws a whole tab: by handle, by display, or the only one there
   assert.equal(tab.kind, 'tab');
   assert.equal(tab.path, '');
   assert.equal(tab.metaPath, '');
-  assert.deepEqual(tab.fields.map((f) => f.handle), ['style', 'widgets']);
+  assert.deepEqual(
+    tab.fields.map((f) => f.handle),
+    ['style', 'widgets']
+  );
   assert.equal(tab.display, 'Header');
   assert.equal(tabOf({ tabs: [{ handle: 'main', display: 'Footer stuff', sections: [] }] }, 'footer').handle, 'main');
   assert.equal(tabOf({ tabs: [{ handle: 'only', display: 'Only', sections: [] }] }, 'footer').handle, 'only');

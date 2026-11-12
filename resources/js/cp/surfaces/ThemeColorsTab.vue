@@ -1,10 +1,5 @@
 <template>
-  <section
-    v-for="f in ui.families"
-    :key="f.key"
-    class="sve-theme__card"
-    :class="{ 'is-open': ui.openKey === f.key }"
-  >
+  <section v-for="f in ui.families" :key="f.key" class="sve-theme__card" :class="{ 'is-open': ui.openKey === f.key }">
     <button type="button" class="sve-theme__row" @click="h.onOpen(f.key)">
       <span class="sve-theme__chip" :style="{ background: f.value || f.steps[0]?.value }"></span>
       <span class="sve-theme__row-text">
@@ -25,7 +20,7 @@
             spellcheck="false"
             autocomplete="off"
             @input="h.onName(f.key, $event.target.value)"
-          >
+          />
         </span>
       </label>
       <p v-if="f.problem" class="sve-theme__problem">{{ problemLabel(f) }}</p>
@@ -34,7 +29,12 @@
         <span class="sve-theme__label">{{ ui.labels.colors_color }}</span>
         <span class="sve-theme__input">
           <span class="sve-theme__picker" :style="{ background: f.value }">
-            <input v-if="!locked(f)" type="color" :value="hexOf(f.value)" @input="h.onColor(f.key, $event.target.value)">
+            <input
+              v-if="!locked(f)"
+              type="color"
+              :value="hexOf(f.value)"
+              @input="h.onColor(f.key, $event.target.value)"
+            />
           </span>
           <input
             type="text"
@@ -43,7 +43,7 @@
             spellcheck="false"
             autocomplete="off"
             @change="h.onColor(f.key, $event.target.value)"
-          >
+          />
         </span>
       </label>
 
@@ -61,13 +61,19 @@
             :aria-checked="modeOf(f) === mode"
             :data-sve-color-mode="mode"
             @click="h.onMode(f.key, mode)"
-          >{{ ui.labels[`colors_mode_${mode}`] }}</button>
+            >{{ ui.labels[`colors_mode_${mode}`] }}</button
+          >
         </div>
       </template>
 
       <template v-if="f.scale">
         <div class="sve-theme__swatches">
-          <span v-for="s in f.steps" :key="s.name" class="sve-theme__swatch" :title="`--${f.name}-${s.name}  ${s.value}`">
+          <span
+            v-for="s in f.steps"
+            :key="s.name"
+            class="sve-theme__swatch"
+            :title="`--${f.name}-${s.name}  ${s.value}`"
+          >
             <span class="sve-theme__swatch-color" :style="{ background: s.value }"></span>
             <span class="sve-theme__swatch-name">{{ s.name }}</span>
           </span>
@@ -75,14 +81,16 @@
         <p class="sve-theme__hint">{{ ui.labels.colors_scale_hint }}</p>
       </template>
 
-      <template v-for="kind in (f.value && !locked(f) && !f.scale ? ['tints', 'shades'] : [])" :key="kind">
+      <template v-for="kind in f.value && !locked(f) && !f.scale ? ['tints', 'shades'] : []" :key="kind">
         <div class="sve-theme__rule"></div>
         <div class="sve-theme__switch-row">
           <span class="sve-theme__label">{{ ui.labels[`colors_${kind}`] }}</span>
           <span v-if="f[kind]" class="sve-theme__stepper">
             <button type="button" :disabled="f[kind] <= 1" @click="h.onCount(f.key, kind, f[kind] - 1)">−</button>
             <span>{{ f[kind] }}</span>
-            <button type="button" :disabled="f[kind] >= MAX_VARIANTS" @click="h.onCount(f.key, kind, f[kind] + 1)">+</button>
+            <button type="button" :disabled="f[kind] >= MAX_VARIANTS" @click="h.onCount(f.key, kind, f[kind] + 1)"
+              >+</button
+            >
           </span>
           <button
             type="button"
@@ -92,7 +100,8 @@
             :aria-checked="f[kind] > 0"
             :aria-label="ui.labels[`colors_${kind}`]"
             @click="h.onToggle(f.key, kind, !f[kind])"
-          ><span></span></button>
+            ><span></span
+          ></button>
         </div>
         <!-- A step is clicked to nudge it a little lighter or darker; the dot says it is. -->
         <div v-if="f.generated && f[kind]" class="sve-theme__swatches">
@@ -115,7 +124,13 @@
           <div class="sve-theme__nudge-head">
             <span class="sve-theme__label">{{ ui.labels.colors_nudge }} · {{ r.name }}</span>
             <span class="sve-theme__nudge-value">{{ nudgeLabel(r.d) }}</span>
-            <button type="button" class="sve-theme__nudge-reset" :disabled="!r.d" @click="h.onNudge(f.key, r.name, 0)">{{ ui.labels.colors_nudge_reset }}</button>
+            <button
+              type="button"
+              class="sve-theme__nudge-reset"
+              :disabled="!r.d"
+              @click="h.onNudge(f.key, r.name, 0)"
+              >{{ ui.labels.colors_nudge_reset }}</button
+            >
           </div>
           <input
             type="range"
@@ -125,7 +140,7 @@
             :value="r.d"
             :aria-label="`${ui.labels.colors_nudge} --${f.name}-${r.name}`"
             @input="h.onNudge(f.key, r.name, Number($event.target.value))"
-          >
+          />
           <div class="sve-theme__nudge-ends">
             <span>{{ ui.labels.colors_nudge_darker }}</span>
             <span>{{ ui.labels.colors_nudge_lighter }}</span>
@@ -138,7 +153,9 @@
         <div class="sve-theme__rule"></div>
         <p v-if="gone(f).length" class="sve-theme__note">{{ goneLabel(f) }}</p>
         <div v-if="canRename(f)" class="sve-theme__rename">
-          <button type="button" class="sve-theme__add" @click="h.onRenameByLightness(f.key)">{{ ui.labels.colors_rename }}</button>
+          <button type="button" class="sve-theme__add" @click="h.onRenameByLightness(f.key)">{{
+            ui.labels.colors_rename
+          }}</button>
           <span class="sve-theme__hint">{{ ui.labels.colors_rename_hint }}</span>
         </div>
       </template>
@@ -154,18 +171,22 @@
             </span>
             <label v-else class="sve-theme__swatch is-editable" :title="`--${f.name}-${s.name}  ${s.value}`">
               <span class="sve-theme__swatch-color" :style="{ background: s.value }">
-                <input type="color" :value="hexOf(s.value)" @input="h.onStep(f.key, s.name, $event.target.value)">
+                <input type="color" :value="hexOf(s.value)" @input="h.onStep(f.key, s.name, $event.target.value)" />
               </span>
               <span class="sve-theme__swatch-name">{{ s.name }}</span>
             </label>
           </template>
         </div>
-        <p v-if="f.value && !locked(f)" class="sve-theme__note">{{ (ui.labels.colors_replace_warning || '').replace(':count', f.steps.length) }}</p>
+        <p v-if="f.value && !locked(f)" class="sve-theme__note">{{
+          (ui.labels.colors_replace_warning || '').replace(':count', f.steps.length)
+        }}</p>
       </template>
 
       <template v-if="!isCore(f.name)">
         <div class="sve-theme__rule"></div>
-        <button type="button" class="sve-theme__remove" @click="h.onRemoveColor(f.key)">{{ ui.labels.colors_remove }}</button>
+        <button type="button" class="sve-theme__remove" @click="h.onRemoveColor(f.key)">{{
+          ui.labels.colors_remove
+        }}</button>
       </template>
     </div>
   </section>
@@ -173,7 +194,9 @@
   <!-- A new color is made under the palette, where it will stand. -->
   <button type="button" class="sve-theme__add-row" data-sve-theme-add data-sve-color-add @click="h.onAddColor">
     <span class="sve-theme__add-row-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
     </span>
     <span>{{ ui.labels.colors_add }}</span>
   </button>
@@ -186,19 +209,50 @@
     <div v-if="ui.highlights.length" class="sve-theme__highlight-list">
       <div v-for="x in ui.highlights" :key="x.key" class="sve-theme__highlight" data-sve-highlight>
         <span class="sve-theme__input sve-theme__highlight-name" :class="{ 'is-bad': x.problem }">
-          <input :value="x.name" :aria-label="ui.labels.colors_name" data-sve-highlight-name spellcheck="false" @input="h.onHighlightName(x.key, $event.target.value)">
+          <input
+            :value="x.name"
+            :aria-label="ui.labels.colors_name"
+            data-sve-highlight-name
+            spellcheck="false"
+            @input="h.onHighlightName(x.key, $event.target.value)"
+          />
         </span>
-        <ThemeColorSelect palette-only :token="`color-${x.name}`" :value="x.value" :label="ui.labels.colors_color" :on-change="(v) => h.onHighlightValue(x.key, v)" />
-        <button type="button" class="sve-theme__highlight-remove" :title="ui.labels.colors_highlight_remove" :aria-label="ui.labels.colors_highlight_remove" @click="h.onRemoveHighlight(x.key)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <ThemeColorSelect
+          palette-only
+          :token="`color-${x.name}`"
+          :value="x.value"
+          :label="ui.labels.colors_color"
+          :on-change="(v) => h.onHighlightValue(x.key, v)"
+        />
+        <button
+          type="button"
+          class="sve-theme__highlight-remove"
+          :title="ui.labels.colors_highlight_remove"
+          :aria-label="ui.labels.colors_highlight_remove"
+          @click="h.onRemoveHighlight(x.key)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
-        <span v-if="x.problem" class="sve-theme__hint sve-theme__highlight-problem">{{ ui.labels[`colors_name_${x.problem}`] || ui.labels.colors_name_format }}</span>
+        <span v-if="x.problem" class="sve-theme__hint sve-theme__highlight-problem">{{
+          ui.labels[`colors_name_${x.problem}`] || ui.labels.colors_name_format
+        }}</span>
       </div>
     </div>
     <!-- A new highlight is made under the list, where it will stand. -->
     <button type="button" class="sve-theme__add-row is-compact" data-sve-highlight-add @click="h.onAddHighlight">
       <span class="sve-theme__add-row-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </span>
       <span>{{ ui.labels.colors_highlight_add }}</span>
     </button>
@@ -208,7 +262,13 @@
 <script setup>
 import { themePanelUi as ui } from '../theme-panel/store.js';
 import { reactive } from 'vue';
-import { MAX_VARIANTS, hexToOklch, isCoreColor as isCore, namedByLightness, nudgeRange } from '../theme-panel/palette.js';
+import {
+  MAX_VARIANTS,
+  hexToOklch,
+  isCoreColor as isCore,
+  namedByLightness,
+  nudgeRange,
+} from '../theme-panel/palette.js';
 import ThemeColorSelect from './ThemeColorSelect.vue';
 
 defineProps({ h: { type: Object, required: true } });
@@ -303,12 +363,23 @@ function gone(f) {
 }
 
 function goneLabel(f) {
-  return (ui.labels.colors_gone || '').replace(':names', gone(f).map((name) => `${f.name}-${name}`).join(', '));
+  return (ui.labels.colors_gone || '').replace(
+    ':names',
+    gone(f)
+      .map((name) => `${f.name}-${name}`)
+      .join(', ')
+  );
 }
 
 /** A saved color's made steps whose names no longer say how light they are — after a big change of base. */
 function canRename(f) {
-  return !f.fresh && f.generated && (f.tints || f.shades) && f.steps.length > 0 && !namedByLightness(f, { tints: f.tints, shades: f.shades });
+  return (
+    !f.fresh &&
+    f.generated &&
+    (f.tints || f.shades) &&
+    f.steps.length > 0 &&
+    !namedByLightness(f, { tints: f.tints, shades: f.shades })
+  );
 }
 
 function problemLabel(f) {

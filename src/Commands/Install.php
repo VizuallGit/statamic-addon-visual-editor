@@ -3,8 +3,8 @@
 namespace MarioHamann\StatamicVisualEditor\Commands;
 
 use Illuminate\Console\Command;
-use MarioHamann\StatamicVisualEditor\Stores;
 use Illuminate\Support\Facades\File;
+use MarioHamann\StatamicVisualEditor\Stores;
 
 /**
  * Scaffolds the few content-model pieces the editor's saved-section, global-section
@@ -32,39 +32,39 @@ class Install extends Command
 
         // Collections (the stores) + their blueprints.
         $this->publish(
-            "saved-sections.collection.yaml",
+            'saved-sections.collection.yaml',
             base_path("content/collections/{$sections}.yaml")
         );
         $this->publish(
-            "saved-section.blueprint.yaml",
+            'saved-section.blueprint.yaml',
             resource_path("blueprints/collections/{$sections}/saved_section.yaml"),
             ['PAGE_BUILDER_FIELD' => $field]
         );
 
         $this->publish(
-            "saved-compositions.collection.yaml",
+            'saved-compositions.collection.yaml',
             base_path("content/collections/{$templates}.yaml")
         );
         $this->publish(
-            "saved-composition.blueprint.yaml",
+            'saved-composition.blueprint.yaml',
             resource_path("blueprints/collections/{$templates}/saved_composition.yaml"),
             ['PAGE_BUILDER_FIELD' => $field]
         );
 
         $views = Stores::collectionTemplates();
         $this->publish(
-            "collection-templates.collection.yaml",
+            'collection-templates.collection.yaml',
             base_path("content/collections/{$views}.yaml")
         );
         $this->publish(
-            "collection-template.blueprint.yaml",
+            'collection-template.blueprint.yaml',
             resource_path("blueprints/collections/{$views}/template.yaml")
         );
 
         // The partial that renders a referenced (synced) global section. Named for
         // the set handle, since that's what a page uses to reference one.
         $this->publish(
-            "global-section.antlers.html",
+            'global-section.antlers.html',
             resource_path("views/partials/page_sections/{$set}.antlers.html"),
             ['SET_HANDLE' => $set, 'PAGE_BUILDER_FIELD' => $field]
         );
@@ -73,7 +73,7 @@ class Install extends Command
         $this->info('Done.');
         $this->line("  One manual step left: add a <comment>{$set}</comment> set to your <comment>{$field}</comment> page-builder");
         $this->line('  fieldset (an entries field pointing at the Global sections collection, max 1),');
-        $this->line("  so pages can reference a global section. Hide it from the native picker with <comment>hide: true</comment>.");
+        $this->line('  so pages can reference a global section. Hide it from the native picker with <comment>hide: true</comment>.');
 
         return self::SUCCESS;
     }

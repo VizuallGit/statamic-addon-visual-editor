@@ -79,7 +79,11 @@ export function frameScope(kind) {
  */
 function frameFiles(win) {
   const templates = win.Statamic?.$config?.get?.('sveChromeTemplates') || {};
-  const files = { header: templates.header?.type || '', footer: templates.footer?.type || '', layout: LAYOUT_TEMPLATE_TYPE };
+  const files = {
+    header: templates.header?.type || '',
+    footer: templates.footer?.type || '',
+    layout: LAYOUT_TEMPLATE_TYPE,
+  };
   const open = frameScope(String(ask('dock:chrome-kind') || ''));
 
   if (open) {
@@ -131,7 +135,10 @@ export function syncStoredAlpineStates(win, doc = win.document, target = preview
   const send = (scope, file) => {
     for (const [nth, keys] of Object.entries(statesOf(file))) {
       for (const [key, value] of Object.entries(keys)) {
-        target.postMessage({ source: SOURCE, type: MSG.SVE_ALPINE_STATE, ...scope, nth: Number(nth), key, value, on: true }, win.location.origin);
+        target.postMessage(
+          { source: SOURCE, type: MSG.SVE_ALPINE_STATE, ...scope, nth: Number(nth), key, value, on: true },
+          win.location.origin
+        );
       }
     }
   };

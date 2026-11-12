@@ -52,7 +52,9 @@ const found = computed(() => imageAt(tree.value, props.path));
 const now = computed(() => (found.value ? readImage(file.value, found.value.img) : null));
 const rows = computed(() => (port.rev.value, port.sizes?.() || []));
 const sizes = computed(() => pictureSizes(rows.value));
-const sources = computed(() => (found.value?.picture ? readSources(file.value, found.value.picture, sizes.value, rows.value) : {}));
+const sources = computed(() =>
+  found.value?.picture ? readSources(file.value, found.value.picture, sizes.value, rows.value) : {}
+);
 const baseLabel = computed(() => rows.value.find((row) => row.base)?.label || '');
 
 const FORMAT_NAMES = { webp: 'WebP', avif: 'AVIF', jpg: 'JPG', png: 'PNG' };
@@ -122,7 +124,10 @@ function resized(handle, change) {
   }
 
   if ('width' in change) {
-    return { width: change.width, height: ratio === 'original' || ratio === 'custom' ? was.height : heightFor(change.width, ratio) };
+    return {
+      width: change.width,
+      height: ratio === 'original' || ratio === 'custom' ? was.height : heightFor(change.width, ratio),
+    };
   }
 
   return { width: was.width, height: change.height };
@@ -146,7 +151,14 @@ function setSize(handle, change) {
   const attrs = { width: size.width ? String(size.width) : null, height: size.height ? String(size.height) : null };
 
   // A crop per size is the site's work: the image is switched on with it.
-  writeAll(now.value.on ? [[source.path, attrs]] : [[source.path, attrs], [imgPath(), imageAttrs(now.value, { format: 'webp' }, QUALITY)]]);
+  writeAll(
+    now.value.on
+      ? [[source.path, attrs]]
+      : [
+          [source.path, attrs],
+          [imgPath(), imageAttrs(now.value, { format: 'webp' }, QUALITY)],
+        ]
+  );
 }
 
 /** The width or height box of a row, written when typing is over. Made once, here, not while drawing. */
@@ -165,7 +177,9 @@ function sizeBox(handle, side) {
 }
 
 const boxes = Object.fromEntries(
-  ['base', ...sizes.value.map((size) => size.handle)].flatMap((handle) => ['width', 'height'].map((side) => [`${handle}:${side}`, sizeBox(handle, side)]))
+  ['base', ...sizes.value.map((size) => size.handle)].flatMap((handle) =>
+    ['width', 'height'].map((side) => [`${handle}:${side}`, sizeBox(handle, side)])
+  )
 );
 const box = (handle, side) => boxes[`${handle}:${side}`];
 
@@ -226,7 +240,10 @@ onBeforeUnmount(() => {
   <div v-if="site && now" class="bm-img" data-sve-build-image>
     <!-- The image's own size: on a picture, the base size's. -->
     <div class="bm-img-block">
-      <span class="fg-lab">{{ port.t('content_image_size') }}<template v-if="sizes.length && found.picture"> · {{ baseLabel }}</template></span>
+      <span class="fg-lab"
+        >{{ port.t('content_image_size')
+        }}<template v-if="sizes.length && found.picture"> · {{ baseLabel }}</template></span
+      >
       <div class="bm-img-size" data-sve-build-image-size="base">
         <input
           v-model="box('base', 'width').value.value"
@@ -251,7 +268,13 @@ onBeforeUnmount(() => {
           @keydown.enter.prevent="box('base', 'height').done()"
           @blur="box('base', 'height').done()"
         />
-        <select class="fg-select bm-img-ratio" :aria-label="port.t('content_image_ratio')" :value="ratioOf(now.width, now.height)" data-sve-build-image-ratio @change="setSize('base', { ratio: $event.target.value })">
+        <select
+          class="fg-select bm-img-ratio"
+          :aria-label="port.t('content_image_ratio')"
+          :value="ratioOf(now.width, now.height)"
+          data-sve-build-image-ratio
+          @change="setSize('base', { ratio: $event.target.value })"
+        >
           <option value="original">{{ port.t('content_image_ratio_original') }}</option>
           <option v-for="r in RATIOS" :key="r.key" :value="r.key">{{ r.key }}</option>
           <option value="custom" disabled>{{ port.t('content_image_ratio_custom') }}</option>
@@ -315,7 +338,13 @@ onBeforeUnmount(() => {
       <div class="fg-row">
         <span class="fg-rlab">{{ port.t('content_image_format') }}</span>
         <label class="fg-field">
-          <select class="fg-select" :aria-label="port.t('content_image_format')" :value="now.format" data-sve-build-image-format @change="setImage({ format: $event.target.value })">
+          <select
+            class="fg-select"
+            :aria-label="port.t('content_image_format')"
+            :value="now.format"
+            data-sve-build-image-format
+            @change="setImage({ format: $event.target.value })"
+          >
             <option v-for="f in formats" :key="f.key" :value="f.key" :disabled="f.off">{{ f.label }}</option>
           </select>
         </label>
@@ -337,9 +366,20 @@ onBeforeUnmount(() => {
       </div>
       <div class="bm-link-row">
         <span>{{ port.t('content_image_blur') }}</span>
-        <button type="button" class="bm-switch" role="switch" :aria-checked="now.on && now.blur" :aria-label="port.t('content_image_blur')" :disabled="now.loading === 'first'" data-sve-build-image-blur @click="setImage({ blur: !(now.on && now.blur) })"></button>
+        <button
+          type="button"
+          class="bm-switch"
+          role="switch"
+          :aria-checked="now.on && now.blur"
+          :aria-label="port.t('content_image_blur')"
+          :disabled="now.loading === 'first'"
+          data-sve-build-image-blur
+          @click="setImage({ blur: !(now.on && now.blur) })"
+        ></button>
       </div>
-      <p class="bm-img-hint">{{ port.t(now.loading === 'first' ? 'content_image_blur_first' : 'content_image_blur_hint') }}</p>
+      <p class="bm-img-hint">{{
+        port.t(now.loading === 'first' ? 'content_image_blur_first' : 'content_image_blur_hint')
+      }}</p>
       <div class="fg-row">
         <span class="fg-rlab">{{ port.t('content_image_loading') }}</span>
         <div class="bm-seg" role="group" :aria-label="port.t('content_image_loading')" data-sve-build-image-loading>
@@ -350,7 +390,8 @@ onBeforeUnmount(() => {
             :aria-pressed="now.loading === key"
             :data-sve-build-image-loading-option="key"
             @click="setImage({ loading: key })"
-          >{{ port.t(`content_image_${key}`) }}</button>
+            >{{ port.t(`content_image_${key}`) }}</button
+          >
         </div>
       </div>
       <p v-if="now.loading === 'first'" class="bm-img-hint">{{ port.t('content_image_first_hint') }}</p>
@@ -363,15 +404,52 @@ onBeforeUnmount(() => {
  * The image's options (BuildImage.vue) in the panel's own parts: its labels,
  * boxes, selects, switches and segments. `bm-img-` only, under the panel's root.
  */
-.sve-build .bm-img { display: grid; gap: 0.875rem; margin-top: 0.875rem; padding-top: 0.875rem; border-top: 1px solid var(--bm-line); }
-.sve-build .bm-img-block { display: grid; gap: 0.5rem; }
-.sve-build .bm-img-block .fg-lab { margin: 0; }
-.sve-build .bm-img-size { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; gap: 0.375rem; }
-.sve-build .bm-img-size .bm-inp { min-width: 0; text-align: center; }
-.sve-build .bm-img-x { color: var(--bm-faint); font-size: 0.75rem; }
-.sve-build .bm-img-ratio { min-width: 0; }
-.sve-build .bm-img-screen { display: grid; gap: 0.4rem; }
-.sve-build .bm-img-screen + .bm-img-screen { padding-top: 0.4rem; border-top: 1px solid var(--bm-line); }
-.sve-build .bm-img-hint { margin: -0.15rem 0 0; font-size: 0.625rem; line-height: 1.45; color: var(--bm-faint); }
-.sve-build .bm-img .bm-inp:disabled { opacity: 0.5; }
+.sve-build .bm-img {
+  display: grid;
+  gap: 0.875rem;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--bm-line);
+}
+.sve-build .bm-img-block {
+  display: grid;
+  gap: 0.5rem;
+}
+.sve-build .bm-img-block .fg-lab {
+  margin: 0;
+}
+.sve-build .bm-img-size {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 0.375rem;
+}
+.sve-build .bm-img-size .bm-inp {
+  min-width: 0;
+  text-align: center;
+}
+.sve-build .bm-img-x {
+  color: var(--bm-faint);
+  font-size: 0.75rem;
+}
+.sve-build .bm-img-ratio {
+  min-width: 0;
+}
+.sve-build .bm-img-screen {
+  display: grid;
+  gap: 0.4rem;
+}
+.sve-build .bm-img-screen + .bm-img-screen {
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--bm-line);
+}
+.sve-build .bm-img-hint {
+  margin: -0.15rem 0 0;
+  font-size: 0.625rem;
+  line-height: 1.45;
+  color: var(--bm-faint);
+}
+.sve-build .bm-img .bm-inp:disabled {
+  opacity: 0.5;
+}
 </style>

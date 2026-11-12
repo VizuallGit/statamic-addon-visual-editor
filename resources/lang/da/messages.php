@@ -1812,7 +1812,7 @@ return [
     'template_board_site' => 'Sitet',
     'template_board_empty' => 'Ingen skabelon endnu',
     'template_board_create' => 'Opret',
-        'template_board_group_site' => 'Diverse',
+    'template_board_group_site' => 'Diverse',
     'template_board_kind_collection' => 'Collection',
     'template_board_kind_taxonomy' => 'Taksonomi',
     'template_board_group_collections' => 'Sider & indlæg',

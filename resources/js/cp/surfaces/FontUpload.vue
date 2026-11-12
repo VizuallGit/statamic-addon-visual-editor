@@ -8,8 +8,20 @@
       @dragleave="over = false"
       @drop.prevent="drop"
     >
-      <input type="file" multiple accept=".woff2,.woff,.ttf,.otf" data-sve-font-file @change="pick">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg>
+      <input type="file" multiple accept=".woff2,.woff,.ttf,.otf" data-sve-font-file @change="pick" />
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 16V4" />
+        <path d="m7 9 5-5 5 5" />
+        <path d="M5 20h14" />
+      </svg>
       <span class="sve-fontdlg__drop-title">{{ ui.labels.fonts_drop }}</span>
       <span class="sve-fontdlg__drop-hint">{{ ui.labels.fonts_drop_hint }}</span>
     </label>
@@ -28,38 +40,68 @@
         :aria-label="ui.labels.fonts_convert"
         data-sve-font-convert
         @click="convert = !convert"
-      ><span></span></button>
+        ><span></span
+      ></button>
     </div>
 
     <div v-for="item in items" :key="item.id" class="sve-fontdlg__upload" data-sve-font-upload>
       <div class="sve-fontdlg__upload-top">
-        <span class="sve-fontdlg__upload-name" :style="{ fontFamily: `'sve-up-${item.id}', ui-sans-serif, system-ui, sans-serif` }">{{ item.family || item.file.name }}</span>
+        <span
+          class="sve-fontdlg__upload-name"
+          :style="{ fontFamily: `'sve-up-${item.id}', ui-sans-serif, system-ui, sans-serif` }"
+          >{{ item.family || item.file.name }}</span
+        >
         <span class="sve-fontdlg__upload-size">{{ sizeText(item) }}</span>
         <button type="button" class="sve-theme__ghost" :title="ui.labels.fonts_upload_skip" @click="skip(item)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       </div>
       <p v-if="item.error" class="sve-fontdlg__error">{{ item.file.name }}: {{ errorText(item.error) }}</p>
       <template v-else>
         <label class="sve-theme__field">
           <span class="sve-theme__label">{{ ui.labels.fonts_family }}</span>
-          <span class="sve-theme__input"><input v-model="item.family" type="text" data-sve-font-family></span>
+          <span class="sve-theme__input"><input v-model="item.family" type="text" data-sve-font-family /></span>
         </label>
         <label class="sve-theme__field">
           <span class="sve-theme__label">{{ ui.labels.fonts_weight }}</span>
-          <span v-if="item.axis" class="sve-theme__input"><input type="text" readonly :value="`${ui.labels.fonts_variable} ${item.axis[0]}–${item.axis[1]}`"></span>
+          <span v-if="item.axis" class="sve-theme__input"
+            ><input type="text" readonly :value="`${ui.labels.fonts_variable} ${item.axis[0]}–${item.axis[1]}`"
+          /></span>
           <span v-else class="sve-theme__input">
             <select v-model.number="item.weight" data-sve-font-weight>
               <option v-for="(name, w) in WEIGHT_NAMES" :key="w" :value="Number(w)">{{ w }} · {{ name }}</option>
             </select>
-            <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            <svg
+              class="sve-theme__chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </span>
         </label>
         <div class="sve-theme__field">
           <span class="sve-theme__label">{{ ui.labels.fonts_style }}</span>
           <div class="sve-theme__segments">
-            <button type="button" :class="{ 'is-on': !item.italic }" @click="item.italic = false">{{ ui.labels.fonts_style_normal }}</button>
-            <button type="button" :class="{ 'is-on': item.italic }" @click="item.italic = true">{{ ui.labels.fonts_style_italic }}</button>
+            <button type="button" :class="{ 'is-on': !item.italic }" @click="item.italic = false">{{
+              ui.labels.fonts_style_normal
+            }}</button>
+            <button type="button" :class="{ 'is-on': item.italic }" @click="item.italic = true">{{
+              ui.labels.fonts_style_italic
+            }}</button>
           </div>
         </div>
       </template>
@@ -68,7 +110,9 @@
 
   <footer class="sve-fontdlg__foot">
     <span class="sve-fontdlg__size">
-      <template v-if="ready.length"><b>{{ formatBytes(totalBytes) }}</b> {{ filesText(ready.length) }}</template>
+      <template v-if="ready.length"
+        ><b>{{ formatBytes(totalBytes) }}</b> {{ filesText(ready.length) }}</template
+      >
     </span>
     <span class="sve-fontdlg__error">{{ error ? errorText(error) : '' }}</span>
     <button type="button" class="sve-theme__save" :disabled="!canInstall" data-sve-font-install @click="install">
@@ -99,7 +143,9 @@ const ready = computed(() => items.filter((item) => !item.error));
 const needsConvert = computed(() => ready.value.some((item) => item.kind !== 'woff2'));
 const shipped = (item) => (convert.value && item.kind !== 'woff2' && item.woff2 ? item.woff2 : item.bytes);
 const totalBytes = computed(() => ready.value.reduce((sum, item) => sum + shipped(item).length, 0));
-const canInstall = computed(() => !busy.value && ready.value.length > 0 && ready.value.every((item) => item.family.trim()) && ui.fontsWritable);
+const canInstall = computed(
+  () => !busy.value && ready.value.length > 0 && ready.value.every((item) => item.family.trim()) && ui.fontsWritable
+);
 
 function sizeText(item) {
   if (item.error) {
@@ -116,7 +162,15 @@ async function add(files) {
 
   for (const file of files) {
     const read = await readFontFile(file);
-    const item = reactive({ id: ++seq, woff2: null, ...read, error: read.error || '', family: read.family || '', weight: read.weight || 400, italic: !!read.italic });
+    const item = reactive({
+      id: ++seq,
+      woff2: null,
+      ...read,
+      error: read.error || '',
+      family: read.family || '',
+      weight: read.weight || 400,
+      italic: !!read.italic,
+    });
 
     items.push(item);
 
@@ -210,7 +264,11 @@ async function install() {
   }
 
   if (listing) {
-    emit('installed', listing, String(ui.labels.fonts_installed_message || '').replace(':name', [...families].join(', ')));
+    emit(
+      'installed',
+      listing,
+      String(ui.labels.fonts_installed_message || '').replace(':name', [...families].join(', '))
+    );
   }
 }
 </script>

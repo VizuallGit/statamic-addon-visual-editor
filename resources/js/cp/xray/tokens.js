@@ -85,7 +85,8 @@ export function ensureProbe(doc) {
     probe = doc.createElement('div');
     probe.id = PROBE_ID;
     probe.setAttribute('aria-hidden', 'true');
-    probe.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;visibility:hidden;pointer-events:none;';
+    probe.style.cssText =
+      'position:absolute;left:-9999px;top:0;width:0;height:0;visibility:hidden;pointer-events:none;';
     doc.documentElement.appendChild(probe);
   }
 

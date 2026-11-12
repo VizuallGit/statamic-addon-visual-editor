@@ -75,12 +75,16 @@ let running = false;
 let doneTimer = 0;
 
 function ensureSpinStyle(doc) {
-  injectStyle(doc, SPIN_STYLE_ID, `@keyframes sve-lp-reload-spin{to{transform:rotate(360deg)}}`
-    + `#${LP_RELOAD_ID}[data-busy] svg[data-icon="reload"]{animation:sve-lp-reload-spin .9s linear infinite;transform-origin:50% 50%}`
-    + `#${LP_RELOAD_ID}[data-busy]{cursor:progress}`
-    + `#${LP_RELOAD_ID} svg[data-icon="done"]{display:none}`
-    + `#${LP_RELOAD_ID}[data-done] svg[data-icon="done"]{display:block}`
-    + `#${LP_RELOAD_ID}[data-done] svg[data-icon="reload"]{display:none}`);
+  injectStyle(
+    doc,
+    SPIN_STYLE_ID,
+    `@keyframes sve-lp-reload-spin{to{transform:rotate(360deg)}}` +
+      `#${LP_RELOAD_ID}[data-busy] svg[data-icon="reload"]{animation:sve-lp-reload-spin .9s linear infinite;transform-origin:50% 50%}` +
+      `#${LP_RELOAD_ID}[data-busy]{cursor:progress}` +
+      `#${LP_RELOAD_ID} svg[data-icon="done"]{display:none}` +
+      `#${LP_RELOAD_ID}[data-done] svg[data-icon="done"]{display:block}` +
+      `#${LP_RELOAD_ID}[data-done] svg[data-icon="reload"]{display:none}`
+  );
 }
 
 /** Every section type on the page, each once — what there is anything to refetch for. */
@@ -337,10 +341,14 @@ export function refreshTemplatesShown(win, types = null) {
     const target = previewFrame(win)?.contentWindow;
     const timer = win.setTimeout(resolve, PREVIEW_WAIT_MS);
 
-    target?.addEventListener('statamic:preview-updated', () => {
-      win.clearTimeout(timer);
-      resolve();
-    }, { once: true });
+    target?.addEventListener(
+      'statamic:preview-updated',
+      () => {
+        win.clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
   });
 
   try {

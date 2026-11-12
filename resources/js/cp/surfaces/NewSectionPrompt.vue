@@ -154,7 +154,8 @@ function onKey(event) {
             :aria-label="addGroupLabel"
             data-sve-new-group
             @click="startAddGroup"
-          ><span aria-hidden="true">+</span></button>
+            ><span aria-hidden="true">+</span></button
+          >
         </div>
         <div v-if="addingGroup" class="sve-dialog__add-group">
           <label for="sve-new-section-group-name">{{ addGroupNameLabel || addGroupLabel }}</label>
@@ -168,9 +169,18 @@ function onKey(event) {
               :disabled="groupBusy"
               data-sve-new-group-name
               @keydown="onGroupKey"
+            />
+            <button
+              type="button"
+              class="is-primary is-small"
+              :disabled="groupBusy"
+              data-sve-new-group-create
+              @click="submitGroup"
+              >{{ saveLabel }}</button
             >
-            <button type="button" class="is-primary is-small" :disabled="groupBusy" data-sve-new-group-create @click="submitGroup">{{ saveLabel }}</button>
-            <button type="button" class="is-cancel is-small" :disabled="groupBusy" @click="cancelAddGroup">{{ cancelLabel }}</button>
+            <button type="button" class="is-cancel is-small" :disabled="groupBusy" @click="cancelAddGroup">{{
+              cancelLabel
+            }}</button>
           </div>
         </div>
       </template>
@@ -183,10 +193,10 @@ function onKey(event) {
         type="text"
         :placeholder="placeholder"
         @keydown="onKey"
-      >
+      />
 
       <label v-if="toggleLabel" class="sve-dialog__toggle">
-        <input v-model="toggle" type="checkbox" @keydown="onKey">
+        <input v-model="toggle" type="checkbox" @keydown="onKey" />
         <span>{{ toggleLabel }}</span>
       </label>
 

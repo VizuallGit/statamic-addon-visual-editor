@@ -25,12 +25,12 @@ final class Manifest
 
     public static function assetsDir(): string
     {
-        return static::root().'/assets';
+        return self::root().'/assets';
     }
 
     public static function manifestPath(): string
     {
-        return static::root().'/manifest.json';
+        return self::root().'/manifest.json';
     }
 
     /**
@@ -41,7 +41,7 @@ final class Manifest
      */
     public static function buildKey(): ?string
     {
-        $path = static::manifestPath();
+        $path = self::manifestPath();
 
         if (! is_file($path)) {
             return null;
@@ -60,30 +60,30 @@ final class Manifest
      */
     public static function manifest(): array
     {
-        $key = static::buildKey();
+        $key = self::buildKey();
 
         if ($key === null) {
-            throw new RuntimeException('Visual Editor build is missing: '.static::manifestPath());
+            throw new RuntimeException('Visual Editor build is missing: '.self::manifestPath());
         }
 
-        if (static::$manifest !== null && static::$manifestKey === $key) {
-            return static::$manifest;
+        if (self::$manifest !== null && self::$manifestKey === $key) {
+            return self::$manifest;
         }
 
-        $manifest = json_decode((string) file_get_contents(static::manifestPath()), true);
+        $manifest = json_decode((string) file_get_contents(self::manifestPath()), true);
 
         if (! is_array($manifest)) {
             throw new RuntimeException('Visual Editor manifest is not valid JSON.');
         }
 
-        static::$manifestKey = $key;
+        self::$manifestKey = $key;
 
-        return static::$manifest = $manifest;
+        return self::$manifest = $manifest;
     }
 
     public static function fileFor(string $entry): string
     {
-        $resolved = static::manifest()[$entry] ?? null;
+        $resolved = self::manifest()[$entry] ?? null;
 
         if (! is_array($resolved) || empty($resolved['file'])) {
             throw new RuntimeException("Visual Editor manifest has no entry `{$entry}`.");
@@ -94,12 +94,12 @@ final class Manifest
 
     public static function pathFor(string $entry): string
     {
-        return static::root().'/'.ltrim(static::fileFor($entry), '/');
+        return self::root().'/'.ltrim(self::fileFor($entry), '/');
     }
 
     public static function url(string $entry): string
     {
-        return '/!/sve/build/'.ltrim(static::fileFor($entry), '/');
+        return '/!/sve/build/'.ltrim(self::fileFor($entry), '/');
     }
 
     /**
@@ -111,7 +111,7 @@ final class Manifest
     {
         $allowed = [];
 
-        foreach (static::manifest() as $entry) {
+        foreach (self::manifest() as $entry) {
             if (! is_array($entry)) {
                 continue;
             }
@@ -125,7 +125,7 @@ final class Manifest
             }
         }
 
-        foreach (static::addonImports() as $import) {
+        foreach (self::addonImports() as $import) {
             $allowed[] = 'assets/'.$import;
         }
 
@@ -140,7 +140,7 @@ final class Manifest
             return false;
         }
 
-        return in_array($relative, static::allowedFiles(), true);
+        return in_array($relative, self::allowedFiles(), true);
     }
 
     /**
@@ -149,8 +149,8 @@ final class Manifest
     public static function liveAddonPath(): ?string
     {
         try {
-            $path = static::pathFor('resources/js/addon.js');
-        } catch (\RuntimeException $e) {
+            $path = self::pathFor('resources/js/addon.js');
+        } catch (RuntimeException $e) {
             return null;
         }
 
@@ -172,15 +172,15 @@ final class Manifest
      */
     public static function addonImports(): array
     {
-        if (static::$addonImports !== null) {
-            return static::$addonImports;
+        if (self::$addonImports !== null) {
+            return self::$addonImports;
         }
 
-        if (Lock::holds(static::buildKey())) {
-            return static::$addonImports = array_values(array_map('strval', Lock::read()['imports']));
+        if (Lock::holds(self::buildKey())) {
+            return self::$addonImports = array_values(array_map('strval', Lock::read()['imports']));
         }
 
-        return static::$addonImports = static::walkAddonImports();
+        return self::$addonImports = self::walkAddonImports();
     }
 
     /**
@@ -198,7 +198,7 @@ final class Manifest
      */
     public static function walkAddonImports(): array
     {
-        $path = static::liveAddonPath();
+        $path = self::liveAddonPath();
 
         if (! $path) {
             return [];
@@ -223,7 +223,7 @@ final class Manifest
                 $seen[$name] = true;
                 $names[] = $name;
 
-                foreach ([static::assetsDir().'/'.$name, static::lockedRoot().'/'.$name] as $file) {
+                foreach ([self::assetsDir().'/'.$name, self::lockedRoot().'/'.$name] as $file) {
                     if (is_file($file)) {
                         $queue[] = $file;
 
@@ -239,8 +239,8 @@ final class Manifest
     /** Forget what this request memoised — for tests that change the build under it. */
     public static function forget(): void
     {
-        static::$addonImports = null;
-        static::$manifest = null;
-        static::$manifestKey = null;
+        self::$addonImports = null;
+        self::$manifest = null;
+        self::$manifestKey = null;
     }
 }

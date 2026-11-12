@@ -27,7 +27,11 @@ export function alphaOf(raw) {
 
 /** The class with that alpha. Nothing typed, or all of it, is no alpha at all: the class as it is. */
 export function withAlpha(name, text) {
-  const n = Number(String(text ?? '').replace('%', '').trim());
+  const n = Number(
+    String(text ?? '')
+      .replace('%', '')
+      .trim()
+  );
 
   if (String(text ?? '').trim() === '' || Number.isNaN(n) || n >= 100) {
     return name;

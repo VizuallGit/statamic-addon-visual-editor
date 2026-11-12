@@ -33,7 +33,25 @@ const HOLDERS = new Set(['div', 'article', 'aside']);
 
 /** What may stand at the top of rich text, and what inside a block. */
 const BLOCKS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'blockquote', 'hr']);
-const INSIDE = new Set(['li', 'p', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'code', 'a', 'br', 'sub', 'sup', 'ul', 'ol']);
+const INSIDE = new Set([
+  'li',
+  'p',
+  'strong',
+  'b',
+  'em',
+  'i',
+  'u',
+  's',
+  'strike',
+  'del',
+  'code',
+  'a',
+  'br',
+  'sub',
+  'sup',
+  'ul',
+  'ol',
+]);
 
 /** A link keeps where it points and how it opens; nothing else has attributes. */
 const LINK_ATTRS = new Set(['href', 'target', 'rel']);
@@ -47,7 +65,10 @@ function body(source, node) {
 /** Whether a tag's opening carries only what Bard would write on it. */
 function plainOpen(source, node) {
   const open = source.slice(node.from, node.openTo);
-  const rest = open.replace(/^<[a-zA-Z0-9]+/, '').replace(/\/?>$/, '').trim();
+  const rest = open
+    .replace(/^<[a-zA-Z0-9]+/, '')
+    .replace(/\/?>$/, '')
+    .trim();
 
   if (!rest) {
     return true;
@@ -57,13 +78,21 @@ function plainOpen(source, node) {
     return false;
   }
 
-  const names = [...rest.matchAll(/([^\s=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/g)].map((m) => m[1].toLowerCase());
+  const names = [...rest.matchAll(/([^\s=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/g)].map((m) =>
+    m[1].toLowerCase()
+  );
 
   return names.every((name) => LINK_ATTRS.has(name));
 }
 
 function plain(source, nodes, allowed) {
-  return nodes.every((node) => !node.kind && allowed.has(String(node.tag).toLowerCase()) && plainOpen(source, node) && plain(source, node.children || [], INSIDE));
+  return nodes.every(
+    (node) =>
+      !node.kind &&
+      allowed.has(String(node.tag).toLowerCase()) &&
+      plainOpen(source, node) &&
+      plain(source, node.children || [], INSIDE)
+  );
 }
 
 /** Text standing loose in the div, between its blocks — Bard would wrap it, so it is not rich text. */
@@ -105,7 +134,12 @@ export function readRich(source, node) {
 export function isRichBlock(source, node) {
   const html = String(source || '');
 
-  return !!node && !node.kind && /(^|\s)prose(\s|$)/.test(readAttribute(html, node, 'class') || '') && (!!readRich(html, node) || readRichField(html, node) !== null);
+  return (
+    !!node &&
+    !node.kind &&
+    /(^|\s)prose(\s|$)/.test(readAttribute(html, node, 'class') || '') &&
+    (!!readRich(html, node) || readRichField(html, node) !== null)
+  );
 }
 
 /** The path of the Rich text element an element stands in, or '' when it stands in none. */
@@ -145,7 +179,11 @@ export function readRichField(source, node) {
 
 /** Markup with the whitespace between tags folded away — the same HTML laid out another way reads the same. */
 export function sameRich(a, b) {
-  const fold = (s) => String(s || '').replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+  const fold = (s) =>
+    String(s || '')
+      .replace(/>\s+</g, '><')
+      .replace(/\s+/g, ' ')
+      .trim();
 
   return fold(a) === fold(b);
 }

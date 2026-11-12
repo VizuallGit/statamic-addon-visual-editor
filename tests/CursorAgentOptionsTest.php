@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use MarioHamann\StatamicVisualEditor\AiChat\Models;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
 
 /**
@@ -117,6 +118,7 @@ class CursorAgentOptionsTest extends TestCase
 
         $this->assertSame([], CursorAgent::mcpServers());
     }
+
     public function test_the_model_is_the_one_picked_then_the_sites_then_config(): void
     {
         $this->assertSame('default', CursorAgent::model());
@@ -147,7 +149,7 @@ class CursorAgentOptionsTest extends TestCase
             'glm-5.2', 'glm-5p3', 'glm-5p3-flash',
         ]);
 
-        $picked = \MarioHamann\StatamicVisualEditor\AiChat\Models::modern($listed);
+        $picked = Models::modern($listed);
 
         $this->assertSame([
             'default',
@@ -162,7 +164,7 @@ class CursorAgentOptionsTest extends TestCase
 
     public function test_a_new_version_takes_its_familys_place_by_itself(): void
     {
-        $picked = \MarioHamann\StatamicVisualEditor\AiChat\Models::modern(array_map(fn ($id) => ['id' => $id, 'name' => $id], [
+        $picked = Models::modern(array_map(fn ($id) => ['id' => $id, 'name' => $id], [
             'grok-4.7', 'grok-4.8', 'claude-opus-5-5', 'claude-opus-6', 'composer-2.5', 'composer-3', 'gpt-5.6-sol', 'gpt-5.7',
         ]));
 

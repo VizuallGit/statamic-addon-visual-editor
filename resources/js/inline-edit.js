@@ -28,7 +28,17 @@ import { csrfToken } from './lib/csrf.js';
 import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers, publishContainers } from './lib/publish-containers.js';
 import { setLpCollapsed } from './lp-panel.js';
-import { buildSectionRow, fetchSetMeta, globalSectionSet, libraryWentStale, newRowId, rememberSavedSection, rowLocation, sortableItemForUid, writeSetMeta } from './section-library.js';
+import {
+  buildSectionRow,
+  fetchSetMeta,
+  globalSectionSet,
+  libraryWentStale,
+  newRowId,
+  rememberSavedSection,
+  rowLocation,
+  sortableItemForUid,
+  writeSetMeta,
+} from './section-library.js';
 import { flushPendingSectionRefresh, globalSectionEditorOpen } from './global-section.js';
 import { discardChanges } from './open-in-preview.js';
 import { MSG, SOURCE } from './lib/protocol.js';
@@ -255,9 +265,7 @@ export function flushBardEditorSync(attempt = 0) {
     }
 
     if (proxy.editor?.commands?.setContent) {
-      const content = value.length
-        ? { type: 'doc', content: JSON.parse(JSON.stringify(value)) }
-        : null;
+      const content = value.length ? { type: 'doc', content: JSON.parse(JSON.stringify(value)) } : null;
 
       proxy.editor.commands.setContent(content, false);
     }
@@ -312,7 +320,10 @@ export function controlValues(values, fieldPath, handles) {
  * because the two files run in separate bundles (CP window vs. preview iframe).
  */
 export function normText(s) {
-  return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  return (s || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -422,11 +433,7 @@ export function resolveEditTargets(value, path, req, depth = 0) {
     const out = [];
 
     value.forEach((node, i) => {
-      if (
-        node &&
-        EDITABLE_NODE_TYPES.includes(node.type) &&
-        normText(bardNodeText(node)) === req.blockText
-      ) {
+      if (node && EDITABLE_NODE_TYPES.includes(node.type) && normText(bardNodeText(node)) === req.blockText) {
         out.push({ mode: 'bard', path, index: i });
       }
     });
@@ -740,8 +747,7 @@ export function applyStartingText(data, doc) {
       at.value === '' ||
       (Array.isArray(at.value) &&
         at.value.every(
-          (node) =>
-            node && EDITABLE_NODE_TYPES.includes(node.type) && normText(bardNodeText(node)) === ''
+          (node) => node && EDITABLE_NODE_TYPES.includes(node.type) && normText(bardNodeText(node)) === ''
         ));
 
     if (!empty) {
@@ -765,8 +771,7 @@ export function applyStartingText(data, doc) {
 }
 
 export function handleEditRequest(data, doc, win) {
-  const reply = (message) =>
-    sendToPreview({ source: SOURCE, requestId: data.requestId, ...message }, win);
+  const reply = (message) => sendToPreview({ source: SOURCE, requestId: data.requestId, ...message }, win);
 
   const req = {
     blockText: data.blockText != null ? normText(data.blockText) : null,
@@ -826,8 +831,7 @@ export function handleEditRequest(data, doc, win) {
     if (
       data.bardInline &&
       (typeof value === 'string' || isUnwrappedInlineBard(value)) &&
-      normText(typeof value === 'string' ? value : bardNodeText({ type: 'doc', content: value })) ===
-        req.wrapperText
+      normText(typeof value === 'string' ? value : bardNodeText({ type: 'doc', content: value })) === req.wrapperText
     ) {
       value = normalizeInlineBardValue(value);
       container.setFieldValue(path, value);
@@ -850,10 +854,7 @@ export function handleEditRequest(data, doc, win) {
         (Array.isArray(value) &&
           (value.length === 0 ||
             value.every(
-              (node) =>
-                node &&
-                EDITABLE_NODE_TYPES.includes(node.type) &&
-                normText(bardNodeText(node)) === ''
+              (node) => node && EDITABLE_NODE_TYPES.includes(node.type) && normText(bardNodeText(node)) === ''
             ))));
 
     if (emptyBard) {
@@ -909,10 +910,7 @@ export function handleEditRequest(data, doc, win) {
     if (
       Array.isArray(value) &&
       value.length &&
-      value.every(
-        (node) =>
-          node && (EDITABLE_NODE_TYPES.includes(node.type) || node.type === 'set')
-      ) &&
+      value.every((node) => node && (EDITABLE_NODE_TYPES.includes(node.type) || node.type === 'set')) &&
       value.some((node) => EDITABLE_NODE_TYPES.includes(node.type))
     ) {
       editSession = {
@@ -948,11 +946,7 @@ export function handleEditRequest(data, doc, win) {
     if (Array.isArray(value) && data.blockIndex != null && req.blockText !== null) {
       const node = value[data.blockIndex];
 
-      if (
-        node &&
-        EDITABLE_NODE_TYPES.includes(node.type) &&
-        normText(bardNodeText(node)) === req.blockText
-      ) {
+      if (node && EDITABLE_NODE_TYPES.includes(node.type) && normText(bardNodeText(node)) === req.blockText) {
         editSession = {
           container,
           requestId: data.requestId,
@@ -987,12 +981,9 @@ export function handleEditRequest(data, doc, win) {
     if (target.mode === 'string') {
       // Rows that pair a text with a link (button rows: { text, url }) get a
       // link-edit shortcut in the preview toolbar.
-      const rowPath = target.path.includes('.')
-        ? target.path.slice(0, target.path.lastIndexOf('.'))
-        : '';
+      const rowPath = target.path.includes('.') ? target.path.slice(0, target.path.lastIndexOf('.')) : '';
       const row = rowPath ? dataGet(values, rowPath) : null;
-      const linkPath =
-        row && typeof row === 'object' && typeof row.url === 'string' ? `${rowPath}.url` : null;
+      const linkPath = row && typeof row === 'object' && typeof row.url === 'string' ? `${rowPath}.url` : null;
 
       editSession = {
         container,
@@ -1108,9 +1099,7 @@ export function handleThemeSwatchesRequest(data, win) {
     );
 
   if (!themeSwatchesPromise) {
-    const cpUrl =
-      win.Statamic?.$config?.get?.('cpUrl') ||
-      `/${win.Statamic?.$config?.get?.('cpRoute') || 'cp'}`;
+    const cpUrl = win.Statamic?.$config?.get?.('cpUrl') || `/${win.Statamic?.$config?.get?.('cpRoute') || 'cp'}`;
 
     themeSwatchesPromise = win
       .fetch(`${cpUrl}/color-scheme/swatches`, {
@@ -1383,8 +1372,7 @@ export function handleBardCommand(data, doc, win) {
     const fieldEl = findFieldElement(field, doc, scope);
     // The field id sits on the content wrapper; the toolbar lives on the
     // enclosing .bard-fieldtype. Search from there for both toolbar and editor.
-    const bardEl =
-      fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
+    const bardEl = fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
     const ce = bardEl?.querySelector('.ProseMirror') || bardEl?.querySelector('[contenteditable="true"]');
 
     if (!ce) {
@@ -1415,9 +1403,7 @@ export function handleBardCommand(data, doc, win) {
     // command reads editor.state.selection.
     setTimeout(() => {
       const opened =
-        data.command === 'link'
-          ? openBardLinkToolbar(bardEl)
-          : clickBardToolbarButton(bardEl, titleRe, doc);
+        data.command === 'link' ? openBardLinkToolbar(bardEl) : clickBardToolbarButton(bardEl, titleRe, doc);
 
       if (!opened && ++attempts < 12) {
         setTimeout(run, 250);
@@ -1594,8 +1580,7 @@ export function revealBardLinkStack(doc, win) {
       return;
     }
 
-    const host =
-      stack.closest('[id^="portal-target-"]') || stack.closest('.vue-portal-target') || stack;
+    const host = stack.closest('[id^="portal-target-"]') || stack.closest('.vue-portal-target') || stack;
     const rect = stack.getBoundingClientRect();
     const offScreen = rect.right < 8 || rect.left > win.innerWidth - 8 || rect.width < 80;
 
@@ -1819,9 +1804,7 @@ export function handleAssetEdit(data, doc) {
       (data.scope ? null : doc.querySelector('.assets-fieldtype'));
 
     const browse = fieldEl
-      ? [...fieldEl.querySelectorAll('button, [role="button"]')].find((b) =>
-          /browse|gennemse/i.test(b.textContent)
-        )
+      ? [...fieldEl.querySelectorAll('button, [role="button"]')].find((b) => /browse|gennemse/i.test(b.textContent))
       : null;
 
     if (browse) {
@@ -2122,9 +2105,7 @@ export function handleMove(data, doc) {
 
     const { parentPath, index, rows: arr } = found;
 
-    const to = Number.isInteger(data.toIndex)
-      ? Math.max(0, Math.min(arr.length - 1, data.toIndex))
-      : index + direction;
+    const to = Number.isInteger(data.toIndex) ? Math.max(0, Math.min(arr.length - 1, data.toIndex)) : index + direction;
 
     if (to === index || to < 0 || to >= arr.length) {
       return; // no movement (or already first/last)
@@ -2413,9 +2394,7 @@ export function openColumnTypePicker(rowId, doc, win, attempts = 0) {
  * Pull it back into view, centered, so picking a type happens over the preview.
  */
 export function keepPickerOnScreen(doc, win, attempts = 0) {
-  const panel = [...doc.body.children].find(
-    (el) => el.style?.position === 'fixed' && el.style?.zIndex === '99999'
-  );
+  const panel = [...doc.body.children].find((el) => el.style?.position === 'fixed' && el.style?.zIndex === '99999');
 
   if (panel) {
     const left = parseFloat(panel.style.left);

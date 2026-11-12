@@ -2,11 +2,11 @@
 
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
-use MarioHamann\StatamicVisualEditor\LivePreviewSectionScope;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
-use Statamic\Facades\Cascade;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
+use MarioHamann\StatamicVisualEditor\LivePreviewSectionScope;
+use Statamic\Facades\Cascade;
 use Statamic\Statamic;
 
 /**
@@ -37,7 +37,6 @@ final class LivePreviewConfig
         // re-execute after each morph → full iframe reload ("Reload site?").
         config(['statamic.live_preview.force_reload_js_modules' => false]);
 
-
         Cascade::hydrated(function ($cascade) {
             $request = request();
 
@@ -65,15 +64,15 @@ final class LivePreviewConfig
     /** After the translations are loaded — the device names are translated. */
     public static function devices(): void
     {
-            // The device buttons ARE the breakpoints. Two lists — one in
-            // config/statamic/live_preview.php and one in the responsive field —
-            // is how a site ends up previewing a width it never wrote CSS for.
-            // Whatever `Breakpoints` says wins, so adding a size adds its button.
-            //
-            // Below the line above, and that is not tidiness: the names on those
-            // buttons are translations, and Laravel caches an empty result for a
-            // namespace it is asked about before it has been told where it lives.
-            // One early lookup and every `sve::` string on the page is a raw key.
-            config(['statamic.live_preview.devices' => Breakpoints::devices()]);
+        // The device buttons ARE the breakpoints. Two lists — one in
+        // config/statamic/live_preview.php and one in the responsive field —
+        // is how a site ends up previewing a width it never wrote CSS for.
+        // Whatever `Breakpoints` says wins, so adding a size adds its button.
+        //
+        // Below the line above, and that is not tidiness: the names on those
+        // buttons are translations, and Laravel caches an empty result for a
+        // namespace it is asked about before it has been told where it lives.
+        // One early lookup and every `sve::` string on the page is a raw key.
+        config(['statamic.live_preview.devices' => Breakpoints::devices()]);
     }
 }

@@ -43,7 +43,16 @@ import { HEADER_TOOLBAR_ID } from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
-import { NONE, actionFor, cleanShortcutMap, comboFromEvent, isMac, resolveShortcuts, shortcutsConfig, siteShortcuts } from './lib/shortcuts.js';
+import {
+  NONE,
+  actionFor,
+  cleanShortcutMap,
+  comboFromEvent,
+  isMac,
+  resolveShortcuts,
+  shortcutsConfig,
+  siteShortcuts,
+} from './lib/shortcuts.js';
 
 const USER_KEY = 'sve-shortcuts';
 
@@ -108,7 +117,9 @@ export function shortcutActions(win) {
   const bar = win.document.getElementById(HEADER_TOOLBAR_ID);
   // Only what the mode Live Preview is in may have: a Build tool's keys are free in Content.
   const tools = bar
-    ? [...bar.querySelectorAll('button[data-tab]')].filter((btn) => toolbarToolAllowed(win, btn.dataset.tab)).map((btn) => `tool:${btn.dataset.tab}`)
+    ? [...bar.querySelectorAll('button[data-tab]')]
+        .filter((btn) => toolbarToolAllowed(win, btn.dataset.tab))
+        .map((btn) => `tool:${btn.dataset.tab}`)
     : [];
 
   return [...new Set(tools), ...breakpoints(win).map((row) => `size:${row.handle}`)];
@@ -257,7 +268,8 @@ function hearHost(win) {
 
 function hearFrame(win, el) {
   // Null for a frame of another origin.
-  const iwin = el?.tagName === 'IFRAME' && el !== previewFrame(win.document) && el.contentDocument ? el.contentWindow : null;
+  const iwin =
+    el?.tagName === 'IFRAME' && el !== previewFrame(win.document) && el.contentDocument ? el.contentWindow : null;
 
   if (!iwin || iwin[HEARD]) {
     return;

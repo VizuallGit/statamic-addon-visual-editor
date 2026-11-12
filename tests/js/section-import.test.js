@@ -13,7 +13,10 @@ import {
 test('one pasted element becomes the section root, keeping its own tag', () => {
   const out = rootSection('<section class="bg-white py-24">\n  <h2>Hi</h2>\n</section>', 'tailwind');
 
-  assert.match(out, /^<section id="id-\{\{ id \}\}" class="bg-white py-24" \{\{ visual_edit outline_inside="true" section_orderable="true" \}\}>/);
+  assert.match(
+    out,
+    /^<section id="id-\{\{ id \}\}" class="bg-white py-24" \{\{ visual_edit outline_inside="true" section_orderable="true" \}\}>/
+  );
   assert.match(out, /<h2>Hi<\/h2>/);
   assert.equal(out.match(/<section/g).length, 1);
 });
@@ -58,7 +61,7 @@ test('brackets that are already there are left alone', () => {
   assert.equal(bracketClasses(html), html);
 });
 
-test('the plain-CSS root holds the element\'s own names, and no dynamic class', () => {
+test("the plain-CSS root holds the element's own names, and no dynamic class", () => {
   const out = rootSection('<section class="hero hero--dark">x</section>', 'css');
 
   assert.match(out, /class="\[ hero hero--dark \]"/);
@@ -111,7 +114,10 @@ test('pasted braces are escaped so Antlers renders them instead of running them'
 });
 
 test('pasted CSS is scoped to the section in plain-CSS mode only', () => {
-  assert.match(scopeCss('.card { color: red }', 'css'), /^@scope\(#id-\{\{ id \}\}\) \{\n {2}\.card \{ color: red \}\n\}$/);
+  assert.match(
+    scopeCss('.card { color: red }', 'css'),
+    /^@scope\(#id-\{\{ id \}\}\) \{\n {2}\.card \{ color: red \}\n\}$/
+  );
   assert.equal(scopeCss('.card { color: red }', 'tailwind'), '.card { color: red }');
   assert.equal(scopeCss('', 'css'), '');
 });

@@ -180,11 +180,11 @@ function moduleSpecifiers(source) {
     }
 
     if (
-      (node.type === 'ImportDeclaration'
-        || node.type === 'ExportNamedDeclaration'
-        || node.type === 'ExportAllDeclaration'
-        || node.type === 'ImportExpression')
-      && node.source?.type === 'Literal'
+      (node.type === 'ImportDeclaration' ||
+        node.type === 'ExportNamedDeclaration' ||
+        node.type === 'ExportAllDeclaration' ||
+        node.type === 'ImportExpression') &&
+      node.source?.type === 'Literal'
     ) {
       specs.push(String(node.source.value));
     }
@@ -217,9 +217,11 @@ for (const name of readdirSync(ASSETS)) {
 
 if (bare.length) {
   fail(
-    'Visual Editor build has bare imports the browser cannot resolve (a dependency missing from node_modules at build time):\n  '
-    + [...new Set(bare)].join('\n  ')
+    'Visual Editor build has bare imports the browser cannot resolve (a dependency missing from node_modules at build time):\n  ' +
+      [...new Set(bare)].join('\n  ')
   );
 }
 
-console.log('Dist integrity ok: manifest files, live addon.js imports and locked recovery copies all exist; no bare imports.');
+console.log(
+  'Dist integrity ok: manifest files, live addon.js imports and locked recovery copies all exist; no bare imports.'
+);

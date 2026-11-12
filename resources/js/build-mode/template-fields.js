@@ -60,7 +60,10 @@ function load(win, view) {
     .catch(() => null)
     .then((json) => {
       asking.delete(key);
-      known.value = { ...known.value, [key]: { can: json?.can === true, fields: Array.isArray(json?.fields) ? json.fields : [] } };
+      known.value = {
+        ...known.value,
+        [key]: { can: json?.can === true, fields: Array.isArray(json?.fields) ? json.fields : [] },
+      };
     });
 }
 
@@ -94,7 +97,9 @@ export function templateFieldNames(win) {
 
 /** A field of the template's entries of a fitting type: one an element's `visual_edit` may point at. */
 export function isTemplateField(win, name, types) {
-  return !!name && (templateFields(win)?.fields || []).some((field) => field.handle === name && types.includes(field.type));
+  return (
+    !!name && (templateFields(win)?.fields || []).some((field) => field.handle === name && types.includes(field.type))
+  );
 }
 
 /**
@@ -118,7 +123,11 @@ export async function makeTemplateField(win, { kind, name, value }) {
     .fetch(API, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': csrfToken(win),
+      },
       body: JSON.stringify({ view, id: currentEntryId(win) || '', kind, name, value }),
     })
     .catch(() => null);
@@ -131,7 +140,10 @@ export async function makeTemplateField(win, { kind, name, value }) {
   const key = keyFor(win, view);
   const was = known.value[key];
 
-  known.value = { ...known.value, [key]: { can: true, fields: [...(was?.fields || []), { handle: made.handle, type: String(made.type || kind) }] } };
+  known.value = {
+    ...known.value,
+    [key]: { can: true, fields: [...(was?.fields || []), { handle: made.handle, type: String(made.type || kind) }] },
+  };
   ask('dock:reset-data-vars');
 
   if (made.reload) {

@@ -148,8 +148,10 @@ export function fromJsx(source) {
   // quoted strings become the attribute value they meant; `={true}` becomes
   // the bare attribute. An object (`{{ … }}`) is not guessed at — it has no
   // inner braces to match here, and importNotes reports it instead.
-  html = html.replace(/(\s[\w:-]+)=\{\s*(-?\d+(?:\.\d+)?|'[^'{}]*'|"[^"{}]*")\s*\}/g, (_all, attr, value) =>
-    `${attr}="${value.replace(/^['"]|['"]$/g, '')}"`);
+  html = html.replace(
+    /(\s[\w:-]+)=\{\s*(-?\d+(?:\.\d+)?|'[^'{}]*'|"[^"{}]*")\s*\}/g,
+    (_all, attr, value) => `${attr}="${value.replace(/^['"]|['"]$/g, '')}"`
+  );
   html = html.replace(/(\s[\w:-]+)=\{\s*true\s*\}/g, '$1');
   html = html.replace(/\s[\w:-]+=\{\s*false\s*\}/g, '');
 
@@ -310,9 +312,9 @@ export function rootSection(html, mode) {
       .replace(/^<\s*([a-zA-Z][\w-]*)/, '<$1');
 
     return (
-      source.slice(0, only.from)
-      + `${head} id="id-{{ id }}" class="${klass}" ${VISUAL_EDIT}${tail}`
-      + source.slice(only.openTo)
+      source.slice(0, only.from) +
+      `${head} id="id-{{ id }}" class="${klass}" ${VISUAL_EDIT}${tail}` +
+      source.slice(only.openTo)
     );
   }
 
@@ -389,12 +391,8 @@ export function importedTemplate(source, { mode = 'tailwind', css = '', js = '',
   const plain = escapeAntlers(fromJsx(peeled.html));
   const classed = mode === 'css' ? bracketClasses(plain) : plain;
 
-  const styles = [escapeAntlers(String(css || '').trim()), escapeAntlers(peeled.css)]
-    .filter(Boolean)
-    .join('\n\n');
-  const scripts = [escapeAntlers(String(js || '').trim()), escapeAntlers(peeled.js)]
-    .filter(Boolean)
-    .join('\n\n');
+  const styles = [escapeAntlers(String(css || '').trim()), escapeAntlers(peeled.css)].filter(Boolean).join('\n\n');
+  const scripts = [escapeAntlers(String(js || '').trim()), escapeAntlers(peeled.js)].filter(Boolean).join('\n\n');
 
   return {
     html: root ? rootSection(classed.trim(), mode) : classed.trim(),

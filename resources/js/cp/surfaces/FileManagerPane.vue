@@ -45,11 +45,28 @@ const target = computed(() => ui.path || ui.dir);
       <span class="sve-files__path">{{ ui.path ? ui.root + '/' + ui.path : ui.root }}</span>
       <span class="sve-files__status">{{ ui.status }}</span>
       <button type="button" class="sve-files__icon" :title="ui.reloadTitle" :disabled="!ui.path" @click="onReload">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.8"/><path d="M21 3v6h-6"/></svg>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M21 12a9 9 0 1 1-3.2-6.8" />
+          <path d="M21 3v6h-6" />
+        </svg>
       </button>
       <button type="button" class="sve-files__plain" :disabled="!target" @click="onRename">{{ ui.renameLabel }}</button>
-      <button type="button" class="sve-files__danger" :disabled="!target" @click="onDelete">{{ ui.deleteLabel }}</button>
-      <button type="button" class="sve-files__save" :disabled="!ui.path || !ui.dirty" @click="onSave">{{ ui.saveLabel }}</button>
+      <button type="button" class="sve-files__danger" :disabled="!target" @click="onDelete">{{
+        ui.deleteLabel
+      }}</button>
+      <button type="button" class="sve-files__save" :disabled="!ui.path || !ui.dirty" @click="onSave">{{
+        ui.saveLabel
+      }}</button>
     </div>
     <div class="sve-files__body">
       <aside class="sve-files__side">
@@ -62,10 +79,25 @@ const target = computed(() => ui.path || ui.dir);
               class="sve-files__dir"
               :class="{ 'is-on': ui.dir === row.path && !ui.path }"
               :style="{ paddingLeft: 0.5 + row.depth * 0.75 + 'rem' }"
-              @click="onToggleDir(row.path); onSelectDir(row.path)"
+              @click="
+                onToggleDir(row.path);
+                onSelectDir(row.path);
+              "
             >
               <span class="sve-files__caret" :class="{ 'is-open': ui.open[row.path] }">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
               </span>
               {{ row.name }}
             </button>
@@ -76,7 +108,8 @@ const target = computed(() => ui.path || ui.dir);
               :class="{ 'is-on': ui.path === row.path }"
               :style="{ paddingLeft: 1.25 + row.depth * 0.75 + 'rem' }"
               @click="onSelect(row.path)"
-            >{{ row.name }}</button>
+              >{{ row.name }}</button
+            >
           </template>
         </div>
         <div class="sve-files__adds">
@@ -125,7 +158,10 @@ const target = computed(() => ui.path || ui.dir);
   overflow: hidden;
   background: #242424;
   color: #d4d4d4;
-  font: 500 0.8125rem/1.3 ui-sans-serif, system-ui, sans-serif;
+  font:
+    500 0.8125rem/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 .sve-files__bar {
   display: flex;
@@ -222,7 +258,7 @@ const target = computed(() => ui.path || ui.dir);
   display: flex;
   flex-direction: column;
   border-right: 1px solid #3c3c3c;
-  background: #1E1E21;
+  background: #1e1e21;
 }
 .sve-files__side-label {
   padding: 0.75rem 1rem 0.5rem;
@@ -293,7 +329,10 @@ const target = computed(() => ui.path || ui.dir);
   border-radius: 0.5rem;
   background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
   color: #fff;
-  font: 600 0.75rem/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 0.75rem/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
   cursor: pointer;
 }
 .sve-files__adds button:hover {

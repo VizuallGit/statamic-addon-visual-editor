@@ -31,11 +31,11 @@ final class Labels
             return ucfirst((string) $row['handle']);
         }
 
-        if (! in_array($raw, static::LABEL_KEYS, true)) {
+        if (! in_array($raw, self::LABEL_KEYS, true)) {
             return $raw;
         }
 
-        if (! static::translationsReady()) {
+        if (! self::translationsReady()) {
             return ucfirst($raw);
         }
 

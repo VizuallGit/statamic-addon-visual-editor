@@ -74,7 +74,7 @@ class SiteClassesDefinedTest extends TestCase
         $defined = SiteClasses::defined($this->views);
         $tttt = array_values(array_filter($defined, fn ($d) => $d['name'] === 'tttt' && $d['kind'] === 'rule'))[0];
 
-        $this->assertSame(".tttt", $tttt['selector']);
+        $this->assertSame('.tttt', $tttt['selector']);
         $this->assertSame("background-color: rød;\npadding: 20rem;", $tttt['css']);
         $this->assertStringEndsWith('/tttt.css', $tttt['file']);
     }

@@ -28,7 +28,7 @@ final class Files
         // keeps its section templates is its own business, and the test suite
         // puts them elsewhere entirely. Only a src *followed* out of a template
         // has to stay in the view tree.
-        return static::filesIn([
+        return self::filesIn([
             base_path($base.'/'.$handle.'.antlers.html'),
             base_path($base.'/'.$handle.'.blade.php'),
             base_path($base.'/'.$handle),
@@ -51,7 +51,7 @@ final class Files
         }
 
         return array_values(array_filter(
-            static::filesIn($paths),
+            self::filesIn($paths),
             fn ($file) => str_starts_with($file, $views.DIRECTORY_SEPARATOR),
         ));
     }

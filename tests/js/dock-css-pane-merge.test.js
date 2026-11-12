@@ -111,7 +111,7 @@ for (const by of ['pick', 'scope']) {
   });
 }
 
-test('none: the file just opened, typing over a new rule in the root\'s pane leaves one rule and the nested .foo alone', () => {
+test("none: the file just opened, typing over a new rule in the root's pane leaves one rule and the nested .foo alone", () => {
   openOn({ by: 'none', html: HTML, css: CSS });
 
   const pane = editors.css.state.doc.toString();
@@ -140,13 +140,9 @@ test('a name another element still has in [ ] keeps its rule when the pane drops
   assert.equal(dockState.cssFull, css);
 });
 
-test('a block that is not one class\'s rule is written once, however often it changes', () => {
+test("a block that is not one class's rule is written once, however often it changes", () => {
   openOn({ by: 'pick', html: HTML, css: CSS, row: firstLi(HTML) });
-  typeEach(PANE, [
-    '\n.yyttrr:hover {}',
-    '\n.yyttrr:hover {\n    c\n}',
-    '\n.yyttrr:hover {\n    color: blue;\n}',
-  ]);
+  typeEach(PANE, ['\n.yyttrr:hover {}', '\n.yyttrr:hover {\n    c\n}', '\n.yyttrr:hover {\n    color: blue;\n}']);
 
   assert.equal(dockState.cssFull, `${CSS}.yyttrr:hover {\n    color: blue;\n}\n`);
 
@@ -154,7 +150,7 @@ test('a block that is not one class\'s rule is written once, however often it ch
   assert.equal(dockState.cssFull, CSS);
 });
 
-test('a rule typed between two of the pane\'s rules leaves no half-typed selector in front of the next', () => {
+test("a rule typed between two of the pane's rules leaves no half-typed selector in front of the next", () => {
   const html = HTML.replace('[ yyttrr ]', '[ yyttrr foo ]');
   const css = CSS.replace('#id-', `${FOO}\n\n#id-`);
 
@@ -183,9 +179,12 @@ test('a } deleted in the pane writes nothing until it is back', () => {
   assert.equal(dockState.cssFull, `${CSS}.foo {}\n`);
 });
 
-test('a comment written above the pane\'s rule goes into the file once', () => {
+test("a comment written above the pane's rule goes into the file once", () => {
   openOn({ by: 'pick', html: HTML, css: CSS, row: firstLi(HTML) });
   typeEach('/* hover state */\n', [PANE, PANE.replace('red', 'blue')]);
 
-  assert.equal(dockState.cssFull, CSS.replace('.yyttrr {\n    color: red;', '/* hover state */\n.yyttrr {\n    color: blue;'));
+  assert.equal(
+    dockState.cssFull,
+    CSS.replace('.yyttrr {\n    color: red;', '/* hover state */\n.yyttrr {\n    color: blue;')
+  );
 });

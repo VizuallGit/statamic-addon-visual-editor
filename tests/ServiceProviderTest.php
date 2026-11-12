@@ -3,24 +3,23 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Support\Facades\Event;
-use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\SveLiteSections;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
-use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
-use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
 use MarioHamann\StatamicVisualEditor\Listeners\PurgeCollectionViewTemplates;
 use MarioHamann\StatamicVisualEditor\Listeners\ScaffoldCollectionViewTemplates;
 use MarioHamann\StatamicVisualEditor\Listeners\SeedCollectionRouting;
+use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
+use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
 use MarioHamann\StatamicVisualEditor\ServiceProvider;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
-use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\CollectionCreating;
 use Statamic\Events\CollectionDeleted;
 use Statamic\Events\CollectionSaved;
+use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\EntrySaving;
 use Statamic\Events\GlobalVariablesBlueprintFound;
 use Statamic\Events\GlobalVariablesSaving;

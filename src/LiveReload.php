@@ -124,8 +124,8 @@ final class LiveReload
         clearstatcache();
 
         return [
-            'markup' => static::scan(static::dirs('markup'))['sig'],
-            'build' => static::buildSignature(),
+            'markup' => self::scan(self::dirs('markup'))['sig'],
+            'build' => self::buildSignature(),
         ];
     }
 
@@ -142,25 +142,25 @@ final class LiveReload
     {
         clearstatcache();
 
-        $markup = static::scan(static::dirs('markup'));
-        $sources = static::scan(static::dirs('sources'));
+        $markup = self::scan(self::dirs('markup'));
+        $sources = self::scan(self::dirs('sources'));
         $attempt = Cache::get(self::ATTEMPT);
         $attempt = is_array($attempt) ? $attempt : null;
 
-        static::flushWhenChanged($markup['sig']);
-        static::rememberFiles($markup);
+        self::flushWhenChanged($markup['sig']);
+        self::rememberFiles($markup);
 
-        $building = static::building();
+        $building = self::building();
 
         return [
             'markup' => $markup['sig'],
-            'build' => static::buildSignature(),
+            'build' => self::buildSignature(),
             'building' => $building,
             // While a build runs, its attempt is recorded as unfinished.
-            'error' => $building ? null : static::error($sources['sig'], $attempt),
-            'own' => static::own($markup['sig'], $session),
+            'error' => $building ? null : self::error($sources['sig'], $attempt),
+            'own' => self::own($markup['sig'], $session),
             'css' => SiteBuild::entryCss(),
-            'stale' => static::stale($sources, $attempt),
+            'stale' => self::stale($sources, $attempt),
             'sources' => $sources['sig'],
         ];
     }
@@ -192,18 +192,18 @@ final class LiveReload
      */
     public static function await(array $have, ?string $session, ?float $hold = null, ?int $tickMs = null): array
     {
-        $hold ??= static::hold();
-        $tickMs ??= static::tick();
+        $hold ??= self::hold();
+        $tickMs ??= self::tick();
         $until = microtime(true) + $hold;
         $pending = null;
 
         while (true) {
-            $status = static::status($session);
+            $status = self::status($session);
             $markupChanged = $status['markup'] !== $have['markup'];
 
             if ($markupChanged) {
                 if ($status['markup'] === $pending) {
-                    $status['changed'] = static::changed($have['markup'], $status['markup']);
+                    $status['changed'] = self::changed($have['markup'], $status['markup']);
 
                     return $status;
                 }
@@ -249,7 +249,7 @@ final class LiveReload
         clearstatcache();
 
         Cache::forever(self::OWN, [
-            'sig' => static::scan(static::dirs('markup'))['sig'],
+            'sig' => self::scan(self::dirs('markup'))['sig'],
             'session' => $session,
             'at' => microtime(true),
         ]);
@@ -330,7 +330,7 @@ final class LiveReload
      */
     public static function build(string $sources, ?callable $run = null): void
     {
-        $lock = @fopen(static::lockPath(), 'c');
+        $lock = @fopen(self::lockPath(), 'c');
 
         if ($lock === false) {
             return;
@@ -362,7 +362,7 @@ final class LiveReload
                 'at' => time(),
             ]);
 
-            $before = static::buildSignature();
+            $before = self::buildSignature();
 
             try {
                 $result = ($run ?? [SiteBuild::class, 'run'])();
@@ -381,7 +381,7 @@ final class LiveReload
 
             // The site's CSS is inlined into its pages, so a cached page keeps
             // the old CSS until the cache lets go of it.
-            if (($result['ok'] ?? false) && static::buildSignature() !== $before) {
+            if (($result['ok'] ?? false) && self::buildSignature() !== $before) {
                 Persist::flushStaticCache();
             }
         } finally {
@@ -402,7 +402,7 @@ final class LiveReload
     /** Is a build of ours running right now? */
     public static function building(): bool
     {
-        $lock = @fopen(static::lockPath(), 'c');
+        $lock = @fopen(self::lockPath(), 'c');
 
         if ($lock === false) {
             return false;
@@ -431,7 +431,7 @@ final class LiveReload
      */
     protected static function stale(array $sources, ?array $attempt): bool
     {
-        if (static::hot()) {
+        if (self::hot()) {
             return false;
         }
 
@@ -447,7 +447,7 @@ final class LiveReload
             return ($attempt['sig'] ?? null) !== $sources['sig'];
         }
 
-        $manifest = @filemtime(static::manifestPath());
+        $manifest = @filemtime(self::manifestPath());
 
         return $manifest === false || $sources['newest'] > $manifest;
     }
@@ -577,7 +577,7 @@ final class LiveReload
             $size = (int) explode(':', $stamp)[1];
             $content = $size <= self::MAX_FILE ? @file_get_contents($path) : false;
             $file = ['path' => $relative($path), 'content' => $content === false ? null : $content];
-            $parts = $content === false ? null : static::parts($file['path'], $content);
+            $parts = $content === false ? null : self::parts($file['path'], $content);
 
             if ($parts !== null) {
                 $file['parts'] = $parts;
@@ -662,7 +662,7 @@ final class LiveReload
 
     protected static function buildSignature(): string
     {
-        return (string) (@md5_file(static::manifestPath()) ?: '');
+        return (string) (@md5_file(self::manifestPath()) ?: '');
     }
 
     protected static function manifestPath(): string

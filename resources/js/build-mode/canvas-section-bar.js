@@ -44,7 +44,9 @@ const svg = (d) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" style="display:block;pointer-events:none"><path fill="currentColor" d="${d}"/></svg>`;
 const ICONS = {
   bookmark: svg('M17 3H7a2 2 0 0 0-2 2v15a1 1 0 0 0 1.55.83L12 17.2l5.45 3.63A1 1 0 0 0 19 20V5a2 2 0 0 0-2-2Z'),
-  duplicate: svg('M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z'),
+  duplicate: svg(
+    'M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z'
+  ),
   trash: svg('M6 7h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7Zm3-4h6l1 1h4v2H4V4h4l1-1Zm1 6v9h2V9H10Zm4 0v9h2V9h-2Z'),
 };
 
@@ -122,7 +124,8 @@ export function sectionBar(win, { page, frame }) {
   function fill(bar, el) {
     const peers = peersOf(el);
     const at = peers.indexOf(el);
-    const button = (act, title, html) => `<button type="button" data-act="${act}" title="${title}" aria-label="${title}">${html}</button>`;
+    const button = (act, title, html) =>
+      `<button type="button" data-act="${act}" title="${title}" aria-label="${title}">${html}</button>`;
     const parts = [];
 
     if (peers.length > 1) {
@@ -161,7 +164,10 @@ export function sectionBar(win, { page, frame }) {
     if (!current.isConnected) {
       const uid = bar.dataset.uid;
 
-      current = [...doc.querySelectorAll(`[${SECTION_ATTR}], [${GLOBAL_ROOT_ATTR}]`)].find((el) => uidOf(el) === uid && sectionOf(el) === el) || null;
+      current =
+        [...doc.querySelectorAll(`[${SECTION_ATTR}], [${GLOBAL_ROOT_ATTR}]`)].find(
+          (el) => uidOf(el) === uid && sectionOf(el) === el
+        ) || null;
 
       if (!current) {
         bar.hidden = true;
@@ -364,7 +370,13 @@ export function sectionBar(win, { page, frame }) {
       drag.raf = 0;
 
       const h = view.innerHeight;
-      const step = !point ? 0 : point.y < EDGE ? -(EDGE - point.y) / 2 : point.y > h - EDGE ? (point.y - (h - EDGE)) / 2 : 0;
+      const step = !point
+        ? 0
+        : point.y < EDGE
+          ? -(EDGE - point.y) / 2
+          : point.y > h - EDGE
+            ? (point.y - (h - EDGE)) / 2
+            : 0;
 
       if (step) {
         view.scrollBy(0, step);

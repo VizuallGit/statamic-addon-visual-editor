@@ -141,7 +141,17 @@ function fieldLists(row) {
         :disabled="ui.locked"
         @click="ui.onAdd?.($event.currentTarget)"
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </button>
     </div>
 
@@ -152,7 +162,17 @@ function fieldLists(row) {
       :disabled="ui.locked"
       @click="ui.onAdd?.($event.currentTarget)"
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </svg>
       <span>{{ ui.addLabel }}</span>
     </button>
     <p v-if="!ui.rows.length" class="sve-cprops__empty">{{ ui.emptyText }}</p>
@@ -184,7 +204,9 @@ function fieldLists(row) {
 
         <span class="sve-cprops__what">
           <span class="sve-cprops__name">{{ row.handle }}</span>
-          <span class="sve-cprops__value">{{ row.type === 'group' ? row.summary : row.default || ui.defaultLabel }}</span>
+          <span class="sve-cprops__value">{{
+            row.type === 'group' ? row.summary : row.default || ui.defaultLabel
+          }}</span>
         </span>
 
         <img
@@ -216,7 +238,17 @@ function fieldLists(row) {
               :disabled="ui.locked"
               @click.stop="row.sets.length ? ui.onAddSet?.(index) : ui.onAddField?.(index, $event.currentTarget)"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
             </button>
           </template>
           <button
@@ -229,7 +261,11 @@ function fieldLists(row) {
             :disabled="ui.locked"
             @click.stop="ui.onBind?.(index)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2" stroke-linecap="round"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+              <circle cx="12" cy="12" r="7" />
+              <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+              <path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2" stroke-linecap="round" />
+            </svg>
           </button>
           <button
             type="button"
@@ -239,7 +275,21 @@ function fieldLists(row) {
             :disabled="ui.locked"
             @click.stop="ui.onRemove?.(index)"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+            </svg>
           </button>
         </span>
       </div>
@@ -321,7 +371,17 @@ function fieldLists(row) {
                 :disabled="ui.locked"
                 @click.stop="ui.onAddField?.(index, $event.currentTarget, list.at)"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
               </button>
               <button
                 type="button"
@@ -331,7 +391,21 @@ function fieldLists(row) {
                 :disabled="ui.locked"
                 @click.stop="ui.onRemoveSet?.(index, list.at)"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
               </button>
             </div>
             <p v-if="!list.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
@@ -384,7 +458,21 @@ function fieldLists(row) {
                 :disabled="ui.locked"
                 @click.stop="ui.onRemoveField?.(index, at, list.at)"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
               </button>
             </div>
           </template>
@@ -396,7 +484,17 @@ function fieldLists(row) {
             :disabled="ui.locked"
             @click.stop="ui.onAddSet?.(index)"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
             <span>{{ ui.addSetLabel }}</span>
           </button>
         </div>
@@ -479,7 +577,18 @@ function fieldLists(row) {
             :disabled="ui.locked"
             @click.stop="ui.onExpose?.(item.key)"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
             <span>{{ ui.exposeLabel }}</span>
           </button>
         </div>
@@ -494,25 +603,25 @@ function fieldLists(row) {
      icons and text — #3858e9 on a dark card is a colour you cannot read. */
   --sve-cprops-accent: #3858e9;
   --sve-cprops-accent-soft: #93a6f7;
-  padding: .5rem 0 .625rem;
+  padding: 0.5rem 0 0.625rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 /* In the right pane the tree sits directly under it and needs the line. In the
    left column it is the whole panel and has nothing to be separated from. */
 .sve-cprops--pane {
-  padding-left: .625rem;
-  padding-right: .625rem;
-  border-bottom: 1px solid var(--sve-line, rgba(255, 255, 255, .1));
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+  border-bottom: 1px solid var(--sve-line, rgba(255, 255, 255, 0.1));
 }
 .sve-cprops__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: .6875rem;
-  letter-spacing: .06em;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  opacity: .6;
-  margin-bottom: .5rem;
+  opacity: 0.6;
+  margin-bottom: 0.5rem;
 }
 .sve-cprops__add,
 .sve-cprops__act {
@@ -523,24 +632,24 @@ function fieldLists(row) {
   justify-content: center;
   width: 1.6em;
   height: 1.6em;
-  border-radius: .3rem;
+  border-radius: 0.3rem;
   line-height: 1;
-  opacity: .65;
+  opacity: 0.65;
 }
 .sve-cprops__add {
   opacity: 1;
-  border: 1px solid rgba(255, 255, 255, .22);
-  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
 }
 .sve-cprops__add:hover,
 .sve-cprops__act:hover:not([disabled]) {
   opacity: 1;
-  background: rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, 0.18);
 }
 .sve-cprops__add[disabled],
 .sve-cprops__act[disabled] {
   cursor: default;
-  opacity: .3;
+  opacity: 0.3;
 }
 /* With no fields yet there is nothing else on screen to click, so the button
    says what it does in words rather than leaving a plus to be found. */
@@ -550,54 +659,54 @@ function fieldLists(row) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: .375em;
+  gap: 0.375em;
   width: 100%;
   box-sizing: border-box;
-  padding: .625em;
-  margin-bottom: .5em;
-  border: 1px dashed rgba(255, 255, 255, .28);
-  border-radius: .5rem;
-  font-size: .8125rem;
+  padding: 0.625em;
+  margin-bottom: 0.5em;
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
 }
 .sve-cprops__first:hover {
-  background: rgba(255, 255, 255, .08);
-  border-color: rgba(255, 255, 255, .45);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.45);
 }
 .sve-cprops__first[disabled] {
   cursor: default;
-  opacity: .35;
+  opacity: 0.35;
 }
 .sve-cprops__empty {
   margin: 0;
-  font-size: .75rem;
-  opacity: .55;
+  font-size: 0.75rem;
+  opacity: 0.55;
   line-height: 1.5;
 }
 
 /* One field, one card. */
 .sve-cprops__card {
   border: 1px solid transparent;
-  border-radius: .55rem;
-  background: rgba(255, 255, 255, .05);
-  margin-bottom: .375rem;
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 0.375rem;
 }
 .sve-cprops__card:hover {
-  background: rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, 0.08);
 }
 .sve-cprops__card[data-open] {
-  background: rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, 0.08);
 }
 /* Where the card being dragged would land. */
 .sve-cprops__card[data-over] {
   border-color: var(--sve-cprops-accent);
 }
 .sve-cprops__card[data-lifted] {
-  opacity: .4;
+  opacity: 0.4;
 }
 /* Waiting for something in the preview to be pointed at. */
 .sve-cprops__card[data-binding] {
   border-color: var(--sve-cprops-accent);
-  background: rgba(56, 88, 233, .16);
+  background: rgba(56, 88, 233, 0.16);
 }
 .sve-cprops__card[data-binding] .sve-cprops__act[aria-pressed='true'] {
   opacity: 1;
@@ -607,8 +716,8 @@ function fieldLists(row) {
 .sve-cprops__line {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  padding: .5rem;
+  gap: 0.5rem;
+  padding: 0.5rem;
   cursor: pointer;
 }
 .sve-cprops__line:active {
@@ -623,12 +732,12 @@ function fieldLists(row) {
   flex: 0 0 auto;
   width: 2.125em;
   height: 2.125em;
-  border-radius: .45rem;
-  background: rgba(56, 88, 233, .28);
+  border-radius: 0.45rem;
+  background: rgba(56, 88, 233, 0.28);
   color: var(--sve-cprops-accent-soft);
 }
 .sve-cprops__letter {
-  font-size: .9375rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1;
 }
@@ -646,7 +755,7 @@ function fieldLists(row) {
 .sve-cprops__what {
   display: flex;
   flex-direction: column;
-  gap: .1em;
+  gap: 0.1em;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -658,20 +767,20 @@ function fieldLists(row) {
   white-space: nowrap;
 }
 .sve-cprops__name {
-  font-size: .8125rem;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 .sve-cprops__value {
-  font-size: .75rem;
-  opacity: .5;
+  font-size: 0.75rem;
+  opacity: 0.5;
 }
 .sve-cprops__thumb {
   flex: 0 0 auto;
   width: 3.25em;
   height: 2.125em;
   object-fit: cover;
-  border-radius: .3rem;
-  background: rgba(255, 255, 255, .08);
+  border-radius: 0.3rem;
+  background: rgba(255, 255, 255, 0.08);
 }
 /* Synlige uden at pege på rækken. De stod på opacity 0 indtil hover, og en
    kontrol man ikke kan se, findes ikke: sletningen har været der hele tiden og
@@ -679,9 +788,9 @@ function fieldLists(row) {
    under musen, åben eller bundet — til stede uden at råbe. */
 .sve-cprops__acts {
   display: flex;
-  gap: .125rem;
+  gap: 0.125rem;
   flex: 0 0 auto;
-  opacity: .45;
+  opacity: 0.45;
 }
 .sve-cprops__card:hover .sve-cprops__acts,
 .sve-cprops__card[data-binding] .sve-cprops__acts,
@@ -690,28 +799,28 @@ function fieldLists(row) {
 }
 .sve-cprops__hint {
   margin: 0;
-  padding: 0 .5rem .5rem calc(.5rem + 2.125em + .5rem);
-  font-size: .6875rem;
+  padding: 0 0.5rem 0.5rem calc(0.5rem + 2.125em + 0.5rem);
+  font-size: 0.6875rem;
   line-height: 1.4;
   color: var(--sve-cprops-accent-soft);
 }
 
 .sve-cprops__edit {
-  padding: 0 .5rem .5rem calc(.5rem + 2.125em + .5rem);
+  padding: 0 0.5rem 0.5rem calc(0.5rem + 2.125em + 0.5rem);
 }
 .sve-cprops__pair {
   display: flex;
-  gap: .25rem;
-  margin-bottom: .25rem;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 .sve-cprops__box {
   font: inherit;
-  font-size: .8125rem;
+  font-size: 0.8125rem;
   color: inherit;
-  background: rgba(0, 0, 0, .25);
-  border: 1px solid rgba(255, 255, 255, .14);
-  border-radius: .3rem;
-  padding: .3rem .4rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.3rem;
+  padding: 0.3rem 0.4rem;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -726,8 +835,8 @@ function fieldLists(row) {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='.65' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right .55rem center;
-  background-size: .7em;
+  background-position: right 0.55rem center;
+  background-size: 0.7em;
   padding-right: 1.9rem;
 }
 .sve-cprops__pair .sve-cprops__box:first-child {
@@ -738,22 +847,22 @@ function fieldLists(row) {
 .sve-cprops__fields {
   display: flex;
   flex-direction: column;
-  gap: .25rem;
-  margin: 0 .5rem .5rem calc(.5rem + 2.125em + .5rem);
-  padding: .25rem;
-  border-radius: .45rem;
-  background: rgba(0, 0, 0, .22);
+  gap: 0.25rem;
+  margin: 0 0.5rem 0.5rem calc(0.5rem + 2.125em + 0.5rem);
+  padding: 0.25rem;
+  border-radius: 0.45rem;
+  background: rgba(0, 0, 0, 0.22);
 }
 .sve-cprops__fields .sve-cprops__empty {
-  padding: .25rem .375rem;
+  padding: 0.25rem 0.375rem;
 }
 .sve-cprops__field {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  padding: .3rem .375rem;
-  border-radius: .35rem;
-  background: rgba(255, 255, 255, .05);
+  gap: 0.5rem;
+  padding: 0.3rem 0.375rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.05);
   cursor: pointer;
   min-width: 0;
 }
@@ -761,14 +870,14 @@ function fieldLists(row) {
 .sve-cprops__set {
   display: flex;
   align-items: center;
-  gap: .375rem;
-  padding: .3rem .375rem .1rem;
-  font-size: .75rem;
+  gap: 0.375rem;
+  padding: 0.3rem 0.375rem 0.1rem;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 .sve-cprops__set + .sve-cprops__empty,
 .sve-cprops__field + .sve-cprops__set {
-  margin-top: .25rem;
+  margin-top: 0.25rem;
 }
 .sve-cprops__set--edit {
   cursor: default;
@@ -779,7 +888,7 @@ function fieldLists(row) {
 }
 .sve-cprops__setmark {
   color: var(--sve-cprops-accent-soft);
-  font-size: .875rem;
+  font-size: 0.875rem;
 }
 .sve-cprops__field[data-in-set] {
   margin-left: 1rem;
@@ -790,21 +899,21 @@ function fieldLists(row) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: .375em;
-  margin-top: .125rem;
-  padding: .4em;
-  border: 1px dashed rgba(255, 255, 255, .25);
-  border-radius: .35rem;
-  font-size: .75rem;
-  opacity: .8;
+  gap: 0.375em;
+  margin-top: 0.125rem;
+  padding: 0.4em;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 .sve-cprops__addset:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, 0.06);
 }
 .sve-cprops__addset[disabled] {
   cursor: default;
-  opacity: .35;
+  opacity: 0.35;
 }
 
 /* Nested components: read more than edited, so no hand on the line. */
@@ -821,13 +930,13 @@ function fieldLists(row) {
   text-align: right;
 }
 .sve-cprops__field[data-bound] .sve-cprops__state {
-  opacity: .85;
+  opacity: 0.85;
   color: var(--sve-cprops-accent-soft);
 }
 
 /* Open, the fields sit inside the edit area, which is already indented. */
 .sve-cprops__fields--edit {
-  margin: .25rem 0 .375rem;
+  margin: 0.25rem 0 0.375rem;
 }
 .sve-cprops__fields--edit .sve-cprops__field {
   cursor: default;
@@ -836,7 +945,7 @@ function fieldLists(row) {
 .sve-cprops__tile--small {
   width: 1.75em;
   height: 1.75em;
-  font-size: .875em;
+  font-size: 0.875em;
 }
 .sve-cprops__field .sve-cprops__name {
   flex: 1 1 auto;
@@ -848,7 +957,7 @@ function fieldLists(row) {
 .sve-cprops__fieldbox {
   display: flex;
   flex-direction: column;
-  gap: .25rem;
+  gap: 0.25rem;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -860,22 +969,22 @@ function fieldLists(row) {
 .sve-cprops__repeat[aria-pressed='true'] {
   opacity: 1;
   color: var(--sve-cprops-accent-soft);
-  background: rgba(56, 88, 233, .28);
+  background: rgba(56, 88, 233, 0.28);
 }
 .sve-cprops__repeat :deep(svg) {
-  width: .875rem;
-  height: .875rem;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 /* The publish form brings its own look; this only gives it the room. */
 .sve-cprops__form {
-  margin-top: .25rem;
+  margin-top: 0.25rem;
 }
 .sve-cprops__use {
   display: block;
-  margin-top: .3rem;
+  margin-top: 0.3rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: .6875rem;
-  opacity: .45;
+  font-size: 0.6875rem;
+  opacity: 0.45;
 }
 </style>

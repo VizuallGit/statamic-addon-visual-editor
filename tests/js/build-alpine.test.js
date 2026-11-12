@@ -1,7 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ALPINE_BEHAVIOURS } from '../../resources/js/alpine-behaviours.js';
-import { alpineAttrs, freeName, statesInScope, withAction, withAlpineAttr, withStateFor, withoutAlpineAttr } from '../../resources/js/build-mode/alpine.js';
+import {
+  alpineAttrs,
+  freeName,
+  statesInScope,
+  withAction,
+  withAlpineAttr,
+  withStateFor,
+  withoutAlpineAttr,
+} from '../../resources/js/build-mode/alpine.js';
 import { parseTemplateTree } from '../../resources/js/html-tree-parse.js';
 import { findByPath } from '../../resources/js/build-mode/place.js';
 
@@ -10,16 +18,18 @@ const SMOOTH = ALPINE_BEHAVIOURS.find((item) => item.id === 'show_smooth');
 const CLASS_WHEN = ALPINE_BEHAVIOURS.find((item) => item.id === 'class_when');
 const paths = (html) => {
   const out = [];
-  const walk = (nodes) => nodes.forEach((node) => {
-    out.push([node.tag, node.path]);
-    walk(node.children);
-  });
+  const walk = (nodes) =>
+    nodes.forEach((node) => {
+      out.push([node.tag, node.path]);
+      walk(node.children);
+    });
 
   walk(parseTemplateTree(html));
 
   return Object.fromEntries(out);
 };
-const FILE = '<section class="a" {{ visual_edit outline="true" :x="y" }}><button>Go</button><div class="b"><p>Hi</p></div></section>';
+const FILE =
+  '<section class="a" {{ visual_edit outline="true" :x="y" }}><button>Go</button><div class="b"><p>Hi</p></div></section>';
 
 test('an attribute goes right after the tag name, and bare without a value', () => {
   const { button } = paths(FILE);
@@ -44,7 +54,14 @@ test('what stands inside {{ }} in a tag is not Alpine', () => {
 
 test('an action writes the switch on the nearest tag holding both, the trigger and what follows', () => {
   const { button, div } = paths(FILE);
-  const out = withAction(FILE, { trigger: button, target: div, when: '@click', does: 'toggle', name: 'open', then: SHOW });
+  const out = withAction(FILE, {
+    trigger: button,
+    target: div,
+    when: '@click',
+    does: 'toggle',
+    name: 'open',
+    then: SHOW,
+  });
 
   assert.match(out, /<section x-data="\{ open: false \}" class="a"/);
   assert.match(out, /<button @click="open = !open">/);
@@ -75,7 +92,14 @@ test('x-data with a function cannot take a name; nothing to hold two roots is sa
 test('a button that already does something does both', () => {
   const file = '<section x-data="{ a: false }"><button @click="a = true">Go</button><div></div></section>';
   const { button, div } = paths(file);
-  const out = withAction(file, { trigger: button, target: div, when: '@click', does: 'toggle', name: 'open', then: SMOOTH });
+  const out = withAction(file, {
+    trigger: button,
+    target: div,
+    when: '@click',
+    does: 'toggle',
+    name: 'open',
+    then: SMOOTH,
+  });
 
   assert.match(out, /@click="a = true; open = !open"/);
   assert.match(out, /x-transition/);
@@ -84,7 +108,15 @@ test('a button that already does something does both', () => {
 test('a class while it is on takes the name', () => {
   const file = '<section><button>Go</button><div></div></section>';
   const { button, div } = paths(file);
-  const out = withAction(file, { trigger: button, target: div, when: '@click', does: 'on', name: 'open', then: CLASS_WHEN, classes: 'bg-red-500' });
+  const out = withAction(file, {
+    trigger: button,
+    target: div,
+    when: '@click',
+    does: 'on',
+    name: 'open',
+    then: CLASS_WHEN,
+    classes: 'bg-red-500',
+  });
 
   assert.match(out, /:class="open \? 'bg-red-500' : ''"/);
   assert.doesNotMatch(out, /x-cloak/);
@@ -93,15 +125,23 @@ test('a class while it is on takes the name', () => {
 test('switches in reach, nearest first', () => {
   const file = '<section x-data="{ a: false }"><div x-data="{ b: true }"><p></p></div></section>';
 
-  assert.deepEqual(statesInScope(file, paths(file).p).map((state) => [state.name, state.tag]), [['b', 'div'], ['a', 'section']]);
+  assert.deepEqual(
+    statesInScope(file, paths(file).p).map((state) => [state.name, state.tag]),
+    [
+      ['b', 'div'],
+      ['a', 'section'],
+    ]
+  );
 });
 
 /* ---- where the switch goes: the element that repeats, else the section (lib/group-host.js stateHost) ---- */
 
-const act = (file, trigger, target) => withAction(file, { trigger, target, when: '@click', does: 'toggle', name: 'open', then: SHOW });
+const act = (file, trigger, target) =>
+  withAction(file, { trigger, target, when: '@click', does: 'toggle', name: 'open', then: SHOW });
 
 test('nothing repeats: the switch goes on the section, not on the parent', () => {
-  const file = '<section class="s"><div class="container"><button>Go</button><div class="panel">Hi</div></div></section>';
+  const file =
+    '<section class="s"><div class="container"><button>Go</button><div class="panel">Hi</div></div></section>';
   const at = paths(file);
   const out = act(file, at.button, '0:section/0:div/1:div');
 
@@ -110,7 +150,8 @@ test('nothing repeats: the switch goes on the section, not on the parent', () =>
 });
 
 test('in a card that repeats: the card, so each card opens on its own', () => {
-  const file = '<section><ul><li class="card"><div class="top"><button>Go</button></div><p>More</p></li><li class="card"><div class="top"><button>Go</button></div><p>More</p></li></ul></section>';
+  const file =
+    '<section><ul><li class="card"><div class="top"><button>Go</button></div><p>More</p></li><li class="card"><div class="top"><button>Go</button></div><p>More</p></li></ul></section>';
   const out = act(file, '0:section/0:ul/0:li/0:div/0:button', '0:section/0:ul/0:li/1:p');
 
   assert.match(out, /<li x-data="\{ open: false \}" class="card"><div class="top"><button @click="open = !open">/);
@@ -119,7 +160,8 @@ test('in a card that repeats: the card, so each card opens on its own', () => {
 });
 
 test('one card in a loop repeats on the page: the card', () => {
-  const file = '<section><div class="grid">{{ collection:cases }}<article class="case"><button>Go</button><div>Hi</div></article>{{ /collection:cases }}</div></section>';
+  const file =
+    '<section><div class="grid">{{ collection:cases }}<article class="case"><button>Go</button><div>Hi</div></article>{{ /collection:cases }}</div></section>';
   const roots = parseTemplateTree(file);
   const article = roots[0].children[0].children[0].children[0];
   const out = act(file, article.children[0].path, article.children[1].path);
@@ -128,7 +170,8 @@ test('one card in a loop repeats on the page: the card', () => {
 });
 
 test('an x-data already on the way up takes the switch, before the repeat or the section', () => {
-  const file = '<section><ul><li class="c"><div x-data="{ a: 1 }"><button>Go</button><p>x</p></div></li><li class="c"></li></ul></section>';
+  const file =
+    '<section><ul><li class="c"><div x-data="{ a: 1 }"><button>Go</button><p>x</p></div></li><li class="c"></li></ul></section>';
   const out = act(file, '0:section/0:ul/0:li/0:div/0:button', '0:section/0:ul/0:li/0:div/1:p');
 
   assert.match(out, /<div x-data="\{ a: 1, open: false \}">/);
@@ -136,15 +179,20 @@ test('an x-data already on the way up takes the switch, before the repeat or the
 });
 
 test('a name already declared higher up is used, not written again below to hide it', () => {
-  const file = '<section x-data="{ open: false }"><ul><li class="c"><button>Go</button><p>x</p></li><li class="c"></li></ul></section>';
+  const file =
+    '<section x-data="{ open: false }"><ul><li class="c"><button>Go</button><p>x</p></li><li class="c"></li></ul></section>';
   const at = '0:section/0:ul/0:li';
 
   assert.equal(withStateFor(file, `${at}/0:button`, `${at}/1:p`, 'open'), file);
-  assert.match(withStateFor(file, `${at}/0:button`, `${at}/1:p`, 'open2'), /<li x-data="\{ open2: false \}" class="c">/);
+  assert.match(
+    withStateFor(file, `${at}/0:button`, `${at}/1:p`, 'open2'),
+    /<li x-data="\{ open2: false \}" class="c">/
+  );
 });
 
 test('no section in the file — a header, a component: its outermost element holding both', () => {
-  const file = '<header class="site"><div class="bar"><nav><button>Menu</button></nav><div class="drawer">x</div></div></header>';
+  const file =
+    '<header class="site"><div class="bar"><nav><button>Menu</button></nav><div class="drawer">x</div></div></header>';
   const out = act(file, '0:header/0:div/0:nav/0:button', '0:header/0:div/1:div');
 
   assert.match(out, /<header x-data="\{ open: false \}" class="site">/);

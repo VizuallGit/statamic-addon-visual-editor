@@ -24,6 +24,7 @@ use MarioHamann\StatamicVisualEditor\AiCopy\Reply;
 class AiCopy
 {
     public const MAX_COUNT = Prompt::MAX_COUNT;
+
     public const MAX_AVOID = Prompt::MAX_AVOID;
 
     public static function ready(): bool

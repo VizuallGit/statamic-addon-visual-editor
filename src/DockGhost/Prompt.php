@@ -86,9 +86,9 @@ TXT;
     /** @return list<array{type: string, text: string, cache_control: array{type: string}}> */
     public static function system(string $section = ''): array
     {
-        $parts = [static::CONTEXT];
+        $parts = [self::CONTEXT];
 
-        if (($reference = static::visualEditReference()) !== '') {
+        if (($reference = self::visualEditReference()) !== '') {
             $parts[] = "<visual_edit_reference>\n{$reference}\n</visual_edit_reference>";
         }
 
@@ -96,7 +96,7 @@ TXT;
             $parts[] = "<house_rules>\n{$rules}\n</house_rules>";
         }
 
-        if (($data = static::siteData()) !== '') {
+        if (($data = self::siteData()) !== '') {
             $parts[] = "<site_data>\n{$data}\n</site_data>";
         }
 
@@ -104,10 +104,10 @@ TXT;
             $parts[] = "<theme_tokens>\n{$tokens}\n</theme_tokens>";
         }
 
-        $blocks = [static::cached(implode("\n\n", $parts))];
+        $blocks = [self::cached(implode("\n\n", $parts))];
 
-        if (($example = static::example($section)) !== '') {
-            $blocks[] = static::cached($example);
+        if (($example = self::example($section)) !== '') {
+            $blocks[] = self::cached($example);
         }
 
         return $blocks;
@@ -153,7 +153,7 @@ TXT;
     {
         $mode = (string) ($request['mode'] ?? 'line');
 
-        return array_key_exists($mode, static::TASKS) ? $mode : 'line';
+        return array_key_exists($mode, self::TASKS) ? $mode : 'line';
     }
 
     /**
@@ -161,46 +161,46 @@ TXT;
      */
     public static function user(array $request): string
     {
-        $mode = static::mode($request);
+        $mode = self::mode($request);
         $section = trim((string) ($request['section'] ?? ''));
-        $fields = static::fieldLines((array) ($request['fields'] ?? []));
-        $taken = static::takenLines((array) ($request['taken'] ?? []));
+        $fields = self::fieldLines((array) ($request['fields'] ?? []));
+        $taken = self::takenLines((array) ($request['taken'] ?? []));
 
-        $out = 'Task: '.static::TASKS[$mode]."\n";
+        $out = 'Task: '.self::TASKS[$mode]."\n";
 
         // Where the caret stands: in x-data="{ | the answer is Alpine state, not markup.
-        if ($mode === 'line' && ($hint = Caret::hint(Caret::of(static::before($request)))) !== '') {
+        if ($mode === 'line' && ($hint = Caret::hint(Caret::of(self::before($request)))) !== '') {
             $out .= "Caret: {$hint}\n";
         }
 
-        $loop = static::loop($request);
+        $loop = self::loop($request);
 
         // In a loop over other entries the section's own lists are not what comes next.
         if ($mode === 'block' && $loop === null) {
-            $out .= static::blockHint(static::before($request), (array) ($request['fields'] ?? []));
+            $out .= self::blockHint(self::before($request), (array) ($request['fields'] ?? []));
         }
 
         if ($mode === 'edit' || $mode === 'insert') {
-            $out .= 'Instruction: '.static::instruction($request)."\n";
+            $out .= 'Instruction: '.self::instruction($request)."\n";
         }
 
         $out .= $section !== '' ? "Section: {$section}\n" : '';
         $out .= $fields !== ''
             ? "Fields (handle · type · label):\n{$fields}\n"
             : "Fields: none known — do not write field tags.\n";
-        $out .= $loop !== null ? static::loopHint($loop) : '';
+        $out .= $loop !== null ? self::loopHint($loop) : '';
 
         if ($taken !== '') {
             $out .= "What this author took from you lately — write the way they do:\n{$taken}\n";
         }
 
-        $out .= "<before>\n".static::before($request).'</before>';
+        $out .= "<before>\n".self::before($request).'</before>';
 
         if ($mode === 'edit') {
-            $out .= "\n<selection>".static::selection($request).'</selection>';
+            $out .= "\n<selection>".self::selection($request).'</selection>';
         }
 
-        return $out."\n<after>".static::after($request)."\n</after>";
+        return $out."\n<after>".self::after($request)."\n</after>";
     }
 
     /**
@@ -211,8 +211,8 @@ TXT;
     public static function blockHint(string $before, array $fields): string
     {
         $caret = Caret::of($before);
-        $lists = static::lists($fields);
-        $loop = static::openLoop($before, array_keys($lists));
+        $lists = self::lists($fields);
+        $loop = self::openLoop($before, array_keys($lists));
         $out = ! empty($caret['inside']) ? "Caret: on an empty line inside <{$caret['inside']}>.\n" : '';
 
         if ($loop !== null) {
@@ -243,15 +243,15 @@ TXT;
     public static function loop(array $request): ?array
     {
         $loop = $request['loop'] ?? null;
-        $kind = is_array($loop) ? static::oneLine($loop['kind'] ?? '') : '';
+        $kind = is_array($loop) ? self::oneLine($loop['kind'] ?? '') : '';
 
-        if (! in_array($kind, static::FOREIGN_LOOPS, true)) {
+        if (! in_array($kind, self::FOREIGN_LOOPS, true)) {
             return null;
         }
 
         return [
             'kind' => $kind,
-            'handle' => static::oneLine($loop['handle'] ?? ''),
+            'handle' => self::oneLine($loop['handle'] ?? ''),
             'fields' => array_values(array_filter((array) ($loop['fields'] ?? []), 'is_array')),
         ];
     }
@@ -270,15 +270,15 @@ TXT;
             $loop['kind'] === 'collection' => "{{ collection from=\"{$loop['handle']}\" }}",
             default => "{{ {$loop['kind']}:{$loop['handle']} }}",
         };
-        $fields = static::fieldLines($loop['fields']);
-        $image = collect($loop['fields'])->first(fn ($field) => ($field['type'] ?? '') === 'assets' && static::oneLine($field['parent'] ?? '') === '');
+        $fields = self::fieldLines($loop['fields']);
+        $image = collect($loop['fields'])->first(fn ($field) => ($field['type'] ?? '') === 'assets' && self::oneLine($field['parent'] ?? '') === '');
         $out = "You are inside {$tag}: each row is another entry, not this page. Write its fields plain — {{ handle }} — and never {{ visual_edit }} here.\n";
 
         if ($fields !== '') {
             $out .= "Each row has (handle · type · label):\n{$fields}\n";
         }
 
-        if ($image !== null && ($handle = static::oneLine($image['var'] ?? '')) !== '') {
+        if ($image !== null && ($handle = self::oneLine($image['var'] ?? '')) !== '') {
             $out .= "Its image is {$handle}: :imagePath=\"{$handle}\" in an image component, {{ {$handle}:url }} in an <img>.\n";
         }
 
@@ -295,9 +295,9 @@ TXT;
     {
         $lists = [];
 
-        foreach (array_slice($fields, 0, static::MAX_FIELDS) as $field) {
-            $parent = is_array($field) ? static::oneLine($field['parent'] ?? '') : '';
-            $handle = is_array($field) ? static::oneLine($field['var'] ?? '') : '';
+        foreach (array_slice($fields, 0, self::MAX_FIELDS) as $field) {
+            $parent = is_array($field) ? self::oneLine($field['parent'] ?? '') : '';
+            $handle = is_array($field) ? self::oneLine($field['var'] ?? '') : '';
 
             if ($parent !== '' && $handle !== '') {
                 $lists[$parent][] = str_starts_with($handle, $parent.'.') ? substr($handle, strlen($parent) + 1) : $handle;
@@ -343,11 +343,11 @@ TXT;
     {
         $text = (string) ($request['before'] ?? '');
 
-        if (strlen($text) <= static::BEFORE) {
+        if (strlen($text) <= self::BEFORE) {
             return $text;
         }
 
-        $text = substr($text, -static::BEFORE);
+        $text = substr($text, -self::BEFORE);
         $line = strpos($text, "\n");
 
         return $line === false ? $text : substr($text, $line + 1);
@@ -358,11 +358,11 @@ TXT;
     {
         $text = (string) ($request['after'] ?? '');
 
-        if (strlen($text) <= static::AFTER) {
+        if (strlen($text) <= self::AFTER) {
             return $text;
         }
 
-        $text = substr($text, 0, static::AFTER);
+        $text = substr($text, 0, self::AFTER);
         $line = strrpos($text, "\n");
 
         return $line === false ? $text : substr($text, 0, $line);
@@ -370,12 +370,12 @@ TXT;
 
     public static function selection(array $request): string
     {
-        return substr((string) ($request['selection'] ?? ''), 0, static::SELECTION);
+        return substr((string) ($request['selection'] ?? ''), 0, self::SELECTION);
     }
 
     public static function instruction(array $request): string
     {
-        return static::oneLine(mb_substr((string) ($request['instruction'] ?? ''), 0, static::INSTRUCTION));
+        return self::oneLine(mb_substr((string) ($request['instruction'] ?? ''), 0, self::INSTRUCTION));
     }
 
     /** One line per field, nested ones indented under their parent. */
@@ -383,20 +383,20 @@ TXT;
     {
         $lines = [];
 
-        foreach (array_slice($fields, 0, static::MAX_FIELDS) as $field) {
+        foreach (array_slice($fields, 0, self::MAX_FIELDS) as $field) {
             if (! is_array($field)) {
                 continue;
             }
 
-            $handle = static::oneLine($field['var'] ?? '');
+            $handle = self::oneLine($field['var'] ?? '');
 
             if ($handle === '') {
                 continue;
             }
 
-            $type = static::oneLine($field['type'] ?? '');
-            $label = static::oneLine($field['label'] ?? '');
-            $indent = static::oneLine($field['parent'] ?? '') !== '' ? '  ' : '';
+            $type = self::oneLine($field['type'] ?? '');
+            $label = self::oneLine($field['label'] ?? '');
+            $indent = self::oneLine($field['parent'] ?? '') !== '' ? '  ' : '';
 
             $lines[] = "{$indent}- {$handle}".($type !== '' ? " · {$type}" : '').($label !== '' ? " · {$label}" : '');
         }
@@ -412,13 +412,13 @@ TXT;
     {
         $lines = [];
 
-        foreach (array_slice($taken, -static::MAX_TAKEN) as $row) {
+        foreach (array_slice($taken, -self::MAX_TAKEN) as $row) {
             if (! is_array($row)) {
                 continue;
             }
 
-            $text = static::shown(mb_substr((string) ($row['text'] ?? ''), 0, static::TAKEN_CHARS));
-            $line = static::shown(mb_substr(trim((string) ($row['line'] ?? '')), -120));
+            $text = self::shown(mb_substr((string) ($row['text'] ?? ''), 0, self::TAKEN_CHARS));
+            $line = self::shown(mb_substr(trim((string) ($row['line'] ?? '')), -120));
 
             if ($text !== '') {
                 $lines[] = "- after `{$line}`: `{$text}`";
@@ -448,7 +448,7 @@ TXT;
         $examples = [];
 
         foreach (HouseStyle::newest($section) as $newest) {
-            $file = Conversation::clip((string) @file_get_contents(base_path($newest['partial'])), static::EXAMPLE);
+            $file = Conversation::clip((string) @file_get_contents(base_path($newest['partial'])), self::EXAMPLE);
 
             if (trim($file) !== '') {
                 $examples[] = "<example section=\"{$newest['handle']}\">\n{$file}\n</example>";

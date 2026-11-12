@@ -9,9 +9,22 @@ import { injectStyle } from './lib/style.js';
 import { unwrapRef } from './lib/values.js';
 import { isEmbeddedInSite, lpHeader } from './lib/live-preview.js';
 import { previewUrlFor } from './lib/entry-open.js';
-import { ENTRY_OPEN_ATTR, ENTRY_OPEN_STYLE_ID, clearEntryOpening, ensureEntryOpenStyles, entryTitleAnchor, showEntryOpening } from './lib/entry-opening.js';
+import {
+  ENTRY_OPEN_ATTR,
+  ENTRY_OPEN_STYLE_ID,
+  clearEntryOpening,
+  ensureEntryOpenStyles,
+  entryTitleAnchor,
+  showEntryOpening,
+} from './lib/entry-opening.js';
 import { publishContainers } from './lib/publish-containers.js';
-import { entrySaveSettling, entryValuesBaseline, scheduleEntryBaseline, scheduleEntryBaselineAfterSave, serializeEntryValues } from './inline-edit.js';
+import {
+  entrySaveSettling,
+  entryValuesBaseline,
+  scheduleEntryBaseline,
+  scheduleEntryBaselineAfterSave,
+  serializeEntryValues,
+} from './inline-edit.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -57,7 +70,10 @@ const OPEN_PREVIEW_STYLE_ID = '__sve-open-preview-style';
 export const ROW_TITLE_LINKS = 'a.title-index-field[href], .page-tree-branch a[href]';
 
 export function ensureOpenPreviewStyles(doc) {
-  injectStyle(doc, OPEN_PREVIEW_STYLE_ID, `
+  injectStyle(
+    doc,
+    OPEN_PREVIEW_STYLE_ID,
+    `
 @layer sve {
   [${OPEN_PREVIEW_LABEL_ATTR}] {
     display: inline-flex;
@@ -89,7 +105,8 @@ export function ensureOpenPreviewStyles(doc) {
     flex: 0 0 auto;
   }
 }
-`);
+`
+  );
 }
 
 const OPEN_PREVIEW_ICON =
@@ -243,7 +260,14 @@ export function goToPreview(win, url, fromEl) {
 
 // The loading dots beside an entry's link live in lib/entry-opening.js and
 // take themselves down on `sve-overlay-idle`; re-exported for the shell.
-export { ENTRY_OPEN_ATTR, ENTRY_OPEN_STYLE_ID, clearEntryOpening, ensureEntryOpenStyles, entryTitleAnchor, showEntryOpening };
+export {
+  ENTRY_OPEN_ATTR,
+  ENTRY_OPEN_STYLE_ID,
+  clearEntryOpening,
+  ensureEntryOpenStyles,
+  entryTitleAnchor,
+  showEntryOpening,
+};
 
 export const LP_OPENING_ATTR = 'data-sve-lp-opening';
 const LP_OPENING_STYLE_ID = '__sve-lp-opening-style';
@@ -266,7 +290,10 @@ export function markLivePreviewOpening(win, button) {
     return;
   }
 
-  injectStyle(doc, LP_OPENING_STYLE_ID, `
+  injectStyle(
+    doc,
+    LP_OPENING_STYLE_ID,
+    `
 [${LP_OPENING_ATTR}] svg {
   transform-origin: 50% 50%;
   animation: sve-lp-opening-spin .9s linear infinite;
@@ -274,7 +301,8 @@ export function markLivePreviewOpening(win, button) {
 @keyframes sve-lp-opening-spin {
   to { transform: rotate(360deg); }
 }
-`);
+`
+  );
   button.setAttribute(LP_OPENING_ATTR, '');
 
   // A button drawn without an icon gets the listing's dots instead.
@@ -557,9 +585,7 @@ export function hasUnsavedChanges(win) {
         return false;
       }
 
-      const tracked = new Set(
-        publishContainers.map((container) => container.name).filter(Boolean)
-      );
+      const tracked = new Set(publishContainers.map((container) => container.name).filter(Boolean));
 
       tracked.add('base');
 
@@ -569,9 +595,7 @@ export function hasUnsavedChanges(win) {
     /* fall through */
   }
 
-  const tracked = new Set(
-    publishContainers.map((container) => container.name).filter(Boolean)
-  );
+  const tracked = new Set(publishContainers.map((container) => container.name).filter(Boolean));
 
   tracked.add('base');
 

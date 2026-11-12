@@ -477,12 +477,23 @@ function draw(prefs) {
   };
   const measured = new Map();
   const grids = prefs.grid
-    ? live.found.grids.filter(onScreen).map((el) => measureGrid(pwin, el, measured)).filter(Boolean)
+    ? live.found.grids
+        .filter(onScreen)
+        .map((el) => measureGrid(pwin, el, measured))
+        .filter(Boolean)
     : [];
-  const flexes = prefs.flex ? live.found.flexes.filter(onScreen).map((el) => measureFlex(pwin, el)).filter(Boolean) : [];
+  const flexes = prefs.flex
+    ? live.found.flexes
+        .filter(onScreen)
+        .map((el) => measureFlex(pwin, el))
+        .filter(Boolean)
+    : [];
   const hover = hoverTarget(grids);
   const hoverEl =
-    live.hoverEl?.isConnected && !isEditorNode(live.hoverEl) && live.hoverEl !== doc.body && live.hoverEl !== doc.documentElement
+    live.hoverEl?.isConnected &&
+    !isEditorNode(live.hoverEl) &&
+    live.hoverEl !== doc.body &&
+    live.hoverEl !== doc.documentElement
       ? live.hoverEl
       : null;
 
@@ -495,11 +506,18 @@ function draw(prefs) {
       boxes: prefs.boxes ? live.found.boxes : [],
       boxModel: prefs.boxes && hoverEl ? measureBoxModel(pwin, hoverEl) : null,
       spacing: prefs.spacing && hoverEl ? measureSpacing(pwin, hoverEl) : null,
-      texts: prefs.type ? live.found.texts.filter(onScreen).map((el) => measureText(pwin, el)).filter(Boolean) : [],
-      overflow: prefs.overflow ? live.found.overflow.filter((el) => el.isConnected).map((el) => measureOverflow(el, w)) : [],
+      texts: prefs.type
+        ? live.found.texts
+            .filter(onScreen)
+            .map((el) => measureText(pwin, el))
+            .filter(Boolean)
+        : [],
+      overflow: prefs.overflow
+        ? live.found.overflow.filter((el) => el.isConnected).map((el) => measureOverflow(el, w))
+        : [],
       tokens: live.tokens,
     },
-    { layers: prefs, hover, words: words(live.win) },
+    { layers: prefs, hover, words: words(live.win) }
   );
 }
 

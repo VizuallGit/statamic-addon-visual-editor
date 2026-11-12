@@ -151,24 +151,40 @@ function onScreen(selector) {
   const b = el.getBoundingClientRect();
   const style = getComputedStyle(el);
 
-  return style.display !== 'none' && style.visibility !== 'hidden' && b.width > 0 && b.height > 0 && b.right > 0 && b.left < innerWidth;
+  return (
+    style.display !== 'none' &&
+    style.visibility !== 'hidden' &&
+    b.width > 0 &&
+    b.height > 0 &&
+    b.right > 0 &&
+    b.left < innerWidth
+  );
 }
 
 const seen = (frame, selector) => frame.evaluate(onScreen, selector);
 const waitSeen = (frame, selector, ms = 8000) => waitFor(frame, onScreen, selector, ms);
-const waitGone = (frame, selector, ms = 8000) => waitFor(frame, (sel) => !document.querySelector(sel) || !(() => {
-  const el = document.querySelector(sel);
-  const b = el.getBoundingClientRect();
-  const style = getComputedStyle(el);
+const waitGone = (frame, selector, ms = 8000) =>
+  waitFor(
+    frame,
+    (sel) =>
+      !document.querySelector(sel) ||
+      !(() => {
+        const el = document.querySelector(sel);
+        const b = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
 
-  return style.display !== 'none' && style.visibility !== 'hidden' && b.width > 0 && b.height > 0;
-})(), selector, ms);
+        return style.display !== 'none' && style.visibility !== 'hidden' && b.width > 0 && b.height > 0;
+      })(),
+    selector,
+    ms
+  );
 
-const storedKey = (frame, key) => frame.evaluate((k) => {
-  const id = window.Statamic?.$config?.get?.('sveUserId');
+const storedKey = (frame, key) =>
+  frame.evaluate((k) => {
+    const id = window.Statamic?.$config?.get?.('sveUserId');
 
-  return localStorage.getItem(id ? `sve-u:${id}:${k}` : k);
-}, key);
+    return localStorage.getItem(id ? `sve-u:${id}:${k}` : k);
+  }, key);
 
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/shortcuts-${name}.png` });
 
@@ -177,7 +193,8 @@ async function press(page, combo) {
   const parts = combo.split('+');
   const key = parts.pop();
   const held = parts.map((mod) => ({ mod: 'Meta', ctrl: 'Control', alt: 'Alt', shift: 'Shift' })[mod]);
-  const code = key.length === 1 ? `Key${key.toUpperCase()}` : { comma: 'Comma', period: 'Period', slash: 'Slash' }[key] || key;
+  const code =
+    key.length === 1 ? `Key${key.toUpperCase()}` : { comma: 'Comma', period: 'Period', slash: 'Slash' }[key] || key;
 
   for (const name of held) {
     await page.keyboard.down(name);
@@ -197,7 +214,13 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate((re) => [...document.querySelectorAll('button, a')].find((el) => new RegExp(re, 'i').test(el.textContent || ''))?.click(), 'live preview|forhåndsvisning');
+    await page.evaluate(
+      (re) =>
+        [...document.querySelectorAll('button, a')]
+          .find((el) => new RegExp(re, 'i').test(el.textContent || ''))
+          ?.click(),
+      'live preview|forhåndsvisning'
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -244,18 +267,26 @@ async function setToolShown(page, cp, key, shown) {
 }
 
 /** Focus the preview document, so the next keypress lands there. */
-const focusPreview = (cp) => cp.evaluate((sel) => {
-  const iframe = document.querySelector(sel);
+const focusPreview = (cp) =>
+  cp.evaluate((sel) => {
+    const iframe = document.querySelector(sel);
 
-  iframe.contentWindow.focus();
+    iframe.contentWindow.focus();
 
-  return document.activeElement === iframe;
-}, PREVIEW);
+    return document.activeElement === iframe;
+  }, PREVIEW);
 
 /** The preview's own frame object, for evaluating inside it. */
-const previewFrameOf = (cp) => cp.childFrames().find((f) => f.name() === 'live-preview-iframe' || /live-preview/.test(f.url())) || cp.childFrames()[0];
+const previewFrameOf = (cp) =>
+  cp.childFrames().find((f) => f.name() === 'live-preview-iframe' || /live-preview/.test(f.url())) ||
+  cp.childFrames()[0];
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 await page.evaluateOnNewDocument((path) => {
@@ -266,7 +297,9 @@ await page.evaluateOnNewDocument((path) => {
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
 
     if (url.includes(path) && method !== 'GET') {
-      return Promise.resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      return Promise.resolve(
+        new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+      );
     }
 
     return real.apply(this, arguments);
@@ -275,7 +308,12 @@ await page.evaluateOnNewDocument((path) => {
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 500 &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -306,33 +344,55 @@ try {
   const cp = await openLivePreview(page);
 
   // What applies here: built in, the site's over it — this user has nothing of their own.
-  const config = await cp.evaluate(() => JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveShortcuts') || {})));
-  const sizes = await cp.evaluate(() => JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveBreakpoints') || [])));
+  const config = await cp.evaluate(() =>
+    JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveShortcuts') || {}))
+  );
+  const sizes = await cp.evaluate(() =>
+    JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveBreakpoints') || []))
+  );
   const active = { ...(config.builtIn || {}), ...(config.site || {}) };
   const combo = (action) => active[action];
 
   if (!combo('tool:globals') || !combo('tool:pages') || !combo('tool:xray') || !combo('size:mobile')) {
-    throw new Error(`the site's PHP sends no shortcuts (sveShortcuts) — it is older than this build: ${JSON.stringify(active)}`);
+    throw new Error(
+      `the site's PHP sends no shortcuts (sveShortcuts) — it is older than this build: ${JSON.stringify(active)}`
+    );
   }
 
   const mobile = sizes.find((row) => row.handle === 'mobile');
-  const icons = await cp.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab]`)].map((btn) => btn.dataset.tab), BAR);
+  const icons = await cp.evaluate(
+    (bar) => [...document.querySelectorAll(`${bar} button[data-tab]`)].map((btn) => btn.dataset.tab),
+    BAR
+  );
 
-  info(`shortcuts: ${Object.entries(active).map(([a, c]) => `${a}=${c}`).join(' ')}`);
-  step('the user has the icons the run presses', ['globals', 'pages', 'xray'].every((key) => icons.includes(key)), icons.join(' '));
+  info(
+    `shortcuts: ${Object.entries(active)
+      .map(([a, c]) => `${a}=${c}`)
+      .join(' ')}`
+  );
+  step(
+    'the user has the icons the run presses',
+    ['globals', 'pages', 'xray'].every((key) => icons.includes(key)),
+    icons.join(' ')
+  );
 
   // ── ⌘G: Globals opens and closes ──────────────────────────────────────
-  const globalsOpen = () => cp.evaluate((sels) => sels.some((sel) => {
-    const el = document.querySelector(sel);
+  const globalsOpen = () =>
+    cp.evaluate(
+      (sels) =>
+        sels.some((sel) => {
+          const el = document.querySelector(sel);
 
-    if (!el) {
-      return false;
-    }
+          if (!el) {
+            return false;
+          }
 
-    const b = el.getBoundingClientRect();
+          const b = el.getBoundingClientRect();
 
-    return getComputedStyle(el).display !== 'none' && b.width > 0 && b.height > 0;
-  }), [GLOBALS_PICKER, GLOBALS_PANEL]);
+          return getComputedStyle(el).display !== 'none' && b.width > 0 && b.height > 0;
+        }),
+      [GLOBALS_PICKER, GLOBALS_PANEL]
+    );
 
   await press(page, combo('tool:globals'));
   await waitFor(cp, () => true, null, 300);
@@ -351,10 +411,20 @@ try {
   await sleep(600);
 
   const device = await storedKey(cp, 'sve-lp-device');
-  const previewWidth = await cp.evaluate((sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().width || 0), PREVIEW);
+  const previewWidth = await cp.evaluate(
+    (sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().width || 0),
+    PREVIEW
+  );
 
-  step(`${combo('size:mobile')} switches to Mobile`, device === String(mobile?.device), `stored device ${device}, preview ${previewWidth}px wide`);
-  step('the breakpoint event fired — the Tailwind row, CSS sizes and responsive fields follow it', (await cp.evaluate(() => window.__sveBp.length)) > 0);
+  step(
+    `${combo('size:mobile')} switches to Mobile`,
+    device === String(mobile?.device),
+    `stored device ${device}, preview ${previewWidth}px wide`
+  );
+  step(
+    'the breakpoint event fired — the Tailwind row, CSS sizes and responsive fields follow it',
+    (await cp.evaluate(() => window.__sveBp.length)) > 0
+  );
   await shot(page, 'mobile');
   await press(page, combo('size:laptop'));
   await sleep(600);
@@ -366,7 +436,10 @@ try {
   await press(page, combo('tool:xray'));
   step(`${combo('tool:xray')} opens X-ray anyway`, await waitSeen(cp, XRAY_BAR));
   step('its icon is still hidden', !(await seen(cp, icon('xray'))));
-  step('the hidden list is untouched', JSON.parse((await storedKey(cp, 'sve-toolbar-hidden')) || '[]').includes('xray'));
+  step(
+    'the hidden list is untouched',
+    JSON.parse((await storedKey(cp, 'sve-toolbar-hidden')) || '[]').includes('xray')
+  );
   await shot(page, 'xray-hidden-open');
   await press(page, combo('tool:xray'));
   step('a second press closes it', await waitGone(cp, XRAY_BAR));
@@ -377,25 +450,39 @@ try {
   step('Pages hidden: its frame is gone', !(await seen(cp, frame('pages'))));
   await press(page, combo('tool:pages'));
 
-  const underBar = await waitSeen(cp, UNDER_BAR, 5000) && await cp.evaluate((sels) => {
-    const [holder, picker, bar] = sels.map((sel) => document.querySelector(sel));
-    const header = [...document.querySelectorAll('.live-preview-header')].find((el) => !el.closest('#sve-lp-cover'));
+  const underBar =
+    (await waitSeen(cp, UNDER_BAR, 5000)) &&
+    (await cp.evaluate(
+      (sels) => {
+        const [holder, picker, bar] = sels.map((sel) => document.querySelector(sel));
+        const header = [...document.querySelectorAll('.live-preview-header')].find(
+          (el) => !el.closest('#sve-lp-cover')
+        );
 
-    if (!holder || !picker || !header || !holder.contains(picker)) {
-      return { ok: false, why: `holder ${!!holder}, picker in it ${!!(holder && picker && holder.contains(picker))}` };
-    }
+        if (!holder || !picker || !header || !holder.contains(picker)) {
+          return {
+            ok: false,
+            why: `holder ${!!holder}, picker in it ${!!(holder && picker && holder.contains(picker))}`,
+          };
+        }
 
-    const h = holder.getBoundingClientRect();
-    const b = header.getBoundingClientRect();
-    const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.375;
+        const h = holder.getBoundingClientRect();
+        const b = header.getBoundingClientRect();
+        const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.375;
 
-    return {
-      ok: Math.abs(h.left - (b.left + gap)) < 2 && Math.abs(h.top - (b.bottom + gap)) < 2,
-      why: `holder at ${Math.round(h.left)},${Math.round(h.top)}; bar left ${Math.round(b.left)}, bottom ${Math.round(b.bottom)}; bar node ${!!bar}`,
-    };
-  }, [UNDER_BAR, PAGES_PICKER, BAR]);
+        return {
+          ok: Math.abs(h.left - (b.left + gap)) < 2 && Math.abs(h.top - (b.bottom + gap)) < 2,
+          why: `holder at ${Math.round(h.left)},${Math.round(h.top)}; bar left ${Math.round(b.left)}, bottom ${Math.round(b.bottom)}; bar node ${!!bar}`,
+        };
+      },
+      [UNDER_BAR, PAGES_PICKER, BAR]
+    ));
 
-  step(`${combo('tool:pages')} with Pages hidden: its picker stands under the bar's left edge`, underBar?.ok === true, underBar?.why || 'no holder');
+  step(
+    `${combo('tool:pages')} with Pages hidden: its picker stands under the bar's left edge`,
+    underBar?.ok === true,
+    underBar?.why || 'no holder'
+  );
   step('the icon stays hidden', !(await seen(cp, frame('pages'))) && !(await seen(cp, icon('pages'))));
   await shot(page, 'pages-hidden-open');
   await press(page, combo('tool:pages'));
@@ -409,14 +496,22 @@ try {
 
   await preview.evaluate(() => {
     window.__svePrevented = [];
-    window.addEventListener('keydown', (e) => window.__svePrevented.push({ key: e.key, prevented: e.defaultPrevented }), true);
+    window.addEventListener(
+      'keydown',
+      (e) => window.__svePrevented.push({ key: e.key, prevented: e.defaultPrevented }),
+      true
+    );
   });
   await press(page, combo('tool:pages'));
   step(`${combo('tool:pages')} with the preview focused opens Pages`, await waitSeen(cp, PAGES_PICKER, 4000));
 
   const taken = await preview.evaluate(() => window.__svePrevented);
 
-  step('and the preview took the key from the browser (no print dialog)', taken.some((e) => e.prevented), JSON.stringify(taken));
+  step(
+    'and the preview took the key from the browser (no print dialog)',
+    taken.some((e) => e.prevented),
+    JSON.stringify(taken)
+  );
   await shot(page, 'pages-from-preview');
   await press(page, combo('tool:pages'));
   await sleep(300);
@@ -441,7 +536,9 @@ try {
     step('⌘B typed in a Bard field stays with Bard: Blueprint does not open', !drawer && bold);
     await page.keyboard.press('Backspace');
   } else {
-    info(`no Bard field on this page's panel, or Blueprint is not mod+b (${combo('tool:blueprint')}) — the Bard step is skipped`);
+    info(
+      `no Bard field on this page's panel, or Blueprint is not mod+b (${combo('tool:blueprint')}) — the Bard step is skipped`
+    );
   }
 
   if (icons.includes('code') && combo('size:laptop') === 'mod+d') {
@@ -458,7 +555,10 @@ try {
       await sleep(200);
       await press(page, 'mod+d');
       await sleep(500);
-      step('⌘D in the HTML dock stays CodeMirror’s: the size does not change', (await storedKey(cp, 'sve-lp-device')) === String(mobile?.device));
+      step(
+        '⌘D in the HTML dock stays CodeMirror’s: the size does not change',
+        (await storedKey(cp, 'sve-lp-device')) === String(mobile?.device)
+      );
     } else {
       info('the dock opened without an editor to type in — the ⌘D step is skipped');
     }
@@ -489,7 +589,10 @@ try {
   await sleep(200);
   await press(page, 'mod+k');
   step('⌘K recorded for Globals', (await cp.$eval(keyOf('tool:globals'), (el) => el.textContent.trim())) === '⌘K');
-  step('stored as this user’s own', JSON.parse((await storedKey(cp, 'sve-shortcuts')) || '{}')['tool:globals'] === 'mod+k');
+  step(
+    'stored as this user’s own',
+    JSON.parse((await storedKey(cp, 'sve-shortcuts')) || '{}')['tool:globals'] === 'mod+k'
+  );
   await closeMenu(page, cp);
   await press(page, 'mod+k');
   await sleep(300);
@@ -507,11 +610,18 @@ try {
 
   const moved = JSON.parse((await storedKey(cp, 'sve-shortcuts')) || '{}');
 
-  step('«move here»: Pages has ⌘K, Globals none', moved['tool:pages'] === 'mod+k' && moved['tool:globals'] === 'none', JSON.stringify(moved));
+  step(
+    '«move here»: Pages has ⌘K, Globals none',
+    moved['tool:pages'] === 'mod+k' && moved['tool:globals'] === 'none',
+    JSON.stringify(moved)
+  );
   await click(page, cp, `${MENU} [data-sve-shortcuts-reset]`);
   await sleep(300);
   step('Reset takes this user’s own away', (await storedKey(cp, 'sve-shortcuts')) === null);
-  step('and the built-in one shows again', (await cp.$eval(keyOf('tool:globals'), (el) => el.textContent.trim())) === '⌘G');
+  step(
+    'and the built-in one shows again',
+    (await cp.$eval(keyOf('tool:globals'), (el) => el.textContent.trim())) === '⌘G'
+  );
   await closeMenu(page, cp);
   await press(page, combo('tool:globals'));
   await sleep(300);

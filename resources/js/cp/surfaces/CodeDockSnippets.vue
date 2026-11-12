@@ -43,7 +43,12 @@ const shown = computed(() => {
   const text = query.value;
 
   return props.rows.filter(
-    (row) => !text || row.name.toLowerCase().includes(text) || String(row.hint || '').toLowerCase().includes(text)
+    (row) =>
+      !text ||
+      row.name.toLowerCase().includes(text) ||
+      String(row.hint || '')
+        .toLowerCase()
+        .includes(text)
   );
 });
 
@@ -51,7 +56,10 @@ onMounted(() => nextTick(() => input.value?.focus()));
 
 /** `HTML · CSS` — the panes a pick writes to. */
 function flags(row) {
-  return ['html', 'css', 'js'].filter((part) => row[part]).map((part) => part.toUpperCase()).join(' · ');
+  return ['html', 'css', 'js']
+    .filter((part) => row[part])
+    .map((part) => part.toUpperCase())
+    .join(' · ');
 }
 
 function move(step) {
@@ -111,8 +119,18 @@ function submit() {
 
 <template>
   <div data-sve-data-search>
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </svg>
     <input
       ref="input"
@@ -126,7 +144,7 @@ function submit() {
       @keydown.up.prevent="move(-1)"
       @keydown.enter.prevent="submit"
       @keydown.escape.stop
-    >
+    />
   </div>
 
   <div v-if="loading" data-sve-data-empty>{{ loadingText }}</div>
@@ -149,10 +167,5 @@ function submit() {
     </button>
   </div>
 
-  <button
-    type="button"
-    data-sve-snippet-save
-    @mousedown.prevent
-    @click.prevent.stop="onSave"
-  >{{ saveLabel }}</button>
+  <button type="button" data-sve-snippet-save @mousedown.prevent @click.prevent.stop="onSave">{{ saveLabel }}</button>
 </template>

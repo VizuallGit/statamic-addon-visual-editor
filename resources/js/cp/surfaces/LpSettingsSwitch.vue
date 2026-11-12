@@ -22,6 +22,6 @@ defineEmits(['change']);
       class="sve-lp-settings__switch"
       :checked="on"
       @change="$emit('change', $event.target.checked)"
-    >
+    />
   </label>
 </template>

@@ -60,7 +60,7 @@ function replaceWith(el, name, commit) {
             @keydown.stop
             @keydown.enter.prevent="on.commit($event.target.value)"
             @blur="on.commit($event.target.value)"
-          >
+          />
           <button
             type="button"
             data-sve-help-data
@@ -79,7 +79,8 @@ function replaceWith(el, name, commit) {
             type="button"
             :disabled="!canEdit"
             @click="on.branch(branch.id)"
-          >{{ branch.label }}</button>
+            >{{ branch.label }}</button
+          >
         </div>
       </template>
     </div>

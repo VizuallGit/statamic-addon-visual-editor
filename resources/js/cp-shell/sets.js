@@ -56,7 +56,9 @@ export function directReplicatorSets(root) {
  * return the matching replicator set element.
  */
 export function setElFromValuesPath(doc, path) {
-  const parts = String(path || '').split('.').filter(Boolean);
+  const parts = String(path || '')
+    .split('.')
+    .filter(Boolean);
 
   if (parts.length < 2) {
     return null;
@@ -382,9 +384,7 @@ export function ownHeaderToggle(setEl) {
     return null;
   }
 
-  return (
-    [...header.children].find((el) => el.matches('button[type="button"]')) || null
-  );
+  return [...header.children].find((el) => el.matches('button[type="button"]')) || null;
 }
 
 /** Folds a set back up. The mirror of expandSet, and collapsed already is done. */

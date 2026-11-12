@@ -4,48 +4,113 @@
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_font }}</span>
       <span class="sve-theme__input">
-        <select :value="firstFamily(ui.type['font-base'])" @change="h.onType('font-base', withFamily(ui.type['font-base'], $event.target.value))">
-          <option v-for="family in familiesWith(ui.type['font-base'])" :key="family" :value="family">{{ family }}</option>
+        <select
+          :value="firstFamily(ui.type['font-base'])"
+          @change="h.onType('font-base', withFamily(ui.type['font-base'], $event.target.value))"
+        >
+          <option v-for="family in familiesWith(ui.type['font-base'])" :key="family" :value="family">{{
+            family
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_size }}</span>
       <span class="sve-theme__input">
-        <select :value="sizeRef(ui.type['font-size']) || ''" @change="h.onType('font-size', `var(--${$event.target.value})`)">
+        <select
+          :value="sizeRef(ui.type['font-size']) || ''"
+          @change="h.onType('font-size', `var(--${$event.target.value})`)"
+        >
           <option v-for="o in sizeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_weight }}</span>
       <span class="sve-theme__input">
         <select :value="bodyWeight" data-sve-type="body-weight" @change="h.onType('body-weight', $event.target.value)">
-          <option v-for="o in withCurrent(weightOptions(ui.type['font-base']), bodyWeight)" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <option
+            v-for="o in withCurrent(weightOptions(ui.type['font-base']), bodyWeight)"
+            :key="o.value"
+            :value="o.value"
+            >{{ o.label }}</option
+          >
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_line_height }}</span>
       <span class="sve-theme__input">
         <select :value="bodyLeading" data-sve-type="line-height" @change="h.onType('line-height', $event.target.value)">
-          <option v-for="o in withCurrent(leadingOptions, bodyLeading)" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <option v-for="o in withCurrent(leadingOptions, bodyLeading)" :key="o.value" :value="o.value">{{
+            o.label
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <!-- Last: the page's text and background. Headings inherit the text color,
          and a section that sets its own color wins. -->
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_color }}</span>
-      <ThemeColorSelect token="body-color" :value="valueOf('body-color')" :label="ui.labels.type_color" :on-change="(v) => h.onType('body-color', v)" />
+      <ThemeColorSelect
+        token="body-color"
+        :value="valueOf('body-color')"
+        :label="ui.labels.type_color"
+        :on-change="(v) => h.onType('body-color', v)"
+      />
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_background }}</span>
-      <ThemeColorSelect token="body-bg" :value="valueOf('body-bg')" :label="ui.labels.type_background" :on-change="(v) => h.onType('body-bg', v)" />
+      <ThemeColorSelect
+        token="body-bg"
+        :value="valueOf('body-bg')"
+        :label="ui.labels.type_background"
+        :on-change="(v) => h.onType('body-bg', v)"
+      />
     </label>
   </div>
 
@@ -54,28 +119,78 @@
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_font }}</span>
       <span class="sve-theme__input">
-        <select :value="firstFamily(ui.type['font-heading'])" @change="h.onType('font-heading', withFamily(ui.type['font-heading'], $event.target.value))">
-          <option v-for="family in familiesWith(ui.type['font-heading'])" :key="family" :value="family">{{ family }}</option>
+        <select
+          :value="firstFamily(ui.type['font-heading'])"
+          @change="h.onType('font-heading', withFamily(ui.type['font-heading'], $event.target.value))"
+        >
+          <option v-for="family in familiesWith(ui.type['font-heading'])" :key="family" :value="family">{{
+            family
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_weight }}</span>
       <span class="sve-theme__input">
-        <select :value="headingWeight" data-sve-type="heading-weight" @change="h.onType('heading-weight', $event.target.value)">
-          <option v-for="o in withCurrent(weightOptions(ui.type['font-heading']), headingWeight)" :key="o.value" :value="o.value">{{ o.label }}</option>
+        <select
+          :value="headingWeight"
+          data-sve-type="heading-weight"
+          @change="h.onType('heading-weight', $event.target.value)"
+        >
+          <option
+            v-for="o in withCurrent(weightOptions(ui.type['font-heading']), headingWeight)"
+            :key="o.value"
+            :value="o.value"
+            >{{ o.label }}</option
+          >
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_line_height }}</span>
       <span class="sve-theme__input">
-        <select :value="headingLeading" data-sve-type="heading-line-height" @change="h.onType('heading-line-height', $event.target.value)">
-          <option v-for="o in withCurrent(leadingOptions, headingLeading)" :key="o.value" :value="o.value">{{ o.label }}</option>
+        <select
+          :value="headingLeading"
+          data-sve-type="heading-line-height"
+          @change="h.onType('heading-line-height', $event.target.value)"
+        >
+          <option v-for="o in withCurrent(leadingOptions, headingLeading)" :key="o.value" :value="o.value">{{
+            o.label
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <div class="sve-theme__switch-row">
@@ -87,8 +202,11 @@
         :class="{ 'is-on': ui.type['heading-text-transform'] === 'uppercase' }"
         :aria-checked="ui.type['heading-text-transform'] === 'uppercase'"
         :aria-label="ui.labels.type_uppercase"
-        @click="h.onType('heading-text-transform', ui.type['heading-text-transform'] === 'uppercase' ? 'none' : 'uppercase')"
-      ><span></span></button>
+        @click="
+          h.onType('heading-text-transform', ui.type['heading-text-transform'] === 'uppercase' ? 'none' : 'uppercase')
+        "
+        ><span></span
+      ></button>
     </div>
 
     <!-- Each level: its size, and a weight and line height of its own or the headings' (dimmed). -->
@@ -138,49 +256,132 @@
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_font }}</span>
       <span class="sve-theme__input">
-        <select :value="firstFamily(ui.type['title-font'])" data-sve-type="title-font" @change="h.onType('title-font', $event.target.value && withFamily(ui.type['font-heading'], $event.target.value))">
+        <select
+          :value="firstFamily(ui.type['title-font'])"
+          data-sve-type="title-font"
+          @change="
+            h.onType('title-font', $event.target.value && withFamily(ui.type['font-heading'], $event.target.value))
+          "
+        >
           <option value="">{{ followText(firstFamily(ui.type['font-heading'])) }}</option>
-          <option v-for="family in familiesWith(ui.type['title-font'])" :key="family" :value="family">{{ family }}</option>
+          <option v-for="family in familiesWith(ui.type['title-font'])" :key="family" :value="family">{{
+            family
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_size }}</span>
       <span class="sve-theme__input">
-        <select :value="sizeRef(valueOf('title-size')) || ''" data-sve-type="title-size" @change="h.onType('title-size', `var(--${$event.target.value})`)">
+        <select
+          :value="sizeRef(valueOf('title-size')) || ''"
+          data-sve-type="title-size"
+          @change="h.onType('title-size', `var(--${$event.target.value})`)"
+        >
           <option v-for="o in sizeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_weight }}</span>
       <span class="sve-theme__input">
-        <select :value="ui.type['title-weight']" data-sve-type="title-weight" @change="h.onType('title-weight', $event.target.value)">
+        <select
+          :value="ui.type['title-weight']"
+          data-sve-type="title-weight"
+          @change="h.onType('title-weight', $event.target.value)"
+        >
           <option value="">{{ followText(headingWeight) }}</option>
-          <option v-for="o in withCurrent(weightOptions(titleStack), ui.type['title-weight'])" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <option
+            v-for="o in withCurrent(weightOptions(titleStack), ui.type['title-weight'])"
+            :key="o.value"
+            :value="o.value"
+            >{{ o.label }}</option
+          >
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_line_height }}</span>
       <span class="sve-theme__input">
-        <select :value="titleLeading" data-sve-type="title-line-height" @change="h.onType('title-line-height', $event.target.value)">
+        <select
+          :value="titleLeading"
+          data-sve-type="title-line-height"
+          @change="h.onType('title-line-height', $event.target.value)"
+        >
           <option value="">{{ followText(headingLeading) }}</option>
-          <option v-for="o in withCurrent(leadingOptions, titleLeading)" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <option v-for="o in withCurrent(leadingOptions, titleLeading)" :key="o.value" :value="o.value">{{
+            o.label
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <label class="sve-theme__field">
       <span class="sve-theme__label">{{ ui.labels.type_letter_spacing }}</span>
       <span class="sve-theme__input">
-        <select :value="titleTracking" data-sve-type="title-letter-spacing" @change="h.onType('title-letter-spacing', $event.target.value === 'normal' ? '' : $event.target.value)">
-          <option v-for="o in withCurrent(trackingOptions, titleTracking)" :key="o.value" :value="o.value">{{ o.label }}</option>
+        <select
+          :value="titleTracking"
+          data-sve-type="title-letter-spacing"
+          @change="h.onType('title-letter-spacing', $event.target.value === 'normal' ? '' : $event.target.value)"
+        >
+          <option v-for="o in withCurrent(trackingOptions, titleTracking)" :key="o.value" :value="o.value">{{
+            o.label
+          }}</option>
         </select>
-        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          class="sve-theme__chevron"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </span>
     </label>
     <div class="sve-theme__switch-row">
@@ -194,14 +395,20 @@
         :aria-label="ui.labels.type_title_uppercase"
         data-sve-type="title-text-transform"
         @click="h.onType('title-text-transform', titleUpper ? '' : 'uppercase')"
-      ><span></span></button>
+        ><span></span
+      ></button>
     </div>
   </div>
 
   <div class="sve-theme__section">
     <span class="sve-theme__section-title">{{ ui.labels.type_sizes }}</span>
     <p class="sve-theme__hint" style="margin: -0.375rem 0 0">{{ ui.labels.type_sizes_hint }}</p>
-    <div class="sve-theme__aa" :style="{ '--sve-theme-aa-font': `'${firstFamily(ui.type['font-heading'])}', ui-sans-serif, system-ui, sans-serif` }">
+    <div
+      class="sve-theme__aa"
+      :style="{
+        '--sve-theme-aa-font': `'${firstFamily(ui.type['font-heading'])}', ui-sans-serif, system-ui, sans-serif`,
+      }"
+    >
       <div v-for="s in ui.sizes" :key="s.key" class="sve-theme__aa-row">
         <div class="sve-theme__aa-top">
           <span class="sve-theme__aa-name">--{{ s.name }}</span>
@@ -249,14 +456,20 @@ const titleStack = computed(() => ui.type['title-font'] || ui.type['font-heading
 const titleLeading = computed(() => leading(ui.type['title-line-height']));
 const titleTracking = computed(() => valueOf('title-letter-spacing'));
 const titleUpper = computed(() => ui.type['title-text-transform'] === 'uppercase');
-const trackingOptions = computed(() => TRACKINGS.map(([key, value]) => {
-  const name = ui.labels[`type_tracking_${key}`] || key;
+const trackingOptions = computed(() =>
+  TRACKINGS.map(([key, value]) => {
+    const name = ui.labels[`type_tracking_${key}`] || key;
 
-  return { value, label: value === 'normal' ? name : `${name} · ${value}`, short: value };
-}));
+    return { value, label: value === 'normal' ? name : `${name} · ${value}`, short: value };
+  })
+);
 
-const sizeOptions = computed(() => ui.sizes.map((s) => ({ value: s.name, label: `${s.name} · ${px(s)}`, short: s.name.replace(/^size-/, '') })));
-const leadingOptions = computed(() => ui.leadings.map((l) => ({ value: l.value, label: `${l.name} · ${l.value}`, short: l.value })));
+const sizeOptions = computed(() =>
+  ui.sizes.map((s) => ({ value: s.name, label: `${s.name} · ${px(s)}`, short: s.name.replace(/^size-/, '') }))
+);
+const leadingOptions = computed(() =>
+  ui.leadings.map((l) => ({ value: l.value, label: `${l.name} · ${l.value}`, short: l.value }))
+);
 
 /** The weights the family has (an installed one says which); every weight when it is not known. */
 function weightOptions(stack) {
@@ -264,12 +477,18 @@ function weightOptions(stack) {
   const all = Object.keys(WEIGHT_NAMES).map(Number);
   const has = family ? all.filter((w) => hasVariant(family, w, false)) : all;
 
-  return (has.length ? has : all).map((w) => ({ value: String(w), label: `${w} · ${WEIGHT_NAMES[w]}`, short: String(w) }));
+  return (has.length ? has : all).map((w) => ({
+    value: String(w),
+    label: `${w} · ${WEIGHT_NAMES[w]}`,
+    short: String(w),
+  }));
 }
 
 /** A value the list does not offer (written by hand) stays a choice. */
 function withCurrent(options, current) {
-  return !current || options.some((o) => o.value === current) ? options : [{ value: current, label: current, short: current }, ...options];
+  return !current || options.some((o) => o.value === current)
+    ? options
+    : [{ value: current, label: current, short: current }, ...options];
 }
 
 const followText = (value) => String(ui.labels.type_follow || ':value').replace(':value', value);

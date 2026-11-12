@@ -44,12 +44,18 @@ const words = (classes) => (Array.isArray(classes) ? classes : String(classes ||
 export function containerBase(classes) {
   const list = words(classes);
 
-  return list.includes(CONTAINER_CLASS) ? CONTAINER_CLASS : list.includes(OLD_CONTAINER_CLASS) ? OLD_CONTAINER_CLASS : '';
+  return list.includes(CONTAINER_CLASS)
+    ? CONTAINER_CLASS
+    : list.includes(OLD_CONTAINER_CLASS)
+      ? OLD_CONTAINER_CLASS
+      : '';
 }
 
 /** A width's class beside `base`: `container-narrow`, or `wrapper-narrow` on an older Container. '' for Normal. */
 export function widthClass(width, base = CONTAINER_CLASS) {
-  return width.cls && base === OLD_CONTAINER_CLASS ? width.cls.replace(CONTAINER_CLASS, OLD_CONTAINER_CLASS) : width.cls;
+  return width.cls && base === OLD_CONTAINER_CLASS
+    ? width.cls.replace(CONTAINER_CLASS, OLD_CONTAINER_CLASS)
+    : width.cls;
 }
 
 /** Every width class, both names, Full width last of each: a Container wears at most one. */
@@ -63,7 +69,8 @@ export function widthOf(classes) {
 
   return (
     [...CONTAINER_WIDTHS, FULL_WIDTH].find(
-      (width) => width.cls && [CONTAINER_CLASS, OLD_CONTAINER_CLASS].some((base) => list.includes(widthClass(width, base)))
+      (width) =>
+        width.cls && [CONTAINER_CLASS, OLD_CONTAINER_CLASS].some((base) => list.includes(widthClass(width, base)))
     )?.key || 'normal'
   );
 }

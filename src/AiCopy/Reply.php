@@ -26,11 +26,11 @@ final class Reply
             return [];
         }
 
-        foreach (static::candidates($reply) as $candidate) {
+        foreach (self::candidates($reply) as $candidate) {
             $rows = json_decode($candidate, true);
 
             if (is_array($rows) && $rows !== []) {
-                $out = static::strings($rows);
+                $out = self::strings($rows);
 
                 if ($out !== []) {
                     return array_slice($out, 0, $count);
@@ -38,7 +38,7 @@ final class Reply
             }
         }
 
-        return array_slice(static::fromList($reply), 0, $count);
+        return array_slice(self::fromList($reply), 0, $count);
     }
 
     /**
@@ -81,7 +81,7 @@ final class Reply
                 continue;
             }
 
-            $text = static::tidy($row);
+            $text = self::tidy($row);
 
             if ($text !== '' && ! in_array($text, $out, true)) {
                 $out[] = $text;
@@ -103,7 +103,7 @@ final class Reply
         $out = [];
 
         foreach ($rows as $row) {
-            $text = static::tidy($row);
+            $text = self::tidy($row);
 
             // A leading sentence like "Here are five suggestions:" is not one.
             if ($text === '' || str_ends_with($text, ':') || in_array($text, $out, true)) {

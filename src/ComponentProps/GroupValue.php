@@ -55,9 +55,9 @@ final class GroupValue
     public static function encode(array $fields, array $rows, bool $repeat, array $off = [], array $types = [], array $renamed = []): string
     {
         $types = array_values(array_filter($types, fn ($type) => is_string($type) && $type !== ''));
-        $renamed = static::renames($renamed, $types);
-        $rows = static::typed(static::fill($fields, $rows), $types, $renamed);
-        $off = static::positions($off, count($rows));
+        $renamed = self::renames($renamed, $types);
+        $rows = self::typed(self::fill($fields, $rows), $types, $renamed);
+        $off = self::positions($off, count($rows));
         $data = ['fields' => array_values($fields), 'repeat' => $repeat, 'rows' => $rows];
 
         if ($off !== []) {
@@ -106,14 +106,14 @@ final class GroupValue
             is_array($data['types'] ?? null) ? $data['types'] : [],
             fn ($type) => is_string($type) && $type !== ''
         ));
-        $renamed = static::renames(is_array($data['renamed'] ?? null) ? $data['renamed'] : [], $types);
-        $rows = static::typed(static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []), $types, $renamed);
+        $renamed = self::renames(is_array($data['renamed'] ?? null) ? $data['renamed'] : [], $types);
+        $rows = self::typed(self::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []), $types, $renamed);
 
         return [
             'fields' => $fields,
             'repeat' => ($data['repeat'] ?? true) === true,
             'rows' => $rows,
-            'off' => static::positions(is_array($data['off'] ?? null) ? $data['off'] : [], count($rows)),
+            'off' => self::positions(is_array($data['off'] ?? null) ? $data['off'] : [], count($rows)),
             'types' => $types,
             'renamed' => $renamed,
         ];
@@ -241,7 +241,7 @@ final class GroupValue
             $clean = [];
 
             foreach ($fields as $field) {
-                $clean[$field] = static::scalar($row[$field] ?? '');
+                $clean[$field] = self::scalar($row[$field] ?? '');
             }
 
             $out[] = $clean;
@@ -253,8 +253,8 @@ final class GroupValue
     /** Do two written values hold the same rows? */
     public static function same(string $a, string $b): bool
     {
-        $left = static::decode($a);
-        $right = static::decode($b);
+        $left = self::decode($a);
+        $right = self::decode($b);
 
         return $left !== null && $right !== null && $left['rows'] === $right['rows'] && $left['off'] === $right['off'];
     }

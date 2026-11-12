@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Support\Arr;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\RegisterPanelVisibility;
 use Statamic\Facades\Fieldset;
 use Statamic\Fields\Fieldtype;
 
@@ -45,7 +46,7 @@ class ResponsiveFields
     /**
      * Lægger fluebenet på alle felttyper.
      *
-     * Kaldes fra {@see \MarioHamann\StatamicVisualEditor\Http\Middleware\RegisterPanelVisibility},
+     * Kaldes fra {@see RegisterPanelVisibility},
      * ikke fra en service provider: teksterne skal være på brugerens sprog, og
      * sproget vælges af en middleware der kører længe efter providerne er bootet.
      * Registreres der tidligere, står der hvad sitets standardsprog siger,

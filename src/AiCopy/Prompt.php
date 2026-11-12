@@ -3,6 +3,8 @@
 namespace MarioHamann\StatamicVisualEditor\AiCopy;
 
 use MarioHamann\StatamicVisualEditor\Keywords;
+use Statamic\Facades\Site;
+use Statamic\Facades\User;
 
 /**
  * The brief for one field: its kind and length, the page's keywords, what
@@ -21,7 +23,7 @@ final class Prompt
     {
         $count = (int) ($request['count'] ?? 1);
 
-        return max(1, min(static::MAX_COUNT, $count));
+        return max(1, min(self::MAX_COUNT, $count));
     }
 
     /**
@@ -81,21 +83,21 @@ TXT,
 
     public static function prompt(array $request): string
     {
-        $kind = static::kindOf($request['kind'] ?? '');
-        $count = static::count($request);
-        $current = static::clip(trim((string) ($request['text'] ?? '')), 4000);
-        $instruction = static::clip(trim((string) ($request['instruction'] ?? '')), 2000);
+        $kind = self::kindOf($request['kind'] ?? '');
+        $count = self::count($request);
+        $current = self::clip(trim((string) ($request['text'] ?? '')), 4000);
+        $instruction = self::clip(trim((string) ($request['instruction'] ?? '')), 2000);
         // The page's own keywords if it has any; the site's if it has none.
         // A fallback, not a blend: mixing the two writes copy aimed at whatever
         // the site says about itself rather than at what this page is for.
         $pageKeywords = Keywords::clean($request['keywords'] ?? []);
         $fromSite = $pageKeywords === [];
         $keywords = $fromSite ? Keywords::site() : $pageKeywords;
-        $page = static::clip(trim((string) ($request['page'] ?? '')), 200);
-        $section = static::clip(trim((string) ($request['section'] ?? '')), 120);
-        $label = static::clip(trim((string) ($request['label'] ?? '')), 120);
-        $locale = static::language();
-        $brief = static::brief($kind, $current, max(0, (int) ($request['words'] ?? 0)));
+        $page = self::clip(trim((string) ($request['page'] ?? '')), 200);
+        $section = self::clip(trim((string) ($request['section'] ?? '')), 120);
+        $label = self::clip(trim((string) ($request['label'] ?? '')), 120);
+        $locale = self::language();
+        $brief = self::brief($kind, $current, max(0, (int) ($request['words'] ?? 0)));
 
         if ($keywords === []) {
             $keywordBlock = 'THERE ARE NO KEYWORDS. Write from the current text and the page title, and do not invent a subject.';
@@ -108,9 +110,9 @@ TXT,
         }
 
         $avoid = array_slice(array_filter(array_map(
-            fn ($row) => static::clip(trim((string) $row), 1000),
+            fn ($row) => self::clip(trim((string) $row), 1000),
             is_array($request['avoid'] ?? null) ? $request['avoid'] : []
-        )), 0, static::MAX_AVOID);
+        )), 0, self::MAX_AVOID);
 
         $avoidBlock = $avoid === []
             ? ''
@@ -129,7 +131,7 @@ TXT,
             : "\nWHAT IT SAYS NOW — the thing you are replacing. Keep its subject and its role on the page:\n{$current}\n";
 
         $wish = $instruction === ''
-            ? "The user asked for suggestions without saying more. Improve it on its own terms: clearer, and aimed at the keywords."
+            ? 'The user asked for suggestions without saying more. Improve it on its own terms: clearer, and aimed at the keywords.'
             : "WHAT THE USER ASKED FOR — this outranks everything except the shape and the length:\n{$instruction}";
 
         $plural = $count === 1 ? 'ONE suggestion' : "{$count} suggestions, each a different angle";
@@ -171,8 +173,8 @@ TXT;
      */
     protected static function language(): string
     {
-        $locale = \Statamic\Facades\User::current()?->preferredLocale()
-            ?? \Statamic\Facades\Site::current()->lang()
+        $locale = User::current()?->preferredLocale()
+            ?? Site::current()->lang()
             ?? config('app.locale', 'en');
 
         $short = strtolower(substr((string) $locale, 0, 2));

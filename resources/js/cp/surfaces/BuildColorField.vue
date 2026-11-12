@@ -23,7 +23,12 @@ const property = computed(() => props.tool.css || props.tool.tw);
 const held = computed(() => {
   port.rev.value;
 
-  return effectiveClass(port.pickedClasses().join(' '), [property.value], variantChain(port.sizes(), port.size(), port.state()), port.propertyOf);
+  return effectiveClass(
+    port.pickedClasses().join(' '),
+    [property.value],
+    variantChain(port.sizes(), port.size(), port.state()),
+    port.propertyOf
+  );
 });
 
 const color = computed(() => {

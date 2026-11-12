@@ -6,54 +6,46 @@
  */
 import { t } from '../../lib/i18n.js';
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { computed } = window.Vue;
+  Statamic.booting(() => {
+    const { computed } = window.Vue;
 
-        Statamic.$components.register('globals-picker-fieldtype', {
-            props: {
-                value: { default: null },
-                meta: { type: Object, default: () => ({}) },
-            },
+    Statamic.$components.register('globals-picker-fieldtype', {
+      props: {
+        value: { default: null },
+        meta: { type: Object, default: () => ({}) },
+      },
 
-            emits: ['update:value'],
+      emits: ['update:value'],
 
-            setup(props, { emit }) {
-                const sets = computed(() =>
-                    Array.isArray(props.meta?.sets) ? props.meta.sets : []
-                );
-                const off = computed(() =>
-                    Array.isArray(props.meta?.off) ? props.meta.off : []
-                );
+      setup(props, { emit }) {
+        const sets = computed(() => (Array.isArray(props.meta?.sets) ? props.meta.sets : []));
+        const off = computed(() => (Array.isArray(props.meta?.off) ? props.meta.off : []));
 
-                const selected = computed(() => {
-                    if (Array.isArray(props.value)) {
-                        return props.value;
-                    }
+        const selected = computed(() => {
+          if (Array.isArray(props.value)) {
+            return props.value;
+          }
 
-                    return sets.value
-                        .map((set) => set.handle)
-                        .filter((handle) => !off.value.includes(handle));
-                });
+          return sets.value.map((set) => set.handle).filter((handle) => !off.value.includes(handle));
+        });
 
-                function isChecked(handle) {
-                    return selected.value.includes(handle);
-                }
+        function isChecked(handle) {
+          return selected.value.includes(handle);
+        }
 
-                function toggle(handle) {
-                    emit(
-                        'update:value',
-                        isChecked(handle)
-                            ? selected.value.filter((h) => h !== handle)
-                            : [...selected.value, handle]
-                    );
-                }
+        function toggle(handle) {
+          emit(
+            'update:value',
+            isChecked(handle) ? selected.value.filter((h) => h !== handle) : [...selected.value, handle]
+          );
+        }
 
-                return { sets, isChecked, toggle, t: (key, replacements) => t(window, key, replacements) };
-            },
+        return { sets, isChecked, toggle, t: (key, replacements) => t(window, key, replacements) };
+      },
 
-            template: `
+      template: `
                 <div>
                     <p v-if="!sets.length" class="text-sm text-gray-600 dark:text-gray-400">
                         {{ t('globals_picker_empty') }}
@@ -75,6 +67,6 @@ import { t } from '../../lib/i18n.js';
                     </div>
                 </div>
             `,
-        });
     });
+  });
 })();

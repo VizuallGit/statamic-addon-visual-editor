@@ -2,10 +2,10 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
-use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\User;
 use Statamic\Fields\Blueprint;
+use Statamic\Fields\Fields;
 
 /**
  * The page-builder's section types, for the visual "Add section" picker: each
@@ -230,7 +230,7 @@ class SectionTypes
      * field references are already flattened — a section that imports its design
      * tabby from a shared fieldset reads the same as one declaring it inline.
      */
-    protected static function setFields(?Blueprint $blueprint, string $field, string $setHandle): ?\Statamic\Fields\Fields
+    protected static function setFields(?Blueprint $blueprint, string $field, string $setHandle): ?Fields
     {
         $replicator = $blueprint?->fields()->all()->get($field);
 

@@ -31,7 +31,7 @@ final class Conversation
 
             $out[] = [
                 'role' => $role,
-                'content' => static::clip($content, 20000),
+                'content' => self::clip($content, 20000),
             ];
         }
 

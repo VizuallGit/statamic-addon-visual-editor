@@ -45,24 +45,28 @@ const LONG = 'Count from 1 to 400, one number per line, nothing else. Do not rea
 const word = (w) => `Reply with the single word ${w} and nothing else. Do not read or edit any files.`;
 
 async function pointIn(frame, selector, nth = 0) {
-  const r = await frame.evaluate((sel, n) => {
-    const seen = [...document.querySelectorAll(sel)].filter((el) => {
+  const r = await frame.evaluate(
+    (sel, n) => {
+      const seen = [...document.querySelectorAll(sel)].filter((el) => {
+        const b = el.getBoundingClientRect();
+
+        return b.width > 0 && b.height > 0;
+      });
+      const el = seen[n];
+
+      if (!el) {
+        return null;
+      }
+
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+
       const b = el.getBoundingClientRect();
 
-      return b.width > 0 && b.height > 0;
-    });
-    const el = seen[n];
-
-    if (!el) {
-      return null;
-    }
-
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
-
-    const b = el.getBoundingClientRect();
-
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-  }, selector, nth);
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    },
+    selector,
+    nth
+  );
 
   if (!r) {
     throw new Error(`nothing visible for ${selector} [${nth}]`);
@@ -105,7 +109,11 @@ async function openLivePreview(page) {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
-    await page.evaluate(() => [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click());
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click()
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -135,18 +143,42 @@ async function ask(page, cp, text) {
   await page.keyboard.press('Enter');
 }
 
-const rows = (cp) => cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-row]`)].map((row) => ({
-  role: row.dataset.sveAiRow,
-  stopped: row.classList.contains('is-stopped'),
-  text: row.textContent.trim(),
-})), PANEL);
-const queued = (cp) => cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-queued]`)].map((row) => ({
-  text: row.querySelector('[data-sve-ai-queued-edit]')?.textContent.trim() || '',
-  ready: !row.querySelector('[data-sve-ai-send-now]')?.disabled,
-})), PANEL);
+const rows = (cp) =>
+  cp.evaluate(
+    (p) =>
+      [...document.querySelectorAll(`${p} [data-sve-ai-row]`)].map((row) => ({
+        role: row.dataset.sveAiRow,
+        stopped: row.classList.contains('is-stopped'),
+        text: row.textContent.trim(),
+      })),
+    PANEL
+  );
+const queued = (cp) =>
+  cp.evaluate(
+    (p) =>
+      [...document.querySelectorAll(`${p} [data-sve-ai-queued]`)].map((row) => ({
+        text: row.querySelector('[data-sve-ai-queued-edit]')?.textContent.trim() || '',
+        ready: !row.querySelector('[data-sve-ai-send-now]')?.disabled,
+      })),
+    PANEL
+  );
 const waiting = (cp) => cp.evaluate((p) => !!document.querySelector(`${p} [data-sve-ai-wait]`), PANEL);
-const serverChat = (cp, id) => cp.evaluate(async (tab) => (await (await fetch(`/!/sve/ai-tabs/${tab}`, { headers: { Accept: 'application/json' } })).json()).chat, id);
-const answered = (cp, w) => waitFor(cp, ([p, needle]) => [...document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`)].some((row) => row.textContent.trim().toUpperCase().includes(needle)), [PANEL, w], ANSWER_MS);
+const serverChat = (cp, id) =>
+  cp.evaluate(
+    async (tab) =>
+      (await (await fetch(`/!/sve/ai-tabs/${tab}`, { headers: { Accept: 'application/json' } })).json()).chat,
+    id
+  );
+const answered = (cp, w) =>
+  waitFor(
+    cp,
+    ([p, needle]) =>
+      [...document.querySelectorAll(`${p} [data-sve-ai-row="assistant"]`)].some((row) =>
+        row.textContent.trim().toUpperCase().includes(needle)
+      ),
+    [PANEL, w],
+    ANSWER_MS
+  );
 const runners = () => {
   try {
     return Number(execSync('pgrep -f "scripts/[c]ursor-agent.mjs" | wc -l').toString().trim());
@@ -155,12 +187,25 @@ const runners = () => {
   }
 };
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 160)} ${m.location()?.url || ''}`));
-page.on('response', (r) => r.status() >= 400 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'console',
+  (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 160)} ${m.location()?.url || ''}`)
+);
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 400 &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 let tab = '';
 let cp = null;
@@ -187,45 +232,98 @@ try {
   // ── The model ───────────────────────────────────────────────────────────
   await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-model] option`).length > 1, PANEL);
 
-  const options = await cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-model] option`)].map((o) => ({ id: o.value, text: o.textContent.trim() })), PANEL);
+  const options = await cp.evaluate(
+    (p) =>
+      [...document.querySelectorAll(`${p} [data-sve-ai-model] option`)].map((o) => ({
+        id: o.value,
+        text: o.textContent.trim(),
+      })),
+    PANEL
+  );
   const ids = options.map((o) => o.id);
 
-  step('the picker starts on Auto', options[0]?.id === '' && options[0]?.text === 'Auto' && !ids.includes('default'), options[0]?.text);
-  step('and lists only the newest of each family', options.length <= 20 && ids.includes('composer-2.5') && ids.some((id) => id.startsWith('grok-')) && !ids.includes('composer-2'), `${options.length} options: ${options.slice(1).map((o) => o.text).join(', ')}`);
+  step(
+    'the picker starts on Auto',
+    options[0]?.id === '' && options[0]?.text === 'Auto' && !ids.includes('default'),
+    options[0]?.text
+  );
+  step(
+    'and lists only the newest of each family',
+    options.length <= 20 &&
+      ids.includes('composer-2.5') &&
+      ids.some((id) => id.startsWith('grok-')) &&
+      !ids.includes('composer-2'),
+    `${options.length} options: ${options
+      .slice(1)
+      .map((o) => o.text)
+      .join(', ')}`
+  );
   await cp.select(`${PANEL} [data-sve-ai-model]`, MODEL);
   await sleep(800);
   cp = await openLivePreview(page);
   await openAi(page, cp);
-  const kept = await waitFor(cp, ([p, id]) => document.querySelector(`${p} [data-sve-ai-model]`)?.value === id, [PANEL, MODEL]);
+  const kept = await waitFor(cp, ([p, id]) => document.querySelector(`${p} [data-sve-ai-model]`)?.value === id, [
+    PANEL,
+    MODEL,
+  ]);
 
-  step('the model picked is kept after a reload', kept, kept ? '' : JSON.stringify(await cp.evaluate((p) => {
-    const select = document.querySelector(`${p} [data-sve-ai-model]`);
+  step(
+    'the model picked is kept after a reload',
+    kept,
+    kept
+      ? ''
+      : JSON.stringify(
+          await cp.evaluate((p) => {
+            const select = document.querySelector(`${p} [data-sve-ai-model]`);
 
-    return { value: select?.value, options: select?.options.length, selected: select?.selectedIndex };
-  }, PANEL)));
+            return { value: select?.value, options: select?.options.length, selected: select?.selectedIndex };
+          }, PANEL)
+        )
+  );
   step('and by the server, for that chat', (await serverChat(cp, tab)).model === MODEL);
 
   // ── Queue while it answers; × one, "Send now" the other ─────────────────
   await ask(page, cp, LONG);
-  step('the first question is being answered', await waitFor(cp, (p) => !!document.querySelector(`${p} [data-sve-ai-wait]`), PANEL));
-  step('while it answers, the button queues', /kø|queue/i.test(await cp.evaluate((p) => document.querySelector(`${p} [data-sve-ai-send]`)?.textContent || '', PANEL)));
+  step(
+    'the first question is being answered',
+    await waitFor(cp, (p) => !!document.querySelector(`${p} [data-sve-ai-wait]`), PANEL)
+  );
+  step(
+    'while it answers, the button queues',
+    /kø|queue/i.test(
+      await cp.evaluate((p) => document.querySelector(`${p} [data-sve-ai-send]`)?.textContent || '', PANEL)
+    )
+  );
 
   await ask(page, cp, word('TWO'));
   await ask(page, cp, word('THREE'));
-  step('Enter while it answers queues the questions', await waitFor(cp, (p) => {
-    const items = [...document.querySelectorAll(`${p} [data-sve-ai-queued] [data-sve-ai-send-now]`)];
+  step(
+    'Enter while it answers queues the questions',
+    await waitFor(
+      cp,
+      (p) => {
+        const items = [...document.querySelectorAll(`${p} [data-sve-ai-queued] [data-sve-ai-send-now]`)];
 
-    return items.length === 2 && items.every((b) => !b.disabled);
-  }, PANEL));
+        return items.length === 2 && items.every((b) => !b.disabled);
+      },
+      PANEL
+    )
+  );
   step('they are not in the chat yet', (await rows(cp)).filter((r) => r.role === 'user').length === 1);
   await shot(page, 'queued');
 
   await click(page, cp, `${PANEL} [data-sve-ai-queued-remove]`, 1);
-  step('× takes one out', await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-queued]`).length === 1, PANEL));
+  step(
+    '× takes one out',
+    await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-queued]`).length === 1, PANEL)
+  );
   step('on the server too', (await serverChat(cp, tab)).queue.length === 1);
 
   await click(page, cp, `${PANEL} [data-sve-ai-send-now]`, 0);
-  step('"Send now" stops the long answer', await waitFor(cp, (p) => !!document.querySelector(`${p} .sve-ai__row.is-stopped`), PANEL));
+  step(
+    '"Send now" stops the long answer',
+    await waitFor(cp, (p) => !!document.querySelector(`${p} .sve-ai__row.is-stopped`), PANEL)
+  );
   step('and asks the queued question', await answered(cp, 'TWO'));
   step('the queue is empty', (await queued(cp)).length === 0 && (await serverChat(cp, tab)).queue.length === 0);
   step('the long answer never landed', !(await rows(cp)).some((r) => r.role === 'assistant' && /\b150\b/.test(r.text)));
@@ -241,13 +339,21 @@ try {
 
   const order = (await rows(cp)).filter((r) => r.role === 'assistant' && !r.stopped).map((r) => r.text.toUpperCase());
 
-  step('in order', order.findIndex((t) => t.includes('FOUR')) < order.findIndex((t) => t.includes('FIVE')), order.slice(-3).join(' | '));
+  step(
+    'in order',
+    order.findIndex((t) => t.includes('FOUR')) < order.findIndex((t) => t.includes('FIVE')),
+    order.slice(-3).join(' | ')
+  );
 
   // ── Stop: the queue waits ───────────────────────────────────────────────
   await ask(page, cp, LONG);
   await waitFor(cp, (p) => !!document.querySelector(`${p} [data-sve-ai-wait]`), PANEL);
   await ask(page, cp, word('SEVEN'));
-  await waitFor(cp, (p) => [...document.querySelectorAll(`${p} [data-sve-ai-send-now]`)].some((b) => !b.disabled), PANEL);
+  await waitFor(
+    cp,
+    (p) => [...document.querySelectorAll(`${p} [data-sve-ai-send-now]`)].some((b) => !b.disabled),
+    PANEL
+  );
   await click(page, cp, `${PANEL} [data-sve-ai-stop]`);
   step('Stop ends the answer', await waitFor(cp, (p) => !document.querySelector(`${p} [data-sve-ai-wait]`), PANEL));
   await sleep(5000);
@@ -265,7 +371,19 @@ try {
   await shot(page, 'error');
 } finally {
   if (tab && cp) {
-    await cp.evaluate(async (id) => fetch(`/!/sve/ai-tabs/${id}`, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', Accept: 'application/json' } }), tab).catch(() => {});
+    await cp
+      .evaluate(
+        async (id) =>
+          fetch(`/!/sve/ai-tabs/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+              Accept: 'application/json',
+            },
+          }),
+        tab
+      )
+      .catch(() => {});
   }
 
   await browser.close();

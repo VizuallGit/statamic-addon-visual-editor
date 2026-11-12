@@ -71,7 +71,11 @@ export function normalizeCombo(text) {
     return '';
   }
 
-  const parts = text.trim().toLowerCase().split('+').map((part) => part.trim());
+  const parts = text
+    .trim()
+    .toLowerCase()
+    .split('+')
+    .map((part) => part.trim());
 
   if (parts.length === 1 && parts[0] === NONE) {
     return NONE;
@@ -184,7 +188,11 @@ export function formatCombo(combo, mac = false) {
   const shown = NAMED[key]?.[0] ?? key.toUpperCase();
 
   if (mac) {
-    return MAC_ORDER.filter((mod) => mods.includes(mod)).map((mod) => MAC_SYMBOL[mod]).join('') + shown;
+    return (
+      MAC_ORDER.filter((mod) => mods.includes(mod))
+        .map((mod) => MAC_SYMBOL[mod])
+        .join('') + shown
+    );
   }
 
   return [...new Set(mods.map((mod) => PC_WORD[mod])), shown].join('+');
@@ -247,7 +255,9 @@ export function siteShortcuts(site, rows = [], locked = []) {
  */
 export function resolveShortcutLayers(builtIn, site, user) {
   const maps = [builtIn, site, user].map((layer) => cleanShortcutMap(layer));
-  const later = [...new Set([...Object.keys(maps[1]), ...Object.keys(maps[2])])].filter((action) => !Object.hasOwn(maps[0], action)).sort();
+  const later = [...new Set([...Object.keys(maps[1]), ...Object.keys(maps[2])])]
+    .filter((action) => !Object.hasOwn(maps[0], action))
+    .sort();
   const order = [...Object.keys(maps[0]), ...later];
   const holders = new Map();
 
@@ -307,7 +317,9 @@ export function conflictsWith(map, combo, action) {
  */
 export function shortcutsConfig(win) {
   const raw = win?.Statamic?.$config?.get?.('sveShortcuts');
-  const locked = (Array.isArray(raw?.locked) ? raw.locked : []).map(normalizeCombo).filter((combo) => combo && combo !== NONE);
+  const locked = (Array.isArray(raw?.locked) ? raw.locked : [])
+    .map(normalizeCombo)
+    .filter((combo) => combo && combo !== NONE);
 
   return {
     builtIn: cleanShortcutMap(raw?.builtIn),

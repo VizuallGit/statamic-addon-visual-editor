@@ -33,7 +33,15 @@
  * it always was: the menu, with the scale, the custom properties and typing.
  */
 import { computed, inject, ref, watch } from 'vue';
-import { effectiveClass, fromClass, kindOf, rootFor, rootOf, typedClass, variantChain } from '../../build-mode/classes.js';
+import {
+  effectiveClass,
+  fromClass,
+  kindOf,
+  rootFor,
+  rootOf,
+  typedClass,
+  variantChain,
+} from '../../build-mode/classes.js';
 import BuildFieldReset from './BuildFieldReset.vue';
 
 const props = defineProps({
@@ -97,7 +105,9 @@ const current = computed(() => {
   return hit;
 });
 const own = computed(() => (current.value && !current.value.inherited ? current.value : null));
-const shown = computed(() => (current.value ? fromClass(current.value.name, rootFor(current.value.name, scale.value)) : ''));
+const shown = computed(() =>
+  current.value ? fromClass(current.value.name, rootFor(current.value.name, scale.value)) : ''
+);
 
 /** A name from the site's scale, not a typed value or a custom property. */
 const isToken = computed(() => !!current.value && !/[[(]/.test(current.value.name));
@@ -107,7 +117,14 @@ const seen = computed(() => {
   port.rev.value;
   port.painted?.value;
 
-  return port.seen?.(property.value, scaleProperty.value, current.value ? display(shown.value) : '', current.value?.inherited ? current.value.key : '') || null;
+  return (
+    port.seen?.(
+      property.value,
+      scaleProperty.value,
+      current.value ? display(shown.value) : '',
+      current.value?.inherited ? current.value.key : ''
+    ) || null
+  );
 });
 const grey = computed(() => (current.value ? '' : seen.value?.grey || ''));
 /* CSS mode only (build-mode/css-mode/port.js): a value from a field shows as the field. */
@@ -290,13 +307,20 @@ defineExpose({ open });
     :class="{ inh: current.inherited }"
     :title="tip"
     @click.prevent="open()"
-  >{{ display(shown) }}</span>
+    >{{ display(shown) }}</span
+  >
   <button
     v-bind="$attrs"
     ref="trigger"
     type="button"
     class="bm-vin"
-    :class="{ inh: live === null && (grey || (current && current.inherited)), 'is-empty': live === null && !current && !grey, 'has-chip': chip && isToken, 'is-scrub': !!scrub, 'is-live': live !== null }"
+    :class="{
+      inh: live === null && (grey || (current && current.inherited)),
+      'is-empty': live === null && !current && !grey,
+      'has-chip': chip && isToken,
+      'is-scrub': !!scrub,
+      'is-live': live !== null,
+    }"
     :title="tip"
     :aria-label="label || property"
     aria-haspopup="listbox"
@@ -305,7 +329,15 @@ defineExpose({ open });
     @pointerdown="press"
     @click="clicked"
     @keydown.down.prevent="open()"
-  >{{ showing }}</button>
+    >{{ showing }}</button
+  >
   <BuildFieldReset :class="$attrs.class" :hit="own" :label="label || property" />
-  <component :is="port.bindIcon" v-if="port.bindIcon" :class="$attrs.class" :property="property" :twin="twin" :label="label" />
+  <component
+    :is="port.bindIcon"
+    v-if="port.bindIcon"
+    :class="$attrs.class"
+    :property="property"
+    :twin="twin"
+    :label="label"
+  />
 </template>

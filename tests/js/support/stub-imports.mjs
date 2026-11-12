@@ -44,7 +44,12 @@ function namesFor(specifier) {
         }
       }
 
-      if (clause.replace(/\{[\s\S]*\}/, '').replace(/,/g, '').trim()) {
+      if (
+        clause
+          .replace(/\{[\s\S]*\}/, '')
+          .replace(/,/g, '')
+          .trim()
+      ) {
         names.push('default');
       }
 

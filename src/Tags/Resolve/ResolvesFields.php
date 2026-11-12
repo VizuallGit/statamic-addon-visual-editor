@@ -16,7 +16,7 @@ trait ResolvesFields
     /**
      * The matching blueprint field for this handle, or null.
      *
-     * @return  array{handle?: string, config?: array, set?: string, chain?: array}|null
+     * @return array{handle?: string, config?: array, set?: string, chain?: array}|null
      */
     protected function resolveFieldMatch(string $fieldPath): ?array
     {

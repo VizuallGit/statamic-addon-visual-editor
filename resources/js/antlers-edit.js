@@ -16,7 +16,9 @@ export function writeAntlersExpression(html, node, value) {
     return text;
   }
 
-  const next = String(value || '').replace(/\s+/g, ' ').trim();
+  const next = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   if (node.antlers === 'loop') {
     return renameLoop(text, node, next);
@@ -27,9 +29,7 @@ export function writeAntlersExpression(html, node, value) {
     return text;
   }
 
-  return (
-    text.slice(0, node.from) + `{{ ${node.tag} ${next} }}` + text.slice(node.openTo)
-  );
+  return text.slice(0, node.from) + `{{ ${node.tag} ${next} }}` + text.slice(node.openTo);
 }
 
 /**
@@ -64,8 +64,7 @@ export function writeLoopTag(html, node, changes = {}) {
     return text;
   }
 
-  const current =
-    node.loopKind === 'collection' ? 'collection' : node.loopKind === 'nav' ? 'nav' : 'field';
+  const current = node.loopKind === 'collection' ? 'collection' : node.loopKind === 'nav' ? 'nav' : 'field';
   const kind = changes.kind ?? current;
   const name = String(changes.name ?? node.expr ?? '').trim();
 
@@ -106,11 +105,7 @@ export function writeLoopTag(html, node, changes = {}) {
   const close = kind === 'collection' ? 'collection' : kind === 'nav' ? 'nav' : name;
 
   return (
-    text.slice(0, node.from) +
-    open +
-    text.slice(node.openTo, range.from) +
-    `{{ /${close} }}` +
-    text.slice(range.to)
+    text.slice(0, node.from) + open + text.slice(node.openTo, range.from) + `{{ /${close} }}` + text.slice(range.to)
   );
 }
 
@@ -310,9 +305,7 @@ export function writeLoopPagination(html, node, on) {
   // limit is the panel's to show and change, not this toggle's to own.
   const sized = on && !/\blimit\s*=/.test(tag) ? ` limit="${PAGE_SIZE}"` : '';
   const open = on ? tag.replace(/\s*\}\}$/, `${sized} paginate="true" as="${alias}" }}`) : tag;
-  const inner = on
-    ? pagedBody(body, alias, lineIndent(text, node.from))
-    : unpagedBody(body, alias);
+  const inner = on ? pagedBody(body, alias, lineIndent(text, node.from)) : unpagedBody(body, alias);
 
   return text.slice(0, node.from) + open + inner + text.slice(range.from);
 }
@@ -398,7 +391,10 @@ function lineIndent(text, at) {
 
 /** How far in the body's first written line sits, or one step in from the tag. */
 function bodyIndent(body, base) {
-  const line = body.split('\n').slice(1).find((item) => item.trim());
+  const line = body
+    .split('\n')
+    .slice(1)
+    .find((item) => item.trim());
 
   return line ? line.match(/^[ \t]*/)[0] : `${base}  `;
 }

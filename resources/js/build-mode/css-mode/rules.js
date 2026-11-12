@@ -25,7 +25,10 @@ const TAG = /\{\{[\s\S]*?\}\}/g;
 const SCOPE = /^@scope\b/i;
 
 /** A selector as the block tree has it: a tag is blank there. Only whitespace can differ, as a blank is as long as its tag. */
-const flat = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+const flat = (text) =>
+  String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 const masked = (selector) => flat(String(selector || '').replace(TAG, ' '));
 const hasTag = (text) => String(text || '').includes('{{');
 
@@ -72,9 +75,10 @@ export function treeOf(css) {
     const inner = source.indexOf('{{', at + 2);
 
     out += source.slice(i, at);
-    out += inner !== -1 && inner < end
-      ? `{{${source.slice(at + 2, end - 2).replace(/\{\{[\s\S]*?\}\}/g, (tag) => ' '.repeat(tag.length))}}}`
-      : source.slice(at, end);
+    out +=
+      inner !== -1 && inner < end
+        ? `{{${source.slice(at + 2, end - 2).replace(/\{\{[\s\S]*?\}\}/g, (tag) => ' '.repeat(tag.length))}}}`
+        : source.slice(at, end);
     i = end;
   }
 
@@ -192,7 +196,10 @@ function declarationsIn(css, node) {
     if (lead !== -1 && colon !== -1) {
       out.push({
         prop: text.slice(lead, colon).trim().toLowerCase(),
-        value: text.slice(colon + 1).replace(/;\s*$/, '').trim(),
+        value: text
+          .slice(colon + 1)
+          .replace(/;\s*$/, '')
+          .trim(),
         from: start + lead,
         to: end,
       });
@@ -294,7 +301,8 @@ function cut(css, from, to) {
     : css.slice(0, from) + css.slice(to);
 }
 
-const isEmpty = (css, node) => !node.children.length && !declarationsIn(css, node).length && !css.slice(node.bodyFrom, node.bodyTo).trim();
+const isEmpty = (css, node) =>
+  !node.children.length && !declarationsIn(css, node).length && !css.slice(node.bodyFrom, node.bodyTo).trim();
 
 /** A declaration taken out, and what that left empty with it: the rule, and a size block holding nothing else. */
 function removeDeclaration(css, where, prop) {
@@ -308,7 +316,9 @@ function removeDeclaration(css, where, prop) {
       return source;
     }
 
-    const decl = declarationsIn(source, hit.node).filter((one) => one.prop === prop).pop();
+    const decl = declarationsIn(source, hit.node)
+      .filter((one) => one.prop === prop)
+      .pop();
 
     source = cut(source, decl.from, decl.to);
     source = pruneEmpty(source, where);
@@ -405,7 +415,9 @@ function settlePlainRule(css, selector, rows) {
 
     const text = cut(css, stray.from, stray.to);
 
-    return inside.length ? text : placeInLevel(text, selector, holdsNothing(stray) ? null : css.slice(stray.from, stray.to));
+    return inside.length
+      ? text
+      : placeInLevel(text, selector, holdsNothing(stray) ? null : css.slice(stray.from, stray.to));
   }
 
   const nodes = box ? box.children : tree;
@@ -449,7 +461,9 @@ function createRule(css, where, prop, value) {
     // Before the selector's own size rules: after them it would beat them all. A
     // state goes before the plain rule's too, so its sizes can share their blocks.
     const plain = /^(.*?)::?[a-z-]+$/.exec(masked(selector))?.[1];
-    const sized = [...hits, ...(plain ? hitsOf(tree, plain, rows) : [])].find((hit) => hit.size && !hit.nested && outside(hit.media));
+    const sized = [...hits, ...(plain ? hitsOf(tree, plain, rows) : [])].find(
+      (hit) => hit.size && !hit.nested && outside(hit.media)
+    );
     // A new rule goes before the level's first size block too: its own sizes can then share that block.
     const before = sized?.media || nodes.find((node) => node.media && outside(node));
     const text = ruleText(selector, before ? indentAt(css, before.from) : indent, prop, value);
@@ -483,7 +497,9 @@ function writeOne(css, where, { prop, value }) {
   const withIt = [...hits].reverse().find((hit) => declarationsIn(css, hit.node).some((decl) => decl.prop === prop));
 
   if (withIt) {
-    const decl = declarationsIn(css, withIt.node).filter((one) => one.prop === prop).pop();
+    const decl = declarationsIn(css, withIt.node)
+      .filter((one) => one.prop === prop)
+      .pop();
 
     return `${css.slice(0, decl.from)}${prop}: ${value};${css.slice(decl.to)}`;
   }
@@ -511,14 +527,19 @@ export function writeDeclarations(css, where, updates) {
   const list = updates || [];
   const source = String(css || '');
   const plain = /^(.*?)\s?::?[a-z-]+$/.exec(where.selector)?.[1] || where.selector;
-  const start = list.some((update) => update.value !== null && update.value !== undefined) ? settlePlainRule(source, plain, where.rows) : source;
+  const start = list.some((update) => update.value !== null && update.value !== undefined)
+    ? settlePlainRule(source, plain, where.rows)
+    : source;
 
   return list.reduce((text, update) => writeOne(text, where, update), start);
 }
 
 /* ---------------- renaming ---------------- */
 
-const tagTolerant = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{\\\{\s*([\w.:-]+)\s*\\\}\\\}/g, '\\{\\{\\s*$1\\s*\\}\\}');
+const tagTolerant = (text) =>
+  String(text)
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\\\{\\\{\s*([\w.:-]+)\s*\\\}\\\}/g, '\\{\\{\\s*$1\\s*\\}\\}');
 
 /**
  * Every rule that names `from` names `to`: `#a`, `#a .b`, `#a:hover`, `.x, #a`.
@@ -541,7 +562,10 @@ export function renameSelector(css, from, to) {
 
   return spots
     .sort((a, b) => b[0] - a[0])
-    .reduce((text, [start, end]) => text.slice(0, start) + text.slice(start, end).replace(name, to) + text.slice(end), source);
+    .reduce(
+      (text, [start, end]) => text.slice(0, start) + text.slice(start, end).replace(name, to) + text.slice(end),
+      source
+    );
 }
 
 /* ---------------- the canvas's sheet ---------------- */
@@ -563,7 +587,11 @@ export function liveSheet(css, targets, rows, fill = () => '', suffixes = []) {
       const decls = (real ? allDeclarations(css, `${selector}${suffix}`, rows) : [])
         .map((decl) => (hasTag(decl.value) ? { ...decl, value: fill(decl.value) } : decl))
         .filter((decl) => decl.value);
-      const body = (size) => decls.filter((decl) => decl.size === size).map((decl) => `${decl.prop}: ${decl.value};`).join(' ');
+      const body = (size) =>
+        decls
+          .filter((decl) => decl.size === size)
+          .map((decl) => `${decl.prop}: ${decl.value};`)
+          .join(' ');
       // Inside `@scope` a selector means a descendant of the root; the root itself has to be said.
       const both = `${real}${suffix}, :scope${real}${suffix}`;
 
@@ -581,7 +609,11 @@ export function liveSheet(css, targets, rows, fill = () => '', suffixes = []) {
   }
 
   // An animation's steps stand beside the rules: `@scope` is about what a selector reaches.
-  const steps = moving ? treeOf(css).filter((node) => /^@keyframes\b/.test(node.prelude)).map((node) => css.slice(node.from, node.to)) : [];
+  const steps = moving
+    ? treeOf(css)
+        .filter((node) => /^@keyframes\b/.test(node.prelude))
+        .map((node) => css.slice(node.from, node.to))
+    : [];
   const sheet = parts.length ? [`@scope ([data-sve-build-root]) {\n${parts.join('\n')}\n}`] : [];
 
   return [...steps, ...sheet].join('\n');

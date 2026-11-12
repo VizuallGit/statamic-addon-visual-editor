@@ -14,7 +14,10 @@
 import { readClassAttr } from '../tw-parse.js';
 import { containerBase } from './container-widths.js';
 
-const has = (classes, name) => String(classes || '').split(/\s+/).includes(name);
+const has = (classes, name) =>
+  String(classes || '')
+    .split(/\s+/)
+    .includes(name);
 
 /**
  * A tree row (parseTemplateTree) and its class attribute → what it is:

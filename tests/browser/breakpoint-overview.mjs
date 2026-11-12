@@ -49,7 +49,16 @@
  *   node tests/browser/breakpoint-overview.mjs
  */
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { serveWorktreeBuild } from './serve-worktree.mjs';
@@ -68,7 +77,10 @@ const BUILD_DIR = env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`);
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { errors: [], ok: true };
-const step = (name, ok, detail = '') => { if (!ok) report.ok = false; console.log(`${ok ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
+const step = (name, ok, detail = '') => {
+  if (!ok) report.ok = false;
+  console.log(`${ok ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`);
+};
 const info = (name, detail = '') => console.log(`info ${name}${detail ? ' — ' + detail : ''}`);
 const skip = (name, why) => console.log(`skip ${name} — ${why}`);
 
@@ -85,12 +97,17 @@ const ZOOM_LABEL = '#__sve-preview-chrome [data-zoom="label"]';
 const INSTALLED_MIDDLEWARE = `${SITE_DIR}/vendor/statamic-addon/visual-editor/src/Http/Middleware/InjectBridgeScript.php`;
 // The comments API keeps a screen size per comment from v1.1.324 on; the vendor copy may be older until `composer update`.
 const INSTALLED_COMMENTS = `${SITE_DIR}/vendor/statamic-addon/visual-editor/src/Http/Controllers/CommentsController.php`;
-const PHP_HAS_COMMENT_SIZE = existsSync(INSTALLED_COMMENTS) && /'breakpoint'/.test(readFileSync(INSTALLED_COMMENTS, 'utf8'));
-const PHP_HAS_VIEW_FLAG = existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('sve_view');
-const PHP_HAS_MIRROR = existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('mirror.js');
+const PHP_HAS_COMMENT_SIZE =
+  existsSync(INSTALLED_COMMENTS) && /'breakpoint'/.test(readFileSync(INSTALLED_COMMENTS, 'utf8'));
+const PHP_HAS_VIEW_FLAG =
+  existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('sve_view');
+const PHP_HAS_MIRROR =
+  existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('mirror.js');
 // The copies run this checkout's mirror.js: through the PHP once installed, or through the rewrite below meanwhile.
 const MIRROR_UNDER_TEST = PHP_HAS_MIRROR || WORKTREE;
-const MIRROR_FILE = WORKTREE ? JSON.parse(readFileSync(`${BUILD_DIR}/manifest.json`, 'utf8'))['resources/js/mirror.js']?.file : '';
+const MIRROR_FILE = WORKTREE
+  ? JSON.parse(readFileSync(`${BUILD_DIR}/manifest.json`, 'utf8'))['resources/js/mirror.js']?.file
+  : '';
 const VIDEO_FILE = env('SVE_VIDEO_FILE', '');
 const VIDEO_PUBLIC = `${SITE_DIR}/public/sve-bpo-video.mp4`;
 // Against another site (SVE_SITE_URL): a video that site already serves, the
@@ -122,7 +139,11 @@ const entryFile = (() => {
   try {
     const dir = `${SITE_DIR}/content/collections/pages`;
 
-    return readdirSync(dir).map((f) => `${dir}/${f}`).find((f) => f.endsWith('.md') && readFileSync(f, 'utf8').includes(ENTRY_ID)) || '';
+    return (
+      readdirSync(dir)
+        .map((f) => `${dir}/${f}`)
+        .find((f) => f.endsWith('.md') && readFileSync(f, 'utf8').includes(ENTRY_ID)) || ''
+    );
   } catch {
     return '';
   }
@@ -130,12 +151,22 @@ const entryFile = (() => {
 
 // --- helpers (the smoke test's, trimmed) ---------------------------------------
 
-async function waitIn(frame, selector, ms) { try { await frame.waitForSelector(selector, { timeout: ms }); return true; } catch { return false; } }
+async function waitIn(frame, selector, ms) {
+  try {
+    await frame.waitForSelector(selector, { timeout: ms });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function until(fn, ms, every = 100) {
   const t0 = Date.now();
   let value = await fn().catch(() => null);
-  while (!value && Date.now() - t0 < ms) { await sleep(every); value = await fn().catch(() => null); }
+  while (!value && Date.now() - t0 < ms) {
+    await sleep(every);
+    value = await fn().catch(() => null);
+  }
   return value;
 }
 
@@ -144,12 +175,17 @@ async function absoluteRect(frame, selector) {
   const rect = await frame.evaluate((sel) => {
     for (const el of document.querySelectorAll(sel)) {
       const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight) return { x: r.x, y: r.y, w: r.width, h: r.height };
+      if (r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight)
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
     }
     return null;
   }, selector);
   if (!rect) throw new Error(`no visible element for ${selector}`);
-  for (let f = frame; f.parentFrame(); f = f.parentFrame()) { const box = await (await f.frameElement()).boundingBox(); rect.x += box.x; rect.y += box.y; }
+  for (let f = frame; f.parentFrame(); f = f.parentFrame()) {
+    const box = await (await f.frameElement()).boundingBox();
+    rect.x += box.x;
+    rect.y += box.y;
+  }
   return rect;
 }
 
@@ -174,7 +210,16 @@ async function visible(frame, selector) {
     const cs = getComputedStyle(el);
     const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
     const hit = !!top && (top === el || el.contains(top));
-    return { ok: r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 && hit, why: `${Math.round(r.width)}x${Math.round(r.height)} at ${Math.round(r.x)},${Math.round(r.y)} display=${cs.display} visibility=${cs.visibility} opacity=${cs.opacity} hit=${hit ? 'itself' : top ? top.tagName.toLowerCase() + '.' + top.className : 'nothing'}` };
+    return {
+      ok:
+        r.width > 0 &&
+        r.height > 0 &&
+        cs.display !== 'none' &&
+        cs.visibility !== 'hidden' &&
+        Number(cs.opacity) > 0 &&
+        hit,
+      why: `${Math.round(r.width)}x${Math.round(r.height)} at ${Math.round(r.x)},${Math.round(r.y)} display=${cs.display} visibility=${cs.visibility} opacity=${cs.opacity} hit=${hit ? 'itself' : top ? top.tagName.toLowerCase() + '.' + top.className : 'nothing'}`,
+    };
   }, selector);
 }
 
@@ -184,18 +229,23 @@ async function visible(frame, selector) {
  * hits — or not there to see at all.
  */
 async function topZoom(frame) {
-  return frame.evaluate((labelSel, fitSel) => {
-    const fit = document.querySelector(fitSel);
-    const r = fit?.getBoundingClientRect();
-    const top = r && r.width > 0 && r.height > 0 ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
-    return {
-      label: document.querySelector(labelSel)?.textContent || '',
-      fit: !!top && (top === fit || fit.contains(top)),
-      fitBox: r ? `${Math.round(r.width)}x${Math.round(r.height)}` : 'none',
-      fitText: fit?.textContent || '',
-      ownBar: !!document.querySelector('.sve-bpo-zoom'),
-    };
-  }, ZOOM_LABEL, ZOOM_FIT);
+  return frame.evaluate(
+    (labelSel, fitSel) => {
+      const fit = document.querySelector(fitSel);
+      const r = fit?.getBoundingClientRect();
+      const top =
+        r && r.width > 0 && r.height > 0 ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
+      return {
+        label: document.querySelector(labelSel)?.textContent || '',
+        fit: !!top && (top === fit || fit.contains(top)),
+        fitBox: r ? `${Math.round(r.width)}x${Math.round(r.height)}` : 'none',
+        fitText: fit?.textContent || '',
+        ownBar: !!document.querySelector('.sve-bpo-zoom'),
+      };
+    },
+    ZOOM_LABEL,
+    ZOOM_FIT
+  );
 }
 
 function seedLayoutPrefs(prefs) {
@@ -208,7 +258,9 @@ function seedLayoutPrefs(prefs) {
   const entries = Object.entries(prefs || {});
   if (entries.length) {
     const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
-    yaml = /^preferences:\n/m.test(yaml) ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`) : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
+    yaml = /^preferences:\n/m.test(yaml)
+      ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`)
+      : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
   }
   writeFileSync(file, yaml);
 }
@@ -218,7 +270,12 @@ function seedLayoutPrefs(prefs) {
 const PREFS = process.env.SVE_PREFS ? JSON.parse(process.env.SVE_PREFS) : { 'sve-lp-panel-mode': 'show' };
 seedLayoutPrefs(PREFS);
 info('layout prefs', JSON.stringify(PREFS));
-info('installed PHP', PHP_HAS_VIEW_FLAG ? 'knows sve_view — every check is enforced' : 'predates sve_view (vendor has the released addon) — the no-bridge and string checks are skipped until composer update');
+info(
+  'installed PHP',
+  PHP_HAS_VIEW_FLAG
+    ? 'knows sve_view — every check is enforced'
+    : 'predates sve_view (vendor has the released addon) — the no-bridge and string checks are skipped until composer update'
+);
 const entryBefore = md5(entryFile);
 // The section file the dock autosaves into during the video step; put back in `finally`.
 let filePath = '';
@@ -233,33 +290,71 @@ let twExisted = true;
 // stays the server's (a document the test fulfilled had no address space in
 // Chrome's eyes, and its video was blocked as a private-network request).
 const SWAPPING = WORKTREE && !PHP_HAS_MIRROR;
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 // Headless Chrome asks for reduced motion, and the row would then jump: the
 // glide is measured as a person with the default setting sees it.
 await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
 // The field to click and a word of its text, handed to every frame the page opens.
-await page.evaluateOnNewDocument((field, text) => { window.__sveTestField = field; window.__sveTestFieldText = text; }, FIELD, FIELD_TEXT);
+await page.evaluateOnNewDocument(
+  (field, text) => {
+    window.__sveTestField = field;
+    window.__sveTestFieldText = text;
+  },
+  FIELD,
+  FIELD_TEXT
+);
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
-page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
-page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
+page.on('console', (m) => {
+  if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`);
+});
+page.on('response', (r) => {
+  if (r.status() >= 500)
+    report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`);
+});
 const loadedAssets = new Set();
-page.on('request', (req) => { const m = req.url().match(/\/(?:vendor\/visual-editor\/build|!\/sve\/build)\/assets\/([^?#]+)/); if (m) loadedAssets.add(m[1]); });
+page.on('request', (req) => {
+  const m = req.url().match(/\/(?:vendor\/visual-editor\/build|!\/sve\/build)\/assets\/([^?#]+)/);
+  if (m) loadedAssets.add(m[1]);
+});
 const chunkLoaded = () => [...loadedAssets].filter((f) => /^breakpoint-overview-/.test(f));
 
 let served = null;
 let copyScriptsSwapped = 0;
-const isCopyScript = (req) => SWAPPING && !!MIRROR_FILE && /\/assets\/preview-[^/?#]+\.js/.test(req.url()) && /[?&]sve_view=/.test(req.frame()?.url() || '');
+const isCopyScript = (req) =>
+  SWAPPING &&
+  !!MIRROR_FILE &&
+  /\/assets\/preview-[^/?#]+\.js/.test(req.url()) &&
+  /[?&]sve_view=/.test(req.frame()?.url() || '');
 if (WORKTREE) {
-  served = await serveWorktreeBuild(page, { buildDir: BUILD_DIR, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js`, extra: (req) => {
-    if (blockPrefsWrite(req)) return true;
-    if (!isCopyScript(req)) return false;
-    copyScriptsSwapped++;
-    req.respond({ status: 200, contentType: 'application/javascript', body: readFileSync(`${BUILD_DIR}/${MIRROR_FILE}`) });
-    return true;
-  } });
+  served = await serveWorktreeBuild(page, {
+    buildDir: BUILD_DIR,
+    installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`,
+    scriptsDir: `${ADDON_DIR}/resources/js`,
+    extra: (req) => {
+      if (blockPrefsWrite(req)) return true;
+      if (!isCopyScript(req)) return false;
+      copyScriptsSwapped++;
+      req.respond({
+        status: 200,
+        contentType: 'application/javascript',
+        body: readFileSync(`${BUILD_DIR}/${MIRROR_FILE}`),
+      });
+      return true;
+    },
+  });
   info('build served from', ADDON_DIR);
-  info('copy frames', PHP_HAS_MIRROR ? 'the installed PHP injects mirror.js' : `the installed PHP predates mirror.js — a copy frame's request for preview.js is answered with ${MIRROR_FILE}`);
+  info(
+    'copy frames',
+    PHP_HAS_MIRROR
+      ? 'the installed PHP injects mirror.js'
+      : `the installed PHP predates mirror.js — a copy frame's request for preview.js is answered with ${MIRROR_FILE}`
+  );
 }
 // DevTools, for counting event listeners. A remote object id only resolves in
 // the session that made it, and a window reached from another frame's context
@@ -267,8 +362,12 @@ if (WORKTREE) {
 // default context, tracked here.
 const cdp = await page.createCDPSession();
 const contexts = new Map(); // frame id -> default execution context id
-cdp.on('Runtime.executionContextCreated', ({ context }) => { if (context.auxData?.isDefault) contexts.set(context.auxData.frameId, context.id); });
-cdp.on('Runtime.executionContextDestroyed', ({ executionContextId }) => { for (const [frameId, id] of contexts) if (id === executionContextId) contexts.delete(frameId); });
+cdp.on('Runtime.executionContextCreated', ({ context }) => {
+  if (context.auxData?.isDefault) contexts.set(context.auxData.frameId, context.id);
+});
+cdp.on('Runtime.executionContextDestroyed', ({ executionContextId }) => {
+  for (const [frameId, id] of contexts) if (id === executionContextId) contexts.delete(frameId);
+});
 cdp.on('Runtime.executionContextsCleared', () => contexts.clear());
 await cdp.send('Runtime.enable');
 // Which script each listener's handler lives in: the editor keeps binding its
@@ -285,7 +384,11 @@ async function listenersOn(frame, expression) {
   const { result } = await cdp.send('Runtime.evaluate', { expression, contextId, objectGroup: 'sve-bpo' });
   try {
     const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId, depth: 0 });
-    return listeners.map((l) => ({ type: `${l.type}${l.useCapture ? '(capture)' : ''}`, script: (scripts.get(l.scriptId) || '').split('/').pop().replace(/\?.*$/, ''), at: `${l.lineNumber}:${l.columnNumber}` }));
+    return listeners.map((l) => ({
+      type: `${l.type}${l.useCapture ? '(capture)' : ''}`,
+      script: (scripts.get(l.scriptId) || '').split('/').pop().replace(/\?.*$/, ''),
+      at: `${l.lineNumber}:${l.columnNumber}`,
+    }));
   } finally {
     await cdp.send('Runtime.releaseObjectGroup', { objectGroup: 'sve-bpo' });
   }
@@ -301,7 +404,16 @@ async function listenerSnapshot(cp) {
   };
 }
 /** The overview's own listeners per object, as sorted type lists. */
-const ownListeners = (snapshot) => Object.fromEntries(Object.entries(snapshot).map(([key, list]) => [key, list.filter((l) => /^breakpoint-overview-/.test(l.script)).map((l) => l.type).sort()]));
+const ownListeners = (snapshot) =>
+  Object.fromEntries(
+    Object.entries(snapshot).map(([key, list]) => [
+      key,
+      list
+        .filter((l) => /^breakpoint-overview-/.test(l.script))
+        .map((l) => l.type)
+        .sort(),
+    ])
+  );
 
 try {
   // 1. Log in, open the entry, open Live Preview (the overlay that holds the CP again).
@@ -314,26 +426,42 @@ try {
   await page.goto(`${SITE_URL}${ENTRY}`, { waitUntil: 'networkidle2' });
   await sleep(1500);
   if (!(await page.$('iframe.sve-edit-overlay'))) {
-    await page.evaluate(() => { [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click(); });
+    await page.evaluate(() => {
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click();
+    });
   }
   const opened = await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000);
   step('Live Preview opened', opened);
   const cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
   await page.keyboard.press('Escape'); // a trial-licence dialog takes the first click otherwise
   step('top bar built', await waitIn(cp, '#__sve-preview-chrome [data-sve-zoom]', 20000));
-  const previewReady = await until(async () => {
-    const f = await (await cp.$('#live-preview-iframe'))?.contentFrame();
-    return f && (await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`))) ? f : null;
-  }, 25000, 500);
+  const previewReady = await until(
+    async () => {
+      const f = await (await cp.$('#live-preview-iframe'))?.contentFrame();
+      return f && (await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)))
+        ? f
+        : null;
+    },
+    25000,
+    500
+  );
   step('the preview rendered a headline', !!previewReady);
   await sleep(2500); // prefs hydrate, the device and zoom settle, the preview morphs once or twice
 
   const config = await cp.evaluate(() => ({
-    bps: (window.Statamic.$config.get('sveBreakpoints') || []).map((b) => ({ handle: b.handle, device: b.device, base: !!b.base })),
+    bps: (window.Statamic.$config.get('sveBreakpoints') || []).map((b) => ({
+      handle: b.handle,
+      device: b.device,
+      base: !!b.base,
+    })),
     devices: JSON.parse(JSON.stringify(window.Statamic.$config.get('livePreview.devices') || {})),
     strings: !!window.Statamic.$config.get('sveStrings')?.bp_overview,
   }));
-  const expected = [...config.bps].reverse().map((b) => ({ ...b, width: Number(config.devices[b.device]?.width) || (b.base ? 1440 : 0) }));
+  const expected = [...config.bps]
+    .reverse()
+    .map((b) => ({ ...b, width: Number(config.devices[b.device]?.width) || (b.base ? 1440 : 0) }));
   info('breakpoints (Breakpoints::forScript)', config.bps.map((b) => `${b.handle}/${b.device}`).join(' '));
 
   // 2. The fields of the headline's section on the left: click the headline in the preview.
@@ -343,53 +471,119 @@ try {
     const pt = await frame.evaluate((field) => {
       const el = document.querySelector(`[data-sid-field="${field}"]`);
       if (!el) return null;
-      const texty = [el, ...el.querySelectorAll('*')].find((n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.nodeValue.trim())) || el;
+      const texty =
+        [el, ...el.querySelectorAll('*')].find((n) =>
+          [...n.childNodes].some((c) => c.nodeType === 3 && c.nodeValue.trim())
+        ) || el;
       const r = texty.getBoundingClientRect();
       return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) };
     }, FIELD);
     if (!pt) throw new Error(`no [data-sid-field="${FIELD}"] in the preview`);
     let { x, y } = pt;
-    for (let f = frame; f.parentFrame(); f = f.parentFrame()) { const box = await (await f.frameElement()).boundingBox(); x += box.x; y += box.y; }
+    for (let f = frame; f.parentFrame(); f = f.parentFrame()) {
+      const box = await (await f.frameElement()).boundingBox();
+      x += box.x;
+      y += box.y;
+    }
     await page.mouse.click(x, y);
   };
   await clickFieldText(main);
   if (SHOW_PANEL) {
-    const shown = await until(() => cp.evaluate(() => { const r = document.querySelector('.live-preview-editor')?.getBoundingClientRect(); return !!r && r.right > 0 && r.width > 100; }), 3000, 200);
-    if (!shown) { await realClick(page, cp, '#__sve-toolbar button[data-tab="settings"]'); await sleep(1500); await clickFieldText(main); info('left panel', 'was hidden for this user — the settings key pressed it into view'); }
+    const shown = await until(
+      () =>
+        cp.evaluate(() => {
+          const r = document.querySelector('.live-preview-editor')?.getBoundingClientRect();
+          return !!r && r.right > 0 && r.width > 100;
+        }),
+      3000,
+      200
+    );
+    if (!shown) {
+      await realClick(page, cp, '#__sve-toolbar button[data-tab="settings"]');
+      await sleep(1500);
+      await clickFieldText(main);
+      info('left panel', 'was hidden for this user — the settings key pressed it into view');
+    }
   }
-  const field = await until(() => cp.evaluate(() => {
-    const editor = document.querySelector('.live-preview-editor');
-    const r = editor?.getBoundingClientRect();
-    if (!r || r.right <= 0) return null;
-    return [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? ''); });
-  }), 12000, 300);
+  const field = await until(
+    () =>
+      cp.evaluate(() => {
+        const editor = document.querySelector('.live-preview-editor');
+        const r = editor?.getBoundingClientRect();
+        if (!r || r.right <= 0) return null;
+        return [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some(
+          (el) => {
+            const b = el.getBoundingClientRect();
+            return (
+              b.width > 0 &&
+              b.left >= 0 &&
+              new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? '')
+            );
+          }
+        );
+      }),
+    12000,
+    300
+  );
   step('the headline field is on screen on the left', !!field);
 
   // 3. Closed: the button is there and can be seen; the module was never fetched.
   const btn = await visible(cp, BUTTON);
   step('button in the top bar is visible', btn.ok, btn.why);
-  step('button stands on its own in #__sve-preview-chrome, between the device icons and zoom', await cp.evaluate((sel) => {
-    const b = document.querySelector(sel);
-    const chrome = document.getElementById('__sve-preview-chrome');
-    const devices = chrome?.querySelector('[data-sve-devices]');
-    const zoom = chrome?.querySelector('[data-sve-zoom]');
-    const after = (a, c) => !!(a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
-    return !!b && chrome.contains(b) && !devices.contains(b) && !zoom.contains(b) && after(devices, b) && after(b, zoom);
-  }, BUTTON));
-  const iconAtRest = await cp.evaluate((sel) => ({ icon: getComputedStyle(document.querySelector(`${sel} svg`)).opacity, zoom: getComputedStyle(document.querySelector('#__sve-preview-chrome [data-zoom="out"]')).opacity }), BUTTON);
-  step('at rest its icon is as dim as the zoom icons', iconAtRest.icon === iconAtRest.zoom && Number(iconAtRest.icon) < 1, `icon ${iconAtRest.icon}, zoom ${iconAtRest.zoom}`);
-  const groupPositionBefore = await cp.evaluate(() => document.querySelector('#__sve-preview-chrome [data-sve-devices]').style.position);
+  step(
+    'button stands on its own in #__sve-preview-chrome, between the device icons and zoom',
+    await cp.evaluate((sel) => {
+      const b = document.querySelector(sel);
+      const chrome = document.getElementById('__sve-preview-chrome');
+      const devices = chrome?.querySelector('[data-sve-devices]');
+      const zoom = chrome?.querySelector('[data-sve-zoom]');
+      const after = (a, c) => !!(a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return (
+        !!b && chrome.contains(b) && !devices.contains(b) && !zoom.contains(b) && after(devices, b) && after(b, zoom)
+      );
+    }, BUTTON)
+  );
+  const iconAtRest = await cp.evaluate(
+    (sel) => ({
+      icon: getComputedStyle(document.querySelector(`${sel} svg`)).opacity,
+      zoom: getComputedStyle(document.querySelector('#__sve-preview-chrome [data-zoom="out"]')).opacity,
+    }),
+    BUTTON
+  );
+  step(
+    'at rest its icon is as dim as the zoom icons',
+    iconAtRest.icon === iconAtRest.zoom && Number(iconAtRest.icon) < 1,
+    `icon ${iconAtRest.icon}, zoom ${iconAtRest.zoom}`
+  );
+  const groupPositionBefore = await cp.evaluate(
+    () => document.querySelector('#__sve-preview-chrome [data-sve-devices]').style.position
+  );
   if (config.strings) {
-    const title = await cp.evaluate((sel) => { const b = document.querySelector(sel); return b.getAttribute('title') || b.getAttribute('data-tip') || ''; }, BUTTON);
+    const title = await cp.evaluate((sel) => {
+      const b = document.querySelector(sel);
+      return b.getAttribute('title') || b.getAttribute('data-tip') || '';
+    }, BUTTON);
     step('button has its translated name', !!title && title !== 'bp_overview_button', `"${title}"`);
   } else {
     skip('button has its translated name', 'the installed addon has no bp_overview string yet');
   }
-  step('closed costs nothing: no breakpoint-overview chunk fetched', chunkLoaded().length === 0, `${loadedAssets.size} build files so far`);
+  step(
+    'closed costs nothing: no breakpoint-overview chunk fetched',
+    chunkLoaded().length === 0,
+    `${loadedAssets.size} build files so far`
+  );
   const iframesBefore = await cp.evaluate(() => document.querySelectorAll('iframe').length);
-  step('closed costs nothing: no layer, no extra iframe', !(await cp.$(LAYER)), `${iframesBefore} iframe(s) in the CP document`);
+  step(
+    'closed costs nothing: no layer, no extra iframe',
+    !(await cp.$(LAYER)),
+    `${iframesBefore} iframe(s) in the CP document`
+  );
   const zoomClosed = await topZoom(cp);
-  step('closed, the top bar’s zoom group has no "Fit all" to see, and there is no zoom bar of the overview’s', !zoomClosed.fit && !zoomClosed.ownBar, `fit ${zoomClosed.fitBox}, label "${zoomClosed.label}"`);
+  step(
+    'closed, the top bar’s zoom group has no "Fit all" to see, and there is no zoom bar of the overview’s',
+    !zoomClosed.fit && !zoomClosed.ownBar,
+    `fit ${zoomClosed.fitBox}, label "${zoomClosed.label}"`
+  );
 
   // The preview frame as it is now; compared after closing. The marker lives on
   // its window, so a reload or a new window loses it.
@@ -412,7 +606,12 @@ try {
     const pane = document.querySelector('.live-preview-contents');
     const cs = getComputedStyle(pane);
     const pr = pane.getBoundingClientRect();
-    const box = { left: pr.left + parseFloat(cs.paddingLeft), top: pr.top + parseFloat(cs.paddingTop), width: pane.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), height: pane.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) };
+    const box = {
+      left: pr.left + parseFloat(cs.paddingLeft),
+      top: pr.top + parseFloat(cs.paddingTop),
+      width: pane.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      height: pane.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+    };
     const lr = layer.getBoundingClientRect();
     const canvas = layer.querySelector('.sve-bpo-canvas');
     const scale = new DOMMatrix(getComputedStyle(canvas).transform).a;
@@ -430,63 +629,172 @@ try {
         const r = f.getBoundingClientRect();
         const item = f.closest('[data-bp]');
         const fcs = getComputedStyle(f);
-        return { bp: item.dataset.bp, active: item.hasAttribute('data-active'), label: item.querySelector('.sve-bpo-label')?.textContent || '', src: f.getAttribute('src') || '', x: r.x, w: r.width, h: r.height, shown: r.width > 0 && r.height > 0 && fcs.display !== 'none' && fcs.visibility !== 'hidden', pe: fcs.pointerEvents };
+        return {
+          bp: item.dataset.bp,
+          active: item.hasAttribute('data-active'),
+          label: item.querySelector('.sve-bpo-label')?.textContent || '',
+          src: f.getAttribute('src') || '',
+          x: r.x,
+          w: r.width,
+          h: r.height,
+          shown: r.width > 0 && r.height > 0 && fcs.display !== 'none' && fcs.visibility !== 'hidden',
+          pe: fcs.pointerEvents,
+        };
       }),
       iframes: document.querySelectorAll('iframe').length,
     };
   }, LAYER);
   step('the layer covers the preview pane (its content box, not the docks)', shape.covers, shape.rect);
-  step('the layer sits in Live Preview’s own stacking context, just above the pane', shape.parent === 'live-preview-main' && shape.z === '2' && shape.onTop, `parent=.${shape.parent} z-index=${shape.z} on top at its left gutter=${shape.onTop}`);
-  step('one view frame per breakpoint', shape.frames.length === config.bps.length && shape.frames.length === expected.length, `${shape.frames.length} frames, ${config.bps.length} breakpoints`);
-  step('frames narrowest first, each at its breakpoint width × zoom',
-    shape.frames.every((f, i) => f.bp === expected[i]?.handle && Math.abs(f.w - expected[i].width * shape.scale) <= 1.5 && (i === 0 || f.x > shape.frames[i - 1].x)),
-    shape.frames.map((f, i) => `${f.bp} ${f.w.toFixed(1)}px ≈ ${expected[i]?.width}×${shape.scale.toFixed(3)}`).join(' | '));
-  step('every frame is on screen and labelled', shape.frames.every((f) => f.shown && /\d+ px$/.test(f.label)), shape.frames.map((f) => `"${f.label}"`).join(' '));
+  step(
+    'the layer sits in Live Preview’s own stacking context, just above the pane',
+    shape.parent === 'live-preview-main' && shape.z === '2' && shape.onTop,
+    `parent=.${shape.parent} z-index=${shape.z} on top at its left gutter=${shape.onTop}`
+  );
+  step(
+    'one view frame per breakpoint',
+    shape.frames.length === config.bps.length && shape.frames.length === expected.length,
+    `${shape.frames.length} frames, ${config.bps.length} breakpoints`
+  );
+  step(
+    'frames narrowest first, each at its breakpoint width × zoom',
+    shape.frames.every(
+      (f, i) =>
+        f.bp === expected[i]?.handle &&
+        Math.abs(f.w - expected[i].width * shape.scale) <= 1.5 &&
+        (i === 0 || f.x > shape.frames[i - 1].x)
+    ),
+    shape.frames
+      .map((f, i) => `${f.bp} ${f.w.toFixed(1)}px ≈ ${expected[i]?.width}×${shape.scale.toFixed(3)}`)
+      .join(' | ')
+  );
+  step(
+    'every frame is on screen and labelled',
+    shape.frames.every((f) => f.shown && /\d+ px$/.test(f.label)),
+    shape.frames.map((f) => `"${f.label}"`).join(' ')
+  );
   // The flag's value is the frame's size: one URL per frame, or Chrome queues
   // their requests behind each other (its cache lock) and every update waits.
   const activeHandle = shape.frames.find((f) => f.active)?.bp || '';
   // The active size's frame loads too: its copy sits under the preview, clipped out
   // by the hole, and shows the moment the preview moves to another size.
-  step('every size loads with sve_view=<its size>, one URL each — the active size’s frame too, under the preview',
-    shape.frames.every((f) => new URL(f.src).searchParams.get('sve_view') === f.bp) && new Set(shape.frames.map((f) => f.src)).size === shape.frames.length,
-    shape.frames.map((f) => `${f.bp}${f.active ? ' (active)' : ''}: …${f.src.slice(f.src.indexOf('sve_view'))}`).join(' | '));
-  const inSlot = await cp.evaluate((layerSel, bp) => {
-    const layer = document.querySelector(layerSel);
-    const slot = layer.querySelector(`[data-bp="${bp}"] iframe`).getBoundingClientRect();
-    const f = document.getElementById('live-preview-iframe');
-    const r = f.getBoundingClientRect();
-    const hit = document.elementFromPoint(slot.x + slot.width / 2, slot.y + Math.min(slot.height / 2, 200));
-    return { same: ['x', 'y', 'width', 'height'].every((k) => Math.abs(slot[k] - r[k]) <= 1), slot: `${Math.round(slot.x)},${Math.round(slot.y)} ${Math.round(slot.width)}x${Math.round(slot.height)}`, frame: `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`, hit: hit ? `${hit.tagName.toLowerCase()}#${hit.id}` : 'nothing', clip: (layer.querySelector('.sve-bpo-scroll').style.clipPath || '').startsWith('polygon(evenodd'), fixed: getComputedStyle(f).position };
-  }, LAYER, activeHandle);
-  step('the active size is the preview itself: the iframe stands in the slot, and a point in the slot hits it, through the layer’s hole', inSlot.same && inSlot.hit === 'iframe#live-preview-iframe' && inSlot.clip && inSlot.fixed === 'fixed', `slot ${inSlot.slot}, preview ${inSlot.frame}, hit ${inSlot.hit}`);
+  step(
+    'every size loads with sve_view=<its size>, one URL each — the active size’s frame too, under the preview',
+    shape.frames.every((f) => new URL(f.src).searchParams.get('sve_view') === f.bp) &&
+      new Set(shape.frames.map((f) => f.src)).size === shape.frames.length,
+    shape.frames
+      .map((f) => `${f.bp}${f.active ? ' (active)' : ''}: …${f.src.slice(f.src.indexOf('sve_view'))}`)
+      .join(' | ')
+  );
+  const inSlot = await cp.evaluate(
+    (layerSel, bp) => {
+      const layer = document.querySelector(layerSel);
+      const slot = layer.querySelector(`[data-bp="${bp}"] iframe`).getBoundingClientRect();
+      const f = document.getElementById('live-preview-iframe');
+      const r = f.getBoundingClientRect();
+      const hit = document.elementFromPoint(slot.x + slot.width / 2, slot.y + Math.min(slot.height / 2, 200));
+      return {
+        same: ['x', 'y', 'width', 'height'].every((k) => Math.abs(slot[k] - r[k]) <= 1),
+        slot: `${Math.round(slot.x)},${Math.round(slot.y)} ${Math.round(slot.width)}x${Math.round(slot.height)}`,
+        frame: `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`,
+        hit: hit ? `${hit.tagName.toLowerCase()}#${hit.id}` : 'nothing',
+        clip: (layer.querySelector('.sve-bpo-scroll').style.clipPath || '').startsWith('polygon(evenodd'),
+        fixed: getComputedStyle(f).position,
+      };
+    },
+    LAYER,
+    activeHandle
+  );
+  step(
+    'the active size is the preview itself: the iframe stands in the slot, and a point in the slot hits it, through the layer’s hole',
+    inSlot.same && inSlot.hit === 'iframe#live-preview-iframe' && inSlot.clip && inSlot.fixed === 'fixed',
+    `slot ${inSlot.slot}, preview ${inSlot.frame}, hit ${inSlot.hit}`
+  );
   // One zoom control: the top bar's zoom group is the row's while it is open.
-  const rowPercent = () => cp.evaluate((sel) => Math.round(new DOMMatrix(getComputedStyle(document.querySelector(`${sel} .sve-bpo-canvas`)).transform).a * 100), LAYER);
+  const rowPercent = () =>
+    cp.evaluate(
+      (sel) =>
+        Math.round(new DOMMatrix(getComputedStyle(document.querySelector(`${sel} .sve-bpo-canvas`)).transform).a * 100),
+      LAYER
+    );
   const zoomOpen = await topZoom(cp);
   const openPercent = await rowPercent();
-  step('open, the top bar’s zoom label shows the row’s zoom', zoomOpen.label === `${openPercent}%`, `label "${zoomOpen.label}" (closed it read "${zoomClosed.label}"), row at ${openPercent}%`);
-  step('open, "Fit all" stands in the top bar’s zoom group, on screen and clickable, and the row has no zoom bar of its own', zoomOpen.fit && !zoomOpen.ownBar, `fit "${zoomOpen.fitText}" ${zoomOpen.fitBox}, own bar ${zoomOpen.ownBar}`);
-  step('frames take no clicks (view only)', shape.frames.every((f) => f.pe === 'none'), shape.frames.map((f) => f.pe).join(' '));
+  step(
+    'open, the top bar’s zoom label shows the row’s zoom',
+    zoomOpen.label === `${openPercent}%`,
+    `label "${zoomOpen.label}" (closed it read "${zoomClosed.label}"), row at ${openPercent}%`
+  );
+  step(
+    'open, "Fit all" stands in the top bar’s zoom group, on screen and clickable, and the row has no zoom bar of its own',
+    zoomOpen.fit && !zoomOpen.ownBar,
+    `fit "${zoomOpen.fitText}" ${zoomOpen.fitBox}, own bar ${zoomOpen.ownBar}`
+  );
+  step(
+    'frames take no clicks (view only)',
+    shape.frames.every((f) => f.pe === 'none'),
+    shape.frames.map((f) => f.pe).join(' ')
+  );
   const baseHandle = config.bps.find((b) => b.base)?.handle;
-  const pressedNow = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
+  const pressedNow = await cp.evaluate(() =>
+    [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')]
+      .map((b) => b.dataset.device)
+      .join()
+  );
   const ringWant = config.bps.find((b) => b.device === pressedNow)?.handle || baseHandle;
-  step('the ring is on the size the fields edit (the device this user has stored; the base size when none)', shape.frames.filter((f) => f.active).map((f) => f.bp).join() === ringWant, `active=${shape.frames.filter((f) => f.active).map((f) => f.bp).join() || 'none'}, device ${pressedNow || 'none'}`);
+  step(
+    'the ring is on the size the fields edit (the device this user has stored; the base size when none)',
+    shape.frames
+      .filter((f) => f.active)
+      .map((f) => f.bp)
+      .join() === ringWant,
+    `active=${
+      shape.frames
+        .filter((f) => f.active)
+        .map((f) => f.bp)
+        .join() || 'none'
+    }, device ${pressedNow || 'none'}`
+  );
   step('the button says it is on', shape.pressed === 'true');
-  step('iframes in the CP document = before + one per breakpoint', shape.iframes === iframesBefore + expected.length, `${shape.iframes} = ${iframesBefore} + ${expected.length}`);
+  step(
+    'iframes in the CP document = before + one per breakpoint',
+    shape.iframes === iframesBefore + expected.length,
+    `${shape.iframes} = ${iframesBefore} + ${expected.length}`
+  );
 
   // 5. Each copy loaded the page, the one under the preview included. Without the
   //    bridge; the preview keeps its own. A frame switched out of the row is blank.
-  const copyHandles = async () => { const out = []; for (const h of await cp.$$(`${LAYER} iframe`)) { if ((await (await h.getProperty('src')).jsonValue()) !== 'about:blank') out.push(h); } return out; };
-  const copiesLoaded = (count) => until(async () => {
-    const handles = await copyHandles();
-    if (handles.length !== count) return null;
+  const copyHandles = async () => {
     const out = [];
-    for (const h of handles) {
-      const f = await h.contentFrame();
-      if (!f || !(await f.evaluate(() => document.readyState === 'complete' && !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)).catch(() => false))) return null;
-      out.push(f);
+    for (const h of await cp.$$(`${LAYER} iframe`)) {
+      if ((await (await h.getProperty('src')).jsonValue()) !== 'about:blank') out.push(h);
     }
     return out;
-  }, 30000, 300);
+  };
+  const copiesLoaded = (count) =>
+    until(
+      async () => {
+        const handles = await copyHandles();
+        if (handles.length !== count) return null;
+        const out = [];
+        for (const h of handles) {
+          const f = await h.contentFrame();
+          if (
+            !f ||
+            !(await f
+              .evaluate(
+                () =>
+                  document.readyState === 'complete' &&
+                  !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)
+              )
+              .catch(() => false))
+          )
+            return null;
+          out.push(f);
+        }
+        return out;
+      },
+      30000,
+      300
+    );
   // Every frame in the row, in order — the active size's copy under the preview among them.
   const copySpecs = expected;
   const copyNames = copySpecs.map((b) => (b.handle === activeHandle ? `${b.handle} (under the preview)` : b.handle));
@@ -495,23 +803,51 @@ try {
   // Under test with the installed PHP, mirror.js arrives under preview.js's
   // URL; what tells them apart is what runs: mirror.js watches video pauses
   // (`document._sveVideoWatch`), preview.js does not.
-  const inside = frames ? await Promise.all(frames.map((f) => f.evaluate((swapped) => ({
-    bridge: !!document.querySelector('script[src*="bridge"]'),
-    preview: !swapped && !!document.querySelector('script[src*="/preview-"]'),
-    mirror: (swapped || !!document.querySelector('script[src*="/mirror-"]')) && document._sveVideoWatch === true,
-    bridgeRan: '__sveBridgeReady' in window,
-    bridgeUi: document.querySelectorAll('#__sve-bridge-styles, #__sve-inserters').length,
-    width: innerWidth,
-  }), SWAPPING))) : [];
-  const mainHasBridge = await main.evaluate(() => !!document.querySelector('script[src*="bridge"]') && '__sveBridgeReady' in window);
+  const inside = frames
+    ? await Promise.all(
+        frames.map((f) =>
+          f.evaluate(
+            (swapped) => ({
+              bridge: !!document.querySelector('script[src*="bridge"]'),
+              preview: !swapped && !!document.querySelector('script[src*="/preview-"]'),
+              mirror:
+                (swapped || !!document.querySelector('script[src*="/mirror-"]')) && document._sveVideoWatch === true,
+              bridgeRan: '__sveBridgeReady' in window,
+              bridgeUi: document.querySelectorAll('#__sve-bridge-styles, #__sve-inserters').length,
+              width: innerWidth,
+            }),
+            SWAPPING
+          )
+        )
+      )
+    : [];
+  const mainHasBridge = await main.evaluate(
+    () => !!document.querySelector('script[src*="bridge"]') && '__sveBridgeReady' in window
+  );
   step('the preview itself still has its bridge', mainHasBridge);
   if (MIRROR_UNDER_TEST) {
-    step('every view frame runs mirror.js alone — not preview.js, not the bridge', inside.length > 0 && inside.every((f) => f.mirror && !f.preview && !f.bridge), JSON.stringify(inside.map((f) => ({ mirror: f.mirror, preview: f.preview, bridge: f.bridge }))));
-    if (SWAPPING) step('each copy frame was handed mirror.js by the test in place of the installed preview.js', copyScriptsSwapped >= copySpecs.length, `${copyScriptsSwapped} request(s)`);
+    step(
+      'every view frame runs mirror.js alone — not preview.js, not the bridge',
+      inside.length > 0 && inside.every((f) => f.mirror && !f.preview && !f.bridge),
+      JSON.stringify(inside.map((f) => ({ mirror: f.mirror, preview: f.preview, bridge: f.bridge })))
+    );
+    if (SWAPPING)
+      step(
+        'each copy frame was handed mirror.js by the test in place of the installed preview.js',
+        copyScriptsSwapped >= copySpecs.length,
+        `${copyScriptsSwapped} request(s)`
+      );
   } else {
-    skip('every view frame runs mirror.js', 'the installed InjectBridgeScript predates mirror.js and this is not a working-tree run');
+    skip(
+      'every view frame runs mirror.js',
+      'the installed InjectBridgeScript predates mirror.js and this is not a working-tree run'
+    );
   }
-  step('every copy is laid out at its breakpoint width', inside.length > 0 && inside.every((f, i) => f.width === copySpecs[i].width), inside.map((f) => f.width).join(' '));
+  step(
+    'every copy is laid out at its breakpoint width',
+    inside.length > 0 && inside.every((f, i) => f.width === copySpecs[i].width),
+    inside.map((f) => f.width).join(' ')
+  );
   // Every frame is a viewport, not a page: one height V for every frame shown
   // and for the preview in its slot, as high as the pane holds at this zoom —
   // the labels' room, the frames and the padding under them (PAD, 48) fill the
@@ -525,36 +861,77 @@ try {
     return {
       z,
       top: Math.max(48 * z, Math.round(2 * rem)), // framesTop: the padding, or the labels' 2rem when that is more
-      heights: [...layer.querySelectorAll('[data-bp]:not([hidden]) iframe')].map((f) => f.getBoundingClientRect().height),
+      heights: [...layer.querySelectorAll('[data-bp]:not([hidden]) iframe')].map(
+        (f) => f.getBoundingClientRect().height
+      ),
       preview: document.getElementById('live-preview-iframe').getBoundingClientRect().height,
       ch: s.clientHeight,
       sh: s.scrollHeight,
     };
   }, LAYER);
   const V = viewports.heights[0] / viewports.z;
-  step('every frame shown and the preview are one height V, and the labels, the frames and the padding fill the row exactly (no vertical scroll)',
-    viewports.heights.length === expected.length && viewports.heights.every((h) => Math.abs(h - viewports.heights[0]) <= 1) && Math.abs(viewports.preview - viewports.heights[0]) <= 1 && Math.abs(viewports.top + (V + 48) * viewports.z - viewports.ch) <= 2 && viewports.sh <= viewports.ch,
-    `V ${V.toFixed(1)} at zoom ${viewports.z.toFixed(3)}: frames ${viewports.heights.map((h) => Math.round(h)).join(' ')} px on screen, preview ${Math.round(viewports.preview)}; ${Math.round(viewports.top)} + (V + 48) × z = ${Math.round(viewports.top + (V + 48) * viewports.z)} in a ${viewports.ch} px pane (scroll height ${viewports.sh})`);
-  const pages = frames ? await Promise.all(frames.map((f) => f.evaluate(() => ({ sh: document.documentElement.scrollHeight, ih: innerHeight })).catch(() => ({ sh: 0, ih: 0 })))) : [];
-  step('every copy is a viewport its page scrolls in: the document is taller than the frame', pages.length > 0 && pages.every((p) => p.sh > p.ih), pages.map((p, i) => `${copyNames[i]} ${p.sh}/${p.ih}`).join(', '));
+  step(
+    'every frame shown and the preview are one height V, and the labels, the frames and the padding fill the row exactly (no vertical scroll)',
+    viewports.heights.length === expected.length &&
+      viewports.heights.every((h) => Math.abs(h - viewports.heights[0]) <= 1) &&
+      Math.abs(viewports.preview - viewports.heights[0]) <= 1 &&
+      Math.abs(viewports.top + (V + 48) * viewports.z - viewports.ch) <= 2 &&
+      viewports.sh <= viewports.ch,
+    `V ${V.toFixed(1)} at zoom ${viewports.z.toFixed(3)}: frames ${viewports.heights.map((h) => Math.round(h)).join(' ')} px on screen, preview ${Math.round(viewports.preview)}; ${Math.round(viewports.top)} + (V + 48) × z = ${Math.round(viewports.top + (V + 48) * viewports.z)} in a ${viewports.ch} px pane (scroll height ${viewports.sh})`
+  );
+  const pages = frames
+    ? await Promise.all(
+        frames.map((f) =>
+          f
+            .evaluate(() => ({ sh: document.documentElement.scrollHeight, ih: innerHeight }))
+            .catch(() => ({ sh: 0, ih: 0 }))
+        )
+      )
+    : [];
+  step(
+    'every copy is a viewport its page scrolls in: the document is taller than the frame',
+    pages.length > 0 && pages.every((p) => p.sh > p.ih),
+    pages.map((p, i) => `${copyNames[i]} ${p.sh}/${p.ih}`).join(', ')
+  );
   if (PHP_HAS_VIEW_FLAG) {
-    step('no bridge in any view frame: no script, never ran, no badges/outlines/toolbar', inside.every((f) => !f.bridge && !f.bridgeRan && f.bridgeUi === 0), JSON.stringify(inside));
+    step(
+      'no bridge in any view frame: no script, never ran, no badges/outlines/toolbar',
+      inside.every((f) => !f.bridge && !f.bridgeRan && f.bridgeUi === 0),
+      JSON.stringify(inside)
+    );
   } else {
-    skip('no bridge in any view frame', `the installed InjectBridgeScript has no sve_view (bridge present: ${inside.map((f) => f.bridge).join(' ')}); proven by InjectBridgeScriptTest until composer update`);
+    skip(
+      'no bridge in any view frame',
+      `the installed InjectBridgeScript has no sve_view (bridge present: ${inside.map((f) => f.bridge).join(' ')}); proven by InjectBridgeScriptTest until composer update`
+    );
   }
 
   // 6. Type on the left: every frame follows (forwarded statamic.preview.updated), no reload.
   if (frames && field) {
-    for (const f of frames) await f.evaluate(() => { window.__sveBpoFrameMarker = 1; });
+    for (const f of frames)
+      await f.evaluate(() => {
+        window.__sveBpoFrameMarker = 1;
+      });
     // When each window's morph finished, on one clock (Date.now is shared across same-origin frames).
-    for (const f of [main, ...frames]) await f.evaluate(() => { window.__sveBpoMorphs = []; window.addEventListener('statamic:preview-updated', () => window.__sveBpoMorphs.push(Date.now())); });
+    for (const f of [main, ...frames])
+      await f.evaluate(() => {
+        window.__sveBpoMorphs = [];
+        window.addEventListener('statamic:preview-updated', () => window.__sveBpoMorphs.push(Date.now()));
+      });
     const fetches = { preview: 0, copies: 0 };
-    const countFetch = (req) => { const u = req.url(); if (!/live-preview=/.test(u) || req.method() !== 'GET') return; if (/[?&]sve_view=/.test(u)) fetches.copies++; else fetches.preview++; };
+    const countFetch = (req) => {
+      const u = req.url();
+      if (!/live-preview=/.test(u) || req.method() !== 'GET') return;
+      if (/[?&]sve_view=/.test(u)) fetches.copies++;
+      else fetches.preview++;
+    };
     page.on('request', countFetch);
     const token = `Q${Date.now().toString(36).slice(-5)}`;
     const target = await cp.evaluate(() => {
       const editor = document.querySelector('.live-preview-editor');
-      const el = [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
+      const el = [
+        ...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea'),
+      ].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       const r = el.getBoundingClientRect();
       return { x: r.right - 12, y: r.top + Math.min(r.height / 2, 14) };
@@ -564,43 +941,96 @@ try {
     await page.keyboard.press('End');
     // SVE_DEBUG: when Statamic's preview POST and each document fetch start and end.
     const timeline = [];
-    const onReq = (req) => { if (/live-preview=|\/preview(?:[/?]|$)/.test(req.url())) timeline.push({ t: Date.now(), what: `→ ${req.method()} ${req.url().replace(SITE_URL, '').replace(/(live-preview|token)=[^&]+/g, '$1=…').slice(0, 90)}` }); };
-    const onRes = (res) => { if (/live-preview=|\/preview(?:[/?]|$)/.test(res.url())) timeline.push({ t: Date.now(), what: `← ${res.status()} ${res.url().replace(SITE_URL, '').replace(/(live-preview|token)=[^&]+/g, '$1=…').slice(0, 90)}` }); };
-    if (process.env.SVE_DEBUG) { page.on('request', onReq); page.on('response', onRes); }
+    const onReq = (req) => {
+      if (/live-preview=|\/preview(?:[/?]|$)/.test(req.url()))
+        timeline.push({
+          t: Date.now(),
+          what: `→ ${req.method()} ${req
+            .url()
+            .replace(SITE_URL, '')
+            .replace(/(live-preview|token)=[^&]+/g, '$1=…')
+            .slice(0, 90)}`,
+        });
+    };
+    const onRes = (res) => {
+      if (/live-preview=|\/preview(?:[/?]|$)/.test(res.url()))
+        timeline.push({
+          t: Date.now(),
+          what: `← ${res.status()} ${res
+            .url()
+            .replace(SITE_URL, '')
+            .replace(/(live-preview|token)=[^&]+/g, '$1=…')
+            .slice(0, 90)}`,
+        });
+    };
+    if (process.env.SVE_DEBUG) {
+      page.on('request', onReq);
+      page.on('response', onRes);
+    }
     await page.keyboard.type(` ${token}`, { delay: 20 });
     const typedAt = Date.now();
     const has = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
     // When each one first shows it: the preview, then every view frame.
     const seen = {};
     const names = ['preview', ...copyNames];
-    const reached = await until(async () => {
-      const now = Date.now() - typedAt;
-      const got = await Promise.all([main, ...frames].map(has));
-      got.forEach((ok, i) => { if (ok && seen[names[i]] == null) seen[names[i]] = now; });
-      return got.every(Boolean);
-    }, 10000, 50);
+    const reached = await until(
+      async () => {
+        const now = Date.now() - typedAt;
+        const got = await Promise.all([main, ...frames].map(has));
+        got.forEach((ok, i) => {
+          if (ok && seen[names[i]] == null) seen[names[i]] = now;
+        });
+        return got.every(Boolean);
+      },
+      10000,
+      50
+    );
     const took = Date.now() - typedAt;
-    const kept = await Promise.all(frames.map((f) => f.evaluate(() => window.__sveBpoFrameMarker === 1).catch(() => false)));
-    step('typing on the left reaches the preview and every view frame within 3 s', !!reached && took <= 3000, `${reached ? `${took} ms after the last key` : 'not within 10 s'} (${names.map((n) => `${n} ${seen[n] ?? '–'} ms`).join(', ')}); token ${token}`);
+    const kept = await Promise.all(
+      frames.map((f) => f.evaluate(() => window.__sveBpoFrameMarker === 1).catch(() => false))
+    );
+    step(
+      'typing on the left reaches the preview and every view frame within 3 s',
+      !!reached && took <= 3000,
+      `${reached ? `${took} ms after the last key` : 'not within 10 s'} (${names.map((n) => `${n} ${seen[n] ?? '–'} ms`).join(', ')}); token ${token}`
+    );
     await sleep(400);
     page.off('request', countFetch);
-    const morphs = await Promise.all([main, ...frames].map((f) => f.evaluate(() => window.__sveBpoMorphs || []).catch(() => [])));
+    const morphs = await Promise.all(
+      [main, ...frames].map((f) => f.evaluate(() => window.__sveBpoMorphs || []).catch(() => []))
+    );
     const previewMorph = morphs[0][morphs[0].length - 1];
-    const lag = morphs.slice(1).map((list) => (list.length && previewMorph ? list[list.length - 1] - previewMorph : null));
+    const lag = morphs
+      .slice(1)
+      .map((list) => (list.length && previewMorph ? list[list.length - 1] - previewMorph : null));
     if (MIRROR_UNDER_TEST) {
-      step('one server render per change: the preview fetched, the copies did not', fetches.preview >= 1 && fetches.copies === 0, `preview ${fetches.preview} fetch(es), copies ${fetches.copies}`);
-      step('every copy morphed within 50 ms of the preview (the same render, handed on — not a round trip)', lag.every((ms) => ms !== null && ms >= 0 && ms <= 50), `after the preview's morph: ${copyNames.map((n, i) => `${n} ${lag[i] ?? '–'} ms`).join(', ')}`);
+      step(
+        'one server render per change: the preview fetched, the copies did not',
+        fetches.preview >= 1 && fetches.copies === 0,
+        `preview ${fetches.preview} fetch(es), copies ${fetches.copies}`
+      );
+      step(
+        'every copy morphed within 50 ms of the preview (the same render, handed on — not a round trip)',
+        lag.every((ms) => ms !== null && ms >= 0 && ms <= 50),
+        `after the preview's morph: ${copyNames.map((n, i) => `${n} ${lag[i] ?? '–'} ms`).join(', ')}`
+      );
     } else {
       skip('one server render per change', 'mirror.js is not under test in this run');
     }
     if (process.env.SVE_DEBUG) {
       page.off('request', onReq);
       page.off('response', onRes);
-      console.log(`DEBUG timeline (ms after the last key):\n${timeline.map((e) => `  ${String(e.t - typedAt).padStart(6)} ${e.what}`).join('\n')}`);
+      console.log(
+        `DEBUG timeline (ms after the last key):\n${timeline.map((e) => `  ${String(e.t - typedAt).padStart(6)} ${e.what}`).join('\n')}`
+      );
     }
     step('the view frames morphed in place (no reload)', kept.every(Boolean), kept.join(' '));
     for (let i = 0; i < token.length + 1; i++) await page.keyboard.press('Backspace');
-    const gone = await until(async () => !(await has(main)) && (await Promise.all(frames.map(has))).every((v) => !v), 10000, 150);
+    const gone = await until(
+      async () => !(await has(main)) && (await Promise.all(frames.map(has))).every((v) => !v),
+      10000,
+      150
+    );
     step('deleting it again reaches them too', !!gone);
     await sleep(600);
   } else {
@@ -609,17 +1039,39 @@ try {
 
   // 7. Zoom and pan: a transform on the canvas; the row pans sideways, each frame scrolls its own page.
   //    The zoom is driven from the top bar's zoom group, and its label is the row's percent.
-  const zoomState = () => cp.evaluate((sel, labelSel) => {
-    const layer = document.querySelector(sel);
-    const s = layer.querySelector('.sve-bpo-scroll');
-    return { scale: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a, left: s.scrollLeft, top: s.scrollTop, sw: s.scrollWidth, cw: s.clientWidth, sh: s.scrollHeight, ch: s.clientHeight, level: document.querySelector(labelSel)?.textContent || '' };
-  }, LAYER, ZOOM_LABEL);
+  const zoomState = () =>
+    cp.evaluate(
+      (sel, labelSel) => {
+        const layer = document.querySelector(sel);
+        const s = layer.querySelector('.sve-bpo-scroll');
+        return {
+          scale: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a,
+          left: s.scrollLeft,
+          top: s.scrollTop,
+          sw: s.scrollWidth,
+          cw: s.clientWidth,
+          sh: s.scrollHeight,
+          ch: s.clientHeight,
+          level: document.querySelector(labelSel)?.textContent || '',
+        };
+      },
+      LAYER,
+      ZOOM_LABEL
+    );
   const z0 = await zoomState();
   await realClick(page, cp, ZOOM_IN);
   await sleep(250);
   const zIn = await zoomState();
-  step('"+" in the top bar zooms the row: the canvas scales up, the top bar’s label follows', zIn.scale > z0.scale && zIn.level === `${Math.round(zIn.scale * 100)}%`, `${z0.scale.toFixed(3)} → ${zIn.scale.toFixed(3)} (label "${z0.level}" → "${zIn.level}")`);
-  step('zoomed in, the layer scrolls sideways only (the frames scroll their own pages)', zIn.sw > zIn.cw && zIn.sh <= zIn.ch, `scroll area ${zIn.sw}x${zIn.sh} in ${zIn.cw}x${zIn.ch}`);
+  step(
+    '"+" in the top bar zooms the row: the canvas scales up, the top bar’s label follows',
+    zIn.scale > z0.scale && zIn.level === `${Math.round(zIn.scale * 100)}%`,
+    `${z0.scale.toFixed(3)} → ${zIn.scale.toFixed(3)} (label "${z0.level}" → "${zIn.level}")`
+  );
+  step(
+    'zoomed in, the layer scrolls sideways only (the frames scroll their own pages)',
+    zIn.sw > zIn.cw && zIn.sh <= zIn.ch,
+    `scroll area ${zIn.sw}x${zIn.sh} in ${zIn.cw}x${zIn.ch}`
+  );
   const layerBox = await absoluteRect(cp, LAYER);
   const cx = layerBox.x + layerBox.w / 2;
   const cy = layerBox.y + layerBox.h / 2;
@@ -627,21 +1079,39 @@ try {
   await page.mouse.wheel({ deltaX: 240 });
   await sleep(300);
   const zWheel = await zoomState();
-  step('a sideways wheel pans the row, and only sideways', zWheel.left > zIn.left && zWheel.top === 0, `scroll ${zIn.left},${zIn.top} → ${zWheel.left},${zWheel.top}`);
+  step(
+    'a sideways wheel pans the row, and only sideways',
+    zWheel.left > zIn.left && zWheel.top === 0,
+    `scroll ${zIn.left},${zIn.top} → ${zWheel.left},${zWheel.top}`
+  );
   // Up and down, the frame under the pointer scrolls its own page: a copy, or
   // the preview (through the hole, or over a gutter).
   const cpBox = await (await cp.frameElement()).boundingBox();
-  const underPointer = await cp.evaluate((sel, x, y) => {
-    const hit = [...document.querySelectorAll(`${sel} [data-bp]:not([hidden])`)].find((item) => { const r = item.querySelector('iframe').getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; });
-    return hit && !hit.hasAttribute('data-active') ? hit.dataset.bp : '';
-  }, LAYER, cx - cpBox.x, cy - cpBox.y);
-  const wheeled = underPointer ? await (await cp.$(`${LAYER} [data-bp="${underPointer}"] iframe`)).contentFrame() : await (await cp.$('#live-preview-iframe')).contentFrame();
+  const underPointer = await cp.evaluate(
+    (sel, x, y) => {
+      const hit = [...document.querySelectorAll(`${sel} [data-bp]:not([hidden])`)].find((item) => {
+        const r = item.querySelector('iframe').getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      });
+      return hit && !hit.hasAttribute('data-active') ? hit.dataset.bp : '';
+    },
+    LAYER,
+    cx - cpBox.x,
+    cy - cpBox.y
+  );
+  const wheeled = underPointer
+    ? await (await cp.$(`${LAYER} [data-bp="${underPointer}"] iframe`)).contentFrame()
+    : await (await cp.$('#live-preview-iframe')).contentFrame();
   const yBefore = await wheeled.evaluate(() => scrollY);
   await page.mouse.wheel({ deltaY: 400 });
   await sleep(300);
   const yAfter = await wheeled.evaluate(() => scrollY);
   const zDown = await zoomState();
-  step('a wheel up or down scrolls the frame under the pointer, and the row stays where it is', yAfter > yBefore && zDown.top === 0 && zDown.left === zWheel.left, `${underPointer || 'the preview'} scrollY ${Math.round(yBefore)} → ${Math.round(yAfter)}; row ${zDown.left},${zDown.top}`);
+  step(
+    'a wheel up or down scrolls the frame under the pointer, and the row stays where it is',
+    yAfter > yBefore && zDown.top === 0 && zDown.left === zWheel.left,
+    `${underPointer || 'the preview'} scrollY ${Math.round(yBefore)} → ${Math.round(yAfter)}; row ${zDown.left},${zDown.top}`
+  );
   // Somewhere on the row that is not the preview: a drag on the preview itself
   // is the editor's (a section move), not a pan. The first point on a grid
   // over the layer that the scroller answers for, outside the active slot.
@@ -667,25 +1137,52 @@ try {
   await page.mouse.up();
   await sleep(200);
   const zDrag = await zoomState();
-  step('dragging the row (not the preview) pans it, sideways only', !!grip && zDrag.left < zWheel.left && zDrag.top === 0, `from ${grip ? `${Math.round(grip.x)},${Math.round(grip.y)}` : 'no free point'}: scroll ${zWheel.left},${zWheel.top} → ${zDrag.left},${zDrag.top}`);
+  step(
+    'dragging the row (not the preview) pans it, sideways only',
+    !!grip && zDrag.left < zWheel.left && zDrag.top === 0,
+    `from ${grip ? `${Math.round(grip.x)},${Math.round(grip.y)}` : 'no free point'}: scroll ${zWheel.left},${zWheel.top} → ${zDrag.left},${zDrag.top}`
+  );
   await page.keyboard.down('Control');
   await page.mouse.wheel({ deltaY: 300 });
   await page.keyboard.up('Control');
   await sleep(250);
   const zCtrl = await zoomState();
   const pageZoom = await page.evaluate(() => window.visualViewport?.scale ?? 1);
-  step('ctrl + wheel zooms the canvas, not the browser', zCtrl.scale < zDrag.scale && pageZoom === 1, `${zDrag.scale.toFixed(3)} → ${zCtrl.scale.toFixed(3)}, page zoom ${pageZoom}`);
+  step(
+    'ctrl + wheel zooms the canvas, not the browser',
+    zCtrl.scale < zDrag.scale && pageZoom === 1,
+    `${zDrag.scale.toFixed(3)} → ${zCtrl.scale.toFixed(3)}, page zoom ${pageZoom}`
+  );
   // Not the button: the overview tells the top bar every zoom, whatever made it.
-  step('ctrl + wheel over the row: the top bar’s label follows', zCtrl.level === `${Math.round(zCtrl.scale * 100)}%` && zCtrl.level !== zDrag.level, `label "${zDrag.level}" → "${zCtrl.level}" at ${zCtrl.scale.toFixed(3)}`);
+  step(
+    'ctrl + wheel over the row: the top bar’s label follows',
+    zCtrl.level === `${Math.round(zCtrl.scale * 100)}%` && zCtrl.level !== zDrag.level,
+    `label "${zDrag.level}" → "${zCtrl.level}" at ${zCtrl.scale.toFixed(3)}`
+  );
   await realClick(page, cp, ZOOM_OUT);
   await sleep(250);
   const zOut = await zoomState();
-  step('"−" in the top bar zooms the row out, and the label follows', zOut.scale < zCtrl.scale && zOut.level === `${Math.round(zOut.scale * 100)}%`, `${zCtrl.scale.toFixed(3)} → ${zOut.scale.toFixed(3)} (label "${zOut.level}")`);
+  step(
+    '"−" in the top bar zooms the row out, and the label follows',
+    zOut.scale < zCtrl.scale && zOut.level === `${Math.round(zOut.scale * 100)}%`,
+    `${zCtrl.scale.toFixed(3)} → ${zOut.scale.toFixed(3)} (label "${zOut.level}")`
+  );
   await realClick(page, cp, ZOOM_FIT);
   await sleep(250);
   const zFit = await zoomState();
-  const fits = await cp.evaluate((sel) => { const layer = document.querySelector(sel); const lr = layer.getBoundingClientRect(); return [...layer.querySelectorAll('iframe')].every((f) => { const r = f.getBoundingClientRect(); return r.left >= lr.left - 1 && r.right <= lr.right + 1; }); }, LAYER);
-  step('"Fit all" in the top bar: every frame is in view again, and the label says so', Math.abs(zFit.scale - z0.scale) < 0.002 && fits && zFit.level === `${Math.round(zFit.scale * 100)}%`, `scale ${zFit.scale.toFixed(3)} (opened at ${z0.scale.toFixed(3)}), label "${zFit.level}"`);
+  const fits = await cp.evaluate((sel) => {
+    const layer = document.querySelector(sel);
+    const lr = layer.getBoundingClientRect();
+    return [...layer.querySelectorAll('iframe')].every((f) => {
+      const r = f.getBoundingClientRect();
+      return r.left >= lr.left - 1 && r.right <= lr.right + 1;
+    });
+  }, LAYER);
+  step(
+    '"Fit all" in the top bar: every frame is in view again, and the label says so',
+    Math.abs(zFit.scale - z0.scale) < 0.002 && fits && zFit.level === `${Math.round(zFit.scale * 100)}%`,
+    `scale ${zFit.scale.toFixed(3)} (opened at ${z0.scale.toFixed(3)}), label "${zFit.level}"`
+  );
 
   // 7b. A right-click on the overview button opens the sizes menu: a checkbox
   //     per size. Unticking takes that size out of the row (frame blanked) and
@@ -694,13 +1191,36 @@ try {
   //     edited goes, the preview moves to the nearest size still in. (Until
   //     27 Sep 2026 these were dots on the size buttons.)
   const MENU = '#__sve-bp-sizes-menu';
-  const pressedDevice = () => cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
-  const rowWidthNow = () => cp.evaluate((sel) => document.querySelector(`${sel} .sve-bpo-sizer`).getBoundingClientRect().width, LAYER);
-  const sizeState = (bp) => cp.evaluate((sel, handle) => {
-    const item = document.querySelector(`${sel} [data-bp="${handle}"]`);
-    return { out: !!item && item.hidden && getComputedStyle(item).display === 'none', src: item?.querySelector('iframe')?.getAttribute('src') || '' };
-  }, LAYER, bp);
-  const menuRows = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} label[data-bp]`)].map((row) => ({ bp: row.dataset.bp, on: row.querySelector('input').checked, locked: row.querySelector('input').disabled })), MENU);
+  const pressedDevice = () =>
+    cp.evaluate(() =>
+      [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')]
+        .map((b) => b.dataset.device)
+        .join()
+    );
+  const rowWidthNow = () =>
+    cp.evaluate((sel) => document.querySelector(`${sel} .sve-bpo-sizer`).getBoundingClientRect().width, LAYER);
+  const sizeState = (bp) =>
+    cp.evaluate(
+      (sel, handle) => {
+        const item = document.querySelector(`${sel} [data-bp="${handle}"]`);
+        return {
+          out: !!item && item.hidden && getComputedStyle(item).display === 'none',
+          src: item?.querySelector('iframe')?.getAttribute('src') || '',
+        };
+      },
+      LAYER,
+      bp
+    );
+  const menuRows = () =>
+    cp.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(`${sel} label[data-bp]`)].map((row) => ({
+          bp: row.dataset.bp,
+          on: row.querySelector('input').checked,
+          locked: row.querySelector('input').disabled,
+        })),
+      MENU
+    );
   const layerOpen = () => cp.evaluate((sel) => !!document.querySelector(sel), LAYER);
   const openMenu = async () => {
     await realRightClick(page, cp, BUTTON);
@@ -710,55 +1230,140 @@ try {
   const tick = (handle) => realClick(page, cp, `${MENU} label[data-bp="${handle}"] input`);
   const closeMenu = async () => {
     await page.keyboard.press('Escape');
-    return !!(await until(() => cp.evaluate((sel) => !document.querySelector(sel) && !document.getElementById('__sve-bp-sizes-menu-style'), MENU), 3000));
+    return !!(await until(
+      () =>
+        cp.evaluate(
+          (sel) => !document.querySelector(sel) && !document.getElementById('__sve-bp-sizes-menu-style'),
+          MENU
+        ),
+      3000
+    ));
   };
 
-  step('no marks on the size buttons', await cp.evaluate(() => document.querySelectorAll('.sve-bpo-badge').length === 0));
+  step(
+    'no marks on the size buttons',
+    await cp.evaluate(() => document.querySelectorAll('.sve-bpo-badge').length === 0)
+  );
   step('a right-click on the button opens the sizes menu', await openMenu());
   const menuSeen = await visible(cp, MENU);
   const menuBox = await absoluteRect(cp, MENU);
   const buttonBox = await absoluteRect(cp, BUTTON);
-  step('the menu is on screen, under the button', menuSeen.ok && menuBox.y >= buttonBox.y + buttonBox.h, `${menuSeen.why}; button bottom ${Math.round(buttonBox.y + buttonBox.h)}`);
+  step(
+    'the menu is on screen, under the button',
+    menuSeen.ok && menuBox.y >= buttonBox.y + buttonBox.h,
+    `${menuSeen.why}; button bottom ${Math.round(buttonBox.y + buttonBox.h)}`
+  );
   step('the right-click left the overview open', await layerOpen());
   const rows0 = await menuRows();
-  step('one ticked row per size, narrowest first; none locked', rows0.map((r) => r.bp).join() === expected.map((b) => b.handle).join() && rows0.every((r) => r.on && !r.locked),
-    rows0.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' '));
-  const middle = expected.find((b) => b.handle !== activeHandle && b.handle !== expected[0].handle) || expected.find((b) => b.handle !== activeHandle);
+  step(
+    'one ticked row per size, narrowest first; none locked',
+    rows0.map((r) => r.bp).join() === expected.map((b) => b.handle).join() && rows0.every((r) => r.on && !r.locked),
+    rows0.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' ')
+  );
+  const middle =
+    expected.find((b) => b.handle !== activeHandle && b.handle !== expected[0].handle) ||
+    expected.find((b) => b.handle !== activeHandle);
   const pressedBefore = await pressedDevice();
   const rowBefore = await rowWidthNow();
   await tick(middle.handle);
   await sleep(300);
   const off = await sizeState(middle.handle);
   const rowOff = await rowWidthNow();
-  step(`unticking ${middle.device} takes it out of the row, its frame blanked`, off.out && off.src === 'about:blank' && rowOff < rowBefore, `out=${off.out} src=${off.src} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`);
+  step(
+    `unticking ${middle.device} takes it out of the row, its frame blanked`,
+    off.out && off.src === 'about:blank' && rowOff < rowBefore,
+    `out=${off.out} src=${off.src} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`
+  );
   step('the menu stays open, the row unticked', (await menuRows()).find((r) => r.bp === middle.handle)?.on === false);
-  step('unticking does not change the size the fields edit', (await pressedDevice()) === pressedBefore, `pressed device stays ${pressedBefore}`);
+  step(
+    'unticking does not change the size the fields edit',
+    (await pressedDevice()) === pressedBefore,
+    `pressed device stays ${pressedBefore}`
+  );
   // The size being edited may go too: the preview moves first to the nearest
   // size still in (the same door as its top-bar button), then the size leaves.
-  const ringOn = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join(), LAYER);
+  const ringOn = () =>
+    cp.evaluate(
+      (sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join(),
+      LAYER
+    );
   const stillIn = expected.filter((b) => b.handle !== middle.handle && b.handle !== activeHandle);
-  const nearest = stillIn.reduce((best, b) => { const active = expected.find((e) => e.handle === activeHandle); const gap = Math.abs(b.width - active.width); return !best || gap < best.gap || (gap === best.gap && b.width < best.width) ? { ...b, gap } : best; }, null);
+  const nearest = stillIn.reduce((best, b) => {
+    const active = expected.find((e) => e.handle === activeHandle);
+    const gap = Math.abs(b.width - active.width);
+    return !best || gap < best.gap || (gap === best.gap && b.width < best.width) ? { ...b, gap } : best;
+  }, null);
   await tick(activeHandle);
-  const moved = await until(async () => ((await ringOn()) === nearest?.handle && (await sizeState(activeHandle)).out ? true : null), 3000);
-  step('unticking the size being edited: the ring and the preview move to the nearest size still in, and it leaves the row', !!moved && (await pressedDevice()) === nearest?.device,
-    `ring on ${await ringOn()} (want ${nearest?.handle}), pressed ${await pressedDevice()}, ${activeHandle} out=${(await sizeState(activeHandle)).out}`);
-  const slot = await cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); const p = document.getElementById('live-preview-iframe').getBoundingClientRect(); return Math.abs(f.left - p.left) < 2 && Math.abs(f.top - p.top) < 2 && Math.abs(f.width - p.width) < 2; }, LAYER, nearest?.handle);
+  const moved = await until(
+    async () => ((await ringOn()) === nearest?.handle && (await sizeState(activeHandle)).out ? true : null),
+    3000
+  );
+  step(
+    'unticking the size being edited: the ring and the preview move to the nearest size still in, and it leaves the row',
+    !!moved && (await pressedDevice()) === nearest?.device,
+    `ring on ${await ringOn()} (want ${nearest?.handle}), pressed ${await pressedDevice()}, ${activeHandle} out=${(await sizeState(activeHandle)).out}`
+  );
+  const slot = await cp.evaluate(
+    (sel, bp) => {
+      const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect();
+      const p = document.getElementById('live-preview-iframe').getBoundingClientRect();
+      return Math.abs(f.left - p.left) < 2 && Math.abs(f.top - p.top) < 2 && Math.abs(f.width - p.width) < 2;
+    },
+    LAYER,
+    nearest?.handle
+  );
   step('the preview stands in the new size’s slot', slot);
   const rowsOne = await menuRows();
-  step('one size left: it is the only one ticked, and locked', rowsOne.filter((r) => r.on).map((r) => r.bp).join() === nearest?.handle && rowsOne.find((r) => r.bp === nearest?.handle)?.locked,
-    rowsOne.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' '));
+  step(
+    'one size left: it is the only one ticked, and locked',
+    rowsOne
+      .filter((r) => r.on)
+      .map((r) => r.bp)
+      .join() === nearest?.handle && rowsOne.find((r) => r.bp === nearest?.handle)?.locked,
+    rowsOne.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' ')
+  );
   for (const b of expected.filter((e) => e.handle !== nearest?.handle)) await tick(b.handle);
-  const back = await until(async () => {
-    const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
-    if (states.some((st) => st.out)) return null;
-    for (const h of await copyHandles()) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)).catch(() => false))) return null; }
-    return states;
-  }, 20000, 300);
-  step('ticked in again, every size is back in the row and every copy loaded', !!back && back.every((st, i) => new URL(st.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((st) => st.src === 'about:blank' ? 'blank' : st.src.slice(st.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
-  step('Escape closes the menu and its style, and leaves the overview open', (await closeMenu()) && (await layerOpen()));
+  const back = await until(
+    async () => {
+      const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
+      if (states.some((st) => st.out)) return null;
+      for (const h of await copyHandles()) {
+        const f = await h.contentFrame();
+        if (
+          !f ||
+          !(await f
+            .evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`))
+            .catch(() => false))
+        )
+          return null;
+      }
+      return states;
+    },
+    20000,
+    300
+  );
+  step(
+    'ticked in again, every size is back in the row and every copy loaded',
+    !!back && back.every((st, i) => new URL(st.src).searchParams.get('sve_view') === expected[i].handle),
+    back
+      ? back.map((st) => (st.src === 'about:blank' ? 'blank' : st.src.slice(st.src.indexOf('sve_view')))).join(' | ')
+      : 'not within 20 s'
+  );
+  step(
+    'Escape closes the menu and its style, and leaves the overview open',
+    (await closeMenu()) && (await layerOpen())
+  );
   // The size the fields edited before, picked again in the top bar, for the steps below.
-  await realClick(page, cp, `#__sve-preview-chrome [data-device="${expected.find((b) => b.handle === activeHandle).device}"]`);
-  step('picked again in the top bar, the ring is back where it began', !!(await until(async () => ((await ringOn()) === activeHandle ? true : null), 3000)), `ring on ${await ringOn()}`);
+  await realClick(
+    page,
+    cp,
+    `#__sve-preview-chrome [data-device="${expected.find((b) => b.handle === activeHandle).device}"]`
+  );
+  step(
+    'picked again in the top bar, the ring is back where it began',
+    !!(await until(async () => ((await ringOn()) === activeHandle ? true : null), 3000)),
+    `ring on ${await ringOn()}`
+  );
 
   // 8. Escape closes; everything is as it was.
   await page.keyboard.press('Escape');
@@ -779,13 +1384,36 @@ try {
   });
   step('Escape closes: layer and its style gone, button off', !!layerGone && !after.style && after.pressed === 'false');
   const zoomEscaped = await topZoom(cp);
-  step('closed, "Fit all" is gone from the top bar again and no zoom bar is left anywhere', !zoomEscaped.fit && !zoomEscaped.ownBar, `fit ${zoomEscaped.fitBox}, label "${zoomEscaped.label}"`);
-  step('closed, the size group is as it was', after.groupPosition === groupPositionBefore, `group position "${after.groupPosition}" (was "${groupPositionBefore}")`);
-  step('Escape did not close Live Preview', opened && !!(await page.$('iframe.sve-edit-overlay[data-open]')) && after.src != null);
-  step('iframes in the CP document back to before', after.iframes === iframesBefore, `${after.iframes} (before ${iframesBefore})`);
-  step('the preview frame is untouched: same src, transform and window', after.src === mainBefore.src && after.transform === mainBefore.transform && after.marker === 'before',
-    `src same=${after.src === mainBefore.src} transform "${after.transform}" (was "${mainBefore.transform}") window kept=${after.marker === 'before'}`);
-  info('preview frame style and class', after.css === mainBefore.css && after.cls === mainBefore.cls ? 'identical to before' : `now "${after.css}" .${after.cls} — before "${mainBefore.css}" .${mainBefore.cls}`);
+  step(
+    'closed, "Fit all" is gone from the top bar again and no zoom bar is left anywhere',
+    !zoomEscaped.fit && !zoomEscaped.ownBar,
+    `fit ${zoomEscaped.fitBox}, label "${zoomEscaped.label}"`
+  );
+  step(
+    'closed, the size group is as it was',
+    after.groupPosition === groupPositionBefore,
+    `group position "${after.groupPosition}" (was "${groupPositionBefore}")`
+  );
+  step(
+    'Escape did not close Live Preview',
+    opened && !!(await page.$('iframe.sve-edit-overlay[data-open]')) && after.src != null
+  );
+  step(
+    'iframes in the CP document back to before',
+    after.iframes === iframesBefore,
+    `${after.iframes} (before ${iframesBefore})`
+  );
+  step(
+    'the preview frame is untouched: same src, transform and window',
+    after.src === mainBefore.src && after.transform === mainBefore.transform && after.marker === 'before',
+    `src same=${after.src === mainBefore.src} transform "${after.transform}" (was "${mainBefore.transform}") window kept=${after.marker === 'before'}`
+  );
+  info(
+    'preview frame style and class',
+    after.css === mainBefore.css && after.cls === mainBefore.cls
+      ? 'identical to before'
+      : `now "${after.css}" .${after.cls} — before "${mainBefore.css}" .${mainBefore.cls}`
+  );
 
   // 9. A second round, measured by DevTools: every listener it bound is gone
   //    again, and the same button closes it.
@@ -797,54 +1425,154 @@ try {
   step('the button opens it again', await waitIn(cp, LAYER, 10000));
   await copiesLoaded(expected.length);
   const listenersOpen = await listenerSnapshot(cp);
-  const hookOpen = await cp.evaluate(() => typeof document.getElementById('live-preview-iframe').contentWindow.__sveMirror);
+  const hookOpen = await cp.evaluate(
+    () => typeof document.getElementById('live-preview-iframe').contentWindow.__sveMirror
+  );
   const zoomReopened = await topZoom(cp);
   await realClick(page, cp, BUTTON);
   // The button's click runs through import(): the close lands a task later.
   const closedByButton = await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
   step('the same button closes it', !!closedByButton);
-  const zoomAfter = (await until(async () => { const z = await topZoom(cp); return z.label === zoomBefore.label && !z.fit ? z : null; }, 2000)) || (await topZoom(cp));
-  step('closed, the top bar’s zoom label is the preview’s own zoom again — what it read before opening — and "Fit all" is hidden',
+  const zoomAfter =
+    (await until(async () => {
+      const z = await topZoom(cp);
+      return z.label === zoomBefore.label && !z.fit ? z : null;
+    }, 2000)) || (await topZoom(cp));
+  step(
+    'closed, the top bar’s zoom label is the preview’s own zoom again — what it read before opening — and "Fit all" is hidden',
     zoomAfter.label === zoomBefore.label && !zoomAfter.fit && !zoomAfter.ownBar,
-    `label "${zoomBefore.label}" → open "${zoomReopened.label}" (fit ${zoomReopened.fit ? 'shown' : 'hidden'}) → closed "${zoomAfter.label}" (fit ${zoomAfter.fitBox})`);
+    `label "${zoomBefore.label}" → open "${zoomReopened.label}" (fit ${zoomReopened.fit ? 'shown' : 'hidden'}) → closed "${zoomAfter.label}" (fit ${zoomAfter.fitBox})`
+  );
   const listenersAfter = await listenerSnapshot(cp);
-  const hookAfter = await cp.evaluate(() => { const w = document.getElementById('live-preview-iframe').contentWindow; return { mirror: '__sveMirror' in w, fixed: getComputedStyle(document.getElementById('live-preview-iframe')).position }; });
-  step('open, the preview window carries the mirror hook; closed, the hook is gone and the iframe is no longer fixed', hookOpen === 'function' && !hookAfter.mirror && hookAfter.fixed !== 'fixed', `open: ${hookOpen}, after close: mirror ${hookAfter.mirror}, position ${hookAfter.fixed}`);
+  const hookAfter = await cp.evaluate(() => {
+    const w = document.getElementById('live-preview-iframe').contentWindow;
+    return {
+      mirror: '__sveMirror' in w,
+      fixed: getComputedStyle(document.getElementById('live-preview-iframe')).position,
+    };
+  });
+  step(
+    'open, the preview window carries the mirror hook; closed, the hook is gone and the iframe is no longer fixed',
+    hookOpen === 'function' && !hookAfter.mirror && hookAfter.fixed !== 'fixed',
+    `open: ${hookOpen}, after close: mirror ${hookAfter.mirror}, position ${hookAfter.fixed}`
+  );
   // The measurement has to see the overview's own listeners while it is open,
   // or a clean "after" proves nothing: Escape and the ring on the CP window,
   // the preview's load on the pane, the preview's morph on its window.
-  const own = { before: ownListeners(listenersBefore), open: ownListeners(listenersOpen), after: ownListeners(listenersAfter) };
+  const own = {
+    before: ownListeners(listenersBefore),
+    open: ownListeners(listenersOpen),
+    after: ownListeners(listenersAfter),
+  };
   // On the preview: the FOCUS message, its scroll (the copies follow it) and the edit's end on its window; wheel and input (an inline edit's keystrokes) on its document.
-  const want = { cpWindow: ['keydown', 'sve:breakpoint'], cpDocument: [], pane: ['load(capture)'], previewWindow: ['message', 'scroll', 'sve:inline-edit-end'], previewDocument: ['input(capture)', 'wheel'] };
-  const show = (map) => Object.entries(map).map(([k, types]) => `${k} [${types.join(' ')}]`).join(', ');
-  step('before opening, the overview has no listener anywhere (DevTools)', Object.values(own.before).every((types) => types.length === 0), show(own.before));
-  step('open, DevTools sees exactly the overview’s own listeners', JSON.stringify(own.open) === JSON.stringify(Object.fromEntries(Object.entries(want).map(([k, v]) => [k, [...v].sort()]))), show(own.open));
-  step('closed, every listener it bound is gone (DevTools)', Object.values(own.after).every((types) => types.length === 0), show(own.after));
-  info('all listeners on those objects (the editor binds its own meanwhile)', Object.keys(listenersBefore).map((k) => `${k} ${listenersBefore[k].length}→${listenersOpen[k].length}→${listenersAfter[k].length}`).join(', '));
-  const others = Object.fromEntries(Object.keys(listenersAfter).map((k) => [k, listenersAfter[k].filter((l) => !listenersBefore[k].some((b) => b.type === l.type && b.script === l.script)).map((l) => `${l.type}@${l.script || '?'}`)]));
-  if (process.env.SVE_DEBUG) for (const [name, snap] of Object.entries({ open: listenersOpen, after: listenersAfter })) console.log(`DEBUG own listeners ${name}:`, Object.entries(snap).map(([k, list]) => `${k} ${list.filter((l) => /^breakpoint-overview-/.test(l.script)).map((l) => `${l.type}@${l.at}`).join(' ')}`).join(' | '));
-  if (Object.values(others).some((list) => list.length)) info('bound by others while it was open', Object.entries(others).filter(([, l]) => l.length).map(([k, l]) => `${k}: ${[...new Set(l)].join(' ')}`).join(' | '));
+  const want = {
+    cpWindow: ['keydown', 'sve:breakpoint'],
+    cpDocument: [],
+    pane: ['load(capture)'],
+    previewWindow: ['message', 'scroll', 'sve:inline-edit-end'],
+    previewDocument: ['input(capture)', 'wheel'],
+  };
+  const show = (map) =>
+    Object.entries(map)
+      .map(([k, types]) => `${k} [${types.join(' ')}]`)
+      .join(', ');
+  step(
+    'before opening, the overview has no listener anywhere (DevTools)',
+    Object.values(own.before).every((types) => types.length === 0),
+    show(own.before)
+  );
+  step(
+    'open, DevTools sees exactly the overview’s own listeners',
+    JSON.stringify(own.open) ===
+      JSON.stringify(Object.fromEntries(Object.entries(want).map(([k, v]) => [k, [...v].sort()]))),
+    show(own.open)
+  );
+  step(
+    'closed, every listener it bound is gone (DevTools)',
+    Object.values(own.after).every((types) => types.length === 0),
+    show(own.after)
+  );
+  info(
+    'all listeners on those objects (the editor binds its own meanwhile)',
+    Object.keys(listenersBefore)
+      .map((k) => `${k} ${listenersBefore[k].length}→${listenersOpen[k].length}→${listenersAfter[k].length}`)
+      .join(', ')
+  );
+  const others = Object.fromEntries(
+    Object.keys(listenersAfter).map((k) => [
+      k,
+      listenersAfter[k]
+        .filter((l) => !listenersBefore[k].some((b) => b.type === l.type && b.script === l.script))
+        .map((l) => `${l.type}@${l.script || '?'}`),
+    ])
+  );
+  if (process.env.SVE_DEBUG)
+    for (const [name, snap] of Object.entries({ open: listenersOpen, after: listenersAfter }))
+      console.log(
+        `DEBUG own listeners ${name}:`,
+        Object.entries(snap)
+          .map(
+            ([k, list]) =>
+              `${k} ${list
+                .filter((l) => /^breakpoint-overview-/.test(l.script))
+                .map((l) => `${l.type}@${l.at}`)
+                .join(' ')}`
+          )
+          .join(' | ')
+      );
+  if (Object.values(others).some((list) => list.length))
+    info(
+      'bound by others while it was open',
+      Object.entries(others)
+        .filter(([, l]) => l.length)
+        .map(([k, l]) => `${k}: ${[...new Set(l)].join(' ')}`)
+        .join(' | ')
+    );
 
   // 9b. Closed, the menu still chooses: a right-click opens it without the
   //     overview, and a size unticked there is out when the overview opens.
   const outClosed = expected.find((b) => b.handle !== activeHandle);
   step('closed, a right-click opens the sizes menu and not the overview', (await openMenu()) && !(await layerOpen()));
   await tick(outClosed.handle);
-  step(`closed, ${outClosed.device} can be unticked`, (await menuRows()).find((r) => r.bp === outClosed.handle)?.on === false);
+  step(
+    `closed, ${outClosed.device} can be unticked`,
+    (await menuRows()).find((r) => r.bp === outClosed.handle)?.on === false
+  );
   await closeMenu();
 
   // 10. The ring follows the size the fields edit (a device picked in the top bar).
   const mobile = expected[0];
   await realClick(page, cp, BUTTON);
   await waitIn(cp, LAYER, 10000);
-  step(`opened, ${outClosed.device} — unticked while closed — is out of the row`, (await sizeState(outClosed.handle)).out);
+  step(
+    `opened, ${outClosed.device} — unticked while closed — is out of the row`,
+    (await sizeState(outClosed.handle)).out
+  );
   await realClick(page, cp, `#__sve-preview-chrome [data-device="${mobile.device}"]`);
-  const ring = await until(() => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join() || null, LAYER), 3000);
-  step('picking a device in the top bar moves the ring', ring === mobile.handle, `ring on ${ring} after picking ${mobile.device}`);
+  const ring = await until(
+    () =>
+      cp.evaluate(
+        (sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join() || null,
+        LAYER
+      ),
+    3000
+  );
+  step(
+    'picking a device in the top bar moves the ring',
+    ring === mobile.handle,
+    `ring on ${ring} after picking ${mobile.device}`
+  );
   if (outClosed.handle === mobile.handle) {
     // A size picked while out comes back in: it is the preview now.
-    const picked = await until(async () => { const st = await sizeState(mobile.handle); return !st.out && st.src !== 'about:blank' ? st : null; }, 3000);
-    step('a size picked in the top bar while out comes back into the row', !!picked, picked ? picked.src.slice(picked.src.indexOf('sve_view')) : 'still out');
+    const picked = await until(async () => {
+      const st = await sizeState(mobile.handle);
+      return !st.out && st.src !== 'about:blank' ? st : null;
+    }, 3000);
+    step(
+      'a size picked in the top bar while out comes back into the row',
+      !!picked,
+      picked ? picked.src.slice(picked.src.indexOf('sve_view')) : 'still out'
+    );
   } else {
     await openMenu();
     await tick(outClosed.handle);
@@ -861,22 +1589,42 @@ try {
   await realClick(page, cp, ZOOM_LABEL);
   await sleep(250);
   const atActual = await zoomState();
-  step('a click on the top bar’s percent puts the row at 100 %, wider than the pane, so there is something to scroll to', Math.abs(atActual.scale - 1) < 0.001 && atActual.level === '100%' && atActual.sw > atActual.cw, `scale ${atActual.scale.toFixed(3)} (label "${atActual.level}"), row ${atActual.sw} px in a ${atActual.cw} px pane`);
-  const placeOf = (handle) => cp.evaluate((sel, bp) => {
-    const s = document.querySelector(`${sel} .sve-bpo-scroll`);
-    const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
-    const v = s.getBoundingClientRect();
-    const r = f.getBoundingClientRect();
-    const p = document.getElementById('live-preview-iframe').getBoundingClientRect();
-    return { left: Math.round(r.left - v.left), right: Math.round(r.right - v.left), width: Math.round(r.width), view: s.clientWidth, scrollLeft: Math.round(s.scrollLeft), ring: document.querySelector(`${sel} [data-active]`)?.dataset.bp || '', previewInSlot: Math.abs(p.left - r.left) <= 1 && Math.abs(p.top - r.top) <= 1 };
-  }, LAYER, handle);
+  step(
+    'a click on the top bar’s percent puts the row at 100 %, wider than the pane, so there is something to scroll to',
+    Math.abs(atActual.scale - 1) < 0.001 && atActual.level === '100%' && atActual.sw > atActual.cw,
+    `scale ${atActual.scale.toFixed(3)} (label "${atActual.level}"), row ${atActual.sw} px in a ${atActual.cw} px pane`
+  );
+  const placeOf = (handle) =>
+    cp.evaluate(
+      (sel, bp) => {
+        const s = document.querySelector(`${sel} .sve-bpo-scroll`);
+        const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
+        const v = s.getBoundingClientRect();
+        const r = f.getBoundingClientRect();
+        const p = document.getElementById('live-preview-iframe').getBoundingClientRect();
+        return {
+          left: Math.round(r.left - v.left),
+          right: Math.round(r.right - v.left),
+          width: Math.round(r.width),
+          view: s.clientWidth,
+          scrollLeft: Math.round(s.scrollLeft),
+          ring: document.querySelector(`${sel} [data-active]`)?.dataset.bp || '',
+          previewInSlot: Math.abs(p.left - r.left) <= 1 && Math.abs(p.top - r.top) <= 1,
+        };
+      },
+      LAYER,
+      handle
+    );
   const RING = 4; // 2 px outline + 2 px offset, kept in view with the frame
   const widest = expected[expected.length - 1];
   const narrowest = expected[0];
   const order = [widest, narrowest, ...expected.slice(1, -1), widest, narrowest];
   const scrolls = [];
   let allWhole = true;
-  const isWhole = (at) => { const wider = at.width + RING * 2 >= at.view; return wider ? at.left >= 0 && at.left <= RING + 1 : at.left >= RING - 1 && at.right <= at.view - RING + 1; };
+  const isWhole = (at) => {
+    const wider = at.width + RING * 2 >= at.view;
+    return wider ? at.left >= 0 && at.left <= RING + 1 : at.left >= RING - 1 && at.right <= at.view - RING + 1;
+  };
   for (const b of order) {
     await realClick(page, cp, `#__sve-preview-chrome [data-device="${b.device}"]`);
     // The reveal is a glide of about a third of a second, not a jump: it lands
@@ -885,17 +1633,49 @@ try {
     const seenAt = Date.now();
     const positions = new Set();
     let trailed = 0;
-    const at = await until(async () => { const p = await placeOf(b.handle); if (p.ring === b.handle) { positions.add(p.scrollLeft); if (!p.previewInSlot) trailed++; } return p.ring === b.handle && isWhole(p) ? p : null; }, 3000, 15);
+    const at = await until(
+      async () => {
+        const p = await placeOf(b.handle);
+        if (p.ring === b.handle) {
+          positions.add(p.scrollLeft);
+          if (!p.previewInSlot) trailed++;
+        }
+        return p.ring === b.handle && isWhole(p) ? p : null;
+      },
+      3000,
+      15
+    );
     const landed = Date.now() - seenAt;
-    if (!at) { allWhole = false; step(`picking ${b.device} moves the ring and brings its frame into view`, false, `not within 3 s: ${JSON.stringify(await placeOf(b.handle))}`); continue; }
+    if (!at) {
+      allWhole = false;
+      step(
+        `picking ${b.device} moves the ring and brings its frame into view`,
+        false,
+        `not within 3 s: ${JSON.stringify(await placeOf(b.handle))}`
+      );
+      continue;
+    }
     const wider = at.width + RING * 2 >= at.view;
     const moved = scrolls.length === 0 || scrolls[scrolls.length - 1] !== at.scrollLeft;
     scrolls.push(at.scrollLeft);
-    step(`picking ${b.device}: its frame is ${wider ? 'at the pane\'s left edge (wider than the pane)' : 'whole in view'}`, true, `frame ${at.left}…${at.right} px in a ${at.view} px pane (width ${at.width}), row scrolled to ${at.scrollLeft}`);
-    if (moved) step(`picking ${b.device}: the row glided there rather than jumping, with the preview in its slot the whole way`, landed >= 200 && positions.size >= 3 && trailed === 0, `landed after ${landed} ms through ${positions.size} positions; preview trailing the slot at ${trailed} of the readings`);
+    step(
+      `picking ${b.device}: its frame is ${wider ? "at the pane's left edge (wider than the pane)" : 'whole in view'}`,
+      true,
+      `frame ${at.left}…${at.right} px in a ${at.view} px pane (width ${at.width}), row scrolled to ${at.scrollLeft}`
+    );
+    if (moved)
+      step(
+        `picking ${b.device}: the row glided there rather than jumping, with the preview in its slot the whole way`,
+        landed >= 200 && positions.size >= 3 && trailed === 0,
+        `landed after ${landed} ms through ${positions.size} positions; preview trailing the slot at ${trailed} of the readings`
+      );
   }
   // The row moved between the picks: the narrowest and the widest cannot both be in view at 100 %.
-  step('the row scrolled to get there (it was not already in view)', allWhole && new Set(scrolls).size > 1, `scroll positions ${scrolls.join(' → ')}`);
+  step(
+    'the row scrolled to get there (it was not already in view)',
+    allWhole && new Set(scrolls).size > 1,
+    `scroll positions ${scrolls.join(' → ')}`
+  );
   await realClick(page, cp, ZOOM_FIT);
   await sleep(250);
 
@@ -907,160 +1687,448 @@ try {
   //      and swaps the preview and the copy; and a confirm card opened in the
   //      preview sits in its own viewport.
   const previewNow = async () => (await cp.$('#live-preview-iframe'))?.contentFrame();
-  const rowGeo = () => cp.evaluate((sel) => {
-    const layer = document.querySelector(sel);
-    const s = layer.querySelector('.sve-bpo-scroll');
-    const f = document.getElementById('live-preview-iframe');
-    const active = layer.querySelector('[data-active]');
-    const slot = active?.querySelector('iframe').getBoundingClientRect();
-    const fr = f.getBoundingClientRect();
-    const view = s.getBoundingClientRect();
-    return { active: active?.dataset.bp || '', scroll: [s.scrollLeft, s.scrollTop], max: [s.scrollWidth - s.clientWidth, s.scrollHeight - s.clientHeight], z: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a, slot: slot ? { x: slot.x, y: slot.y, w: slot.width, h: slot.height } : null, frame: { x: fr.x, y: fr.y, w: fr.width, h: fr.height }, view: { x: view.x, y: view.y, w: s.clientWidth, h: s.clientHeight }, pressed: [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join() };
-  }, LAYER);
+  const rowGeo = () =>
+    cp.evaluate((sel) => {
+      const layer = document.querySelector(sel);
+      const s = layer.querySelector('.sve-bpo-scroll');
+      const f = document.getElementById('live-preview-iframe');
+      const active = layer.querySelector('[data-active]');
+      const slot = active?.querySelector('iframe').getBoundingClientRect();
+      const fr = f.getBoundingClientRect();
+      const view = s.getBoundingClientRect();
+      return {
+        active: active?.dataset.bp || '',
+        scroll: [s.scrollLeft, s.scrollTop],
+        max: [s.scrollWidth - s.clientWidth, s.scrollHeight - s.clientHeight],
+        z: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a,
+        slot: slot ? { x: slot.x, y: slot.y, w: slot.width, h: slot.height } : null,
+        frame: { x: fr.x, y: fr.y, w: fr.width, h: fr.height },
+        view: { x: view.x, y: view.y, w: s.clientWidth, h: s.clientHeight },
+        pressed: [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')]
+          .map((b) => b.dataset.device)
+          .join(),
+      };
+    }, LAYER);
   const overlayBox2 = await (await page.$('iframe.sve-edit-overlay')).boundingBox();
-  const inActive = async (previewPoint) => { const g = await rowGeo(); return { x: overlayBox2.x + g.frame.x + previewPoint.x * g.z, y: overlayBox2.y + g.frame.y + previewPoint.y * g.z, g }; };
-  await cp.evaluate(() => { window.__sveBpoMsgs = []; window.addEventListener('message', (e) => { const d = e.data || {}; if (d.source === 'statamic-visual-editor' && /^(click|hover|edit-request)$/.test(d.type)) window.__sveBpoMsgs.push(`${d.type}${d.field ? ' field=' + d.field : ''}${d.uid ? ' uid' : ''}`); }); });
+  const inActive = async (previewPoint) => {
+    const g = await rowGeo();
+    return {
+      x: overlayBox2.x + g.frame.x + previewPoint.x * g.z,
+      y: overlayBox2.y + g.frame.y + previewPoint.y * g.z,
+      g,
+    };
+  };
+  await cp.evaluate(() => {
+    window.__sveBpoMsgs = [];
+    window.addEventListener('message', (e) => {
+      const d = e.data || {};
+      if (d.source === 'statamic-visual-editor' && /^(click|hover|edit-request)$/.test(d.type))
+        window.__sveBpoMsgs.push(`${d.type}${d.field ? ' field=' + d.field : ''}${d.uid ? ' uid' : ''}`);
+    });
+  });
   // The field's place in the preview — read once the document holds it again (a morph may be replacing it this instant).
-  const headlineAt = await until(() => previewNow().then((f) => f.evaluate(() => { const el = document.querySelector(`[data-sid-field="${window.__sveTestField}"]`); if (!el) return null; el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })), 8000, 200);
+  const headlineAt = await until(
+    () =>
+      previewNow().then((f) =>
+        f.evaluate(() => {
+          const el = document.querySelector(`[data-sid-field="${window.__sveTestField}"]`);
+          if (!el) return null;
+          el.scrollIntoView({ block: 'center', behavior: 'instant' });
+          const r = el.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        })
+      ),
+    8000,
+    200
+  );
   // The preview scrolled itself so the headline is in its viewport (the copies follow); then a real click on it in the active frame.
   await sleep(300);
   let at = await inActive(headlineAt);
-  await page.mouse.move(at.x, at.y); await sleep(300);
-  await page.mouse.click(at.x, at.y); await sleep(1500);
+  await page.mouse.move(at.x, at.y);
+  await sleep(300);
+  await page.mouse.click(at.x, at.y);
+  await sleep(1500);
   const msgs = await cp.evaluate(() => (window.__sveBpoMsgs || []).splice(0));
-  const fieldShown = await cp.evaluate(() => { const editor = document.querySelector('.live-preview-editor'); const r = editor?.getBoundingClientRect(); return !!r && r.right > 0 && [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? ''); }); });
-  step('a click on the headline in the active frame reaches the bridge and opens the field on the left, as in one preview', msgs.some((m) => m.startsWith(`click field=${FIELD}`)) && fieldShown, `bridge sent [${msgs.join(', ')}] at ${Math.round(at.x)},${Math.round(at.y)} (${at.g.active} at zoom ${at.g.z.toFixed(3)}); field shown: ${fieldShown}`);
+  const fieldShown = await cp.evaluate(() => {
+    const editor = document.querySelector('.live-preview-editor');
+    const r = editor?.getBoundingClientRect();
+    return (
+      !!r &&
+      r.right > 0 &&
+      [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => {
+        const b = el.getBoundingClientRect();
+        return (
+          b.width > 0 &&
+          b.left >= 0 &&
+          new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? '')
+        );
+      })
+    );
+  });
+  step(
+    'a click on the headline in the active frame reaches the bridge and opens the field on the left, as in one preview',
+    msgs.some((m) => m.startsWith(`click field=${FIELD}`)) && fieldShown,
+    `bridge sent [${msgs.join(', ')}] at ${Math.round(at.x)},${Math.round(at.y)} (${at.g.active} at zoom ${at.g.z.toFixed(3)}); field shown: ${fieldShown}`
+  );
   // Keys in the preview are the bridge's: Escape there ends the edit the click began, and never closes the overview.
-  await page.keyboard.press('Escape'); await sleep(400);
+  await page.keyboard.press('Escape');
+  await sleep(400);
   const stillOpen = !!(await cp.$(LAYER));
   step('Escape inside the active frame is the bridge’s and leaves the overview open', stillOpen);
-  if (!stillOpen) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); await copiesLoaded(expected.length); }
+  if (!stillOpen) {
+    await realClick(page, cp, BUTTON);
+    await waitIn(cp, LAYER, 10000);
+    await copiesLoaded(expected.length);
+  }
   // The page section under a window's sliding line, as the overview compares
   // it: the line is scrollY / max of the way down the viewport (the top edge
   // at the top of the page, the bottom edge at its end). The outermost
   // [data-sid], or the header or footer — drawn, and not fixed or sticky
   // (those stand still while the page scrolls under them).
-  const anchorUnderTop = (frame) => frame.evaluate(() => {
-    const max = document.documentElement.scrollHeight - innerHeight;
-    // At the very end the line is the bottom edge, where the footer ends: a pixel up, so it still counts.
-    const y = max > 0 ? Math.min(innerHeight - 1, (scrollY / max) * innerHeight) : 0;
-    for (const el of document.querySelectorAll('[data-sid]:not([data-sid] *), [data-sve-chrome]')) {
-      const r = el.getBoundingClientRect();
-      const position = getComputedStyle(el).position;
-      if (r.height > 0 && position !== 'fixed' && position !== 'sticky' && r.top <= y + 2 && r.bottom > y) return el.hasAttribute('data-sve-chrome') ? `chrome:${el.getAttribute('data-sve-chrome')}` : el.getAttribute('data-sid');
-    }
-    return '';
-  }).catch(() => '?');
+  const anchorUnderTop = (frame) =>
+    frame
+      .evaluate(() => {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        // At the very end the line is the bottom edge, where the footer ends: a pixel up, so it still counts.
+        const y = max > 0 ? Math.min(innerHeight - 1, (scrollY / max) * innerHeight) : 0;
+        for (const el of document.querySelectorAll('[data-sid]:not([data-sid] *), [data-sve-chrome]')) {
+          const r = el.getBoundingClientRect();
+          const position = getComputedStyle(el).position;
+          if (r.height > 0 && position !== 'fixed' && position !== 'sticky' && r.top <= y + 2 && r.bottom > y)
+            return el.hasAttribute('data-sve-chrome')
+              ? `chrome:${el.getAttribute('data-sve-chrome')}`
+              : el.getAttribute('data-sid');
+        }
+        return '';
+      })
+      .catch(() => '?');
   // The preview and every loaded copy, the one under the preview included.
-  const syncFrames = async () => [await previewNow(), ...(await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean)];
+  const syncFrames = async () => [
+    await previewNow(),
+    ...(await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean),
+  ];
   // Within `ms`, every other member shows the section `members[lead]` shows under its sliding line.
   const inStep = async (lead, members, ms = 500) => {
     const t0 = Date.now();
     const others = members.filter((_, i) => i !== lead);
-    const got = await until(async () => { const want = await anchorUnderTop(members[lead]); const ids = await Promise.all(others.map(anchorUnderTop)); return want && want !== '?' && ids.every((id) => id === want) ? { want, ids } : null; }, ms, 25);
+    const got = await until(
+      async () => {
+        const want = await anchorUnderTop(members[lead]);
+        const ids = await Promise.all(others.map(anchorUnderTop));
+        return want && want !== '?' && ids.every((id) => id === want) ? { want, ids } : null;
+      },
+      ms,
+      25
+    );
     const want = got?.want ?? (await anchorUnderTop(members[lead]));
     const ids = got?.ids ?? (await Promise.all(others.map(anchorUnderTop)));
-    return { ok: !!got, want, detail: `${got ? `in step within ${Date.now() - t0} ms` : `not in step within ${ms} ms`}: the leader on ${want || 'no section'}, the others on ${ids.map((id) => id || '–').join(', ')}` };
+    return {
+      ok: !!got,
+      want,
+      detail: `${got ? `in step within ${Date.now() - t0} ms` : `not in step within ${ms} ms`}: the leader on ${want || 'no section'}, the others on ${ids.map((id) => id || '–').join(', ')}`,
+    };
   };
   const scrollYOf = (frame) => frame.evaluate(() => scrollY);
   // A wheel over the active frame scrolls the preview's own page; the row stays, and every copy follows to the same section.
   const g0 = await rowGeo();
   const p0 = await scrollYOf(await previewNow());
-  await page.mouse.move(overlayBox2.x + g0.frame.x + Math.min(g0.frame.w, g0.view.w) / 2, overlayBox2.y + g0.frame.y + Math.min(g0.frame.h / 2, 100));
+  await page.mouse.move(
+    overlayBox2.x + g0.frame.x + Math.min(g0.frame.w, g0.view.w) / 2,
+    overlayBox2.y + g0.frame.y + Math.min(g0.frame.h / 2, 100)
+  );
   await page.mouse.wheel({ deltaY: 200 });
   const wheelFollowed = await inStep(0, await syncFrames());
   const g1 = await rowGeo();
   const p1 = await scrollYOf(await previewNow());
-  step('a wheel over the active frame scrolls the preview, the row stays, and every copy follows to the same section', p1 - p0 >= 100 && g1.scroll[1] === 0 && Math.abs(g1.frame.y - g1.slot.y) <= 1 && wheelFollowed.ok, `preview scrollY ${Math.round(p0)} → ${Math.round(p1)}; row ${g1.scroll.join(',')}; ${wheelFollowed.detail}`);
+  step(
+    'a wheel over the active frame scrolls the preview, the row stays, and every copy follows to the same section',
+    p1 - p0 >= 100 && g1.scroll[1] === 0 && Math.abs(g1.frame.y - g1.slot.y) <= 1 && wheelFollowed.ok,
+    `preview scrollY ${Math.round(p0)} → ${Math.round(p1)}; row ${g1.scroll.join(',')}; ${wheelFollowed.detail}`
+  );
   // The preview scrolled to a section's top: the same data-sid under every copy's top edge. The last section
   // every size can bring to its top edge — the page's very last one is often shorter than a viewport, and
   // then no frame can scroll it that far.
   const members1 = await syncFrames();
-  const reach = await Promise.all(members1.map((f) => f.evaluate(() => {
-    const max = document.documentElement.scrollHeight - innerHeight;
-    return [...document.querySelectorAll('[data-sid]:not([data-sid] *)')].filter((el) => { const p = getComputedStyle(el).position; return el.getBoundingClientRect().height > 0 && p !== 'fixed' && p !== 'sticky' && el.getBoundingClientRect().top + scrollY <= max; }).map((el) => el.getAttribute('data-sid'));
-  }).catch(() => [])));
+  const reach = await Promise.all(
+    members1.map((f) =>
+      f
+        .evaluate(() => {
+          const max = document.documentElement.scrollHeight - innerHeight;
+          return [...document.querySelectorAll('[data-sid]:not([data-sid] *)')]
+            .filter((el) => {
+              const p = getComputedStyle(el).position;
+              return (
+                el.getBoundingClientRect().height > 0 &&
+                p !== 'fixed' &&
+                p !== 'sticky' &&
+                el.getBoundingClientRect().top + scrollY <= max
+              );
+            })
+            .map((el) => el.getAttribute('data-sid'));
+        })
+        .catch(() => [])
+    )
+  );
   const goal = (reach[0] || []).filter((sid) => reach.every((list) => list.includes(sid))).pop();
   if (goal) {
-    await members1[0].evaluate((sid) => { const el = document.querySelector(`[data-sid="${sid}"]`); window.scrollTo({ top: el.getBoundingClientRect().top + scrollY, behavior: 'instant' }); }, goal);
+    await members1[0].evaluate((sid) => {
+      const el = document.querySelector(`[data-sid="${sid}"]`);
+      window.scrollTo({ top: el.getBoundingClientRect().top + scrollY, behavior: 'instant' });
+    }, goal);
     const toGoal = await inStep(0, members1);
-    step('the preview scrolled to the top of the last section every size can reach: the same data-sid stands under every copy’s sliding line', toGoal.ok, `${goal}: ${toGoal.detail}`);
+    step(
+      'the preview scrolled to the top of the last section every size can reach: the same data-sid stands under every copy’s sliding line',
+      toGoal.ok,
+      `${goal}: ${toGoal.detail}`
+    );
   } else {
     skip('the same data-sid under every sliding line', 'no section every size can bring to its top edge');
   }
   // The ends meet: the preview scrolled to its very end, every copy is at its own end — the owner's case
   // (5 Oct 2026: with the top edges matched, mobile stopped far above its footer).
-  await members1[0].evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
-  const atEnd = await until(async () => { const r = await Promise.all(members1.map((f) => f.evaluate(() => [Math.round(scrollY), document.documentElement.scrollHeight - innerHeight]).catch(() => [0, 1]))); return r.every(([y, m]) => y >= m - 1) ? r : null; }, 1500, 25);
-  const ends = atEnd || (await Promise.all(members1.map((f) => f.evaluate(() => [Math.round(scrollY), document.documentElement.scrollHeight - innerHeight]).catch(() => [0, 1]))));
-  step('the preview scrolled to its end: every copy is at its own end (the footers meet)', !!atEnd, ends.map(([y, m]) => `${y}/${m}`).join(', '));
+  await members1[0].evaluate(() =>
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
+  );
+  const atEnd = await until(
+    async () => {
+      const r = await Promise.all(
+        members1.map((f) =>
+          f
+            .evaluate(() => [Math.round(scrollY), document.documentElement.scrollHeight - innerHeight])
+            .catch(() => [0, 1])
+        )
+      );
+      return r.every(([y, m]) => y >= m - 1) ? r : null;
+    },
+    1500,
+    25
+  );
+  const ends =
+    atEnd ||
+    (await Promise.all(
+      members1.map((f) =>
+        f.evaluate(() => [Math.round(scrollY), document.documentElement.scrollHeight - innerHeight]).catch(() => [0, 1])
+      )
+    ));
+  step(
+    'the preview scrolled to its end: every copy is at its own end (the footers meet)',
+    !!atEnd,
+    ends.map(([y, m]) => `${y}/${m}`).join(', ')
+  );
   // A wheel over a copy scrolls that copy's own page, and the preview and the other copies follow it.
   await (await previewNow()).evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await sleep(300);
   const wheelCopy = expected.find((b) => b.handle !== (g1.active || activeHandle));
   const copyFrame = await (await cp.$(`${LAYER} [data-bp="${wheelCopy.handle}"] iframe`)).contentFrame();
   const restCopies = [];
-  for (const h of await copyHandles()) { if ((await h.evaluate((el) => el.closest('[data-bp]').dataset.bp)) !== wheelCopy.handle) restCopies.push(await h.contentFrame()); }
+  for (const h of await copyHandles()) {
+    if ((await h.evaluate((el) => el.closest('[data-bp]').dataset.bp)) !== wheelCopy.handle)
+      restCopies.push(await h.contentFrame());
+  }
   const members2 = [copyFrame, await previewNow(), ...restCopies.filter(Boolean)];
-  const overCopy = await cp.evaluate((sel, bp) => { const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) }; }, LAYER, wheelCopy.handle);
+  const overCopy = await cp.evaluate(
+    (sel, bp) => {
+      const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) };
+    },
+    LAYER,
+    wheelCopy.handle
+  );
   const c0 = await scrollYOf(copyFrame);
   await page.mouse.move(overlayBox2.x + overCopy.x, overlayBox2.y + overCopy.y);
   await page.mouse.wheel({ deltaY: 300 });
   const copyLed = await inStep(0, members2);
   const c1 = await scrollYOf(copyFrame);
-  step(`a wheel over the ${wheelCopy.device} copy scrolls that copy, and the preview and the other copies follow to the same section`, c1 > c0 && (await rowGeo()).scroll[1] === 0 && copyLed.ok, `${wheelCopy.handle} scrollY ${Math.round(c0)} → ${Math.round(c1)}; ${copyLed.detail}`);
+  step(
+    `a wheel over the ${wheelCopy.device} copy scrolls that copy, and the preview and the other copies follow to the same section`,
+    c1 > c0 && (await rowGeo()).scroll[1] === 0 && copyLed.ok,
+    `${wheelCopy.handle} scrollY ${Math.round(c0)} → ${Math.round(c1)}; ${copyLed.detail}`
+  );
   // FOCUS with a uid — what a section clicked in the Control Panel sends: the bridge scrolls the preview to that
   // section itself, top first (smoothly); the row stays where it is, and every copy follows.
   await (await previewNow()).evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await sleep(300);
-  const lastSection = await (await previewNow()).evaluate(() => {
+  const lastSection = await (
+    await previewNow()
+  ).evaluate(() => {
     const list = [...document.querySelectorAll('[data-sid-section-orderable]')];
     const el = list[list.length - 1];
     const max = document.documentElement.scrollHeight - innerHeight;
     // Where `scrollIntoView({ block: 'start' })` stops: the page's scroll padding and the section's scroll margin count.
-    const pad = (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0) + (parseFloat(getComputedStyle(el).scrollMarginTop) || 0);
-    return { sid: el.getAttribute('data-sid'), want: Math.min(max, Math.max(0, Math.round(el.getBoundingClientRect().top + scrollY - pad))), max };
+    const pad =
+      (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0) +
+      (parseFloat(getComputedStyle(el).scrollMarginTop) || 0);
+    return {
+      sid: el.getAttribute('data-sid'),
+      want: Math.min(max, Math.max(0, Math.round(el.getBoundingClientRect().top + scrollY - pad))),
+      max,
+    };
   });
-  await cp.evaluate((sid) => document.getElementById('live-preview-iframe').contentWindow.postMessage({ source: 'statamic-visual-editor', type: 'focus', uid: sid }, '*'), lastSection.sid);
+  await cp.evaluate(
+    (sid) =>
+      document
+        .getElementById('live-preview-iframe')
+        .contentWindow.postMessage({ source: 'statamic-visual-editor', type: 'focus', uid: sid }, '*'),
+    lastSection.sid
+  );
   // The bridge's scroll is smooth: read once it has come to rest.
   let focusY = null;
-  const settledY = await until(async () => { const y = await scrollYOf(await previewNow()); const still = focusY === y; focusY = y; return still && y > 0 ? y : null; }, 3000, 120);
+  const settledY = await until(
+    async () => {
+      const y = await scrollYOf(await previewNow());
+      const still = focusY === y;
+      focusY = y;
+      return still && y > 0 ? y : null;
+    },
+    3000,
+    120
+  );
   const focused = await inStep(0, await syncFrames());
   const g2 = await rowGeo();
-  step('FOCUS on a section: the preview scrolls itself to the section, top first (or as far as its page goes), the row stays, and every copy follows', settledY != null && Math.abs(settledY - lastSection.want) <= 2 && g2.scroll[1] === 0 && Math.abs(g2.frame.y - g2.slot.y) <= 1 && focused.ok, `preview scrollY 0 → ${settledY ?? `${focusY} (still moving)`} (wanted ${lastSection.want}, its most ${lastSection.max}); row ${g2.scroll.join(',')}; ${focused.detail}`);
+  step(
+    'FOCUS on a section: the preview scrolls itself to the section, top first (or as far as its page goes), the row stays, and every copy follows',
+    settledY != null &&
+      Math.abs(settledY - lastSection.want) <= 2 &&
+      g2.scroll[1] === 0 &&
+      Math.abs(g2.frame.y - g2.slot.y) <= 1 &&
+      focused.ok,
+    `preview scrollY 0 → ${settledY ?? `${focusY} (still moving)`} (wanted ${lastSection.want}, its most ${lastSection.max}); row ${g2.scroll.join(',')}; ${focused.detail}`
+  );
   // A click on another size's frame makes it the active one: the preview moves there, and the size it left gets a copy.
   const wasActive = g2.active;
-  const other = expected.find((b) => b.handle !== wasActive && b.handle === activeHandle) || expected.find((b) => b.handle !== wasActive);
-  const target = await cp.evaluate((sel, bp) => { const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) }; }, LAYER, other.handle);
+  const other =
+    expected.find((b) => b.handle !== wasActive && b.handle === activeHandle) ||
+    expected.find((b) => b.handle !== wasActive);
+  const target = await cp.evaluate(
+    (sel, bp) => {
+      const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) };
+    },
+    LAYER,
+    other.handle
+  );
   // The document in the frame the preview is about to leave, marked: a reload would lose the mark.
-  await cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); if (f.contentDocument) f.contentDocument.__sveSameDocument = true; }, LAYER, wasActive);
+  await cp.evaluate(
+    (sel, bp) => {
+      const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
+      if (f.contentDocument) f.contentDocument.__sveSameDocument = true;
+    },
+    LAYER,
+    wasActive
+  );
   await page.mouse.click(overlayBox2.x + target.x, overlayBox2.y + target.y);
-  const swapped = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.pressed === other.device && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 && Math.abs(g.frame.w - g.slot.w) <= 1 ? g : null; }, 5000, 100);
-  const left = await until(() => cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); const src = f.getAttribute('src') || ''; return src.includes(`sve_view=${bp}`) && !!f.contentDocument?.querySelector(`[data-sid-field="${window.__sveTestField}"]`) ? src.slice(src.indexOf('sve_view')) : null; }, LAYER, wasActive), 20000, 300);
-  step(`a click on the ${other.device} frame makes it the active size: the preview stands there, and ${wasActive} is a copy again`, !!swapped && !!left, swapped ? `active ${swapped.active}, pressed ${swapped.pressed}, preview ${Math.round(swapped.frame.w)} px wide in the slot; ${wasActive}'s frame: ${left || 'not loaded within 20 s'}` : 'no swap within 5 s');
-  const sameDocument = await cp.evaluate((sel, bp) => !!document.querySelector(`${sel} [data-bp="${bp}"] iframe`)?.contentDocument?.__sveSameDocument, LAYER, wasActive);
-  step(`${wasActive}'s frame was not reloaded by the switch: the page was already there, under the preview`, sameDocument, sameDocument ? 'same document before and after' : 'a new document — the frame loaded again');
+  const swapped = await until(
+    async () => {
+      const g = await rowGeo();
+      return g.active === other.handle &&
+        g.pressed === other.device &&
+        g.slot &&
+        Math.abs(g.frame.x - g.slot.x) <= 1 &&
+        Math.abs(g.frame.w - g.slot.w) <= 1
+        ? g
+        : null;
+    },
+    5000,
+    100
+  );
+  const left = await until(
+    () =>
+      cp.evaluate(
+        (sel, bp) => {
+          const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
+          const src = f.getAttribute('src') || '';
+          return src.includes(`sve_view=${bp}`) &&
+            !!f.contentDocument?.querySelector(`[data-sid-field="${window.__sveTestField}"]`)
+            ? src.slice(src.indexOf('sve_view'))
+            : null;
+        },
+        LAYER,
+        wasActive
+      ),
+    20000,
+    300
+  );
+  step(
+    `a click on the ${other.device} frame makes it the active size: the preview stands there, and ${wasActive} is a copy again`,
+    !!swapped && !!left,
+    swapped
+      ? `active ${swapped.active}, pressed ${swapped.pressed}, preview ${Math.round(swapped.frame.w)} px wide in the slot; ${wasActive}'s frame: ${left || 'not loaded within 20 s'}`
+      : 'no swap within 5 s'
+  );
+  const sameDocument = await cp.evaluate(
+    (sel, bp) => !!document.querySelector(`${sel} [data-bp="${bp}"] iframe`)?.contentDocument?.__sveSameDocument,
+    LAYER,
+    wasActive
+  );
+  step(
+    `${wasActive}'s frame was not reloaded by the switch: the page was already there, under the preview`,
+    sameDocument,
+    sameDocument ? 'same document before and after' : 'a new document — the frame loaded again'
+  );
 
   // 10e. An inline edit in the preview reaches every frame as it is typed: the
   //      preview holds its morphs back while the edit lasts, so the frames are painted.
-  const fieldPoint = await (await previewNow()).evaluate((field) => { const el = document.querySelector(`[data-sid-field="${field}"]`); if (!el) return null; el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) }; }, FIELD);
+  const fieldPoint = await (
+    await previewNow()
+  ).evaluate((field) => {
+    const el = document.querySelector(`[data-sid-field="${field}"]`);
+    if (!el) return null;
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) };
+  }, FIELD);
   if (fieldPoint) {
     at = await inActive(fieldPoint);
     await page.mouse.click(at.x, at.y);
-    const editing = await until(() => previewNow().then((f) => f.evaluate(() => !!document.querySelector('[data-sve-editing], [contenteditable="true"]'))), 6000, 100);
+    const editing = await until(
+      () =>
+        previewNow().then((f) =>
+          f.evaluate(() => !!document.querySelector('[data-sve-editing], [contenteditable="true"]'))
+        ),
+      6000,
+      100
+    );
     if (editing) {
       const token = `Zq${Math.random().toString(36).slice(2, 5)}`;
       const viewFrames = (await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean);
       const holds = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
       await page.keyboard.type(token);
       const typedDone = Date.now();
-      const painted = await until(async () => (await Promise.all(viewFrames.map(holds))).every(Boolean) ? Date.now() - typedDone : null, 3000, 10);
-      step('typing inline in the preview paints the text into every frame at once', painted != null && painted <= 100, painted != null ? `every frame had it ${painted} ms after the last key (${viewFrames.length} frames)` : `not in every frame within 3 s: ${(await Promise.all(viewFrames.map(holds))).join(',')}`);
-      const noMarks = await Promise.all(viewFrames.map((f) => f.evaluate(() => !document.querySelector('[contenteditable="true"], [data-sve-editing]')).catch(() => false)));
+      const painted = await until(
+        async () => ((await Promise.all(viewFrames.map(holds))).every(Boolean) ? Date.now() - typedDone : null),
+        3000,
+        10
+      );
+      step(
+        'typing inline in the preview paints the text into every frame at once',
+        painted != null && painted <= 100,
+        painted != null
+          ? `every frame had it ${painted} ms after the last key (${viewFrames.length} frames)`
+          : `not in every frame within 3 s: ${(await Promise.all(viewFrames.map(holds))).join(',')}`
+      );
+      const noMarks = await Promise.all(
+        viewFrames.map((f) =>
+          f.evaluate(() => !document.querySelector('[contenteditable="true"], [data-sve-editing]')).catch(() => false)
+        )
+      );
       step('the frames took the text, not the editing marks', noMarks.every(Boolean), noMarks.join(','));
       await page.keyboard.press('Escape');
-      const restored = await until(async () => { const inPreview = await holds(await previewNow()); const inFrames = await Promise.all(viewFrames.map(holds)); return !inPreview && inFrames.every((v) => !v) ? true : null; }, 4000, 50);
-      step('Escape cancels the edit, and every frame shows the old text again', !!restored, restored ? 'gone from the preview and every frame' : `preview ${await holds(await previewNow())}, frames ${(await Promise.all(viewFrames.map(holds))).join(',')}`);
+      const restored = await until(
+        async () => {
+          const inPreview = await holds(await previewNow());
+          const inFrames = await Promise.all(viewFrames.map(holds));
+          return !inPreview && inFrames.every((v) => !v) ? true : null;
+        },
+        4000,
+        50
+      );
+      step(
+        'Escape cancels the edit, and every frame shows the old text again',
+        !!restored,
+        restored
+          ? 'gone from the preview and every frame'
+          : `preview ${await holds(await previewNow())}, frames ${(await Promise.all(viewFrames.map(holds))).join(',')}`
+      );
     } else {
       skip('inline edit mirrored into the frames', 'a click on the field did not start an inline edit');
     }
@@ -1070,45 +2138,163 @@ try {
   await sleep(250);
 
   // A confirm card in the preview: inside its own viewport, as in one preview.
-  const header = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sve-chrome="header"]'); if (!el) return null; window.scrollTo({ top: 0, behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 20) }; });
+  const header = await (
+    await previewNow()
+  ).evaluate(() => {
+    const el = document.querySelector('[data-sve-chrome="header"]');
+    if (!el) return null;
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 20) };
+  });
   if (header) {
     at = await inActive(header);
-    await page.mouse.move(at.x, at.y); await sleep(300);
+    await page.mouse.move(at.x, at.y);
+    await sleep(300);
     await page.mouse.click(at.x, at.y);
-    const card = await until(() => (previewNow().then((f) => f.evaluate(() => { const o = document.getElementById('__sve-preview-confirm'); if (!o) return null; const r = o.firstElementChild.getBoundingClientRect(); const btn = o.querySelector('[data-sve-actions] button'); const b = btn?.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, ih: innerHeight, cancel: b ? { x: b.x + b.width / 2, y: b.y + b.height / 2, label: btn.textContent.trim() } : null }; }))), 4000, 100);
-    step('a confirm card opened in the active frame sits inside the preview’s own viewport', !!card && card.top >= 0 && card.bottom <= card.ih, card ? `card ${Math.round(card.top)}..${Math.round(card.bottom)} in a ${card.ih} px viewport` : 'no confirm card within 4 s (the header click asked nothing)');
-    if (card?.cancel) { at = await inActive(card.cancel); await page.mouse.click(at.x, at.y); await sleep(500); step(`${card.cancel.label} in that card can be clicked where it shows`, await (await previewNow()).evaluate(() => !document.getElementById('__sve-preview-confirm'))); }
+    const card = await until(
+      () =>
+        previewNow().then((f) =>
+          f.evaluate(() => {
+            const o = document.getElementById('__sve-preview-confirm');
+            if (!o) return null;
+            const r = o.firstElementChild.getBoundingClientRect();
+            const btn = o.querySelector('[data-sve-actions] button');
+            const b = btn?.getBoundingClientRect();
+            return {
+              top: r.top,
+              bottom: r.bottom,
+              ih: innerHeight,
+              cancel: b ? { x: b.x + b.width / 2, y: b.y + b.height / 2, label: btn.textContent.trim() } : null,
+            };
+          })
+        ),
+      4000,
+      100
+    );
+    step(
+      'a confirm card opened in the active frame sits inside the preview’s own viewport',
+      !!card && card.top >= 0 && card.bottom <= card.ih,
+      card
+        ? `card ${Math.round(card.top)}..${Math.round(card.bottom)} in a ${card.ih} px viewport`
+        : 'no confirm card within 4 s (the header click asked nothing)'
+    );
+    if (card?.cancel) {
+      at = await inActive(card.cancel);
+      await page.mouse.click(at.x, at.y);
+      await sleep(500);
+      step(
+        `${card.cancel.label} in that card can be clicked where it shows`,
+        await (await previewNow()).evaluate(() => !document.getElementById('__sve-preview-confirm'))
+      );
+    }
   } else {
     skip('a confirm card in the active frame', 'the page has no header to ask about');
   }
   await realClick(page, cp, ZOOM_FIT);
 
   // 10d. The label above a frame (its name and width) is a way in too, and the way back.
-  const labelPoint = (bp) => cp.evaluate((sel, handle) => { const r = document.querySelector(`${sel} [data-bp="${handle}"] .sve-bpo-label`).getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 40), y: r.y + r.height / 2 }; }, LAYER, bp);
+  const labelPoint = (bp) =>
+    cp.evaluate(
+      (sel, handle) => {
+        const r = document.querySelector(`${sel} [data-bp="${handle}"] .sve-bpo-label`).getBoundingClientRect();
+        return { x: r.x + Math.min(r.width / 2, 40), y: r.y + r.height / 2 };
+      },
+      LAYER,
+      bp
+    );
   let lp = await labelPoint(wasActive);
   await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
-  const byLabel = await until(async () => { const g = await rowGeo(); return g.active === wasActive && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
-  step(`a click on ${wasActive}'s label makes it the active size again`, !!byLabel, byLabel ? `active ${byLabel.active}, pressed ${byLabel.pressed}` : 'not within 5 s');
+  const byLabel = await until(
+    async () => {
+      const g = await rowGeo();
+      return g.active === wasActive && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null;
+    },
+    5000,
+    100
+  );
+  step(
+    `a click on ${wasActive}'s label makes it the active size again`,
+    !!byLabel,
+    byLabel ? `active ${byLabel.active}, pressed ${byLabel.pressed}` : 'not within 5 s'
+  );
   lp = await labelPoint(other.handle);
   await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
-  const backByLabel = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
-  step(`and ${other.device}'s label brings the preview back there`, !!backByLabel, backByLabel ? `active ${backByLabel.active}` : 'not within 5 s');
+  const backByLabel = await until(
+    async () => {
+      const g = await rowGeo();
+      return g.active === other.handle && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null;
+    },
+    5000,
+    100
+  );
+  step(
+    `and ${other.device}'s label brings the preview back there`,
+    !!backByLabel,
+    backByLabel ? `active ${backByLabel.active}` : 'not within 5 s'
+  );
 
   // 10d2. The other frames step back while a size is picked; with Responsive (the strip's "All") every frame stands alike.
-  const frameOpacities = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-bp]`)].map((item) => ({ bp: item.dataset.bp, active: item.hasAttribute('data-active'), opacity: getComputedStyle(item.querySelector('iframe')).opacity })), LAYER);
+  const frameOpacities = () =>
+    cp.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(`${sel} [data-bp]`)].map((item) => ({
+          bp: item.dataset.bp,
+          active: item.hasAttribute('data-active'),
+          opacity: getComputedStyle(item.querySelector('iframe')).opacity,
+        })),
+      LAYER
+    );
   // Read once the 150 ms fade after the last switch has settled.
-  const settled = (want) => until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.opacity === (x.active ? '1' : want)) ? o : null; }, 3000, 50);
+  const settled = (want) =>
+    until(
+      async () => {
+        const o = await frameOpacities();
+        return o.some((x) => x.active) && o.every((x) => x.opacity === (x.active ? '1' : want)) ? o : null;
+      },
+      3000,
+      50
+    );
   let ops = (await settled('0.7')) || (await frameOpacities());
-  step('with a size picked, every other frame stands at 70 % and the picked one at 100 %', ops.some((o) => o.active) && ops.every((o) => o.active ? o.opacity === '1' : o.opacity === '0.7'), ops.map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
+  step(
+    'with a size picked, every other frame stands at 70 % and the picked one at 100 %',
+    ops.some((o) => o.active) && ops.every((o) => (o.active ? o.opacity === '1' : o.opacity === '0.7')),
+    ops.map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ')
+  );
   const responsive = await cp.$('#__sve-preview-chrome [data-device="Responsive"]');
   if (responsive) {
     const pickedBefore = await pressedDevice();
     await realClick(page, cp, '#__sve-preview-chrome [data-device="Responsive"]');
-    const alike = await until(async () => { const o = await frameOpacities(); return o.every((x) => x.opacity === '1') ? o : null; }, 3000, 100);
-    step('Responsive picked: every frame stands alike at 100 %', !!alike, (alike || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
+    const alike = await until(
+      async () => {
+        const o = await frameOpacities();
+        return o.every((x) => x.opacity === '1') ? o : null;
+      },
+      3000,
+      100
+    );
+    step(
+      'Responsive picked: every frame stands alike at 100 %',
+      !!alike,
+      (alike || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ')
+    );
     await realClick(page, cp, `#__sve-preview-chrome [data-device="${other.device}"]`);
-    const back = await until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.active ? x.opacity === '1' : x.opacity === '0.7') ? o : null; }, 3000, 100);
-    step(`${other.device} picked again: the others step back again`, !!back, (back || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ') + ` (was ${pickedBefore})`);
+    const back = await until(
+      async () => {
+        const o = await frameOpacities();
+        return o.some((x) => x.active) && o.every((x) => (x.active ? x.opacity === '1' : x.opacity === '0.7'))
+          ? o
+          : null;
+      },
+      3000,
+      100
+    );
+    step(
+      `${other.device} picked again: the others step back again`,
+      !!back,
+      (back || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ') +
+        ` (was ${pickedBefore})`
+    );
   } else {
     skip('Responsive: every frame alike', 'no Responsive button in the top bar');
   }
@@ -1118,16 +2304,69 @@ try {
   //      the row keeps its zoom and only brings the active frame into view
   //      sideways, and the release puts the page back.
   await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]');
-  const libraryCard = await until(() => cp.evaluate(() => { const el = document.querySelector('[data-sve-lib-kind]'); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 20 && r.height > 20 ? { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 60) } : null; }), 10000, 250);
+  const libraryCard = await until(
+    () =>
+      cp.evaluate(() => {
+        const el = document.querySelector('[data-sve-lib-kind]');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return r.width > 20 && r.height > 20 ? { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 60) } : null;
+      }),
+    10000,
+    250
+  );
   if (libraryCard) {
     await realClick(page, cp, ZOOM_LABEL);
     await sleep(500);
     const gBefore = await rowGeo();
     // The scale the bridge gives the preview's page (zoomOutForDrag scales its body).
-    const pageScale = () => cp.evaluate(() => { const body = document.getElementById('live-preview-iframe').contentDocument?.body; if (!body) return 1; const t = body.ownerDocument.defaultView.getComputedStyle(body).transform; return t && t !== 'none' ? new DOMMatrix(t).a : 1; });
-    info('before the drag', `row zoom ${gBefore.z.toFixed(3)}, scroll ${gBefore.scroll.join(',')}, page scale ${(await pageScale()).toFixed(3)}`);
-    await cp.evaluate(() => { window.__bpLog = []; const orig = window.dispatchEvent.bind(window); window.__bpOrigDispatch = orig; window.dispatchEvent = function (event) { if (event?.type === 'sve:breakpoint') window.__bpLog.push({ t: Math.round(performance.now()), bp: event.detail?.bp, device: event.detail?.device, stack: String(new Error().stack).split('\n').slice(2, 6).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\/[^ ]*\/assets\//, '')).join(' < ') }); return orig(event); }; });
-    await cp.evaluate(() => { const body = document.getElementById('live-preview-iframe').contentDocument.body; const view = body.ownerDocument.defaultView; window.__zoomLog = []; window.__zoomLogOn = true; const tick = () => { const t = view.getComputedStyle(body).transform; window.__zoomLog.push((t && t !== 'none' ? new DOMMatrix(t).a : 1).toFixed(3)); if (window.__zoomLogOn) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+    const pageScale = () =>
+      cp.evaluate(() => {
+        const body = document.getElementById('live-preview-iframe').contentDocument?.body;
+        if (!body) return 1;
+        const t = body.ownerDocument.defaultView.getComputedStyle(body).transform;
+        return t && t !== 'none' ? new DOMMatrix(t).a : 1;
+      });
+    info(
+      'before the drag',
+      `row zoom ${gBefore.z.toFixed(3)}, scroll ${gBefore.scroll.join(',')}, page scale ${(await pageScale()).toFixed(3)}`
+    );
+    await cp.evaluate(() => {
+      window.__bpLog = [];
+      const orig = window.dispatchEvent.bind(window);
+      window.__bpOrigDispatch = orig;
+      window.dispatchEvent = function (event) {
+        if (event?.type === 'sve:breakpoint')
+          window.__bpLog.push({
+            t: Math.round(performance.now()),
+            bp: event.detail?.bp,
+            device: event.detail?.device,
+            stack: String(new Error().stack)
+              .split('\n')
+              .slice(2, 6)
+              .map((l) =>
+                l
+                  .trim()
+                  .replace(/^at /, '')
+                  .replace(/https?:\/\/[^/]+\/[^ ]*\/assets\//, '')
+              )
+              .join(' < '),
+          });
+        return orig(event);
+      };
+    });
+    await cp.evaluate(() => {
+      const body = document.getElementById('live-preview-iframe').contentDocument.body;
+      const view = body.ownerDocument.defaultView;
+      window.__zoomLog = [];
+      window.__zoomLogOn = true;
+      const tick = () => {
+        const t = view.getComputedStyle(body).transform;
+        window.__zoomLog.push((t && t !== 'none' ? new DOMMatrix(t).a : 1).toFixed(3));
+        if (window.__zoomLogOn) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
     const cardAt = { x: overlayBox2.x + libraryCard.x, y: overlayBox2.y + libraryCard.y };
     await page.mouse.move(cardAt.x, cardAt.y);
     await page.mouse.down();
@@ -1140,19 +2379,57 @@ try {
     const scaleDown = await pageScale();
     // In view sideways: its left edge inside the pane (a frame wider than the pane stands at its left edge).
     const frameInView = gDrag.frame.x >= gDrag.view.x - 1 && gDrag.frame.x < gDrag.view.x + gDrag.view.w;
-    step('dragging a library card over the row: the bridge zooms the page down inside the preview; the row keeps its zoom and has the active frame in view', !!zoomedDown && Math.abs(gDrag.z - gBefore.z) < 0.001 && gDrag.scroll[1] === 0 && frameInView, `page scale ${scaleDown.toFixed(3)}; row zoom ${gBefore.z.toFixed(3)} → ${gDrag.z.toFixed(3)}, scroll ${gBefore.scroll.join(',')} → ${gDrag.scroll.join(',')}; active frame at ${Math.round(gDrag.frame.x - gDrag.view.x)} px in a ${Math.round(gDrag.view.w)} px pane`);
+    step(
+      'dragging a library card over the row: the bridge zooms the page down inside the preview; the row keeps its zoom and has the active frame in view',
+      !!zoomedDown && Math.abs(gDrag.z - gBefore.z) < 0.001 && gDrag.scroll[1] === 0 && frameInView,
+      `page scale ${scaleDown.toFixed(3)}; row zoom ${gBefore.z.toFixed(3)} → ${gDrag.z.toFixed(3)}, scroll ${gBefore.scroll.join(',')} → ${gDrag.scroll.join(',')}; active frame at ${Math.round(gDrag.frame.x - gDrag.view.x)} px in a ${Math.round(gDrag.view.w)} px pane`
+    );
     // Every scale the page passed through, one per animation frame: a glide shows several, a jump one.
-    const zoomsOut = await cp.evaluate(() => { const seen = [...new Set(window.__zoomLog)]; window.__zoomLog = []; return seen; });
-    step('the page zooms down gliding, as in one preview', zoomsOut.length >= 3, `${zoomsOut.length} scale values on the way down: ${zoomsOut.slice(0, 8).join(' ')}${zoomsOut.length > 8 ? ' …' : ''}`);
+    const zoomsOut = await cp.evaluate(() => {
+      const seen = [...new Set(window.__zoomLog)];
+      window.__zoomLog = [];
+      return seen;
+    });
+    step(
+      'the page zooms down gliding, as in one preview',
+      zoomsOut.length >= 3,
+      `${zoomsOut.length} scale values on the way down: ${zoomsOut.slice(0, 8).join(' ')}${zoomsOut.length > 8 ? ' …' : ''}`
+    );
     // Let go over the library again: nothing is inserted, and the page goes back to its full size.
     await page.mouse.move(cardAt.x, cardAt.y, { steps: 6 });
     await page.mouse.up();
-    const gAfter = await until(async () => { const g = await rowGeo(); return (await pageScale()) > 0.999 && Math.abs(g.z - gBefore.z) < 0.001 && g.scroll[1] === 0 ? g : null; }, 3000, 30);
+    const gAfter = await until(
+      async () => {
+        const g = await rowGeo();
+        return (await pageScale()) > 0.999 && Math.abs(g.z - gBefore.z) < 0.001 && g.scroll[1] === 0 ? g : null;
+      },
+      3000,
+      30
+    );
     await sleep(100);
-    const zoomsBack = await cp.evaluate(() => { window.__zoomLogOn = false; return [...new Set(window.__zoomLog)]; });
+    const zoomsBack = await cp.evaluate(() => {
+      window.__zoomLogOn = false;
+      return [...new Set(window.__zoomLog)];
+    });
     step('the page zooms back gliding too', zoomsBack.length >= 3, `${zoomsBack.length} scale values on the way back`);
-    const bpLog = await cp.evaluate(() => { const log = window.__bpLog || []; if (window.__bpOrigDispatch) { window.dispatchEvent = window.__bpOrigDispatch; delete window.__bpOrigDispatch; } return log; });
-    step('released outside the preview: the page is back at full size, the row at the zoom it had', !!gAfter, (gAfter ? `row zoom ${gAfter.z.toFixed(3)}, scroll ${gAfter.scroll.join(',')}` : `not within 3 s: page scale ${(await pageScale()).toFixed(3)}, ${JSON.stringify(await rowGeo())}`) + (bpLog.length ? ` — sve:breakpoint fired ${bpLog.length}× during the drag: ${bpLog.map((e) => `${e.bp}/${e.device} via ${e.stack}`).join(' || ')}` : ' — no sve:breakpoint during the drag'));
+    const bpLog = await cp.evaluate(() => {
+      const log = window.__bpLog || [];
+      if (window.__bpOrigDispatch) {
+        window.dispatchEvent = window.__bpOrigDispatch;
+        delete window.__bpOrigDispatch;
+      }
+      return log;
+    });
+    step(
+      'released outside the preview: the page is back at full size, the row at the zoom it had',
+      !!gAfter,
+      (gAfter
+        ? `row zoom ${gAfter.z.toFixed(3)}, scroll ${gAfter.scroll.join(',')}`
+        : `not within 3 s: page scale ${(await pageScale()).toFixed(3)}, ${JSON.stringify(await rowGeo())}`) +
+        (bpLog.length
+          ? ` — sve:breakpoint fired ${bpLog.length}× during the drag: ${bpLog.map((e) => `${e.bp}/${e.device} via ${e.stack}`).join(' || ')}`
+          : ' — no sve:breakpoint during the drag')
+    );
     await realClick(page, cp, ZOOM_FIT);
   } else {
     skip('a library drag zooms the page in the preview', 'no library card on screen');
@@ -1164,18 +2441,69 @@ try {
   //       on screen, the overlay no lower than the pane, and Escape closing the card alone.
   await realClick(page, cp, ZOOM_LABEL);
   await sleep(500);
-  const askUid = await (await previewNow()).evaluate(() => document.querySelector('[data-sid-section-orderable]')?.getAttribute('data-sid') || '');
+  const askUid = await (
+    await previewNow()
+  ).evaluate(() => document.querySelector('[data-sid-section-orderable]')?.getAttribute('data-sid') || '');
   if (askUid) {
     // The preview's own message, as the hover bar's minus sends it.
-    await (await previewNow()).evaluate((uid) => window.parent.postMessage({ source: 'statamic-visual-editor', type: 'remove-row', uid, confirm: true }, window.location.origin), askUid);
-    const ask = await until(() => cp.evaluate(() => { const o = document.getElementById('__sve-close-discard'); if (!o) return null; const card = o.firstElementChild; const pane = document.querySelector('.live-preview-contents').getBoundingClientRect(); const r = o.getBoundingClientRect(); const c = card.getBoundingClientRect(); return { overlay: { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom }, pane: { x: pane.x, y: pane.y, w: pane.width, h: pane.height, bottom: pane.bottom }, card: { top: c.top, bottom: c.bottom, w: c.width }, title: card.textContent.trim().slice(0, 30) }; }), 5000, 100);
-    const onPane = ask && Math.abs(ask.overlay.x - ask.pane.x) <= 1 && Math.abs(ask.overlay.y - ask.pane.y) <= 1 && Math.abs(ask.overlay.w - ask.pane.w) <= 1 && Math.abs(ask.overlay.h - ask.pane.h) <= 1 && ask.card.top >= ask.pane.y && ask.card.bottom <= ask.pane.bottom;
-    step('the delete question covers the whole pane — every size — with the card in its middle', !!onPane, ask ? `overlay ${Math.round(ask.overlay.x)},${Math.round(ask.overlay.y)} ${Math.round(ask.overlay.w)}x${Math.round(ask.overlay.h)} vs pane ${Math.round(ask.pane.x)},${Math.round(ask.pane.y)} ${Math.round(ask.pane.w)}x${Math.round(ask.pane.h)}; card ${Math.round(ask.card.top)}..${Math.round(ask.card.bottom)} "${ask.title}"` : 'no question within 5 s');
+    await (
+      await previewNow()
+    ).evaluate(
+      (uid) =>
+        window.parent.postMessage(
+          { source: 'statamic-visual-editor', type: 'remove-row', uid, confirm: true },
+          window.location.origin
+        ),
+      askUid
+    );
+    const ask = await until(
+      () =>
+        cp.evaluate(() => {
+          const o = document.getElementById('__sve-close-discard');
+          if (!o) return null;
+          const card = o.firstElementChild;
+          const pane = document.querySelector('.live-preview-contents').getBoundingClientRect();
+          const r = o.getBoundingClientRect();
+          const c = card.getBoundingClientRect();
+          return {
+            overlay: { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom },
+            pane: { x: pane.x, y: pane.y, w: pane.width, h: pane.height, bottom: pane.bottom },
+            card: { top: c.top, bottom: c.bottom, w: c.width },
+            title: card.textContent.trim().slice(0, 30),
+          };
+        }),
+      5000,
+      100
+    );
+    const onPane =
+      ask &&
+      Math.abs(ask.overlay.x - ask.pane.x) <= 1 &&
+      Math.abs(ask.overlay.y - ask.pane.y) <= 1 &&
+      Math.abs(ask.overlay.w - ask.pane.w) <= 1 &&
+      Math.abs(ask.overlay.h - ask.pane.h) <= 1 &&
+      ask.card.top >= ask.pane.y &&
+      ask.card.bottom <= ask.pane.bottom;
+    step(
+      'the delete question covers the whole pane — every size — with the card in its middle',
+      !!onPane,
+      ask
+        ? `overlay ${Math.round(ask.overlay.x)},${Math.round(ask.overlay.y)} ${Math.round(ask.overlay.w)}x${Math.round(ask.overlay.h)} vs pane ${Math.round(ask.pane.x)},${Math.round(ask.pane.y)} ${Math.round(ask.pane.w)}x${Math.round(ask.pane.h)}; card ${Math.round(ask.card.top)}..${Math.round(ask.card.bottom)} "${ask.title}"`
+        : 'no question within 5 s'
+    );
     await page.keyboard.press('Escape');
     await sleep(400);
-    const afterEscape = await cp.evaluate(() => ({ ask: !!document.getElementById('__sve-close-discard'), overview: !!document.getElementById('__sve-bp-overview') }));
-    step('Escape closes the question and leaves the overview open', !afterEscape.ask && afterEscape.overview, JSON.stringify(afterEscape));
-    const stillThere = await (await previewNow()).evaluate((uid) => !!document.querySelector(`[data-sid="${uid}"]`), askUid);
+    const afterEscape = await cp.evaluate(() => ({
+      ask: !!document.getElementById('__sve-close-discard'),
+      overview: !!document.getElementById('__sve-bp-overview'),
+    }));
+    step(
+      'Escape closes the question and leaves the overview open',
+      !afterEscape.ask && afterEscape.overview,
+      JSON.stringify(afterEscape)
+    );
+    const stillThere = await (
+      await previewNow()
+    ).evaluate((uid) => !!document.querySelector(`[data-sid="${uid}"]`), askUid);
     step('the section is still on the page', stillThere);
   } else {
     skip('the delete question in the row', 'no orderable section in the preview');
@@ -1184,26 +2512,93 @@ try {
 
   // 10f3. A section deleted while an inline edit is under way in another one leaves
   //       the preview and every copy at once — not when the edit happens to end.
-  const editField = await (await previewNow()).evaluate((field) => { const el = document.querySelector(`[data-sid-field="${field}"]`); const sec = el?.closest('[data-sid-section-orderable]'); const others = [...document.querySelectorAll('[data-sid-section-orderable]')].map((s) => s.getAttribute('data-sid')).filter((u) => u !== sec?.getAttribute('data-sid')); if (!el || !others.length) return null; el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24), victim: others[others.length - 1] }; }, FIELD);
+  const editField = await (
+    await previewNow()
+  ).evaluate((field) => {
+    const el = document.querySelector(`[data-sid-field="${field}"]`);
+    const sec = el?.closest('[data-sid-section-orderable]');
+    const others = [...document.querySelectorAll('[data-sid-section-orderable]')]
+      .map((s) => s.getAttribute('data-sid'))
+      .filter((u) => u !== sec?.getAttribute('data-sid'));
+    if (!el || !others.length) return null;
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    return {
+      x: r.x + Math.min(r.width / 2, 120),
+      y: r.y + Math.min(r.height / 2, 24),
+      victim: others[others.length - 1],
+    };
+  }, FIELD);
   if (editField) {
     const fieldSpot = await inActive(editField);
     await page.mouse.click(fieldSpot.x, fieldSpot.y);
-    const editingNow = await until(() => previewNow().then((f) => f.evaluate(() => !!window.__sveInlineEdit?.active)), 6000, 100);
+    const editingNow = await until(
+      () => previewNow().then((f) => f.evaluate(() => !!window.__sveInlineEdit?.active)),
+      6000,
+      100
+    );
     if (editingNow) {
-      await (await previewNow()).evaluate((u) => window.parent.postMessage({ source: 'statamic-visual-editor', type: 'remove-row', uid: u, confirm: true }, window.location.origin), editField.victim);
+      await (
+        await previewNow()
+      ).evaluate(
+        (u) =>
+          window.parent.postMessage(
+            { source: 'statamic-visual-editor', type: 'remove-row', uid: u, confirm: true },
+            window.location.origin
+          ),
+        editField.victim
+      );
       await until(() => cp.evaluate(() => !!document.getElementById('__sve-close-discard')), 5000, 50);
       const tDel = Date.now();
-      await cp.evaluate(() => { const btn = [...document.querySelectorAll('#__sve-close-discard button')].find((b) => /Delete section|Slet/.test(b.textContent)); btn?.click(); });
-      const goneAt = await until(() => previewNow().then((f) => f.evaluate((u) => !document.querySelector(`[data-sid="${u}"]`), editField.victim)).then((g) => (g ? Date.now() - tDel : null)), 6000, 50);
-      step('deleted while another section is being edited inline: gone from the preview within 2 s', goneAt != null && goneAt <= 2000, goneAt != null ? `after ${goneAt} ms` : 'still there after 6 s');
-      const copiesGoneAt = await until(async () => { const states = await Promise.all((await copyHandles()).map(async (h) => { const f = await h.contentFrame(); return f ? f.evaluate((u) => !document.querySelector(`[data-sid="${u}"]`), editField.victim).catch(() => false) : false; })); return states.every(Boolean) ? Date.now() - tDel : null; }, 6000, 100);
-      step('and from every copy within 2 s', copiesGoneAt != null && copiesGoneAt <= 2000, copiesGoneAt != null ? `after ${copiesGoneAt} ms` : 'not within 6 s');
+      await cp.evaluate(() => {
+        const btn = [...document.querySelectorAll('#__sve-close-discard button')].find((b) =>
+          /Delete section|Slet/.test(b.textContent)
+        );
+        btn?.click();
+      });
+      const goneAt = await until(
+        () =>
+          previewNow()
+            .then((f) => f.evaluate((u) => !document.querySelector(`[data-sid="${u}"]`), editField.victim))
+            .then((g) => (g ? Date.now() - tDel : null)),
+        6000,
+        50
+      );
+      step(
+        'deleted while another section is being edited inline: gone from the preview within 2 s',
+        goneAt != null && goneAt <= 2000,
+        goneAt != null ? `after ${goneAt} ms` : 'still there after 6 s'
+      );
+      const copiesGoneAt = await until(
+        async () => {
+          const states = await Promise.all(
+            (await copyHandles()).map(async (h) => {
+              const f = await h.contentFrame();
+              return f
+                ? f.evaluate((u) => !document.querySelector(`[data-sid="${u}"]`), editField.victim).catch(() => false)
+                : false;
+            })
+          );
+          return states.every(Boolean) ? Date.now() - tDel : null;
+        },
+        6000,
+        100
+      );
+      step(
+        'and from every copy within 2 s',
+        copiesGoneAt != null && copiesGoneAt <= 2000,
+        copiesGoneAt != null ? `after ${copiesGoneAt} ms` : 'not within 6 s'
+      );
       const stillEditing = await (await previewNow()).evaluate(() => !!window.__sveInlineEdit?.active);
       step('the inline edit was left alone', stillEditing);
       // Escape to the element being edited — the key goes where the focus is, and the dialog's button took it to the CP.
       await (await previewNow()).evaluate(() => document.querySelector('[data-sve-editing]')?.focus());
       await page.keyboard.press('Escape');
-      const ended = await until(() => previewNow().then((f) => f.evaluate(() => !window.__sveInlineEdit?.active)), 4000, 100);
+      const ended = await until(
+        () => previewNow().then((f) => f.evaluate(() => !window.__sveInlineEdit?.active)),
+        4000,
+        100
+      );
       step('Escape ends the inline edit again', !!ended);
       await sleep(1500); // the full render the edit held back
     } else {
@@ -1221,15 +2616,48 @@ try {
   const commentsPane = commentsTab && (await waitIn(cp, '[data-sve-right-pane="comments"]', 10000));
   if (commentsPane && (await cp.$('[data-sve-comments-place]'))) {
     await realClick(page, cp, '[data-sve-comments-place]');
-    await until(() => cp.evaluate(() => document.querySelector('[data-sve-comments-place]')?.getAttribute('aria-pressed') === 'true'), 3000, 100);
+    await until(
+      () =>
+        cp.evaluate(() => document.querySelector('[data-sve-comments-place]')?.getAttribute('aria-pressed') === 'true'),
+      3000,
+      100
+    );
     const gComment = await rowGeo();
     const sizeNow = gComment.active;
     // A point of the frame near its top: the frame is a viewport, whole in the pane's height.
     const spot = await inActive({ x: 120, y: 80 });
-    const hitBefore = await cp.evaluate((pt) => { const hit = document.getElementById('sc-cp-hit'); const r = hit?.getBoundingClientRect(); const under = document.elementsFromPoint(pt.x, pt.y).slice(0, 3).map((el) => el.id || el.className?.toString().slice(0, 20) || el.tagName); return { hit: r ? `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} ${getComputedStyle(hit).display}` : 'none', under }; }, { x: spot.x - overlayBox2.x, y: spot.y - overlayBox2.y });
+    const hitBefore = await cp.evaluate(
+      (pt) => {
+        const hit = document.getElementById('sc-cp-hit');
+        const r = hit?.getBoundingClientRect();
+        const under = document
+          .elementsFromPoint(pt.x, pt.y)
+          .slice(0, 3)
+          .map((el) => el.id || el.className?.toString().slice(0, 20) || el.tagName);
+        return {
+          hit: r
+            ? `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} ${getComputedStyle(hit).display}`
+            : 'none',
+          under,
+        };
+      },
+      { x: spot.x - overlayBox2.x, y: spot.y - overlayBox2.y }
+    );
     await page.mouse.click(spot.x, spot.y);
-    const draftSize = await until(() => cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] [data-sc-size] select')?.value || null), 5000, 100);
-    step('a click in the active frame opens a new comment for the size being looked at', draftSize === sizeNow, `size picker says ${draftSize}, the ring is on ${sizeNow}` + (draftSize ? '' : ` — hit layer ${hitBefore.hit}; under the click: ${hitBefore.under.join(' > ')}; draft card: ${await cp.evaluate(() => !!document.querySelector('[data-sc-thread="__draft"]'))}`));
+    const draftSize = await until(
+      () =>
+        cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] [data-sc-size] select')?.value || null),
+      5000,
+      100
+    );
+    step(
+      'a click in the active frame opens a new comment for the size being looked at',
+      draftSize === sizeNow,
+      `size picker says ${draftSize}, the ring is on ${sizeNow}` +
+        (draftSize
+          ? ''
+          : ` — hit layer ${hitBefore.hit}; under the click: ${hitBefore.under.join(' > ')}; draft card: ${await cp.evaluate(() => !!document.querySelector('[data-sc-thread="__draft"]'))}`)
+    );
     await cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] textarea')?.focus());
     const token = `Kommentar ${Math.random().toString(36).slice(2, 6)}`;
     await page.keyboard.type(token);
@@ -1237,39 +2665,140 @@ try {
     // The entry the API files the comment under, read off the request itself.
     let commentsEntry = '';
     let createdId = '';
-    const onCommentPost = async (res) => { const m = res.request().method() === 'POST' && res.url().match(/\/!\/sve\/comments\/([^/?#]+)$/); if (!m) return; commentsEntry = m[1]; try { createdId = (await res.json())?.comment?.id || ''; } catch { /* not json */ } };
+    const onCommentPost = async (res) => {
+      const m = res.request().method() === 'POST' && res.url().match(/\/!\/sve\/comments\/([^/?#]+)$/);
+      if (!m) return;
+      commentsEntry = m[1];
+      try {
+        createdId = (await res.json())?.comment?.id || '';
+      } catch {
+        /* not json */
+      }
+    };
     page.on('response', onCommentPost);
-    const pinId = await until(() => (createdId ? cp.evaluate((id) => (document.querySelector(`[data-sc-pin="${id}"]`) ? id : null), createdId) : Promise.resolve(null)), 8000, 150);
+    const pinId = await until(
+      () =>
+        createdId
+          ? cp.evaluate((id) => (document.querySelector(`[data-sc-pin="${id}"]`) ? id : null), createdId)
+          : Promise.resolve(null),
+      8000,
+      150
+    );
     page.off('response', onCommentPost);
     step('the comment is saved and its pin stands in the frame', !!pinId, pinId ? `pin ${pinId}` : 'no pin within 8 s');
     const sizeLabel = expected.find((b) => b.handle === sizeNow)?.device || sizeNow;
     const away = expected.find((b) => b.handle !== sizeNow);
     if (PHP_HAS_COMMENT_SIZE) {
-      const where = await until(() => cp.evaluate((tk) => [...document.querySelectorAll('.sve-comments__row')].find((row) => row.textContent.includes(tk))?.querySelector('.sve-comments__where')?.textContent.trim() || null, token), 5000, 150);
-      step('the list on the right names the size the comment is for', !!where && where.includes(sizeLabel), where || 'row not found');
+      const where = await until(
+        () =>
+          cp.evaluate(
+            (tk) =>
+              [...document.querySelectorAll('.sve-comments__row')]
+                .find((row) => row.textContent.includes(tk))
+                ?.querySelector('.sve-comments__where')
+                ?.textContent.trim() || null,
+            token
+          ),
+        5000,
+        150
+      );
+      step(
+        'the list on the right names the size the comment is for',
+        !!where && where.includes(sizeLabel),
+        where || 'row not found'
+      );
       // Another size — through the top bar's own button, which is always on screen (a frame's label may stand above the pane).
       await realClick(page, cp, `#__sve-preview-chrome [data-device="${away.device}"]`);
-      const gone = await until(() => cp.evaluate((id) => !document.querySelector(`[data-sc-pin="${id}"]`), pinId), 4000, 100);
-      step(`on ${away.device} the ${sizeLabel} comment's pin is not shown`, !!gone, gone ? 'gone' : `still there after 4 s (pressed ${await pressedDevice()})`);
-      await realClick(page, cp, `#__sve-preview-chrome [data-device="${expected.find((b) => b.handle === sizeNow)?.device || sizeNow}"]`);
-      const backAgain = await until(() => cp.evaluate((id) => !!document.querySelector(`[data-sc-pin="${id}"]`), pinId), 4000, 100);
+      const gone = await until(
+        () => cp.evaluate((id) => !document.querySelector(`[data-sc-pin="${id}"]`), pinId),
+        4000,
+        100
+      );
+      step(
+        `on ${away.device} the ${sizeLabel} comment's pin is not shown`,
+        !!gone,
+        gone ? 'gone' : `still there after 4 s (pressed ${await pressedDevice()})`
+      );
+      await realClick(
+        page,
+        cp,
+        `#__sve-preview-chrome [data-device="${expected.find((b) => b.handle === sizeNow)?.device || sizeNow}"]`
+      );
+      const backAgain = await until(
+        () => cp.evaluate((id) => !!document.querySelector(`[data-sc-pin="${id}"]`), pinId),
+        4000,
+        100
+      );
       step(`back on ${sizeLabel} the pin is there again`, !!backAgain);
     } else {
-      skip('the comment is kept for one size (list label, pin only on that size)', 'the installed PHP predates the size field — enforced after composer update');
+      skip(
+        'the comment is kept for one size (list label, pin only on that size)',
+        'the installed PHP predates the size field — enforced after composer update'
+      );
     }
     // A wheel over the row — it scrolls the preview now, where it once panned the row: the hit layer still lies exactly on the frame afterwards.
-    const panAt = await cp.evaluate((sel) => { const s = document.querySelector(`${sel} .sve-bpo-scroll`); const r = s.getBoundingClientRect(); return { x: r.x + 12, y: r.y + r.height / 2 }; }, LAYER);
+    const panAt = await cp.evaluate((sel) => {
+      const s = document.querySelector(`${sel} .sve-bpo-scroll`);
+      const r = s.getBoundingClientRect();
+      return { x: r.x + 12, y: r.y + r.height / 2 };
+    }, LAYER);
     await page.mouse.move(overlayBox2.x + panAt.x, overlayBox2.y + panAt.y);
     await page.mouse.wheel({ deltaY: 160 });
     await sleep(400);
-    const layer = await cp.evaluate(() => { const hit = document.getElementById('sc-cp-hit'); const frame = document.getElementById('live-preview-iframe'); if (!hit || !frame) return null; const h = hit.getBoundingClientRect(); const f = frame.getBoundingClientRect(); return { dx: Math.abs(h.x - f.x), dy: Math.abs(h.y - f.y), dw: Math.abs(h.width - f.width), dh: Math.abs(h.height - f.height), display: getComputedStyle(hit).display }; });
-    step('after a pan the comments hit layer lies exactly on the preview frame', !!layer && layer.display !== 'none' && layer.dx <= 1 && layer.dy <= 1 && layer.dw <= 1 && layer.dh <= 1, layer ? `offset ${layer.dx.toFixed(1)},${layer.dy.toFixed(1)} size Δ ${layer.dw.toFixed(1)},${layer.dh.toFixed(1)}` : 'no hit layer');
+    const layer = await cp.evaluate(() => {
+      const hit = document.getElementById('sc-cp-hit');
+      const frame = document.getElementById('live-preview-iframe');
+      if (!hit || !frame) return null;
+      const h = hit.getBoundingClientRect();
+      const f = frame.getBoundingClientRect();
+      return {
+        dx: Math.abs(h.x - f.x),
+        dy: Math.abs(h.y - f.y),
+        dw: Math.abs(h.width - f.width),
+        dh: Math.abs(h.height - f.height),
+        display: getComputedStyle(hit).display,
+      };
+    });
+    step(
+      'after a pan the comments hit layer lies exactly on the preview frame',
+      !!layer && layer.display !== 'none' && layer.dx <= 1 && layer.dy <= 1 && layer.dw <= 1 && layer.dh <= 1,
+      layer
+        ? `offset ${layer.dx.toFixed(1)},${layer.dy.toFixed(1)} size Δ ${layer.dw.toFixed(1)},${layer.dh.toFixed(1)}`
+        : 'no hit layer'
+    );
     // Tidy up: the comment deleted through the API, as the card's Slet would.
-    const deleted = pinId && commentsEntry ? await cp.evaluate(async (entry, id) => { const token = window.Statamic?.$config?.get('csrfToken') || document.querySelector('meta[name="csrf-token"]')?.content || ''; const r = await fetch(`/!/sve/comments/${entry}/${id}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } }); return r.status; }, commentsEntry, pinId) : null;
-    step('the test comment is deleted again', deleted === 200 || deleted === 204, `DELETE → ${deleted} (entry ${commentsEntry || '?'})`);
+    const deleted =
+      pinId && commentsEntry
+        ? await cp.evaluate(
+            async (entry, id) => {
+              const token =
+                window.Statamic?.$config?.get('csrfToken') ||
+                document.querySelector('meta[name="csrf-token"]')?.content ||
+                '';
+              const r = await fetch(`/!/sve/comments/${entry}/${id}`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+              });
+              return r.status;
+            },
+            commentsEntry,
+            pinId
+          )
+        : null;
+    step(
+      'the test comment is deleted again',
+      deleted === 200 || deleted === 204,
+      `DELETE → ${deleted} (entry ${commentsEntry || '?'})`
+    );
     await page.keyboard.press('Escape');
   } else {
-    skip('comments per screen size', commentsTab ? 'the comments pane did not open (feature off, or no access)' : 'no comments tab in the toolbar for this account');
+    skip(
+      'comments per screen size',
+      commentsTab
+        ? 'the comments pane did not open (feature off, or no access)'
+        : 'no comments tab in the toolbar for this account'
+    );
   }
   if (commentsTab) await realClick(page, cp, '#__sve-toolbar button[data-tab="comments"]');
   await sleep(400);
@@ -1278,16 +2807,36 @@ try {
   //     switch, or Statamic swapping the iframe when the URL changes): the
   //     overview binds to the new window, so what is typed next still arrives.
   if (field) {
-    await cp.evaluate(() => { const f = document.getElementById('live-preview-iframe'); f.contentWindow.__sveBpoReload = 1; f.src = f.getAttribute('src'); });
-    const reloaded = await until(async () => {
-      const f = await (await cp.$('#live-preview-iframe'))?.contentFrame();
-      return f && (await f.evaluate(() => window.__sveBpoReload !== 1 && document.readyState === 'complete' && !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`))) ? f : null;
-    }, 20000, 200);
+    await cp.evaluate(() => {
+      const f = document.getElementById('live-preview-iframe');
+      f.contentWindow.__sveBpoReload = 1;
+      f.src = f.getAttribute('src');
+    });
+    const reloaded = await until(
+      async () => {
+        const f = await (await cp.$('#live-preview-iframe'))?.contentFrame();
+        return f &&
+          (await f.evaluate(
+            () =>
+              window.__sveBpoReload !== 1 &&
+              document.readyState === 'complete' &&
+              !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)
+          ))
+          ? f
+          : null;
+      },
+      20000,
+      200
+    );
     step('the preview reloaded while the overview was open', !!reloaded);
     await sleep(1500);
     const token = `R${Date.now().toString(36).slice(-5)}`;
     const target = await cp.evaluate(() => {
-      const el = [...document.querySelectorAll('.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea')].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
+      const el = [
+        ...document.querySelectorAll(
+          '.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea'
+        ),
+      ].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
       if (!el) return null;
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       const r = el.getBoundingClientRect();
@@ -1295,21 +2844,54 @@ try {
     });
     if (reloaded && target) {
       // Focus the field itself: after a section left the page, the panel's rows have moved and a coordinate can miss.
-      await cp.evaluate(() => { const el = [...document.querySelectorAll('.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea')].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? '')); el?.focus(); });
+      await cp.evaluate(() => {
+        const el = [
+          ...document.querySelectorAll(
+            '.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea'
+          ),
+        ].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
+        el?.focus();
+      });
       await page.keyboard.press('End');
       await page.keyboard.type(` ${token}`, { delay: 20 });
       const typedAt = Date.now();
       const viewFrames = (await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean);
       const has = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
-      const netAfter = []; const onNet = (r) => { if (/live-preview=|\/preview\?/.test(r.url())) netAfter.push(`${r.method()} ${r.url().replace(SITE_URL, '').replace(/(token|live-preview)=[^&]+/g, '$1=…').slice(0, 60)}`); }; page.on('request', onNet);
-      const reached = await until(async () => viewFrames.length > 0 && (await has(reloaded)) && (await Promise.all(viewFrames.map(has))).every(Boolean), 10000, 100);
+      const netAfter = [];
+      const onNet = (r) => {
+        if (/live-preview=|\/preview\?/.test(r.url()))
+          netAfter.push(
+            `${r.method()} ${r
+              .url()
+              .replace(SITE_URL, '')
+              .replace(/(token|live-preview)=[^&]+/g, '$1=…')
+              .slice(0, 60)}`
+          );
+      };
+      page.on('request', onNet);
+      const reached = await until(
+        async () =>
+          viewFrames.length > 0 && (await has(reloaded)) && (await Promise.all(viewFrames.map(has))).every(Boolean),
+        10000,
+        100
+      );
       page.off('request', onNet);
-      const where = reached ? '' : ` — left field has it: ${await cp.evaluate((tk) => [...document.querySelectorAll('.live-preview-editor .ProseMirror, .live-preview-editor input, .live-preview-editor textarea')].some((e) => (e.value ?? e.textContent ?? '').includes(tk)), token)}; preview: ${await has(reloaded)}; copies: ${(await Promise.all(viewFrames.map(has))).join(',')}; requests: ${netAfter.join(' | ') || 'none'}; inline edit active in the preview: ${await reloaded.evaluate(() => !!window.__sveInlineEdit?.active)}`;
-      step('after the reload, typing still reaches every view frame', !!reached, reached ? `${Date.now() - typedAt} ms` : `not within 10 s${where}`);
+      const where = reached
+        ? ''
+        : ` — left field has it: ${await cp.evaluate((tk) => [...document.querySelectorAll('.live-preview-editor .ProseMirror, .live-preview-editor input, .live-preview-editor textarea')].some((e) => (e.value ?? e.textContent ?? '').includes(tk)), token)}; preview: ${await has(reloaded)}; copies: ${(await Promise.all(viewFrames.map(has))).join(',')}; requests: ${netAfter.join(' | ') || 'none'}; inline edit active in the preview: ${await reloaded.evaluate(() => !!window.__sveInlineEdit?.active)}`;
+      step(
+        'after the reload, typing still reaches every view frame',
+        !!reached,
+        reached ? `${Date.now() - typedAt} ms` : `not within 10 s${where}`
+      );
       for (let i = 0; i < token.length + 1; i++) await page.keyboard.press('Backspace');
       await until(async () => !(await has(reloaded)), 10000, 150);
     } else {
-      step('after the reload, typing still reaches every view frame', false, reloaded ? 'no field to type in' : 'the preview did not come back');
+      step(
+        'after the reload, typing still reaches every view frame',
+        false,
+        reloaded ? 'no field to type in' : 'the preview did not come back'
+      );
     }
   }
 
@@ -1322,7 +2904,11 @@ try {
   //     that block), unlock the template for the test, and back the file up —
   //     the dock autosaves every keystroke.
   const livePreview = async () => (await cp.$('#live-preview-iframe'))?.contentFrame();
-  const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
+  const dockPath = () =>
+    cp.evaluate(() => {
+      const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]');
+      return el ? el.getAttribute('data-sve-code-path') || el.textContent.trim() : '';
+    });
   const clickSection = async (id) => {
     const f = await livePreview();
     // A point inside the section and inside the preview's viewport, on the
@@ -1332,7 +2918,8 @@ try {
       if (!el) return null;
       el.scrollIntoView({ block: 'start' });
       const q = el.getBoundingClientRect();
-      const top = Math.max(q.top, 0); const bottom = Math.min(q.bottom, window.innerHeight);
+      const top = Math.max(q.top, 0);
+      const bottom = Math.min(q.bottom, window.innerHeight);
       // The section element itself under the pointer — its padding, not a wrapper inside it, which would scope the dock to that wrapper.
       for (let y = top + 3; y < bottom - 3; y += 6) {
         for (const x of [q.x + 3, q.x + Math.min(q.width / 3, 240), q.x + q.width / 2, q.x + q.width - 3]) {
@@ -1342,46 +2929,103 @@ try {
       return null;
     }, id);
     if (!r) return false;
-    let x = r.x; let y = r.y;
-    for (let fr = f; fr.parentFrame(); fr = fr.parentFrame()) { const box = await (await fr.frameElement()).boundingBox(); x += box.x; y += box.y; }
+    let x = r.x;
+    let y = r.y;
+    for (let fr = f; fr.parentFrame(); fr = fr.parentFrame()) {
+      const box = await (await fr.frameElement()).boundingBox();
+      x += box.x;
+      y += box.y;
+    }
     await page.mouse.click(x, y);
     return true;
   };
   let dockOpen = false;
-  for (let attempt = 1; attempt <= 2 && !dockOpen; attempt++) { await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); dockOpen = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!dockOpen) await sleep(1000); }
+  for (let attempt = 1; attempt <= 2 && !dockOpen; attempt++) {
+    await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]');
+    await sleep(600);
+    dockOpen = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000);
+    if (!dockOpen) await sleep(1000);
+  }
   step('code dock open', dockOpen);
-  const sectionId = await (await livePreview()).evaluate(() => document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)?.closest('[id^="id-"]')?.id || '');
+  const sectionId = await (
+    await livePreview()
+  ).evaluate(
+    () => document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)?.closest('[id^="id-"]')?.id || ''
+  );
   let onFile = false;
-  const wholeFileShown = () => cp.evaluate(() => { const dock = document.querySelector('#__sve-code-dock'); const text = dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || ''; return !dock?.hasAttribute('data-sve-html-scoped') || /section_orderable/.test(text); });
+  const wholeFileShown = () =>
+    cp.evaluate(() => {
+      const dock = document.querySelector('#__sve-code-dock');
+      const text =
+        dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || '';
+      return !dock?.hasAttribute('data-sve-html-scoped') || /section_orderable/.test(text);
+    });
   for (let attempt = 0; attempt < 3 && dockOpen && !onFile; attempt++) {
-    await clickSection(sectionId); await sleep(2000);
+    await clickSection(sectionId);
+    await sleep(2000);
     onFile = /page_sections\//.test(await dockPath()) && (await wholeFileShown());
     if (onFile) break;
     // A bare spot is hard to hit in a section full of fields, and a click inside a wrapper scopes the
     // dock to that tag: the section's own row in the HTML tree opens its whole file.
-    if (!(await cp.$('[data-sve-ht-row]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]').catch(() => null); await sleep(1500); }
+    if (!(await cp.$('[data-sve-ht-row]'))) {
+      await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]').catch(() => null);
+      await sleep(1500);
+    }
     // The open section's own root row: the one with the eye whose label starts with "section" (the other sections' rows are the [sec] rows).
-    const row = await cp.evaluate(() => { const r = [...document.querySelectorAll('[data-sve-ht-row]')].find((x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim())); if (!r) return null; r.scrollIntoView({ block: 'center' }); const q = r.getBoundingClientRect(); return { x: q.x + Math.min(60, q.width / 2), y: q.y + q.height / 2 }; });
-    info('dock scope', `attempt ${attempt + 1}: bare spot ${onFile ? 'gave the whole file' : 'did not'}; root row in the tree ${row ? 'found' : 'not found'}`);
-    if (row) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(2500); onFile = /page_sections\//.test(await dockPath()) && (await wholeFileShown()); }
+    const row = await cp.evaluate(() => {
+      const r = [...document.querySelectorAll('[data-sve-ht-row]')].find(
+        (x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim())
+      );
+      if (!r) return null;
+      r.scrollIntoView({ block: 'center' });
+      const q = r.getBoundingClientRect();
+      return { x: q.x + Math.min(60, q.width / 2), y: q.y + q.height / 2 };
+    });
+    info(
+      'dock scope',
+      `attempt ${attempt + 1}: bare spot ${onFile ? 'gave the whole file' : 'did not'}; root row in the tree ${row ? 'found' : 'not found'}`
+    );
+    if (row) {
+      const b = await (await cp.frameElement()).boundingBox();
+      await page.mouse.click(b.x + row.x, b.y + row.y);
+      await sleep(2500);
+      onFile = /page_sections\//.test(await dockPath()) && (await wholeFileShown());
+    }
   }
   filePath = await dockPath();
-  const dockState = await cp.evaluate(() => { const dock = document.querySelector('#__sve-code-dock'); const text = dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || ''; return `scoped=${dock?.getAttribute('data-sve-html-scoped')} rows=${document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]').length} pane="${text.replace(/\s+/g, ' ').slice(0, 70)}"`; });
+  const dockState = await cp.evaluate(() => {
+    const dock = document.querySelector('#__sve-code-dock');
+    const text =
+      dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || '';
+    return `scoped=${dock?.getAttribute('data-sve-html-scoped')} rows=${document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]').length} pane="${text.replace(/\s+/g, ' ').slice(0, 70)}"`;
+  });
   step('the dock shows the headline section’s whole file', onFile, `${filePath || '(no file)'} — ${dockState}`);
   const abs = filePath ? (filePath.startsWith('/') ? filePath : `${SITE_DIR}/${filePath}`) : null;
   if (onFile && abs && existsSync(abs)) original = readFileSync(abs, 'utf8');
   const twMatch = (filePath || '').match(/page_sections\/(.+)\.antlers\.html$/);
   twPath = twMatch ? `${SITE_DIR}/resources/visual-editor/tw/${twMatch[1]}.css` : null;
   twExisted = twPath ? existsSync(twPath) : true;
-  if (onFile && await cp.evaluate(() => document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked'))) {
+  if (
+    onFile &&
+    (await cp.evaluate(() => document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')))
+  ) {
     await realClick(page, cp, '#__sve-code-dock [data-sve-code-lock]');
     if (await waitIn(cp, '.sve-dialog .sve-dialog__actions button', 8000)) {
       const box = await (await cp.frameElement()).boundingBox();
-      const r = await cp.evaluate(() => { const b = [...document.querySelectorAll('.sve-dialog .sve-dialog__actions button')].pop(); const q = b.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
+      const r = await cp.evaluate(() => {
+        const b = [...document.querySelectorAll('.sve-dialog .sve-dialog__actions button')].pop();
+        const q = b.getBoundingClientRect();
+        return { x: q.x + q.width / 2, y: q.y + q.height / 2 };
+      });
       await page.mouse.click(box.x + r.x, box.y + r.y);
     }
     let unlocked = false;
-    for (let i = 0; i < 20 && !unlocked; i++) { await sleep(500); unlocked = await cp.evaluate(() => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')); }
+    for (let i = 0; i < 20 && !unlocked; i++) {
+      await sleep(500);
+      unlocked = await cp.evaluate(
+        () => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')
+      );
+    }
     step('template unlocked for the test', unlocked);
     onFile = onFile && unlocked;
   }
@@ -1395,7 +3039,11 @@ try {
       for (const line of lines) {
         acc += line.textContent + '\n';
         const open = acc.search(/<(section|div|article|header)\b/);
-        if (open !== -1 && acc.indexOf('>', open) !== -1) { line.scrollIntoView({ block: 'center' }); const r = line.getBoundingClientRect(); return { x: r.right - 2, y: r.y + r.height / 2 }; }
+        if (open !== -1 && acc.indexOf('>', open) !== -1) {
+          line.scrollIntoView({ block: 'center' });
+          const r = line.getBoundingClientRect();
+          return { x: r.right - 2, y: r.y + r.height / 2 };
+        }
       }
       return null;
     });
@@ -1405,51 +3053,120 @@ try {
     await page.keyboard.press('End');
     await page.keyboard.press('Enter');
     await cp.evaluate((t) => document.execCommand('insertText', false, t), text);
-    const pane = await cp.evaluate(() => document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || '');
+    const pane = await cp.evaluate(
+      () => document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || ''
+    );
     const close = text.match(/<\/[a-z]+>$/)?.[0];
-    if (close && pane.split(close).length - 1 > (original.split(close).length - 1) + 1) { for (let i = 0; i < close.length; i++) await page.keyboard.press('Backspace'); }
+    if (close && pane.split(close).length - 1 > original.split(close).length - 1 + 1) {
+      for (let i = 0; i < close.length; i++) await page.keyboard.press('Backspace');
+    }
     return true;
   };
   // The whole line, through the editor's state: a keyboard Home on a wrapped
   // line reaches only the last visual segment, and the rest stayed behind.
-  const removeLine = (marker) => cp.evaluate((m) => {
-    const view = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.cmTile?.view;
-    if (!view) return false;
-    const at = view.state.doc.toString().indexOf(m);
-    if (at === -1) return false;
-    const line = view.state.doc.lineAt(at);
-    view.dispatch({ changes: { from: line.from, to: Math.min(line.to + 1, view.state.doc.length) } });
-    return !view.state.doc.toString().includes(m);
-  }, marker);
+  const removeLine = (marker) =>
+    cp.evaluate((m) => {
+      const view = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.cmTile?.view;
+      if (!view) return false;
+      const at = view.state.doc.toString().indexOf(m);
+      if (at === -1) return false;
+      const line = view.state.doc.lineAt(at);
+      view.dispatch({ changes: { from: line.from, to: Math.min(line.to + 1, view.state.doc.length) } });
+      return !view.state.doc.toString().includes(m);
+    }, marker);
   const loadedCopies = () => copiesLoaded(expected.length);
-  const openOverview = async () => { if (!(await cp.$(LAYER))) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); } return loadedCopies(); };
-  const closeOverview = async () => { await page.keyboard.press('Escape'); await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000); };
-  const copyHandleNames = async () => { const out = []; for (const h of await copyHandles()) out.push(await h.evaluate((el) => el.closest('[data-bp]').dataset.bp)); return out; };
+  const openOverview = async () => {
+    if (!(await cp.$(LAYER))) {
+      await realClick(page, cp, BUTTON);
+      await waitIn(cp, LAYER, 10000);
+    }
+    return loadedCopies();
+  };
+  const closeOverview = async () => {
+    await page.keyboard.press('Escape');
+    await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
+  };
+  const copyHandleNames = async () => {
+    const out = [];
+    for (const h of await copyHandles()) out.push(await h.evaluate((el) => el.closest('[data-bp]').dataset.bp));
+    return out;
+  };
   const frameNames = ['preview', ...copyNames];
 
   // 12a. Video: a hold from the tree stops it in the preview and in every copy;
   //      a remembered hold is there from a copy's first draw; play plays everywhere.
-  const stateOf = (frame, cls) => frame.evaluate((c) => { const v = document.querySelector('.' + c); if (!v) return null; return { muted: v.muted, paused: v.paused, held: v.hasAttribute('data-sve-video-hold'), t: +v.currentTime.toFixed(2) }; }, cls).catch(() => null);
-  const advancing = async (frame, cls, ms = 900) => { const a = await stateOf(frame, cls); await sleep(ms); const b = await stateOf(frame, cls); return { a, b, moved: !!a && !!b && b.t > a.t }; };
+  const stateOf = (frame, cls) =>
+    frame
+      .evaluate((c) => {
+        const v = document.querySelector('.' + c);
+        if (!v) return null;
+        return {
+          muted: v.muted,
+          paused: v.paused,
+          held: v.hasAttribute('data-sve-video-hold'),
+          t: +v.currentTime.toFixed(2),
+        };
+      }, cls)
+      .catch(() => null);
+  const advancing = async (frame, cls, ms = 900) => {
+    const a = await stateOf(frame, cls);
+    await sleep(ms);
+    const b = await stateOf(frame, cls);
+    return { a, b, moved: !!a && !!b && b.t > a.t };
+  };
   // Playing: not paused, and the time advancing — once the file has arrived, which takes a moment in a fresh frame.
-  const playing = async (frame, cls) => { const b = await until(async () => { const r = await advancing(frame, cls, 400); return r.moved && r.b.paused === false ? r.b : null; }, 8000, 150); return { moved: !!b, b: b || (await stateOf(frame, cls)) }; };
+  const playing = async (frame, cls) => {
+    const b = await until(
+      async () => {
+        const r = await advancing(frame, cls, 400);
+        return r.moved && r.b.paused === false ? r.b : null;
+      },
+      8000,
+      150
+    );
+    return { moved: !!b, b: b || (await stateOf(frame, cls)) };
+  };
   const showVideo = (r) => (r ? `${r.paused ? 'paused' : 'playing'}${r.held ? ' held' : ''} t=${r.t}` : 'no video');
-  const videoRow = async (marker) => cp.evaluate((m) => {
-    const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
-    const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && (el.textContent || '').includes(m));
-    if (!hit) return null;
-    hit.scrollIntoView({ block: 'center' });
-    const r = hit.getBoundingClientRect();
-    return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 };
-  }, marker);
+  const videoRow = async (marker) =>
+    cp.evaluate((m) => {
+      const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
+      const hit = rows.find(
+        (el) =>
+          (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' &&
+          (el.textContent || '').includes(m)
+      );
+      if (!hit) return null;
+      hit.scrollIntoView({ block: 'center' });
+      const r = hit.getBoundingClientRect();
+      return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 };
+    }, marker);
   const pressVideoIcon = async (marker) => {
     const row = await videoRow(marker);
     if (!row) return 'no video row in the tree';
     const b = await (await cp.frameElement()).boundingBox();
-    const iconOf = () => cp.evaluate((m) => { const hit = [...document.querySelectorAll('[data-sve-ht-row]')].find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && (el.textContent || '').includes(m)); const btn = hit?.querySelector('[data-sve-ht-video]'); if (!btn) return null; const r = btn.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') } : { hidden: true }; }, marker);
-    await page.mouse.move(b.x + row.x - 6, b.y + row.y); await page.mouse.move(b.x + row.x, b.y + row.y); await sleep(300);
+    const iconOf = () =>
+      cp.evaluate((m) => {
+        const hit = [...document.querySelectorAll('[data-sve-ht-row]')].find(
+          (el) =>
+            (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' &&
+            (el.textContent || '').includes(m)
+        );
+        const btn = hit?.querySelector('[data-sve-ht-video]');
+        if (!btn) return null;
+        const r = btn.getBoundingClientRect();
+        return r.width
+          ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') }
+          : { hidden: true };
+      }, marker);
+    await page.mouse.move(b.x + row.x - 6, b.y + row.y);
+    await page.mouse.move(b.x + row.x, b.y + row.y);
+    await sleep(300);
     let icon = await iconOf();
-    if (!icon || icon.hidden) { await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(500); icon = await iconOf(); }
+    if (!icon || icon.hidden) {
+      await page.mouse.click(b.x + row.x, b.y + row.y);
+      await sleep(500);
+      icon = await iconOf();
+    }
     if (!icon || icon.hidden) return `video icon not clickable: ${JSON.stringify(icon)}`;
     await page.mouse.click(b.x + icon.x, b.y + icon.y);
     return `pressed (was ${icon.on ? 'held' : 'playing'})`;
@@ -1457,36 +3174,84 @@ try {
   const videoOk = ready && (!!VIDEO_SRC || (!!VIDEO_FILE && existsSync(VIDEO_FILE)));
   if (videoOk) {
     if (!VIDEO_SRC) copyFileSync(VIDEO_FILE, VIDEO_PUBLIC);
-    step('typed a muted autoplay video into the section', await typeAfterRoot(`<video class="sve-bpo-video" autoplay="true" muted="true" playsinline src="${VIDEO_SRC || `${SITE_URL}/sve-bpo-video.mp4`}"></video>`));
+    step(
+      'typed a muted autoplay video into the section',
+      await typeAfterRoot(
+        `<video class="sve-bpo-video" autoplay="true" muted="true" playsinline src="${VIDEO_SRC || `${SITE_URL}/sve-bpo-video.mp4`}"></video>`
+      )
+    );
     await sleep(3500); // the save and the morph
     let run = await playing(await livePreview(), 'sve-bpo-video');
     step('the preview plays it after the morph', run.moved && run.b?.paused === false, showVideo(run.b));
     let copies = await openOverview();
     const plays = copies ? await Promise.all(copies.map((f) => playing(f, 'sve-bpo-video'))) : [];
-    step('open, every copy shows the video playing', !!copies && plays.every((r) => r.moved && r.b?.paused === false), copies ? plays.map((r, i) => `${copyNames[i]} ${showVideo(r.b)}`).join(', ') : 'copies did not load');
+    step(
+      'open, every copy shows the video playing',
+      !!copies && plays.every((r) => r.moved && r.b?.paused === false),
+      copies ? plays.map((r, i) => `${copyNames[i]} ${showVideo(r.b)}`).join(', ') : 'copies did not load'
+    );
     // The tree: the section's row unfolds its tags; the video row carries the hold icon.
-    if (!(await cp.$('[data-sve-ht-row]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]'); await sleep(1500); }
-    const secLabel = (filePath || '').replace(/^.*page_sections\//, '').replace(/\.antlers\.html$/, '').replace(/[\/_]+/g, ' ').trim();
-    const secRow = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 }; }, secLabel);
-    if (secRow && !(await videoRow('sve-bpo-video'))) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + secRow.x, b.y + secRow.y); await sleep(1500); }
-    let pressed = await pressVideoIcon('sve-bpo-video'); await sleep(900);
+    if (!(await cp.$('[data-sve-ht-row]'))) {
+      await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]');
+      await sleep(1500);
+    }
+    const secLabel = (filePath || '')
+      .replace(/^.*page_sections\//, '')
+      .replace(/\.antlers\.html$/, '')
+      .replace(/[\/_]+/g, ' ')
+      .trim();
+    const secRow = await cp.evaluate((label) => {
+      const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) =>
+        r.textContent.toLowerCase().includes(label.toLowerCase())
+      );
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center' });
+      const r = el.getBoundingClientRect();
+      return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 };
+    }, secLabel);
+    if (secRow && !(await videoRow('sve-bpo-video'))) {
+      const b = await (await cp.frameElement()).boundingBox();
+      await page.mouse.click(b.x + secRow.x, b.y + secRow.y);
+      await sleep(1500);
+    }
+    let pressed = await pressVideoIcon('sve-bpo-video');
+    await sleep(900);
     let all = [await livePreview(), ...(copies || [])];
     const held = await Promise.all(all.map((f) => stateOf(f, 'sve-bpo-video')));
-    step('the tree’s hold stops the video in the preview and in every copy', held.length === expected.length + 1 && held.every((r) => r && r.paused === true && r.held === true), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(held[i])}`).join(', ')}`);
+    step(
+      'the tree’s hold stops the video in the preview and in every copy',
+      held.length === expected.length + 1 && held.every((r) => r && r.paused === true && r.held === true),
+      `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(held[i])}`).join(', ')}`
+    );
     // Closed and opened again: a copy loads fresh from the server and is held from its first draw.
     await closeOverview();
     copies = await openOverview();
     await sleep(800);
     const remembered = copies ? await Promise.all(copies.map((f) => stateOf(f, 'sve-bpo-video'))) : [];
-    step('reopened, every copy has the remembered hold from its first draw', !!copies && remembered.every((r) => r && r.paused === true && r.held === true), copies ? remembered.map((r, i) => `${copyNames[i]} ${showVideo(r)}`).join(', ') : 'copies did not load');
-    pressed = await pressVideoIcon('sve-bpo-video'); await sleep(900);
+    step(
+      'reopened, every copy has the remembered hold from its first draw',
+      !!copies && remembered.every((r) => r && r.paused === true && r.held === true),
+      copies ? remembered.map((r, i) => `${copyNames[i]} ${showVideo(r)}`).join(', ') : 'copies did not load'
+    );
+    pressed = await pressVideoIcon('sve-bpo-video');
+    await sleep(900);
     all = [await livePreview(), ...(copies || [])];
     const playAgain = await Promise.all(all.map((f) => playing(f, 'sve-bpo-video')));
-    step('the next press plays it again in the preview and in every copy', playAgain.length === expected.length + 1 && playAgain.every((r) => r.moved && r.b?.paused === false && r.b?.held === false), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(playAgain[i]?.b)}`).join(', ')}`);
+    step(
+      'the next press plays it again in the preview and in every copy',
+      playAgain.length === expected.length + 1 &&
+        playAgain.every((r) => r.moved && r.b?.paused === false && r.b?.held === false),
+      `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(playAgain[i]?.b)}`).join(', ')}`
+    );
     step('the video line removed again', await removeLine('sve-bpo-video'));
     await sleep(3500);
   } else {
-    skip('video in every frame', !ready ? 'the dock is not on the section file (another site, or no file to back up)' : 'no SVE_VIDEO_FILE on disk and no SVE_VIDEO_SRC');
+    skip(
+      'video in every frame',
+      !ready
+        ? 'the dock is not on the section file (another site, or no file to back up)'
+        : 'no SVE_VIDEO_FILE on disk and no SVE_VIDEO_SRC'
+    );
   }
 
   if (process.env.SVE_DEBUG) await page.screenshot({ path: `${tmpdir()}/sve-breakpoint-overview.png` });
@@ -1505,14 +3270,25 @@ try {
     const abs = filePath.startsWith('/') ? filePath : `${SITE_DIR}/${filePath}`;
     let stable = 0;
     for (let i = 0; i < 60 && stable < 9; i++) {
-      if (readFileSync(abs, 'utf8') !== original) { writeFileSync(abs, original); stable = 0; } else { stable++; }
+      if (readFileSync(abs, 'utf8') !== original) {
+        writeFileSync(abs, original);
+        stable = 0;
+      } else {
+        stable++;
+      }
       await sleep(700);
     }
     step('section file restored', readFileSync(abs, 'utf8') === original, abs.replace(SITE_DIR + '/', ''));
     const historyDir = `${SITE_DIR}/storage/statamic-visual-editor/history/${filePath.replace(/\//g, '_')}`;
     if (existsSync(historyDir)) {
       let removed = 0;
-      for (const name of readdirSync(historyDir)) { const file = `${historyDir}/${name}`; if (statSync(file).mtimeMs >= startedAt - 1000) { unlinkSync(file); removed++; } }
+      for (const name of readdirSync(historyDir)) {
+        const file = `${historyDir}/${name}`;
+        if (statSync(file).mtimeMs >= startedAt - 1000) {
+          unlinkSync(file);
+          removed++;
+        }
+      }
       if (!readdirSync(historyDir).length) rmdirSync(historyDir);
       info('history snapshots from this run removed', String(removed));
     }
@@ -1527,17 +3303,39 @@ try {
   seedLayoutPrefs(null);
 }
 
-if (served) step('working-tree build was what the CP loaded', served() > 0, `${served()} build files served from the working tree`);
+if (served)
+  step(
+    'working-tree build was what the CP loaded',
+    served() > 0,
+    `${served()} build files served from the working tree`
+  );
 {
-  const files = (manifest) => Object.values(manifest).flatMap((e) => [e.file, ...(e.css || []), ...(e.assets || [])]).map((f) => f.replace(/^assets\//, ''));
+  const files = (manifest) =>
+    Object.values(manifest)
+      .flatMap((e) => [e.file, ...(e.css || []), ...(e.assets || [])])
+      .map((f) => f.replace(/^assets\//, ''));
   const installed = JSON.parse(readFileSync(`${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, 'utf8'));
   const allowed = new Set(files(installed));
   if (WORKTREE) for (const f of files(JSON.parse(readFileSync(`${BUILD_DIR}/manifest.json`, 'utf8')))) allowed.add(f);
   const strays = [...loadedAssets].filter((f) => !allowed.has(f));
-  step('every build file the browser loaded is one the manifest names', strays.length === 0, `${loadedAssets.size} files${strays.length ? ' | not in the manifest: ' + strays.join(' ') : ''}`);
+  step(
+    'every build file the browser loaded is one the manifest names',
+    strays.length === 0,
+    `${loadedAssets.size} files${strays.length ? ' | not in the manifest: ' + strays.join(' ') : ''}`
+  );
 }
-step('the entry on disk is unchanged (nothing was saved)', !entryFile || md5(entryFile) === entryBefore, entryFile ? entryFile.replace(SITE_DIR + '/', '') : 'entry file not found');
-const realErrors = report.errors.filter((e) => !/favicon|net::ERR_ABORTED|the server responded with a status of 4/i.test(e));
-step('no JavaScript errors (CP, overlay, preview, view frames)', realErrors.length === 0, realErrors.slice(0, 5).join(' | '));
+step(
+  'the entry on disk is unchanged (nothing was saved)',
+  !entryFile || md5(entryFile) === entryBefore,
+  entryFile ? entryFile.replace(SITE_DIR + '/', '') : 'entry file not found'
+);
+const realErrors = report.errors.filter(
+  (e) => !/favicon|net::ERR_ABORTED|the server responded with a status of 4/i.test(e)
+);
+step(
+  'no JavaScript errors (CP, overlay, preview, view frames)',
+  realErrors.length === 0,
+  realErrors.slice(0, 5).join(' | ')
+);
 console.log(JSON.stringify({ ok: report.ok, errors: realErrors }, null, 0));
 process.exit(report.ok ? 0 : 1);

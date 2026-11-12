@@ -72,7 +72,7 @@ final class SectionList
             return null;
         }
 
-        $sets = static::dig($contents, $at)['sets'] ?? [];
+        $sets = self::dig($contents, $at)['sets'] ?? [];
 
         return is_array($sets) ? $sets : [];
     }
@@ -86,10 +86,10 @@ final class SectionList
             return $contents;
         }
 
-        $field = static::dig($contents, $at);
+        $field = self::dig($contents, $at);
         $field['sets'] = $sets;
 
-        return static::put($contents, $at, $field);
+        return self::put($contents, $at, $field);
     }
 
     /** Writes the contents back to the file they came from. */
@@ -146,7 +146,7 @@ final class SectionList
         $firstReplicator = null;
 
         foreach ($lists as $list) {
-            foreach ((array) static::dig($contents, $list) as $i => $item) {
+            foreach ((array) self::dig($contents, $list) as $i => $item) {
                 if (! is_array($item) || ! is_array($item['field'] ?? null) || ! isset($item['field']['sets'])) {
                     continue;
                 }
@@ -182,7 +182,7 @@ final class SectionList
         }
 
         $key = array_shift($keys);
-        $array[$key] = static::put(is_array($array[$key] ?? null) ? $array[$key] : [], $keys, $value);
+        $array[$key] = self::put(is_array($array[$key] ?? null) ? $array[$key] : [], $keys, $value);
 
         return $array;
     }

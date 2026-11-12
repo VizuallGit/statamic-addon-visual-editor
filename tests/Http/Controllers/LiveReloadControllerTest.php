@@ -2,11 +2,11 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests\Http\Controllers;
 
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
 use Illuminate\Cookie\CookieValuePrefix;
 use Illuminate\Foundation\Vite;
 use Illuminate\Routing\RouteCollection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\Features;
@@ -16,6 +16,7 @@ use MarioHamann\StatamicVisualEditor\StylePushStack;
 use MarioHamann\StatamicVisualEditor\StylePushStackBridge;
 use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 use Statamic\Facades\User;
+use Vizuall\StylePush\Tags\StylePush;
 
 /**
  * The live-reload poll: closed unless the toggle is on and the user is one the
@@ -337,7 +338,7 @@ class LiveReloadControllerTest extends TestCase
         $this->route('/sve-live-reload-pushed', function () use (&$renders) {
             StylePushStack::push('[render '.(++$renders).']');
 
-            return response('<html><head><style>'.\Vizuall\StylePush\Tags\StylePush::getAll().'</style></head><body></body></html>', 200, ['Content-Type' => 'text/html']);
+            return response('<html><head><style>'.StylePush::getAll().'</style></head><body></body></html>', 200, ['Content-Type' => 'text/html']);
         });
         $this->signIn();
         $this->getJson('/!/sve/live-reload')->assertOk();

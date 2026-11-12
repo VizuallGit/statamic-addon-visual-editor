@@ -25,7 +25,9 @@ port.components().then(
 
     category.value = mine?.category || '';
     description.value = mine?.description || '';
-    categories.value = [...new Set(items.map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    categories.value = [...new Set(items.map((item) => item.category).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b)
+    );
     loaded.value = true;
   },
   () => {}

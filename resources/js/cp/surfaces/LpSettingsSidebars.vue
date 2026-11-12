@@ -80,7 +80,7 @@ function setDockWidth(value) {
         :value="editorWidth"
         :aria-label="panelLabel + ' – ' + widthLabel"
         @input="setEditorWidth(Number($event.target.value))"
-      >
+      />
       <span class="sve-lp-settings__px">{{ editorWidth }}px</span>
     </label>
   </div>
@@ -88,8 +88,14 @@ function setDockWidth(value) {
   <div class="sve-lp-settings__section">
     <div class="sve-lp-settings__label">{{ sidebarLabel }}</div>
     <div v-if="tools.length" class="sve-lp-settings__grid">
-      <label v-for="tool in tools" :key="tool.id" class="sve-lp-settings__row" :title="tool.label" :data-sve-sidebar-pane="tool.id">
-        <input type="checkbox" :checked="tool.on" @change="setTool(tool.id, $event.target.checked)">
+      <label
+        v-for="tool in tools"
+        :key="tool.id"
+        class="sve-lp-settings__row"
+        :title="tool.label"
+        :data-sve-sidebar-pane="tool.id"
+      >
+        <input type="checkbox" :checked="tool.on" @change="setTool(tool.id, $event.target.checked)" />
         <span>{{ tool.label }}</span>
       </label>
     </div>
@@ -103,7 +109,7 @@ function setDockWidth(value) {
         :value="dockWidth"
         :aria-label="sidebarLabel + ' – ' + widthLabel"
         @input="setDockWidth(Number($event.target.value))"
-      >
+      />
       <span class="sve-lp-settings__px">{{ dockWidth }}px</span>
     </label>
   </div>

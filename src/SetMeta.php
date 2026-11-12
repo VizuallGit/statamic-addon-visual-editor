@@ -2,7 +2,6 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
-use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
 use Statamic\Support\Str;
@@ -108,9 +107,9 @@ class SetMeta
      * bottom out, and inheriting the caller's depth hid nested Edit Set icons.
      *
      * @param  array<string, mixed>  $node
-     * @param  array<string, array>  $sets   collected set meta, by handle
+     * @param  array<string, array>  $sets  collected set meta, by handle
      * @param  array<string, array>  $grids  collected grid meta, by field handle
-     * @param  array<string, true>   $seen   fieldset handles already followed
+     * @param  array<string, true>  $seen  fieldset handles already followed
      */
     protected static function walk(array $node, array &$sets, array &$grids, array &$seen, int $depth = 0): void
     {

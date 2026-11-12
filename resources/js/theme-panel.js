@@ -21,13 +21,47 @@ import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import FontDialog from './cp/surfaces/FontDialog.vue';
 import { themePanelUi as ui } from './cp/theme-panel/store.js';
-import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, nudgeSteps, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
+import {
+  MAX_VARIANTS,
+  familyMode,
+  generateSteps,
+  isCoreColor,
+  isHex,
+  nameProblem,
+  nudgeSteps,
+  readColors,
+  remakeSteps,
+  scaleSteps,
+  writeColors,
+} from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
-import { BUTTON_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
-import { highlightNameProblem, isHighlightValue, nextHighlightName, readHighlights } from './cp/theme-panel/highlights.js';
+import {
+  BUTTON_TOKENS,
+  INPUT_TOKENS,
+  LEVEL_TOKENS,
+  TITLE_TOKENS,
+  TYPE_TOKENS,
+  firstFamily,
+  isManaged,
+} from './cp/theme-panel/presets.js';
+import {
+  highlightNameProblem,
+  isHighlightValue,
+  nextHighlightName,
+  readHighlights,
+} from './cp/theme-panel/highlights.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
-import { bodyProblem, compilerCss, dedent, lockedUtilities, setUtilityLock, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
+import {
+  bodyProblem,
+  compilerCss,
+  dedent,
+  lockedUtilities,
+  setUtilityLock,
+  utilityBodies,
+  utilityNameProblem,
+  writeUtilities,
+} from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
 import { classNameProblem, readClasses, writeClasses } from './cp/theme-panel/custom-classes.js';
 import { CLASS_CHIPS, applyUsage, classRows, ownedRules } from './cp/theme-panel/site-classes.js';
@@ -104,7 +138,9 @@ function colorUi(family) {
 function sizeUi(name, value) {
   const size = parseSize(value);
 
-  return size ? { key: `size-${++keySeq}`, name, value, min: size.min, max: size.max, fresh: false, problem: null } : null;
+  return size
+    ? { key: `size-${++keySeq}`, name, value, min: size.min, max: size.max, fresh: false, problem: null }
+    : null;
 }
 
 function plainFamilies(families) {
@@ -122,7 +158,9 @@ function fontFamilies(win) {
     // no FontFaceSet: the theme's own families below are enough
   }
 
-  [ui.type['font-base'], ui.type['font-heading'], ui.type['title-font']].forEach((stack) => stack && names.add(firstFamily(stack)));
+  [ui.type['font-base'], ui.type['font-heading'], ui.type['title-font']].forEach(
+    (stack) => stack && names.add(firstFamily(stack))
+  );
   names.delete('Iconfont');
 
   return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b));
@@ -136,7 +174,10 @@ function remember(css) {
   ui.families = readColors(css).map(colorUi);
   // Each color's step names as saved: what the Colors tab says will go on the next save.
   ui.savedSteps = Object.fromEntries(ui.families.map((f) => [f.name, f.steps.map((s) => String(s.name))]));
-  ui.sizes = [...tokens].filter(([name]) => name.startsWith('size-')).map(([name, value]) => sizeUi(name, value)).filter(Boolean);
+  ui.sizes = [...tokens]
+    .filter(([name]) => name.startsWith('size-'))
+    .map(([name, value]) => sizeUi(name, value))
+    .filter(Boolean);
   ui.widths = CONTAINER_WIDTHS.map((w) => ({ key: w.key, px: parseSize(tokens.get(w.token))?.max ?? null }));
   // Where the sizes stop growing is what they say themselves; the Normal width only while none of them is fluid.
   ui.maxViewport = inferViewport(ui.sizes.map((s) => s.value)) || findWidth('normal')?.px || 1280;
@@ -147,7 +188,12 @@ function remember(css) {
   const highlightKeys = new Map(ui.highlights.map((x) => [x.name, x.key]));
 
   ui.savedHighlights = Object.fromEntries(readHighlights(tokens).map((x) => [x.name, x.value]));
-  ui.highlights = readHighlights(tokens).map(({ name, value }) => ({ key: highlightKeys.get(name) || `highlight-${++keySeq}`, name, value, problem: null }));
+  ui.highlights = readHighlights(tokens).map(({ name, value }) => ({
+    key: highlightKeys.get(name) || `highlight-${++keySeq}`,
+    name,
+    value,
+    problem: null,
+  }));
   ui.type = Object.fromEntries(TYPE_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.button = Object.fromEntries(BUTTON_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.input = Object.fromEntries(INPUT_TOKENS.map((name) => [name, tokens.get(name) || '']));
@@ -172,7 +218,10 @@ function utilityUi(name, body, key = `utility-${++keySeq}`, locked = false) {
 const findUtility = (key) => ui.utilities.find((u) => u.key === key) || null;
 
 function propProblem(p) {
-  const name = propNameProblem(p.name, ui.props.filter((o) => o !== p).map((o) => o.name));
+  const name = propNameProblem(
+    p.name,
+    ui.props.filter((o) => o !== p).map((o) => o.name)
+  );
 
   if (name) {
     return name;
@@ -228,7 +277,12 @@ function propChanges() {
 
 /** A new utility's name first, then braces that do not pair up. */
 function utilityProblem(u) {
-  const name = u.fresh ? utilityNameProblem(u.name, ui.utilities.filter((o) => o !== u).map((o) => o.name)) : null;
+  const name = u.fresh
+    ? utilityNameProblem(
+        u.name,
+        ui.utilities.filter((o) => o !== u).map((o) => o.name)
+      )
+    : null;
 
   return name || bodyProblem(u.body);
 }
@@ -384,7 +438,13 @@ function widthText(width, token) {
 function sizeText(size) {
   const saved = parseSize(size.value);
 
-  if (size.value && saved && saved.min === size.min && saved.max === size.max && (savedViewport === ui.maxViewport || saved.min === saved.max)) {
+  if (
+    size.value &&
+    saved &&
+    saved.min === size.min &&
+    saved.max === size.max &&
+    (savedViewport === ui.maxViewport || saved.min === saved.max)
+  ) {
     return size.value;
   }
 
@@ -566,7 +626,11 @@ const findHighlight = (key) => ui.highlights.find((x) => x.key === key) || null;
 /** Every highlight's name against the others and the palette — a rename or removal can free or take a name. */
 function checkHighlights() {
   for (const x of ui.highlights) {
-    x.problem = highlightNameProblem(x.name, ui.highlights.filter((o) => o !== x).map((o) => o.name), ui.families);
+    x.problem = highlightNameProblem(
+      x.name,
+      ui.highlights.filter((o) => o !== x).map((o) => o.name),
+      ui.families
+    );
   }
 }
 
@@ -579,8 +643,9 @@ function checkHighlights() {
 function madeSteps(f, previousBase = f.value) {
   const counts = { tints: f.tints, shades: f.shades };
 
-  return (f.fresh ? generateSteps(f.value, counts) : remakeSteps(f.value, counts, f.steps, previousBase))
-    .map(({ name, value }) => ({ name, value }));
+  return (f.fresh ? generateSteps(f.value, counts) : remakeSteps(f.value, counts, f.steps, previousBase)).map(
+    ({ name, value }) => ({ name, value })
+  );
 }
 
 /**
@@ -608,16 +673,20 @@ function remake(f, previousBase = f.value) {
 
 /** Why `name` cannot be a new color, or null. The preview is asked whether the site already has `--name`. */
 function colorProblem(win, f, name) {
-  const problem = nameProblem(name, [...ui.families.filter((o) => o !== f), ...ui.highlights].map((o) => o.name));
+  const problem = nameProblem(
+    name,
+    [...ui.families.filter((o) => o !== f), ...ui.highlights].map((o) => o.name)
+  );
 
   if (problem) {
     return problem;
   }
 
   const doc = previewDocument(win);
-  const existing = !painted.has(`--${name}`) && doc
-    ? doc.defaultView.getComputedStyle(doc.documentElement).getPropertyValue(`--${name}`).trim()
-    : '';
+  const existing =
+    !painted.has(`--${name}`) && doc
+      ? doc.defaultView.getComputedStyle(doc.documentElement).getPropertyValue(`--${name}`).trim()
+      : '';
 
   return existing ? 'clash' : null;
 }
@@ -707,7 +776,13 @@ function loadClassRows(win) {
       readFile(win, ui.classSources.classes)
         .then((css) => {
           ui.classFile = String(css || '');
-          ui.classes = readClasses(ui.classFile).map((c) => ({ key: `class-${++keySeq}`, name: c.name, body: c.body, fresh: false, problem: null }));
+          ui.classes = readClasses(ui.classFile).map((c) => ({
+            key: `class-${++keySeq}`,
+            name: c.name,
+            body: c.body,
+            fresh: false,
+            problem: null,
+          }));
           ui.savedClasses = Object.fromEntries(ui.classes.map((c) => [c.name, c.body]));
         })
         .catch(() => {
@@ -807,7 +882,9 @@ const handlers = (win) => ({
       // Same steps in the same order, new names: each nudge moves to its step's new name.
       const old = [...f.steps].sort((a, b) => Number(a.name) - Number(b.name));
 
-      f.nudges = Object.fromEntries(renamed.map((step, i) => [step.name, f.nudges?.[old[i]?.name] || 0]).filter(([, d]) => d));
+      f.nudges = Object.fromEntries(
+        renamed.map((step, i) => [step.name, f.nudges?.[old[i]?.name] || 0]).filter(([, d]) => d)
+      );
       f.steps = nudgeSteps(f.value, counts, renamed, f.nudges);
       changed(win);
     }
@@ -822,7 +899,9 @@ const handlers = (win) => ({
     }
 
     const nudges = { ...f.nudges, [name]: Number(d) || 0 };
-    const step = nudgeSteps(f.value, { tints: f.tints, shades: f.shades }, madeSteps(f), nudges).find((s) => s.name === name);
+    const step = nudgeSteps(f.value, { tints: f.tints, shades: f.shades }, madeSteps(f), nudges).find(
+      (s) => s.name === name
+    );
 
     if (!step) {
       return;
@@ -896,7 +975,12 @@ const handlers = (win) => ({
       return;
     }
 
-    confirmRemove(win, t(win, 'theme_colors_remove_title', { name: f.name }), t(win, 'theme_colors_remove_body', { name: f.name }), remove);
+    confirmRemove(
+      win,
+      t(win, 'theme_colors_remove_title', { name: f.name }),
+      t(win, 'theme_colors_remove_body', { name: f.name }),
+      remove
+    );
   },
 
   // Spacing
@@ -920,7 +1004,9 @@ const handlers = (win) => ({
     const size = findSize(key);
 
     if (size?.fresh) {
-      size.name = `size-${String(name).trim().replace(/^size-/, '')}`;
+      size.name = `size-${String(name)
+        .trim()
+        .replace(/^size-/, '')}`;
       size.problem = sizeProblem(size, size.name);
       changed(win);
     }
@@ -954,7 +1040,12 @@ const handlers = (win) => ({
       return;
     }
 
-    confirmRemove(win, t(win, 'theme_spacing_remove_title', { name: size.name }), t(win, 'theme_spacing_remove_body'), remove);
+    confirmRemove(
+      win,
+      t(win, 'theme_spacing_remove_title', { name: size.name }),
+      t(win, 'theme_spacing_remove_body'),
+      remove
+    );
   },
   onFluidWidth: (key) => {
     const width = findWidth(key);
@@ -1005,7 +1096,12 @@ const handlers = (win) => ({
 
     const value = first.value ? `var(--color-${first.name})` : `var(--color-${first.name}-${first.steps[0].name})`;
 
-    ui.highlights.push({ key: `highlight-${++keySeq}`, name: nextHighlightName(ui.highlights.map((x) => x.name)), value, problem: null });
+    ui.highlights.push({
+      key: `highlight-${++keySeq}`,
+      name: nextHighlightName(ui.highlights.map((x) => x.name)),
+      value,
+      problem: null,
+    });
     changed(win);
   },
   onHighlightName: (key, name) => {
@@ -1073,7 +1169,19 @@ const handlers = (win) => ({
     const u = { key: `utility-${++keySeq}`, name: '', body: '', fresh: true, problem: 'empty' };
 
     ui.utilities.unshift(u);
-    ui.classRows = [{ name: '', kind: 'utility', files: [ui.classSources.entry], selectors: [], props: [], ambient: false, fresh: true, key: u.key }, ...ui.classRows];
+    ui.classRows = [
+      {
+        name: '',
+        kind: 'utility',
+        files: [ui.classSources.entry],
+        selectors: [],
+        props: [],
+        ambient: false,
+        fresh: true,
+        key: u.key,
+      },
+      ...ui.classRows,
+    ];
     ui.openClassKey = u.key;
     ui.dirty = true;
   },
@@ -1082,7 +1190,10 @@ const handlers = (win) => ({
 
     if (c?.fresh) {
       c.name = String(name).trim().replace(/^\./, '');
-      c.problem = classNameProblem(c.name, ui.classes.filter((o) => o !== c).map((o) => o.name));
+      c.problem = classNameProblem(
+        c.name,
+        ui.classes.filter((o) => o !== c).map((o) => o.name)
+      );
 
       const row = ui.classRows.find((r) => r.key === key);
 
@@ -1188,7 +1299,12 @@ const handlers = (win) => ({
       return;
     }
 
-    confirmRemove(win, t(win, 'theme_utilities_remove_title', { name: u.name }), t(win, 'theme_utilities_remove_body', { name: u.name }), remove);
+    confirmRemove(
+      win,
+      t(win, 'theme_utilities_remove_title', { name: u.name }),
+      t(win, 'theme_utilities_remove_body', { name: u.name }),
+      remove
+    );
   },
 
   // Custom properties in var.css. The preview follows the value; Save writes the file.
@@ -1308,7 +1424,14 @@ export async function saveTheme(win) {
     return true;
   }
 
-  if (ui.families.some((f) => f.problem) || ui.highlights.some((x) => x.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem) || ui.props.some((p) => p.problem) || ui.classes.some((c) => c.problem)) {
+  if (
+    ui.families.some((f) => f.problem) ||
+    ui.highlights.some((x) => x.problem) ||
+    ui.sizes.some((s) => s.problem) ||
+    ui.utilities.some((u) => u.problem) ||
+    ui.props.some((p) => p.problem) ||
+    ui.classes.some((c) => c.problem)
+  ) {
     const braces = ui.utilities.some((u) => u.problem === 'braces');
 
     ui.status = t(win, braces ? 'theme_utilities_braces' : 'theme_panel_fix_names');
@@ -1322,7 +1445,10 @@ export async function saveTheme(win) {
   try {
     const changes = tokenChanges();
     const utilityEdits = utilityChanges();
-    const css = writeUtilities(writeTokens(writeColors(await readFile(win), plainFamilies(ui.families)), changes), utilityEdits);
+    const css = writeUtilities(
+      writeTokens(writeColors(await readFile(win), plainFamilies(ui.families)), changes),
+      utilityEdits
+    );
 
     await request(win, '/!/sve/site-css', {
       method: 'POST',
@@ -1353,7 +1479,9 @@ export async function saveTheme(win) {
 
       ui.classFile = next;
       ui.savedClasses = Object.fromEntries(ui.classes.filter((c) => c.name).map((c) => [c.name, dedent(c.body)]));
-      ui.classes.forEach((c) => { c.fresh = false; });
+      ui.classes.forEach((c) => {
+        c.fresh = false;
+      });
       ui.removedClasses = [];
     }
 
@@ -1506,7 +1634,9 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|containers|fonts|type|button|forms|utilities|classes|props)_/.test(key))
+      .filter((key) =>
+        /^theme_(panel|colors|spacing|containers|fonts|type|button|forms|utilities|classes|props)_/.test(key)
+      )
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }

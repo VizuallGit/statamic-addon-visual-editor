@@ -36,7 +36,8 @@ onMounted(() => {
   );
 });
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const esc = (s) =>
+  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const q = computed(() => query.value.trim().toLowerCase());
 
 const groups = computed(() => {
@@ -67,12 +68,23 @@ const picture = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
   <div class="bm-svgs" data-sve-build-svgs>
     <p v-if="failed" class="bm-muted" data-sve-build-svgs-failed>{{ port.t('svg_failed') }}</p>
     <p v-else-if="!list" class="bm-muted">{{ port.t('svg_loading') }}</p>
-    <p v-else-if="!list.icons.length" class="bm-note is-top" data-sve-build-svgs-none v-html="port.t('svg_none', { root: `<code>${esc(list.root)}</code>` })"></p>
+    <p
+      v-else-if="!list.icons.length"
+      class="bm-note is-top"
+      data-sve-build-svgs-none
+      v-html="port.t('svg_none', { root: `<code>${esc(list.root)}</code>` })"
+    ></p>
 
     <template v-else>
       <label v-if="list.icons.length >= SEARCH_FROM" class="bm-search">
         <span v-html="ic('search')"></span>
-        <input v-model="query" type="text" autocomplete="off" :placeholder="port.t('svg_search')" :aria-label="port.t('svg_search')" />
+        <input
+          v-model="query"
+          type="text"
+          autocomplete="off"
+          :placeholder="port.t('svg_search')"
+          :aria-label="port.t('svg_search')"
+        />
       </label>
 
       <div v-for="group in groups" :key="group.folder" class="bm-svg-g">

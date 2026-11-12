@@ -22,13 +22,7 @@ import { deleteLibraryUi as ui } from '../library/delete-store.js';
         <template v-else>{{ ui.body }}</template>
       </div>
       <div class="sve-dialog__actions">
-        <button
-          v-for="btn in ui.buttons"
-          :key="btn.id"
-          type="button"
-          :class="btn.variant"
-          @click="ui.onPick?.(btn.id)"
-        >
+        <button v-for="btn in ui.buttons" :key="btn.id" type="button" :class="btn.variant" @click="ui.onPick?.(btn.id)">
           {{ btn.label }}
         </button>
       </div>

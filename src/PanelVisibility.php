@@ -27,7 +27,9 @@ class PanelVisibility
     public const KEY = 'sve_panel';
 
     public const BOTH = 'both';
+
     public const PANEL = 'panel';
+
     public const FORM = 'form';
 
     /**

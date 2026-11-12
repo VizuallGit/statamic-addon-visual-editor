@@ -31,13 +31,14 @@ class El {
 
   querySelectorAll(selector) {
     const out = [];
-    const walk = (el) => el.children.forEach((child) => {
-      if (child.matches(selector)) {
-        out.push(child);
-      }
+    const walk = (el) =>
+      el.children.forEach((child) => {
+        if (child.matches(selector)) {
+          out.push(child);
+        }
 
-      walk(child);
-    });
+        walk(child);
+      });
 
     walk(this);
 
@@ -62,14 +63,17 @@ class El {
 /** Component data that remembers every value written to it, in order. */
 function data(initial) {
   const writes = [];
-  const proxy = new Proxy({ ...initial }, {
-    set(target, key, value) {
-      writes.push(`${String(key)}=${value}`);
-      target[key] = value;
+  const proxy = new Proxy(
+    { ...initial },
+    {
+      set(target, key, value) {
+        writes.push(`${String(key)}=${value}`);
+        target[key] = value;
 
-      return true;
-    },
-  });
+        return true;
+      },
+    }
+  );
 
   return { proxy, writes };
 }
@@ -225,10 +229,19 @@ function framePage({ footer = false } = {}) {
   return { win, made };
 }
 
-const written = (made) => Object.fromEntries(Object.entries(made).filter(([, item]) => item.writes.length).map(([name, item]) => [name, item.writes]));
+const written = (made) =>
+  Object.fromEntries(
+    Object.entries(made)
+      .filter(([, item]) => item.writes.length)
+      .map(([name, item]) => [name, item.writes])
+  );
 
 test('chrome: header — the marked element is the first component, then what is inside it', () => {
-  const reached = [[0, 'menuOpen'], [1, 'open'], [2, 'open']].map(([nth, key]) => {
+  const reached = [
+    [0, 'menuOpen'],
+    [1, 'open'],
+    [2, 'open'],
+  ].map(([nth, key]) => {
     const { win, made } = framePage();
 
     bridgeState.alpineStates.clear();

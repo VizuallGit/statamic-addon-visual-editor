@@ -12,7 +12,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const modules = process.env.SVE_SDK_DIR ? join(process.env.SVE_SDK_DIR, 'node_modules') : join(here, '..', 'node_modules');
+const modules = process.env.SVE_SDK_DIR
+  ? join(process.env.SVE_SDK_DIR, 'node_modules')
+  : join(here, '..', 'node_modules');
 
 await build({
   stdin: { contents: "export { default } from '@anthropic-ai/sdk';", resolveDir: here, loader: 'js' },

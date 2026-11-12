@@ -160,7 +160,7 @@ try {
       error: result.error?.message ?? null,
       ...written(),
     },
-    result.status === 'finished' ? 0 : 1,
+    result.status === 'finished' ? 0 : 1
   );
 } catch (err) {
   stdout.write = stdoutWrite;

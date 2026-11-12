@@ -24,7 +24,21 @@ onMounted(() => {
 
 <template>
   <div class="fg-seg" data-sve-style-mode-switch role="group" :aria-label="port.t('style_mode')">
-    <button type="button" :aria-pressed="styleMode === 'tw'" :title="port.t('code_dock_style_to_tw')" data-sve-style-mode="tw" @click="setStyleMode('tw')"><span v-html="TW_MODE_ICON"></span>{{ port.t('code_dock_style_tw') }}</button>
-    <button type="button" :aria-pressed="styleMode === 'css'" :title="port.t('code_dock_style_to_css')" data-sve-style-mode="css" @click="setStyleMode('css')"><span v-html="CSS_MODE_ICON"></span>{{ port.t('code_dock_css') }}</button>
+    <button
+      type="button"
+      :aria-pressed="styleMode === 'tw'"
+      :title="port.t('code_dock_style_to_tw')"
+      data-sve-style-mode="tw"
+      @click="setStyleMode('tw')"
+      ><span v-html="TW_MODE_ICON"></span>{{ port.t('code_dock_style_tw') }}</button
+    >
+    <button
+      type="button"
+      :aria-pressed="styleMode === 'css'"
+      :title="port.t('code_dock_style_to_css')"
+      data-sve-style-mode="css"
+      @click="setStyleMode('css')"
+      ><span v-html="CSS_MODE_ICON"></span>{{ port.t('code_dock_css') }}</button
+    >
   </div>
 </template>

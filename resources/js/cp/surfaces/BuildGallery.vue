@@ -24,7 +24,11 @@ function pick(anchor) {
   port.pickField(anchor, path, FIELDS, (expression) => port.setGalleryField(path, expression));
 }
 
-const lines = (text) => String(text).split('\n').map((line) => line.trim()).filter(Boolean);
+const lines = (text) =>
+  String(text)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 watch(
   host,

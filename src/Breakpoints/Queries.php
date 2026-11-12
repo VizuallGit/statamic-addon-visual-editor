@@ -32,38 +32,38 @@ final class Queries
     public static function below(array $row): string
     {
         if ($row['unit'] === 'px') {
-            return static::belowPx((float) $row['min']);
+            return self::belowPx((float) $row['min']);
         }
 
-        return '(width < '.static::num((float) $row['min']).$row['unit'].')';
+        return '(width < '.self::num((float) $row['min']).$row['unit'].')';
     }
 
     /** Den inklusive px-form, som `{{ responsive_css }}` altid har skrevet. */
     public static function belowPx(float $px): string
     {
-        return '(max-width: '.static::maxPx($px).'px)';
+        return '(max-width: '.self::maxPx($px).'px)';
     }
 
     /** "This limit and wider", in the limit's own unit. Inclusive, so no nudge. */
     public static function from(array $row): string
     {
         if ($row['unit'] === 'px') {
-            return static::fromPx((float) $row['min']);
+            return self::fromPx((float) $row['min']);
         }
 
-        return '(width >= '.static::num((float) $row['min']).$row['unit'].')';
+        return '(width >= '.self::num((float) $row['min']).$row['unit'].')';
     }
 
     /** The px form of "from here up": `min-width` is inclusive already. */
     public static function fromPx(float $px): string
     {
-        return '(min-width: '.static::num($px).'px)';
+        return '(min-width: '.self::num($px).'px)';
     }
 
     /** En anelse under grænsen, så de to størrelser ikke overlapper. */
     public static function maxPx(float $px): string
     {
-        return static::num(round($px - 0.02, 2));
+        return self::num(round($px - 0.02, 2));
     }
 
     /**
@@ -81,14 +81,14 @@ final class Queries
     {
         $px = (float) $row['min_px'];
         $key = (int) $px;
-        $named = isset(static::TAILWIND_SCALE[$key]) && (float) $key === $px
-            ? static::TAILWIND_SCALE[$key]
+        $named = isset(self::TAILWIND_SCALE[$key]) && (float) $key === $px
+            ? self::TAILWIND_SCALE[$key]
             : null;
 
         if ($direction === 'mobile') {
-            return $named ?? 'min-['.static::num((float) $row['min']).$row['unit'].']';
+            return $named ?? 'min-['.self::num((float) $row['min']).$row['unit'].']';
         }
 
-        return $named ? 'max-'.$named : 'max-['.static::num((float) $row['min']).$row['unit'].']';
+        return $named ? 'max-'.$named : 'max-['.self::num((float) $row['min']).$row['unit'].']';
     }
 }

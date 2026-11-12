@@ -135,9 +135,7 @@ function mountActivity(win, host, data) {
     prevLabel: t(win, 'page_edits_prev'),
     nextLabel: t(win, 'page_edits_next'),
     pageOf: t(win, 'page_edits_range'),
-    edits: data.revisions === false
-      ? []
-      : (data.edits || []).flatMap((edit) => editRows(win, edit)),
+    edits: data.revisions === false ? [] : (data.edits || []).flatMap((edit) => editRows(win, edit)),
   });
 }
 
@@ -220,9 +218,7 @@ function editRows(win, edit) {
   }
 
   if (edit.message && rows[0]) {
-    rows[0].details = rows[0].details
-      ? `${edit.message} — ${rows[0].details}`
-      : edit.message;
+    rows[0].details = rows[0].details ? `${edit.message} — ${rows[0].details}` : edit.message;
   }
 
   return rows;

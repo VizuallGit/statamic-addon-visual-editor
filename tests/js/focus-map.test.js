@@ -96,7 +96,12 @@ test('a swap with a fresh undo history cannot replay the other view into the fil
 
     let after = state;
 
-    undo({ state, dispatch: (tr) => { after = tr.state; } });
+    undo({
+      state,
+      dispatch: (tr) => {
+        after = tr.state;
+      },
+    });
 
     return after.doc.toString();
   };

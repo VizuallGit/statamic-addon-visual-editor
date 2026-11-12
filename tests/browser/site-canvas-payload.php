@@ -1,5 +1,10 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\URL;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController;
+use Statamic\Facades\User;
+
 /**
  * The site canvas's endpoint, answered by this checkout's controller against
  * a site whose installed addon predates it — every SVE_WORKTREE=1 run before
@@ -33,15 +38,15 @@ if (! is_dir((string) $siteDir) || ! is_string($email) || $email === '') {
 require $siteDir.'/vendor/autoload.php';
 
 $app = require $siteDir.'/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
 if (is_string($siteUrl) && $siteUrl !== '') {
-    Illuminate\Support\Facades\URL::forceRootUrl($siteUrl);
-    Illuminate\Support\Facades\URL::forceScheme((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    URL::forceRootUrl($siteUrl);
+    URL::forceScheme((string) parse_url($siteUrl, PHP_URL_SCHEME));
 }
 
 // This checkout's class and strings, where the installed addon has neither.
-if (! class_exists(MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController::class, false)) {
+if (! class_exists(SiteCanvasController::class, false)) {
     require_once __DIR__.'/../../src/Http/Controllers/SiteCanvasController.php';
 }
 
@@ -50,7 +55,7 @@ if (! class_exists(MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasC
 app('translator')->addNamespace('sve', __DIR__.'/../../resources/lang');
 app('translator')->setLoaded([]);
 
-$user = Statamic\Facades\User::findByEmail($email);
+$user = User::findByEmail($email);
 
 if (! $user) {
     fwrite(STDERR, "no user {$email} on the site\n");
@@ -59,4 +64,4 @@ if (! $user) {
 
 auth()->login($user);
 
-echo (new MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCanvasController)()->getContent();
+echo (new SiteCanvasController)()->getContent();

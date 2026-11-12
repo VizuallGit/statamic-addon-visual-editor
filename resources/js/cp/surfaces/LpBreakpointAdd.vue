@@ -1,7 +1,14 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import ShortcutInput from './ShortcutInput.vue';
-import { conflictsWith, formatCombo, isMac, resolveShortcutLayers, shortcutsConfig, siteShortcuts } from '../../lib/shortcuts.js';
+import {
+  conflictsWith,
+  formatCombo,
+  isMac,
+  resolveShortcutLayers,
+  shortcutsConfig,
+  siteShortcuts,
+} from '../../lib/shortcuts.js';
 import { t } from '../../lib/i18n.js';
 
 // The «+» popover beside Live Preview's size buttons: the sizes the site
@@ -112,7 +119,9 @@ const keys = shortcutsConfig(window);
 const mac = isMac(window.navigator);
 const shortcutLabel = t(window, 'bp_add_shortcut');
 const shortcutHint = t(window, 'bp_add_shortcut_hint');
-const shortcuts = computed(() => resolveShortcutLayers(keys.builtIn, siteShortcuts(keys.site, rows.value, keys.locked), {}));
+const shortcuts = computed(() =>
+  resolveShortcutLayers(keys.builtIn, siteShortcuts(keys.site, rows.value, keys.locked), {})
+);
 const sizeAction = computed(() => `size:${handle.value}`);
 
 /** The shortcut a size has on this site, as the row lists it. */
@@ -139,8 +148,8 @@ function shortcutOwner(combo) {
   return { action: other, label: label || other, movable: shortcuts.value.level[other] === 0 };
 }
 
-const canSave = computed(() =>
-  !saving.value && handle.value !== '' && min.value !== '' && Number(min.value) >= 0 && Number(width.value) >= 240
+const canSave = computed(
+  () => !saving.value && handle.value !== '' && min.value !== '' && Number(min.value) >= 0 && Number(width.value) >= 240
 );
 
 /** A preset fills the width and a matching preview width; everything stays editable. */
@@ -231,7 +240,8 @@ async function submit() {
           class="sve-bp-add__remove sve-bp-add__remove--confirm"
           :disabled="removing !== ''"
           @click="removeRow(row)"
-        >{{ removing === row.handle ? strings.saving : strings.removeConfirm }}</button>
+          >{{ removing === row.handle ? strings.saving : strings.removeConfirm }}</button
+        >
         <button
           v-else
           type="button"
@@ -241,7 +251,18 @@ async function submit() {
           :aria-label="canRemove ? strings.remove.replace(':label', row.label) : strings.removeLast"
           @click="removeRow(row)"
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       </li>
     </ul>
@@ -297,7 +318,10 @@ async function submit() {
             :disabled="taken(preset)"
             :title="preset.px + 'px'"
             @click="usePreset(preset)"
-          ><span>{{ preset.key }} <small>{{ preset.px }}</small></span></button>
+            ><span
+              >{{ preset.key }} <small>{{ preset.px }}</small></span
+            ></button
+          >
         </div>
       </div>
 
@@ -305,14 +329,7 @@ async function submit() {
         <label class="sve-bp-add__field sve-bp-add__field--grow">
           <span class="sve-bp-add__label">{{ strings.from }}</span>
           <span class="sve-bp-add__join">
-            <input
-              v-model="min"
-              class="sve-bp-add__input"
-              type="number"
-              min="0"
-              step="any"
-              inputmode="decimal"
-            />
+            <input v-model="min" class="sve-bp-add__input" type="number" min="0" step="any" inputmode="decimal" />
             <select v-model="unit" class="sve-bp-add__input sve-bp-add__unit" :aria-label="strings.unit">
               <option v-for="option in units" :key="option" :value="option">{{ option }}</option>
             </select>
@@ -339,7 +356,9 @@ async function submit() {
       </div>
 
       <p class="sve-bp-add__hint sve-bp-add__hint--block">{{ strings.fromHint }}</p>
-      <p class="sve-bp-add__hint sve-bp-add__hint--block">{{ direction === 'mobile' ? strings.directionMobile : strings.directionDesktop }}</p>
+      <p class="sve-bp-add__hint sve-bp-add__hint--block">{{
+        direction === 'mobile' ? strings.directionMobile : strings.directionDesktop
+      }}</p>
 
       <div class="sve-bp-add__field" data-sve-bp-add-shortcut>
         <span class="sve-bp-add__label">{{ shortcutLabel }}</span>
@@ -383,8 +402,13 @@ async function submit() {
   border-radius: 0.625rem;
   background: #343439;
   color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font: 500 0.8125rem/1.3 ui-sans-serif, system-ui, sans-serif;
+  box-shadow:
+    0 0.75rem 2.5rem rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  font:
+    500 0.8125rem/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
   outline: none;
 }
 

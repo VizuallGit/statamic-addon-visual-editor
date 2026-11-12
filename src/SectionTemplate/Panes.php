@@ -77,12 +77,12 @@ final class Panes
                 $html = $pair['rest'];
 
                 if ($bucket === 'css') {
-                    $css = static::joinBlocks($pair['inner'], $css);
+                    $css = self::joinBlocks($pair['inner'], $css);
                     $cssTag = $tag;
                 } elseif ($bucket === 'tw') {
-                    $tw = static::joinBlocks($pair['inner'], $tw);
+                    $tw = self::joinBlocks($pair['inner'], $tw);
                 } else {
-                    $js = static::joinBlocks($pair['inner'], $js);
+                    $js = self::joinBlocks($pair['inner'], $js);
                     $jsTag = $tag;
                 }
 
@@ -97,7 +97,7 @@ final class Panes
 
         if ($embedded !== null) {
             $html = $embedded['rest'];
-            $tw = static::joinBlocks($embedded['inner'], $tw);
+            $tw = self::joinBlocks($embedded['inner'], $tw);
         }
 
         // Bare in a section, `handle="…"` in a collection view file. Both forms
@@ -113,10 +113,10 @@ final class Panes
         }
 
         return [
-            'html' => static::unmask(static::trimBlock($html), $placeholders),
-            'css' => Wrappers::unwrapTagged(static::unmask(static::trimBlock($css), $placeholders), 'style'),
-            'js' => Wrappers::unwrapTagged(static::unmask(static::trimBlock($js), $placeholders), 'script'),
-            'tw' => Wrappers::unwrapTagged(static::unmask(static::trimBlock($tw), $placeholders), 'style'),
+            'html' => self::unmask(self::trimBlock($html), $placeholders),
+            'css' => Wrappers::unwrapTagged(self::unmask(self::trimBlock($css), $placeholders), 'style'),
+            'js' => Wrappers::unwrapTagged(self::unmask(self::trimBlock($js), $placeholders), 'script'),
+            'tw' => Wrappers::unwrapTagged(self::unmask(self::trimBlock($tw), $placeholders), 'style'),
             'html_tag' => $htmlTag,
             'css_tag' => $cssTag,
             'js_tag' => $jsTag,
@@ -206,7 +206,7 @@ final class Panes
 
     protected static function joinBlocks(string $inner, string $existing): string
     {
-        $inner = static::trimBlock($inner);
+        $inner = self::trimBlock($inner);
 
         if ($existing === '') {
             return $inner;

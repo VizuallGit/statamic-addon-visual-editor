@@ -1,7 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { GROUP_NAME_MAX, DEFAULT_GROUP_ID, DEFAULT_ORDER, cleanGroups, newGroupId, groupsFromOrder, layoutGroups, groupOf, moveTool, moveToolToNewGroup, renameGroup, moveGroup, deleteGroup, moveKey, indexAmongAll } from '../../resources/js/lib/toolbar-groups.js';
+import {
+  GROUP_NAME_MAX,
+  DEFAULT_GROUP_ID,
+  DEFAULT_ORDER,
+  cleanGroups,
+  newGroupId,
+  groupsFromOrder,
+  layoutGroups,
+  groupOf,
+  moveTool,
+  moveToolToNewGroup,
+  renameGroup,
+  moveGroup,
+  deleteGroup,
+  moveKey,
+  indexAmongAll,
+} from '../../resources/js/lib/toolbar-groups.js';
 
 test('anything other than a list of groups is no groups', () => {
   assert.deepEqual(cleanGroups(null), []);
@@ -12,43 +28,50 @@ test('anything other than a list of groups is no groups', () => {
 });
 
 test('a group with a bad id is dropped, and so is a later group with an id already kept', () => {
-  assert.deepEqual(cleanGroups([
-    { id: 'x', name: 'No', tools: ['pages'] },
-    { id: 'u-abc', name: 'No', tools: ['globals'] },
-    { name: 'No', tools: ['code'] },
-    null,
-    { id: 'g-a', name: 'Yes', tools: ['pages', 'globals', 'code'] },
-    { id: 'g-a', name: 'Again', tools: ['theme'] },
-  ]), [
-    { id: 'g-a', name: 'Yes', tools: ['pages', 'globals', 'code'] },
-  ]);
+  assert.deepEqual(
+    cleanGroups([
+      { id: 'x', name: 'No', tools: ['pages'] },
+      { id: 'u-abc', name: 'No', tools: ['globals'] },
+      { name: 'No', tools: ['code'] },
+      null,
+      { id: 'g-a', name: 'Yes', tools: ['pages', 'globals', 'code'] },
+      { id: 'g-a', name: 'Again', tools: ['theme'] },
+    ]),
+    [{ id: 'g-a', name: 'Yes', tools: ['pages', 'globals', 'code'] }]
+  );
 });
 
 test('a group name is trimmed and cut to the maximum, and a non-string name is blank', () => {
-  assert.deepEqual(cleanGroups([
-    { id: 'g-a', name: '  Pages  ', tools: ['pages'] },
-    { id: 'g-b', name: 'n'.repeat(GROUP_NAME_MAX + 10), tools: ['globals'] },
-    { id: 'g-c', name: 4, tools: ['code'] },
-    { id: 'g-d', name: null, tools: ['theme'] },
-  ]), [
-    { id: 'g-a', name: 'Pages', tools: ['pages'] },
-    { id: 'g-b', name: 'n'.repeat(GROUP_NAME_MAX), tools: ['globals'] },
-    { id: 'g-c', name: '', tools: ['code'] },
-    { id: 'g-d', name: '', tools: ['theme'] },
-  ]);
+  assert.deepEqual(
+    cleanGroups([
+      { id: 'g-a', name: '  Pages  ', tools: ['pages'] },
+      { id: 'g-b', name: 'n'.repeat(GROUP_NAME_MAX + 10), tools: ['globals'] },
+      { id: 'g-c', name: 4, tools: ['code'] },
+      { id: 'g-d', name: null, tools: ['theme'] },
+    ]),
+    [
+      { id: 'g-a', name: 'Pages', tools: ['pages'] },
+      { id: 'g-b', name: 'n'.repeat(GROUP_NAME_MAX), tools: ['globals'] },
+      { id: 'g-c', name: '', tools: ['code'] },
+      { id: 'g-d', name: '', tools: ['theme'] },
+    ]
+  );
 });
 
 test('invalid tool keys are dropped, a tool stays in the first group, and a group left empty goes', () => {
-  assert.deepEqual(cleanGroups([
-    { id: 'g-a', name: '', tools: ['Bad', 'pages', '1x', 2, 'pages', 'globals'] },
-    { id: 'g-b', name: '', tools: ['globals', 'code'] },
-    { id: 'g-c', name: '', tools: ['code'] },
-    { id: 'g-d', name: 'Empty', tools: [] },
-    { id: 'g-e', name: 'Nope', tools: ['Bad', 1] },
-  ]), [
-    { id: 'g-a', name: '', tools: ['pages', 'globals'] },
-    { id: 'g-b', name: '', tools: ['code'] },
-  ]);
+  assert.deepEqual(
+    cleanGroups([
+      { id: 'g-a', name: '', tools: ['Bad', 'pages', '1x', 2, 'pages', 'globals'] },
+      { id: 'g-b', name: '', tools: ['globals', 'code'] },
+      { id: 'g-c', name: '', tools: ['code'] },
+      { id: 'g-d', name: 'Empty', tools: [] },
+      { id: 'g-e', name: 'Nope', tools: ['Bad', 1] },
+    ]),
+    [
+      { id: 'g-a', name: '', tools: ['pages', 'globals'] },
+      { id: 'g-b', name: '', tools: ['code'] },
+    ]
+  );
 });
 
 test('a new group id is g- plus the time in base 36, skipping ids already taken', () => {
@@ -70,9 +93,7 @@ test('an old flat order becomes one group of its valid keys, or nothing', () => 
   assert.deepEqual(groupsFromOrder(['pages', 'Bad', 'pages', '1x', 3, 'globals']), [
     { id: DEFAULT_GROUP_ID, name: '', tools: ['pages', 'globals'] },
   ]);
-  assert.deepEqual(groupsFromOrder(['code', 'code'], 'g-saved'), [
-    { id: 'g-saved', name: '', tools: ['code'] },
-  ]);
+  assert.deepEqual(groupsFromOrder(['code', 'code'], 'g-saved'), [{ id: 'g-saved', name: '', tools: ['code'] }]);
 });
 
 test('no stored groups is one group, known keys in the default order and unknown keys after them', () => {
@@ -107,7 +128,7 @@ test('stored groups keep their order, drop keys the bar lacks, and new keys join
   assert.deepEqual({ groups, keys, order: DEFAULT_ORDER }, snapshot);
 });
 
-test("groupOf returns the group a tool is in, or null", () => {
+test('groupOf returns the group a tool is in, or null', () => {
   const groups = [
     { id: 'g-a', name: 'A', tools: ['pages'] },
     { id: 'g-b', name: 'B', tools: ['code', 'globals'] },
@@ -251,11 +272,17 @@ test('a new group gets a fresh g- id, or a free id that was given, and its name 
     { id: 'g-b', name: 'B', tools: ['code'] },
   ];
   const fresh = moveToolToNewGroup(groups, 'globals', 1);
-  const given = moveToolToNewGroup(groups, 'globals', 0, { id: 'g-fresh', name: `  ${'n'.repeat(GROUP_NAME_MAX + 4)}  ` });
+  const given = moveToolToNewGroup(groups, 'globals', 0, {
+    id: 'g-fresh',
+    name: `  ${'n'.repeat(GROUP_NAME_MAX + 4)}  `,
+  });
   const taken = moveToolToNewGroup(groups, 'globals', 1, { id: 'g-a', name: '  Hello  ' });
 
   assert.match(fresh.id, /^g-[a-z0-9]+$/);
-  assert.equal(groups.some((group) => group.id === fresh.id), false);
+  assert.equal(
+    groups.some((group) => group.id === fresh.id),
+    false
+  );
   assert.equal(fresh.groups.filter((group) => group.id === fresh.id).length, 1);
 
   assert.equal(given.id, 'g-fresh');
@@ -264,7 +291,10 @@ test('a new group gets a fresh g- id, or a free id that was given, and its name 
 
   assert.notEqual(taken.id, 'g-a');
   assert.match(taken.id, /^g-[a-z0-9]+$/);
-  assert.equal(groups.some((group) => group.id === taken.id), false);
+  assert.equal(
+    groups.some((group) => group.id === taken.id),
+    false
+  );
   assert.equal(taken.groups.find((group) => group.id === taken.id).name, 'Hello');
   assert.deepEqual(taken.groups.find((group) => group.id === 'g-a').tools, ['pages']);
 });
@@ -353,7 +383,10 @@ test('the default tool order is the same list as ToolbarModes::TOOLS', () => {
   const block = php.match(/public const TOOLS = \[([\s\S]*?)\];/);
 
   assert.ok(block);
-  assert.deepEqual([...block[1].matchAll(/'([^']*)'/g)].map((match) => match[1]), DEFAULT_ORDER);
+  assert.deepEqual(
+    [...block[1].matchAll(/'([^']*)'/g)].map((match) => match[1]),
+    DEFAULT_ORDER
+  );
 });
 
 test('moveKey moves one key to a clamped place and leaves the list alone', () => {
@@ -375,7 +408,10 @@ test('a place among what shows lands where it was seen, between the ones that do
   assert.equal(indexAmongAll(tools, shown, 'c', 0), 0);
   // a dropped after b (second among the others it sees: b, c → before c).
   assert.equal(indexAmongAll(tools, shown, 'a', 1), 3);
-  assert.deepEqual(moveKey(tools, 'a', indexAmongAll(tools, shown, 'a', 1)).filter((key) => shown.includes(key)), ['b', 'a', 'c']);
+  assert.deepEqual(
+    moveKey(tools, 'a', indexAmongAll(tools, shown, 'a', 1)).filter((key) => shown.includes(key)),
+    ['b', 'a', 'c']
+  );
   // Last: right after the last one that shows.
   assert.equal(indexAmongAll(tools, shown, 'a', 2), 4);
   assert.equal(indexAmongAll(tools, shown, 'a', Infinity), 4);

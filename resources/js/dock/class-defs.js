@@ -107,7 +107,10 @@ const shortFiles = (list) => [...new Set(list.map((d) => String(d.file).replace(
 
 /** Bring the name's rules from the rest of the site into this file's rule. */
 export function importClassCss(win, name) {
-  const body = definedElsewhere(win, name).map((d) => d.css).filter(Boolean).join('\n');
+  const body = definedElsewhere(win, name)
+    .map((d) => d.css)
+    .filter(Boolean)
+    .join('\n');
 
   if (!body) {
     return false;
@@ -200,7 +203,8 @@ export function bracketClassCompletions(win) {
               const el = win.document.createElement('pre');
 
               el.textContent = info.css.join('\n');
-              el.style.cssText = 'margin:0;padding:.3em .5em;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap';
+              el.style.cssText =
+                'margin:0;padding:.3em .5em;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap';
 
               return el;
             }

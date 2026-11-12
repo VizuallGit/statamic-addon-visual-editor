@@ -80,7 +80,8 @@ test('a literal cut short still gives the pairs it has', () => {
 });
 
 test('what the attribute walk hands over is what the parser reads', () => {
-  const tag = '<dialog class="company" x-data="{ open: false, toggle() { this.open = !this.open } }" x-effect="open ? $el.showModal() : $el.close()">';
+  const tag =
+    '<dialog class="company" x-data="{ open: false, toggle() { this.open = !this.open } }" x-effect="open ? $el.showModal() : $el.close()">';
 
   assert.deepEqual(alpineBooleans(xDataOf(tag)), [{ key: 'open', value: false }]);
 });

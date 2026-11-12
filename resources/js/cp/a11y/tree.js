@@ -22,13 +22,29 @@ const CHROME_SELECTOR = '[id^="__sve"], [id^="sve-"], [data-sve-ui]';
  * text instead would name the site menu after every link in it.
  */
 const NAME_FROM_CONTENT = new Set([
-  'button', 'cell', 'checkbox', 'columnheader', 'gridcell', 'heading', 'link',
-  'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'row',
-  'rowheader', 'switch', 'tab', 'tooltip', 'treeitem',
+  'button',
+  'cell',
+  'checkbox',
+  'columnheader',
+  'gridcell',
+  'heading',
+  'link',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+  'radio',
+  'row',
+  'rowheader',
+  'switch',
+  'tab',
+  'tooltip',
+  'treeitem',
 ]);
 
 /** header and footer are landmarks only at the top level of the document. */
-const SCOPING = 'article, aside, main, nav, section, [role="article"], [role="complementary"], [role="main"], [role="navigation"], [role="region"]';
+const SCOPING =
+  'article, aside, main, nav, section, [role="article"], [role="complementary"], [role="main"], [role="navigation"], [role="region"]';
 
 const INPUT_ROLES = {
   button: 'button',
@@ -50,13 +66,55 @@ const INPUT_ROLES = {
 
 /** The roles worth a row without being asked. Everything else needs the toggle. */
 const INTERESTING = new Set([
-  'banner', 'navigation', 'main', 'contentinfo', 'complementary', 'region',
-  'search', 'form', 'article', 'dialog', 'heading', 'link', 'button', 'textbox',
-  'searchbox', 'checkbox', 'radio', 'combobox', 'listbox', 'slider',
-  'spinbutton', 'img', 'figure', 'list', 'listitem', 'table', 'row', 'cell',
-  'columnheader', 'rowheader', 'tablist', 'tab', 'tabpanel', 'menu', 'menuitem',
-  'menubar', 'alert', 'status', 'progressbar', 'separator', 'group', 'switch',
-  'tree', 'treeitem', 'grid', 'gridcell', 'summary', 'term', 'definition',
+  'banner',
+  'navigation',
+  'main',
+  'contentinfo',
+  'complementary',
+  'region',
+  'search',
+  'form',
+  'article',
+  'dialog',
+  'heading',
+  'link',
+  'button',
+  'textbox',
+  'searchbox',
+  'checkbox',
+  'radio',
+  'combobox',
+  'listbox',
+  'slider',
+  'spinbutton',
+  'img',
+  'figure',
+  'list',
+  'listitem',
+  'table',
+  'row',
+  'cell',
+  'columnheader',
+  'rowheader',
+  'tablist',
+  'tab',
+  'tabpanel',
+  'menu',
+  'menuitem',
+  'menubar',
+  'alert',
+  'status',
+  'progressbar',
+  'separator',
+  'group',
+  'switch',
+  'tree',
+  'treeitem',
+  'grid',
+  'gridcell',
+  'summary',
+  'term',
+  'definition',
 ]);
 
 /** A page this big has stopped being a tree and started being a haystack. */
@@ -267,15 +325,22 @@ export function nameOf(el, role) {
  * is a door with no sign on it.
  */
 const NEEDS_NAME = new Set([
-  'link', 'button', 'textbox', 'searchbox', 'checkbox', 'radio', 'combobox',
-  'listbox', 'slider', 'spinbutton', 'img', 'switch',
+  'link',
+  'button',
+  'textbox',
+  'searchbox',
+  'checkbox',
+  'radio',
+  'combobox',
+  'listbox',
+  'slider',
+  'spinbutton',
+  'img',
+  'switch',
 ]);
 
 /** Landmarks: the parts of a page a reader jumps between. */
-const LANDMARKS = new Set([
-  'banner', 'navigation', 'main', 'contentinfo', 'complementary', 'region',
-  'form', 'search',
-]);
+const LANDMARKS = new Set(['banner', 'navigation', 'main', 'contentinfo', 'complementary', 'region', 'form', 'search']);
 
 /**
  * What is worth saying about each node, once the whole tree is known.
@@ -359,9 +424,7 @@ export function scanTree(doc, { generic = false } = {}) {
       // Both are the page saying "this is not here", and the tree agrees.
       const style = view.getComputedStyle(child);
       const gone =
-        child.getAttribute('aria-hidden') === 'true' ||
-        style.display === 'none' ||
-        style.visibility === 'hidden';
+        child.getAttribute('aria-hidden') === 'true' || style.display === 'none' || style.visibility === 'hidden';
 
       if (gone) {
         continue;

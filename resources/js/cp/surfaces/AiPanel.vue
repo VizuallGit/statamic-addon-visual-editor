@@ -91,7 +91,9 @@ const defaultLabel = computed(() => {
   return strings('ai_panel_model_default').replace(':model', name);
 });
 /** A model the tab was set to that Cursor no longer lists — still shown, so the picker does not lie. */
-const unlistedModel = computed(() => (model.value && models.value.length && !models.value.some((row) => row.id === model.value) ? model.value : ''));
+const unlistedModel = computed(() =>
+  model.value && models.value.length && !models.value.some((row) => row.id === model.value) ? model.value : ''
+);
 const draft = ref('');
 /** Images in the box: { id, url } once uploaded, { local } while uploading. */
 const draftImages = ref([]);
@@ -115,14 +117,10 @@ const typeLabel = computed(() => {
   const type = sectionType.value;
 
   if (mode.value === 'build') {
-    return type
-      ? strings('ai_panel_building_for').replace(':type', type)
-      : strings('ai_panel_need_section_build');
+    return type ? strings('ai_panel_building_for').replace(':type', type) : strings('ai_panel_need_section_build');
   }
 
-  return type
-    ? strings('ai_panel_writing_to').replace(':type', type)
-    : strings('ai_panel_need_section');
+  return type ? strings('ai_panel_writing_to').replace(':type', type) : strings('ai_panel_need_section');
 });
 
 function persistMode(next) {
@@ -209,7 +207,10 @@ function copyBlock(key, text) {
   };
 
   if (win.value.navigator?.clipboard?.writeText) {
-    win.value.navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+    win.value.navigator.clipboard
+      .writeText(text)
+      .then(finish)
+      .catch(() => fallbackCopy(text, finish));
 
     return;
   }
@@ -291,7 +292,13 @@ function request(url, { method = 'GET', json, form, signal } = {}) {
   }
 
   return win.value
-    .fetch(url, { method, signal, credentials: 'same-origin', headers, body: form || (json ? JSON.stringify(json) : undefined) })
+    .fetch(url, {
+      method,
+      signal,
+      credentials: 'same-origin',
+      headers,
+      body: form || (json ? JSON.stringify(json) : undefined),
+    })
     .then(async (res) => {
       const data = await res.json().catch(() => ({}));
 
@@ -334,12 +341,17 @@ function applyChat(next) {
 
   const seen = chats.value[next.id]?.messages?.length;
 
-  if (seen !== undefined && (next.messages || []).slice(seen).some((row) => row.role === 'assistant' && row.applied && row.mode === 'build')) {
+  if (
+    seen !== undefined &&
+    (next.messages || []).slice(seen).some((row) => row.role === 'assistant' && row.applied && row.mode === 'build')
+  ) {
     ask('dock:refresh', win.value);
   }
 
   chats.value = { ...chats.value, [next.id]: next };
-  tabs.value = tabs.value.map((tab) => (tab.id === next.id ? { ...tab, title: next.title, pending: !!next.pending } : tab));
+  tabs.value = tabs.value.map((tab) =>
+    tab.id === next.id ? { ...tab, title: next.title, pending: !!next.pending } : tab
+  );
 
   if (next.id === activeId.value) {
     scrollLog();
@@ -521,30 +533,34 @@ async function addImages(files) {
 
   notice.value = '';
 
-  await Promise.all(images.map(async (file) => {
-    const slot = { local: win.value.URL.createObjectURL(file) };
+  await Promise.all(
+    images.map(async (file) => {
+      const slot = { local: win.value.URL.createObjectURL(file) };
 
-    draftImages.value = [...draftImages.value, slot];
+      draftImages.value = [...draftImages.value, slot];
 
-    try {
-      const form = new win.value.FormData();
+      try {
+        const form = new win.value.FormData();
 
-      form.append('image', await prepareImage(file));
+        form.append('image', await prepareImage(file));
 
-      const stored = await request(`${TABS_URL}/${tabId}/images`, { method: 'POST', form });
+        const stored = await request(`${TABS_URL}/${tabId}/images`, { method: 'POST', form });
 
-      // Matched by its blob URL: the list hands back reactive proxies, never the object put in.
-      if (activeId.value === tabId) {
-        draftImages.value = draftImages.value.map((image) => (image.local === slot.local ? { id: stored.id, url: imageUrl(tabId, stored.id) } : image));
-        saveDraftSoon();
+        // Matched by its blob URL: the list hands back reactive proxies, never the object put in.
+        if (activeId.value === tabId) {
+          draftImages.value = draftImages.value.map((image) =>
+            image.local === slot.local ? { id: stored.id, url: imageUrl(tabId, stored.id) } : image
+          );
+          saveDraftSoon();
+        }
+      } catch (err) {
+        draftImages.value = draftImages.value.filter((image) => image.local !== slot.local);
+        notice.value = err?.data?.message || strings('ai_panel_image_failed');
+      } finally {
+        win.value.URL.revokeObjectURL(slot.local);
       }
-    } catch (err) {
-      draftImages.value = draftImages.value.filter((image) => image.local !== slot.local);
-      notice.value = err?.data?.message || strings('ai_panel_image_failed');
-    } finally {
-      win.value.URL.revokeObjectURL(slot.local);
-    }
-  }));
+    })
+  );
 }
 
 function removeImage(index) {
@@ -632,15 +648,25 @@ function send() {
   clearTimeout(draftTimer);
   draftDirty = false;
   notice.value = '';
-  applyChat(open.pending
-    ? { ...open, draft: '', draft_images: [], queue: [...(open.queue || []), { id: `local-${Date.now()}`, text, images: imageIds, mode: sendMode, local: true }] }
-    : {
-      ...open,
-      draft: '',
-      draft_images: [],
-      pending: { run: 'local', since: Math.floor(Date.now() / 1000), mode: sendMode },
-      messages: [...open.messages, { role: 'user', content: text, images: imageIds.map((id) => ({ id })) }],
-    });
+  applyChat(
+    open.pending
+      ? {
+          ...open,
+          draft: '',
+          draft_images: [],
+          queue: [
+            ...(open.queue || []),
+            { id: `local-${Date.now()}`, text, images: imageIds, mode: sendMode, local: true },
+          ],
+        }
+      : {
+          ...open,
+          draft: '',
+          draft_images: [],
+          pending: { run: 'local', since: Math.floor(Date.now() / 1000), mode: sendMode },
+          messages: [...open.messages, { role: 'user', content: text, images: imageIds.map((id) => ({ id })) }],
+        }
+  );
   draft.value = '';
   draftImages.value = [];
 
@@ -729,7 +755,10 @@ function editQueued(item) {
 
   removeQueued(item);
   draft.value = draft.value.trim() ? `${draft.value.trim()}\n\n${item.text}` : item.text;
-  draftImages.value = [...draftImages.value, ...(item.images || []).map((id) => ({ id, url: imageUrl(activeId.value, id) }))];
+  draftImages.value = [
+    ...draftImages.value,
+    ...(item.images || []).map((id) => ({ id, url: imageUrl(activeId.value, id) })),
+  ];
   saveDraftSoon();
 }
 
@@ -748,7 +777,9 @@ function stop() {
 }
 
 function refreshChat(tabId) {
-  return request(`${TABS_URL}/${tabId}`).then((data) => applyChat(data.chat)).catch(() => {});
+  return request(`${TABS_URL}/${tabId}`)
+    .then((data) => applyChat(data.chat))
+    .catch(() => {});
 }
 
 /**
@@ -879,7 +910,19 @@ watch(mode, refreshType);
       <div v-if="props.onClose" data-sve-right-actions>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close" @click="props.onClose?.()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
     </div>
@@ -897,12 +940,45 @@ watch(mode, refreshType);
       >
         <span v-if="tab.pending" class="sve-ai__tab-dot" aria-hidden="true" />
         <span class="sve-ai__tab-title">{{ tabTitle(tab) }}</span>
-        <button type="button" class="sve-ai__tab-close" :title="strings('ai_panel_tab_close')" :aria-label="strings('ai_panel_tab_close')" data-sve-ai-tab-close @click.stop="closeTab(tab.id)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        <button
+          type="button"
+          class="sve-ai__tab-close"
+          :title="strings('ai_panel_tab_close')"
+          :aria-label="strings('ai_panel_tab_close')"
+          data-sve-ai-tab-close
+          @click.stop="closeTab(tab.id)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
-      <button type="button" class="sve-ai__tab-add" :title="strings('ai_panel_tab_add')" :aria-label="strings('ai_panel_tab_add')" data-sve-ai-tab-add @click="newTab">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <button
+        type="button"
+        class="sve-ai__tab-add"
+        :title="strings('ai_panel_tab_add')"
+        :aria-label="strings('ai_panel_tab_add')"
+        data-sve-ai-tab-add
+        @click="newTab"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </button>
     </div>
     <div class="sve-ai__hint">
@@ -915,12 +991,21 @@ watch(mode, refreshType);
         v-for="(row, index) in messages"
         :key="index"
         class="sve-ai__row"
-        :class="[row.role === 'user' ? 'is-user' : 'is-assistant', row.kind && row.kind !== 'reply' ? `is-${row.kind}` : '']"
+        :class="[
+          row.role === 'user' ? 'is-user' : 'is-assistant',
+          row.kind && row.kind !== 'reply' ? `is-${row.kind}` : '',
+        ]"
         :data-sve-ai-row="row.role"
       >
         <template v-if="row.role === 'user'">
           <div v-if="row.images?.length" class="sve-ai__images">
-            <button v-for="image in row.images" :key="image.id" type="button" class="sve-ai__image" @click="openImage(imageUrl(activeId, image.id))">
+            <button
+              v-for="image in row.images"
+              :key="image.id"
+              type="button"
+              class="sve-ai__image"
+              @click="openImage(imageUrl(activeId, image.id))"
+            >
               <img :src="imageUrl(activeId, image.id)" alt="" data-sve-ai-sent-image />
             </button>
           </div>
@@ -961,24 +1046,84 @@ watch(mode, refreshType);
     >
       <div v-if="queue.length" class="sve-ai__queue" data-sve-ai-queue>
         <div class="sve-ai__queue-head">
-          {{ strings('ai_panel_queue_title') }}<template v-if="!sending"> — {{ strings('ai_panel_queue_waiting') }}</template>
+          {{ strings('ai_panel_queue_title')
+          }}<template v-if="!sending"> — {{ strings('ai_panel_queue_waiting') }}</template>
         </div>
-        <div v-for="item in queue" :key="item.id" class="sve-ai__queued" :class="{ 'is-local': item.local }" data-sve-ai-queued>
-          <button type="button" class="sve-ai__queued-text" :title="strings('ai_panel_queue_edit')" data-sve-ai-queued-edit @click="editQueued(item)">
+        <div
+          v-for="item in queue"
+          :key="item.id"
+          class="sve-ai__queued"
+          :class="{ 'is-local': item.local }"
+          data-sve-ai-queued
+        >
+          <button
+            type="button"
+            class="sve-ai__queued-text"
+            :title="strings('ai_panel_queue_edit')"
+            data-sve-ai-queued-edit
+            @click="editQueued(item)"
+          >
             <span>{{ item.text }}</span>
             <span v-if="item.images?.length" class="sve-ai__queued-images">+{{ item.images.length }}</span>
           </button>
-          <button type="button" class="sve-ai__queued-now" :disabled="item.local" data-sve-ai-send-now @click="sendNow(item)">{{ strings('ai_panel_send_now') }}</button>
-          <button type="button" class="sve-ai__queued-remove" :title="strings('ai_panel_queue_remove')" :aria-label="strings('ai_panel_queue_remove')" :disabled="item.local" data-sve-ai-queued-remove @click="removeQueued(item)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <button
+            type="button"
+            class="sve-ai__queued-now"
+            :disabled="item.local"
+            data-sve-ai-send-now
+            @click="sendNow(item)"
+            >{{ strings('ai_panel_send_now') }}</button
+          >
+          <button
+            type="button"
+            class="sve-ai__queued-remove"
+            :title="strings('ai_panel_queue_remove')"
+            :aria-label="strings('ai_panel_queue_remove')"
+            :disabled="item.local"
+            data-sve-ai-queued-remove
+            @click="removeQueued(item)"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
         </div>
       </div>
       <div v-if="draftImages.length" class="sve-ai__images" data-sve-ai-draft-images>
-        <span v-for="(image, i) in draftImages" :key="image.id || image.local" class="sve-ai__image" :class="{ 'is-uploading': !image.id }">
+        <span
+          v-for="(image, i) in draftImages"
+          :key="image.id || image.local"
+          class="sve-ai__image"
+          :class="{ 'is-uploading': !image.id }"
+        >
           <img :src="image.url || image.local" alt="" />
-          <button v-if="image.id" type="button" class="sve-ai__image-remove" :title="strings('ai_panel_image_remove')" :aria-label="strings('ai_panel_image_remove')" @click="removeImage(i)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <button
+            v-if="image.id"
+            type="button"
+            class="sve-ai__image-remove"
+            :title="strings('ai_panel_image_remove')"
+            :aria-label="strings('ai_panel_image_remove')"
+            @click="removeImage(i)"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
         </span>
       </div>
@@ -1007,12 +1152,43 @@ watch(mode, refreshType);
         <span v-if="modelsFailed" class="sve-ai__model-note">{{ strings('ai_panel_models_failed') }}</span>
       </div>
       <div class="sve-ai__form-row">
-        <button type="button" class="sve-ai__attach" :title="strings('ai_panel_attach')" :aria-label="strings('ai_panel_attach')" data-sve-ai-attach @click="fileInput?.click()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>
+        <button
+          type="button"
+          class="sve-ai__attach"
+          :title="strings('ai_panel_attach')"
+          :aria-label="strings('ai_panel_attach')"
+          data-sve-ai-attach
+          @click="fileInput?.click()"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21" />
+          </svg>
         </button>
-        <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden data-sve-ai-file @change="onPick" />
-        <button v-if="sending" type="button" class="is-stop" data-sve-ai-stop @click="stop">{{ strings('ai_panel_stop') }}</button>
-        <button type="submit" :disabled="uploading" data-sve-ai-send>{{ strings(sending ? 'ai_panel_queue' : 'ai_panel_send') }}</button>
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          multiple
+          hidden
+          data-sve-ai-file
+          @change="onPick"
+        />
+        <button v-if="sending" type="button" class="is-stop" data-sve-ai-stop @click="stop">{{
+          strings('ai_panel_stop')
+        }}</button>
+        <button type="submit" :disabled="uploading" data-sve-ai-send>{{
+          strings(sending ? 'ai_panel_queue' : 'ai_panel_send')
+        }}</button>
       </div>
     </form>
   </div>
@@ -1103,7 +1279,11 @@ watch(mode, refreshType);
   padding: 8px 10px;
   max-height: 240px;
   overflow: auto;
-  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    12px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   white-space: pre;
 }
 .sve-ai__actions {

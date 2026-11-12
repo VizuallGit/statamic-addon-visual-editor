@@ -57,7 +57,7 @@ function fit(event) {
       <div v-if="previewUrl" ref="frameBox" class="sve-lib-card__frame">
         <iframe :src="previewUrl" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" @load="fit" />
       </div>
-      <img v-else-if="imageUrl" :src="imageUrl" alt="">
+      <img v-else-if="imageUrl" :src="imageUrl" alt="" />
       <div v-else class="sve-lib-card__empty">{{ noPreview }}</div>
     </div>
     <div class="sve-lib-card__bar">
@@ -73,7 +73,19 @@ function fit(event) {
         @click.stop="onDelete?.()"
       >
         <!-- The same trash the HTML tree's rows carry. -->
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6M14 11v6" />
+        </svg>
       </button>
     </div>
     <div v-if="note" class="sve-lib-card__note">{{ note }}</div>
@@ -141,7 +153,9 @@ img {
   justify-content: center;
   flex: 0 0 auto;
   opacity: 0.55;
-  transition: opacity 0.12s, color 0.12s;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
 }
 .sve-lib-card__del:hover {
   opacity: 1;

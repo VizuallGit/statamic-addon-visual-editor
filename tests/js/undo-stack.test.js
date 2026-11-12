@@ -14,7 +14,13 @@ function history(start = 'a') {
 
   stack.capture();
 
-  return { stack, set: (next) => { state = next; }, get: () => state };
+  return {
+    stack,
+    set: (next) => {
+      state = next;
+    },
+    get: () => state,
+  };
 }
 
 test('nothing to go back to before a change', () => {
@@ -112,7 +118,13 @@ test('rebase moves the history without a step', () => {
 
 test('the oldest step goes past the limit', () => {
   let state = 0;
-  const stack = createUndoStack({ read: () => state, write: (next) => { state = next; }, limit: 2 });
+  const stack = createUndoStack({
+    read: () => state,
+    write: (next) => {
+      state = next;
+    },
+    limit: 2,
+  });
 
   stack.capture();
   [1, 2, 3].forEach((next) => {

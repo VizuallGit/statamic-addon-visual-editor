@@ -132,10 +132,7 @@ async function restoreVersion(win, type, id) {
     return;
   }
 
-  writeParts(
-    { html: parts.html ?? '', css: parts.css ?? '', js: parts.js ?? '' },
-    dockState.lastLocked
-  );
+  writeParts({ html: parts.html ?? '', css: parts.css ?? '', js: parts.js ?? '' }, dockState.lastLocked);
   onEditorInput(win);
   syncTwTarget(win);
 }

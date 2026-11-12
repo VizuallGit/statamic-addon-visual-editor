@@ -3,7 +3,14 @@
  * only the imports are new. See the barrel bridge.js for what the shell exports.
  */
 import { bridgeState } from '../bridge/state.js';
-import { DRAG_THRESHOLD, ORDERABLE_ATTR, finishWidthDrag, isHorizontalFlow, updateWidthDrag, widthDrag } from './grid.js';
+import {
+  DRAG_THRESHOLD,
+  ORDERABLE_ATTR,
+  finishWidthDrag,
+  isHorizontalFlow,
+  updateWidthDrag,
+  widthDrag,
+} from './grid.js';
 import { INSERT_ATTR } from './outline-nav.js';
 import { GLOBAL_ROOT_ATTR, GLOBAL_ROW_ATTR, blockHolding, peerRect } from './row-toolbar.js';
 import { SECTION_ORDERABLE_ATTR, SID_ATTR, t } from '../bridge.js';
@@ -88,7 +95,10 @@ export function parseCssColor(colour, win) {
     let h = hex[1];
 
     if (h.length === 3) {
-      h = h.split('').map((c) => c + c).join('');
+      h = h
+        .split('')
+        .map((c) => c + c)
+        .join('');
     }
 
     return {
@@ -202,9 +212,7 @@ export function applyOutlineTone(win, el) {
   }
 
   const parsed = parseCssColor(solidBackgroundFor(win, behindOutline(win, el)), win);
-  const luminance = parsed
-    ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
-    : 1;
+  const luminance = parsed ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255 : 1;
   const color = luminance < 0.45 ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)';
 
   el.style.setProperty('--sve-outline-color', color);
@@ -228,7 +236,11 @@ function copyLiveAppearance(win, source, dest) {
     to.style.color = cs.color;
     to.style.webkitTextFillColor = cs.webkitTextFillColor;
 
-    if (cs.backgroundColor && cs.backgroundColor !== 'transparent' && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(cs.backgroundColor)) {
+    if (
+      cs.backgroundColor &&
+      cs.backgroundColor !== 'transparent' &&
+      !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(cs.backgroundColor)
+    ) {
       to.style.backgroundColor = cs.backgroundColor;
     }
 
@@ -370,9 +382,7 @@ export function endDrag(win) {
  *  is a light-page grey and disappears on a dark section. */
 function dropMarkerColor(win, el) {
   const parsed = parseCssColor(solidBackgroundFor(win, el), win);
-  const luminance = parsed
-    ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
-    : 1;
+  const luminance = parsed ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255 : 1;
 
   return luminance < 0.45 ? '#ffffff' : '#000000';
 }
@@ -395,9 +405,7 @@ function paintDropIndicator(state) {
   }
 
   const after = insert > peers.length - 1;
-  const target = after
-    ? peers[peers.length - 1]
-    : peers[Math.min(insert === 0 ? 0 : insert, peers.length - 1)];
+  const target = after ? peers[peers.length - 1] : peers[Math.min(insert === 0 ? 0 : insert, peers.length - 1)];
   const rect = peerRect(target);
 
   if (section) {
@@ -482,7 +490,10 @@ export function createDragPointerMove(win) {
     }
 
     if (!bridgeState.dragState.active) {
-      const moved = Math.hypot(event.clientX - bridgeState.dragState.startX, event.clientY - bridgeState.dragState.startY);
+      const moved = Math.hypot(
+        event.clientX - bridgeState.dragState.startX,
+        event.clientY - bridgeState.dragState.startY
+      );
 
       if (moved < DRAG_THRESHOLD) {
         return;
@@ -568,10 +579,7 @@ export function createDragPointerUp(win) {
       return;
     }
 
-    win.parent.postMessage(
-      { source: SOURCE, type: MSG.MOVE, uid, toIndex: to },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type: MSG.MOVE, uid, toIndex: to }, win.location.origin);
   };
 }
 
@@ -587,9 +595,7 @@ export function showMoveControl(win, moveEl) {
   // one out: its markup is the SOURCE entry's, so its data-sid belongs to another
   // entry entirely — the page's own row id is what this form can act on.
   const uid =
-    moveEl.getAttribute(GLOBAL_ROW_ATTR) ||
-    moveEl.getAttribute(SID_ATTR) ||
-    moveEl.getAttribute('data-sid-field-uid');
+    moveEl.getAttribute(GLOBAL_ROW_ATTR) || moveEl.getAttribute(SID_ATTR) || moveEl.getAttribute('data-sid-field-uid');
 
   if (!uid) {
     return;
@@ -602,8 +608,7 @@ export function showMoveControl(win, moveEl) {
   // among the page's sections is its display:contents wrapper, so that wrapper
   // is a peer too — otherwise a page with one normal and one global section
   // looks like it has only one, and neither gets arrows.
-  const isPageSection = (el) =>
-    el.hasAttribute(SECTION_ORDERABLE_ATTR) || el.hasAttribute(GLOBAL_ROOT_ATTR);
+  const isPageSection = (el) => el.hasAttribute(SECTION_ORDERABLE_ATTR) || el.hasAttribute(GLOBAL_ROOT_ATTR);
 
   // Rows opted into ordering (orderable="true") are the innermost thing a hover
   // can land on, so they claim the control before the section around them.
@@ -692,10 +697,7 @@ export function showMoveControl(win, moveEl) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.MOVE, uid, direction },
-        win.location.origin
-      );
+      win.parent.postMessage({ source: SOURCE, type: MSG.MOVE, uid, direction }, win.location.origin);
     });
     ctrl.appendChild(btn);
   };
@@ -795,10 +797,7 @@ export function showMoveControl(win, moveEl) {
           return;
         }
 
-        win.parent.postMessage(
-          { source: SOURCE, type, uid, ...(extra || {}) },
-          win.location.origin
-        );
+        win.parent.postMessage({ source: SOURCE, type, uid, ...(extra || {}) }, win.location.origin);
         hideMoveControl(win);
       });
 
@@ -853,10 +852,7 @@ export function showMoveControl(win, moveEl) {
     save.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.SAVE_SECTION, uid },
-        win.location.origin
-      );
+      win.parent.postMessage({ source: SOURCE, type: MSG.SAVE_SECTION, uid }, win.location.origin);
       hideMoveControl(win);
     });
 
@@ -879,10 +875,7 @@ export function showMoveControl(win, moveEl) {
     plus.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.ADD_SET, uid },
-        win.location.origin
-      );
+      win.parent.postMessage({ source: SOURCE, type: MSG.ADD_SET, uid }, win.location.origin);
     });
 
     ctrl.appendChild(plus);
@@ -903,10 +896,7 @@ export function showMoveControl(win, moveEl) {
     copy.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.DUPLICATE_ROW, uid },
-        win.location.origin
-      );
+      win.parent.postMessage({ source: SOURCE, type: MSG.DUPLICATE_ROW, uid }, win.location.origin);
       hideMoveControl(win);
     });
 
@@ -938,10 +928,7 @@ export function showMoveControl(win, moveEl) {
         return;
       }
 
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.REMOVE_ROW, uid, confirm: true },
-        win.location.origin
-      );
+      win.parent.postMessage({ source: SOURCE, type: MSG.REMOVE_ROW, uid, confirm: true }, win.location.origin);
       hideMoveControl(win);
     });
 

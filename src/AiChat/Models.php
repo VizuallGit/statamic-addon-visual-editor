@@ -51,7 +51,7 @@ final class Models
 
         $key = 'sve-ai-models-listed:'.sha1(AiChat::apiKey());
 
-        return static::modern(Cache::remember($key, static::CACHE_SECONDS, fn () => CursorAgent::models()));
+        return self::modern(Cache::remember($key, self::CACHE_SECONDS, fn () => CursorAgent::models()));
     }
 
     /**
@@ -67,7 +67,7 @@ final class Models
         $newest = [];
 
         foreach ($models as $at => $model) {
-            foreach (static::FAMILIES as $family => [$group, $pattern]) {
+            foreach (self::FAMILIES as $family => [$group, $pattern]) {
                 if (! preg_match($pattern, $model['id'], $match)) {
                     continue;
                 }
@@ -90,8 +90,8 @@ final class Models
         $out = array_map(fn ($row) => ['id' => $row['id'], 'name' => $row['name'], 'group' => $row['group']], array_values($rows));
 
         foreach ($models as $model) {
-            if ($model['id'] === static::AUTO) {
-                array_unshift($out, ['id' => static::AUTO, 'name' => $model['name'] ?: 'Auto', 'group' => 'Auto']);
+            if ($model['id'] === self::AUTO) {
+                array_unshift($out, ['id' => self::AUTO, 'name' => $model['name'] ?: 'Auto', 'group' => 'Auto']);
 
                 break;
             }

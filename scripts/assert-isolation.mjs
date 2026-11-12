@@ -47,9 +47,12 @@ const SHELL_DIRS = ['cp-shell/'];
 
 /** What a non-kernel file may not reach for. Each needle is a RegExp over the source. */
 const NEEDLES = {
-  'import preview.js': /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*preview\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*preview\.js['"]/,
-  'import overlay-host.js': /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*overlay-host\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*overlay-host\.js['"]/,
-  'import bridge.js': /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*bridge\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*bridge\.js['"]/,
+  'import preview.js':
+    /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*preview\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*preview\.js['"]/,
+  'import overlay-host.js':
+    /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*overlay-host\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*overlay-host\.js['"]/,
+  'import bridge.js':
+    /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*bridge\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*bridge\.js['"]/,
   'import cp.js': /from\s*['"](?:\.\.?\/)+cp\.js['"]|import\(\s*['"](?:\.\.?\/)+cp\.js['"]/,
   'import lp-replay.js': /from\s*['"](?:\.\.?\/)+lp-replay\.js['"]/,
   'import cp-shell/*': /from\s*['"](?:\.\.?\/)+cp-shell\/[\w-]+\.js['"]/,
@@ -91,14 +94,21 @@ for (const file of walk(JS)) {
     // Kernel may import only kernel, kernel-side modules, its own region files, lib/ and packages.
     const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/') + 1) : '';
     const resolved = [...text.matchAll(/from\s*['"](\.\.?\/[^'"]+)['"]/g)].map((m) => {
-      const parts = (dir + m[1]).split('/'); const out = [];
-      for (const p of parts) { if (p === '..') out.pop(); else if (p !== '.') out.push(p); }
+      const parts = (dir + m[1]).split('/');
+      const out = [];
+      for (const p of parts) {
+        if (p === '..') out.pop();
+        else if (p !== '.') out.push(p);
+      }
       return out.join('/');
     });
-    const bad = resolved.filter((target) =>
-      !target.startsWith('lib/') &&
-      !KERNEL.includes(target) && !KERNEL_SIDE.includes(target) &&
-      !KERNEL_DIRS.some((d) => target.startsWith(d)));
+    const bad = resolved.filter(
+      (target) =>
+        !target.startsWith('lib/') &&
+        !KERNEL.includes(target) &&
+        !KERNEL_SIDE.includes(target) &&
+        !KERNEL_DIRS.some((d) => target.startsWith(d))
+    );
 
     if (bad.length) {
       hits[rel] = bad.map((target) => `kernel imports ${target}`);
@@ -117,7 +127,11 @@ for (const file of walk(JS)) {
 }
 
 if (process.argv.includes('--write-allowlist')) {
-  const list = Object.fromEntries(Object.entries(hits).filter(([rel]) => !rel.startsWith('cp/')).sort());
+  const list = Object.fromEntries(
+    Object.entries(hits)
+      .filter(([rel]) => !rel.startsWith('cp/'))
+      .sort()
+  );
   writeFileSync(ALLOWLIST, JSON.stringify(list, null, 2) + '\n');
   console.log(`Wrote ${Object.keys(list).length} allow-listed files to scripts/isolation-allowlist.json`);
   process.exit(0);
@@ -145,7 +159,9 @@ for (const [rel, allowed] of Object.entries(allow)) {
   const stale = allowed.filter((name) => !found.includes(name));
 
   if (stale.length) {
-    problems.push(`${rel} → ${stale.join(', ')}  (allow-list entry is stale: remove it from scripts/isolation-allowlist.json)`);
+    problems.push(
+      `${rel} → ${stale.join(', ')}  (allow-list entry is stale: remove it from scripts/isolation-allowlist.json)`
+    );
   }
 }
 
@@ -155,4 +171,6 @@ if (problems.length) {
 }
 
 const remaining = Object.values(allow).reduce((n, list) => n + list.length, 0);
-console.log(`Isolation ok. cp/ clean; kernel imports only kernel; ${Object.keys(allow).length} panel files still carry ${remaining} allow-listed couplings to burn down.`);
+console.log(
+  `Isolation ok. cp/ clean; kernel imports only kernel; ${Object.keys(allow).length} panel files still carry ${remaining} allow-listed couplings to burn down.`
+);

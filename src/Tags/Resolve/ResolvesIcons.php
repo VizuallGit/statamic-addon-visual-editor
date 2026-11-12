@@ -3,7 +3,6 @@
 namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use Illuminate\Support\Facades\Log;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Icons;
 
 /**
  * The icon a set or a field shows in the editor's badges. Needs

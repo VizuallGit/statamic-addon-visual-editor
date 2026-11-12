@@ -5,8 +5,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  containerContext, containerContextName, containerContexts, onContainerContext,
-  registerContainerContext, unregisterContainerContext,
+  containerContext,
+  containerContextName,
+  containerContexts,
+  onContainerContext,
+  registerContainerContext,
+  unregisterContainerContext,
 } from '../../resources/js/lib/publish-containers.js';
 
 const ctx = (name) => ({ name: { __v_isRef: true, value: name }, setFieldValue() {}, values: {} });

@@ -238,7 +238,10 @@ function sveDangerBtn(theme, { compact = false } = {}) {
  * Confirm overlay in the preview — same card/button chrome as CP
  * confirmCloseDiscard / confirmUnsaved (Statamic light + dark).
  */
-export function showPreviewConfirm(win, { title, body, confirmLabel, cancelLabel, danger = false, onConfirm, onCancel }) {
+export function showPreviewConfirm(
+  win,
+  { title, body, confirmLabel, cancelLabel, danger = false, onConfirm, onCancel }
+) {
   const doc = win.document;
   const theme = cpDialogTheme(win);
 
@@ -281,11 +284,7 @@ export function showPreviewConfirm(win, { title, body, confirmLabel, cancelLabel
   };
 
   button(cancelLabel || t('cancel'), sveSecondaryBtn(theme), () => onCancel?.());
-  button(
-    confirmLabel,
-    danger ? sveDangerBtn(theme) : svePrimaryBtn(theme),
-    () => onConfirm?.()
-  );
+  button(confirmLabel, danger ? sveDangerBtn(theme) : svePrimaryBtn(theme), () => onConfirm?.());
 
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) {
@@ -355,10 +354,7 @@ function enterGlobalFocus(win, section, reopen = true) {
   // Open the source entry in the left Live Preview editor — same slot a normal
   // section uses. Inline edit borrows that form's values (sectionPanelContainer).
   if (reopen) {
-    win.parent.postMessage(
-      { source: SOURCE, type: MSG.OPEN_GLOBAL_SECTION, id: sourceId },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type: MSG.OPEN_GLOBAL_SECTION, id: sourceId }, win.location.origin);
   }
 
   win.parent.postMessage({ source: SOURCE, type: MSG.SVE_GLOBAL_DIRTY_QUERY }, win.location.origin);

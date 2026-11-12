@@ -38,7 +38,9 @@ function options(win, extra = {}) {
     mobile: rows[rows.length - 1]?.tw || 'max-md',
     preset: '2',
     text,
-    images: images ? { img: imageMarkup(images.quality), picture: pictureMarkup(pictureSizes(rows), images.quality) } : null,
+    images: images
+      ? { img: imageMarkup(images.quality), picture: pictureMarkup(pictureSizes(rows), images.quality) }
+      : null,
     ...extra,
   };
 }

@@ -33,7 +33,17 @@ export const HEAD_RULES = [classRule];
 // A section offers its shell, then x-data; a <div> visual_edit, its loops,
 // Bard, then x-show; an <a> its URL before any text; an <img> or a <video>
 // its sources before the attributes an <img> lacks.
-export const RULES = [sectionRule, visualEditRule, blocksRule, linkRule, listRule, textRule, alpineRule, sourceRule, imgRule];
+export const RULES = [
+  sectionRule,
+  visualEditRule,
+  blocksRule,
+  linkRule,
+  listRule,
+  textRule,
+  alpineRule,
+  sourceRule,
+  imgRule,
+];
 
 export const TAIL_RULES = [idRule];
 

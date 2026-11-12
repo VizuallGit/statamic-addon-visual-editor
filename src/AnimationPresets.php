@@ -97,7 +97,7 @@ final class AnimationPresets
             'label_en' => $preset['label'],
             'vars' => $preset['vars'],
             ...($preset['timing'] === [] ? [] : ['timing' => $preset['timing']]),
-        ], static::stored());
+        ], self::stored());
     }
 
     /**
@@ -110,21 +110,21 @@ final class AnimationPresets
     public static function save(string $label, array $vars, mixed $kind = 'self', array $timing = []): array
     {
         $label = trim((string) preg_replace('/\s+/u', ' ', $label));
-        $kind = static::kind($kind);
-        $vars = static::vars($vars);
-        $timing = static::timing($timing);
+        $kind = self::kind($kind);
+        $vars = self::vars($vars);
+        $timing = self::timing($timing);
 
         if ($label === '' || mb_strlen($label) > self::MAX_LABEL || ($vars === [] && $timing === [])) {
             throw new InvalidArgumentException('An animation preset needs a name and at least one value.');
         }
 
-        $presets = static::stored();
-        $handle = static::handleFor($label, array_column($presets, 'handle'));
+        $presets = self::stored();
+        $handle = self::handleFor($label, array_column($presets, 'handle'));
 
         $presets[] = ['handle' => $handle, 'label' => $label, 'kind' => $kind, 'vars' => $vars, 'timing' => $timing];
-        static::write($presets);
+        self::write($presets);
 
-        return collect(static::all())->firstWhere('handle', $handle);
+        return collect(self::all())->firstWhere('handle', $handle);
     }
 
     /**
@@ -141,15 +141,15 @@ final class AnimationPresets
      */
     public static function update(string $handle, array $vars, array $timing = [], ?string $label = null): ?array
     {
-        $presets = static::stored();
+        $presets = self::stored();
         $at = array_search($handle, array_column($presets, 'handle'), true);
 
         if ($at === false) {
             return null;
         }
 
-        $vars = static::vars($vars);
-        $timing = static::timing($timing);
+        $vars = self::vars($vars);
+        $timing = self::timing($timing);
 
         $label = $label === null ? $presets[$at]['label'] : trim((string) preg_replace('/\s+/u', ' ', $label));
 
@@ -158,21 +158,21 @@ final class AnimationPresets
         }
 
         $presets[$at] = [...$presets[$at], 'label' => $label, 'vars' => $vars, 'timing' => $timing];
-        static::write($presets);
+        self::write($presets);
 
-        return collect(static::all())->firstWhere('handle', $handle);
+        return collect(self::all())->firstWhere('handle', $handle);
     }
 
     public static function delete(string $handle): bool
     {
-        $presets = static::stored();
+        $presets = self::stored();
         $kept = array_values(array_filter($presets, fn (array $preset) => $preset['handle'] !== $handle));
 
         if (count($kept) === count($presets)) {
             return false;
         }
 
-        static::write($kept);
+        self::write($kept);
 
         return true;
     }
@@ -202,7 +202,7 @@ final class AnimationPresets
     /** @return list<array{handle: string, label: string, kind: string, vars: array<string, string>, timing: array<string, int>}> */
     private static function stored(): array
     {
-        $path = static::file();
+        $path = self::file();
 
         if (! is_file($path)) {
             return [];
@@ -219,11 +219,11 @@ final class AnimationPresets
         foreach (is_array($data['presets'] ?? null) ? $data['presets'] : [] as $row) {
             $handle = is_array($row) ? (string) ($row['handle'] ?? '') : '';
             $label = is_array($row) ? trim((string) ($row['label'] ?? '')) : '';
-            $vars = is_array($row['vars'] ?? null) ? static::vars($row['vars']) : [];
-            $timing = is_array($row['timing'] ?? null) ? static::timing($row['timing']) : [];
+            $vars = is_array($row['vars'] ?? null) ? self::vars($row['vars']) : [];
+            $timing = is_array($row['timing'] ?? null) ? self::timing($row['timing']) : [];
 
             if (preg_match(self::HANDLE, $handle) && $label !== '' && ($vars !== [] || $timing !== [])) {
-                $presets[] = ['handle' => $handle, 'label' => $label, 'kind' => static::kind($row['kind'] ?? null), 'vars' => $vars, 'timing' => $timing];
+                $presets[] = ['handle' => $handle, 'label' => $label, 'kind' => self::kind($row['kind'] ?? null), 'vars' => $vars, 'timing' => $timing];
             }
         }
 
@@ -298,7 +298,7 @@ final class AnimationPresets
     /** @param  list<array{handle: string, label: string, kind: string, vars: array<string, string>, timing: array<string, int>}>  $presets */
     private static function write(array $presets): void
     {
-        $path = static::file();
+        $path = self::file();
 
         if (! is_dir(dirname($path))) {
             mkdir(dirname($path), 0755, true);

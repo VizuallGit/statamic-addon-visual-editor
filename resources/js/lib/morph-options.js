@@ -96,7 +96,10 @@ export const MORPH_OPTIONS = {
 
     if (toShow.length) {
       if (!showAttributes(el).length) {
-        heldShow.set(toEl, toShow.map(({ name, value }) => ({ name, value })));
+        heldShow.set(
+          toEl,
+          toShow.map(({ name, value }) => ({ name, value }))
+        );
         toShow.forEach(({ name }) => toEl.removeAttribute(name));
       }
     } else if (el._x_isShown !== undefined) {

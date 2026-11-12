@@ -21,7 +21,10 @@ export const ENTRY_OPEN_ATTR = 'data-sve-entry-loading';
 export const ENTRY_OPEN_INSIDE_ATTR = 'data-sve-entry-loading-inside';
 
 export function ensureEntryOpenStyles(doc) {
-  injectStyle(doc, ENTRY_OPEN_STYLE_ID, `
+  injectStyle(
+    doc,
+    ENTRY_OPEN_STYLE_ID,
+    `
 [${ENTRY_OPEN_ATTR}] {
   display: inline-flex;
   align-items: center;
@@ -47,7 +50,8 @@ export function ensureEntryOpenStyles(doc) {
   0%, 100% { opacity: .22; }
   50% { opacity: .88; }
 }
-`);
+`
+  );
 }
 
 export function clearEntryOpening(doc) {
@@ -90,13 +94,15 @@ export function entryTitleAnchor(doc, fromEl, url) {
 
   const links = [...doc.querySelectorAll(`a[href*="/entries/"]`)];
 
-  return links.find((a) => {
-    try {
-      return new URL(a.href, doc.defaultView.location.origin).pathname === path;
-    } catch {
-      return false;
-    }
-  }) || null;
+  return (
+    links.find((a) => {
+      try {
+        return new URL(a.href, doc.defaultView.location.origin).pathname === path;
+      } catch {
+        return false;
+      }
+    }) || null
+  );
 }
 
 /**

@@ -4,7 +4,12 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TEMPLATE_TAGS, sectionsFieldOf, templateElement, withTemplateElement } from '../../resources/js/template-elements.js';
+import {
+  TEMPLATE_TAGS,
+  sectionsFieldOf,
+  templateElement,
+  withTemplateElement,
+} from '../../resources/js/template-elements.js';
 import { flattenHtmlTree, parseTemplateTree } from '../../resources/js/html-tree-parse.js';
 
 const TEMPLATE = [
@@ -20,7 +25,10 @@ const TEMPLATE = [
 ].join('\n');
 
 const rowsOf = (html) =>
-  flattenHtmlTree(parseTemplateTree(html, { sectionLoops: ['page_sections'], sectionsLabel: 'Sidens sektioner' }), new Set());
+  flattenHtmlTree(
+    parseTemplateTree(html, { sectionLoops: ['page_sections'], sectionsLabel: 'Sidens sektioner' }),
+    new Set()
+  );
 
 test('the menu offers plain structural elements, section first', () => {
   assert.equal(TEMPLATE_TAGS[0], 'section');
@@ -35,7 +43,9 @@ test('after the picked row, at its level, indented like it', () => {
   const nav = rowsOf(TEMPLATE).find((row) => row.tag === 'nav');
   const { html, at } = withTemplateElement(TEMPLATE, 'div', nav);
 
-  assert.ok(html.includes('<nav class="crumbs"></nav>\n    <div class="">\n        \n    </div>\n    {{ page_sections }}'));
+  assert.ok(
+    html.includes('<nav class="crumbs"></nav>\n    <div class="">\n        \n    </div>\n    {{ page_sections }}')
+  );
   assert.equal(html.slice(at, at + 4), '<div');
 
   // The new element is <main>'s child, beside the nav — not inside it.
@@ -77,7 +87,10 @@ test('the sections loop can be added to a template that has none', () => {
   assert.equal(html.slice(at, at + '{{ lawyer_info }}'.length), '{{ lawyer_info }}');
 
   // …and the tree reads it back as the one sections row.
-  const rows = flattenHtmlTree(parseTemplateTree(html, { sectionLoops: ['lawyer_info'], sectionsLabel: 'Sidens sektioner' }), new Set());
+  const rows = flattenHtmlTree(
+    parseTemplateTree(html, { sectionLoops: ['lawyer_info'], sectionsLabel: 'Sidens sektioner' }),
+    new Set()
+  );
   assert.equal(rows.filter((row) => row.kind === 'sections').length, 1);
   assert.equal(rows.find((row) => row.kind === 'sections').from, at);
 });

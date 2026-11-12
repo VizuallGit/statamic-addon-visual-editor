@@ -37,7 +37,6 @@ function pick(id) {
   current.value = id;
   props.onTab(id);
 }
-
 </script>
 
 <template>
@@ -99,8 +98,13 @@ function pick(id) {
   border-radius: 0.625rem;
   background: #343439;
   color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
-  font: 500 0.8125rem/1.3 ui-sans-serif, system-ui, sans-serif;
+  box-shadow:
+    0 0.75rem 2.5rem rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+  font:
+    500 0.8125rem/1.3 ui-sans-serif,
+    system-ui,
+    sans-serif;
   outline: none;
 }
 .sve-lp-settings__title {
@@ -269,12 +273,18 @@ function pick(id) {
   height: 1.125rem;
   border-radius: 999px;
   background-color: rgba(255, 255, 255, 0.18);
-  background-image: radial-gradient(circle closest-side, #fff calc(100% - 0.125rem), transparent calc(100% - 0.0625rem));
+  background-image: radial-gradient(
+    circle closest-side,
+    #fff calc(100% - 0.125rem),
+    transparent calc(100% - 0.0625rem)
+  );
   background-size: 1.125rem 1.125rem;
   background-repeat: no-repeat;
   background-position: left center;
   cursor: pointer;
-  transition: background-color 0.15s ease, background-position 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    background-position 0.15s ease;
 }
 .sve-lp-settings__switch-row:hover input.sve-lp-settings__switch:not(:checked) {
   background-color: rgba(255, 255, 255, 0.26);

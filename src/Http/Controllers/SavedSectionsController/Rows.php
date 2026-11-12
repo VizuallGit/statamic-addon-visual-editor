@@ -2,8 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 
-use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Illuminate\Support\Str;
+use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 
@@ -37,8 +37,8 @@ final class Rows
      */
     public static function processed(array $sections, string $collection): array
     {
-        $field = PageBuilderBlueprint::for(Collection::findByHandle($collection), static::field())
-            ?->field(static::field());
+        $field = PageBuilderBlueprint::for(Collection::findByHandle($collection), self::field())
+            ?->field(self::field());
 
         if (! $field) {
             return $sections;
@@ -70,8 +70,8 @@ final class Rows
             return $section;
         }
 
-        $field = PageBuilderBlueprint::for(Collection::findByHandle($collection), static::field())
-            ?->field(static::field());
+        $field = PageBuilderBlueprint::for(Collection::findByHandle($collection), self::field())
+            ?->field(self::field());
 
         if (! $field) {
             return $section;
@@ -91,7 +91,7 @@ final class Rows
     /** The raw first section stored on a saved-section entry. */
     public static function sectionOf(\Statamic\Contracts\Entries\Entry $entry): ?array
     {
-        $sections = $entry->value(static::field());
+        $sections = $entry->value(self::field());
 
         return is_array($sections) && isset($sections[0]) ? $sections[0] : null;
     }
@@ -105,7 +105,7 @@ final class Rows
             $isList = array_is_list($node);
 
             foreach ($node as $key => $value) {
-                $node[$key] = static::ensureRowIds($value);
+                $node[$key] = self::ensureRowIds($value);
             }
 
             if (! $isList

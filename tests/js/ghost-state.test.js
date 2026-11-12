@@ -68,7 +68,7 @@ test('a site that does not know the feature yet has it off', () => {
   assert.equal(ghostAllowed(win), false);
 });
 
-test('the switch is this Live Preview\'s and never writes the default', () => {
+test("the switch is this Live Preview's and never writes the default", () => {
   const win = fakeWin();
   const heard = [];
   const stop = onGhostSwitch((changed, on) => changed === win && heard.push(on));

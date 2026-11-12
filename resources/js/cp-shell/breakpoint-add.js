@@ -47,7 +47,17 @@ function minSizes(win) {
 }
 
 /** The pictures a size may have, in the order to offer them. Only the ones this build draws. */
-const ICON_ORDER = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv'];
+const ICON_ORDER = [
+  'mobile',
+  'mobile_landscape',
+  'tablet',
+  'tablet_landscape',
+  'laptop',
+  'desktop',
+  'widescreen',
+  'ultrawide',
+  'tv',
+];
 
 /** Tailwind's own scale, as starting points — the same five Queries::TAILWIND_SCALE names. */
 const PRESETS = [
@@ -162,7 +172,9 @@ function popoverProps(win, anchor) {
 
   return {
     top: Math.round(rect.bottom + 8),
-    left: Math.round(Math.max(VIEWPORT_PAD, Math.min(rect.left, win.innerWidth - remToPx(win, POPOVER_WIDTH_REM) - VIEWPORT_PAD))),
+    left: Math.round(
+      Math.max(VIEWPORT_PAD, Math.min(rect.left, win.innerWidth - remToPx(win, POPOVER_WIDTH_REM) - VIEWPORT_PAD))
+    ),
     strings: {
       title: t(win, 'bp_add_title'),
       sizes: t(win, 'bp_remove_title'),

@@ -68,7 +68,7 @@ final class Folders
             return null;
         }
 
-        $stats = static::folderStats($from);
+        $stats = self::folderStats($from);
 
         if (! $stats || $stats['hidden'] > 0) {
             return null;
@@ -158,7 +158,7 @@ final class Folders
             return false;
         }
 
-        $stats = static::folderStats($relative);
+        $stats = self::folderStats($relative);
 
         if (! $stats || $stats['hidden'] > 0) {
             return false;

@@ -284,9 +284,7 @@ function addAntlersBlocks(roots, source, options = {}) {
         hidden: !!host?.hidden,
         children: [],
       };
-      const at = inside.length
-        ? siblings.indexOf(inside[0])
-        : siblings.findIndex((item) => item.from > block.from);
+      const at = inside.length ? siblings.indexOf(inside[0]) : siblings.findIndex((item) => item.from > block.from);
 
       siblings.splice(at === -1 ? siblings.length : at, inside.length, slot);
 
@@ -328,9 +326,7 @@ function addAntlersBlocks(roots, source, options = {}) {
       children: inside,
     };
 
-    const at = inside.length
-      ? siblings.indexOf(inside[0])
-      : siblings.findIndex((item) => item.from > block.from);
+    const at = inside.length ? siblings.indexOf(inside[0]) : siblings.findIndex((item) => item.from > block.from);
 
     siblings.splice(at === -1 ? siblings.length : at, inside.length, node);
   }
@@ -454,7 +450,13 @@ function addSvgs(roots, source) {
   const masked = String(source || '').replace(/<!--[\s\S]*?(?:-->|$)/g, (chunk) => ' '.repeat(chunk.length));
 
   for (const tag of antlersTags(masked)) {
-    if (!tag.closed || tag.comment || tag.closer || (tag.name !== 'svg' && !tag.name.startsWith('svg:')) || inOpeningTag(roots, tag.from)) {
+    if (
+      !tag.closed ||
+      tag.comment ||
+      tag.closer ||
+      (tag.name !== 'svg' && !tag.name.startsWith('svg:')) ||
+      inOpeningTag(roots, tag.from)
+    ) {
       continue;
     }
 
@@ -538,7 +540,10 @@ export function parseTemplateTree(html, options = {}) {
   return markLocks(
     markHollow(
       emptySectionSlots(
-        addSlots(addSvgs(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source), source)
+        addSlots(
+          addSvgs(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source),
+          source
+        )
       ),
       source
     ),

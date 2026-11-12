@@ -56,7 +56,16 @@ import { findByPath, parentOf } from '../place.js';
 import { createCssPaint } from './paint.js';
 import { PART_PROPS, applyUpdates, isPartProp, partsOf, readPlaces } from './parts.js';
 import { readBound, readRule, renameSelector, sizeKey, writeDeclarations } from './rules.js';
-import { boundLabel, boundValue, createTranslator, fieldsFor, fillValue, planIsOn, planUpdates, printKeyframes } from './translate.js';
+import {
+  boundLabel,
+  boundValue,
+  createTranslator,
+  fieldsFor,
+  fillValue,
+  planIsOn,
+  planUpdates,
+  printKeyframes,
+} from './translate.js';
 
 const MENU_ID = '__sve-css-mode-menu';
 const KIND_KEY = 'sve-style-css-target';
@@ -98,7 +107,11 @@ export function cssPortFor(win, port) {
 
 /** Whether the row at `path` stands in a loop. Found by walking: a row's path does not name the Antlers tag around it. */
 function inLoop(nodes, path, within = false) {
-  return (nodes || []).some((row) => (within && row.path === path) || inLoop(row.children, path, within || (row.kind === 'antlers' && row.antlers === 'loop')));
+  return (nodes || []).some(
+    (row) =>
+      (within && row.path === path) ||
+      inLoop(row.children, path, within || (row.kind === 'antlers' && row.antlers === 'loop'))
+  );
 }
 
 function createCssPort(win, port) {
@@ -156,14 +169,16 @@ function createCssPort(win, port) {
     return names;
   }
 
-  const translator = computed(() => (model.value
-    ? createTranslator({
-      ruleOf: (name) => model.value.catalog.rule(name),
-      themeValue: (name) => model.value.catalog.design?.resolveThemeValue?.(name),
-      scale: (property) => port.scale(property),
-      named: fieldNames,
-    })
-    : null));
+  const translator = computed(() =>
+    model.value
+      ? createTranslator({
+          ruleOf: (name) => model.value.catalog.rule(name),
+          themeValue: (name) => model.value.catalog.design?.resolveThemeValue?.(name),
+          scale: (property) => port.scale(property),
+          named: fieldNames,
+        })
+      : null
+  );
   const planFor = (name) => translator.value?.planFor(name) || null;
 
   /* ---------------- the element, and what is edited on it ---------------- */
@@ -174,7 +189,9 @@ function createCssPort(win, port) {
     const node = path ? findByPath(parseTemplateTree(html), path) : null;
 
     // A component call or an Antlers tag has no tag of its own to name.
-    return node && !node.kind && node.tag && node.openTo ? { html, path, node, open: html.slice(node.from, node.openTo) } : null;
+    return node && !node.kind && node.tag && node.openTo
+      ? { html, path, node, open: html.slice(node.from, node.openTo) }
+      : null;
   }
 
   function isFileRoot() {
@@ -226,7 +243,9 @@ function createCssPort(win, port) {
       return { kind: 'dynamic', raw, label: dynamic[1], name: dynamic[1], fields: true };
     }
 
-    return raw.includes('{{') ? { kind: 'other', raw, label: raw, name: '', fields: false } : { kind: 'own', raw, label: raw, name: raw, fields: false };
+    return raw.includes('{{')
+      ? { kind: 'other', raw, label: raw, name: '', fields: false }
+      : { kind: 'own', raw, label: raw, name: raw, fields: false };
   }
 
   /** `{{ id }}` is a section's row: in a header, a footer or a component's file it says nothing. */
@@ -238,7 +257,10 @@ function createCssPort(win, port) {
     const inFile = [...html.matchAll(/\sid\s*=\s*["']([^"']*)["']/g)].map((match) => flat(match[1]));
     const others = inFile.filter((one) => one !== flat(self));
 
-    return others.includes(flat(raw)) || (!raw.includes('{{') && raw !== self && !!buildCanvasFrame(win)?.contentDocument?.getElementById(raw));
+    return (
+      others.includes(flat(raw)) ||
+      (!raw.includes('{{') && raw !== self && !!buildCanvasFrame(win)?.contentDocument?.getElementById(raw))
+    );
   }
 
   function classOpen() {
@@ -378,7 +400,9 @@ function createCssPort(win, port) {
 
     const css = fullCss();
 
-    return ['', ...statesInFile(css)].flatMap((suffix) => read(css, `${selector.value}${suffix}`, rows()).map((decl) => ({ ...decl, suffix })));
+    return ['', ...statesInFile(css)].flatMap((suffix) =>
+      read(css, `${selector.value}${suffix}`, rows()).map((decl) => ({ ...decl, suffix }))
+    );
   };
 
   const declared = computed(() => eachState(readRule));
@@ -414,14 +438,19 @@ function createCssPort(win, port) {
     };
     const css = fullCss();
     const parts = selector.value
-      ? PART_PROPS.filter((prop) => css.includes(prop)).flatMap((prop) => readPlaces(css, selector.value, prop, rows(), statesInFile(css))
-        .filter((place) => place.own.size)
-        .flatMap((place) => translator.value.namesForParts(prop, place.own).map((name) => named(place.size, place.suffix, name))))
+      ? PART_PROPS.filter((prop) => css.includes(prop)).flatMap((prop) =>
+          readPlaces(css, selector.value, prop, rows(), statesInFile(css))
+            .filter((place) => place.own.size)
+            .flatMap((place) =>
+              translator.value.namesForParts(prop, place.own).map((name) => named(place.size, place.suffix, name))
+            )
+        )
       : [];
 
     return [
-      ...[...placesOf(declared.value.filter((decl) => !asParts(decl))).values()]
-        .flatMap((decls) => translator.value.namesForDeclarations(decls).map((name) => named(decls[0].size, decls[0].suffix, name))),
+      ...[...placesOf(declared.value.filter((decl) => !asParts(decl))).values()].flatMap((decls) =>
+        translator.value.namesForDeclarations(decls).map((name) => named(decls[0].size, decls[0].suffix, name))
+      ),
       ...parts,
       ...boundNow().map((decl) => named(decl.size, decl.suffix, boundName(decl.prop))),
     ];
@@ -435,7 +464,12 @@ function createCssPort(win, port) {
     const plan = /^\[/.test(name || '') ? null : planFor(name);
     const hard = plan && !plan.parts.length ? plan.decls.filter((decl) => !decl.soft) : [];
 
-    return propOfBound(name) || /^\[([\w-]+):/.exec(name || '')?.[1] || port.propertyOf(name) || (hard.length === 1 ? hard[0].prop : '');
+    return (
+      propOfBound(name) ||
+      /^\[([\w-]+):/.exec(name || '')?.[1] ||
+      port.propertyOf(name) ||
+      (hard.length === 1 ? hard[0].prop : '')
+    );
   }
 
   function activeClass(property) {
@@ -445,18 +479,27 @@ function createCssPort(win, port) {
   }
 
   /** What stands at the place being written: the declarations, and a shared value's own parts. */
-  const hereNow = () => new Map(declared.value.filter((decl) => decl.size === sizeNow() && decl.suffix === suffixNow()).map((decl) => [decl.prop, decl.value]));
+  const hereNow = () =>
+    new Map(
+      declared.value
+        .filter((decl) => decl.size === sizeNow() && decl.suffix === suffixNow())
+        .map((decl) => [decl.prop, decl.value])
+    );
 
   /** The properties that reach the place being written from a wider size or the plain state. */
   const reachingNow = () => {
     const chain = variantChain(rows(), port.size(), stateNow.value);
 
-    return new Set(declared.value.filter((decl) => chain.includes(variantKey(decl.size, decl.suffix))).map((decl) => decl.prop));
+    return new Set(
+      declared.value.filter((decl) => chain.includes(variantKey(decl.size, decl.suffix))).map((decl) => decl.prop)
+    );
   };
 
   function ownParts(prop) {
     const css = fullCss();
-    const place = readPlaces(css, selector.value, prop, rows(), statesInFile(`${css}${suffixNow()}`)).find((one) => one.size === sizeNow() && one.suffix === suffixNow());
+    const place = readPlaces(css, selector.value, prop, rows(), statesInFile(`${css}${suffixNow()}`)).find(
+      (one) => one.size === sizeNow() && one.suffix === suffixNow()
+    );
 
     return place?.own || new Map();
   }
@@ -467,7 +510,14 @@ function createCssPort(win, port) {
     const size = sizeNow();
     const row = rows().find((item) => item.handle === size);
 
-    return { selector: selector.value, suffix: suffixNow(), suffixes: statesInFile(`${fullCss()}${suffixNow()}`), size, rows: rows(), query: row ? newSizeQuery(row, fullCss()) : '' };
+    return {
+      selector: selector.value,
+      suffix: suffixNow(),
+      suffixes: statesInFile(`${fullCss()}${suffixNow()}`),
+      size,
+      rows: rows(),
+      query: row ? newSizeQuery(row, fullCss()) : '',
+    };
   }
 
   function canWrite() {
@@ -521,7 +571,9 @@ function createCssPort(win, port) {
     }
 
     const props = readRule(css, place.selector, where.rows).filter((decl) => decl.size === where.size);
-    const others = props.some((decl) => decl.prop !== 'content') || readBound(css, place.selector, where.rows).some((decl) => decl.size === where.size);
+    const others =
+      props.some((decl) => decl.prop !== 'content') ||
+      readBound(css, place.selector, where.rows).some((decl) => decl.size === where.size);
     const content = props.find((decl) => decl.prop === 'content');
 
     if (others && !content) {
@@ -543,7 +595,9 @@ function createCssPort(win, port) {
         return false;
       }
 
-      const place = readPlaces(css, selector.value, one.prop, rows(), statesInFile(`${css}${suffixNow()}`)).find((item) => item.size === sizeNow() && item.suffix === suffixNow());
+      const place = readPlaces(css, selector.value, one.prop, rows(), statesInFile(`${css}${suffixNow()}`)).find(
+        (item) => item.size === sizeNow() && item.suffix === suffixNow()
+      );
 
       return place?.opaque && place.value !== null;
     });
@@ -616,7 +670,9 @@ function createCssPort(win, port) {
 
   /** The steps of the animation a class needs, as the update that puts them in the file. */
   function withSteps(plan, updates) {
-    const node = plan?.keyframes ? model.value.catalog.design?.theme.getKeyframes?.().find((one) => one.params === plan.keyframes) : null;
+    const node = plan?.keyframes
+      ? model.value.catalog.design?.theme.getKeyframes?.().find((one) => one.params === plan.keyframes)
+      : null;
 
     return node ? [...updates, { keyframes: plan.keyframes, text: printKeyframes(node) }] : updates;
   }
@@ -649,7 +705,14 @@ function createCssPort(win, port) {
     }
 
     // The family's dot names a class without its alpha (`bg-primary-300`): what stands here is `bg-primary-300/50`.
-    const standing = dressed.value.map((raw) => splitClass(raw)).find((one) => one.variants.join(':') === keyNow() && splitUtility(one.base).modifier && splitUtility(one.base).name === baseOf(name));
+    const standing = dressed.value
+      .map((raw) => splitClass(raw))
+      .find(
+        (one) =>
+          one.variants.join(':') === keyNow() &&
+          splitUtility(one.base).modifier &&
+          splitUtility(one.base).name === baseOf(name)
+      );
     const plan = planOfClass(standing?.base || name);
 
     if (!plan) {
@@ -707,14 +770,21 @@ function createCssPort(win, port) {
     const root = rootOf(list);
     const byLabel = new Map();
     const options = [];
-    const planCss = (plan) => (plan ? [...plan.decls.filter((decl) => !decl.soft), ...plan.parts].map((one) => `${one.prop}: ${one.value}`).join('; ') : '');
+    const planCss = (plan) =>
+      plan
+        ? [...plan.decls.filter((decl) => !decl.soft), ...plan.parts]
+            .map((one) => `${one.prop}: ${one.value}`)
+            .join('; ')
+        : '';
 
     for (const name of list) {
       const plan = planFor(name);
 
       if (plan) {
         // A list with no one root (`skew-x-12`, `-skew-x-12`): each row by its own, its sign kept.
-        const label = root ? fromClass(name, root) || name : `${name.startsWith('-') ? '-' : ''}${fromClass(name, rootFor(name)) || name}`;
+        const label = root
+          ? fromClass(name, root) || name
+          : `${name.startsWith('-') ? '-' : ''}${fromClass(name, rootFor(name)) || name}`;
 
         byLabel.set(label, name);
         options.push({
@@ -786,7 +856,11 @@ function createCssPort(win, port) {
           // Nothing by hand here: Remove lets go of the field, if one gives this value.
           const names = [property, title].filter(Boolean);
 
-          write(boundNow().filter((decl) => decl.size === sizeNow() && decl.suffix === suffixNow() && names.includes(decl.prop)).map((decl) => ({ prop: decl.prop, value: null })));
+          write(
+            boundNow()
+              .filter((decl) => decl.size === sizeNow() && decl.suffix === suffixNow() && names.includes(decl.prop))
+              .map((decl) => ({ prop: decl.prop, value: null }))
+          );
         }
       },
     });
@@ -849,7 +923,15 @@ function createCssPort(win, port) {
 
     const css = fullCss();
 
-    return JSON.stringify(paint.selectors().flatMap((name) => ['', ...statesInFile(css)].flatMap((suffix) => readBound(css, `${name}${suffix}`, rows()).map((decl) => fillValue(decl.value, lookup)))));
+    return JSON.stringify(
+      paint
+        .selectors()
+        .flatMap((name) =>
+          ['', ...statesInFile(css)].flatMap((suffix) =>
+            readBound(css, `${name}${suffix}`, rows()).map((decl) => fillValue(decl.value, lookup))
+          )
+        )
+    );
   };
 
   function hold() {
@@ -911,10 +993,14 @@ function createCssPort(win, port) {
 
     // All four sides from one field: the side shows through to it, as to a value.
     if (current && propOfBound(current.name) && ![property, twin].includes(propOfBound(current.name))) {
-      return boundLabel(decls.find((decl) => decl.prop === propOfBound(current.name) && keyOf(decl) === current.key)?.value);
+      return boundLabel(
+        decls.find((decl) => decl.prop === propOfBound(current.name) && keyOf(decl) === current.key)?.value
+      );
     }
 
-    const at = chain.findIndex((key) => decls.some((decl) => keyOf(decl) === key && [property, twin].includes(decl.prop)));
+    const at = chain.findIndex((key) =>
+      decls.some((decl) => keyOf(decl) === key && [property, twin].includes(decl.prop))
+    );
 
     if (at === -1 || (current && chain.indexOf(current.key) !== -1 && chain.indexOf(current.key) < at)) {
       return '';
@@ -934,23 +1020,33 @@ function createCssPort(win, port) {
 
     const at = picked();
 
-    port.pickField(anchor, port.selectedPath(), fits.types, (tag) => {
-      const name = tag.replace(/^\{\{\s*|\s*\}\}$/g, '');
-      let unit = 'rem';
+    port.pickField(
+      anchor,
+      port.selectedPath(),
+      fits.types,
+      (tag) => {
+        const name = tag.replace(/^\{\{\s*|\s*\}\}$/g, '');
+        let unit = 'rem';
 
-      try {
-        unit = win.localStorage.getItem(UNIT_KEY) || unit;
-      } catch {
-        /* the default */
-      }
+        try {
+          unit = win.localStorage.getItem(UNIT_KEY) || unit;
+        } catch {
+          /* the default */
+        }
 
-      Promise.resolve(ask('dock:data-model', { at: at?.node.from })).then((model) => {
-        const rowsOf = [...(model?.section || []), ...(model?.page || []).flatMap((group) => group.items || []), ...(model?.site || []).flatMap((group) => group.items || [])];
-        const type = rowsOf.find((row) => row.var === name)?.type || '';
+        Promise.resolve(ask('dock:data-model', { at: at?.node.from })).then((model) => {
+          const rowsOf = [
+            ...(model?.section || []),
+            ...(model?.page || []).flatMap((group) => group.items || []),
+            ...(model?.site || []).flatMap((group) => group.items || []),
+          ];
+          const type = rowsOf.find((row) => row.var === name)?.type || '';
 
-        write([{ prop, value: boundValue(prop, tag, { type, current: lookup(name) ?? '', unit }) }]);
-      });
-    }, { single: !!fits.single });
+          write([{ prop, value: boundValue(prop, tag, { type, current: lookup(name) ?? '', unit }) }]);
+        });
+      },
+      { single: !!fits.single }
+    );
   }
 
   /* ---------------- what the panel's target row works with ---------------- */
@@ -1177,131 +1273,139 @@ function createCssPort(win, port) {
 
   /* ---------------- the port ---------------- */
 
-  return Object.create(port, Object.getOwnPropertyDescriptors({
-    rev,
-    cssTarget: target,
-    /* The Tailwind pane's words for its state menu name its `prose-*`, which is no state here. */
-    t: (key, replace) => port.t(key === 'state_title' ? 'css_mode_state' : key, replace),
-    /* A style's value from a field: the icon the fields draw, and what it does. */
-    bindIcon: BuildDataBind,
-    bindable,
-    boundOf,
-    pickFieldFor,
-    pickedClasses: () => (rev.value, dressed.value),
-    propertyOf,
-    /* A value from a field on a field that is one utility: it counts as that utility's. */
-    utilityRoot: (name) => propOfBound(name) || port.utilityRoot(name),
-    bindsUtility: (field) => field.label === 'rotate',
-    colorOf(name) {
-      const prop = propOfBound(name);
+  return Object.create(
+    port,
+    Object.getOwnPropertyDescriptors({
+      rev,
+      cssTarget: target,
+      /* The Tailwind pane's words for its state menu name its `prose-*`, which is no state here. */
+      t: (key, replace) => port.t(key === 'state_title' ? 'css_mode_state' : key, replace),
+      /* A style's value from a field: the icon the fields draw, and what it does. */
+      bindIcon: BuildDataBind,
+      bindable,
+      boundOf,
+      pickFieldFor,
+      pickedClasses: () => (rev.value, dressed.value),
+      propertyOf,
+      /* A value from a field on a field that is one utility: it counts as that utility's. */
+      utilityRoot: (name) => propOfBound(name) || port.utilityRoot(name),
+      bindsUtility: (field) => field.label === 'rotate',
+      colorOf(name) {
+        const prop = propOfBound(name);
 
-      return prop ? port.seen?.(prop, prop)?.raw || '' : port.colorOf(name);
-    },
-    /** A value from a field: its hover says so, what the element shows is still read. */
-    seen(property, scaleProperty, shown = '') {
-      if (boundOf(property, scaleProperty === property ? '' : scaleProperty)) {
-        return { grey: '', raw: port.seen(property, scaleProperty)?.raw || '', tip: port.t('css_mode_field_value') };
-      }
-
-      return port.seen(property, scaleProperty, shown);
-    },
-    /** The image field opens empty on a value from a field: it holds no file of its own. */
-    mountField(el, options) {
-      return port.mountField(el, { ...options, value: String(options?.value || '') === BOUND ? '' : options?.value });
-    },
-    activeClass,
-    setClass,
-    setFieldClass,
-    openValueMenu,
-    /* The pane's list and its open class are the Tailwind side's: the fields see none here. */
-    classesShown: ref(false),
-    classes: {
-      ...port.classes,
-      target: () => '',
-      empty: () => true,
-      ownCss: () => false,
-      picking: () => false,
-      startPicking() {},
-      stopPicking() {},
-      edit() {},
-    },
-    /* A rule's state, as the dock's CSS pane lists them. Tailwind's `prose-*` is no state of a rule. */
-    state: () => (rev.value, stateNow.value),
-    openStateMenu(anchor) {
-      closeMenu();
-
-      const menu = win.document.createElement('div');
-
-      menu.id = MENU_ID;
-      win.document.body.appendChild(menu);
-      menu._sveApp = mountSurface(TwClassMenu, menu, {
-        title: port.t('css_mode_state'),
-        removeLabel: port.t('state_normal'),
-        options: CSS_STATES.map((state) => ({ label: state, css: cssStateSuffix(state), color: '', active: state === stateNow.value })),
-        onPick(label) {
-          closeMenu();
-          stateNow.value = label;
-          own.value += 1;
-        },
-        onRemove() {
-          closeMenu();
-          stateNow.value = '';
-          own.value += 1;
-        },
-      });
-      place(menu, anchor);
-
-      const onDown = (event) => {
-        if (!menu.contains(event.target) && !anchor.contains(event.target)) {
-          closeMenu();
+        return prop ? port.seen?.(prop, prop)?.raw || '' : port.colorOf(name);
+      },
+      /** A value from a field: its hover says so, what the element shows is still read. */
+      seen(property, scaleProperty, shown = '') {
+        if (boundOf(property, scaleProperty === property ? '' : scaleProperty)) {
+          return { grey: '', raw: port.seen(property, scaleProperty)?.raw || '', tip: port.t('css_mode_field_value') };
         }
-      };
 
-      win.document.addEventListener('pointerdown', onDown, true);
-      menu._sveClose = () => win.document.removeEventListener('pointerdown', onDown, true);
-    },
-    run(item, anchor) {
-      if (!item) {
+        return port.seen(property, scaleProperty, shown);
+      },
+      /** The image field opens empty on a value from a field: it holds no file of its own. */
+      mountField(el, options) {
+        return port.mountField(el, { ...options, value: String(options?.value || '') === BOUND ? '' : options?.value });
+      },
+      activeClass,
+      setClass,
+      setFieldClass,
+      openValueMenu,
+      /* The pane's list and its open class are the Tailwind side's: the fields see none here. */
+      classesShown: ref(false),
+      classes: {
+        ...port.classes,
+        target: () => '',
+        empty: () => true,
+        ownCss: () => false,
+        picking: () => false,
+        startPicking() {},
+        stopPicking() {},
+        edit() {},
+      },
+      /* A rule's state, as the dock's CSS pane lists them. Tailwind's `prose-*` is no state of a rule. */
+      state: () => (rev.value, stateNow.value),
+      openStateMenu(anchor) {
+        closeMenu();
+
+        const menu = win.document.createElement('div');
+
+        menu.id = MENU_ID;
+        win.document.body.appendChild(menu);
+        menu._sveApp = mountSurface(TwClassMenu, menu, {
+          title: port.t('css_mode_state'),
+          removeLabel: port.t('state_normal'),
+          options: CSS_STATES.map((state) => ({
+            label: state,
+            css: cssStateSuffix(state),
+            color: '',
+            active: state === stateNow.value,
+          })),
+          onPick(label) {
+            closeMenu();
+            stateNow.value = label;
+            own.value += 1;
+          },
+          onRemove() {
+            closeMenu();
+            stateNow.value = '';
+            own.value += 1;
+          },
+        });
+        place(menu, anchor);
+
+        const onDown = (event) => {
+          if (!menu.contains(event.target) && !anchor.contains(event.target)) {
+            closeMenu();
+          }
+        };
+
+        win.document.addEventListener('pointerdown', onDown, true);
+        menu._sveClose = () => win.document.removeEventListener('pointerdown', onDown, true);
+      },
+      run(item, anchor) {
+        if (!item) {
+          return '';
+        }
+
+        if (item.twClass) {
+          setClass(item.twClass);
+
+          return 'set';
+        }
+
+        if (item.twGroup || item.tw) {
+          openValueMenu(anchor, { names: item.twGroup || null, property: item.tw, title: item.title });
+
+          return 'menu';
+        }
+
         return '';
-      }
+      },
+      active(item) {
+        rev.value;
 
-      if (item.twClass) {
-        setClass(item.twClass);
+        if (!item) {
+          return false;
+        }
 
-        return 'set';
-      }
+        if (item.twClass) {
+          return dressed.value.includes(keyNow() ? `${keyNow()}:${item.twClass}` : item.twClass);
+        }
 
-      if (item.twGroup || item.tw) {
-        openValueMenu(anchor, { names: item.twGroup || null, property: item.tw, title: item.title });
+        if (item.twGroup) {
+          return item.twGroup.some((name) => dressed.value.includes(keyNow() ? `${keyNow()}:${name}` : name));
+        }
 
-        return 'menu';
-      }
-
-      return '';
-    },
-    active(item) {
-      rev.value;
-
-      if (!item) {
-        return false;
-      }
-
-      if (item.twClass) {
-        return dressed.value.includes(keyNow() ? `${keyNow()}:${item.twClass}` : item.twClass);
-      }
-
-      if (item.twGroup) {
-        return item.twGroup.some((name) => dressed.value.includes(keyNow() ? `${keyNow()}:${name}` : name));
-      }
-
-      return !!(item.tw && activeClass(item.tw));
-    },
-    listen,
-    closeMenu,
-    leave() {
-      closeMenu();
-      paint.clear();
-      hold();
-    },
-  }));
+        return !!(item.tw && activeClass(item.tw));
+      },
+      listen,
+      closeMenu,
+      leave() {
+        closeMenu();
+        paint.clear();
+        hold();
+      },
+    })
+  );
 }

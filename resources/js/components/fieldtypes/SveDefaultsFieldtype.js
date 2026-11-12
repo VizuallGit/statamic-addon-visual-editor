@@ -20,145 +20,145 @@
  * skærmstørrelse arver så opad præcis som før.
  */
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { h, inject, computed, resolveComponent } = window.Vue;
+  Statamic.booting(() => {
+    const { h, inject, computed, resolveComponent } = window.Vue;
 
-        /** Skala- og valgmuligheds-nøgler der giver mening at arve fra feltet. */
-        const INHERITED = ['min', 'max', 'step', 'options', 'clearable', 'placeholder', 'multiple', 'unit', 'mode'];
+    /** Skala- og valgmuligheds-nøgler der giver mening at arve fra feltet. */
+    const INHERITED = ['min', 'max', 'step', 'options', 'clearable', 'placeholder', 'multiple', 'unit', 'mode'];
 
-        Statamic.$components.register('sve-defaults-fieldtype', {
-            inheritAttrs: false,
-            props: {
-                value: { default: null },
-                meta: { type: Object, default: () => ({}) },
-                config: { type: Object, default: () => ({}) },
-                readOnly: { type: Boolean, default: false },
-            },
-            emits: ['update:value', 'focus', 'blur'],
-            setup(props, { emit }) {
-                const getSetting = inject('getFieldSettingsValue', null);
+    Statamic.$components.register('sve-defaults-fieldtype', {
+      inheritAttrs: false,
+      props: {
+        value: { default: null },
+        meta: { type: Object, default: () => ({}) },
+        config: { type: Object, default: () => ({}) },
+        readOnly: { type: Boolean, default: false },
+      },
+      emits: ['update:value', 'focus', 'blur'],
+      setup(props, { emit }) {
+        const getSetting = inject('getFieldSettingsValue', null);
 
-                function setting(key) {
-                    if (!getSetting) return undefined;
+        function setting(key) {
+          if (!getSetting) return undefined;
 
-                    try {
-                        const v = getSetting(key);
+          try {
+            const v = getSetting(key);
 
-                        return v === null || v === '' ? undefined : v;
-                    } catch {
-                        return undefined;
-                    }
-                }
+            return v === null || v === '' ? undefined : v;
+          } catch {
+            return undefined;
+          }
+        }
 
-                const rows = computed(() => props.meta?.breakpoints || []);
+        const rows = computed(() => props.meta?.breakpoints || []);
 
-                /** Feltet vi står i — typen afgør hvilken kontrol rubrikkerne får. */
-                const innerType = computed(() => setting('type') || 'text');
+        /** Feltet vi står i — typen afgør hvilken kontrol rubrikkerne får. */
+        const innerType = computed(() => setting('type') || 'text');
 
-                /**
-                 * Typer denne rubrik ikke tegner.
-                 *
-                 * Et assets-felt er ikke en kontrol man kan sætte ned hvor som
-                 * helst: det skal bruge en container, en meta med mappe og
-                 * filer, og en browser at åbne. Ingen af delene findes inde i
-                 * en feltindstilling, så det tegnede aldrig færdigt — og
-                 * eftersom denne rubrik ligger på HVER fieldtype, tog den hele
-                 * Assets-feltets indstillingsskærm med sig ned. Den sad og
-                 * loadede for evigt, også uden for Live Preview.
-                 *
-                 * De øvrige er med af samme grund: de er redigeringsflader med
-                 * egen tilstand og egne kald, ikke en rubrik man udfylder.
-                 */
-                const HEAVY = new Set([
-                    'assets',
-                    'bard',
-                    'replicator',
-                    'grid',
-                    'group',
-                    'entries',
-                    'terms',
-                    'users',
-                    'form',
-                    'link',
-                    'table',
-                ]);
+        /**
+         * Typer denne rubrik ikke tegner.
+         *
+         * Et assets-felt er ikke en kontrol man kan sætte ned hvor som
+         * helst: det skal bruge en container, en meta med mappe og
+         * filer, og en browser at åbne. Ingen af delene findes inde i
+         * en feltindstilling, så det tegnede aldrig færdigt — og
+         * eftersom denne rubrik ligger på HVER fieldtype, tog den hele
+         * Assets-feltets indstillingsskærm med sig ned. Den sad og
+         * loadede for evigt, også uden for Live Preview.
+         *
+         * De øvrige er med af samme grund: de er redigeringsflader med
+         * egen tilstand og egne kald, ikke en rubrik man udfylder.
+         */
+        const HEAVY = new Set([
+          'assets',
+          'bard',
+          'replicator',
+          'grid',
+          'group',
+          'entries',
+          'terms',
+          'users',
+          'form',
+          'link',
+          'table',
+        ]);
 
-                const innerConfig = computed(() => {
-                    const out = { type: innerType.value, handle: 'default', display: '' };
+        const innerConfig = computed(() => {
+          const out = { type: innerType.value, handle: 'default', display: '' };
 
-                    INHERITED.forEach((key) => {
-                        const v = setting(key);
+          INHERITED.forEach((key) => {
+            const v = setting(key);
 
-                        if (v !== undefined) out[key] = v;
-                    });
+            if (v !== undefined) out[key] = v;
+          });
 
-                    return out;
-                });
-
-                const values = computed(() =>
-                    props.value && typeof props.value === 'object' && !Array.isArray(props.value) ? props.value : {}
-                );
-
-                function isBlank(v) {
-                    return v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length);
-                }
-
-                function write(handle, v) {
-                    const next = { ...values.value };
-
-                    if (isBlank(v)) {
-                        delete next[handle];
-                    } else {
-                        next[handle] = v;
-                    }
-
-                    emit('update:value', Object.keys(next).length ? next : null);
-                }
-
-                return () => {
-                    if (!rows.value.length || HEAVY.has(innerType.value)) return null;
-
-                    const name = innerType.value + '-fieldtype';
-                    let Inner = null;
-
-                    try {
-                        const resolved = resolveComponent(name);
-
-                        // Uløst navn kommer tilbage som selve strengen.
-                        Inner = typeof resolved === 'string' ? null : resolved;
-                    } catch {
-                        Inner = null;
-                    }
-
-                    return h(
-                        'div',
-                        { class: 'sve-defaults', style: { display: 'grid', gap: '.75rem' } },
-                        rows.value.map((row) =>
-                            h('div', { key: row.handle, class: 'sve-defaults-row' }, [
-                                h(
-                                    'div',
-                                    {
-                                        class: 'sve-defaults-label',
-                                        style: { fontSize: '12px', fontWeight: '600', marginBottom: '.25rem', opacity: '.75' },
-                                    },
-                                    row.device || row.handle
-                                ),
-                                Inner
-                                    ? h(Inner, {
-                                          value: values.value[row.handle] ?? null,
-                                          config: innerConfig.value,
-                                          meta: {},
-                                          readOnly: props.readOnly,
-                                          'onUpdate:value': (v) => write(row.handle, v),
-                                      })
-                                    : h('div', { style: { fontSize: '12px', opacity: '.6' } }, innerType.value),
-                            ])
-                        )
-                    );
-                };
-            },
+          return out;
         });
+
+        const values = computed(() =>
+          props.value && typeof props.value === 'object' && !Array.isArray(props.value) ? props.value : {}
+        );
+
+        function isBlank(v) {
+          return v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length);
+        }
+
+        function write(handle, v) {
+          const next = { ...values.value };
+
+          if (isBlank(v)) {
+            delete next[handle];
+          } else {
+            next[handle] = v;
+          }
+
+          emit('update:value', Object.keys(next).length ? next : null);
+        }
+
+        return () => {
+          if (!rows.value.length || HEAVY.has(innerType.value)) return null;
+
+          const name = innerType.value + '-fieldtype';
+          let Inner = null;
+
+          try {
+            const resolved = resolveComponent(name);
+
+            // Uløst navn kommer tilbage som selve strengen.
+            Inner = typeof resolved === 'string' ? null : resolved;
+          } catch {
+            Inner = null;
+          }
+
+          return h(
+            'div',
+            { class: 'sve-defaults', style: { display: 'grid', gap: '.75rem' } },
+            rows.value.map((row) =>
+              h('div', { key: row.handle, class: 'sve-defaults-row' }, [
+                h(
+                  'div',
+                  {
+                    class: 'sve-defaults-label',
+                    style: { fontSize: '12px', fontWeight: '600', marginBottom: '.25rem', opacity: '.75' },
+                  },
+                  row.device || row.handle
+                ),
+                Inner
+                  ? h(Inner, {
+                      value: values.value[row.handle] ?? null,
+                      config: innerConfig.value,
+                      meta: {},
+                      readOnly: props.readOnly,
+                      'onUpdate:value': (v) => write(row.handle, v),
+                    })
+                  : h('div', { style: { fontSize: '12px', opacity: '.6' } }, innerType.value),
+              ])
+            )
+          );
+        };
+      },
     });
-}());
+  });
+})();

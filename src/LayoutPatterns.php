@@ -58,19 +58,19 @@ final class LayoutPatterns
         $out = [];
 
         foreach (['header', 'footer'] as $half) {
-            $current = static::normalise(File::exists(static::halfPath($half)) ? File::get(static::halfPath($half)) : '');
+            $current = self::normalise(File::exists(self::halfPath($half)) ? File::get(self::halfPath($half)) : '');
 
             $out[$half] = [
-                'has' => static::stripComments($current) !== '',
+                'has' => self::stripComments($current) !== '',
                 'patterns' => array_map(fn ($p) => $p + [
-                    'current' => $current !== '' && $current === static::normalise(File::get(static::patternPath($half, $p['handle']))),
-                ], static::patterns($half)),
+                    'current' => $current !== '' && $current === self::normalise(File::get(self::patternPath($half, $p['handle']))),
+                ], self::patterns($half)),
             ];
         }
 
-        $layout = File::exists(static::layoutPath()) ? File::get(static::layoutPath()) : '';
+        $layout = File::exists(self::layoutPath()) ? File::get(self::layoutPath()) : '';
         $out['section'] = [
-            'patterns' => array_map(fn ($p) => $p + ['placed' => str_contains($layout, static::marker($p['handle']))], static::patterns('section')),
+            'patterns' => array_map(fn ($p) => $p + ['placed' => str_contains($layout, self::marker($p['handle']))], self::patterns('section')),
         ];
 
         return $out;
@@ -79,30 +79,30 @@ final class LayoutPatterns
     /** Copy a header or footer pattern in. Null when it landed, else why not. */
     public static function place(string $half, string $handle, bool $replace = false): ?string
     {
-        if (! static::exists($half, $handle)) {
+        if (! self::exists($half, $handle)) {
             return 'unknown';
         }
 
-        $path = static::halfPath($half);
-        $current = File::exists($path) ? static::normalise(File::get($path)) : '';
+        $path = self::halfPath($half);
+        $current = File::exists($path) ? self::normalise(File::get($path)) : '';
 
-        if ($current === static::normalise(File::get(static::patternPath($half, $handle)))) {
+        if ($current === self::normalise(File::get(self::patternPath($half, $handle)))) {
             return null;
         }
 
-        if (static::stripComments($current) !== '') {
+        if (self::stripComments($current) !== '') {
             if (! $replace) {
                 return 'taken';
             }
 
-            static::backup($half);
+            self::backup($half);
         }
 
-        File::put($path, File::get(static::patternPath($half, $handle)));
+        File::put($path, File::get(self::patternPath($half, $handle)));
 
         $dir = self::KINDS[$half];
         $fields = Fieldset::find("{$dir}.{$handle}")?->contents()['fields'] ?? [];
-        $set = static::globalHandle($half);
+        $set = self::globalHandle($half);
         $blueprint = Blueprint::find("globals.{$set}") ?? Blueprint::make($set)->setNamespace('globals');
         $display = $half === 'header' ? 'Header' : 'Footer';
 
@@ -120,15 +120,15 @@ final class LayoutPatterns
     /** Copy a section pattern into the layout, under the page's content. */
     public static function addSection(string $handle): ?string
     {
-        $layoutPath = static::layoutPath();
+        $layoutPath = self::layoutPath();
 
-        if (! static::exists('section', $handle) || ! File::exists($layoutPath)) {
+        if (! self::exists('section', $handle) || ! File::exists($layoutPath)) {
             return 'unknown';
         }
 
         $layout = File::get($layoutPath);
 
-        if (str_contains($layout, static::marker($handle))) {
+        if (str_contains($layout, self::marker($handle))) {
             return 'twice';
         }
 
@@ -138,7 +138,7 @@ final class LayoutPatterns
 
         $indent = $m[1][0];
         $at = $m[0][1] + strlen($m[0][0]);
-        $block = static::marker($handle)."\n".rtrim(File::get(static::patternPath('section', $handle)));
+        $block = self::marker($handle)."\n".rtrim(File::get(self::patternPath('section', $handle)));
         $block = implode("\n", array_map(fn ($line) => $line === '' ? '' : $indent.$line, explode("\n", $block)))."\n";
 
         File::put($layoutPath, substr($layout, 0, $at).$block.substr($layout, $at));
@@ -150,18 +150,18 @@ final class LayoutPatterns
     /** The view a pattern renders as, for its preview: `patterns/headers/custom`. */
     public static function view(string $kind, string $handle): ?string
     {
-        return static::exists($kind, $handle) ? 'patterns/'.self::KINDS[$kind].'/'.$handle : null;
+        return self::exists($kind, $handle) ? 'patterns/'.self::KINDS[$kind].'/'.$handle : null;
     }
 
     /** Keep the half's file and blueprint as they are now, under storage/. */
     private static function backup(string $half): void
     {
         $dir = storage_path('sve-layout-backups/'.date('Ymd-His').'-'.$half);
-        $blueprint = resource_path('blueprints/globals/'.static::globalHandle($half).'.yaml');
+        $blueprint = resource_path('blueprints/globals/'.self::globalHandle($half).'.yaml');
 
         File::ensureDirectoryExists($dir);
 
-        foreach ([static::halfPath($half), $blueprint] as $file) {
+        foreach ([self::halfPath($half), $blueprint] as $file) {
             if (File::exists($file)) {
                 File::copy($file, $dir.'/'.basename($file));
             }
@@ -172,7 +172,7 @@ final class LayoutPatterns
     {
         return isset(self::KINDS[$kind])
             && preg_match('/^[a-z0-9_-]+$/', $handle)
-            && File::exists(static::patternPath($kind, $handle));
+            && File::exists(self::patternPath($kind, $handle));
     }
 
     private static function patternPath(string $kind, string $handle): string

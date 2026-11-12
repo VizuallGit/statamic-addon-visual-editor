@@ -10,20 +10,30 @@
  * panel shows here as it paints.
  */
 import { computed, inject } from 'vue';
-import { CONTAINER_CLASS, CONTAINER_WIDTHS, FULL_WIDTH, WIDTH_CLASSES, containerBase, widthClass, widthOf } from '../../lib/container-widths.js';
+import {
+  CONTAINER_CLASS,
+  CONTAINER_WIDTHS,
+  FULL_WIDTH,
+  WIDTH_CLASSES,
+  containerBase,
+  widthClass,
+  widthOf,
+} from '../../lib/container-widths.js';
 
 const port = inject('sveBuild');
 
 const classes = computed(() => String(port.tagClasses() || '').split(/\s+/));
 const current = computed(() => widthOf(classes.value));
 
-const options = computed(() => [...CONTAINER_WIDTHS, FULL_WIDTH].map((w) => {
-  const px = w.token ? port.themePx(w.token) : null;
-  const label = port.t(`width_${w.key.replace('-', '_')}`);
-  const size = w.key === 'full' ? '100%' : px === null ? '' : `${Math.round(px)} px`;
+const options = computed(() =>
+  [...CONTAINER_WIDTHS, FULL_WIDTH].map((w) => {
+    const px = w.token ? port.themePx(w.token) : null;
+    const label = port.t(`width_${w.key.replace('-', '_')}`);
+    const size = w.key === 'full' ? '100%' : px === null ? '' : `${Math.round(px)} px`;
 
-  return { ...w, label: size ? `${label} · ${size}` : label };
-}));
+    return { ...w, label: size ? `${label} · ${size}` : label };
+  })
+);
 
 function pick(key) {
   const w = options.value.find((item) => item.key === key);
@@ -38,7 +48,13 @@ function pick(key) {
   <div class="fg-row" data-sve-build-widths>
     <span class="fg-rlab">{{ port.t('content_width') }}</span>
     <label class="fg-field">
-      <select class="fg-select" :aria-label="port.t('content_width')" :value="current" data-sve-build-width-select @change="pick($event.target.value)">
+      <select
+        class="fg-select"
+        :aria-label="port.t('content_width')"
+        :value="current"
+        data-sve-build-width-select
+        @change="pick($event.target.value)"
+      >
         <option v-for="w in options" :key="w.key" :value="w.key">{{ w.label }}</option>
       </select>
     </label>

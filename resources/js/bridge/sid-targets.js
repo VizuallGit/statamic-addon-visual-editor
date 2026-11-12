@@ -6,9 +6,23 @@ import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { bridgeState } from '../bridge/state.js';
 import { ACTIVE_ATTR, SID_ATTR, SID_FIELD_ATTR, featureOn, t } from '../bridge.js';
 import { normText } from './messages.js';
-import { controlsFrom, drawnPlaceholder, findPrecedingSetSibling, openToolbarMenu, requestInlineEdit } from './inline-edit.js';
+import {
+  controlsFrom,
+  drawnPlaceholder,
+  findPrecedingSetSibling,
+  openToolbarMenu,
+  requestInlineEdit,
+} from './inline-edit.js';
 import { widthDragJustEnded } from './grid.js';
-import { GLOBAL_ATTR, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
+import {
+  GLOBAL_ATTR,
+  GLOBAL_FOCUS_ATTR,
+  GLOBAL_ROW_ATTR,
+  hideHoverBelt,
+  hoverBeltEl,
+  openRowToolbar,
+  showHoverBelt,
+} from './row-toolbar.js';
 import { INSERT_LAYER_ID } from './outline-nav.js';
 import { CHROME_ATTR, confirmEnterGlobal, rebindGlobalFocus, requestCloseGlobal } from './global-sections.js';
 import { chromeEditable, confirmEnterChrome, hasChromeFocusClass, requestCloseChrome } from './header-footer.js';
@@ -286,11 +300,7 @@ export function createClickHandler(win) {
       // Treating them as "outside" committed the edit before the option click
       // ran — size never applied, and colour hit a dead CP session (preview
       // painted via the closure, sidebar only after the next keystroke).
-      if (
-        event.target.closest?.(
-          '[data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu]'
-        )
-      ) {
+      if (event.target.closest?.('[data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu]')) {
         return;
       }
 
@@ -348,8 +358,7 @@ export function createClickHandler(win) {
       // row's own message, the one the panel, the dock and the block tree
       // listen for. Swallowing the click here left a section clicked in the
       // preview unselected whenever the dock held that section's file.
-      const editable =
-        featureOn('inline_edit') && !!event.target.closest?.('[data-sid-inline-edit]');
+      const editable = featureOn('inline_edit') && !!event.target.closest?.('[data-sid-inline-edit]');
 
       if (picked) {
         if (!editable) {
@@ -457,8 +466,7 @@ export function createClickHandler(win) {
         uid: target.getAttribute(SID_ATTR),
         // The containing section's uid — lets the CP expand and scroll the
         // publish form to the section whose popup is being opened.
-        sectionUid:
-          target.parentElement?.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ?? null,
+        sectionUid: target.parentElement?.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ?? null,
       };
 
       // Dual-annotated blocks (popup + field + inline-edit): clicks on content

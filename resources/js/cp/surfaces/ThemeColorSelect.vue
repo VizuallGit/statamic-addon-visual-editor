@@ -12,9 +12,24 @@
       @click="toggle"
       @keydown.down.prevent="openList(true)"
     >
-      <span class="sve-theme__forms-swatch" :class="{ 'is-clear': clear(swatch) }" :style="clear(swatch) ? null : { background: swatch }" aria-hidden="true"></span>
+      <span
+        class="sve-theme__forms-swatch"
+        :class="{ 'is-clear': clear(swatch) }"
+        :style="clear(swatch) ? null : { background: swatch }"
+        aria-hidden="true"
+      ></span>
       <span class="sve-theme__color-name">{{ current }}</span>
-      <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      <svg
+        class="sve-theme__chevron"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </svg>
     </button>
     <div
       v-if="open"
@@ -29,8 +44,21 @@
       @keydown.down.prevent="move(1)"
       @keydown.up.prevent="move(-1)"
     >
-      <button v-if="value && !known" type="button" role="option" class="sve-theme__color-option is-on" :data-value="value" aria-selected="true" @click="pick(value)">
-        <span class="sve-theme__forms-swatch" :class="{ 'is-clear': clear(swatch) }" :style="clear(swatch) ? null : { background: swatch }" aria-hidden="true"></span>
+      <button
+        v-if="value && !known"
+        type="button"
+        role="option"
+        class="sve-theme__color-option is-on"
+        :data-value="value"
+        aria-selected="true"
+        @click="pick(value)"
+      >
+        <span
+          class="sve-theme__forms-swatch"
+          :class="{ 'is-clear': clear(swatch) }"
+          :style="clear(swatch) ? null : { background: swatch }"
+          aria-hidden="true"
+        ></span>
         <span class="sve-theme__color-name">{{ value }}</span>
       </button>
       <template v-for="group in groups" :key="group.key">
@@ -46,7 +74,12 @@
           :aria-selected="o.value === value"
           @click="pick(o.value)"
         >
-          <span class="sve-theme__forms-swatch" :class="{ 'is-clear': clear(o.swatch) }" :style="clear(o.swatch) ? null : { background: o.swatch }" aria-hidden="true"></span>
+          <span
+            class="sve-theme__forms-swatch"
+            :class="{ 'is-clear': clear(o.swatch) }"
+            :style="clear(o.swatch) ? null : { background: o.swatch }"
+            aria-hidden="true"
+          ></span>
           <span class="sve-theme__color-name">{{ o.label }}</span>
         </button>
       </template>
@@ -106,9 +139,14 @@ const groups = computed(() => {
       ].filter(once),
     }))
     .filter((g) => g.options.length);
-  const all = props.paletteOnly ? families : [{ key: 'basics', label: ui.labels.forms_basics || '', options: basics }, ...families];
+  const all = props.paletteOnly
+    ? families
+    : [{ key: 'basics', label: ui.labels.forms_basics || '', options: basics }, ...families];
 
-  return all.map((g) => ({ ...g, options: g.options.map((o) => ({ ...o, swatch: sampleColor(o.value, ui.families) })) }));
+  return all.map((g) => ({
+    ...g,
+    options: g.options.map((o) => ({ ...o, swatch: sampleColor(o.value, ui.families) })),
+  }));
 });
 
 const known = computed(() => groups.value.some((g) => g.options.some((o) => o.value === props.value)));
@@ -180,7 +218,9 @@ function position() {
     left: `${Math.max(8, Math.min(anchor.left, window.innerWidth - el.offsetWidth - 8))}px`,
     minWidth: `${anchor.width}px`,
     maxHeight: `${Math.min(wanted, room)}px`,
-    ...(up ? { bottom: `${window.innerHeight - anchor.top + gap}px`, top: 'auto' } : { top: `${anchor.bottom + gap}px`, bottom: 'auto' }),
+    ...(up
+      ? { bottom: `${window.innerHeight - anchor.top + gap}px`, top: 'auto' }
+      : { top: `${anchor.bottom + gap}px`, bottom: 'auto' }),
   };
 }
 
@@ -210,7 +250,8 @@ function close(refocus = false) {
 function move(step) {
   const options = [...(list.value?.querySelectorAll('[role="option"]') || [])];
   const at = options.indexOf(document.activeElement);
-  const next = options[at < 0 ? (step > 0 ? 0 : options.length - 1) : Math.min(options.length - 1, Math.max(0, at + step))];
+  const next =
+    options[at < 0 ? (step > 0 ? 0 : options.length - 1) : Math.min(options.length - 1, Math.max(0, at + step))];
 
   next?.focus();
 }

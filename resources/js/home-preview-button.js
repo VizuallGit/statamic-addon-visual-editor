@@ -100,7 +100,9 @@ export function buttonTarget(win, home) {
 
   return {
     url: home.url,
-    title: home.title ? t(win, 'open_in_live_preview_title', { title: home.title }) : t(win, 'home_preview_button_title'),
+    title: home.title
+      ? t(win, 'open_in_live_preview_title', { title: home.title })
+      : t(win, 'home_preview_button_title'),
   };
 }
 
@@ -113,7 +115,10 @@ function paintTarget(win, button, home) {
 }
 
 function ensureStyles(doc) {
-  injectStyle(doc, STYLE_ID, `
+  injectStyle(
+    doc,
+    STYLE_ID,
+    `
 @layer sve {
   [${HOME_PREVIEW_ATTR}] {
     display: inline-grid;
@@ -159,7 +164,8 @@ function ensureStyles(doc) {
     opacity: 0;
   }
 }
-`);
+`
+  );
 }
 
 /** The header's item holding Statamic's search; the button stands before it. */

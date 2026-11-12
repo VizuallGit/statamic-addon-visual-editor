@@ -41,13 +41,52 @@ onBeforeUnmount(cancel);
 <template>
   <section class="fg-classes" :class="{ 'is-class': shown && (target || picking) }" data-sve-build-classes>
     <header class="fg-classes__h">
-      <span class="fg-classes__name" :title="port.t('classes_note')" :data-sve-build-classes-title="target || undefined">{{ target && shown ? port.t('class_inside', { name: target }) : picking ? port.t('class_new') : port.t('classes') }}</span>
+      <span
+        class="fg-classes__name"
+        :title="port.t('classes_note')"
+        :data-sve-build-classes-title="target || undefined"
+        >{{
+          target && shown ? port.t('class_inside', { name: target }) : picking ? port.t('class_new') : port.t('classes')
+        }}</span
+      >
       <span class="fg-classes__count" data-sve-build-classes-count>{{ total }}</span>
-      <button type="button" class="bm-switch" role="switch" :aria-checked="shown" :title="port.t('classes_switch')" :aria-label="port.t('classes_switch')" data-sve-build-classes-switch @click="toggle"></button>
+      <button
+        type="button"
+        class="bm-switch"
+        role="switch"
+        :aria-checked="shown"
+        :title="port.t('classes_switch')"
+        :aria-label="port.t('classes_switch')"
+        data-sve-build-classes-switch
+        @click="toggle"
+      ></button>
       <span v-if="shown && !picking" class="fg-sec__acts">
-        <button v-if="!target && port.classes.enabled()" type="button" class="fg-classes__new" data-sve-build-class-new @click="start">{{ port.t('class_new') }}</button>
-        <button type="button" class="fg-ib" :title="port.t('classes_sort')" :aria-label="port.t('classes_sort')" data-sve-build-classes-sort @click="port.sortClasses()" v-html="ic('list')"></button>
-        <button type="button" class="fg-ib" :title="port.t('classes_add')" :aria-label="port.t('classes_add')" data-sve-build-classes-add @click="port.openAddMenu($event.currentTarget)" v-html="ic('plus')"></button>
+        <button
+          v-if="!target && port.classes.enabled()"
+          type="button"
+          class="fg-classes__new"
+          data-sve-build-class-new
+          @click="start"
+          >{{ port.t('class_new') }}</button
+        >
+        <button
+          type="button"
+          class="fg-ib"
+          :title="port.t('classes_sort')"
+          :aria-label="port.t('classes_sort')"
+          data-sve-build-classes-sort
+          @click="port.sortClasses()"
+          v-html="ic('list')"
+        ></button>
+        <button
+          type="button"
+          class="fg-ib"
+          :title="port.t('classes_add')"
+          :aria-label="port.t('classes_add')"
+          data-sve-build-classes-add
+          @click="port.openAddMenu($event.currentTarget)"
+          v-html="ic('plus')"
+        ></button>
       </span>
     </header>
 

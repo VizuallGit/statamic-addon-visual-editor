@@ -219,7 +219,10 @@ export function dropMove(source, from, to, where, options = {}) {
   const marked = `${html.slice(0, cut)} ${MOVING}${html.slice(cut)}`;
   const markedRoots = parseTemplateTree(marked, options);
   // A loop's or an if's path holds its offset, which the mark shifts when it is behind it.
-  const into = findByPath(markedRoots, pathAt(marked, target.from >= cut ? target.from + MOVING.length + 1 : target.from, options));
+  const into = findByPath(
+    markedRoots,
+    pathAt(marked, target.from >= cut ? target.from + MOVING.length + 1 : target.from, options)
+  );
   const moved = moveHtml(marked, markedRoots, findByPath(markedRoots, from).id, into.id, where);
   const mark = moved.indexOf(` ${MOVING}`);
 

@@ -72,7 +72,13 @@ export function cleanGroups(raw) {
   const out = [];
 
   raw.forEach((group) => {
-    if (!group || typeof group !== 'object' || typeof group.id !== 'string' || !GROUP_ID.test(group.id) || seenIds.has(group.id)) {
+    if (
+      !group ||
+      typeof group !== 'object' ||
+      typeof group.id !== 'string' ||
+      !GROUP_ID.test(group.id) ||
+      seenIds.has(group.id)
+    ) {
       return;
     }
 
@@ -154,7 +160,9 @@ export function groupOf(groups, key) {
 /** `groups` without `key`; a group left empty is dropped. */
 function withoutTool(groups, key) {
   return groups
-    .map((group) => (group.tools.includes(key) ? { ...group, tools: group.tools.filter((item) => item !== key) } : group))
+    .map((group) =>
+      group.tools.includes(key) ? { ...group, tools: group.tools.filter((item) => item !== key) } : group
+    )
     .filter((group) => group.tools.length);
 }
 
@@ -193,7 +201,13 @@ export function moveToolToNewGroup(groups, key, groupIndex, { id = '', name = ''
   const at = Math.max(0, Math.min(groups.length, Number.isFinite(groupIndex) ? groupIndex : groups.length));
   const before = groups.slice(0, at);
   const after = groups.slice(at);
-  const newId = id && GROUP_ID.test(id) && !groups.some((group) => group.id === id) ? id : newGroupId(Date.now(), groups.map((group) => group.id));
+  const newId =
+    id && GROUP_ID.test(id) && !groups.some((group) => group.id === id)
+      ? id
+      : newGroupId(
+          Date.now(),
+          groups.map((group) => group.id)
+        );
   const made = { id: newId, name: cleanName(name), tools: [key] };
 
   return { groups: [...withoutTool(before, key), made, ...withoutTool(after, key)], id: newId };

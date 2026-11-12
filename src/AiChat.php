@@ -3,11 +3,11 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Support\Facades\Artisan;
-use Statamic\Facades\AssetContainer;
 use MarioHamann\StatamicVisualEditor\AiChat\Conversation;
 use MarioHamann\StatamicVisualEditor\AiChat\Prompt;
 use MarioHamann\StatamicVisualEditor\AiChat\Registration;
 use MarioHamann\StatamicVisualEditor\AiChat\WriteScope;
+use Statamic\Facades\AssetContainer;
 
 /**
  * Super-admin AI chat from Live Preview, on the AI the site picked

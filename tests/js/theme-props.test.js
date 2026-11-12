@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from '../../resources/js/cp/theme-panel/custom-props.js';
+import {
+  propNameProblem,
+  propValueProblem,
+  readCustomProps,
+  writeCustomProps,
+} from '../../resources/js/cp/theme-panel/custom-props.js';
 
 const CSS = `/* kept */
 
@@ -13,12 +18,10 @@ const CSS = `/* kept */
 `;
 
 test('reads the :root declarations and leaves a comment alone', () => {
-  assert.deepEqual(readCustomProps(CSS).map((p) => p.name), [
-    'gutter',
-    'container-width',
-    'container-width-narrow',
-    'container-padding',
-  ]);
+  assert.deepEqual(
+    readCustomProps(CSS).map((p) => p.name),
+    ['gutter', 'container-width', 'container-width-narrow', 'container-padding']
+  );
   assert.equal(readCustomProps(CSS)[1].value, '85.375rem');
 });
 

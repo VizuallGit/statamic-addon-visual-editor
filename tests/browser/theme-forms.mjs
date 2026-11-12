@@ -78,17 +78,31 @@ try {
 }
 
 if (userOriginal && /sve-right-dock-open-panes: '[^']*theme/.test(userOriginal)) {
-  writeFileSync(USER_FILE, userOriginal.replace(/(sve-right-dock-open-panes: )'[^']*'/, "$1'[]'").replace(/(sve-right-dock-open: )'1'/, "$1'0'"));
+  writeFileSync(
+    USER_FILE,
+    userOriginal
+      .replace(/(sve-right-dock-open-panes: )'[^']*'/, "$1'[]'")
+      .replace(/(sve-right-dock-open: )'1'/, "$1'0'")
+  );
 }
 
 const PANEL = '#__sve-theme';
 const ROWS = [
-  'input-bg', 'input-bg-opacity', 'input-color', 'input-size', 'input-radius',
-  'input-border-width', 'input-border-color', 'input-focus', 'input-accent', 'input-check-size',
+  'input-bg',
+  'input-bg-opacity',
+  'input-color',
+  'input-size',
+  'input-radius',
+  'input-border-width',
+  'input-border-color',
+  'input-focus',
+  'input-accent',
+  'input-check-size',
 ];
 // The bench's own noise, not the editor's: the login's Inertia 409, another
 // addon's endpoint refusing a session on a bare host.
-const isNoise = (text) => /\/cp\/color-scheme\/|\/cp\/bard-style\/|invalid domain|HTTP 409 |auth\/login|\/cp\/login/.test(text);
+const isNoise = (text) =>
+  /\/cp\/color-scheme\/|\/cp\/bard-style\/|invalid domain|HTTP 409 |auth\/login|\/cp\/login/.test(text);
 const note = (text) => !isNoise(text) && errors.push(text);
 
 /**
@@ -97,27 +111,31 @@ const note = (text) => !isNoise(text) && errors.push(text);
  * the frame's hit test at that point lands on it.
  */
 async function pointIn(frame, selector, nth = 0) {
-  const r = await frame.evaluate((sel, n) => {
-    const seen = [...document.querySelectorAll(sel)].filter((el) => {
+  const r = await frame.evaluate(
+    (sel, n) => {
+      const seen = [...document.querySelectorAll(sel)].filter((el) => {
+        const b = el.getBoundingClientRect();
+
+        return b.width > 0 && b.height > 0;
+      });
+      const el = seen[n];
+
+      if (!el) {
+        return null;
+      }
+
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+
       const b = el.getBoundingClientRect();
+      const x = b.x + b.width / 2;
+      const y = b.y + b.height / 2;
+      const hit = document.elementFromPoint(x, y);
 
-      return b.width > 0 && b.height > 0;
-    });
-    const el = seen[n];
-
-    if (!el) {
-      return null;
-    }
-
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
-
-    const b = el.getBoundingClientRect();
-    const x = b.x + b.width / 2;
-    const y = b.y + b.height / 2;
-    const hit = document.elementFromPoint(x, y);
-
-    return { x, y, local: { x, y }, hits: !!hit && (hit === el || el.contains(hit)) };
-  }, selector, nth);
+      return { x, y, local: { x, y }, hits: !!hit && (hit === el || el.contains(hit)) };
+    },
+    selector,
+    nth
+  );
 
   if (!r) {
     throw new Error(`nothing visible for ${selector} [${nth}]`);
@@ -146,7 +164,11 @@ async function click(page, frame, selector, nth = 0) {
 
   while (Date.now() - t0 < 8000) {
     const still = last && Math.abs(last.x - point.x) < 0.5 && Math.abs(last.y - point.y) < 0.5;
-    const onPage = await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName !== 'HTML', point.x, point.y);
+    const onPage = await page.evaluate(
+      (px, py) => document.elementFromPoint(px, py)?.tagName !== 'HTML',
+      point.x,
+      point.y
+    );
 
     if (point.hits && still && onPage) {
       break;
@@ -179,71 +201,85 @@ async function waitFor(frame, fn, arg, ms = 8000) {
  * up, and in the same task read the custom property off the preview's
  * `<html>` — the paint is synchronous, so it must be there before any frame.
  */
-const pickAndRead = (cp, selector, value, prop) => cp.evaluate((sel, v, p) => {
-  const el = document.querySelector(sel);
+const pickAndRead = (cp, selector, value, prop) =>
+  cp.evaluate(
+    (sel, v, p) => {
+      const el = document.querySelector(sel);
 
-  if (!el || ![...el.options].some((o) => o.value === v)) {
-    return { ok: false, painted: null };
-  }
+      if (!el || ![...el.options].some((o) => o.value === v)) {
+        return { ok: false, painted: null };
+      }
 
-  el.value = v;
-  el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
 
-  const doc = document.querySelector('#live-preview-iframe')?.contentDocument;
+      const doc = document.querySelector('#live-preview-iframe')?.contentDocument;
 
-  return { ok: true, painted: doc ? doc.documentElement.style.getPropertyValue(p).trim() : null };
-}, selector, value, prop);
+      return { ok: true, painted: doc ? doc.documentElement.style.getPropertyValue(p).trim() : null };
+    },
+    selector,
+    value,
+    prop
+  );
 
 /** A color row is a button that opens a list of swatches: open it, click the option, read what the preview painted. */
-const pickColor = (cp, token, value, prop) => cp.evaluate(async (panel, t, v, p) => {
-  const button = document.querySelector(`${panel} [data-sve-input="${t}"]`);
+const pickColor = (cp, token, value, prop) =>
+  cp.evaluate(
+    async (panel, t, v, p) => {
+      const button = document.querySelector(`${panel} [data-sve-input="${t}"]`);
 
-  if (!button) {
-    return { ok: false, painted: null };
-  }
+      if (!button) {
+        return { ok: false, painted: null };
+      }
 
-  button.click();
-  await new Promise((r) => requestAnimationFrame(r));
+      button.click();
+      await new Promise((r) => requestAnimationFrame(r));
 
-  const option = document.querySelector(`[data-sve-options="${t}"] [data-value="${v}"]`);
+      const option = document.querySelector(`[data-sve-options="${t}"] [data-value="${v}"]`);
 
-  if (!option) {
-    document.querySelector(`[data-sve-options="${t}"] [role="option"]`)?.click();
+      if (!option) {
+        document.querySelector(`[data-sve-options="${t}"] [role="option"]`)?.click();
 
-    return { ok: false, painted: null };
-  }
+        return { ok: false, painted: null };
+      }
 
-  option.click();
-  await new Promise((r) => requestAnimationFrame(r));
+      option.click();
+      await new Promise((r) => requestAnimationFrame(r));
 
-  const doc = document.querySelector('#live-preview-iframe')?.contentDocument;
+      const doc = document.querySelector('#live-preview-iframe')?.contentDocument;
 
-  return { ok: true, painted: doc ? doc.documentElement.style.getPropertyValue(p).trim() : null };
-}, PANEL, token, value, prop);
+      return { ok: true, painted: doc ? doc.documentElement.style.getPropertyValue(p).trim() : null };
+    },
+    PANEL,
+    token,
+    value,
+    prop
+  );
 
 /** A real form control in the preview: the page's own when it has one, else one made for a moment. */
-const control = (preview, tag = 'input') => preview.evaluate((t) => {
-  const own = document.querySelector(t === 'input' ? 'input[type="text"], input[type="email"]' : t);
-  const el = own || Object.assign(document.createElement(t), t === 'input' ? { type: 'text' } : {});
+const control = (preview, tag = 'input') =>
+  preview.evaluate((t) => {
+    const own = document.querySelector(t === 'input' ? 'input[type="text"], input[type="email"]' : t);
+    const el = own || Object.assign(document.createElement(t), t === 'input' ? { type: 'text' } : {});
 
-  if (!own) {
-    document.body.append(el);
-  }
+    if (!own) {
+      document.body.append(el);
+    }
 
-  const cs = getComputedStyle(el);
-  const out = {
-    own: !!own,
-    radius: cs.borderRadius,
-    bg: cs.backgroundColor,
-    rootFont: getComputedStyle(document.documentElement).fontSize,
-  };
+    const cs = getComputedStyle(el);
+    const out = {
+      own: !!own,
+      radius: cs.borderRadius,
+      bg: cs.backgroundColor,
+      rootFont: getComputedStyle(document.documentElement).fontSize,
+    };
 
-  if (!own) {
-    el.remove();
-  }
+    if (!own) {
+      el.remove();
+    }
 
-  return out;
-}, tag);
+    return out;
+  }, tag);
 
 /** The alpha of a computed color: `rgba(…, a)`, `color(srgb r g b / a)`; opaque without one. */
 function alphaOf(color) {
@@ -253,7 +289,13 @@ function alphaOf(color) {
 }
 
 /** The `{{ theme_tokens }}` style the page was served with (an unlayered `:root{…}`). */
-const servedTokens = (preview) => preview.evaluate(() => [...document.querySelectorAll('style')].map((s) => s.textContent).find((t) => /^:root\{/.test(t.trim()) && t.includes('--input-')) || '');
+const servedTokens = (preview) =>
+  preview.evaluate(
+    () =>
+      [...document.querySelectorAll('style')]
+        .map((s) => s.textContent)
+        .find((t) => /^:root\{/.test(t.trim()) && t.includes('--input-')) || ''
+  );
 
 const shot = async (cp, page, name) => {
   if (!SHOTS) {
@@ -268,12 +310,25 @@ const shot = async (cp, page, name) => {
   return path;
 };
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,1000'], defaultViewport: { width: 1440, height: 1000 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,1000'],
+  defaultViewport: { width: 1440, height: 1000 },
+});
 const page = await browser.newPage();
 
 page.on('pageerror', (e) => note(`pageerror: ${e.message}`));
-page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && note(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 400 && note(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'console',
+  (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && note(`console: ${m.text().slice(0, 200)}`)
+);
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 400 &&
+    note(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -290,7 +345,11 @@ async function openLivePreview() {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay'))) {
-    await page.evaluate(() => [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click());
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click()
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -327,7 +386,10 @@ try {
   if (await page.$('input[name="email"]')) {
     await page.type('input[name="email"]', USER);
     await page.type('input[name="password"]', PASS);
-    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 }).catch(() => null), page.keyboard.press('Enter')]);
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 }).catch(() => null),
+      page.keyboard.press('Enter'),
+    ]);
     await sleep(500);
     await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
   }
@@ -338,20 +400,36 @@ try {
   let { cp, preview } = await openLivePreview();
 
   step('preview has the page', !!preview);
-  step('the page is served the input tokens by theme_tokens', (await servedTokens(preview)).includes('--input-radius: 0.375rem'));
+  step(
+    'the page is served the input tokens by theme_tokens',
+    (await servedTokens(preview)).includes('--input-radius: 0.375rem')
+  );
 
   const before = await control(preview);
 
-  step('a text field starts with the site.css default corners (0.375rem)', before.radius === '6px', JSON.stringify(before));
+  step(
+    'a text field starts with the site.css default corners (0.375rem)',
+    before.radius === '6px',
+    JSON.stringify(before)
+  );
 
   // ── Open the panel on Forms ───────────────────────────────────────────
   step('palette icon in the top bar', !!(await cp.$(icon)));
   await click(page, cp, icon);
-  step('the panel opens and has a Forms tab', await waitFor(cp, (sel) => !!document.querySelector(sel), tab('forms'), 15000));
-  step('each section has its icon (8)', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__fold-icon svg`).length === 8, PANEL));
+  step(
+    'the panel opens and has a Forms tab',
+    await waitFor(cp, (sel) => !!document.querySelector(sel), tab('forms'), 15000)
+  );
+  step(
+    'each section has its icon (8)',
+    await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__fold-icon svg`).length === 8, PANEL)
+  );
   await waitFor(cp, (p) => !document.querySelector(`${p} .sve-theme__empty`), PANEL, 10000);
   await click(page, cp, tab('forms'));
-  step('Forms is the open tab', await waitFor(cp, (sel) => document.querySelector(sel)?.classList.contains('is-on'), tab('forms')));
+  step(
+    'Forms is the open tab',
+    await waitFor(cp, (sel) => document.querySelector(sel)?.classList.contains('is-on'), tab('forms'))
+  );
 
   const sample = await cp.evaluate((p) => {
     const s = document.querySelector(`${p} [data-sve-forms-sample]`);
@@ -375,59 +453,112 @@ try {
     };
   }, PANEL);
 
-  step('the sample has a text field, a textarea, a checked checkbox and radio, and a Send button',
-    !!sample && sample.visible && sample.text && sample.textarea && sample.checkbox && sample.radio && !!sample.send, JSON.stringify(sample));
-  step('its labels are strings, not keys', !!sample && !!sample.placeholder && !/^forms_|^theme_/.test(sample.placeholder) && !/^forms_/.test(sample.send), `${sample?.placeholder} / ${sample?.send}`);
+  step(
+    'the sample has a text field, a textarea, a checked checkbox and radio, and a Send button',
+    !!sample && sample.visible && sample.text && sample.textarea && sample.checkbox && sample.radio && !!sample.send,
+    JSON.stringify(sample)
+  );
+  step(
+    'its labels are strings, not keys',
+    !!sample && !!sample.placeholder && !/^forms_|^theme_/.test(sample.placeholder) && !/^forms_/.test(sample.send),
+    `${sample?.placeholder} / ${sample?.send}`
+  );
 
-  const rows = await cp.evaluate(async (p, names) => {
-    // A select's value is its own; a color row's is on its button.
-    const valueOf = (el) => (el ? (el.tagName === 'SELECT' ? el.value : el.dataset.value) : null);
-    const bg = document.querySelector(`${p} [data-sve-input="input-bg"]`);
+  const rows = await cp.evaluate(
+    async (p, names) => {
+      // A select's value is its own; a color row's is on its button.
+      const valueOf = (el) => (el ? (el.tagName === 'SELECT' ? el.value : el.dataset.value) : null);
+      const bg = document.querySelector(`${p} [data-sve-input="input-bg"]`);
 
-    bg?.click();
-    await new Promise((r) => requestAnimationFrame(r));
+      bg?.click();
+      await new Promise((r) => requestAnimationFrame(r));
 
-    const groups = document.querySelectorAll('[data-sve-options="input-bg"] .sve-theme__color-group').length;
-    const swatches = document.querySelectorAll('[data-sve-options="input-bg"] [role="option"] .sve-theme__forms-swatch').length;
+      const groups = document.querySelectorAll('[data-sve-options="input-bg"] .sve-theme__color-group').length;
+      const swatches = document.querySelectorAll(
+        '[data-sve-options="input-bg"] [role="option"] .sve-theme__forms-swatch'
+      ).length;
 
-    bg?.click();
+      bg?.click();
 
-    return {
-      fields: document.querySelectorAll(`${p} .sve-theme__body .sve-theme__field`).length,
-      selects: names.filter((n) => !!document.querySelector(`${p} [data-sve-input="${n}"]`)),
-      values: Object.fromEntries(names.map((n) => [n, valueOf(document.querySelector(`${p} [data-sve-input="${n}"]`))])),
-      groups,
-      swatches,
-    };
-  }, PANEL, ROWS);
+      return {
+        fields: document.querySelectorAll(`${p} .sve-theme__body .sve-theme__field`).length,
+        selects: names.filter((n) => !!document.querySelector(`${p} [data-sve-input="${n}"]`)),
+        values: Object.fromEntries(
+          names.map((n) => [n, valueOf(document.querySelector(`${p} [data-sve-input="${n}"]`))])
+        ),
+        groups,
+        swatches,
+      };
+    },
+    PANEL,
+    ROWS
+  );
 
-  step('ten rows, one control per token', rows.fields === 10 && rows.selects.length === 10, `${rows.fields} rows; missing: ${ROWS.filter((n) => !rows.selects.includes(n)).join(' ')}`);
-  step('the rows show the values in site.css', rows.values['input-radius'] === '0.375rem' && rows.values['input-bg'] === 'var(--color-white)'
-    && rows.values['input-bg-opacity'] === '100%' && rows.values['input-check-size'] === '1.1em', JSON.stringify(rows.values));
-  step('a color row lists basics plus a group per theme color, each color with its swatch', rows.groups > 2 && rows.swatches > rows.groups, `${rows.groups} groups, ${rows.swatches} swatches`);
+  step(
+    'ten rows, one control per token',
+    rows.fields === 10 && rows.selects.length === 10,
+    `${rows.fields} rows; missing: ${ROWS.filter((n) => !rows.selects.includes(n)).join(' ')}`
+  );
+  step(
+    'the rows show the values in site.css',
+    rows.values['input-radius'] === '0.375rem' &&
+      rows.values['input-bg'] === 'var(--color-white)' &&
+      rows.values['input-bg-opacity'] === '100%' &&
+      rows.values['input-check-size'] === '1.1em',
+    JSON.stringify(rows.values)
+  );
+  step(
+    'a color row lists basics plus a group per theme color, each color with its swatch',
+    rows.groups > 2 && rows.swatches > rows.groups,
+    `${rows.groups} groups, ${rows.swatches} swatches`
+  );
 
   const shot1 = await shot(cp, page, '1-defaults');
 
   // ── Corners: painted in the same task, and a real field takes them ────
   const corners = await pickAndRead(cp, `${PANEL} select[data-sve-input="input-radius"]`, '0.5rem', '--input-radius');
 
-  step('Corners → 0.5rem paints --input-radius on the preview\'s <html> in the same tick', corners.ok && corners.painted === '0.5rem', JSON.stringify(corners));
+  step(
+    "Corners → 0.5rem paints --input-radius on the preview's <html> in the same tick",
+    corners.ok && corners.painted === '0.5rem',
+    JSON.stringify(corners)
+  );
 
   const rounded = await control(preview);
 
-  step(`a ${rounded.own ? 'text field on the page' : 'text field made in the preview'} computes border-radius 8px`, rounded.radius === '8px', JSON.stringify(rounded));
-  step('the sample follows', await cp.evaluate((p) => getComputedStyle(document.querySelector(`${p} [data-sve-forms-sample] input[type="text"]`)).borderRadius === '8px', PANEL));
+  step(
+    `a ${rounded.own ? 'text field on the page' : 'text field made in the preview'} computes border-radius 8px`,
+    rounded.radius === '8px',
+    JSON.stringify(rounded)
+  );
+  step(
+    'the sample follows',
+    await cp.evaluate(
+      (p) =>
+        getComputedStyle(document.querySelector(`${p} [data-sve-forms-sample] input[type="text"]`)).borderRadius ===
+        '8px',
+      PANEL
+    )
+  );
 
   // ── Background and its opacity ────────────────────────────────────────
   const half = await pickAndRead(cp, `${PANEL} select[data-sve-input="input-bg-opacity"]`, '50%', '--input-bg-opacity');
   const halfField = await control(preview);
 
-  step('Opacity → 50%: painted, and the field\'s white is half see-through', half.painted === '50%' && alphaOf(halfField.bg) === 0.5, `${JSON.stringify(half)} bg=${halfField.bg}`);
+  step(
+    "Opacity → 50%: painted, and the field's white is half see-through",
+    half.painted === '50%' && alphaOf(halfField.bg) === 0.5,
+    `${JSON.stringify(half)} bg=${halfField.bg}`
+  );
 
   const clear = await pickColor(cp, 'input-bg', 'transparent', '--input-bg');
   const clearField = await control(preview);
 
-  step('Background → transparent: painted, and the field has no background', clear.painted === 'transparent' && alphaOf(clearField.bg) === 0, `${JSON.stringify(clear)} bg=${clearField.bg}`);
+  step(
+    'Background → transparent: painted, and the field has no background',
+    clear.painted === 'transparent' && alphaOf(clearField.bg) === 0,
+    `${JSON.stringify(clear)} bg=${clearField.bg}`
+  );
 
   const shot2 = await shot(cp, page, '2-changed');
 
@@ -440,43 +571,84 @@ try {
   const buttonTry = buttonWas === '0.75rem' ? '1rem' : '0.75rem';
   const btn = await pickAndRead(cp, buttonSelect, buttonTry, '--button-radius');
 
-  step(`Buttons: Corners → ${buttonTry} paints --button-radius at once`, btn.ok && btn.painted === buttonTry, `${JSON.stringify(btn)} (was ${buttonWas})`);
+  step(
+    `Buttons: Corners → ${buttonTry} paints --button-radius at once`,
+    btn.ok && btn.painted === buttonTry,
+    `${JSON.stringify(btn)} (was ${buttonWas})`
+  );
 
   const btnBack = await pickAndRead(cp, buttonSelect, buttonWas, '--button-radius');
 
   step('Buttons: back to what site.css has', btnBack.ok && btnBack.painted === buttonWas, JSON.stringify(btnBack));
   await click(page, cp, tab('forms'));
-  step('Forms keeps its unsaved values over a tab switch', await waitFor(cp, (p) => document.querySelector(`${p} select[data-sve-input="input-radius"]`)?.value === '0.5rem'
-    && document.querySelector(`${p} [data-sve-input="input-bg"]`)?.dataset.value === 'transparent', PANEL));
+  step(
+    'Forms keeps its unsaved values over a tab switch',
+    await waitFor(
+      cp,
+      (p) =>
+        document.querySelector(`${p} select[data-sve-input="input-radius"]`)?.value === '0.5rem' &&
+        document.querySelector(`${p} [data-sve-input="input-bg"]`)?.dataset.value === 'transparent',
+      PANEL
+    )
+  );
 
   // ── Save, then the file and a fresh render ────────────────────────────
   await click(page, cp, `${PANEL} .sve-theme__save`);
 
-  for (let t0 = Date.now(); Date.now() - t0 < 10000 && !readFileSync(CSS_FILE, 'utf8').includes('--input-radius: 0.5rem;');) {
+  for (
+    let t0 = Date.now();
+    Date.now() - t0 < 10000 && !readFileSync(CSS_FILE, 'utf8').includes('--input-radius: 0.5rem;');
+  ) {
     await sleep(100);
   }
 
-  await waitFor(cp, (p) => !!document.querySelector(`${p} .sve-theme__save`)?.disabled && !/sav|gemmer/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || ''), PANEL, 5000);
+  await waitFor(
+    cp,
+    (p) =>
+      !!document.querySelector(`${p} .sve-theme__save`)?.disabled &&
+      !/sav|gemmer/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || ''),
+    PANEL,
+    5000
+  );
 
   const css = readFileSync(CSS_FILE, 'utf8');
   const expect = ['--input-radius: 0.5rem;', '--input-bg-opacity: 50%;', '--input-bg: transparent;'];
 
-  step('site.css has the three changes', expect.every((line) => css.includes(line)), expect.filter((line) => !css.includes(line)).join(' | '));
+  step(
+    'site.css has the three changes',
+    expect.every((line) => css.includes(line)),
+    expect.filter((line) => !css.includes(line)).join(' | ')
+  );
 
-  const touched = css.split('\n').filter((line) => !original.includes(line) && line.trim() !== '').filter((line) => !/--input-(radius|bg-opacity|bg):/.test(line));
+  const touched = css
+    .split('\n')
+    .filter((line) => !original.includes(line) && line.trim() !== '')
+    .filter((line) => !/--input-(radius|bg-opacity|bg):/.test(line));
 
-  step('nothing else in site.css changed (the button\'s corners neither)', touched.length === 0 && css.split('\n').length === original.split('\n').length, touched.slice(0, 3).join(' | '));
+  step(
+    "nothing else in site.css changed (the button's corners neither)",
+    touched.length === 0 && css.split('\n').length === original.split('\n').length,
+    touched.slice(0, 3).join(' | ')
+  );
 
   ({ cp, preview } = await openLivePreview());
 
   const served = await servedTokens(preview);
 
-  step('after a reload the theme_tokens style carries --input-radius: 0.5rem', served.includes('--input-radius: 0.5rem'), served.match(/--input-[^;]*;/g)?.join(' ') || 'no input tokens');
+  step(
+    'after a reload the theme_tokens style carries --input-radius: 0.5rem',
+    served.includes('--input-radius: 0.5rem'),
+    served.match(/--input-[^;]*;/g)?.join(' ') || 'no input tokens'
+  );
   step('and the other two', served.includes('--input-bg: transparent') && served.includes('--input-bg-opacity: 50%'));
 
   const after = await control(preview);
 
-  step('a text field on the fresh page computes 8px corners and no background — no panel open, no build', after.radius === '8px' && alphaOf(after.bg) === 0, JSON.stringify(after));
+  step(
+    'a text field on the fresh page computes 8px corners and no background — no panel open, no build',
+    after.radius === '8px' && alphaOf(after.bg) === 0,
+    JSON.stringify(after)
+  );
 
   if (shot1 || shot2) {
     console.log(`info screenshots: ${[shot1, shot2].filter(Boolean).join(' ')}`);
@@ -498,7 +670,11 @@ try {
   }
 
   await sleep(500);
-  console.log(readFileSync(CSS_FILE, 'utf8') === original ? 'info site.css put back as it was' : 'WARNING: site.css was NOT restored');
+  console.log(
+    readFileSync(CSS_FILE, 'utf8') === original
+      ? 'info site.css put back as it was'
+      : 'WARNING: site.css was NOT restored'
+  );
 }
 
 step('no JS errors', errors.length === 0, errors.slice(0, 5).join(' | '));

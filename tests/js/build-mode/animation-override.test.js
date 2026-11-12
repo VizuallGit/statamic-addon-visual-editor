@@ -24,19 +24,32 @@ import { findByPath } from '../../../resources/js/build-mode/place.js';
 import { parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
 
 const H2 = '0:section/0:div/1:h2';
-const HTML = '<section id="id-{{ id }}" class="[ {{ _class }} ] py-8"><div><p>a</p><h2 data-anim="self" data-anim-preset="fade-up" class="[--anim-duration:1.2s] [--anim-y:3rem]">b</h2></div></section>';
+const HTML =
+  '<section id="id-{{ id }}" class="[ {{ _class }} ] py-8"><div><p>a</p><h2 data-anim="self" data-anim-preset="fade-up" class="[--anim-duration:1.2s] [--anim-y:3rem]">b</h2></div></section>';
 const template = () => animationOf(HTML, findByPath(parseTemplateTree(HTML), H2));
 
 test('readOverride normalises an object, its JSON and nothing', () => {
-  const raw = { flip: true, elements: { [H2]: { vars: { '--anim-y': '4rem', color: 'red', '--anim-x': '' }, preset: 'fade', off: true }, '0:section': {} } };
+  const raw = {
+    flip: true,
+    elements: {
+      [H2]: { vars: { '--anim-y': '4rem', color: 'red', '--anim-x': '' }, preset: 'fade', off: true },
+      '0:section': {},
+    },
+  };
 
-  assert.deepEqual(readOverride(raw), { flip: true, elements: { [H2]: { vars: { '--anim-y': '4rem' }, preset: 'fade', off: true } } });
+  assert.deepEqual(readOverride(raw), {
+    flip: true,
+    elements: { [H2]: { vars: { '--anim-y': '4rem' }, preset: 'fade', off: true } },
+  });
   assert.deepEqual(readOverride(JSON.stringify(raw)), readOverride(raw));
   assert.deepEqual(readOverride(null), { flip: false, elements: {} });
   assert.deepEqual(readOverride(''), { flip: false, elements: {} });
   assert.deepEqual(readOverride('not json'), { flip: false, elements: {} });
   assert.deepEqual(readOverride([]), { flip: false, elements: {} });
-  assert.deepEqual(readOverride({ flip: 'yes', elements: { [H2]: { off: false, preset: '' } } }), { flip: false, elements: {} });
+  assert.deepEqual(readOverride({ flip: 'yes', elements: { [H2]: { off: false, preset: '' } } }), {
+    flip: false,
+    elements: {},
+  });
 });
 
 test('overrideFor gives the element its vars, preset and off, null where unset', () => {
@@ -49,7 +62,11 @@ test('overrideFor gives the element its vars, preset and off, null where unset',
 
 test('applyOverride lays the values over the template and keeps target and trigger', () => {
   const anim = template();
-  const shown = applyOverride(anim, { vars: { '--anim-y': '5rem', '--anim-scale': '0.9', '--anim-delay': '0.2s' }, preset: 'zoom-in', off: true });
+  const shown = applyOverride(anim, {
+    vars: { '--anim-y': '5rem', '--anim-scale': '0.9', '--anim-delay': '0.2s' },
+    preset: 'zoom-in',
+    off: true,
+  });
 
   assert.equal(shown.target, 'self');
   assert.equal(shown.on, 'view');
@@ -61,7 +78,11 @@ test('applyOverride lays the values over the template and keeps target and trigg
   assert.equal(applyOverride(anim, null), anim);
   assert.equal(applyOverride(null, { vars: {} }), null);
 
-  const without = applyOverride(anim, { vars: { '--anim-y': 'initial', '--anim-duration': 'initial' }, preset: null, off: null });
+  const without = applyOverride(anim, {
+    vars: { '--anim-y': 'initial', '--anim-duration': 'initial' },
+    preset: null,
+    off: null,
+  });
 
   assert.deepEqual(without.vars, {});
   assert.equal(without.duration, null);
@@ -95,7 +116,13 @@ test('overrideTo keeps what differs from the template, initial for what it takes
 
   assert.deepEqual(override.elements[H2], { vars: { '--anim-y': '5rem', '--anim-opacity': '0.5' } });
 
-  override = overrideTo(override, H2, anim, { ...anim, duration: null, vars: { '--anim-y': '3rem' }, preset: 'zoom-in', off: true });
+  override = overrideTo(override, H2, anim, {
+    ...anim,
+    duration: null,
+    vars: { '--anim-y': '3rem' },
+    preset: 'zoom-in',
+    off: true,
+  });
 
   assert.deepEqual(override.elements[H2], { vars: { '--anim-duration': 'initial' }, preset: 'zoom-in', off: true });
   assert.deepEqual(overrideTo(override, H2, anim, anim).elements, {});
@@ -132,7 +159,10 @@ test('the template mirrors with a class on its root, and back', () => {
   assert.equal(templateFlips(on), true);
   assert.equal(templateFlips(HTML), false);
   assert.equal(withTemplateFlip(on, true), on);
-  assert.equal(withTemplateFlip(on, false).startsWith('<section id="id-{{ id }}" class="[ {{ _class }} ] py-8">'), true);
+  assert.equal(
+    withTemplateFlip(on, false).startsWith('<section id="id-{{ id }}" class="[ {{ _class }} ] py-8">'),
+    true
+  );
   assert.equal(withTemplateFlip('<section>a</section>', true), '<section class="[--anim-flip:-1]">a</section>');
   assert.equal(withTemplateFlip('<section class="[--anim-flip:-1]">a</section>', false), '<section>a</section>');
 });

@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
 use MarioHamann\StatamicVisualEditor\FromTheStart;
+use MarioHamann\StatamicVisualEditor\SectionDefaults;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Facades\Blink;
 
@@ -11,7 +12,7 @@ use Statamic\Facades\Blink;
  *
  * YAML og feltindstillinger er urørt: afkrydsningen gemmer stadig én række pr.
  * type. Tallet er Statamics eget heltal. Her, og kun her (plus
- * {@see \MarioHamann\StatamicVisualEditor\SectionDefaults}), bliver det til
+ * {@see SectionDefaults}), bliver det til
  * flere rækker — i hukommelsen, under den request der spurgte.
  */
 class ExpandFromTheStart

@@ -12,7 +12,9 @@
  */
 
 export function normalizeHtmlTreeQuery(query) {
-  return String(query || '').trim().toLowerCase();
+  return String(query || '')
+    .trim()
+    .toLowerCase();
 }
 
 export function matchesHtmlTreeRow(row, q) {
@@ -48,9 +50,7 @@ export function searchHtmlTreeRows(rows, query) {
   }
 
   const paths = [...hits];
-  const kept = rows.filter(
-    (row) => hits.has(row.path) || paths.some((path) => path.startsWith(`${row.path}/`))
-  );
+  const kept = rows.filter((row) => hits.has(row.path) || paths.some((path) => path.startsWith(`${row.path}/`)));
 
   return { rows: kept, hits };
 }

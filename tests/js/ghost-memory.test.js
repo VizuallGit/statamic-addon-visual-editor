@@ -66,7 +66,10 @@ test('the same suggestion taken again is kept once, moved to the end', () => {
   rememberTaken(win, 'b', 'two');
   rememberTaken(win, 'c', 'one');
 
-  assert.deepEqual(takenRows(win).map((row) => row.text), ['two', 'one']);
+  assert.deepEqual(
+    takenRows(win).map((row) => row.text),
+    ['two', 'one']
+  );
 });
 
 test('nothing taken, nothing kept', () => {

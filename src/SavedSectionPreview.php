@@ -30,7 +30,7 @@ class SavedSectionPreview
      *                       unaffected; a page template overrides all three to
      *                       capture its whole stack from its own render route.
      * @param  bool  $force  Re-shoot even when the fingerprint says it is current.
-     * @return string  "ok" | "fresh" | "skipped: …" | "error: …"
+     * @return string "ok" | "fresh" | "skipped: …" | "error: …"
      */
     public function generate(Entry $saved, array $spec = [], bool $force = false): string
     {

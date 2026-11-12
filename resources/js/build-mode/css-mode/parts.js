@@ -78,7 +78,9 @@ const translate = {
   parse(value) {
     const list = splitTop(value, ' ');
 
-    return list.length && list.length < 3 && list[0] !== 'none' ? new Map(list.map((one, i) => [i ? 'y' : 'x', one])) : null;
+    return list.length && list.length < 3 && list[0] !== 'none'
+      ? new Map(list.map((one, i) => [i ? 'y' : 'x', one]))
+      : null;
   },
   render(parts) {
     const { x, y } = Object.fromEntries(parts);
@@ -96,7 +98,10 @@ const scale = {
       return null;
     }
 
-    return new Map([['x', list[0]], ['y', list[1] || list[0]]]);
+    return new Map([
+      ['x', list[0]],
+      ['y', list[1] || list[0]],
+    ]);
   },
   render(parts) {
     const { x, y } = Object.fromEntries(parts);
@@ -293,7 +298,12 @@ export function writeParts(css, where, prop, changes) {
       plainAt.set(place.size, new Map(through));
     }
 
-    const at = { selector: `${selector}${place.suffix}`, size: place.size, rows, query: place.touched ? query : rows.find((row) => row.handle === place.size)?.media || '' };
+    const at = {
+      selector: `${selector}${place.suffix}`,
+      size: place.size,
+      rows,
+      query: place.touched ? query : rows.find((row) => row.handle === place.size)?.media || '',
+    };
     const was = place.value === null ? null : partsOf(prop, place.value);
 
     if (!place.own.size) {
@@ -325,21 +335,36 @@ export function applyUpdates(css, where, updates) {
   let text = String(css || '');
 
   for (const prop of new Set((updates || []).filter((one) => one.key).map((one) => one.prop))) {
-    text = writeParts(text, where, prop, updates.filter((one) => one.key && one.prop === prop));
+    text = writeParts(
+      text,
+      where,
+      prop,
+      updates.filter((one) => one.key && one.prop === prop)
+    );
   }
 
-  text = writeDeclarations(text, place, (updates || []).filter((one) => one.prop && !one.key));
+  text = writeDeclarations(
+    text,
+    place,
+    (updates || []).filter((one) => one.prop && !one.key)
+  );
 
   for (const one of updates || []) {
     if (one.keyframes && one.text && !keyframesIn(text, one.keyframes)) {
       text = `${text.trimEnd()}\n\n${one.text}\n`;
     }
 
-    if (one.dropKeyframes && !new RegExp(`animation(-name)?\\s*:[^;}]*\\b${one.dropKeyframes.replace(/[^\w-]/g, '\\$&')}\\b`).test(text)) {
+    if (
+      one.dropKeyframes &&
+      !new RegExp(`animation(-name)?\\s*:[^;}]*\\b${one.dropKeyframes.replace(/[^\w-]/g, '\\$&')}\\b`).test(text)
+    ) {
       const node = keyframesIn(text, one.dropKeyframes);
 
       if (node) {
-        text = `${text.slice(0, node.from).trimEnd()}\n${text.slice(node.to).replace(/^\n+/, '\n')}`.replace(/^\n+/, '');
+        text = `${text.slice(0, node.from).trimEnd()}\n${text.slice(node.to).replace(/^\n+/, '\n')}`.replace(
+          /^\n+/,
+          ''
+        );
       }
     }
   }

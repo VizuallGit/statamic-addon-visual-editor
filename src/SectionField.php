@@ -42,7 +42,7 @@ final class SectionField
     /** The handle of the field holding this blueprint's sections. */
     public static function of($blueprint): string
     {
-        return static::locate($blueprint)['handle'] ?? static::fallback();
+        return self::locate($blueprint)['handle'] ?? self::fallback();
     }
 
     /**
@@ -56,11 +56,11 @@ final class SectionField
      */
     public static function all(): array
     {
-        $handles = [static::fallback()];
+        $handles = [self::fallback()];
 
         foreach (Collection::all() as $collection) {
             foreach ($collection->entryBlueprints() as $blueprint) {
-                if ($found = static::locate($blueprint)) {
+                if ($found = self::locate($blueprint)) {
                     $handles[] = $found['handle'];
                 }
             }
@@ -72,7 +72,7 @@ final class SectionField
     /** Whether the blueprint has a sections field at all. */
     public static function in($blueprint): bool
     {
-        return static::locate($blueprint) !== null;
+        return self::locate($blueprint) !== null;
     }
 
     /**
@@ -81,7 +81,7 @@ final class SectionField
      */
     public static function listOf($blueprint): SectionList
     {
-        return static::locate($blueprint)['list'] ?? SectionList::fallback();
+        return self::locate($blueprint)['list'] ?? SectionList::fallback();
     }
 
     /**
@@ -135,7 +135,7 @@ final class SectionField
 
         foreach (($blueprint->contents()['tabs'] ?? []) as $tab) {
             foreach (($tab['sections'] ?? []) as $section) {
-                static::scan(
+                self::scan(
                     (array) ($section['fields'] ?? []),
                     '',
                     fn (string $field) => SectionList::blueprint($fqh, $field),
@@ -167,7 +167,7 @@ final class SectionField
             if (is_string($item['import'] ?? null) && $item['import'] !== '') {
                 $import = $item['import'];
 
-                static::scan(
+                self::scan(
                     FieldsetFields::of(Fieldset::find($import)),
                     $prefix.($item['prefix'] ?? ''),
                     fn (string $field) => SectionList::fieldset($import, $field),
@@ -191,7 +191,7 @@ final class SectionField
                 // this item's overrides, written in the referenced fieldset.
                 $fieldset = Str::beforeLast($field, '.');
                 $inFile = Str::afterLast($field, '.');
-                $config = array_merge(static::referenced($fieldset, $inFile) ?? [], (array) ($item['config'] ?? []));
+                $config = array_merge(self::referenced($fieldset, $inFile) ?? [], (array) ($item['config'] ?? []));
                 $list = SectionList::fieldset($fieldset, $inFile);
             } elseif (is_array($field)) {
                 $config = $field;
@@ -208,7 +208,7 @@ final class SectionField
 
             if (($config[self::KEY] ?? false) === true) {
                 $marked ??= $found;
-            } elseif ($prefix.$handle === static::fallback()) {
+            } elseif ($prefix.$handle === self::fallback()) {
                 $named ??= $found;
             }
         }

@@ -8,7 +8,7 @@ import { isEmptyMedia, mediaPlaceholderCss } from '../../resources/js/lib/media-
 
 const css = mediaPlaceholderCss({ image: 'Billede', video: 'Video', hint: 'Klik & vælg' });
 
-test('the size stands above Tailwind\'s reset and below its utilities', () => {
+test("the size stands above Tailwind's reset and below its utilities", () => {
   assert.match(css.base, /^@layer theme,base,sve-media-base,components,utilities;/);
   assert.match(css.base, /width:100%/);
   assert.doesNotMatch(css.own, /width:100%|height:/);
@@ -36,7 +36,7 @@ test('an image with a file from elsewhere is no empty one', () => {
   }
 });
 
-test('the dashes leave the outline to the editor\'s hover and pick', () => {
+test("the dashes leave the outline to the editor's hover and pick", () => {
   assert.match(css.own, /border:1px dashed/);
   assert.doesNotMatch(css.own, /outline/);
 });

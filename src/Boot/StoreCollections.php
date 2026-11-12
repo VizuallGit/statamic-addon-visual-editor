@@ -3,8 +3,8 @@
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
 use MarioHamann\StatamicVisualEditor\CollectionTemplateEntry;
-use MarioHamann\StatamicVisualEditor\Stores;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Collection;
 use Statamic\Facades\CP\Nav;
 use Statamic\Statamic;
@@ -20,11 +20,11 @@ final class StoreCollections
 {
     public static function register(): void
     {
-        static::moveStoresOutOfCollections();
+        self::moveStoresOutOfCollections();
 
         // After the Stache has read collections from yaml — setting entryClass
         // earlier is wiped when the file is loaded.
-        Statamic::booted(fn () => static::attachCollectionViewPreviewTargets());
+        Statamic::booted(fn () => self::attachCollectionViewPreviewTargets());
     }
 
     protected static function moveStoresOutOfCollections(): void

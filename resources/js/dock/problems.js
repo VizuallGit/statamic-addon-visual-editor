@@ -21,7 +21,16 @@ import { templateLintDecorations } from '../template-lint.js';
 import { cachedDataVars, dataVarsCollection, dataVarsKey, dataVarsSet, fetchDataVars } from '../data-vars.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from './state.js';
-import { DOCK_ID, Decoration, EditorView, RangeSetBuilder, StateEffect, StateField, editors, htmlLanguage } from '../code-dock.js';
+import {
+  DOCK_ID,
+  Decoration,
+  EditorView,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+  editors,
+  htmlLanguage,
+} from '../code-dock.js';
 
 /**
  * Field types that are lists whatever their settings. `assets` and `entries`

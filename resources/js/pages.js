@@ -25,9 +25,28 @@ import { currentCollection, currentEntryId, lpHeader } from './lib/live-preview.
 import { csrfToken } from './lib/csrf.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { dismissChromeForPageEdit, isGlobalsOverlayOpen } from './section-library.js';
-import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, parkGlobalsPanel, saveGlobalsPanel } from './globals-panel.js';
-import { clearSectionsStash, closeGlobalSectionPanel, hasUnsavedGlobalSection, saveGlobalSectionPanel } from './global-section.js';
-import { discardChanges, dismissDirtyWarning, forgetOrigin, hasUnsavedChanges, leaveQuietly, onEntrySave, saveButtonIn } from './open-in-preview.js';
+import {
+  discardGlobalsChanges,
+  hasUnsavedGlobals,
+  hasUnsavedWork,
+  parkGlobalsPanel,
+  saveGlobalsPanel,
+} from './globals-panel.js';
+import {
+  clearSectionsStash,
+  closeGlobalSectionPanel,
+  hasUnsavedGlobalSection,
+  saveGlobalSectionPanel,
+} from './global-section.js';
+import {
+  discardChanges,
+  dismissDirtyWarning,
+  forgetOrigin,
+  hasUnsavedChanges,
+  leaveQuietly,
+  onEntrySave,
+  saveButtonIn,
+} from './open-in-preview.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 async function gotoOverlay(win, url) {
@@ -46,7 +65,6 @@ async function gotoOverlay(win, url) {
 // open the ordinary editor and say so.
 
 export const ENTRY_PICKER_ID = '__sve-entry-picker';
-
 
 export function pickerCollections(win) {
   const list = win.Statamic?.$config?.get?.('sveCollections');
@@ -231,8 +249,7 @@ export function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
 
   const card = doc.createElement('div');
 
-  card.style.cssText =
-    dialogCardStyle(win).replace('width:400px', 'width:560px');
+  card.style.cssText = dialogCardStyle(win).replace('width:400px', 'width:560px');
   card.innerHTML =
     `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, 'unsaved_title')}</div>` +
     `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'unsaved_body')}</div>` +
@@ -612,7 +629,6 @@ export function saveThenNavigate(win, go) {
  * has painted. Same from the front-end button and from the collection picker.
  */
 export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
-
   const go = () => {
     // By the time anything calls this, the unsaved question has been put to the
     // user and answered — on every path into it.
@@ -647,7 +663,10 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
     gotoOverlay(win, url);
   };
 
-  if (!hasUnsavedWork(win) || (!saveButtonIn(win.document) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win))) {
+  if (
+    !hasUnsavedWork(win) ||
+    (!saveButtonIn(win.document) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win))
+  ) {
     go();
 
     return;
@@ -728,8 +747,7 @@ export function leaveLpTo(win, url, onCancel = () => {}) {
  */
 export function openEntryFromLp(win, anchor, handle, id, onCancel = () => {}) {
   const url =
-    `${win.location.origin}/cp/collections/${encodeURIComponent(handle)}` +
-    `/entries/${encodeURIComponent(id)}`;
+    `${win.location.origin}/cp/collections/${encodeURIComponent(handle)}` + `/entries/${encodeURIComponent(id)}`;
 
   if (previewableCollections(win)[handle] === true) {
     navigateFromLp(win, anchor, `${url}?live-preview=1`, onCancel);
@@ -960,7 +978,7 @@ function mountCollectionPicker(win, header, collections) {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       });
 
-      entries = res.ok ? (await res.json()).entries ?? [] : [];
+      entries = res.ok ? ((await res.json()).entries ?? []) : [];
     } catch {
       entries = [];
     }
@@ -1002,10 +1020,7 @@ function mountCollectionPicker(win, header, collections) {
       const prev = fieldScalar(form.values.source_collection);
 
       if (next && next !== prev) {
-        form.container.setFieldValue(
-          'source_collection',
-          Array.isArray(form.values.source_collection) ? [next] : next
-        );
+        form.container.setFieldValue('source_collection', Array.isArray(form.values.source_collection) ? [next] : next);
 
         if (form.values.kind === 'show') {
           form.container.setFieldValue('preview_as', []);

@@ -126,7 +126,10 @@ export function contrastRatio(fg, bg) {
 }
 
 export function toHex(color) {
-  const part = (value) => Math.round(Math.min(255, Math.max(0, value))).toString(16).padStart(2, '0');
+  const part = (value) =>
+    Math.round(Math.min(255, Math.max(0, value)))
+      .toString(16)
+      .padStart(2, '0');
 
   return `#${part(color.r)}${part(color.g)}${part(color.b)}`;
 }
@@ -140,8 +143,7 @@ export function toHex(color) {
  * most headers on the web. What cannot be measured is a picture: `url()` has no
  * colours to read, and no amount of parsing will give it any.
  */
-const COLOR_TOKEN =
-  /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\)/gi;
+const COLOR_TOKEN = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\)/gi;
 
 function gradientStops(value, read) {
   if (value.includes('url(')) {

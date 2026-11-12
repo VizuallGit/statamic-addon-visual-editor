@@ -33,70 +33,70 @@ final class Parser
      */
     public static function parse(string $antlers): array
     {
-        $text = static::stripComments($antlers);
+        $text = self::stripComments($antlers);
         $found = [];
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/\bfrom\s*=\s*(["\'])\:([a-zA-Z_][a-zA-Z0-9_]*)\s*\?\?\s*([a-zA-Z0-9_-]+)\1/'
         ) as $row) {
-            $found[$row[2]] = static::binding($row[2], $row[3], self::KIND_COLLECTION);
+            $found[$row[2]] = self::binding($row[2], $row[3], self::KIND_COLLECTION);
         }
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/\bfrom\s*=\s*(["\'])\{([a-zA-Z_][a-zA-Z0-9_]*)\s*\?\?\s*[\'"]([a-zA-Z0-9_-]+)[\'"]\}\1/'
         ) as $row) {
-            $found[$row[2]] ??= static::binding($row[2], $row[3], self::KIND_COLLECTION);
+            $found[$row[2]] ??= self::binding($row[2], $row[3], self::KIND_COLLECTION);
         }
 
-        $mediaAttr = static::mediaAttributePattern();
+        $mediaAttr = self::mediaAttributePattern();
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/:?('.$mediaAttr.')\s*=\s*(["\'])\:([a-zA-Z_][a-zA-Z0-9_]*)\s*\?\?\s*([a-zA-Z0-9_-]+)\2/'
         ) as $row) {
-            $found[$row[3]] = static::binding($row[3], $row[4], self::KIND_ASSETS);
+            $found[$row[3]] = self::binding($row[3], $row[4], self::KIND_ASSETS);
         }
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/:?('.$mediaAttr.')\s*=\s*(["\'])\{sve_prop(?::field)? prop=([\'"])([a-zA-Z_][a-zA-Z0-9_]*)\3 fallback=\3([a-zA-Z0-9_-]+)\3\}\2/'
         ) as $row) {
-            $found[$row[4]] ??= static::binding($row[4], $row[5], self::KIND_ASSETS);
+            $found[$row[4]] ??= self::binding($row[4], $row[5], self::KIND_ASSETS);
         }
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/:?('.$mediaAttr.')\s*=\s*(["\'])\{\{\s*sve_prop\s+prop=([\'"])([a-zA-Z_][a-zA-Z0-9_]*)\3\s+fallback=\3([a-zA-Z0-9_-]+)\3\s*\}\}\2/'
         ) as $row) {
-            $found[$row[4]] ??= static::binding($row[4], $row[5], self::KIND_ASSETS);
+            $found[$row[4]] ??= self::binding($row[4], $row[5], self::KIND_ASSETS);
         }
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/\{\{\s*\:([a-zA-Z_][a-zA-Z0-9_]*)\s*\?\?\s*[\'"]([^\'"]*)[\'"]\s*\}\}/'
         ) as $row) {
-            $found[$row[1]] ??= static::binding(
+            $found[$row[1]] ??= self::binding(
                 $row[1],
-                static::inferredFieldHandle($row[1]),
+                self::inferredFieldHandle($row[1]),
                 self::KIND_TEXT,
                 $row[2]
             );
         }
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/\{\{\s*\:([a-zA-Z_][a-zA-Z0-9_]*)\s*\?\?\s*([a-zA-Z0-9_-]+)\s*\}\}/'
         ) as $row) {
-            $found[$row[1]] ??= static::binding($row[1], $row[2], self::KIND_TEXT);
+            $found[$row[1]] ??= self::binding($row[1], $row[2], self::KIND_TEXT);
         }
 
-        foreach (static::matches(
+        foreach (self::matches(
             $text,
             '/\{\{\s*sve_prop\s+(?:prop|:handle)="([a-zA-Z_][a-zA-Z0-9_]*)"\s+fallback="([a-zA-Z0-9_-]+)"(?:\s+empty="([^"]*)")?\s*\}\}/'
         ) as $row) {
-            $found[$row[1]] ??= static::binding(
+            $found[$row[1]] ??= self::binding(
                 $row[1],
                 $row[2],
                 self::KIND_TEXT,

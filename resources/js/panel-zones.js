@@ -24,7 +24,17 @@ import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { sveState } from './cp-state.js';
 import { buildModeUi } from './cp/build-mode/store.js';
 import { mountPane } from './cp/mount-pane.js';
-import { CODE_KEYS, codeStaysTogether, dropTarget, isFixedPane, keysOf, orderWith, parseZones, withZone, zoneOf } from './cp/panel-zones/layout.js';
+import {
+  CODE_KEYS,
+  codeStaysTogether,
+  dropTarget,
+  isFixedPane,
+  keysOf,
+  orderWith,
+  parseZones,
+  withZone,
+  zoneOf,
+} from './cp/panel-zones/layout.js';
 import RightDockShell from './cp/surfaces/RightDockShell.vue';
 import { relayoutCodeDock } from './code-dock-lazy.js';
 import { featureOn } from './lib/config.js';
@@ -87,7 +97,11 @@ export function paneZone(win, key) {
 }
 
 function shells(doc) {
-  return [doc.getElementById(LEFT_ZONE_ID), doc.getElementById(RIGHT_DOCK_ID), doc.getElementById(BOTTOM_ZONE_ID)].filter(Boolean);
+  return [
+    doc.getElementById(LEFT_ZONE_ID),
+    doc.getElementById(RIGHT_DOCK_ID),
+    doc.getElementById(BOTTOM_ZONE_ID),
+  ].filter(Boolean);
 }
 
 export function zoneShells(doc) {
@@ -350,11 +364,13 @@ export function applyZones(win) {
 export function leaveZones(win) {
   const doc = win.document;
   const bottom = doc.getElementById(BOTTOM_ZONE_ID);
-  const tools = [leftKept, bottom].flatMap((shell) => [...(shellSlot(shell)?.children || [])]).filter((pane) => {
-    const key = paneKeyOf(pane);
+  const tools = [leftKept, bottom]
+    .flatMap((shell) => [...(shellSlot(shell)?.children || [])])
+    .filter((pane) => {
+      const key = paneKeyOf(pane);
 
-    return key && !isFixedPane(key);
-  });
+      return key && !isFixedPane(key);
+    });
 
   if (tools.length) {
     const right = ensureRightDock(win);
@@ -425,16 +441,29 @@ function dropAreas(win, keys) {
   const rightShell = doc.getElementById(RIGHT_DOCK_ID);
   const rightOpen = !!rightShell && !rightShell.hasAttribute('data-sve-right-closed');
   const leftOpen = box.left > 40;
-  const left = leftOpen ? { left: 0, top, right: box.left, bottom: win.innerHeight } : { left: 0, top, right: strip, bottom: win.innerHeight };
-  const right = rightOpen ? rectOf(rightShell) : { left: win.innerWidth - strip, top, right: win.innerWidth, bottom: win.innerHeight };
+  const left = leftOpen
+    ? { left: 0, top, right: box.left, bottom: win.innerHeight }
+    : { left: 0, top, right: strip, bottom: win.innerHeight };
+  const right = rightOpen
+    ? rectOf(rightShell)
+    : { left: win.innerWidth - strip, top, right: win.innerWidth, bottom: win.innerHeight };
   const band = doc.getElementById(BOTTOM_ZONE_ID);
-  const dock = doc.documentElement.hasAttribute('data-sve-build-dock-shown') && codeTogether(win) ? doc.getElementById('__sve-code-dock') : null;
-  const below = band && !band.hasAttribute('data-sve-right-closed')
-    ? rectOf(band)
-    : dock
-      ? rectOf(dock)
-      : { left: left.right, top: win.innerHeight - strip, right: right.left, bottom: win.innerHeight };
-  const panes = (shell) => (shell ? shellPanes(shell).filter((el) => !keys.includes(paneKeyOf(el))).map((el) => ({ key: paneKeyOf(el), rect: rectOf(el) })) : []);
+  const dock =
+    doc.documentElement.hasAttribute('data-sve-build-dock-shown') && codeTogether(win)
+      ? doc.getElementById('__sve-code-dock')
+      : null;
+  const below =
+    band && !band.hasAttribute('data-sve-right-closed')
+      ? rectOf(band)
+      : dock
+        ? rectOf(dock)
+        : { left: left.right, top: win.innerHeight - strip, right: right.left, bottom: win.innerHeight };
+  const panes = (shell) =>
+    shell
+      ? shellPanes(shell)
+          .filter((el) => !keys.includes(paneKeyOf(el)))
+          .map((el) => ({ key: paneKeyOf(el), rect: rectOf(el) }))
+      : [];
 
   return {
     left: { rect: left, panes: panes(leftKept) },
@@ -500,7 +529,12 @@ export function beginPaneDrag(win, key, label) {
 export function movePane(win, key, zone, before = '') {
   const doc = win.document;
   const keys = keysOf(key);
-  const shell = zone === 'left' ? leftKept : zone === 'bottom' ? doc.getElementById(BOTTOM_ZONE_ID) : doc.getElementById(RIGHT_DOCK_ID);
+  const shell =
+    zone === 'left'
+      ? leftKept
+      : zone === 'bottom'
+        ? doc.getElementById(BOTTOM_ZONE_ID)
+        : doc.getElementById(RIGHT_DOCK_ID);
   const inZone = shell ? shellPanes(shell).map(paneKeyOf).filter(Boolean) : [];
 
   chromeSet(win, ZONES_KEY, JSON.stringify(withZone(storedZones(win), key, zone)));

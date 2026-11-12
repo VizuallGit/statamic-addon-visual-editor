@@ -25,20 +25,31 @@ const puppeteer = createRequire(`${SITE}/package.json`)('puppeteer');
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ORIGIN = 'https://live-reload.test';
 const ALPINE = readFileSync(`${SITE}/node_modules/alpinejs/dist/cdn.min.js`, 'utf8');
-const MORPH_FILE = JSON.parse(readFileSync(`${ADDON}/resources/dist/build/manifest.json`, 'utf8'))['resources/js/live-reload-morph.js'].file;
+const MORPH_FILE = JSON.parse(readFileSync(`${ADDON}/resources/dist/build/manifest.json`, 'utf8'))[
+  'resources/js/live-reload-morph.js'
+].file;
 const MORPH_URL = `/!/sve/build/${MORPH_FILE}`;
 const MORPH = readFileSync(`${ADDON}/resources/dist/build/${MORPH_FILE}`, 'utf8');
 // The dock's Tailwind compiler as built, and a site theme for it to compile against.
-const TW_FILE = JSON.parse(readFileSync(`${ADDON}/resources/dist/build/manifest.json`, 'utf8'))['resources/js/tw-compile.js'].file;
+const TW_FILE = JSON.parse(readFileSync(`${ADDON}/resources/dist/build/manifest.json`, 'utf8'))[
+  'resources/js/tw-compile.js'
+].file;
 const TW_URL = `/!/sve/build/${TW_FILE}`;
 const THEME = { css: '@theme { --color-brand: #00aa55; }', plugins: [] };
 
 // Laravel's helpers define __() only when it is missing; this one answers the key.
-const widget = execFileSync('php', ['-r', `
+const widget = execFileSync(
+  'php',
+  [
+    '-r',
+    `
     function __($key) { return $key === 'sve::messages.live_reload_error' ? 'failed: :reason' : $key; }
     require ${JSON.stringify(BOOTSTRAP)};
     echo MarioHamann\\StatamicVisualEditor\\Http\\Middleware\\InjectLiveReload\\Widget::html(['markup' => 'MARKUP_SIG', 'build' => 'BUILD_SIG'], ${JSON.stringify(MORPH_URL)}, ${JSON.stringify(TW_URL)});
-`], { encoding: 'utf8' });
+`,
+  ],
+  { encoding: 'utf8' }
+);
 
 if (!widget.includes('id="sve-live-reload"')) throw new Error('PHP did not render the button:\n' + widget);
 
@@ -50,12 +61,22 @@ if (!widget.includes('id="sve-live-reload"')) throw new Error('PHP did not rende
  */
 const HOLD_MS = 1000; // the real hold is 3 s; shorter keeps the run short
 const server = {
-  markup: 'm1', build: 'b1', building: false, error: null, status: 200, hold: true,
+  markup: 'm1',
+  build: 'b1',
+  building: false,
+  error: null,
+  status: 200,
+  hold: true,
   // The page: its head style's colour, a script a template pushed, a page
   // answered without </body> once, the morph asset missing.
-  color: 'rgb(0, 0, 0)', style: '', script: '', truncate: false, morphStatus: 200,
+  color: 'rgb(0, 0, 0)',
+  style: '',
+  script: '',
+  truncate: false,
+  morphStatus: 200,
   // Markup in <main> after the kept section, and CSS the site's build has made.
-  extra: '', builtCss: '',
+  extra: '',
+  builtCss: '',
   // The held poll renders the page it names and answers a markup change with
   // its HTML (LiveReloadController\PageRender); off, the button fetches it.
   inline: true,
@@ -80,7 +101,10 @@ function pageHtml() {
 ${widget.replace('MARKUP_SIG', server.markup).replace('BUILD_SIG', server.build)}
 <a id="sve-edit-button" href="/cp">Rediger</a><style>#sve-edit-button { position: fixed; right: 0; top: 0; }</style><script>document.getElementById('sve-edit-button').setAttribute('data-ready', '');</script>
 </body></html>`;
-  if (server.truncate) { server.truncate = false; return html.slice(0, html.indexOf('</body>')); }
+  if (server.truncate) {
+    server.truncate = false;
+    return html.slice(0, html.indexOf('</body>'));
+  }
   return html;
 }
 
@@ -95,8 +119,20 @@ function answerPoll(request, url) {
   const look = () => {
     const changed = server.markup !== have.markup || server.build !== have.build;
     if (!named || changed || Date.now() >= until) {
-      const answer = { markup: server.markup, build: server.build, building: server.building, error: server.error, own: false, css: null };
-      if (server.inline && url.searchParams.get('page') && (server.markup !== have.markup || server.build !== have.build)) answer.html = pageHtml();
+      const answer = {
+        markup: server.markup,
+        build: server.build,
+        building: server.building,
+        error: server.error,
+        own: false,
+        css: null,
+      };
+      if (
+        server.inline &&
+        url.searchParams.get('page') &&
+        (server.markup !== have.markup || server.build !== have.build)
+      )
+        answer.html = pageHtml();
       return respond({ status: 200, contentType: 'application/json', body: JSON.stringify(answer) });
     }
     setTimeout(look, 20);
@@ -117,7 +153,9 @@ try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
   const warnings = [];
-  page.on('console', (msg) => { if (msg.type() === 'warn') warnings.push(msg.text()); });
+  page.on('console', (msg) => {
+    if (msg.type() === 'warn') warnings.push(msg.text());
+  });
 
   await page.setRequestInterception(true);
   page.on('request', (request) => {
@@ -128,23 +166,36 @@ try {
       asked.push({ at: Date.now(), url });
       return answerPoll(request, url);
     }
-    if (url.pathname === '/alpine.js') return request.respond({ status: 200, contentType: 'text/javascript', body: ALPINE });
+    if (url.pathname === '/alpine.js')
+      return request.respond({ status: 200, contentType: 'text/javascript', body: ALPINE });
     if (url.pathname === '/!/sve/tailwind-theme') {
       themeAsked++;
       // As slow as the server's PHP (~200 ms on Cuben): a compiled sheet taken
       // away before a new one is built shows as frames without the class.
-      setTimeout(() => request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(THEME) }).catch(() => {}), 200);
+      setTimeout(
+        () =>
+          request
+            .respond({ status: 200, contentType: 'application/json', body: JSON.stringify(THEME) })
+            .catch(() => {}),
+        200
+      );
       return;
     }
     if (url.pathname.startsWith('/!/sve/build/assets/') && url.pathname !== MORPH_URL) {
       if (url.pathname === TW_URL) twAsked++;
-      return request.respond({ status: 200, contentType: 'text/javascript', body: readFileSync(`${ADDON}/resources/dist/build/${url.pathname.slice('/!/sve/build/'.length)}`, 'utf8') });
+      return request.respond({
+        status: 200,
+        contentType: 'text/javascript',
+        body: readFileSync(`${ADDON}/resources/dist/build/${url.pathname.slice('/!/sve/build/'.length)}`, 'utf8'),
+      });
     }
     if (url.pathname === MORPH_URL) {
       morphAsked++;
-      return request.respond(server.morphStatus === 200
-        ? { status: 200, contentType: 'text/javascript', body: MORPH }
-        : { status: server.morphStatus, body: '' });
+      return request.respond(
+        server.morphStatus === 200
+          ? { status: 200, contentType: 'text/javascript', body: MORPH }
+          : { status: server.morphStatus, body: '' }
+      );
     }
     if (!request.isNavigationRequest()) fetches++;
     else if (url.pathname !== '/favicon.ico') documents++;
@@ -153,7 +204,10 @@ try {
 
   const state = () => page.$eval('#sve-live-reload', (b) => b.getAttribute('data-state'));
   const title = () => page.$eval('#sve-live-reload', (b) => b.title);
-  const mark = () => page.evaluate(() => { window.__sameDocument = true; });
+  const mark = () =>
+    page.evaluate(() => {
+      window.__sameDocument = true;
+    });
   const sameDocument = () => page.evaluate(() => window.__sameDocument === true);
   /** Sets the server's markup or build and measures until the page has reloaded. */
   async function changeAndTime(key, value) {
@@ -178,16 +232,42 @@ try {
   const box = await page.$eval('#sve-live-reload', (b) => {
     const r = b.getBoundingClientRect();
     const cs = getComputedStyle(b);
-    return { left: r.left, top: r.top, right: r.right, width: innerWidth, cssLeft: cs.left, cssTop: cs.top, cssRight: cs.right };
+    return {
+      left: r.left,
+      top: r.top,
+      right: r.right,
+      width: innerWidth,
+      cssLeft: cs.left,
+      cssTop: cs.top,
+      cssRight: cs.right,
+    };
   });
-  check('sits at the top left: left 1rem, top 1rem', box.cssLeft === '16px' && box.cssTop === '16px' && box.left === 16 && box.top === 16, JSON.stringify(box));
-  check('…and not on the right, where Rediger is', box.right < box.width / 2, `right edge at ${box.right}px of ${box.width}px`);
+  check(
+    'sits at the top left: left 1rem, top 1rem',
+    box.cssLeft === '16px' && box.cssTop === '16px' && box.left === 16 && box.top === 16,
+    JSON.stringify(box)
+  );
+  check(
+    '…and not on the right, where Rediger is',
+    box.right < box.width / 2,
+    `right edge at ${box.right}px of ${box.width}px`
+  );
 
   await sleep(2300);
   const first = asked[0]?.url;
-  check('the poll names the signatures the page holds, and the page', first?.searchParams.get('markup') === 'm1' && first?.searchParams.get('build') === 'b1' && first?.searchParams.get('page') === '/about', first ? first.search : 'no poll');
+  check(
+    'the poll names the signatures the page holds, and the page',
+    first?.searchParams.get('markup') === 'm1' &&
+      first?.searchParams.get('build') === 'b1' &&
+      first?.searchParams.get('page') === '/about',
+    first ? first.search : 'no poll'
+  );
   const gaps = asked.slice(1).map((a, i) => a.at - asked[i].at);
-  check('a held poll is asked again as soon as it is answered', polls >= 2 && polls <= 3 && gaps.every((g) => g >= HOLD_MS - 20 && g < HOLD_MS + 200), `${polls} polls in 2.3 s, gaps ${gaps.join(', ')} ms`);
+  check(
+    'a held poll is asked again as soon as it is answered',
+    polls >= 2 && polls <= 3 && gaps.every((g) => g >= HOLD_MS - 20 && g < HOLD_MS + 200),
+    `${polls} polls in 2.3 s, gaps ${gaps.join(', ')} ms`
+  );
   check('green when nothing changed', (await state()) === 'on');
   check('no reload when nothing changed', await sameDocument());
 
@@ -197,7 +277,11 @@ try {
   await sleep(HOLD_MS + 100);
   let before = polls;
   await sleep(1000);
-  check('a server that answers at once is asked at most every 100 ms', polls - before >= 7 && polls - before <= 11, `${polls - before} polls in 1 s`);
+  check(
+    'a server that answers at once is asked at most every 100 ms',
+    polls - before >= 7 && polls - before <= 11,
+    `${polls - before} polls in 1 s`
+  );
   server.hold = true;
   await sleep(200);
 
@@ -211,8 +295,16 @@ try {
   await sleep(HOLD_MS + 300);
   check('red when the build failed', (await state()) === 'error');
   const tip = await title();
-  check('the tooltip says why, in the build\'s words', tip.includes('theme_utilities_reason_failed') && tip.includes('Unclosed block') && !tip.includes('\u001b'), JSON.stringify(tip));
-  check('the console has the output once', warnings.filter((w) => w.includes('Unclosed block')).length === 1, `${warnings.length} warnings`);
+  check(
+    "the tooltip says why, in the build's words",
+    tip.includes('theme_utilities_reason_failed') && tip.includes('Unclosed block') && !tip.includes('\u001b'),
+    JSON.stringify(tip)
+  );
+  check(
+    'the console has the output once',
+    warnings.filter((w) => w.includes('Unclosed block')).length === 1,
+    `${warnings.length} warnings`
+  );
   server.error = null;
   await sleep(HOLD_MS + 300);
 
@@ -234,37 +326,95 @@ try {
   check('the morph is fetched once the button is on, before any save', morphAsked === 1, `${morphAsked} requests`);
   const pagesBefore = pages;
   const fetchesBefore = fetches;
-  const scrollBefore = await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(window.scrollY)))));
+  const scrollBefore = await page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(window.scrollY))))
+  );
   const morphMs = await changeAndWait('markup', 'm2', () => document.querySelector('main h1').textContent !== 'Page 1');
-  check('new markup is morphed in within a moment, not at the next poll', morphMs !== null && morphMs < 500, `${morphMs} ms from the save to the new heading`);
+  check(
+    'new markup is morphed in within a moment, not at the next poll',
+    morphMs !== null && morphMs < 500,
+    `${morphMs} ms from the save to the new heading`
+  );
   check('…in the standing page: no reload', await sameDocument());
-  check('…with the new page\'s HTML', (await page.$eval('main h1', (h) => h.textContent)) === `Page ${pagesBefore + 1}`);
-  check('…from the poll\'s answer: the button fetched nothing itself', fetches === fetchesBefore, `${fetches - fetchesBefore} fetches`);
+  check("…with the new page's HTML", (await page.$eval('main h1', (h) => h.textContent)) === `Page ${pagesBefore + 1}`);
+  check(
+    "…from the poll's answer: the button fetched nothing itself",
+    fetches === fetchesBefore,
+    `${fetches - fetchesBefore} fetches`
+  );
   const scrollAfter = await page.evaluate(() => window.scrollY);
-  check('the scroll position stays', scrollBefore > 800 && scrollAfter === scrollBefore, `scrollY ${scrollBefore} → ${scrollAfter}`);
+  check(
+    'the scroll position stays',
+    scrollBefore > 800 && scrollAfter === scrollBefore,
+    `scrollY ${scrollBefore} → ${scrollAfter}`
+  );
   check('the open Alpine menu stays open', await page.$eval('#nav', (n) => getComputedStyle(n).display !== 'none'));
-  check('an unchanged element is not touched', await page.evaluate((h) => h === document.querySelector('header') && h.isConnected, headerBefore));
-  check('…nor an unchanged section beside the changed heading, in the same <main>', await page.$eval('#kept', (s) => s.hasAttribute('data-open') && s.textContent === 'Filled by a script'));
+  check(
+    'an unchanged element is not touched',
+    await page.evaluate((h) => h === document.querySelector('header') && h.isConnected, headerBefore)
+  );
+  check(
+    '…nor an unchanged section beside the changed heading, in the same <main>',
+    await page.$eval('#kept', (s) => s.hasAttribute('data-open') && s.textContent === 'Filled by a script')
+  );
   check('what a script appended stays', await page.evaluate(() => !!document.getElementById('appended-by-a-script')));
-  check('the edit button keeps what its script set', await page.$eval('#sve-edit-button', (a) => a.hasAttribute('data-ready')));
-  check('a script inside the morphed section does not run again', (await page.evaluate(() => window.__runs)) === 1, `ran ${await page.evaluate(() => window.__runs)} times`);
+  check(
+    'the edit button keeps what its script set',
+    await page.$eval('#sve-edit-button', (a) => a.hasAttribute('data-ready'))
+  );
+  check(
+    'a script inside the morphed section does not run again',
+    (await page.evaluate(() => window.__runs)) === 1,
+    `ran ${await page.evaluate(() => window.__runs)} times`
+  );
   check('green again after the morph', (await state()) === 'on');
-  check('one button, one edit button', (await page.evaluate(() => document.querySelectorAll('#sve-live-reload').length + ',' + document.querySelectorAll('#sve-edit-button').length)) === '1,1');
+  check(
+    'one button, one edit button',
+    (await page.evaluate(
+      () =>
+        document.querySelectorAll('#sve-live-reload').length +
+        ',' +
+        document.querySelectorAll('#sve-edit-button').length
+    )) === '1,1'
+  );
   await sleep(HOLD_MS + 300);
-  check('the morphed page holds the new markup — no loop', await sameDocument() && pages === pagesBefore + 1, `${pages - pagesBefore} page requests`);
+  check(
+    'the morphed page holds the new markup — no loop',
+    (await sameDocument()) && pages === pagesBefore + 1,
+    `${pages - pagesBefore} page requests`
+  );
   const latest = asked[asked.length - 1].url;
   check('…and asks with it', latest.searchParams.get('markup') === 'm2', latest.search);
 
   // A style in <head> changed with the template.
   server.color = 'rgb(255, 0, 0)';
-  await changeAndWait('markup', 'm3', () => getComputedStyle(document.querySelector('main h1')).color === 'rgb(255, 0, 0)');
-  check('a changed <head> style is swapped in, without a reload', await sameDocument() && (await page.evaluate(() => getComputedStyle(document.querySelector('main h1')).color)) === 'rgb(255, 0, 0)');
-  check('…and the old one is gone', (await page.evaluate(() => [...document.head.querySelectorAll('style')].filter((s) => s.textContent.includes('main h1')).length)) === 1);
+  await changeAndWait(
+    'markup',
+    'm3',
+    () => getComputedStyle(document.querySelector('main h1')).color === 'rgb(255, 0, 0)'
+  );
+  check(
+    'a changed <head> style is swapped in, without a reload',
+    (await sameDocument()) &&
+      (await page.evaluate(() => getComputedStyle(document.querySelector('main h1')).color)) === 'rgb(255, 0, 0)'
+  );
+  check(
+    '…and the old one is gone',
+    (await page.evaluate(
+      () => [...document.head.querySelectorAll('style')].filter((s) => s.textContent.includes('main h1')).length
+    )) === 1
+  );
 
   // A new <style> tag in <head>: its place in the cascade is the server's to say.
   server.style = '<style>footer { color: rgb(0, 0, 255); }</style>';
   const styleMs = await changeAndTime('markup', 'm3b');
-  check('a new <head> style tag reloads the page', styleMs !== null && !(await sameDocument()) && (await page.$eval('footer', (f) => getComputedStyle(f).color)) === 'rgb(0, 0, 255)', `${styleMs} ms`);
+  check(
+    'a new <head> style tag reloads the page',
+    styleMs !== null &&
+      !(await sameDocument()) &&
+      (await page.$eval('footer', (f) => getComputedStyle(f).color)) === 'rgb(0, 0, 255)',
+    `${styleMs} ms`
+  );
   await mark();
   await sleep(1200);
 
@@ -274,17 +424,30 @@ try {
   const fetchesNow = fetches;
   const headingNow = await page.$eval('main h1', (h) => h.textContent);
   server.markup = 'm3a';
-  await page.waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, headingNow).catch(() => {});
+  await page
+    .waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, headingNow)
+    .catch(() => {});
   await sleep(300);
-  check('an answer without the page: the button fetches it and morphs', await sameDocument() && fetches === fetchesNow + 1, `${fetches - fetchesNow} fetches`);
+  check(
+    'an answer without the page: the button fetches it and morphs',
+    (await sameDocument()) && fetches === fetchesNow + 1,
+    `${fetches - fetchesNow} fetches`
+  );
   server.inline = true;
   await sleep(HOLD_MS + 300);
 
   // A template pushed a script: a morph runs none, so the page reloads.
   server.script = '<script>window.__pushed = true;</script>';
   const scriptMs = await changeAndTime('markup', 'm4');
-  check('a new script reloads the page', scriptMs !== null && !(await sameDocument()) && (await page.evaluate(() => window.__pushed)) === true, `${scriptMs} ms`);
-  check('the reload asks the <head> script to skip entrance animations', (await page.evaluate(() => sessionStorage.getItem('sve-noanim'))) === '1');
+  check(
+    'a new script reloads the page',
+    scriptMs !== null && !(await sameDocument()) && (await page.evaluate(() => window.__pushed)) === true,
+    `${scriptMs} ms`
+  );
+  check(
+    'the reload asks the <head> script to skip entrance animations',
+    (await page.evaluate(() => sessionStorage.getItem('sve-noanim'))) === '1'
+  );
   await mark();
 
   // The page came back without </body>: reload, never half a page.
@@ -296,21 +459,67 @@ try {
 
   // A class the site's build has never made: compiled here, at once.
   await sleep(1200);
-  check('the dock\'s compiler is fetched when idle, once per page', twAsked === documents, `${twAsked} requests, ${documents} pages`);
+  check(
+    "the dock's compiler is fetched when idle, once per page",
+    twAsked === documents,
+    `${twAsked} requests, ${documents} pages`
+  );
   server.extra = '<b id="tw" class="bg-[#ff00aa] text-brand underline">new</b>';
   // A stylesheet is no DOM mutation: looked for every frame.
-  const htmlAt = page.waitForFunction(() => document.getElementById('tw'), { timeout: 3000, polling: 'raf' }).then(() => Date.now()).catch(() => null);
+  const htmlAt = page
+    .waitForFunction(() => document.getElementById('tw'), { timeout: 3000, polling: 'raf' })
+    .then(() => Date.now())
+    .catch(() => null);
   const twStart = Date.now();
-  const twMs = await changeAndWait('markup', 'm5b', () => {
-    const b = document.getElementById('tw');
-    return b && getComputedStyle(b).backgroundColor === 'rgb(255, 0, 170)';
-  }, 'raf');
+  const twMs = await changeAndWait(
+    'markup',
+    'm5b',
+    () => {
+      const b = document.getElementById('tw');
+      return b && getComputedStyle(b).backgroundColor === 'rgb(255, 0, 170)';
+    },
+    'raf'
+  );
   const htmlMs = (await htmlAt) - twStart;
-  check('a class the build never made paints with the morph, no build, no reload', twMs !== null && twMs - htmlMs < 100 && await sameDocument(), `HTML +${htmlMs} ms, colour +${twMs} ms`);
-  check('…from the site\'s own theme (bg-[#ff00aa] text-brand)', (await page.$eval('#tw', (b) => getComputedStyle(b).color)) === 'rgb(0, 170, 85)');
-  check('…in one sheet of its own, for those classes alone', await page.evaluate(() => document.adoptedStyleSheets.length === 1 && [...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('ff00aa') && ![...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('.relative')));
-  check('a class the page already has CSS for is not compiled (underline)', await page.evaluate(() => ![...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('.underline')));
-  check('…and the theme is asked once per page, while it is idle', themeAsked === documents, `${themeAsked} theme requests, ${documents} pages`);
+  check(
+    'a class the build never made paints with the morph, no build, no reload',
+    twMs !== null && twMs - htmlMs < 100 && (await sameDocument()),
+    `HTML +${htmlMs} ms, colour +${twMs} ms`
+  );
+  check(
+    "…from the site's own theme (bg-[#ff00aa] text-brand)",
+    (await page.$eval('#tw', (b) => getComputedStyle(b).color)) === 'rgb(0, 170, 85)'
+  );
+  check(
+    '…in one sheet of its own, for those classes alone',
+    await page.evaluate(
+      () =>
+        document.adoptedStyleSheets.length === 1 &&
+        [...document.adoptedStyleSheets[0].cssRules]
+          .map((r) => r.cssText)
+          .join(' ')
+          .includes('ff00aa') &&
+        ![...document.adoptedStyleSheets[0].cssRules]
+          .map((r) => r.cssText)
+          .join(' ')
+          .includes('.relative')
+    )
+  );
+  check(
+    'a class the page already has CSS for is not compiled (underline)',
+    await page.evaluate(
+      () =>
+        ![...document.adoptedStyleSheets[0].cssRules]
+          .map((r) => r.cssText)
+          .join(' ')
+          .includes('.underline')
+    )
+  );
+  check(
+    '…and the theme is asked once per page, while it is idle',
+    themeAsked === documents,
+    `${themeAsked} theme requests, ${documents} pages`
+  );
 
   // From here on, every frame: the class must never lose its colour.
   await page.evaluate(() => {
@@ -325,23 +534,45 @@ try {
   // A build that lacks the class (it started before the save): morphed in, the
   // compiled sheet stays — the page has no other CSS for the class.
   await sleep(HOLD_MS + 300);
-  const lacking = await changeAndWait('build', 'b2a', () => !document.querySelector('#sve-live-reload[data-state="reloading"]'), 'raf');
+  const lacking = await changeAndWait(
+    'build',
+    'b2a',
+    () => !document.querySelector('#sve-live-reload[data-state="reloading"]'),
+    'raf'
+  );
   await sleep(400);
-  check('a build without the class keeps the compiled sheet, no reload', lacking !== null && await sameDocument() && (await page.evaluate(() => document.adoptedStyleSheets.length)) === 1, `${await page.evaluate(() => document.adoptedStyleSheets.length)} sheets`);
+  check(
+    'a build without the class keeps the compiled sheet, no reload',
+    lacking !== null && (await sameDocument()) && (await page.evaluate(() => document.adoptedStyleSheets.length)) === 1,
+    `${await page.evaluate(() => document.adoptedStyleSheets.length)} sheets`
+  );
   await sleep(HOLD_MS + 300);
 
   // The build lands with that CSS: morphed in, the compiled sheet goes, no reload.
-  server.builtCss = ' #tw.bg-\\[\\#ff00aa\\] { background-color: rgb(255, 0, 170); } #tw.text-brand { color: rgb(0, 170, 85); }';
+  server.builtCss =
+    ' #tw.bg-\\[\\#ff00aa\\] { background-color: rgb(255, 0, 170); } #tw.text-brand { color: rgb(0, 170, 85); }';
   const builtMs = await changeAndWait('build', 'b2', () => document.adoptedStyleSheets.length === 0, 'raf');
-  check('a new build with the class is morphed in: no reload, the compiled sheet gone', builtMs !== null && builtMs < 1500 && await sameDocument(), `${builtMs} ms`);
+  check(
+    'a new build with the class is morphed in: no reload, the compiled sheet gone',
+    builtMs !== null && builtMs < 1500 && (await sameDocument()),
+    `${builtMs} ms`
+  );
   await sleep(300);
-  check('…and the class never lost its colour, not for one frame', (await page.evaluate(() => window.__lost)) === 0, `${await page.evaluate(() => window.__lost)} frames without it`);
+  check(
+    '…and the class never lost its colour, not for one frame',
+    (await page.evaluate(() => window.__lost)) === 0,
+    `${await page.evaluate(() => window.__lost)} frames without it`
+  );
   await sleep(HOLD_MS + 300);
 
   // A build that changed the page's scripts: only a page load brings them.
   server.script = '<script>window.__pushed = "built";</script>';
   const buildMs = await changeAndTime('build', 'b3');
-  check('a new build with other scripts reloads the page', buildMs !== null && buildMs < 500 && !(await sameDocument()), `${buildMs} ms`);
+  check(
+    'a new build with other scripts reloads the page',
+    buildMs !== null && buildMs < 500 && !(await sameDocument()),
+    `${buildMs} ms`
+  );
   await mark();
 
   // The editor overlay is open: a Live Preview session must not be torn down.
@@ -352,10 +583,18 @@ try {
   server.markup = 'm6';
   await sleep(2300);
   check('no poll while the editor overlay is open', polls === before, `${polls - before} polls`);
-  check('no update while the editor overlay is open', await sameDocument() && (await page.$eval('main h1', (h) => h.textContent)) === heading);
+  check(
+    'no update while the editor overlay is open',
+    (await sameDocument()) && (await page.$eval('main h1', (h) => h.textContent)) === heading
+  );
   await page.evaluate(() => document.documentElement.classList.remove('sve-editing'));
-  await page.waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, heading).catch(() => {});
-  check('closing the overlay catches up, as a morph', await sameDocument() && (await page.$eval('main h1', (h) => h.textContent)) !== heading);
+  await page
+    .waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, heading)
+    .catch(() => {});
+  check(
+    'closing the overlay catches up, as a morph',
+    (await sameDocument()) && (await page.$eval('main h1', (h) => h.textContent)) !== heading
+  );
 
   // Switched off in this browser.
   await sleep(1200);
@@ -366,11 +605,16 @@ try {
   server.markup = 'm7';
   await sleep(2300);
   check('off: no polls', polls === before, `${polls - before} polls`);
-  check('off: no update', await sameDocument() && (await page.$eval('main h1', (h) => h.textContent)) === heading);
+  check('off: no update', (await sameDocument()) && (await page.$eval('main h1', (h) => h.textContent)) === heading);
   check('off is remembered', (await page.evaluate(() => localStorage.getItem('sve-live-reload'))) === 'off');
   await page.click('#sve-live-reload');
-  await page.waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, heading).catch(() => {});
-  check('switched on again, it catches up', await sameDocument() && (await page.$eval('main h1', (h) => h.textContent)) !== heading);
+  await page
+    .waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, heading)
+    .catch(() => {});
+  check(
+    'switched on again, it catches up',
+    (await sameDocument()) && (await page.$eval('main h1', (h) => h.textContent)) !== heading
+  );
 
   // No morph to be had (an older build, a failed request): reload, as before.
   server.morphStatus = 404;
@@ -378,7 +622,11 @@ try {
   await mark();
   await sleep(1200);
   const noMorphMs = await changeAndTime('markup', 'm8');
-  check('without the morph, new markup reloads the page', noMorphMs !== null && !(await sameDocument()), `${noMorphMs} ms`);
+  check(
+    'without the morph, new markup reloads the page',
+    noMorphMs !== null && !(await sameDocument()),
+    `${noMorphMs} ms`
+  );
   server.morphStatus = 200;
   await mark();
 

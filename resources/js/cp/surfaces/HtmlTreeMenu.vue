@@ -81,13 +81,7 @@ onUnmounted(() => {
 
 <template>
   <div ref="menu" class="sve-ht-menu" :style="pos" @pointerenter="stay" @pointerleave="anchor && leave()">
-    <button
-      v-for="item in items"
-      :key="item.label"
-      type="button"
-      :disabled="!item.onPick"
-      @click="item.onPick?.()"
-    >
+    <button v-for="item in items" :key="item.label" type="button" :disabled="!item.onPick" @click="item.onPick?.()">
       <!-- A glyph in front of the word, when the item brings one. -->
       <span v-if="item.icon" class="sve-ht-menu__icon" aria-hidden="true" v-html="item.icon"></span>
       <span>{{ item.label }}</span>

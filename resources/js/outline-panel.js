@@ -42,7 +42,6 @@ import { MSG, SOURCE } from './lib/protocol.js';
 // layout. The bridge keeps it in step while the panel is open and stops when it
 // closes.
 
-
 /** The last list the preview sent. Redrawn whole; never edited in place. */
 export let outlineItems = [];
 export let outlineActive = -1;
@@ -193,18 +192,13 @@ export function watchOutlineValues(win) {
   const values = container.values;
 
   if (typeof vueWatch === 'function' && values) {
-    const stop = vueWatch(
-      values.__v_isRef ? values : () => unwrapRef(values)?.[field],
-      onStructure,
-      { deep: true }
-    );
+    const stop = vueWatch(values.__v_isRef ? values : () => unwrapRef(values)?.[field], onStructure, { deep: true });
 
     if (typeof stop === 'function') {
       outlineValuesUnhook.push(stop);
     }
   }
 }
-
 
 // --- Tabs ----------------------------------------------------------------------
 // Each tab is a different question asked of the same rendered page, and only the
@@ -332,7 +326,6 @@ function openScanTabLazily(win, which) {
 export function closeA11yTabs(win) {
   scanMod?.closeA11yTab(win);
 }
-
 
 export function closeOutlinePanel(win) {
   const panel = win.document.getElementById(OUTLINE_PANEL_ID);

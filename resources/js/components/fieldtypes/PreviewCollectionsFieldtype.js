@@ -6,36 +6,37 @@
  * picking it leaves the value as it was.
  */
 (function () {
-    'use strict';
+  'use strict';
 
-    Statamic.booting(() => {
-        const { computed } = window.Vue;
+  Statamic.booting(() => {
+    const { computed } = window.Vue;
 
-        Statamic.$components.register('sve-preview-collections-fieldtype', {
-            props: {
-                value: { default: null },
-                meta: { type: Object, default: () => ({}) },
-            },
+    Statamic.$components.register('sve-preview-collections-fieldtype', {
+      props: {
+        value: { default: null },
+        meta: { type: Object, default: () => ({}) },
+      },
 
-            emits: ['update:value'],
+      emits: ['update:value'],
 
-            setup(props, { emit }) {
-                const collections = computed(() =>
-                    Array.isArray(props.meta?.collections) ? props.meta.collections : []
-                );
-                const selected = computed(() => (Array.isArray(props.value) ? props.value : []));
-                const previewable = computed(
-                    () => new Set(collections.value.filter((c) => c.previewable).map((c) => c.handle))
-                );
+      setup(props, { emit }) {
+        const collections = computed(() => (Array.isArray(props.meta?.collections) ? props.meta.collections : []));
+        const selected = computed(() => (Array.isArray(props.value) ? props.value : []));
+        const previewable = computed(
+          () => new Set(collections.value.filter((c) => c.previewable).map((c) => c.handle))
+        );
 
-                function select(handles) {
-                    emit('update:value', (Array.isArray(handles) ? handles : []).filter((h) => previewable.value.has(h)));
-                }
+        function select(handles) {
+          emit(
+            'update:value',
+            (Array.isArray(handles) ? handles : []).filter((h) => previewable.value.has(h))
+          );
+        }
 
-                return { collections, selected, select };
-            },
+        return { collections, selected, select };
+      },
 
-            template: `
+      template: `
                 <ui-combobox
                     searchable
                     multiple
@@ -55,6 +56,6 @@
                     </template>
                 </ui-combobox>
             `,
-        });
     });
+  });
 })();

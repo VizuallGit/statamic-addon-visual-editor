@@ -34,7 +34,9 @@ use MarioHamann\StatamicVisualEditor\FileManager\Tree;
 class FileManager
 {
     public const MAX_BYTES = Root::MAX_BYTES;
+
     public const EXTENSIONS = Root::EXTENSIONS;
+
     public const DEFAULT_EXCLUDE = Root::DEFAULT_EXCLUDE;
 
     /**

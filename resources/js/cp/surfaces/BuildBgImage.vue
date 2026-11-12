@@ -23,7 +23,9 @@ const current = computed(() => {
 
   const chain = variantChain(port.sizes(), port.size(), port.state());
 
-  return effectiveClass(port.pickedClasses().join(' '), ['field'], chain, (name) => (fieldHas(props.field, name) ? 'field' : ''));
+  return effectiveClass(port.pickedClasses().join(' '), ['field'], chain, (name) =>
+    fieldHas(props.field, name) ? 'field' : ''
+  );
 });
 const own = computed(() => (current.value && !current.value.inherited ? current.value : null));
 const url = computed(() => /^bg-\[url\((.*)\)\]$/.exec(own.value?.name || '')?.[1] || '');

@@ -39,7 +39,7 @@ test('a font size from a variable says it is a length; a colour from one does no
   assert.equal(toClass('text', 'clamp(1rem, 2vw, 3rem)', 'size'), 'text-[length:clamp(1rem,_2vw,_3rem)]');
 });
 
-test('text typed into a field\'s menu: a row of the scale as it is, anything else as a typed value', () => {
+test("text typed into a field's menu: a row of the scale as it is, anything else as a typed value", () => {
   const scale = ['pbs-0', 'pbs-700', 'pbs-72'];
 
   assert.equal(typedClass('pbs-700', scale, 'pbs'), 'pbs-700');
@@ -71,7 +71,13 @@ test('read back, the class shows what was typed', () => {
 });
 
 test('a value round-trips through its class', () => {
-  for (const [prefix, kind, value] of [['pbs', 'space', '10px'], ['gap', 'space', 'var(--gutter)'], ['text', 'size', 'var(--x)'], ['w', 'dim', 'fit-content'], ['text', 'color', '#13204f']]) {
+  for (const [prefix, kind, value] of [
+    ['pbs', 'space', '10px'],
+    ['gap', 'space', 'var(--gutter)'],
+    ['text', 'size', 'var(--x)'],
+    ['w', 'dim', 'fit-content'],
+    ['text', 'color', '#13204f'],
+  ]) {
     assert.equal(fromClass(toClass(prefix, value, kind), prefix), value, `${prefix} ${value}`);
   }
 });
@@ -130,7 +136,14 @@ test('a size reads through the wider ones, nearest first; All is the base alone'
 });
 
 test('a state reads its own classes at every size first, then the sizes without it', () => {
-  assert.deepEqual(variantChain(ROWS, 'mobile', 'hover'), ['max-md:hover', 'max-lg:hover', 'hover', 'max-md', 'max-lg', '']);
+  assert.deepEqual(variantChain(ROWS, 'mobile', 'hover'), [
+    'max-md:hover',
+    'max-lg:hover',
+    'hover',
+    'max-md',
+    'max-lg',
+    '',
+  ]);
   assert.deepEqual(variantChain(ROWS, null, 'prose-p'), ['prose-p', '']);
 });
 
@@ -140,7 +153,14 @@ test('a container size reads its own classes, the wider named sizes nearest firs
   assert.deepEqual(variantChain(ROWS, '@max-md'), ['@max-md', ...wider, '']);
   assert.deepEqual(variantChain(ROWS, '@max-6xl'), ['@max-6xl', '@max-7xl', '']);
   assert.deepEqual(variantChain(ROWS, '@max-[30rem]'), ['@max-[30rem]', ...wider, '']);
-  assert.deepEqual(variantChain(ROWS, '@max-6xl', 'hover'), ['@max-6xl:hover', '@max-7xl:hover', 'hover', '@max-6xl', '@max-7xl', '']);
+  assert.deepEqual(variantChain(ROWS, '@max-6xl', 'hover'), [
+    '@max-6xl:hover',
+    '@max-7xl:hover',
+    'hover',
+    '@max-6xl',
+    '@max-7xl',
+    '',
+  ]);
 
   const propertyOf = (name) => (name.startsWith('pt-') ? 'padding-top' : '');
 
@@ -157,10 +177,18 @@ test('a container size with a state, and an arbitrary one, keep the state first'
   const propertyOf = (name) => (name.startsWith('pbs-') ? 'padding-block-start' : '');
 
   assert.deepEqual(
-    effectiveClass('pbs-800 max-md:pbs-400 @max-md:pbs-200', ['padding-block-start'], variantChain(ROWS, '@max-md'), propertyOf),
+    effectiveClass(
+      'pbs-800 max-md:pbs-400 @max-md:pbs-200',
+      ['padding-block-start'],
+      variantChain(ROWS, '@max-md'),
+      propertyOf
+    ),
     { raw: '@max-md:pbs-200', key: '@max-md', name: 'pbs-200', property: 'padding-block-start', inherited: false }
   );
-  assert.equal(effectiveClass('pbs-800 max-md:pbs-400', ['padding-block-start'], variantChain(ROWS, '@max-md'), propertyOf).name, 'pbs-800');
+  assert.equal(
+    effectiveClass('pbs-800 max-md:pbs-400', ['padding-block-start'], variantChain(ROWS, '@max-md'), propertyOf).name,
+    'pbs-800'
+  );
 });
 
 test('what a size shows: its own class, else the nearest wider size, else the broader property', () => {
@@ -169,10 +197,13 @@ test('what a size shows: its own class, else the nearest wider size, else the br
   const chain = ['max-md', 'max-lg', ''];
   const sides = ['padding-block-start', 'padding-block', 'padding'];
 
-  assert.deepEqual(
-    effectiveClass('pbs-800 max-md:pbs-200', sides, chain, propertyOf),
-    { raw: 'max-md:pbs-200', key: 'max-md', name: 'pbs-200', property: 'padding-block-start', inherited: false }
-  );
+  assert.deepEqual(effectiveClass('pbs-800 max-md:pbs-200', sides, chain, propertyOf), {
+    raw: 'max-md:pbs-200',
+    key: 'max-md',
+    name: 'pbs-200',
+    property: 'padding-block-start',
+    inherited: false,
+  });
   assert.equal(effectiveClass('pbs-800', sides, chain, propertyOf).inherited, true);
   // A media query beats the narrower property: max-md:py wins over a base pbs.
   assert.equal(effectiveClass('pbs-800 max-md:py-100', sides, chain, propertyOf).name, 'py-100');

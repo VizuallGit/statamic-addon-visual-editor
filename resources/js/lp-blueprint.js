@@ -122,7 +122,12 @@ async function makeOwnPage(win) {
     .fetch('/!/sve/own-page', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrfToken(win) },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': csrfToken(win),
+      },
       body: JSON.stringify({ id: currentEntryId(win) }),
     })
     .catch(() => null);

@@ -143,9 +143,16 @@ export function oklchToHex(color) {
     rgb = oklchToLinear({ ...color, c: lo });
   }
 
-  return '#' + rgb
-    .map((v) => Math.round(Math.min(1, Math.max(0, fromLinear(v))) * 255).toString(16).padStart(2, '0'))
-    .join('');
+  return (
+    '#' +
+    rgb
+      .map((v) =>
+        Math.round(Math.min(1, Math.max(0, fromLinear(v))) * 255)
+          .toString(16)
+          .padStart(2, '0')
+      )
+      .join('')
+  );
 }
 
 /** Where a color's lightness falls on the 0–1000 line — 50 is near white, 950 near black. */
@@ -196,9 +203,7 @@ function pickNumber(ideal, above, max) {
  * lower, and each as close to the color's real lightness as the others allow.
  */
 export function nameSteps(values) {
-  const order = values
-    .map((value, i) => ({ i, n: lightnessNumber(value) }))
-    .sort((a, b) => a.n - b.n);
+  const order = values.map((value, i) => ({ i, n: lightnessNumber(value) })).sort((a, b) => a.n - b.n);
   const names = new Array(values.length);
   let prev = 0;
 
@@ -294,15 +299,16 @@ function pairSteps(base, counts, steps) {
     return null;
   }
 
-  const side = (have, want) => have.map(({ step }, k) => {
-    const l = want[k].l;
-    const inner = k === 0 ? color.l : want[k - 1].l;
-    const outer = Math.min(1, Math.max(0, k + 1 < want.length ? want[k + 1].l : l + (l - inner)));
-    const toInner = (inner - l) / 2;
-    const toOuter = (outer - l) / 2;
+  const side = (have, want) =>
+    have.map(({ step }, k) => {
+      const l = want[k].l;
+      const inner = k === 0 ? color.l : want[k - 1].l;
+      const outer = Math.min(1, Math.max(0, k + 1 < want.length ? want[k + 1].l : l + (l - inner)));
+      const toInner = (inner - l) / 2;
+      const toOuter = (outer - l) / 2;
 
-    return { step, made: want[k], min: Math.min(toInner, toOuter), max: Math.max(toInner, toOuter) };
-  });
+      return { step, made: want[k], min: Math.min(toInner, toOuter), max: Math.max(toInner, toOuter) };
+    });
 
   return [...side(tints, made.tints), ...side(shades, made.shades)];
 }
@@ -389,9 +395,11 @@ function isScale(family) {
   const want = scaleSteps(family.value);
   const have = [...(family.steps || [])].sort((a, b) => Number(a.name) - Number(b.name));
 
-  return want.length > 0
-    && have.length === want.length
-    && want.every((s, i) => String(have[i].name) === s.name && String(have[i].value).trim().toLowerCase() === s.value);
+  return (
+    want.length > 0 &&
+    have.length === want.length &&
+    want.every((s, i) => String(have[i].name) === s.name && String(have[i].value).trim().toLowerCase() === s.value)
+  );
 }
 
 /**
@@ -476,15 +484,22 @@ export function remakeSteps(base, counts, previous = [], previousBase = base) {
   const values = stepValues(base, counts);
   const before = previous.map((step) => ({ name: String(step.name), l: hexToOklch(step.value)?.l ?? 0 }));
   // Nearest the base first: a tint is lighter than the base, so the nearest has the highest number.
-  const oldTints = before.filter((s) => s.l > was.l).map((s) => s.name).sort((a, b) => num(b) - num(a));
-  const oldShades = before.filter((s) => s.l <= was.l).map((s) => s.name).sort((a, b) => num(a) - num(b));
+  const oldTints = before
+    .filter((s) => s.l > was.l)
+    .map((s) => s.name)
+    .sort((a, b) => num(b) - num(a));
+  const oldShades = before
+    .filter((s) => s.l <= was.l)
+    .map((s) => s.name)
+    .sort((a, b) => num(a) - num(b));
   const taken = new Set();
   const out = [];
 
   let hi = oldTints.length ? Infinity : oldShades.length ? num(oldShades[0]) : 1000;
 
   values.tints.forEach((value, k) => {
-    const name = k < oldTints.length ? oldTints[k] : freeNumber(lightnessNumber(value), 0, hi, new Set([...taken, ...oldShades]));
+    const name =
+      k < oldTints.length ? oldTints[k] : freeNumber(lightnessNumber(value), 0, hi, new Set([...taken, ...oldShades]));
 
     taken.add(name);
     hi = Math.min(hi, num(name));
@@ -506,7 +521,9 @@ export function remakeSteps(base, counts, previous = [], previousBase = base) {
 
 /** Whether the steps carry the names generateSteps() would give them now — if not, "rename by lightness" has something to do. */
 export function namedByLightness(family, counts) {
-  const want = generateSteps(family.value, counts).map((s) => s.name).sort();
+  const want = generateSteps(family.value, counts)
+    .map((s) => s.name)
+    .sort();
   const have = (family.steps || []).map((s) => String(s.name)).sort();
 
   return want.length === have.length && want.every((name, i) => name === have[i]);
@@ -799,7 +816,10 @@ function rewriteBlock(body, wanted, families) {
 
     for (const n of missing) {
       // After the nearest line of this family that sorts before it; else before its first line.
-      const before = names.slice(0, names.indexOf(n)).filter((p) => seen.has(p)).pop();
+      const before = names
+        .slice(0, names.indexOf(n))
+        .filter((p) => seen.has(p))
+        .pop();
       const anchor = before ? lastOf.get(before) : lastOf.get(present[0]) - 1;
 
       add(anchor, decl(n));

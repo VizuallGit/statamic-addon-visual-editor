@@ -17,18 +17,10 @@ function emptyText() {
 <template>
   <div class="sve-comments">
     <div class="sve-comments__tabs">
-      <button
-        type="button"
-        :class="{ 'is-active': ui.filter === 'open' }"
-        @click="ui.onFilter?.('open')"
-      >
+      <button type="button" :class="{ 'is-active': ui.filter === 'open' }" @click="ui.onFilter?.('open')">
         Åbne ({{ ui.openCount }})
       </button>
-      <button
-        type="button"
-        :class="{ 'is-active': ui.filter === 'all' }"
-        @click="ui.onFilter?.('all')"
-      >
+      <button type="button" :class="{ 'is-active': ui.filter === 'all' }" @click="ui.onFilter?.('all')">
         Alle ({{ ui.allCount }})
       </button>
     </div>

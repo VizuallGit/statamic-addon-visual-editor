@@ -57,24 +57,28 @@ const SWITCHES = `${OPEN} .sve-theme__switch`;
 
 /** Page coordinates of the `nth` visible match inside `frame`, through its parent frames. */
 async function pointIn(frame, selector, nth = 0) {
-  const r = await frame.evaluate((sel, n) => {
-    const seen = [...document.querySelectorAll(sel)].filter((el) => {
+  const r = await frame.evaluate(
+    (sel, n) => {
+      const seen = [...document.querySelectorAll(sel)].filter((el) => {
+        const b = el.getBoundingClientRect();
+
+        return b.width > 0 && b.height > 0;
+      });
+      const el = seen[n];
+
+      if (!el) {
+        return null;
+      }
+
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+
       const b = el.getBoundingClientRect();
 
-      return b.width > 0 && b.height > 0;
-    });
-    const el = seen[n];
-
-    if (!el) {
-      return null;
-    }
-
-    el.scrollIntoView({ block: 'center', behavior: 'instant' });
-
-    const b = el.getBoundingClientRect();
-
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-  }, selector, nth);
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    },
+    selector,
+    nth
+  );
 
   if (!r) {
     throw new Error(`nothing visible for ${selector} [${nth}]`);
@@ -99,7 +103,10 @@ async function click(page, frame, selector, nth = 0) {
   const { x, y } = await pointIn(frame, selector, nth);
   const t0 = Date.now();
 
-  while (Date.now() - t0 < 8000 && (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))) {
+  while (
+    Date.now() - t0 < 8000 &&
+    (await page.evaluate((px, py) => document.elementFromPoint(px, py)?.tagName === 'HTML', x, y))
+  ) {
     await sleep(100);
   }
 
@@ -116,18 +123,23 @@ async function retype(page, frame, selector, text, nth = 0) {
 
 /** Pick an option in a native select by its value, the way a person would end up. */
 async function choose(frame, selector, value, nth = 0) {
-  return frame.evaluate((sel, v, n) => {
-    const el = [...document.querySelectorAll(sel)][n];
+  return frame.evaluate(
+    (sel, v, n) => {
+      const el = [...document.querySelectorAll(sel)][n];
 
-    if (!el || ![...el.options].some((o) => o.value === v)) {
-      return false;
-    }
+      if (!el || ![...el.options].some((o) => o.value === v)) {
+        return false;
+      }
 
-    el.value = v;
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
 
-    return true;
-  }, selector, value, nth);
+      return true;
+    },
+    selector,
+    value,
+    nth
+  );
 }
 
 async function waitFor(frame, fn, arg, ms = 8000) {
@@ -160,44 +172,65 @@ const twFile = WORKTREE
   : twFileOf(`${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`);
 
 /** What the dock's Tailwind knows right now: its class list, and the CSS it compiles for `html`. */
-const dockTailwind = (frame, html) => frame.evaluate(async (markup, file) => {
-  if (!file) {
-    return null;
-  }
+const dockTailwind = (frame, html) =>
+  frame.evaluate(
+    async (markup, file) => {
+      if (!file) {
+        return null;
+      }
 
-  const url = new URL(`/vendor/visual-editor/build/${file}`, location.href).href;
-  const mod = await import(url);
-  const design = await mod.loadTailwindDesign(window);
-  const names = (design.getClassList() || []).map((entry) => (Array.isArray(entry) ? entry[0] : entry));
+      const url = new URL(`/vendor/visual-editor/build/${file}`, location.href).href;
+      const mod = await import(url);
+      const design = await mod.loadTailwindDesign(window);
+      const names = (design.getClassList() || []).map((entry) => (Array.isArray(entry) ? entry[0] : entry));
 
-  return { names, css: mod.buildTailwind(await mod.loadTailwindCompiler(window), markup) || '' };
-}, html, twFile);
+      return { names, css: mod.buildTailwind(await mod.loadTailwindCompiler(window), markup) || '' };
+    },
+    html,
+    twFile
+  );
 
 /** A heading or paragraph made in the preview for a moment: its computed weight and line height (as a ratio). */
-const probe = (frame, tag) => frame.evaluate((t) => {
-  const el = document.createElement(t);
+const probe = (frame, tag) =>
+  frame.evaluate((t) => {
+    const el = document.createElement(t);
 
-  el.textContent = 'Probe';
-  document.body.append(el);
+    el.textContent = 'Probe';
+    document.body.append(el);
 
-  const cs = getComputedStyle(el);
-  const out = { weight: cs.fontWeight, ratio: Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100 };
+    const cs = getComputedStyle(el);
+    const out = {
+      weight: cs.fontWeight,
+      ratio: Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100,
+    };
 
-  el.remove();
+    el.remove();
 
-  return out;
-}, tag);
-const cellClass = (frame, cell) => frame.evaluate((c) => document.querySelector(`[data-sve-type-cell="${c}"]`)?.className || '', cell);
+    return out;
+  }, tag);
+const cellClass = (frame, cell) =>
+  frame.evaluate((c) => document.querySelector(`[data-sve-type-cell="${c}"]`)?.className || '', cell);
 
-const rootVar = (frame, name) => frame.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
+const rootVar = (frame, name) =>
+  frame.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/theme-panel-${name}.png` });
 
-const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
+const browser = await puppeteer.launch({
+  headless: true,
+  executablePath: CHROME,
+  args: ['--window-size=1440,900'],
+  defaultViewport: { width: 1440, height: 900 },
+});
 const page = await browser.newPage();
 
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
-page.on('response', (r) => r.status() >= 400 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
+page.on(
+  'response',
+  (r) =>
+    r.status() >= 400 &&
+    errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`)
+);
 
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
@@ -221,7 +254,11 @@ try {
   await sleep(1500);
 
   if (!(await page.$('iframe.sve-edit-overlay'))) {
-    await page.evaluate(() => [...document.querySelectorAll('button, a')].find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))?.click());
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button, a')]
+        .find((el) => /live preview|forhåndsvisning/i.test(el.textContent || ''))
+        ?.click()
+    );
     await page.waitForSelector('iframe.sve-edit-overlay[data-open]', { timeout: 30000 });
   }
 
@@ -244,15 +281,25 @@ try {
   }
 
   step('preview has the page', !!preview);
-  step('the page gets the theme from theme_tokens', /^#11122c$/i.test(await rootVar(preview, '--color-primary')) && (await rootVar(preview, '--size-500')).startsWith('clamp(1.5rem'));
+  step(
+    'the page gets the theme from theme_tokens',
+    /^#11122c$/i.test(await rootVar(preview, '--color-primary')) &&
+      (await rootVar(preview, '--size-500')).startsWith('clamp(1.5rem')
+  );
 
   // ── Open ──────────────────────────────────────────────────────────────
   const icon = '#__sve-toolbar button[data-tab="theme"]';
 
   step('palette icon in the top bar', !!(await cp.$(icon)));
   await click(page, cp, icon);
-  step('panel opens on Colors with the colors from site.css', await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__card`).length >= 7, PANEL),
-    await cp.evaluate((p) => [...document.querySelectorAll(`${p} .sve-theme__token`)].map((e) => e.textContent.trim()).join(' '), PANEL));
+  step(
+    'panel opens on Colors with the colors from site.css',
+    await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__card`).length >= 7, PANEL),
+    await cp.evaluate(
+      (p) => [...document.querySelectorAll(`${p} .sve-theme__token`)].map((e) => e.textContent.trim()).join(' '),
+      PANEL
+    )
+  );
   const look = await cp.evaluate((p) => {
     const el = document.querySelector(`${p} .sve-theme`);
     const cs = getComputedStyle(el);
@@ -262,38 +309,58 @@ try {
 
   // The panel's own sheet: its flex column and the seven sections.
   step('its stylesheet loaded', look.display === 'flex' && look.folds === 8, JSON.stringify(look));
-  step('it sits in the shared right sidebar', await cp.evaluate((p) => !!document.querySelector(`#__sve-right-dock ${p}`), PANEL));
-  step('each section has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__fold-icon svg`).length === 8, PANEL));
+  step(
+    'it sits in the shared right sidebar',
+    await cp.evaluate((p) => !!document.querySelector(`#__sve-right-dock ${p}`), PANEL)
+  );
+  step(
+    'each section has its icon',
+    await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__fold-icon svg`).length === 8, PANEL)
+  );
 
   const knewBefore = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
 
-  step('the dock\'s Tailwind does not know the new classes yet', !!knewBefore && !knewBefore.names.includes('bg-testmoss-500') && !knewBefore.names.includes('p-1300'));
+  step(
+    "the dock's Tailwind does not know the new classes yet",
+    !!knewBefore && !knewBefore.names.includes('bg-testmoss-500') && !knewBefore.names.includes('p-1300')
+  );
 
   if (!WORKTREE) {
-    const tab = await cp.evaluate((p) => document.querySelector(`${p} [data-sve-theme-tab="spacing"]`)?.textContent.trim() || '', PANEL);
+    const tab = await cp.evaluate(
+      (p) => document.querySelector(`${p} [data-sve-theme-tab="spacing"]`)?.textContent.trim() || '',
+      PANEL
+    );
 
     step('its strings are translated', !!tab && !tab.startsWith('theme_') && !tab.startsWith('panel_'), tab);
   }
 
   // ── Colors ────────────────────────────────────────────────────────────
   await click(page, cp, `${PANEL} .sve-theme__card:nth-of-type(3) .sve-theme__row`);
-  step('primary opens with its 11 own steps', await waitFor(cp, (o) => document.querySelectorAll(`${o} .sve-theme__swatch.is-editable`).length === 11, OPEN));
+  step(
+    'primary opens with its 11 own steps',
+    await waitFor(cp, (o) => document.querySelectorAll(`${o} .sve-theme__swatch.is-editable`).length === 11, OPEN)
+  );
   await retype(page, cp, TEXT_INPUTS, '#ff0000', 1);
-  step('the preview repaints at once (var(--primary) is red)', await waitFor(preview, () => {
-    const probe = document.createElement('div');
+  step(
+    'the preview repaints at once (var(--primary) is red)',
+    await waitFor(preview, () => {
+      const probe = document.createElement('div');
 
-    probe.style.background = 'var(--primary)';
-    document.body.append(probe);
+      probe.style.background = 'var(--primary)';
+      document.body.append(probe);
 
-    const bg = getComputedStyle(probe).backgroundColor;
+      const bg = getComputedStyle(probe).backgroundColor;
 
-    probe.remove();
+      probe.remove();
 
-    return bg === 'rgb(255, 0, 0)';
-  }));
+      return bg === 'rgb(255, 0, 0)';
+    })
+  );
 
   const gray = await cp.evaluate((p) => {
-    const card = [...document.querySelectorAll(`${p} .sve-theme__card`)].find((c) => c.querySelector('.sve-theme__token')?.textContent.trim() === '--gray');
+    const card = [...document.querySelectorAll(`${p} .sve-theme__card`)].find(
+      (c) => c.querySelector('.sve-theme__token')?.textContent.trim() === '--gray'
+    );
 
     return card ? 'found' : 'missing';
   }, PANEL);
@@ -302,36 +369,69 @@ try {
   await click(page, cp, `${PANEL} [data-sve-theme-add]`);
   await waitFor(cp, (o) => !!document.querySelector(`${o} input[type="text"]:not([readonly])`), OPEN);
   await retype(page, cp, TEXT_INPUTS, 'gutter', 0);
-  step('a name the site already uses is refused', await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__input.is-bad`), OPEN));
+  step(
+    'a name the site already uses is refused',
+    await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__input.is-bad`), OPEN)
+  );
   await retype(page, cp, TEXT_INPUTS, 'testmoss', 0);
   await retype(page, cp, TEXT_INPUTS, '#55613f', 1);
   await click(page, cp, SWITCHES, 0);
   await click(page, cp, `${OPEN} .sve-theme__stepper button:last-child`, 0);
   await click(page, cp, SWITCHES, 1);
 
-  const steps = await cp.evaluate((o) => [...document.querySelectorAll(`${o} .sve-theme__swatch-name`)].map((e) => e.textContent.trim()), OPEN);
+  const steps = await cp.evaluate(
+    (o) => [...document.querySelectorAll(`${o} .sve-theme__swatch-name`)].map((e) => e.textContent.trim()),
+    OPEN
+  );
 
   step('4 tints and 3 shades, named by lightness', steps.length === 7, steps.join(' '));
-  step('the new color paints into the preview', await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--color-testmoss').trim() === '#55613f'));
+  step(
+    'the new color paints into the preview',
+    await waitFor(
+      preview,
+      () => getComputedStyle(document.documentElement).getPropertyValue('--color-testmoss').trim() === '#55613f'
+    )
+  );
 
   // Another tool takes the sidebar: the panel goes without a question, and
   // comes back with the unsaved changes.
   if (await cp.$('#__sve-toolbar button[data-tab="outline"]')) {
     await click(page, cp, '#__sve-toolbar button[data-tab="outline"]');
-    step('another tool replaces it in the sidebar', await waitFor(cp, (p) => !document.querySelector(p) && !!document.querySelector('#__sve-right-dock #__sve-outline-panel'), PANEL));
+    step(
+      'another tool replaces it in the sidebar',
+      await waitFor(
+        cp,
+        (p) => !document.querySelector(p) && !!document.querySelector('#__sve-right-dock #__sve-outline-panel'),
+        PANEL
+      )
+    );
     await click(page, cp, icon);
-    step('back again with the unsaved changes', await waitFor(cp, (p) => {
-      const panel = document.querySelector(p);
+    step(
+      'back again with the unsaved changes',
+      await waitFor(
+        cp,
+        (p) => {
+          const panel = document.querySelector(p);
 
-      return !!panel && !panel.querySelector('.sve-theme__save')?.disabled && [...panel.querySelectorAll('.sve-theme__token')].some((t) => t.textContent.trim() === '--testmoss');
-    }, PANEL));
+          return (
+            !!panel &&
+            !panel.querySelector('.sve-theme__save')?.disabled &&
+            [...panel.querySelectorAll('.sve-theme__token')].some((t) => t.textContent.trim() === '--testmoss')
+          );
+        },
+        PANEL
+      )
+    );
   }
   await shot(page, '1-colors');
 
   // ── Spacing ───────────────────────────────────────────────────────────
   await click(page, cp, `${PANEL} [data-sve-theme-tab="spacing"]`);
 
-  const names = await cp.evaluate((p) => [...document.querySelectorAll(`${p} .sve-theme__grid-name`)].map((e) => e.textContent.trim()), PANEL);
+  const names = await cp.evaluate(
+    (p) => [...document.querySelectorAll(`${p} .sve-theme__grid-name`)].map((e) => e.textContent.trim()),
+    PANEL
+  );
 
   step('Spacing lists the scale from site.css', names.length === 16 && names.includes('size-1200'), names.join(' '));
 
@@ -339,77 +439,147 @@ try {
 
   // Desktop (max) of size-500: 34 → 40 px.
   await retype(page, cp, `${PANEL} .sve-theme__grid input[type="number"]`, '40', row500 * 2 + 1);
-  step('a changed size paints at once, written like the fluid-size addon',
-    await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--size-500').trim() === 'clamp(1.5rem, 1.1667rem + 1.6667vw, 2.5rem)'),
-    await rootVar(preview, '--size-500'));
+  step(
+    'a changed size paints at once, written like the fluid-size addon',
+    await waitFor(
+      preview,
+      () =>
+        getComputedStyle(document.documentElement).getPropertyValue('--size-500').trim() ===
+        'clamp(1.5rem, 1.1667rem + 1.6667vw, 2.5rem)'
+    ),
+    await rootVar(preview, '--size-500')
+  );
   await click(page, cp, `${PANEL} [data-sve-theme-add]`);
-  step('a new size is added after the last', await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--size-1300').trim().startsWith('clamp(5.625rem')));
-  step('the chart has a bar per size', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__bars.is-desktop .sve-theme__bar`).length === 17, PANEL));
+  step(
+    'a new size is added after the last',
+    await waitFor(preview, () =>
+      getComputedStyle(document.documentElement).getPropertyValue('--size-1300').trim().startsWith('clamp(5.625rem')
+    )
+  );
+  step(
+    'the chart has a bar per size',
+    await cp.evaluate(
+      (p) => document.querySelectorAll(`${p} .sve-theme__bars.is-desktop .sve-theme__bar`).length === 17,
+      PANEL
+    )
+  );
   await shot(page, '2-spacing');
 
   // ── Typography ────────────────────────────────────────────────────────
   await click(page, cp, `${PANEL} [data-sve-theme-tab="type"]`);
-  step('Typography shows the scale as Aa', await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__aa-row`).length === 17, PANEL));
+  step(
+    'Typography shows the scale as Aa',
+    await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__aa-row`).length === 17, PANEL)
+  );
   step('H1 → size-800', await choose(cp, `${PANEL} [data-sve-type-cell="h1-size"] select`, 'size-800'));
   // A custom property's computed value has var() filled in: compare with what --size-800 is.
-  step('the preview gets the new H1 size', await waitFor(preview, () => {
-    const cs = getComputedStyle(document.documentElement);
+  step(
+    'the preview gets the new H1 size',
+    await waitFor(preview, () => {
+      const cs = getComputedStyle(document.documentElement);
 
-    return cs.getPropertyValue('--font-size-h1').trim() === cs.getPropertyValue('--size-800').trim();
-  }));
+      return cs.getPropertyValue('--font-size-h1').trim() === cs.getPropertyValue('--size-800').trim();
+    })
+  );
 
   // Body and headings each have a weight and a line height; a level can have its own.
-  step('Typography has Body and Headings, and the six levels', await cp.evaluate(() => !!document.querySelector('[data-sve-type-body]') && !!document.querySelector('[data-sve-type-headings]')
-    && document.querySelectorAll('[data-sve-type-levels] [data-sve-type-cell$="-weight"]').length === 6));
-  step('a level follows the headings (dimmed) until it has its own', /is-inherited/.test(await cellClass(cp, 'h2-weight')) && (await probe(preview, 'h2')).weight === '700', JSON.stringify(await probe(preview, 'h2')));
+  step(
+    'Typography has Body and Headings, and the six levels',
+    await cp.evaluate(
+      () =>
+        !!document.querySelector('[data-sve-type-body]') &&
+        !!document.querySelector('[data-sve-type-headings]') &&
+        document.querySelectorAll('[data-sve-type-levels] [data-sve-type-cell$="-weight"]').length === 6
+    )
+  );
+  step(
+    'a level follows the headings (dimmed) until it has its own',
+    /is-inherited/.test(await cellClass(cp, 'h2-weight')) && (await probe(preview, 'h2')).weight === '700',
+    JSON.stringify(await probe(preview, 'h2'))
+  );
   step('headings → 600', await choose(cp, '[data-sve-type="heading-weight"]', '600'));
-  step('every heading paints at 600', await waitFor(preview, () => {
-    const h = document.createElement('h4');
+  step(
+    'every heading paints at 600',
+    await waitFor(preview, () => {
+      const h = document.createElement('h4');
 
-    document.body.append(h);
+      document.body.append(h);
 
-    const w = getComputedStyle(h).fontWeight;
+      const w = getComputedStyle(h).fontWeight;
 
-    h.remove();
+      h.remove();
 
-    return w === '600';
-  }));
-  step('H1 gets its own weight 300 and line height 1.25', await choose(cp, '[data-sve-type-cell="h1-weight"] select', '300') && await choose(cp, '[data-sve-type-cell="h1-line-height"] select', '1.25'));
-  step('H1 paints its own; H2 still follows the headings', await waitFor(preview, () => {
-    const make = (t) => {
-      const el = document.createElement(t);
+      return w === '600';
+    })
+  );
+  step(
+    'H1 gets its own weight 300 and line height 1.25',
+    (await choose(cp, '[data-sve-type-cell="h1-weight"] select', '300')) &&
+      (await choose(cp, '[data-sve-type-cell="h1-line-height"] select', '1.25'))
+  );
+  step(
+    'H1 paints its own; H2 still follows the headings',
+    await waitFor(preview, () => {
+      const make = (t) => {
+        const el = document.createElement(t);
 
-      document.body.append(el);
+        document.body.append(el);
 
-      const cs = getComputedStyle(el);
-      const r = [cs.fontWeight, Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100];
+        const cs = getComputedStyle(el);
+        const r = [cs.fontWeight, Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100];
 
-      el.remove();
+        el.remove();
 
-      return r;
-    };
-    const [h1w, h1r] = make('h1');
-    const [h2w] = make('h2');
+        return r;
+      };
+      const [h1w, h1r] = make('h1');
+      const [h2w] = make('h2');
 
-    return h1w === '300' && h1r === 1.25 && h2w === '600';
-  }), `${JSON.stringify(await probe(preview, 'h1'))} ${JSON.stringify(await probe(preview, 'h2'))}`);
-  step('the H1 cells show a value of their own', /is-own/.test(await cellClass(cp, 'h1-weight')) && /is-own/.test(await cellClass(cp, 'h1-line-height')));
-  step('body text → 500', await choose(cp, '[data-sve-type="body-weight"]', '500') && await waitFor(preview, () => getComputedStyle(document.body).fontWeight === '500'));
+      return h1w === '300' && h1r === 1.25 && h2w === '600';
+    }),
+    `${JSON.stringify(await probe(preview, 'h1'))} ${JSON.stringify(await probe(preview, 'h2'))}`
+  );
+  step(
+    'the H1 cells show a value of their own',
+    /is-own/.test(await cellClass(cp, 'h1-weight')) && /is-own/.test(await cellClass(cp, 'h1-line-height'))
+  );
+  step(
+    'body text → 500',
+    (await choose(cp, '[data-sve-type="body-weight"]', '500')) &&
+      (await waitFor(preview, () => getComputedStyle(document.body).fontWeight === '500'))
+  );
   await shot(page, '3-type');
 
   // ── Button ────────────────────────────────────────────────────────────
   await click(page, cp, `${PANEL} [data-sve-theme-tab="button"]`);
   step('corners → lg (0.5rem)', await choose(cp, `${PANEL} .sve-theme__section select`, '0.5rem', 2));
-  step('the preview gets the new corners', await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--button-radius').trim() === '0.5rem'));
+  step(
+    'the preview gets the new corners',
+    await waitFor(
+      preview,
+      () => getComputedStyle(document.documentElement).getPropertyValue('--button-radius').trim() === '0.5rem'
+    )
+  );
   await shot(page, '4-button');
 
   // ── Save once: site.css, and the public page without a build ─────────
   await click(page, cp, `${PANEL} .sve-theme__save`);
 
-  const saved = await waitFor(cp, (p) => /saved|gemt/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || '') && document.querySelector(`${p} .sve-theme__save`)?.disabled, PANEL, 10000);
+  const saved = await waitFor(
+    cp,
+    (p) =>
+      /saved|gemt/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || '') &&
+      document.querySelector(`${p} .sve-theme__save`)?.disabled,
+    PANEL,
+    10000
+  );
   const css = readFileSync(CSS_FILE, 'utf8');
 
-  step('save finishes', saved, await cp.evaluate((p) => document.querySelector(`${p} .sve-theme__status`)?.textContent.trim() || '', PANEL));
+  step(
+    'save finishes',
+    saved,
+    await cp.evaluate((p) => document.querySelector(`${p} .sve-theme__status`)?.textContent.trim() || '', PANEL)
+  );
 
   const expect = [
     '--spacing-1300: var(--size-1300);',
@@ -426,24 +596,48 @@ try {
     '--h1-line-height: 1.25;',
   ];
 
-  step('site.css has every change', expect.every((line) => css.includes(line)), expect.filter((line) => !css.includes(line)).join(' | '));
+  step(
+    'site.css has every change',
+    expect.every((line) => css.includes(line)),
+    expect.filter((line) => !css.includes(line)).join(' | ')
+  );
 
-  const touched = css.split('\n').filter((line) => !original.includes(line) && line.trim() !== '')
-    .filter((line) => !/--color-(testmoss|primary)\b|--size-(500|1300):|--(spacing|text)-1300:|--font-size-h1:|--button-radius:|--(body-weight|heading-weight|h1-weight|h1-line-height):/.test(line));
+  const touched = css
+    .split('\n')
+    .filter((line) => !original.includes(line) && line.trim() !== '')
+    .filter(
+      (line) =>
+        !/--color-(testmoss|primary)\b|--size-(500|1300):|--(spacing|text)-1300:|--font-size-h1:|--button-radius:|--(body-weight|heading-weight|h1-weight|h1-line-height):/.test(
+          line
+        )
+    );
 
   step('nothing else in site.css changed', touched.length === 0, touched.slice(0, 3).join(' | '));
 
   const html = await (await fetch(`${SITE_URL}/`)).text();
 
-  step('the public page serves the saved theme (no build)', expect.every((line) => html.includes(line)), expect.filter((line) => !html.includes(line)).join(' | '));
+  step(
+    'the public page serves the saved theme (no build)',
+    expect.every((line) => html.includes(line)),
+    expect.filter((line) => !html.includes(line)).join(' | ')
+  );
 
   const knewAfter = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
 
-  step('the dock\'s Tailwind knows them straight after the save, no reload',
-    !!knewAfter && ['bg-testmoss-500', 'p-1300', 'text-1300'].every((name) => knewAfter.names.includes(name))
-      && ['.bg-testmoss-500', '.p-1300', '.text-1300'].every((rule) => knewAfter.css.includes(rule)),
-    knewAfter ? ['bg-testmoss-500', 'p-1300', 'text-1300'].filter((name) => !knewAfter.names.includes(name)).join(' ') : 'no compiler');
-  step('and the classes that were there still are', !!knewAfter && ['bg-primary-600', 'p-500', 'text-300', 'font-heading'].every((name) => knewAfter.names.includes(name)));
+  step(
+    "the dock's Tailwind knows them straight after the save, no reload",
+    !!knewAfter &&
+      ['bg-testmoss-500', 'p-1300', 'text-1300'].every((name) => knewAfter.names.includes(name)) &&
+      ['.bg-testmoss-500', '.p-1300', '.text-1300'].every((rule) => knewAfter.css.includes(rule)),
+    knewAfter
+      ? ['bg-testmoss-500', 'p-1300', 'text-1300'].filter((name) => !knewAfter.names.includes(name)).join(' ')
+      : 'no compiler'
+  );
+  step(
+    'and the classes that were there still are',
+    !!knewAfter &&
+      ['bg-primary-600', 'p-500', 'text-300', 'font-heading'].every((name) => knewAfter.names.includes(name))
+  );
 
   // Saved, the color's step names are written in templates: a new base keeps
   // them and only changes their colors; renaming by lightness is offered,
@@ -451,40 +645,89 @@ try {
   await click(page, cp, `${PANEL} [data-sve-theme-tab="colors"]`);
   await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__card`).length > 0, PANEL);
 
-  const mossCard = await cp.evaluate((p) => [...document.querySelectorAll(`${p} .sve-theme__card`)].findIndex((c) => c.querySelector('.sve-theme__token')?.textContent.trim() === '--testmoss'), PANEL);
+  const mossCard = await cp.evaluate(
+    (p) =>
+      [...document.querySelectorAll(`${p} .sve-theme__card`)].findIndex(
+        (c) => c.querySelector('.sve-theme__token')?.textContent.trim() === '--testmoss'
+      ),
+    PANEL
+  );
 
   await click(page, cp, `${PANEL} .sve-theme__card:nth-of-type(${mossCard + 1}) .sve-theme__row`);
   await waitFor(cp, (o) => !!document.querySelector(o), OPEN);
 
-  const stepNames = () => cp.evaluate((o) => [...document.querySelectorAll(`${o} .sve-theme__swatch-name`)].map((e) => e.textContent.trim()), OPEN);
+  const stepNames = () =>
+    cp.evaluate(
+      (o) => [...document.querySelectorAll(`${o} .sve-theme__swatch-name`)].map((e) => e.textContent.trim()),
+      OPEN
+    );
   const savedNames = await stepNames();
   const firstStep = savedNames[0];
   const mossFirst = await rootVar(preview, `--color-testmoss-${firstStep}`);
 
   step('the saved color has its steps', savedNames.length === 7, savedNames.join(' '));
-  step('no rename offered while the names fit', await cp.evaluate((o) => !document.querySelector(`${o} .sve-theme__rename`), OPEN));
+  step(
+    'no rename offered while the names fit',
+    await cp.evaluate((o) => !document.querySelector(`${o} .sve-theme__rename`), OPEN)
+  );
   await retype(page, cp, TEXT_INPUTS, '#0b0b41', 1);
-  step('a new base keeps every step name', JSON.stringify(await stepNames()) === JSON.stringify(savedNames), (await stepNames()).join(' '));
-  step('the same name paints the new shade', await waitFor(preview, (args) => {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(`--color-testmoss-${args[0]}`).trim();
+  step(
+    'a new base keeps every step name',
+    JSON.stringify(await stepNames()) === JSON.stringify(savedNames),
+    (await stepNames()).join(' ')
+  );
+  step(
+    'the same name paints the new shade',
+    await waitFor(
+      preview,
+      (args) => {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(`--color-testmoss-${args[0]}`).trim();
 
-    return v && v !== args[1];
-  }, [firstStep, mossFirst]));
-  step('rename by lightness is offered, not done', await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__rename button`), OPEN)
-    && JSON.stringify(await stepNames()) === JSON.stringify(savedNames));
+        return v && v !== args[1];
+      },
+      [firstStep, mossFirst]
+    )
+  );
+  step(
+    'rename by lightness is offered, not done',
+    (await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__rename button`), OPEN)) &&
+      JSON.stringify(await stepNames()) === JSON.stringify(savedNames)
+  );
   // H1 back to following the headings: its own line goes with the next save.
   await click(page, cp, `${PANEL} [data-sve-theme-tab="type"]`);
-  step('H1 weight back to "as the headings"', await choose(cp, '[data-sve-type-cell="h1-weight"] select', '') && /is-inherited/.test(await cellClass(cp, 'h1-weight')));
+  step(
+    'H1 weight back to "as the headings"',
+    (await choose(cp, '[data-sve-type-cell="h1-weight"] select', '')) &&
+      /is-inherited/.test(await cellClass(cp, 'h1-weight'))
+  );
   await click(page, cp, `${PANEL} .sve-theme__save`);
 
   // The file itself says when the save is done (the button is disabled while saving too).
-  for (let t0 = Date.now(); Date.now() - t0 < 10000 && !readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;');) {
+  for (
+    let t0 = Date.now();
+    Date.now() - t0 < 10000 && !readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;');
+  ) {
     await sleep(100);
   }
 
-  await waitFor(cp, (p) => !!document.querySelector(`${p} .sve-theme__save`)?.disabled && !/sav|gemmer/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || ''), PANEL, 5000);
-  step('the H1 weight line is gone, its line height stays', !readFileSync(CSS_FILE, 'utf8').includes('--h1-weight:') && readFileSync(CSS_FILE, 'utf8').includes('--h1-line-height: 1.25;'));
-  step('saved with the same names', savedNames.every((name) => readFileSync(CSS_FILE, 'utf8').includes(`--color-testmoss-${name}:`)) && readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;'));
+  await waitFor(
+    cp,
+    (p) =>
+      !!document.querySelector(`${p} .sve-theme__save`)?.disabled &&
+      !/sav|gemmer/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || ''),
+    PANEL,
+    5000
+  );
+  step(
+    'the H1 weight line is gone, its line height stays',
+    !readFileSync(CSS_FILE, 'utf8').includes('--h1-weight:') &&
+      readFileSync(CSS_FILE, 'utf8').includes('--h1-line-height: 1.25;')
+  );
+  step(
+    'saved with the same names',
+    savedNames.every((name) => readFileSync(CSS_FILE, 'utf8').includes(`--color-testmoss-${name}:`)) &&
+      readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;')
+  );
 
   await click(page, cp, `${PANEL} [data-sve-close]`);
   step('closes without asking once saved', await waitFor(cp, (p) => !document.querySelector(p), PANEL));
@@ -496,7 +739,9 @@ try {
   await sleep(2000);
   writeFileSync(CSS_FILE, original);
   await sleep(1000);
-  console.log(readFileSync(CSS_FILE, 'utf8') === original ? 'site.css put back as it was' : 'WARNING: site.css was NOT restored');
+  console.log(
+    readFileSync(CSS_FILE, 'utf8') === original ? 'site.css put back as it was' : 'WARNING: site.css was NOT restored'
+  );
 }
 
 step('no JS errors', errors.length === 0, errors.slice(0, 5).join(' | '));

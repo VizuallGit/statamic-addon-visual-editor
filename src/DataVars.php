@@ -27,7 +27,9 @@ use MarioHamann\StatamicVisualEditor\DataVars\Sources;
 class DataVars
 {
     public const LOOP_TYPES = Rows::LOOP_TYPES;
+
     public const ASSET_TYPES = Rows::ASSET_TYPES;
+
     public const SKIP_TYPES = Rows::SKIP_TYPES;
 
     /**

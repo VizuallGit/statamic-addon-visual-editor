@@ -13,20 +13,35 @@ test('a Control Panel host keeps its own URL — a refresh lands on the CP scree
   const listing = `${origin}/cp/collections/pages`;
 
   // Whatever page the editor shows, the entry names the host's own screen.
-  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: { url: edit, permalink: `${origin}/kontakt` }, here: listing }), listing);
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: true, page: { url: edit, permalink: `${origin}/kontakt` }, here: listing }),
+    listing
+  );
   assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: null, here: edit }), edit);
 
   // Never with the Live Preview ask: landed on with it, Statamic's router puts it back, and a refresh reopened the editor.
-  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: null, here: `${edit}?live-preview=1#sidebar` }), `${edit}#sidebar`);
-  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: null, here: `${edit}?live-preview=1&tab=seo` }), `${edit}?tab=seo`);
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: true, page: null, here: `${edit}?live-preview=1#sidebar` }),
+    `${edit}#sidebar`
+  );
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: true, page: null, here: `${edit}?live-preview=1&tab=seo` }),
+    `${edit}?tab=seo`
+  );
 
   // Without the host's URL there is nothing to say.
   assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: { url: edit } }), null);
 });
 
 test('a site host names the public URL the server gave the entry', () => {
-  assert.equal(overlayHistoryUrl({ origin, cpHost: false, page: { url: edit, permalink: `${origin}/kontakt` } }), `${origin}/kontakt`);
-  assert.equal(overlayHistoryUrl({ origin, cpHost: false, page: { url: edit, permalink: `${origin}/` } }), `${origin}/`);
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: false, page: { url: edit, permalink: `${origin}/kontakt` } }),
+    `${origin}/kontakt`
+  );
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: false, page: { url: edit, permalink: `${origin}/` } }),
+    `${origin}/`
+  );
 });
 
 test('a site host leaves the URL alone for a page without one', () => {
@@ -36,8 +51,14 @@ test('a site host leaves the URL alone for a page without one', () => {
 });
 
 test('a URL on another origin is not written into this history', () => {
-  assert.equal(overlayHistoryUrl({ origin, cpHost: false, page: { url: edit, permalink: 'https://other.test/kontakt' } }), null);
-  assert.equal(overlayHistoryUrl({ origin, cpHost: true, page: { url: 'https://other.test/cp/collections/pages/entries/x' } }), null);
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: false, page: { url: edit, permalink: 'https://other.test/kontakt' } }),
+    null
+  );
+  assert.equal(
+    overlayHistoryUrl({ origin, cpHost: true, page: { url: 'https://other.test/cp/collections/pages/entries/x' } }),
+    null
+  );
 });
 
 test('no page yet, or one that cannot be read, is no URL', () => {
@@ -53,7 +74,7 @@ test('closed, the entry keeps the page but drops the Live Preview ask', () => {
   assert.equal(withoutEditorMark(`${origin}/kontakt`, origin), `${origin}/kontakt`);
 });
 
-test('a URL that is not this origin\'s is handed back as it came', () => {
+test("a URL that is not this origin's is handed back as it came", () => {
   assert.equal(withoutEditorMark('https://other.test/x?live-preview=1', origin), 'https://other.test/x?live-preview=1');
   assert.equal(withoutEditorMark('', origin), '');
 });

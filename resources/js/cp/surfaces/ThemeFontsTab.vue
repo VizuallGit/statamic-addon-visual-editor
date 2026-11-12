@@ -9,7 +9,11 @@
     <div v-else class="sve-theme__fonts">
       <div v-for="family in ui.installed" :key="family.name" class="sve-theme__font" :data-sve-font="family.name">
         <span class="sve-theme__font-top">
-          <span class="sve-theme__font-name" :style="{ fontFamily: `'${familyAlias(family.name)}', ui-sans-serif, system-ui, sans-serif` }">{{ family.name }}</span>
+          <span
+            class="sve-theme__font-name"
+            :style="{ fontFamily: `'${familyAlias(family.name)}', ui-sans-serif, system-ui, sans-serif` }"
+            >{{ family.name }}</span
+          >
           <span class="sve-theme__font-uses">
             <span v-for="use in usesOf(family.name)" :key="use">{{ use }}</span>
           </span>
@@ -19,9 +23,18 @@
     </div>
 
     <!-- A new font is added under the installed ones, where it will stand — as a new color under the palette. -->
-    <button type="button" class="sve-theme__add-row" data-sve-theme-add data-sve-font-add :disabled="!ui.fontsWritable" @click="h.onAddFont">
+    <button
+      type="button"
+      class="sve-theme__add-row"
+      data-sve-theme-add
+      data-sve-font-add
+      :disabled="!ui.fontsWritable"
+      @click="h.onAddFont"
+    >
       <span class="sve-theme__add-row-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </span>
       <span>{{ ui.labels.fonts_add }}</span>
     </button>
@@ -33,7 +46,12 @@
       <div v-for="kit in ui.kits" :key="kit.url" class="sve-theme__font">
         <span class="sve-theme__font-meta">{{ kit.url }}</span>
         <span v-if="kit.families.length" class="sve-theme__font-kit">
-          <span v-for="name in kit.families" :key="name" :style="{ fontFamily: `'${name}', ui-sans-serif, system-ui, sans-serif` }">{{ name }}</span>
+          <span
+            v-for="name in kit.families"
+            :key="name"
+            :style="{ fontFamily: `'${name}', ui-sans-serif, system-ui, sans-serif` }"
+            >{{ name }}</span
+          >
         </span>
         <span v-else class="sve-theme__font-meta">{{ ui.labels.fonts_kit_unreadable }}</span>
       </div>
@@ -58,7 +76,9 @@ function summary(family) {
   if (shape.variable) {
     parts.push(`${label('fonts_variable', 'Variable')} ${shape.weights}`);
   } else if (shape.count) {
-    parts.push(`${shape.count === 1 ? label('fonts_weight_one', '1 weight') : label('fonts_weights', ':count weights', shape.count)} (${shape.weights})`);
+    parts.push(
+      `${shape.count === 1 ? label('fonts_weight_one', '1 weight') : label('fonts_weights', ':count weights', shape.count)} (${shape.weights})`
+    );
   }
 
   if (shape.italic) {
@@ -66,7 +86,9 @@ function summary(family) {
   }
 
   if (family.files) {
-    parts.push(family.files === 1 ? label('fonts_file_one', '1 file') : label('fonts_files', ':count files', family.files));
+    parts.push(
+      family.files === 1 ? label('fonts_file_one', '1 file') : label('fonts_files', ':count files', family.files)
+    );
     parts.push(formatBytes(family.bytes));
   } else if (family.faces.some((f) => f.missing)) {
     parts.push(label('fonts_missing', 'file missing'));

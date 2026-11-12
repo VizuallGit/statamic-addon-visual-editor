@@ -242,8 +242,7 @@ export function initComments() {
       return false;
     }
 
-    const pane =
-      host.closest('[data-sve-right-pane="comments"]') || host.closest('#__sve-comments-pane');
+    const pane = host.closest('[data-sve-right-pane="comments"]') || host.closest('#__sve-comments-pane');
 
     return !!pane && surfaceIsShown(pane);
   }
@@ -270,9 +269,7 @@ export function initComments() {
       const inHead = btn.hasAttribute('data-sve-right-pane-btn');
       const ring = 'var(--sve-toolbar-ring, rgba(128,128,128,.16))';
       const primary = 'var(--theme-color-primary, #4530D8)';
-      const fill = inHead
-        ? `color-mix(in oklab, ${primary} 74%, white)`
-        : 'currentColor';
+      const fill = inHead ? `color-mix(in oklab, ${primary} 74%, white)` : 'currentColor';
       const style = inHead
         ? `display:inline-flex;align-items:center;justify-content:center;margin-left:8px;min-width:16px;height:16px;padding:0 5px;border-radius:999px;background:${fill};color:#fff;font-size:10px;font-weight:700;line-height:1;flex:0 0 auto;box-sizing:border-box;`
         : `position:absolute;top:-2px;right:-2px;display:inline-flex;align-items:center;justify-content:center;min-width:13px;height:13px;padding:0 2px;border-radius:999px;background:${fill};color:inherit;font-size:8px;font-weight:700;line-height:1;text-align:center;pointer-events:none;box-sizing:border-box;box-shadow:0 0 0 2px ${ring};`;
@@ -410,9 +407,7 @@ export function initComments() {
       return chromeId;
     }
 
-    const global = el.hasAttribute?.('data-sve-global')
-      ? el
-      : el.closest?.('[data-sve-global]');
+    const global = el.hasAttribute?.('data-sve-global') ? el : el.closest?.('[data-sve-global]');
     const row = global?.getAttribute?.('data-sve-global-row');
 
     if (row) {
@@ -449,9 +444,7 @@ export function initComments() {
         : rowMarker.parentElement?.querySelector(':scope > [data-sve-global-root]');
 
       return (
-        root?.querySelector('[data-sid-section-orderable], section[data-sid], article[data-sid]') ||
-        root ||
-        rowMarker
+        root?.querySelector('[data-sid-section-orderable], section[data-sid], article[data-sid]') || root || rowMarker
       );
     }
 
@@ -564,7 +557,7 @@ export function initComments() {
     hit.style.cssText =
       'position:fixed;z-index:' +
       Z_HIT +
-      ';pointer-events:auto;background:rgba(0,0,0,0);cursor:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Cpath fill=\'%234530D8\' d=\'M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H9.5L5 21.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z\'/%3E%3C/svg%3E") 4 20, crosshair;';
+      ";pointer-events:auto;background:rgba(0,0,0,0);cursor:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%234530D8' d='M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H9.5L5 21.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z'/%3E%3C/svg%3E\") 4 20, crosshair;";
     hit.addEventListener('pointerdown', (event) => event.stopPropagation());
     hit.addEventListener('mousedown', (event) => {
       event.preventDefault();
@@ -828,9 +821,7 @@ export function initComments() {
       return el.getAttribute('data-sve-chrome-label') || 'Footer';
     }
 
-    const global = el.hasAttribute('data-sve-global')
-      ? el
-      : el.closest?.('[data-sve-global]');
+    const global = el.hasAttribute('data-sve-global') ? el : el.closest?.('[data-sve-global]');
 
     if (global) {
       const sourceId = global.getAttribute('data-sve-global');
@@ -923,8 +914,7 @@ export function initComments() {
         return;
       }
 
-      const el =
-        root.querySelector('[data-sid-section-orderable], section[data-sid], article[data-sid]') || root;
+      const el = root.querySelector('[data-sid-section-orderable], section[data-sid], article[data-sid]') || root;
       const sourceId = root.getAttribute('data-sve-global-root');
       const saved = window.Statamic?.$config?.get?.('sveSavedSectionLabels')?.[sourceId];
       const title = (saved?.title || '').trim();
@@ -1010,10 +1000,7 @@ export function initComments() {
 
     lastSectionFingerprint = fingerprint;
     clearTimeout(orphanTimer);
-    orphanTimer = setTimeout(
-      () => pruneMissingSections(),
-      first && !force ? 700 : 80
-    );
+    orphanTimer = setTimeout(() => pruneMissingSections(), first && !force ? 700 : 80);
   }
 
   function startOrphanWatch() {
@@ -1114,10 +1101,10 @@ export function initComments() {
     }
 
     try {
-      const result = await request(
-        `/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`,
-        { method: 'PATCH', body: JSON.stringify({ visual_id: visualId }) }
-      );
+      const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ visual_id: visualId }),
+      });
 
       comments = comments.map((item) => (item.id === comment.id ? result.comment : item));
       openId = comment.id;
@@ -1142,10 +1129,10 @@ export function initComments() {
     }
 
     try {
-      const result = await request(
-        `/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`,
-        { method: 'PATCH', body: JSON.stringify({ breakpoint: size }) }
-      );
+      const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ breakpoint: size }),
+      });
 
       comments = comments.map((item) => (item.id === comment.id ? result.comment : item));
       openId = comment.id;
@@ -1165,8 +1152,7 @@ export function initComments() {
     wrap.style.cssText = 'padding:8px 12px;display:flex;flex-direction:column;gap:4px;';
     label.textContent = 'Sektion';
     label.htmlFor = 'sc-section-' + comment.id;
-    label.style.cssText =
-      'font-size:10px;font-weight:650;opacity:.55;letter-spacing:.02em;text-transform:uppercase;';
+    label.style.cssText = 'font-size:10px;font-weight:650;opacity:.55;letter-spacing:.02em;text-transform:uppercase;';
     select.id = label.htmlFor;
     select.style.cssText =
       'box-sizing:border-box;display:block;width:100%;font:inherit;font-size:12px;padding:6px 8px;border-radius:' +
@@ -1226,7 +1212,13 @@ export function initComments() {
         id: comment.id,
         author: first.author_name || 'User',
         time: timeAgo(first.created_at),
-        where: [comment.resolved ? 'Løst' : null, commentLabel(comment), commentSize(comment) === 'all' ? null : sizeLabel(commentSize(comment))].filter(Boolean).join(' · '),
+        where: [
+          comment.resolved ? 'Løst' : null,
+          commentLabel(comment),
+          commentSize(comment) === 'all' ? null : sizeLabel(commentSize(comment)),
+        ]
+          .filter(Boolean)
+          .join(' · '),
         snippet: snippet(comment) || 'Kommentar',
         resolved: !!comment.resolved,
         active: openId === comment.id,
@@ -1450,10 +1442,7 @@ export function initComments() {
 
     host.dataset.scChrome = '';
     host.dataset.scThread = String(comment.id);
-    host.style.cssText =
-      'position:fixed;width:280px;z-index:' +
-      Z_THREAD +
-      ';pointer-events:auto;';
+    host.style.cssText = 'position:fixed;width:280px;z-index:' + Z_THREAD + ';pointer-events:auto;';
 
     threadApp?.unmount();
     threadApp = mountSurface(CommentThread, host, {
@@ -1540,7 +1529,13 @@ export function initComments() {
     try {
       const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}`, {
         method: 'POST',
-        body: JSON.stringify({ visual_id: draft.visual_id, x: draft.x, y: draft.y, body, breakpoint: draft.breakpoint || 'all' }),
+        body: JSON.stringify({
+          visual_id: draft.visual_id,
+          x: draft.x,
+          y: draft.y,
+          body,
+          breakpoint: draft.breakpoint || 'all',
+        }),
       });
 
       comments.push(result.comment);
@@ -1556,10 +1551,10 @@ export function initComments() {
 
   async function replyTo(id, body) {
     try {
-      const result = await request(
-        `/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}/replies`,
-        { method: 'POST', body: JSON.stringify({ body }) }
-      );
+      const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(id)}/replies`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+      });
 
       comments = comments.map((comment) => (comment.id === id ? result.comment : comment));
       openId = id;
@@ -1571,10 +1566,10 @@ export function initComments() {
 
   async function toggleResolved(comment) {
     try {
-      const result = await request(
-        `/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`,
-        { method: 'PATCH', body: JSON.stringify({ resolved: !comment.resolved }) }
-      );
+      const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ resolved: !comment.resolved }),
+      });
 
       comments = comments.map((item) => (item.id === comment.id ? result.comment : item));
       openId = comment.id;
@@ -1700,7 +1695,10 @@ export function initComments() {
     window.addEventListener('load', tryStart);
 
     bootObserver = new MutationObserver(() => {
-      if (document.querySelector('[data-sve-right-pane="comments"]') || document.querySelector('.live-preview-header')) {
+      if (
+        document.querySelector('[data-sve-right-pane="comments"]') ||
+        document.querySelector('.live-preview-header')
+      ) {
         tryStart();
       }
     });

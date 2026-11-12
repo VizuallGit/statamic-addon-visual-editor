@@ -14,13 +14,27 @@ import { isVoidTag } from '../html-tree-parse.js';
 export const HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 export const TEXT_TAGS = ['p', 'span', 'strong', 'b', 'em', 'small', 'blockquote'];
 export const LINK_TAGS = ['a', 'button'];
-export const LAYOUT_TAGS = ['div', 'section', 'article', 'aside', 'nav', 'header', 'footer', 'main', 'figure', 'ul', 'ol'];
+export const LAYOUT_TAGS = [
+  'div',
+  'section',
+  'article',
+  'aside',
+  'nav',
+  'header',
+  'footer',
+  'main',
+  'figure',
+  'ul',
+  'ol',
+];
 const INLINE_TEXT = ['p', 'span', 'strong', 'b', 'em', 'small'];
 const ITEM_TAGS = ['li', 'div', 'p', 'span'];
 
 /** The tags on the list for this tag — always the tag itself first among its own. */
 export function tagChoices(tag) {
-  const name = String(tag || '').trim().toLowerCase();
+  const name = String(tag || '')
+    .trim()
+    .toLowerCase();
 
   if (!name) {
     return [];
@@ -58,7 +72,9 @@ export const TAG_NAME = /^[a-z][a-z0-9-]*$/;
  * come out broken (`<img>` → `<div>` with nothing to close it).
  */
 export function tagRefusal(from, to) {
-  const name = String(to || '').trim().toLowerCase();
+  const name = String(to || '')
+    .trim()
+    .toLowerCase();
 
   if (!TAG_NAME.test(name)) {
     return 'name';

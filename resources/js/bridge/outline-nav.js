@@ -5,16 +5,64 @@
 import { findPickRoots, HT_PATH_ATTR, unstampHtmlPick } from '../html-pick-align.js';
 import { handleAiTextMessage, initAiText } from '../ai-text-bridge.js';
 import { bridgeState } from '../bridge/state.js';
-import { ACTIVE_ATTR, HOVER_ATTR, PULSE_DURATION, SECTION_ORDERABLE_ATTR, SID_ATTR, SID_FIELD_ATTR, t } from '../bridge.js';
-import { applyOutlineTone, createDragPointerDown, createDragPointerMove, createDragPointerUp, endDrag, parseCssColor, restoreZoom, solidBackgroundFor, zoomOutForDrag } from './drag.js';
-import { COMPONENT_NAME, COMPONENT_SRC, applyComponentFocus, applyComponentMap, applyHtmlPick, pointAnchor, requestCloseComponent } from './component-pick.js';
+import {
+  ACTIVE_ATTR,
+  HOVER_ATTR,
+  PULSE_DURATION,
+  SECTION_ORDERABLE_ATTR,
+  SID_ATTR,
+  SID_FIELD_ATTR,
+  t,
+} from '../bridge.js';
+import {
+  applyOutlineTone,
+  createDragPointerDown,
+  createDragPointerMove,
+  createDragPointerUp,
+  endDrag,
+  parseCssColor,
+  restoreZoom,
+  solidBackgroundFor,
+  zoomOutForDrag,
+} from './drag.js';
+import {
+  COMPONENT_NAME,
+  COMPONENT_SRC,
+  applyComponentFocus,
+  applyComponentMap,
+  applyHtmlPick,
+  pointAnchor,
+  requestCloseComponent,
+} from './component-pick.js';
 import { applyRowCaps, hideMoveControl } from './row-caps-move.js';
-import { exitChromeFocus, hasChromeFocusClass, markDisabledChrome, rebindChromeFocus, rememberedChromeKind, requestCloseChrome, setChromeDirtyUI } from './header-footer.js';
+import {
+  exitChromeFocus,
+  hasChromeFocusClass,
+  markDisabledChrome,
+  rebindChromeFocus,
+  rememberedChromeKind,
+  requestCloseChrome,
+  setChromeDirtyUI,
+} from './header-footer.js';
 import { focusFrameOpen } from './focus-frame.js';
 import { openRowToolbar } from './row-toolbar.js';
-import { cpDialogTheme, exitGlobalFocus, rebindGlobalFocus, refreshGlobalFrameLabel, requestCloseGlobal, setGlobalSectionDirtyUI, tagGlobalSections } from './global-sections.js';
+import {
+  cpDialogTheme,
+  exitGlobalFocus,
+  rebindGlobalFocus,
+  refreshGlobalFrameLabel,
+  requestCloseGlobal,
+  setGlobalSectionDirtyUI,
+  tagGlobalSections,
+} from './global-sections.js';
 import { createMouseMoveHandler, startEditing } from './editing.js';
-import { enhanceHighlightBraces, findTextAfterSetUid, openToolbarMenu, requestInlineEdit, syncSidPlaceholders } from './inline-edit.js';
+import {
+  enhanceHighlightBraces,
+  findTextAfterSetUid,
+  openToolbarMenu,
+  requestInlineEdit,
+  syncSidPlaceholders,
+} from './inline-edit.js';
 import { injectCpVariables, injectStyles } from './messages.js';
 import { createClickHandler, createHoverHandler } from './sid-targets.js';
 import { finishWidthDrag, hideColumnChrome, hideGridLines, widthDrag } from './grid.js';
@@ -43,8 +91,7 @@ function findFieldElement(field, doc, scope) {
   // element carrying data-sid="<scope>" (the set) and its descendants. This makes
   // a bare handle like "text" resolve to the correct repeated instance instead of
   // the first one in the document.
-  const root =
-    (scope && doc.querySelector(`[${SID_ATTR}="${scope}"]`)) || doc;
+  const root = (scope && doc.querySelector(`[${SID_ATTR}="${scope}"]`)) || doc;
 
   const normalized = field.replaceAll('.', '_');
 
@@ -154,10 +201,7 @@ function extDragEnd(win, cancelled) {
   extDrag = null;
 
   if (!cancelled) {
-    win.parent.postMessage(
-      { source: SOURCE, type: MSG.EXT_DROP, afterUid },
-      win.location.origin
-    );
+    win.parent.postMessage({ source: SOURCE, type: MSG.EXT_DROP, afterUid }, win.location.origin);
   }
 }
 
@@ -219,10 +263,7 @@ function collectOutline(win) {
 }
 
 function sendOutline(win) {
-  win.parent.postMessage(
-    { source: SOURCE, type: MSG.OUTLINE, items: collectOutline(win) },
-    win.location.origin
-  );
+  win.parent.postMessage({ source: SOURCE, type: MSG.OUTLINE, items: collectOutline(win) }, win.location.origin);
 }
 
 /**
@@ -674,9 +715,7 @@ function activateByUid(win, data) {
   el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
   pulseElement(el);
 
-  const fields = el.matches(`[${SID_FIELD_ATTR}]`)
-    ? [el]
-    : [...el.querySelectorAll(`[${SID_FIELD_ATTR}]`)];
+  const fields = el.matches(`[${SID_FIELD_ATTR}]`) ? [el] : [...el.querySelectorAll(`[${SID_FIELD_ATTR}]`)];
 
   if (fields.length !== 1) {
     openRowToolbar(win, el);
@@ -714,11 +753,7 @@ function blockNavigation(win) {
 
   win.document.addEventListener('click', stopLink, true);
   win.document.addEventListener('auxclick', stopLink, true); // middle-click
-  win.document.addEventListener(
-    'submit',
-    (event) => event.preventDefault(),
-    true
-  );
+  win.document.addEventListener('submit', (event) => event.preventDefault(), true);
 }
 
 export function initBridge(win = window) {
@@ -825,10 +860,7 @@ export function initBridge(win = window) {
         {
           label: t('component_open_named', { name }),
           run: () => {
-            win.parent.postMessage(
-              { source: SOURCE, type: MSG.OPEN_COMPONENT, src },
-              win.location.origin
-            );
+            win.parent.postMessage({ source: SOURCE, type: MSG.OPEN_COMPONENT, src }, win.location.origin);
           },
         },
       ]);

@@ -4,7 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use Illuminate\Support\Facades\Log;
 use MarioHamann\StatamicVisualEditor\IconResolver;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
+use Statamic\Facades\Fieldset;
 
 /**
  * Which icon a field or a set carries, found in the blueprint. Pure lookups,
@@ -20,22 +20,22 @@ final class Icons
         }
 
         foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = static::findFieldIcon($tab, $fieldHandle, $depth + 1)) {
+            if ($found = self::findFieldIcon($tab, $fieldHandle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach (($node['sections'] ?? []) as $section) {
-            if ($found = static::findFieldIcon($section, $fieldHandle, $depth + 1)) {
+            if ($found = self::findFieldIcon($section, $fieldHandle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
             if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+                $fieldset = Fieldset::find($item['import']);
 
-                if ($fieldset && $found = static::findFieldIcon($fieldset->contents(), $fieldHandle, $depth + 1)) {
+                if ($fieldset && $found = self::findFieldIcon($fieldset->contents(), $fieldHandle, $depth + 1)) {
                     return $found;
                 }
 
@@ -59,12 +59,12 @@ final class Icons
             }
 
             foreach (BlueprintFields::flattenReplicatorSets($field['sets'] ?? []) as $set) {
-                if ($found = static::findFieldIcon($set, $fieldHandle, $depth + 1)) {
+                if ($found = self::findFieldIcon($set, $fieldHandle, $depth + 1)) {
                     return $found;
                 }
             }
 
-            if (isset($field['fields']) && $found = static::findFieldIcon($field, $fieldHandle, $depth + 1)) {
+            if (isset($field['fields']) && $found = self::findFieldIcon($field, $fieldHandle, $depth + 1)) {
                 return $found;
             }
         }
@@ -80,22 +80,22 @@ final class Icons
         }
 
         foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = static::findSetIcon($tab, $setHandle, $depth + 1)) {
+            if ($found = self::findSetIcon($tab, $setHandle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach (($node['sections'] ?? []) as $section) {
-            if ($found = static::findSetIcon($section, $setHandle, $depth + 1)) {
+            if ($found = self::findSetIcon($section, $setHandle, $depth + 1)) {
                 return $found;
             }
         }
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
             if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+                $fieldset = Fieldset::find($item['import']);
 
-                if ($fieldset && $found = static::findSetIcon($fieldset->contents(), $setHandle, $depth + 1)) {
+                if ($fieldset && $found = self::findSetIcon($fieldset->contents(), $setHandle, $depth + 1)) {
                     return $found;
                 }
 
@@ -121,12 +121,12 @@ final class Icons
                     return (string) $set['icon'];
                 }
 
-                if ($found = static::findSetIcon($set, $setHandle, $depth + 1)) {
+                if ($found = self::findSetIcon($set, $setHandle, $depth + 1)) {
                     return $found;
                 }
             }
 
-            if (isset($field['fields']) && $found = static::findSetIcon($field, $setHandle, $depth + 1)) {
+            if (isset($field['fields']) && $found = self::findSetIcon($field, $setHandle, $depth + 1)) {
                 return $found;
             }
         }

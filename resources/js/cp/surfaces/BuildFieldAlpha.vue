@@ -22,9 +22,13 @@ const shows = computed(() => on && !!props.hit && !/^sve-bound/.test(props.hit.n
 const alpha = computed(() => (props.hit ? alphaOf(props.hit.raw) : null));
 const text = ref('');
 
-watch(alpha, (now) => {
-  text.value = now === null ? '' : String(now);
-}, { immediate: true });
+watch(
+  alpha,
+  (now) => {
+    text.value = now === null ? '' : String(now);
+  },
+  { immediate: true }
+);
 
 function write(value) {
   const next = withAlpha(props.hit.name, value);
@@ -47,7 +51,12 @@ function restore() {
 </script>
 
 <template>
-  <span v-if="shows" class="sve-alpha" :class="{ 'is-set': alpha !== null, inh: hit.inherited }" :title="port.t('field_alpha')">
+  <span
+    v-if="shows"
+    class="sve-alpha"
+    :class="{ 'is-set': alpha !== null, inh: hit.inherited }"
+    :title="port.t('field_alpha')"
+  >
     <input
       v-model="text"
       type="text"

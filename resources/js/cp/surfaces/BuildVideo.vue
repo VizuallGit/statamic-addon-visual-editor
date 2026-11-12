@@ -12,7 +12,17 @@
 import { computed, inject } from 'vue';
 import { parseTemplateTree } from '../../html-tree-parse.js';
 import { findByPath } from '../../build-mode/place.js';
-import { FIT_CLASSES, PRELOADS, RATIO_CLASSES, VIDEO_RATIOS, isFramePoster, posterFor, ratioClass, readVideo, videoAttrs } from '../../build-mode/video.js';
+import {
+  FIT_CLASSES,
+  PRELOADS,
+  RATIO_CLASSES,
+  VIDEO_RATIOS,
+  isFramePoster,
+  posterFor,
+  ratioClass,
+  readVideo,
+  videoAttrs,
+} from '../../build-mode/video.js';
 
 const props = defineProps({
   path: { type: String, required: true },
@@ -58,7 +68,13 @@ function togglePoster() {
       <div class="fg-row">
         <span class="fg-rlab">{{ port.t('content_video_ratio') }}</span>
         <label class="fg-field">
-          <select class="fg-select" :aria-label="port.t('content_video_ratio')" :value="now.ratio" data-sve-build-video-ratio @change="setRatio($event.target.value)">
+          <select
+            class="fg-select"
+            :aria-label="port.t('content_video_ratio')"
+            :value="now.ratio"
+            data-sve-build-video-ratio
+            @change="setRatio($event.target.value)"
+          >
             <option value="auto">{{ port.t('content_video_ratio_auto') }}</option>
             <option v-for="r in VIDEO_RATIOS" :key="r.key" :value="r.key">{{ r.key }}</option>
           </select>
@@ -79,8 +95,12 @@ function togglePoster() {
           @click="set({ [key]: !now[key] })"
         ></button>
       </div>
-      <p v-if="now.autoplay && !now.muted" class="bm-img-hint is-warn" data-sve-build-video-hint="muted">{{ port.t('content_video_autoplay_muted') }}</p>
-      <p v-else-if="!now.autoplay && !now.controls" class="bm-img-hint is-warn" data-sve-build-video-hint="start">{{ port.t('content_video_no_start') }}</p>
+      <p v-if="now.autoplay && !now.muted" class="bm-img-hint is-warn" data-sve-build-video-hint="muted">{{
+        port.t('content_video_autoplay_muted')
+      }}</p>
+      <p v-else-if="!now.autoplay && !now.controls" class="bm-img-hint is-warn" data-sve-build-video-hint="start">{{
+        port.t('content_video_no_start')
+      }}</p>
       <p v-else-if="now.autoplay" class="bm-img-hint">{{ port.t('content_video_autoplay_note') }}</p>
     </div>
 
@@ -88,8 +108,16 @@ function togglePoster() {
       <div class="fg-row">
         <span class="fg-rlab">{{ port.t('content_video_preload') }}</span>
         <label class="fg-field">
-          <select class="fg-select" :aria-label="port.t('content_video_preload')" :value="now.preload" data-sve-build-video-preload @change="set({ preload: $event.target.value })">
-            <option v-for="key in PRELOADS" :key="key" :value="key">{{ port.t(`content_video_preload_${key}`) }}</option>
+          <select
+            class="fg-select"
+            :aria-label="port.t('content_video_preload')"
+            :value="now.preload"
+            data-sve-build-video-preload
+            @change="set({ preload: $event.target.value })"
+          >
+            <option v-for="key in PRELOADS" :key="key" :value="key">{{
+              port.t(`content_video_preload_${key}`)
+            }}</option>
           </select>
         </label>
       </div>
@@ -111,12 +139,22 @@ function togglePoster() {
             @click="togglePoster"
           ></button>
         </div>
-        <p v-if="ownPoster" class="bm-img-hint" data-sve-build-video-own-poster>{{ port.t('content_video_poster_own', { src: now.poster }) }}</p>
+        <p v-if="ownPoster" class="bm-img-hint" data-sve-build-video-own-poster>{{
+          port.t('content_video_poster_own', { src: now.poster })
+        }}</p>
         <p v-else class="bm-img-hint">{{ port.t('content_video_poster_note') }}</p>
       </template>
       <div class="bm-link-row">
         <span>{{ port.t('content_video_first') }}</span>
-        <button type="button" class="bm-switch" role="switch" :aria-checked="now.first" :aria-label="port.t('content_video_first')" data-sve-build-video-first @click="set({ first: !now.first })"></button>
+        <button
+          type="button"
+          class="bm-switch"
+          role="switch"
+          :aria-checked="now.first"
+          :aria-label="port.t('content_video_first')"
+          data-sve-build-video-first
+          @click="set({ first: !now.first })"
+        ></button>
       </div>
       <p v-if="now.first" class="bm-img-hint">{{ port.t('content_video_first_note') }}</p>
     </div>
@@ -125,5 +163,7 @@ function togglePoster() {
 
 <style>
 /* The video's options share the image's frame (BuildImage.vue's `bm-img-` parts); a warning stands out. */
-.sve-build .bm-img-hint.is-warn { color: color-mix(in srgb, #f59e0b 80%, var(--bm-ink)); }
+.sve-build .bm-img-hint.is-warn {
+  color: color-mix(in srgb, #f59e0b 80%, var(--bm-ink));
+}
 </style>

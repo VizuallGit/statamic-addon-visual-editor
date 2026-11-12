@@ -25,6 +25,7 @@ use MarioHamann\StatamicVisualEditor\SectionTemplate\Paths;
 class SectionTemplate
 {
     public const LOCK_MARKER = Locks::LOCK_MARKER;
+
     public const UNLOCK_MARKER = Locks::UNLOCK_MARKER;
 
     /**

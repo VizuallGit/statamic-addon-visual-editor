@@ -46,11 +46,17 @@ test('the tree marks the row and outlines it in the preview either way; only a r
 
 test('the row already picked, picked again, is not a redraw: the rows come from the dock change (watchHtmlTreeDock)', () => {
   const tree = read('html-tree.js');
-  const fn = tree.slice(tree.indexOf('function selectHtmlTreeByPath('), tree.indexOf('export function watchHtmlTreeDock('));
+  const fn = tree.slice(
+    tree.indexOf('function selectHtmlTreeByPath('),
+    tree.indexOf('export function watchHtmlTreeDock(')
+  );
   const short = fn.indexOf('if (picked && picked.path === path) {');
   const render = fn.indexOf('renderHtmlTree(win);');
 
   assert.ok(short > -1 && render > short, 'the same-path return comes before the first renderHtmlTree');
-  assert.ok(fn.includes("const picked = htmlTreeUi.rows.find((item) => item.current);"));
-  assert.match(fn, /if \(picked && picked\.path === path\) \{\n\s+selectHtmlTreeRow\(win, picked\.id, htmlTreeUi\.rows, \{ reveal \}\);\n\n\s+return;\n\s+\}/);
+  assert.ok(fn.includes('const picked = htmlTreeUi.rows.find((item) => item.current);'));
+  assert.match(
+    fn,
+    /if \(picked && picked\.path === path\) \{\n\s+selectHtmlTreeRow\(win, picked\.id, htmlTreeUi\.rows, \{ reveal \}\);\n\n\s+return;\n\s+\}/
+  );
 });

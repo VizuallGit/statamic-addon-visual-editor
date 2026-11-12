@@ -27,13 +27,13 @@ final class Recovery
     {
         $lock = Lock::read();
 
-        if ($lock !== null && Lock::holds(Manifest::buildKey()) && static::whole($lock)) {
+        if ($lock !== null && Lock::holds(Manifest::buildKey()) && self::whole($lock)) {
             return;
         }
 
-        static::restoreImportedChunks();
-        static::assertIntegrity();
-        static::refreshLock();
+        self::restoreImportedChunks();
+        self::assertIntegrity();
+        self::refreshLock();
     }
 
     /**
@@ -148,11 +148,11 @@ final class Recovery
         $addon = Manifest::liveAddonPath();
 
         if ($addon) {
-            static::lockFile($addon, $locked.'/'.basename($addon));
+            self::lockFile($addon, $locked.'/'.basename($addon));
         }
 
         foreach (Manifest::addonImports() as $name) {
-            static::lockFile($assets.'/'.$name, $locked.'/'.$name);
+            self::lockFile($assets.'/'.$name, $locked.'/'.$name);
         }
 
         $build = Manifest::buildKey();

@@ -40,7 +40,7 @@ test('queryUpperPx is the max edge only — the desktop-first reading', () => {
   assert.equal(queryUpperPx('print'), null);
 });
 
-test('desktop-first: a max query at a size\'s upper edge is that size', () => {
+test("desktop-first: a max query at a size's upper edge is that size", () => {
   assert.equal(sizeOfQuery('(max-width: 1023.98px)', DESKTOP), 'tablet');
   assert.equal(sizeOfQuery('(width < 64em)', DESKTOP), 'tablet');
   assert.equal(sizeOfQuery('(max-width: 1024px)', DESKTOP), 'tablet', 'within the slack');
@@ -48,21 +48,21 @@ test('desktop-first: a max query at a size\'s upper edge is that size', () => {
   assert.equal(sizeOfQuery('(max-width: 767.98px)', DESKTOP), 'mobile');
 });
 
-test('desktop-first: a min query or a foreign edge is nobody\'s size', () => {
+test("desktop-first: a min query or a foreign edge is nobody's size", () => {
   assert.equal(sizeOfQuery('(max-width: 900px)', DESKTOP), '');
   assert.equal(sizeOfQuery('(width >= 48em)', DESKTOP), '', 'the wrong side for this direction');
   assert.equal(sizeOfQuery('(min-width: 1024px)', DESKTOP), '');
   assert.equal(sizeOfQuery('print', DESKTOP), '');
 });
 
-test('mobile-first: a min query at a size\'s own start is that size', () => {
+test("mobile-first: a min query at a size's own start is that size", () => {
   assert.equal(sizeOfQuery('(width >= 48em)', MOBILE), 'tablet');
   assert.equal(sizeOfQuery('(min-width: 768px)', MOBILE), 'tablet');
   assert.equal(sizeOfQuery('(width >= 64em)', MOBILE), 'laptop');
   assert.equal(sizeOfQuery('(min-width: 1024px)', MOBILE), 'laptop');
 });
 
-test('mobile-first: a max query or a foreign edge is nobody\'s size', () => {
+test("mobile-first: a max query or a foreign edge is nobody's size", () => {
   assert.equal(sizeOfQuery('(width < 64em)', MOBILE), '', 'the wrong side for this direction');
   assert.equal(sizeOfQuery('(max-width: 1023.98px)', MOBILE), '');
   assert.equal(sizeOfQuery('(min-width: 900px)', MOBILE), '');

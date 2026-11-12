@@ -36,10 +36,5 @@ function typeInDocument(doc) {
 }
 
 export function currentSectionType(win) {
-  return (
-    typeInDocument(win.document) ||
-    typeInDocument(previewDocument(win)) ||
-    ask('dock:current-type') ||
-    ''
-  );
+  return typeInDocument(win.document) || typeInDocument(previewDocument(win)) || ask('dock:current-type') || '';
 }

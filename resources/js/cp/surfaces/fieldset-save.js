@@ -23,12 +23,7 @@ export const FIELDSET_SAVE_URL = /\/fields\/fieldsets\//;
 
 /** The framed screen's axios, wherever this Statamic keeps it; null when its Vue has not booted. */
 export function frameAxios(win) {
-  return (
-    win?.Statamic?.$axios ||
-    win?.Statamic?.$app?.config?.globalProperties?.$axios ||
-    win?.axios ||
-    null
-  );
+  return win?.Statamic?.$axios || win?.Statamic?.$app?.config?.globalProperties?.$axios || win?.axios || null;
 }
 
 /** A PATCH/PUT to the screen's update URL — the save itself, never the `/edit` page it sits on. */

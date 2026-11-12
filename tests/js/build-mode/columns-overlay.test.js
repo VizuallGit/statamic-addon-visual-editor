@@ -26,7 +26,10 @@ test('a picked Columns draws its columns, the empty ones marked', () => {
   const out = columnsFor(FILE, GRID);
 
   assert.equal(out.path, GRID);
-  assert.deepEqual(out.columns.map((c) => c.empty), [false, true, true]);
+  assert.deepEqual(
+    out.columns.map((c) => c.empty),
+    [false, true, true]
+  );
 });
 
 test('a picked column draws the Columns around it', () => {

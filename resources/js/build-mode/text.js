@@ -85,7 +85,10 @@ export function readText(source, node) {
   }
 
   // {{ /noparse }}: a pair the tree has no row for ({{ once }}, {{ foreach }}) is markup all the same.
-  if ((node.children || []).some((child) => child.kind || String(child.tag).toLowerCase() !== 'br') || /\{\{\s*\//.test(inner.text)) {
+  if (
+    (node.children || []).some((child) => child.kind || String(child.tag).toLowerCase() !== 'br') ||
+    /\{\{\s*\//.test(inner.text)
+  ) {
     return { kind: 'markup' };
   }
 
@@ -94,7 +97,9 @@ export function readText(source, node) {
 
 /** A tag still being typed: `{{ hea`. Written, it would stop the server rendering the section. */
 export function halfTag(text) {
-  return String(text ?? '').replace(/\{\{[\s\S]*?\}\}/g, '').includes('{{');
+  return String(text ?? '')
+    .replace(/\{\{[\s\S]*?\}\}/g, '')
+    .includes('{{');
 }
 
 /**

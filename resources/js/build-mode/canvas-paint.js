@@ -259,7 +259,10 @@ function runOf(source, from, to, members, field) {
 
   if (members.length || loose.length) {
     const opens = members.map((row) => source.slice(row.from, row.openTo > row.from ? row.openTo : row.to));
-    const one = !members.length && loose.length === 1 && !loose[0].comment && loose[0].closed && !loose[0].closer ? loose[0].body : '';
+    const one =
+      !members.length && loose.length === 1 && !loose[0].comment && loose[0].closed && !loose[0].closer
+        ? loose[0].body
+        : '';
 
     return {
       dynamic: true,
@@ -289,7 +292,12 @@ function runOf(source, from, to, members, field) {
 
 /** What an element's placeholder is: '' when it has something inside, is a void or locked, or is neither a box nor a block of text. */
 function emptyKind(node, el) {
-  if (el.leaf || node.locked || node.lockedIn || el.items.some((item) => item.items || item.dynamic || item.filled || item.text.trim())) {
+  if (
+    el.leaf ||
+    node.locked ||
+    node.lockedIn ||
+    el.items.some((item) => item.items || item.dynamic || item.filled || item.text.trim())
+  ) {
     return '';
   }
 
@@ -337,7 +345,10 @@ export function planTemplate(html, field = () => undefined) {
       image: '',
     };
 
-    if (String(node.tag).toLowerCase() === 'img' && el.attrs.some((attr) => IMAGE_OPTIONS.includes(attr.name.toLowerCase()))) {
+    if (
+      String(node.tag).toLowerCase() === 'img' &&
+      el.attrs.some((attr) => IMAGE_OPTIONS.includes(attr.name.toLowerCase()))
+    ) {
       el.image = 'img';
     }
 
@@ -354,7 +365,12 @@ export function planTemplate(html, field = () => undefined) {
 
     const flush = (to, next) => {
       if (to > cursor || members.length) {
-        const run = { ...runOf(source, cursor, to, members, field), host: node.path, prev: prev?.path || null, next: next?.path || null };
+        const run = {
+          ...runOf(source, cursor, to, members, field),
+          host: node.path,
+          prev: prev?.path || null,
+          next: next?.path || null,
+        };
 
         if (run.dynamic) {
           const base = `${node.path}\n${run.sig}`;
@@ -456,9 +472,11 @@ function paintImage(el, served, attrText) {
   const width = size('width');
   const height = size('height');
   const same = !!served && served.from === fileValue(el, imageAddress(el));
-  const made = same && (width === null || served.attrs.width === width) && (height === null || served.attrs.height === height);
+  const made =
+    same && (width === null || served.attrs.width === width) && (height === null || served.attrs.height === height);
   const from = (name) => (made || (same && (name === 'src' || name === 'srcset')) ? served.attrs[name] : undefined);
-  const shape = !made && el.image === 'img' && width && height ? `aspect-ratio: ${width} / ${height}; object-fit: cover` : '';
+  const shape =
+    !made && el.image === 'img' && width && height ? `aspect-ratio: ${width} / ${height}; object-fit: cover` : '';
   const out = [];
   const done = new Set();
 
@@ -478,7 +496,13 @@ function paintImage(el, served, attrText) {
         out.push(`${attr.name}="${encodeAttr(value)}"`);
       }
     } else if (name === 'style' && shape) {
-      out.push(attr.value === null ? `style="${shape}"` : `${attrText(attr).slice(0, -1).replace(/;?\s*$/, '')}; ${shape}"`);
+      out.push(
+        attr.value === null
+          ? `style="${shape}"`
+          : `${attrText(attr)
+              .slice(0, -1)
+              .replace(/;?\s*$/, '')}; ${shape}"`
+      );
     } else {
       out.push(attrText(attr));
     }
@@ -509,9 +533,16 @@ function paintImage(el, served, attrText) {
  * @param {Map<string, string|undefined>} rendered  tag source → the form's value it was rendered from
  */
 export function attrRendered(plan, path, name, rendered) {
-  const attr = plan?.elements.find((el) => el.path === path)?.attrs.find((row) => row.name.toLowerCase() === name.toLowerCase());
+  const attr = plan?.elements
+    .find((el) => el.path === path)
+    ?.attrs.find((row) => row.name.toLowerCase() === name.toLowerCase());
 
-  return !attr?.parts || attr.parts.every((part) => part.tag === undefined || (rendered.has(part.tag) && rendered.get(part.tag) === part.value));
+  return (
+    !attr?.parts ||
+    attr.parts.every(
+      (part) => part.tag === undefined || (rendered.has(part.tag) && rendered.get(part.tag) === part.value)
+    )
+  );
 }
 
 /**
@@ -526,7 +557,10 @@ export function attrRendered(plan, path, name, rendered) {
  *   images   Map path → servedImage(...) (what the server made of an image it finishes)
  * @returns {{ html: string, waiting: string[] }}  waiting: islands not rendered yet
  */
-export function paintPlan(plan, { learned = new Map(), served = new Set(), extras = new Map(), islands = new Map(), images = new Map() } = {}) {
+export function paintPlan(
+  plan,
+  { learned = new Map(), served = new Set(), extras = new Map(), islands = new Map(), images = new Map() } = {}
+) {
   const waiting = [];
 
   const attrText = (attr) => {
@@ -554,7 +588,9 @@ export function paintPlan(plan, { learned = new Map(), served = new Set(), extra
   };
 
   const paint = (el, root) => {
-    const attrs = el.image ? paintImage(el, images.get(el.path), attrText) : el.attrs.filter((attr) => !inertAttr(attr.name)).map(attrText);
+    const attrs = el.image
+      ? paintImage(el, images.get(el.path), attrText)
+      : el.attrs.filter((attr) => !inertAttr(attr.name)).map(attrText);
 
     if (el.loose) {
       for (const [name, value] of extras.get(el.path) || []) {

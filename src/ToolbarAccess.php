@@ -151,7 +151,6 @@ class ToolbarAccess
     }
 
     /**
-     * @param  mixed  $row
      * @return array{audience: string, users: list<string>, groups: list<string>}
      */
     public static function normalizeRow(string $key, mixed $row): array

@@ -37,11 +37,26 @@ const props = defineProps({
 const emit = defineEmits(['create', 'cancel']);
 
 /** What fits in an attribute: one value, printed as text. */
-const ATTR_FIELDS = ['text', 'textarea', 'select', 'button_group', 'radio', 'toggle', 'integer', 'float', 'slug', 'color', 'range', 'date', 'hidden'];
+const ATTR_FIELDS = [
+  'text',
+  'textarea',
+  'select',
+  'button_group',
+  'radio',
+  'toggle',
+  'integer',
+  'float',
+  'slug',
+  'color',
+  'range',
+  'date',
+  'hidden',
+];
 
 const port = inject('sveBuild');
 const role = !props.prefix && !props.draft;
-const short = (full) => (props.prefix && full.toLowerCase().startsWith(props.prefix) ? full.slice(props.prefix.length) : full);
+const short = (full) =>
+  props.prefix && full.toLowerCase().startsWith(props.prefix) ? full.slice(props.prefix.length) : full;
 const nameBox = ref(short(props.name));
 const error = ref('');
 const nameInput = ref(null);
@@ -55,7 +70,10 @@ const value = typed(
 
 /** The name typed, whole, or '' when there is nothing to write. */
 function fullName() {
-  const typedName = nameBox.value.trim().toLowerCase().replace(new RegExp(`^${props.prefix}`), '');
+  const typedName = nameBox.value
+    .trim()
+    .toLowerCase()
+    .replace(new RegExp(`^${props.prefix}`), '');
 
   return typedName ? props.prefix + typedName : '';
 }
@@ -121,7 +139,8 @@ onMounted(() =>
 );
 
 /** The panel's own chevron — the one every select in Build wears (`.fg-select`) — in place of the browser's list triangle. */
-const CHEVRON = '<svg viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHEVRON =
+  '<svg viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** The box's suggestions, opened from the chevron: the box keeps the caret. */
 function openList(input) {
@@ -162,7 +181,18 @@ onBeforeUnmount(() => value.done());
           @keydown.escape.prevent="draft ? emit('cancel') : (nameBox = short(name))"
           @blur="nameDone"
         />
-        <button v-if="names && !readonly" type="button" class="bm-attr-open" :title="port.t('attrs_suggest')" :aria-label="port.t('attrs_suggest')" tabindex="-1" data-sve-build-attr-open @mousedown.prevent @click="openList(nameInput)" v-html="CHEVRON"></button>
+        <button
+          v-if="names && !readonly"
+          type="button"
+          class="bm-attr-open"
+          :title="port.t('attrs_suggest')"
+          :aria-label="port.t('attrs_suggest')"
+          tabindex="-1"
+          data-sve-build-attr-open
+          @mousedown.prevent
+          @click="openList(nameInput)"
+          v-html="CHEVRON"
+        ></button>
       </label>
       <span v-else class="bm-attr-name is-fixed">role</span>
       <div class="bm-text-box bm-attr-value" :class="{ 'has-list': values && !draft && !readonly }">
@@ -183,7 +213,18 @@ onBeforeUnmount(() => value.done());
           @keydown.enter.prevent="value.done"
           @blur="value.done"
         />
-        <button v-if="values && !draft && !readonly" type="button" class="bm-attr-open" :title="port.t('attrs_suggest')" :aria-label="port.t('attrs_suggest')" tabindex="-1" data-sve-build-attr-open @mousedown.prevent @click="openList(valueInput)" v-html="CHEVRON"></button>
+        <button
+          v-if="values && !draft && !readonly"
+          type="button"
+          class="bm-attr-open"
+          :title="port.t('attrs_suggest')"
+          :aria-label="port.t('attrs_suggest')"
+          tabindex="-1"
+          data-sve-build-attr-open
+          @mousedown.prevent
+          @click="openList(valueInput)"
+          v-html="CHEVRON"
+        ></button>
         <BuildPickField v-if="!draft && !readonly" @pick="pick" />
       </div>
       <button

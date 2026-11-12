@@ -59,7 +59,7 @@ final class Names
             $handles
         )));
 
-        return static::dominant($prefixes, count($handles)) ?? static::singular($group);
+        return self::dominant($prefixes, count($handles)) ?? self::singular($group);
     }
 
     /**
@@ -89,7 +89,7 @@ final class Names
             }
         }
 
-        return static::dominant($folders, count($sets)) ?? static::viewFolderForGroup($groups, $group);
+        return self::dominant($folders, count($sets)) ?? self::viewFolderForGroup($groups, $group);
     }
 
     /**
@@ -106,7 +106,7 @@ final class Names
         arsort($counts);
         $top = (string) array_key_first($counts);
 
-        return $counts[$top] * 2 > $total ? $top : null;
+        return $total < $counts[$top] * 2 ? $top : null;
     }
 
     /** `galleries` → `gallery`, `custom_sections` → `custom_section`, `hero` → `hero`. */
@@ -148,8 +148,8 @@ final class Names
             $try = $suffix === 1 ? $slug : $slug.'_'.$suffix;
 
             if (! isset($taken[$viewFolder.'/'.$try])
-                && ! is_file(static::fieldsetPath($fieldsetFolder, $try))
-                && ! is_file(static::viewPath($viewFolder, $try))) {
+                && ! is_file(self::fieldsetPath($fieldsetFolder, $try))
+                && ! is_file(self::viewPath($viewFolder, $try))) {
                 return $try;
             }
 
@@ -170,6 +170,6 @@ final class Names
 
     public static function viewPath(string $folder, string $slug): string
     {
-        return resource_path('views/'.static::VIEW_FOLDER.'/'.$folder.'/'.$slug.'.antlers.html');
+        return resource_path('views/'.self::VIEW_FOLDER.'/'.$folder.'/'.$slug.'.antlers.html');
     }
 }

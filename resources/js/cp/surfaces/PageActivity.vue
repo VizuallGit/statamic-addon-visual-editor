@@ -115,47 +115,52 @@ function onKey(event) {
           tabindex="-1"
           @keydown="onKey"
         >
-          <button type="button" class="sve-page-edits__scrim bg-gray-800/20 dark:bg-gray-950/60" :aria-label="closeLabel" @click="close" />
+          <button
+            type="button"
+            class="sve-page-edits__scrim bg-gray-800/20 dark:bg-gray-950/60"
+            :aria-label="closeLabel"
+            @click="close"
+          />
           <div class="sve-page-edits__card">
-          <div class="sve-page-edits__head">
-            <div class="sve-page-edits__title">{{ historyTitle }}</div>
-            <button type="button" class="sve-page-edits__close" :aria-label="closeLabel" @click="close">✕</button>
-          </div>
-          <div class="sve-page-edits__table-wrap">
-            <table class="sve-page-edits__table">
-              <thead>
-                <tr>
-                  <th>{{ colDate }}</th>
-                  <th>{{ colUser }}</th>
-                  <th>{{ colType }}</th>
-                  <th>{{ colDetails }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!edits.length">
-                  <td colspan="4" class="sve-page-edits__empty">{{ emptyLabel }}</td>
-                </tr>
-                <tr v-for="(edit, index) in rows" :key="index">
-                  <td class="sve-page-edits__date">{{ formatWhen(edit.at) }}</td>
-                  <td>
-                    <span class="sve-page-edits__user">
-                      <span class="sve-page-edits__avatar" aria-hidden="true">{{ edit.initials || '?' }}</span>
-                      {{ edit.user || unknownUser }}
-                    </span>
-                  </td>
-                  <td>{{ edit.type }}</td>
-                  <td class="sve-page-edits__details">{{ edit.details }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div v-if="edits.length > PAGE_SIZE" class="sve-page-edits__pager">
-            <span>{{ rangeLabel }}</span>
-            <span class="sve-page-edits__pager-btns">
-              <button type="button" :disabled="page <= 1" @click="page -= 1">{{ prevLabel }}</button>
-              <button type="button" :disabled="page >= pages" @click="page += 1">{{ nextLabel }}</button>
-            </span>
-          </div>
+            <div class="sve-page-edits__head">
+              <div class="sve-page-edits__title">{{ historyTitle }}</div>
+              <button type="button" class="sve-page-edits__close" :aria-label="closeLabel" @click="close">✕</button>
+            </div>
+            <div class="sve-page-edits__table-wrap">
+              <table class="sve-page-edits__table">
+                <thead>
+                  <tr>
+                    <th>{{ colDate }}</th>
+                    <th>{{ colUser }}</th>
+                    <th>{{ colType }}</th>
+                    <th>{{ colDetails }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!edits.length">
+                    <td colspan="4" class="sve-page-edits__empty">{{ emptyLabel }}</td>
+                  </tr>
+                  <tr v-for="(edit, index) in rows" :key="index">
+                    <td class="sve-page-edits__date">{{ formatWhen(edit.at) }}</td>
+                    <td>
+                      <span class="sve-page-edits__user">
+                        <span class="sve-page-edits__avatar" aria-hidden="true">{{ edit.initials || '?' }}</span>
+                        {{ edit.user || unknownUser }}
+                      </span>
+                    </td>
+                    <td>{{ edit.type }}</td>
+                    <td class="sve-page-edits__details">{{ edit.details }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="edits.length > PAGE_SIZE" class="sve-page-edits__pager">
+              <span>{{ rangeLabel }}</span>
+              <span class="sve-page-edits__pager-btns">
+                <button type="button" :disabled="page <= 1" @click="page -= 1">{{ prevLabel }}</button>
+                <button type="button" :disabled="page >= pages" @click="page += 1">{{ nextLabel }}</button>
+              </span>
+            </div>
           </div>
         </div>
       </Transition>

@@ -425,7 +425,12 @@ export async function handleAiTextGenerate(data, doc, win) {
   const part = partOf(data, found);
 
   if (part?.missing) {
-    reply(win, { type: 'ai-text-result', requestId: data.requestId, suggestions: [], message: t(win, 'ai_text_part_missing') });
+    reply(win, {
+      type: 'ai-text-result',
+      requestId: data.requestId,
+      suggestions: [],
+      message: t(win, 'ai_text_part_missing'),
+    });
 
     return;
   }
@@ -614,7 +619,9 @@ function fieldLabel(data, doc) {
     return '';
   }
 
-  const el = doc.querySelector(`[data-handle="${cssEscape(data.field)}"] label, [data-handle="${cssEscape(data.field)}"] .field-label`);
+  const el = doc.querySelector(
+    `[data-handle="${cssEscape(data.field)}"] label, [data-handle="${cssEscape(data.field)}"] .field-label`
+  );
 
   return (el?.textContent || data.field).trim().slice(0, 120);
 }

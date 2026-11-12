@@ -26,13 +26,9 @@ const MARK =
       <span class="sve-csb__name" :title="ui.open ? ui.name : ui.callTitle">
         {{ ui.open ? ui.name : ui.callTitle }}
       </span>
-      <button
-        v-if="ui.exitOpen"
-        type="button"
-        class="sve-csb__exit"
-        :title="ui.exitTitle"
-        @click="ui.onExit?.()"
-      >{{ ui.exitLabel }}</button>
+      <button v-if="ui.exitOpen" type="button" class="sve-csb__exit" :title="ui.exitTitle" @click="ui.onExit?.()">{{
+        ui.exitLabel
+      }}</button>
     </div>
 
     <div class="sve-csb__body">
@@ -55,9 +51,9 @@ const MARK =
 .sve-csb__head {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  padding: .75rem 0 .625rem;
-  border-bottom: 1px solid rgba(128, 128, 128, .25);
+  gap: 0.5rem;
+  padding: 0.75rem 0 0.625rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
 }
 .sve-csb__mark {
   display: inline-flex;
@@ -66,8 +62,8 @@ const MARK =
   flex: 0 0 auto;
   width: 1.65em;
   height: 1.65em;
-  border-radius: .4rem;
-  background: rgba(56, 88, 233, .28);
+  border-radius: 0.4rem;
+  background: rgba(56, 88, 233, 0.28);
   color: #93a6f7;
 }
 .sve-csb__name {
@@ -76,7 +72,7 @@ const MARK =
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: .875rem;
+  font-size: 0.875rem;
   font-weight: 600;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
@@ -86,22 +82,22 @@ const MARK =
   all: unset;
   cursor: pointer;
   flex: 0 0 auto;
-  padding: .3em .7em;
-  border-radius: .3rem;
-  border: 1px solid rgba(128, 128, 128, .35);
-  font-size: .75rem;
+  padding: 0.3em 0.7em;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  font-size: 0.75rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
   line-height: 1.4;
 }
 .sve-csb__exit:hover {
-  background: rgba(128, 128, 128, .2);
+  background: rgba(128, 128, 128, 0.2);
 }
 .sve-csb__body {
   flex: 1 1 auto;
   min-height: 0;
 }
 .sve-csb__values {
-  padding: .625rem 0 .75rem;
+  padding: 0.625rem 0 0.75rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 </style>

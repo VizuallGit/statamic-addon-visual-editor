@@ -46,11 +46,7 @@ export function findGridRow(input) {
     }
 
     // Grid table style: <tr> inside <tbody> inside <table class="grid-table">
-    if (
-      el.tagName === 'TR' &&
-      el.parentElement?.tagName === 'TBODY' &&
-      el.closest('table.grid-table')
-    ) {
+    if (el.tagName === 'TR' && el.parentElement?.tagName === 'TBODY' && el.closest('table.grid-table')) {
       return el;
     }
 
@@ -62,4 +58,3 @@ export function findGridRow(input) {
 
 /** Query flag for the stripped globals / saved-section panel frame. */
 export const GLOBALS_PANEL_PARAM = 'sve-panel';
-

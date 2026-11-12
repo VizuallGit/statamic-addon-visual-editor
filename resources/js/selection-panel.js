@@ -61,7 +61,14 @@ import { MSG, SOURCE } from './lib/protocol.js';
 import { ACTIVE_ATTR } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
-import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
+import {
+  ctxKey,
+  panelStore,
+  panelValues,
+  resolvedSelection,
+  setPanelContexts,
+  setPanelSelection,
+} from './cp/panel/store.js';
 import { componentPropsUi } from './cp/component-props/store.js';
 import { buildModeUi } from './cp/build-mode/store.js';
 import { handleRequestCloseChrome, handleRequestCloseGlobal } from './pages.js';
@@ -285,7 +292,9 @@ export function initSelectionPanel(win) {
     const active = host?.ownerDocument?.activeElement;
 
     if (host && active && host.contains(active) && typeof active.blur === 'function') {
-      log(`blur before switch: ${active.tagName.toLowerCase()} focused=${active === active.ownerDocument.activeElement} hasFocus=${active.ownerDocument.hasFocus()}`);
+      log(
+        `blur before switch: ${active.tagName.toLowerCase()} focused=${active === active.ownerDocument.activeElement} hasFocus=${active.ownerDocument.hasFocus()}`
+      );
       active.blur();
       log(`after blur: active=${active.ownerDocument.activeElement?.tagName?.toLowerCase()}`);
       pendingSwitch = win.setTimeout(apply, 80);
@@ -421,7 +430,9 @@ function place(win, selection) {
   const resolved = !!selection && !!resolvedSelection.value;
   const showing = resolved && !componentHasColumn() && !buildModeUi.on;
 
-  log(`paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}${resolved && !showing ? (buildModeUi.on ? ' build has the column' : ' component has the column') : ''}`);
+  log(
+    `paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}${resolved && !showing ? (buildModeUi.on ? ' build has the column' : ' component has the column') : ''}`
+  );
 
   if (!showing) {
     col.removeAttribute(SELECTION_ATTR);

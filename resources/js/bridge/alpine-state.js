@@ -90,9 +90,7 @@ function targetsOf(doc, item) {
 
   // A loop draws more components than the file has tags: the nth past the
   // end means every one of them.
-  return item.nth === null || item.nth >= components.length
-    ? components
-    : [components[item.nth]].filter(Boolean);
+  return item.nth === null || item.nth >= components.length ? components : [components[item.nth]].filter(Boolean);
 }
 
 /**

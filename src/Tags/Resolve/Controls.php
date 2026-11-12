@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
 use Statamic\Facades\Blueprint;
 
 /**
@@ -16,9 +15,7 @@ final class Controls
 {
     use ResolvesScope;
 
-    public function __construct(protected $params, protected $context)
-    {
-    }
+    public function __construct(protected $params, protected $context) {}
 
     /**
      * controls="font_tag|size" — sibling fields of the one being edited inline,

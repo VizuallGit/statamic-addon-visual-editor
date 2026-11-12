@@ -24,7 +24,13 @@ function fakeTree(styles) {
   let parent = null;
 
   return styles.map((style) => {
-    const el = { tagName: 'DIV', parentElement: parent, ownerDocument: doc, style, clientWidth: style.clientWidth || 0 };
+    const el = {
+      tagName: 'DIV',
+      parentElement: parent,
+      ownerDocument: doc,
+      style,
+      clientWidth: style.clientWidth || 0,
+    };
 
     parent = el;
 
@@ -33,7 +39,10 @@ function fakeTree(styles) {
 }
 
 test('the row writes under a size, widest first, as the breakpoints are desktop-first', () => {
-  assert.deepEqual(CONTAINER_SIZES.map((size) => size.rem), [48, 36, 28, 20]);
+  assert.deepEqual(
+    CONTAINER_SIZES.map((size) => size.rem),
+    [48, 36, 28, 20]
+  );
   assert.equal(containerVariant('md'), '@max-md');
 });
 
@@ -47,7 +56,16 @@ test('a container size is told from a screen size, a state and the @container ut
 });
 
 test('hand-written container sizes are sizes too: min-width and named forms, never the utility', () => {
-  for (const part of ['@md', '@3xl', '@min-md', '@min-[30rem]', '@[30rem]', '@max-md/card', '@md/card', '@min-[30rem]/main']) {
+  for (const part of [
+    '@md',
+    '@3xl',
+    '@min-md',
+    '@min-[30rem]',
+    '@[30rem]',
+    '@max-md/card',
+    '@md/card',
+    '@min-[30rem]/main',
+  ]) {
     assert.equal(isContainerVariant(part), true, part);
   }
 
@@ -89,7 +107,16 @@ test('a size of its own is rem or em only', () => {
 });
 
 test('the arbitrary sizes a class list already writes under', () => {
-  assert.deepEqual(customSizesIn(['@max-[30rem]:pt-6', 'hover:@max-[30rem]:pt-2', '@max-[22.5em]:hover:p-1', '@max-md:pt-4', 'pt-[1rem]']), ['@max-[30rem]', '@max-[22.5em]']);
+  assert.deepEqual(
+    customSizesIn([
+      '@max-[30rem]:pt-6',
+      'hover:@max-[30rem]:pt-2',
+      '@max-[22.5em]:hover:p-1',
+      '@max-md:pt-4',
+      'pt-[1rem]',
+    ]),
+    ['@max-[30rem]', '@max-[22.5em]']
+  );
   assert.deepEqual(customSizesIn([]), []);
 });
 
@@ -107,7 +134,7 @@ test('a size query asks the nearest inline-size or size ancestor, never the elem
   assert.equal(sizeContainerOf(outer), null);
 });
 
-test('the width a query measures is the content box, in the frame\'s rem', () => {
+test("the width a query measures is the content box, in the frame's rem", () => {
   const [box] = fakeTree([{ clientWidth: 416, paddingLeft: '16px', paddingRight: '16px' }]);
 
   assert.equal(contentWidthRem(box), 24);

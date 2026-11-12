@@ -28,12 +28,9 @@ function chipBind(chip) {
 <template>
   <div class="sve-tw">
     <div v-if="ui.tag" class="sve-tw-head">
-      <button
-        type="button"
-        class="sve-tw-tag"
-        :disabled="!ui.canEdit"
-        @click.prevent.stop="ui.onTag?.($event)"
-      >&lt;{{ ui.tag }}&gt;</button>
+      <button type="button" class="sve-tw-tag" :disabled="!ui.canEdit" @click.prevent.stop="ui.onTag?.($event)"
+        >&lt;{{ ui.tag }}&gt;</button
+      >
       <button
         v-for="item in ui.breakpoints"
         :key="item.index"
@@ -43,7 +40,8 @@ function chipBind(chip) {
         :data-active="item.active ? '' : undefined"
         :disabled="!ui.canEdit"
         @click.prevent.stop="ui.onBreakpoint?.(item.index)"
-      >{{ item.label }}</button>
+        >{{ item.label }}</button
+      >
       <button
         type="button"
         data-sve-tw-state
@@ -52,7 +50,18 @@ function chipBind(chip) {
         @click.prevent.stop="ui.onState?.($event)"
       >
         {{ ui.stateLabel }}
-        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        <svg
+          width="8"
+          height="8"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
       <button
         type="button"
@@ -61,8 +70,18 @@ function chipBind(chip) {
         :disabled="!ui.canEdit"
         @click.prevent.stop="ui.onSort?.()"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2.5 4h9M2.5 8h6M2.5 12h3"/><path d="M13 5v7M11.4 10.4 13 12l1.6-1.6"/>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M2.5 4h9M2.5 8h6M2.5 12h3" />
+          <path d="M13 5v7M11.4 10.4 13 12l1.6-1.6" />
         </svg>
       </button>
       <span class="sve-tw-gap"></span>
@@ -84,7 +103,20 @@ function chipBind(chip) {
             :title="chip.title"
             @click.prevent.stop="ui.onChip?.($event, chip.id)"
           >
-            <svg v-if="chip.closed" class="sve-tw-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            <svg
+              v-if="chip.closed"
+              class="sve-tw-lock"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+            </svg>
             <span v-if="chip.color" class="sve-tw-dot" :style="{ background: chip.color }"></span>
             {{ chip.raw }}
           </button>
@@ -94,7 +126,8 @@ function chipBind(chip) {
             class="sve-tw-drop"
             :title="ui.dropTitle"
             @click.prevent.stop="ui.onDrop?.(chip.id)"
-          >−</button>
+            >−</button
+          >
         </span>
       </div>
     </div>
@@ -110,7 +143,7 @@ function chipBind(chip) {
   font-size: 0.6875rem;
 }
 .sve-tw-empty {
-  opacity: .6;
+  opacity: 0.6;
   padding: 0.25em 0.15em;
 }
 .sve-tw-head {
@@ -125,7 +158,10 @@ function chipBind(chip) {
   margin-bottom: 0.15em;
   border-bottom: 1px solid rgba(128, 128, 128, 0.22);
 }
-.sve-tw-gap { flex: 1 1 auto; min-width: 0; }
+.sve-tw-gap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .sve-tw-tag {
   all: unset;
   flex: none;
@@ -136,14 +172,22 @@ function chipBind(chip) {
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
-  opacity: .8;
+  opacity: 0.8;
 }
-.sve-tw-tag:hover { opacity: 1; background: rgba(128, 128, 128, .2); }
-.sve-tw-tag:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-.sve-tw-tag[disabled] { cursor: default; }
+.sve-tw-tag:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.2);
+}
+.sve-tw-tag:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+.sve-tw-tag[disabled] {
+  cursor: default;
+}
 .sve-tw-scope {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  opacity: .55;
+  opacity: 0.55;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -155,11 +199,11 @@ function chipBind(chip) {
   cursor: pointer;
   padding: 0.2em 0.5em;
   border-radius: 0.36em;
-  border: 1px solid rgba(128, 128, 128, .35);
+  border: 1px solid rgba(128, 128, 128, 0.35);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
   line-height: 1.4;
-  opacity: .7;
+  opacity: 0.7;
 }
 [data-sve-tw-sort] {
   all: unset;
@@ -169,15 +213,30 @@ function chipBind(chip) {
   cursor: pointer;
   padding: 0.25em 0.4em;
   border-radius: 0.36em;
-  opacity: .6;
+  opacity: 0.6;
 }
-[data-sve-tw-sort]:hover { opacity: 1; background: rgba(128, 128, 128, .18); }
-[data-sve-tw-sort]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-[data-sve-tw-sort][disabled] { cursor: default; opacity: .3; }
+[data-sve-tw-sort]:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.18);
+}
+[data-sve-tw-sort]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+[data-sve-tw-sort][disabled] {
+  cursor: default;
+  opacity: 0.3;
+}
 [data-sve-tw-bp]:hover,
-[data-sve-tw-state]:hover { opacity: 1; background: rgba(128, 128, 128, .18); }
+[data-sve-tw-state]:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.18);
+}
 [data-sve-tw-bp]:focus-visible,
-[data-sve-tw-state]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
+[data-sve-tw-state]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
 [data-sve-tw-bp][data-active],
 [data-sve-tw-state][data-active] {
   opacity: 1;
@@ -186,13 +245,18 @@ function chipBind(chip) {
   border-color: transparent;
 }
 [data-sve-tw-bp][disabled],
-[data-sve-tw-state][disabled] { cursor: default; opacity: .35; }
+[data-sve-tw-state][disabled] {
+  cursor: default;
+  opacity: 0.35;
+}
 [data-sve-tw-state] {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
 }
-[data-sve-tw-state] svg { opacity: .7; }
+[data-sve-tw-state] svg {
+  opacity: 0.7;
+}
 .sve-tw-group {
   display: flex;
   flex-direction: column;
@@ -202,7 +266,7 @@ function chipBind(chip) {
   align-self: flex-start;
   padding: 0.18em 0.55em;
   border-radius: 0.36em;
-  background: rgba(56, 88, 233, .28);
+  background: rgba(56, 88, 233, 0.28);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
   line-height: 1.4;
@@ -213,10 +277,10 @@ function chipBind(chip) {
 }
 .sve-tw-variant[data-sve-tw-base] {
   background: transparent;
-  opacity: .5;
+  opacity: 0.5;
   padding-left: 0;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 }
 .sve-tw-chips {
   display: flex;
@@ -235,7 +299,7 @@ function chipBind(chip) {
   max-width: 100%;
   padding: 0.27em 0.64em;
   border-radius: 0.45em;
-  background: rgba(128, 128, 128, .16);
+  background: rgba(128, 128, 128, 0.16);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   line-height: 1.4;
   cursor: pointer;
@@ -243,16 +307,44 @@ function chipBind(chip) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-[data-sve-tw-chip]:hover { background: rgba(128, 128, 128, .28); }
-[data-sve-tw-chip]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-[data-sve-tw-chip][data-open] { background: #3858e9; color: #fff; }
-[data-sve-tw-chip][data-sve-tw-site] { background: rgba(56, 88, 233, .28); color: #b4c1ff; }
-[data-sve-tw-chip][data-sve-tw-site]:hover { background: rgba(56, 88, 233, .45); }
-[data-sve-tw-chip][aria-pressed='true'] { background: #3858e9; color: #fff; }
-[data-sve-tw-chip][aria-pressed][data-sve-tw-site] { opacity: .45; cursor: default; }
-.sve-tw-lock { flex: none; width: 1em; height: 1em; }
-[data-sve-tw-chip][data-sve-tw-locked] { cursor: default; opacity: .55; }
-[data-sve-tw-chip][data-sve-tw-locked]:hover { background: rgba(128, 128, 128, .16); }
+[data-sve-tw-chip]:hover {
+  background: rgba(128, 128, 128, 0.28);
+}
+[data-sve-tw-chip]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+[data-sve-tw-chip][data-open] {
+  background: #3858e9;
+  color: #fff;
+}
+[data-sve-tw-chip][data-sve-tw-site] {
+  background: rgba(56, 88, 233, 0.28);
+  color: #b4c1ff;
+}
+[data-sve-tw-chip][data-sve-tw-site]:hover {
+  background: rgba(56, 88, 233, 0.45);
+}
+[data-sve-tw-chip][aria-pressed='true'] {
+  background: #3858e9;
+  color: #fff;
+}
+[data-sve-tw-chip][aria-pressed][data-sve-tw-site] {
+  opacity: 0.45;
+  cursor: default;
+}
+.sve-tw-lock {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+[data-sve-tw-chip][data-sve-tw-locked] {
+  cursor: default;
+  opacity: 0.55;
+}
+[data-sve-tw-chip][data-sve-tw-locked]:hover {
+  background: rgba(128, 128, 128, 0.16);
+}
 /* The wrap is what the badge is positioned against — the chip keeps its own
    box, and the badge sits on the corner without pushing the text around. */
 .sve-tw-chip-wrap {
@@ -272,7 +364,7 @@ function chipBind(chip) {
   width: 1.5em;
   height: 1.5em;
   border-radius: 50%;
-  border: 2px solid #1E1E21;
+  border: 2px solid #1e1e21;
   background: #e11d48;
   color: #fff;
   font-family: ui-sans-serif, system-ui, sans-serif;
@@ -282,13 +374,17 @@ function chipBind(chip) {
   cursor: pointer;
 }
 .sve-tw-chip-wrap:hover .sve-tw-drop,
-.sve-tw-chip-wrap:focus-within .sve-tw-drop { opacity: 1; }
-.sve-tw-drop:hover { background: #f43f5e; }
+.sve-tw-chip-wrap:focus-within .sve-tw-drop {
+  opacity: 1;
+}
+.sve-tw-drop:hover {
+  background: #f43f5e;
+}
 .sve-tw-dot {
   flex: none;
   width: 0.82em;
   height: 0.82em;
   border-radius: 0.18em;
-  border: 1px solid rgba(128, 128, 128, .5);
+  border: 1px solid rgba(128, 128, 128, 0.5);
 }
 </style>

@@ -13,7 +13,6 @@ namespace MarioHamann\StatamicVisualEditor;
  */
 class TailwindBake
 {
-
     /** @var array<string, string> */
     protected const VARIANT_MEDIA = [
         'sm' => '(min-width:640px)',
@@ -119,5 +118,4 @@ class TailwindBake
 
         return array_values(array_unique($out));
     }
-
 }

@@ -23,9 +23,9 @@ trait FakesCursorAgent
 
             protected static function process(array $payload, int $timeout): Process
             {
-                static::$payloads[] = $payload;
+                self::$payloads[] = $payload;
 
-                return new Process([PHP_BINARY, '-r', 'echo '.var_export(json_encode(static::$answer), true).';']);
+                return new Process([PHP_BINARY, '-r', 'echo '.var_export(json_encode(self::$answer), true).';']);
             }
         };
 
@@ -47,9 +47,9 @@ trait FakesCursorAgent
 
             protected static function process(array $payload, int $timeout): Process
             {
-                static::$payloads[] = $payload;
+                self::$payloads[] = $payload;
 
-                return new Process([PHP_BINARY, '-r', 'echo '.var_export(json_encode(static::$answer), true).';']);
+                return new Process([PHP_BINARY, '-r', 'echo '.var_export(json_encode(self::$answer), true).';']);
             }
         };
 

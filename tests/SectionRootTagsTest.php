@@ -103,6 +103,6 @@ class SectionRootTagsTest extends TestCase
         // A comment ends at `#}}`, not at a `}}` inside it.
         $this->assertSame('div', SectionRootTags::of('{{# a }} <p> #}}<div></div>'));
         // A tag with no `}}` runs to the end — no root, as in the tree.
-        $this->assertSame('', SectionRootTags::of('<section {{ visual_edit x="1">' . "\n<div></div></section>"));
+        $this->assertSame('', SectionRootTags::of('<section {{ visual_edit x="1">'."\n<div></div></section>"));
     }
 }

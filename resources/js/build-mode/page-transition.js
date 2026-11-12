@@ -63,7 +63,9 @@ function declarations(style) {
     .map((text) => {
       const at = text.indexOf(':');
 
-      return at < 0 ? { name: '', value: text, text } : { name: text.slice(0, at).trim().toLowerCase(), value: text.slice(at + 1).trim(), text };
+      return at < 0
+        ? { name: '', value: text, text }
+        : { name: text.slice(0, at).trim().toLowerCase(), value: text.slice(at + 1).trim(), text };
     });
 }
 
@@ -119,7 +121,11 @@ function keyOf(raw) {
 
 /** The key as the row writes it: `{{ id }}` in an element's attribute, `{id}` in a component's call. */
 function keyText(key, node) {
-  return node.kind === 'component' ? String(key).replace(/^\{\{\s*/, '{').replace(/\s*\}\}$/, '}') : key;
+  return node.kind === 'component'
+    ? String(key)
+        .replace(/^\{\{\s*/, '{')
+        .replace(/\s*\}\}$/, '}')
+    : key;
 }
 
 /** A pair name as a name can take it: small letters, digits and dashes, a letter first. */
@@ -177,7 +183,12 @@ export function loopCollectionOf(html, path) {
   const roots = parseTemplateTree(html);
   const loop = entryLoop(roots, findByPath(roots, path));
 
-  return loop ? String(loop.handle || '').replace(/^collection::/, '').split('|')[0].trim() : '';
+  return loop
+    ? String(loop.handle || '')
+        .replace(/^collection::/, '')
+        .split('|')[0]
+        .trim()
+    : '';
 }
 
 /** The row's page transition — `{ pair, key, motion }` — or null when it has none. */
@@ -242,7 +253,12 @@ function writeOne(source, node, pt) {
     .filter((decl) => decl.name !== NAME && decl.name !== CLASS)
     .map((decl) => decl.text);
   const pair = pt ? cleanPair(pt.pair) || defaultPair(node) : '';
-  const own = pt ? [`${NAME}: ${pair}-${keyText(pt.key || KEYS.page, node)}`, ...(MOTIONS.includes(pt.motion) ? [`${CLASS}: ${pt.motion}`] : [])] : [];
+  const own = pt
+    ? [
+        `${NAME}: ${pair}-${keyText(pt.key || KEYS.page, node)}`,
+        ...(MOTIONS.includes(pt.motion) ? [`${CLASS}: ${pt.motion}`] : []),
+      ]
+    : [];
 
   return withStyle(source, node, [...rest, ...own].join('; '));
 }
@@ -291,7 +307,10 @@ export function samePair(html, path, pair) {
   return transitionRows(html).filter((row) => row.node.path !== path && row.pt && row.pt.pair === clean);
 }
 
-const SPRING = [0, 0.043, 0.15, 0.292, 0.447, 0.598, 0.734, 0.849, 0.941, 1.008, 1.054, 1.081, 1.093, 1.094, 1.087, 1.075, 1.061, 1.046, 1.032, 1.02, 1.01, 1.003, 0.997, 0.994, 0.992, 0.991, 0.991, 0.992, 0.993, 0.995, 0.996, 0.997, 1];
+const SPRING = [
+  0, 0.043, 0.15, 0.292, 0.447, 0.598, 0.734, 0.849, 0.941, 1.008, 1.054, 1.081, 1.093, 1.094, 1.087, 1.075, 1.061,
+  1.046, 1.032, 1.02, 1.01, 1.003, 0.997, 0.994, 0.992, 0.991, 0.991, 0.992, 0.993, 0.995, 0.996, 0.997, 1,
+];
 const BEZIER = { smooth: [0.22, 1, 0.36, 1], snappy: [0.2, 0, 0, 1] };
 
 function bezierPoints([x1, y1, x2, y2], samples = 32) {
@@ -311,7 +330,10 @@ export const MOTION_BASE = `M4 ${Y(1)}H96`;
 
 /** A motion's curve as an SVG path in a 100 × 56 box: time across, distance up. */
 export function motionPath(motion) {
-  const points = motion === 'spring' ? SPRING.map((v, i) => [i / (SPRING.length - 1), v]) : bezierPoints(BEZIER[motion] || BEZIER.smooth);
+  const points =
+    motion === 'spring'
+      ? SPRING.map((v, i) => [i / (SPRING.length - 1), v])
+      : bezierPoints(BEZIER[motion] || BEZIER.smooth);
 
   return points.map(([x, y], i) => `${i ? 'L' : 'M'}${X(x)} ${Y(y)}`).join('');
 }

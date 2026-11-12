@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SchemaStore;
+use Statamic\Facades\Entry;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -51,7 +52,7 @@ class InjectSchema
 
         foreach ($blocks as $json) {
             $safe = str_replace(['</', '<!--'], ['<\/', '<\!--'], $json);
-            $tags .= "\n<script type=\"application/ld+json\">".$safe."</script>";
+            $tags .= "\n<script type=\"application/ld+json\">".$safe.'</script>';
         }
 
         $position = strrpos($content, '</body>');
@@ -74,7 +75,7 @@ class InjectSchema
 
         // Statamic resolves the entry into the view, not always into the route.
         $uri = '/'.ltrim($request->path(), '/');
-        $entry = \Statamic\Facades\Entry::findByUri($uri === '//' ? '/' : $uri);
+        $entry = Entry::findByUri($uri === '//' ? '/' : $uri);
 
         return $entry?->id() ? (string) $entry->id() : null;
     }

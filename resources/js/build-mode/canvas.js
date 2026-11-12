@@ -88,9 +88,28 @@ import { dataGet, findPathByUid } from '../lib/values.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
-import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR, BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
+import {
+  BUILD_CANVAS_ID,
+  BUILD_CANVAS_SHOWN_EVENT,
+  BUILD_CANVAS_UNSTYLED_ATTR,
+  BUILD_COLUMNS_LAYER_ID,
+} from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, findPickRoot, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_CLOAK, CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate, servedImage } from './canvas-paint.js';
+import {
+  CANVAS_CLOAK,
+  CANVAS_EMPTY,
+  CANVAS_PATH,
+  CANVAS_ROOT,
+  ISLAND_WAIT,
+  attrRendered,
+  fieldLookup,
+  inertAttr,
+  learnTags,
+  pageClasses,
+  paintPlan,
+  planTemplate,
+  servedImage,
+} from './canvas-paint.js';
 import { EMPTY_CSS, findEmpties, fitRows } from './canvas-empty.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
@@ -280,7 +299,14 @@ function whenStyled(page) {
  */
 export function startCanvas(win) {
   const doc = win.document;
-  const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map(), rendered: new Map(), images: new Map() };
+  const known = {
+    learned: new Map(),
+    served: new Set(),
+    extras: new Map(),
+    islands: new Map(),
+    rendered: new Map(),
+    images: new Map(),
+  };
   const forget = () => Object.values(known).forEach((store) => store.clear());
   // rootKey: the open section's key in the real preview, which its painted root stands for (canvas-live.js).
   const painted = { uid: null, html: null, sheet: null, rootKey: '' };
@@ -393,10 +419,15 @@ export function startCanvas(win) {
   };
   const hold = canvasHold(win, {
     page: cdoc,
-    compile: (classes) => sheet(classes ? `${painted.html || ''}<i class="${classes.replace(/"/g, '&quot;')}"></i>` : painted.html),
+    compile: (classes) =>
+      sheet(classes ? `${painted.html || ''}<i class="${classes.replace(/"/g, '&quot;')}"></i>` : painted.html),
   });
   // A field's island — a Bard document — from the form's own editor while it is typed in (canvas-fields.js).
-  const fields = canvasFields(win, { islands: known.islands, paint: () => schedule(redraw), read: () => schedule(truth) });
+  const fields = canvasFields(win, {
+    islands: known.islands,
+    paint: () => schedule(redraw),
+    read: () => schedule(truth),
+  });
 
   /* The frame */
 
@@ -482,11 +513,15 @@ export function startCanvas(win) {
     page.addEventListener('auxclick', (event) => event.preventDefault(), true);
     page.addEventListener('submit', (event) => event.preventDefault(), true);
     page.addEventListener('mouseover', onHover);
-    page.addEventListener('pointerdown', (event) => {
-      if (!edit.holds(event.target) && !inGridLayer(event)) {
-        ui.grab(event);
-      }
-    }, true);
+    page.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (!edit.holds(event.target) && !inGridLayer(event)) {
+          ui.grab(event);
+        }
+      },
+      true
+    );
     page.addEventListener('scroll', ui.draw, true);
     page.addEventListener('scroll', bar.place, true);
     page.addEventListener('scroll', focus.place, true);
@@ -665,7 +700,9 @@ export function startCanvas(win) {
     }
 
     if (record.type === 'childList') {
-      return [...record.addedNodes, ...record.removedNodes].every((node) => node.nodeType === 1 && node.matches(LEFT_OFF));
+      return [...record.addedNodes, ...record.removedNodes].every(
+        (node) => node.nodeType === 1 && node.matches(LEFT_OFF)
+      );
     }
 
     return false;
@@ -696,7 +733,11 @@ export function startCanvas(win) {
 
   /** The real preview's videos and dialogs, as they are now, on the canvas. */
   function follow() {
-    followReal(cdoc(), realDoc, { root: cdoc()?.querySelector(`[${CANVAS_ROOT}]`) || null, rootKey: painted.rootKey, skip: LEFT_OFF });
+    followReal(cdoc(), realDoc, {
+      root: cdoc()?.querySelector(`[${CANVAS_ROOT}]`) || null,
+      rootKey: painted.rootKey,
+      skip: LEFT_OFF,
+    });
   }
 
   /* What the dock holds */
@@ -868,7 +909,10 @@ export function startCanvas(win) {
         known.extras.set(
           el.path,
           [...dom.attributes]
-            .filter(({ name }) => !named.has(name) && name !== HT_PATH_ATTR && !name.startsWith('data-sve-build') && !inertAttr(name))
+            .filter(
+              ({ name }) =>
+                !named.has(name) && name !== HT_PATH_ATTR && !name.startsWith('data-sve-build') && !inertAttr(name)
+            )
             .map(({ name, value }) => [name, value])
         );
       }
@@ -1391,7 +1435,12 @@ export function startCanvas(win) {
 
       // The element already picked and open in the panel: its words, where they
       // stand. One just added is picked with Add still showing: a click opens it first.
-      if (path === port.selectedPath() && port.panel?.value === 'element' && port.inlineTarget && edit.start(el, path, event)) {
+      if (
+        path === port.selectedPath() &&
+        port.panel?.value === 'element' &&
+        port.inlineTarget &&
+        edit.start(el, path, event)
+      ) {
         return;
       }
 
@@ -1460,7 +1509,10 @@ export function startCanvas(win) {
       port = next;
       // Every pick bumps the port, and a pick is also how another section of
       // the same kind comes into the dock — one file, so no load announces it.
-      stopMarks = watch(() => [next.rev.value, next.selectedPath(), next.plusPath()], () => paint());
+      stopMarks = watch(
+        () => [next.rev.value, next.selectedPath(), next.plusPath()],
+        () => paint()
+      );
       marks();
 
       return () => {
@@ -1501,7 +1553,9 @@ export function startCanvas(win) {
         const copy = el.cloneNode(true);
 
         copy.querySelectorAll('*').forEach((kid) => {
-          [...kid.attributes].filter((attr) => attr.name.startsWith('data-sve-')).forEach((attr) => kid.removeAttribute(attr.name));
+          [...kid.attributes]
+            .filter((attr) => attr.name.startsWith('data-sve-'))
+            .forEach((attr) => kid.removeAttribute(attr.name));
         });
 
         return copy.innerHTML.trim();

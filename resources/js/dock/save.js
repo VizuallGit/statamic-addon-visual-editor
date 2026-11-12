@@ -144,9 +144,7 @@ function postSave(win, type, parts) {
 
       refreshPreview(win);
       emit('dock:saved', { html: parts.html });
-      win.document
-        .getElementById('__sve-section-picker')
-        ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
+      win.document.getElementById('__sve-section-picker')?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
     })
     .catch((err) => {
       setStatus(win.document, t(win, err?.message === 'not_writable' ? 'code_dock_not_writable' : 'code_dock_error'));

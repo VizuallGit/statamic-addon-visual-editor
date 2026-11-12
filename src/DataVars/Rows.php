@@ -56,7 +56,7 @@ final class Rows
     {
         $type = $field->type();
 
-        if (in_array($type, static::SKIP_TYPES, true)) {
+        if (in_array($type, self::SKIP_TYPES, true)) {
             return true;
         }
 
@@ -79,7 +79,7 @@ final class Rows
      */
     public static function walk(array $fields, int $depth = 0, string $parent = '', string $prefix = ''): array
     {
-        return static::walkAll(new Fields($fields), $depth, $parent, $prefix);
+        return self::walkAll(new Fields($fields), $depth, $parent, $prefix);
     }
 
     /**
@@ -96,7 +96,7 @@ final class Rows
         $out = [];
 
         foreach ($fields->all() as $handle => $field) {
-            if (str_starts_with($handle, '_') || static::skip($field)) {
+            if (str_starts_with($handle, '_') || self::skip($field)) {
                 continue;
             }
 
@@ -107,7 +107,7 @@ final class Rows
             // `link.url` from wherever the group itself is reachable. So it
             // contributes a prefix and no row of its own.
             if ($type === 'group') {
-                $out = array_merge($out, static::walkAll(
+                $out = array_merge($out, self::walkAll(
                     new Fields($config['fields'] ?? []),
                     $depth + 1,
                     $parent,
@@ -118,7 +118,7 @@ final class Rows
                 continue;
             }
 
-            $row = static::row($prefix.$handle, $field, $values[$handle] ?? null);
+            $row = self::row($prefix.$handle, $field, $values[$handle] ?? null);
 
             if ($parent !== '') {
                 $row['parent'] = $parent;
@@ -131,14 +131,14 @@ final class Rows
             $inside = trim($parent === '' ? $prefix.$handle : $parent.' › '.$prefix.$handle);
 
             if ($type === 'grid') {
-                $out = array_merge($out, static::walk($config['fields'] ?? [], $depth + 1, $inside));
+                $out = array_merge($out, self::walk($config['fields'] ?? [], $depth + 1, $inside));
 
                 continue;
             }
 
             if ($type === 'replicator') {
-                foreach (static::flattenSets($config['sets'] ?? []) as $name => $set) {
-                    $out = array_merge($out, static::walk(
+                foreach (self::flattenSets($config['sets'] ?? []) as $name => $set) {
+                    $out = array_merge($out, self::walk(
                         $set['fields'] ?? [],
                         $depth + 1,
                         $inside.' › '.$name
@@ -147,7 +147,7 @@ final class Rows
             }
         }
 
-        return static::dedupe($out);
+        return self::dedupe($out);
     }
 
     /**
@@ -200,7 +200,7 @@ final class Rows
 
         foreach ($sets as $handle => $config) {
             if (isset($config['sets']) && is_array($config['sets'])) {
-                $out += static::flattenSets($config['sets']);
+                $out += self::flattenSets($config['sets']);
 
                 continue;
             }
@@ -250,7 +250,7 @@ final class Rows
         // Only what is true is sent. A row carrying `loop: false` and
         // `value: null` reads, in the menu's code, exactly like one that says
         // nothing — and costs a field on every row to say it.
-        if (in_array($type, static::LOOP_TYPES, true)) {
+        if (in_array($type, self::LOOP_TYPES, true)) {
             $row['loop'] = true;
         }
 
@@ -268,15 +268,15 @@ final class Rows
 
         // A choice prints one of its keys: Style's Data states offer each
         // (`group-data-[position=left]`), as the field's own buttons do.
-        if (in_array($type, static::CHOICE_TYPES, true)) {
-            $options = static::optionKeys($field->config()['options'] ?? []);
+        if (in_array($type, self::CHOICE_TYPES, true)) {
+            $options = self::optionKeys($field->config()['options'] ?? []);
 
             if ($options !== []) {
                 $row['options'] = $options;
             }
         }
 
-        $preview = $value === null ? '' : static::preview($value);
+        $preview = $value === null ? '' : self::preview($value);
 
         if ($preview !== '') {
             $row['value'] = $preview;

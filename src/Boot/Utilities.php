@@ -2,9 +2,9 @@
 
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
-use MarioHamann\StatamicVisualEditor\PreviewStatus;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SetPreviewsController;
+use MarioHamann\StatamicVisualEditor\PreviewStatus;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Utility;
 use Statamic\Statamic;
@@ -86,7 +86,7 @@ final class Utilities
             }
         });
 
-        static::hideUtilitiesFromNav();
+        self::hideUtilitiesFromNav();
     }
 
     /**

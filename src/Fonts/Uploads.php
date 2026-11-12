@@ -31,8 +31,8 @@ final class Uploads
     public static function store(UploadedFile $upload, string $family, string $weight, string $style): ?array
     {
         $bytes = (string) file_get_contents($upload->getRealPath());
-        $extension = static::extension($bytes);
-        $weight = static::weight($weight);
+        $extension = self::extension($bytes);
+        $weight = self::weight($weight);
 
         if ($extension === null || $weight === null || strlen($bytes) > self::MAX_BYTES) {
             return null;

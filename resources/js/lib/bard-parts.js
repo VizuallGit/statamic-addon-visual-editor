@@ -20,7 +20,9 @@ export const PART_TAGS = new Set(['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'UL',
 
 /** Words as the page reads them: any run of white space one space. */
 export function collapse(text) {
-  return String(text ?? '').replace(/\s+/g, ' ').trim();
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -90,7 +92,9 @@ function listLines(node) {
 
 /** The part's text as the AI is given it: a list one item per line, anything else one line of words. */
 export function partText(node) {
-  return node?.type === 'bulletList' || node?.type === 'orderedList' ? listLines(node).join('\n') : collapse(nodeText(node));
+  return node?.type === 'bulletList' || node?.type === 'orderedList'
+    ? listLines(node).join('\n')
+    : collapse(nodeText(node));
 }
 
 /** Does the field hold any text? An empty one shows its placeholder on the page, and a suggestion fills the whole field. */
@@ -175,7 +179,10 @@ export function withPartText(node, text) {
       return { ...node, content: [block('paragraph', words)] };
     case 'bulletList':
     case 'orderedList':
-      return { ...node, content: lines(text).map((line) => ({ type: 'listItem', content: [block('paragraph', line)] })) };
+      return {
+        ...node,
+        content: lines(text).map((line) => ({ type: 'listItem', content: [block('paragraph', line)] })),
+      };
     default:
       return node;
   }

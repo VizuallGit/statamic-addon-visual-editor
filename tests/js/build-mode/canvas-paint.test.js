@@ -57,13 +57,18 @@ test('a field is the row’s first, then the page’s; null is nothing; a list i
 });
 
 test('an opening tag: its attributes with Antlers kept whole, and Antlers where an attribute would stand', () => {
-  const { attrs, loose } = openTagParts('<section id="id-{{ id }}" class="[ {{ _class }} ]" data-auto-contrast {{ visual_edit outline_inside="true" }}>');
+  const { attrs, loose } = openTagParts(
+    '<section id="id-{{ id }}" class="[ {{ _class }} ]" data-auto-contrast {{ visual_edit outline_inside="true" }}>'
+  );
 
-  assert.deepEqual(attrs.map((a) => [a.name, a.value]), [
-    ['id', 'id-{{ id }}'],
-    ['class', '[ {{ _class }} ]'],
-    ['data-auto-contrast', null],
-  ]);
+  assert.deepEqual(
+    attrs.map((a) => [a.name, a.value]),
+    [
+      ['id', 'id-{{ id }}'],
+      ['class', '[ {{ _class }} ]'],
+      ['data-auto-contrast', null],
+    ]
+  );
   assert.equal(loose, true);
   assert.equal(openTagParts('<img src="a.png" alt=\'x\' />').attrs.length, 2);
   assert.equal(openTagParts('<div class="a {{ b }}">').loose, false);
@@ -77,7 +82,10 @@ test('the section paints from the file: paths on every element, fields filled, t
   });
 
   assert.deepEqual(waiting, []);
-  assert.match(html, /^<section id="id-abc123" class="\[ static-section-testt \]" data-auto-contrast data-sid="abc123"/);
+  assert.match(
+    html,
+    /^<section id="id-abc123" class="\[ static-section-testt \]" data-auto-contrast data-sid="abc123"/
+  );
   assert.ok(html.includes(`${CANVAS_PATH}="0:section" ${CANVAS_ROOT}>`));
   assert.ok(html.includes(`<h1 ${CANVAS_PATH}="0:section/0:h1">fddsfdsfd</h1>`));
   assert.ok(html.includes(`<p ${CANVAS_PATH}="0:section/1:p">Hello</p>`));
@@ -159,20 +167,29 @@ test('an island that is one field of the form — a Bard document — names the 
 });
 
 test('Alpine’s attributes stay off the canvas; void and self-closed elements have no inside', () => {
-  const { html } = paintPlan(planTemplate('<div x-data="{}" @click="go()" :class="{ a: b }" data-x="1"><img src="a.png"><br><span /></div>', field));
+  const { html } = paintPlan(
+    planTemplate(
+      '<div x-data="{}" @click="go()" :class="{ a: b }" data-x="1"><img src="a.png"><br><span /></div>',
+      field
+    )
+  );
 
   assert.ok(!html.includes('@click'));
   assert.ok(!html.includes('x-data'));
   assert.ok(!html.includes(':class'));
   assert.ok(html.includes('data-x="1"'));
-  assert.ok(inertAttr('x-show') && inertAttr('@click.away') && inertAttr(':href') && !inertAttr('data-x') && !inertAttr('xmlns'));
+  assert.ok(
+    inertAttr('x-show') && inertAttr('@click.away') && inertAttr(':href') && !inertAttr('data-x') && !inertAttr('xmlns')
+  );
   assert.ok(inertAttr('onload') && inertAttr('onClick') && !inertAttr('role'));
   assert.ok(html.includes(`<img src="a.png" ${CANVAS_PATH}="0:div/0:img">`));
   assert.ok(!html.includes('</img>'));
 });
 
 test('a value from the DOM goes back into an attribute encoded', () => {
-  const { html } = paintPlan(planTemplate('<a title="{{ x }}">t</a>', field), { learned: new Map([['{{ x }}', 'a "b" & c']]) });
+  const { html } = paintPlan(planTemplate('<a title="{{ x }}">t</a>', field), {
+    learned: new Map([['{{ x }}', 'a "b" & c']]),
+  });
 
   assert.ok(html.includes('title="a &quot;b&quot; &amp; c"'));
 });
@@ -200,7 +217,9 @@ test('a tag the server answers otherwise than the form is the server’s until t
   assert.equal(read.served, true);
   assert.deepEqual([...read.values], [['{{ id }}', 'row1']]);
   assert.ok(paintPlan(plan).html.startsWith('<section id="id-page-entry"'));
-  assert.ok(paintPlan(plan, { learned: read.values, served: new Set(['{{ id }}']) }).html.startsWith('<section id="id-row1"'));
+  assert.ok(
+    paintPlan(plan, { learned: read.values, served: new Set(['{{ id }}']) }).html.startsWith('<section id="id-row1"')
+  );
 });
 
 test('a class list is read token by token, without the editor’s own classes', () => {
@@ -209,11 +228,17 @@ test('a class list is read token by token, without the editor’s own classes', 
 
   assert.equal(rendered, '[ static-section-testt ]');
   assert.equal(learnTags(parts, '[ static-section-testt ] sve-cp-pulse'), null);
-  assert.deepEqual([...learnTags(parts, rendered, { tokens: true }).values], [['{{ _class }}', 'static-section-testt']]);
+  assert.deepEqual(
+    [...learnTags(parts, rendered, { tokens: true }).values],
+    [['{{ _class }}', 'static-section-testt']]
+  );
 
   const team = planTemplate('<section class="{{ _class }}  py-800"></section>', field).root.attrs[0].parts;
 
-  assert.deepEqual([...learnTags(team, 'other-section-team py-800', { tokens: true }).values], [['{{ _class }}', 'other-section-team']]);
+  assert.deepEqual(
+    [...learnTags(team, 'other-section-team py-800', { tokens: true }).values],
+    [['{{ _class }}', 'other-section-team']]
+  );
 });
 
 test('no element at the top: nothing to paint', () => {
@@ -266,7 +291,10 @@ test('an element the file leaves empty is stamped for the placeholder — by the
 });
 
 test('a new, blank section is one placeholder; a locked empty element is none', () => {
-  assert.equal(planTemplate('<section id="id-{{ id }}" class="[ {{ _class }} ]">\n</section>', field).root.empty, 'box');
+  assert.equal(
+    planTemplate('<section id="id-{{ id }}" class="[ {{ _class }} ]">\n</section>', field).root.empty,
+    'box'
+  );
   assert.equal(planTemplate('{{# sve-lock #}}\n<div>\n</div>', field).root.empty, '');
 });
 
@@ -286,10 +314,18 @@ test('an attribute counts as rendered only when the real preview rendered its ta
   };
 
   assert.equal(attrRendered(plan, '0', 'src', new Map()), false, 'an assets field paints empty until it is rendered');
-  assert.equal(attrRendered(plan, '0', 'src', new Map([['{{ image }}', undefined]])), true, 'rendered, and empty is then a value');
+  assert.equal(
+    attrRendered(plan, '0', 'src', new Map([['{{ image }}', undefined]])),
+    true,
+    'rendered, and empty is then a value'
+  );
   assert.equal(attrRendered(plan, '0', 'href', new Map()), false, 'a raw entry::id is not an address');
   assert.equal(attrRendered(plan, '0', 'href', new Map([['{{ link }}', 'entry::a']])), true);
-  assert.equal(attrRendered(plan, '0', 'href', new Map([['{{ link }}', 'entry::old']])), false, 'the form has moved on since the render');
+  assert.equal(
+    attrRendered(plan, '0', 'href', new Map([['{{ link }}', 'entry::old']])),
+    false,
+    'the form has moved on since the render'
+  );
   assert.equal(attrRendered(plan, '0', 'alt', new Map()), true, 'no tag, nothing to wait for');
   assert.equal(attrRendered(plan, '0', 'title', new Map()), true);
   assert.equal(attrRendered(plan, '0', 'data-x', new Map()), true);
@@ -311,7 +347,15 @@ test('an <img> with format, quality or blur is the server’s to finish; a plain
 
 test('the server has made the size the file asks: its address, srcset, width and height; no option on the canvas', () => {
   const plan = planTemplate(IMG, field);
-  const made = servedImage(plan.root, rendered({ src: GLIDE(400, 711), srcset: `${GLIDE(400, 711)} 1x, ${GLIDE(800, 1422)} 2x`, width: '400', height: '711' }));
+  const made = servedImage(
+    plan.root,
+    rendered({
+      src: GLIDE(400, 711),
+      srcset: `${GLIDE(400, 711)} 1x, ${GLIDE(800, 1422)} 2x`,
+      width: '400',
+      height: '711',
+    })
+  );
   const img = imgOf([plan, { images: new Map([[plan.root.path, made]]) }]);
 
   assert.ok(img.includes(`src="${GLIDE(400, 711).replace(/&/g, '&amp;')}"`), img);
@@ -324,7 +368,10 @@ test('the server has made the size the file asks: its address, srcset, width and
 
 test('a new size: the server’s last picture at once, in the shape the file asks, until the server has made it', () => {
   const plan = planTemplate(IMG.replace('height="711"', 'height="400"'), field);
-  const before = servedImage(planTemplate(IMG, field).root, rendered({ src: GLIDE(400, 711), width: '400', height: '711' }));
+  const before = servedImage(
+    planTemplate(IMG, field).root,
+    rendered({ src: GLIDE(400, 711), width: '400', height: '711' })
+  );
   const img = imgOf([plan, { images: new Map([[plan.root.path, before]]) }]);
 
   assert.ok(img.includes(`src="${GLIDE(400, 711).replace(/&/g, '&amp;')}"`), 'the picture there is, not the raw file');
@@ -333,8 +380,14 @@ test('a new size: the server’s last picture at once, in the shape the file ask
 });
 
 test('another picture, or none rendered yet: the file’s address in the file’s shape; an own style is kept', () => {
-  const plan = planTemplate(IMG.replace('portrait.webp', 'other.webp').replace('<img ', '<img style="opacity: .9;" '), field);
-  const old = servedImage(planTemplate(IMG, field).root, rendered({ src: GLIDE(400, 711), width: '400', height: '711' }));
+  const plan = planTemplate(
+    IMG.replace('portrait.webp', 'other.webp').replace('<img ', '<img style="opacity: .9;" '),
+    field
+  );
+  const old = servedImage(
+    planTemplate(IMG, field).root,
+    rendered({ src: GLIDE(400, 711), width: '400', height: '711' })
+  );
 
   for (const images of [new Map([[plan.root.path, old]]), new Map()]) {
     const img = imgOf([plan, { images }]);
@@ -355,7 +408,10 @@ test('a width alone keeps the picture’s own shape: no cut on the canvas', () =
 
   const made = servedImage(plan.root, rendered({ src: GLIDE(600, 600), width: '600', height: '600' }));
 
-  assert.ok(imgOf([plan, { images: new Map([[plan.root.path, made]]) }]).includes('height="600"'), 'the height the server worked out');
+  assert.ok(
+    imgOf([plan, { images: new Map([[plan.root.path, made]]) }]).includes('height="600"'),
+    'the height the server worked out'
+  );
 });
 
 test('a <picture>: its sources are finished with the <img>, a plain <picture> is left alone', () => {

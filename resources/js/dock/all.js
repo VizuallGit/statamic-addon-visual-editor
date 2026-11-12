@@ -3,7 +3,8 @@ import { dockState } from '../dock/state.js';
 import { DOCK_ID } from '../code-dock.js';
 
 /** All's icon: show the whole file, not the picked element. */
-const ALL_ICON = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h7"/></svg>';
+const ALL_ICON =
+  '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h7"/></svg>';
 
 /**
  * What All has to widen. Only the tree narrows the panes to one element, so
@@ -42,7 +43,16 @@ export function paintAll(win) {
   text.textContent = t(win, 'code_dock_all');
   btn.innerHTML = ALL_ICON;
   btn.appendChild(text);
-  btn.title = t(win, on ? 'code_dock_all_off' : parts.css ? 'code_dock_all_on' : parts.html ? 'code_dock_all_on_html' : 'code_dock_all_none');
+  btn.title = t(
+    win,
+    on
+      ? 'code_dock_all_off'
+      : parts.css
+        ? 'code_dock_all_on'
+        : parts.html
+          ? 'code_dock_all_on_html'
+          : 'code_dock_all_none'
+  );
   btn.setAttribute('aria-label', btn.title);
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }

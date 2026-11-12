@@ -33,9 +33,9 @@ final class BuiltCss
     /** Drops the per-request cache — for the long-running generate command. */
     public static function flush(): void
     {
-        static::$manifest = null;
-        static::$classes = null;
-        static::$words = [];
+        self::$manifest = null;
+        self::$classes = null;
+        self::$words = [];
     }
 
     /** Vite's manifest for the site's build. */
@@ -51,21 +51,21 @@ final class BuiltCss
      */
     public static function classes(): array
     {
-        if (static::$classes !== null) {
-            return static::$classes;
+        if (self::$classes !== null) {
+            return self::$classes;
         }
 
         $classes = [];
 
-        foreach (static::files('css') as $file) {
+        foreach (self::files('css') as $file) {
             $css = @file_get_contents(public_path('build/'.$file));
 
             if (is_string($css)) {
-                $classes += static::classesIn($css);
+                $classes += self::classesIn($css);
             }
         }
 
-        return static::$classes = $classes;
+        return self::$classes = $classes;
     }
 
     /**
@@ -75,7 +75,7 @@ final class BuiltCss
      */
     public static function scripts(): array
     {
-        return static::files('js');
+        return self::files('js');
     }
 
     /**
@@ -91,15 +91,15 @@ final class BuiltCss
      */
     public static function usedBy(array $files, array $data = []): array
     {
-        $classes = static::classes();
+        $classes = self::classes();
 
         if ($classes === []) {
             return [];
         }
 
         $used = [];
-        $lists = array_map(fn ($file) => static::wordsOf($file), $files);
-        $lists[] = static::words((string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        $lists = array_map(fn ($file) => self::wordsOf($file), $files);
+        $lists[] = self::words((string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
         foreach ($lists as $words) {
             foreach ($words as $word) {
@@ -118,13 +118,13 @@ final class BuiltCss
     /** @return list<string> */
     protected static function wordsOf(string $file): array
     {
-        if (! isset(static::$words[$file])) {
+        if (! isset(self::$words[$file])) {
             $text = @file_get_contents($file);
 
-            static::$words[$file] = is_string($text) ? array_values(array_unique(static::words($text))) : [];
+            self::$words[$file] = is_string($text) ? array_values(array_unique(self::words($text))) : [];
         }
 
-        return static::$words[$file];
+        return self::$words[$file];
     }
 
     /** @return list<string> */
@@ -147,7 +147,7 @@ final class BuiltCss
         $classes = [];
 
         foreach ($matches[1] as $raw) {
-            $classes[static::unescape($raw)] = true;
+            $classes[self::unescape($raw)] = true;
         }
 
         return $classes;
@@ -171,7 +171,7 @@ final class BuiltCss
     {
         $files = [];
 
-        foreach (static::manifest() as $entry) {
+        foreach (self::manifest() as $entry) {
             if (! is_array($entry)) {
                 continue;
             }
@@ -192,13 +192,13 @@ final class BuiltCss
     /** @return array<string, mixed> */
     protected static function manifest(): array
     {
-        if (static::$manifest !== null) {
-            return static::$manifest;
+        if (self::$manifest !== null) {
+            return self::$manifest;
         }
 
-        $path = static::manifestPath();
+        $path = self::manifestPath();
         $json = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
 
-        return static::$manifest = is_array($json) ? $json : [];
+        return self::$manifest = is_array($json) ? $json : [];
     }
 }

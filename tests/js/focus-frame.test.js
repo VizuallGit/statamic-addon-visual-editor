@@ -81,7 +81,17 @@ class El {
   }
 
   dispatch(type) {
-    const event = { type, stopped: false, prevented: false, stopPropagation() { this.stopped = true; }, preventDefault() { this.prevented = true; } };
+    const event = {
+      type,
+      stopped: false,
+      prevented: false,
+      stopPropagation() {
+        this.stopped = true;
+      },
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
 
     (this.listeners.get(type) || []).forEach((fn) => fn(event));
 
@@ -162,7 +172,11 @@ function fakeWindow() {
     scrollX: 0,
     scrollY: 100,
     addEventListener: (type, fn) => listeners.set(type, [...(listeners.get(type) || []), fn]),
-    removeEventListener: (type, fn) => listeners.set(type, (listeners.get(type) || []).filter((f) => f !== fn)),
+    removeEventListener: (type, fn) =>
+      listeners.set(
+        type,
+        (listeners.get(type) || []).filter((f) => f !== fn)
+      ),
     fire: (type) => (listeners.get(type) || []).forEach((fn) => fn()),
     listenerCount: (type) => (listeners.get(type) || []).length,
   };
@@ -192,7 +206,7 @@ test('the frame is laid over the element in document coordinates, named top-left
 
   assert.ok(root, 'a frame for the header hangs off <html>');
   assert.equal(root.id, focusFrameId('header'));
-  assert.equal(root.getAttribute('data-sve-ui'), '', 'marked as the editor\'s own, for site-inert');
+  assert.equal(root.getAttribute('data-sve-ui'), '', "marked as the editor's own, for site-inert");
   assert.equal(root.style.top, '120px', 'top = rect.top + scrollY');
   assert.equal(root.style.left, '10px');
   assert.equal(root.style.width, '300px');
@@ -200,13 +214,17 @@ test('the frame is laid over the element in document coordinates, named top-left
   assert.match(root.style.cssText, /pointer-events:none/, 'the container lets clicks through to the element');
 
   assert.equal(root.find(`[${FOCUS_LABEL_ATTR}]`).textContent, 'Header');
-  assert.match(root.find(`[${FOCUS_LABEL_ATTR}]`).style.cssText, new RegExp(`background:${FOCUS_COLORS.header}`), 'the kind\'s colour');
+  assert.match(
+    root.find(`[${FOCUS_LABEL_ATTR}]`).style.cssText,
+    new RegExp(`background:${FOCUS_COLORS.header}`),
+    "the kind's colour"
+  );
 
   const close = root.find(`[${FOCUS_CLOSE_ATTR}]`);
 
   assert.equal(close.textContent, 'Close ✕');
   close.dispatch('click');
-  assert.deepEqual(closed, [1], 'Close runs the caller\'s onClose');
+  assert.deepEqual(closed, [1], "Close runs the caller's onClose");
 
   unmountFocusFrame('header');
 });
@@ -225,12 +243,24 @@ test('a component frame never shows Save or "not saved"; a dirtyable frame shows
   setFocusFrameDirty('component', true);
   assert.equal(component.find(`[${FOCUS_SAVE_ATTR}]`).style.display, 'none', 'not dirtyable: dirty changes nothing');
 
-  mountFocusFrame(win, { kind: 'global', el, t, label: 'Global section', dirtyable: true, onSave: () => saved.push(1), onClose() {} });
+  mountFocusFrame(win, {
+    kind: 'global',
+    el,
+    t,
+    label: 'Global section',
+    dirtyable: true,
+    onSave: () => saved.push(1),
+    onClose() {},
+  });
 
   const global = html.find(`[${FOCUS_FRAME_ATTR}="global"]`);
 
   assert.equal(global.find(`[${FOCUS_SAVE_ATTR}]`).style.display, 'none', 'clean: no Save');
-  assert.equal(global.find(`[${FOCUS_STATUS_ATTR}]`).style.display, 'none', 'clean: no status either — the same frame as a component');
+  assert.equal(
+    global.find(`[${FOCUS_STATUS_ATTR}]`).style.display,
+    'none',
+    'clean: no status either — the same frame as a component'
+  );
 
   setFocusFrameDirty('global', true);
   assert.equal(global.find(`[${FOCUS_SAVE_ATTR}]`).style.display, '');
@@ -262,7 +292,7 @@ test('mounting again moves the frame to the new element and keeps its state; it 
   assert.equal(frames[0].style.left, '40px', 'laid over the second element');
   assert.equal(frames[0].style.width, '200px');
   assert.equal(frames[0].find(`[${FOCUS_SAVE_ATTR}]`).style.display, '', 'dirty state carried over');
-  assert.equal(win.listenerCount('resize'), 1, 'the old element\'s watch was dropped');
+  assert.equal(win.listenerCount('resize'), 1, "the old element's watch was dropped");
 
   // The element was morphed away and nothing re-pointed the frame yet: it stays
   // where it stood rather than jumping to 0,0.
@@ -288,20 +318,42 @@ test('a component used in several places wears one frame per place — same labe
   const later = new El('div', { top: 900, left: 0, width: 800, height: 140 });
   const closed = [];
 
-  mountFocusFrame(win, { kind: 'component', els: [above, inView], t, label: 'Component · section_heading', onClose: () => closed.push(1) });
+  mountFocusFrame(win, {
+    kind: 'component',
+    els: [above, inView],
+    t,
+    label: 'Component · section_heading',
+    onClose: () => closed.push(1),
+  });
 
   let boxes = html.all(`[${FOCUS_FRAME_ATTR}="component"]`);
 
   assert.equal(boxes.length, 2, 'one box per instance');
-  assert.deepEqual(boxes.map((box) => box.id), [focusFrameId('component'), focusFrameId('component', 1)]);
-  assert.deepEqual(boxes.map((box) => box.style.top), ['-1700px', '220px'], 'each laid over its own instance');
-  assert.deepEqual(boxes.map((box) => box.find(`[${FOCUS_LABEL_ATTR}]`).textContent), ['Component · section_heading', 'Component · section_heading']);
+  assert.deepEqual(
+    boxes.map((box) => box.id),
+    [focusFrameId('component'), focusFrameId('component', 1)]
+  );
+  assert.deepEqual(
+    boxes.map((box) => box.style.top),
+    ['-1700px', '220px'],
+    'each laid over its own instance'
+  );
+  assert.deepEqual(
+    boxes.map((box) => box.find(`[${FOCUS_LABEL_ATTR}]`).textContent),
+    ['Component · section_heading', 'Component · section_heading']
+  );
 
   boxes[1].find(`[${FOCUS_CLOSE_ATTR}]`).dispatch('click');
   assert.deepEqual(closed, [1], 'Close on the instance in view runs the one onClose');
 
   // A redraw with the instances re-pointed, one more of them: boxes re-used, one added, none doubled.
-  mountFocusFrame(win, { kind: 'component', els: [above, inView, later], t, label: 'Component · section_heading', onClose() {} });
+  mountFocusFrame(win, {
+    kind: 'component',
+    els: [above, inView, later],
+    t,
+    label: 'Component · section_heading',
+    onClose() {},
+  });
   boxes = html.all(`[${FOCUS_FRAME_ATTR}="component"]`);
   assert.equal(boxes.length, 3);
   assert.equal(boxes[2].style.top, '1000px');
@@ -330,7 +382,7 @@ test('a chip keeps its clicks to itself, and the page handler can tell a chip fr
 
   const close = html.find(`[${FOCUS_CLOSE_ATTR}]`);
 
-  assert.equal(close.dispatch('pointerdown').stopped, true, 'pointerdown never reaches the page\'s click handling');
+  assert.equal(close.dispatch('pointerdown').stopped, true, "pointerdown never reaches the page's click handling");
 
   const click = close.dispatch('click');
 

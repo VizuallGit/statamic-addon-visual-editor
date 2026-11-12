@@ -127,7 +127,7 @@ test('a failed GET says nothing: a person cannot act on a poll that went away', 
   assert.equal(doc.body.children.length, 0);
 });
 
-test('an expired session says nothing either — that is Statamic\'s own screen', async () => {
+test("an expired session says nothing either — that is Statamic's own screen", async () => {
   const { win, doc, serve } = cpWindow();
 
   serve(419, { message: 'Page Expired' });

@@ -48,7 +48,10 @@ export function withSvgSrc(html, node, src) {
   }
 
   const param = `src="${file}"`;
-  const next = node.call && node.call !== 'svg' ? tag.replace(node.call, `svg ${param}`) : tag.replace(SRC, (whole, space) => `${space}${param}`);
+  const next =
+    node.call && node.call !== 'svg'
+      ? tag.replace(node.call, `svg ${param}`)
+      : tag.replace(SRC, (whole, space) => `${space}${param}`);
 
   return source.slice(0, node.from) + next + source.slice(node.to);
 }
@@ -60,6 +63,15 @@ export function withSvgSrc(html, node, src) {
  */
 export function svgClassRow(node) {
   return node?.kind === 'svg'
-    ? { kind: 'component', tagCall: true, src: node.call, label: node.call, from: node.from, to: node.to, openTo: node.to, path: node.path }
+    ? {
+        kind: 'component',
+        tagCall: true,
+        src: node.call,
+        label: node.call,
+        from: node.from,
+        to: node.to,
+        openTo: node.to,
+        path: node.path,
+      }
     : null;
 }

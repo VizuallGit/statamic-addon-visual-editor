@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\AiFiles;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AiFilesTest extends TestCase
 {
@@ -32,7 +33,7 @@ class AiFilesTest extends TestCase
 
     public function test_it_refuses_invalid_yaml(): void
     {
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
 
         AiFiles::write('resources/fieldsets/bad.yaml', "title: [\n");
     }

@@ -50,7 +50,13 @@ export function createCssPaint(win, fill, suffixes = []) {
       return;
     }
 
-    const text = liveSheet(css, [...targets.values()].map((one) => ({ selector: one.selector, real: realSelector(page, one) })), rows, fill, suffixes);
+    const text = liveSheet(
+      css,
+      [...targets.values()].map((one) => ({ selector: one.selector, real: realSelector(page, one) })),
+      rows,
+      fill,
+      suffixes
+    );
     let sheet = page.getElementById(SHEET_ID);
 
     if (!sheet) {

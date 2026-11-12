@@ -57,7 +57,9 @@ export function writeHtmlTreeLabel(type, path, value, fallback) {
   const key = typeKey(type);
   const all = readAll();
   const map = { ...(all[key] || {}) };
-  const next = String(value || '').replace(/\s+/g, ' ').trim();
+  const next = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const base = String(fallback || '').trim();
 
   if (!next || next === base) {

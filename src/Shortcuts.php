@@ -127,7 +127,7 @@ final class Shortcuts
 
         $key = array_pop($parts);
 
-        if (! static::isKey($key) || count(array_unique($parts)) !== count($parts) || array_diff($parts, self::MODIFIERS) !== []) {
+        if (! self::isKey($key) || count(array_unique($parts)) !== count($parts) || array_diff($parts, self::MODIFIERS) !== []) {
             return '';
         }
 
@@ -141,15 +141,15 @@ final class Shortcuts
 
     public static function isLocked(mixed $combo): bool
     {
-        return in_array(static::normalize($combo), self::LOCKED, true);
+        return in_array(self::normalize($combo), self::LOCKED, true);
     }
 
     /** A shortcut that may be saved, `none`, or '' — broken and locked ones are ''. */
     public static function clean(mixed $combo): string
     {
-        $combo = static::normalize($combo);
+        $combo = self::normalize($combo);
 
-        return $combo === '' || static::isLocked($combo) ? '' : $combo;
+        return $combo === '' || self::isLocked($combo) ? '' : $combo;
     }
 
     /**
@@ -167,8 +167,8 @@ final class Shortcuts
 
         $out = [];
 
-        foreach (static::tools() as $action) {
-            $combo = static::clean($map[$action] ?? null);
+        foreach (self::tools() as $action) {
+            $combo = self::clean($map[$action] ?? null);
 
             if ($combo !== '') {
                 $out[$action] = $combo;
@@ -181,7 +181,7 @@ final class Shortcuts
     /** @return array<string, string> the site's layer for the top-bar tools */
     public static function site(): array
     {
-        return static::cleanMap(Features::setting('shortcuts'));
+        return self::cleanMap(Features::setting('shortcuts'));
     }
 
     /**
@@ -195,9 +195,9 @@ final class Shortcuts
     {
         return [
             'builtIn' => self::DEFAULTS,
-            'site' => static::site(),
+            'site' => self::site(),
             'locked' => self::LOCKED,
-            'labels' => static::labels(),
+            'labels' => self::labels(),
         ];
     }
 
@@ -209,13 +209,13 @@ final class Shortcuts
      */
     public static function forFieldtype(): array
     {
-        $labels = static::labels();
+        $labels = self::labels();
 
         return array_map(fn ($action) => [
             'action' => $action,
             'label' => $labels[$action],
             'default' => self::DEFAULTS[$action],
-        ], static::tools());
+        ], self::tools());
     }
 
     /** @return array<string, string> `tool:<key>` → its name */
@@ -223,7 +223,7 @@ final class Shortcuts
     {
         $out = [];
 
-        foreach (static::tools() as $action) {
+        foreach (self::tools() as $action) {
             $out[$action] = (string) __('sve::messages.'.self::LABELS[substr($action, 5)]);
         }
 

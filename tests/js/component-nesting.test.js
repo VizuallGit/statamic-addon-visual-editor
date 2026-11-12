@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindCall, callBindings, callValues, enclosingList, readGroupValue, writeGroupValue } from '../../resources/js/component-props.js';
+import {
+  bindCall,
+  callBindings,
+  callValues,
+  enclosingList,
+  readGroupValue,
+  writeGroupValue,
+} from '../../resources/js/component-props.js';
 import { findPartials } from '../../resources/js/dock-partials.js';
 
 const props = [
@@ -42,7 +49,8 @@ test('a group that does not repeat is not a list', () => {
 });
 
 test('inside a list with block types, the open type branch names the type', () => {
-  const html = "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ /if }}{{ if type == 'picture' }}{{ if image }}x{{ /if }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+  const html =
+    "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ /if }}{{ if type == 'picture' }}{{ if image }}x{{ /if }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
 
   assert.deepEqual(enclosingList(html, findPartials(html)[0].from, props), { handle: 'content', type: 'picture' });
 });
@@ -58,25 +66,31 @@ test('binding a call replaces what it said and keeps the rest', () => {
   const html = '<div>{{ partial:components/image props_src="/a.jpg" class="w-full" }}</div>';
   const next = bindCall(html, findPartials(html)[0], { src: 'props_image:src', alt: 'props_image:alt' });
 
-  assert.equal(next, '<div>{{ partial:components/image :props_src="props_image:src" class="w-full" :props_alt="props_image:alt" }}</div>');
+  assert.equal(
+    next,
+    '<div>{{ partial:components/image :props_src="props_image:src" class="w-full" :props_alt="props_image:alt" }}</div>'
+  );
 });
 
 const at = (html, src = 'components/image') => findPartials(html).find((call) => call.src === src).from;
 
-test('a call in an else branch is not the if branch\'s type', () => {
-  const html = "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ else }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+test("a call in an else branch is not the if branch's type", () => {
+  const html =
+    "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ else }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
 
   assert.deepEqual(enclosingList(html, at(html), props), { handle: 'content', type: null });
 });
 
-test('a call in an elseif branch is that branch\'s type', () => {
-  const html = "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ elseif type == 'picture' }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+test("a call in an elseif branch is that branch's type", () => {
+  const html =
+    "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ elseif type == 'picture' }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
 
   assert.deepEqual(enclosingList(html, at(html), props), { handle: 'content', type: 'picture' });
 });
 
 test('another mention of the list inside the loop does not move where the loop starts', () => {
-  const html = "{{ props_content }}{{ if type == 'picture' }}<i>{{ props_content:count }}</i>{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+  const html =
+    "{{ props_content }}{{ if type == 'picture' }}<i>{{ props_content:count }}</i>{{ partial:components/image }}{{ /if }}{{ /props_content }}";
 
   assert.deepEqual(enclosingList(html, at(html), props), { handle: 'content', type: 'picture' });
 });

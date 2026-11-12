@@ -51,8 +51,14 @@ export function siteReader(cwd) {
     }
 
     const given = path.trim();
-    const fromRoot = isAbsolute(given) ? relative(isAbsolute(relative(cwd, given)) || relative(cwd, given).startsWith('..') ? root : cwd, given) : given;
-    const rel = normalize(fromRoot || '.').split(sep).join('/').replace(/^\.\/?/, '').replace(/\/$/, '');
+    const fromRoot = isAbsolute(given)
+      ? relative(isAbsolute(relative(cwd, given)) || relative(cwd, given).startsWith('..') ? root : cwd, given)
+      : given;
+    const rel = normalize(fromRoot || '.')
+      .split(sep)
+      .join('/')
+      .replace(/^\.\/?/, '')
+      .replace(/\/$/, '');
 
     if (rel.startsWith('..') || isAbsolute(rel) || (rel !== '' && hidden(rel))) {
       return null;
@@ -97,7 +103,9 @@ export function siteReader(cwd) {
       text = lines.slice(from - 1, to).join('\n');
     }
 
-    return text.length > READ_LIMIT ? `${text.slice(0, READ_LIMIT)}\n… (cut at ${READ_LIMIT} characters; read a part with offset and limit)` : text;
+    return text.length > READ_LIMIT
+      ? `${text.slice(0, READ_LIMIT)}\n… (cut at ${READ_LIMIT} characters; read a part with offset and limit)`
+      : text;
   }
 
   function listFiles({ path = '' } = {}) {
@@ -116,7 +124,11 @@ export function siteReader(cwd) {
     }
 
     const names = entries
-      .map((entry) => ({ name: entry.name, dir: entry.isDirectory(), rel: at.rel ? `${at.rel}/${entry.name}` : entry.name }))
+      .map((entry) => ({
+        name: entry.name,
+        dir: entry.isDirectory(),
+        rel: at.rel ? `${at.rel}/${entry.name}` : entry.name,
+      }))
       .filter((entry) => !hidden(entry.rel))
       .map((entry) => (entry.dir ? `${entry.name}/` : entry.name))
       .sort();
@@ -194,11 +206,15 @@ export function siteReader(cwd) {
 export function readTools(reader) {
   return {
     read_file: {
-      description: 'Read a file of the site. Paths are relative to the site root. offset (first line, from 1) and limit (lines) read a part of a long file.',
+      description:
+        'Read a file of the site. Paths are relative to the site root. offset (first line, from 1) and limit (lines) read a part of a long file.',
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'e.g. resources/views/partials/page_sections/hero/style_2.antlers.html' },
+          path: {
+            type: 'string',
+            description: 'e.g. resources/views/partials/page_sections/hero/style_2.antlers.html',
+          },
           offset: { type: 'integer' },
           limit: { type: 'integer' },
         },
@@ -207,7 +223,8 @@ export function readTools(reader) {
       execute: (args) => reader.readFile(args),
     },
     list_files: {
-      description: 'List a folder of the site: its files, and its folders with a trailing /. An empty path is the site root.',
+      description:
+        'List a folder of the site: its files, and its folders with a trailing /. An empty path is the site root.',
       inputSchema: {
         type: 'object',
         properties: { path: { type: 'string', description: 'e.g. resources/views/partials/page_sections' } },
@@ -215,7 +232,8 @@ export function readTools(reader) {
       execute: (args) => reader.listFiles(args),
     },
     search_files: {
-      description: 'Search the files under a folder for a regular expression (case-insensitive). Returns path:line: text for each matching line.',
+      description:
+        'Search the files under a folder for a regular expression (case-insensitive). Returns path:line: text for each matching line.',
       inputSchema: {
         type: 'object',
         properties: {

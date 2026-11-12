@@ -39,9 +39,9 @@ final class FieldsetImage
             ->all();
 
         foreach ($handles as $fieldsetHandle) {
-            $contents = static::readFieldset($fieldsetHandle);
+            $contents = self::readFieldset($fieldsetHandle);
 
-            if ($contents === null || ! static::replaceImage($contents, $handle, $newFilename)) {
+            if ($contents === null || ! self::replaceImage($contents, $handle, $newFilename)) {
                 continue;
             }
 
@@ -80,7 +80,7 @@ final class FieldsetImage
                 return true;
             }
 
-            if (static::replaceImage($value, $handle, $newFilename)) {
+            if (self::replaceImage($value, $handle, $newFilename)) {
                 return true;
             }
         }

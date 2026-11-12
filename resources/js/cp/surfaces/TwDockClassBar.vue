@@ -35,7 +35,9 @@ const ownCss = computed(() => (classes.rev.value, !!target.value && classes.ownC
     <div class="sve-tw-open__row">
       <span class="sve-tw-open__name" data-sve-tw-class-name>{{ t('class_inside', { name: target }) }}</span>
       <span class="sve-tw-open__note" :title="note" data-sve-tw-class-note>{{ note }}</span>
-      <button type="button" class="sve-tw-open__done" data-sve-tw-class-done @click="classes.edit('')">{{ t('class_done') }}</button>
+      <button type="button" class="sve-tw-open__done" data-sve-tw-class-done @click="classes.edit('')">{{
+        t('class_done')
+      }}</button>
     </div>
     <p v-if="ownCss" class="sve-tw-open__own">{{ t('class_own_css', { name: target }) }}</p>
   </div>
@@ -78,7 +80,10 @@ const ownCss = computed(() => (classes.rev.value, !!target.value && classes.ownC
   font-weight: 500;
   cursor: pointer;
 }
-.sve-tw-open__done:focus-visible { outline: 2px solid #b4c1ff; outline-offset: 1px; }
+.sve-tw-open__done:focus-visible {
+  outline: 2px solid #b4c1ff;
+  outline-offset: 1px;
+}
 .sve-tw-open__note {
   flex: 1 1 0;
   min-width: 0;

@@ -44,7 +44,6 @@ const BLOCKS = [
   { var: 'media', label: 'Media', type: 'assets', loop: true, parent: 'blocks › media' },
 ];
 
-
 /** One field of each text kind: a line, a textarea, Bard. */
 const TEXTS = [
   { var: 'intro', label: 'Intro', type: 'textarea' },
@@ -74,7 +73,12 @@ const help = (marked, options = {}) => {
 /** The rules run directly, so `counts` can be handed in. */
 const ranked = (marked, fields, counts) => {
   const { html, at } = caret(marked);
-  const ctx = buildContext(html, at, { rows: fields, blocks: findAntlersBlocks(html), sectionPartial: false, shellRoot: '' });
+  const ctx = buildContext(html, at, {
+    rows: fields,
+    blocks: findAntlersBlocks(html),
+    sectionPartial: false,
+    shellRoot: '',
+  });
 
   return ids(runRules(ctx, HELP_MAX, counts));
 };
@@ -91,7 +95,22 @@ test('the class first and the id last on every tag — the middle capped at thre
   assert.deepEqual(ids(list), ['class', 'img-src:a', 'img-src:b', 'img-src:c', 'id']);
   assert.equal(list[0].after, 'class');
 
-  for (const tag of ['div', 'section', 'ul', 'ol', 'li', 'h1', 'h4', 'p', 'span', 'strong', 'em', 'a', 'video', 'button']) {
+  for (const tag of [
+    'div',
+    'section',
+    'ul',
+    'ol',
+    'li',
+    'h1',
+    'h4',
+    'p',
+    'span',
+    'strong',
+    'em',
+    'a',
+    'video',
+    'button',
+  ]) {
     const got = ids(help(`<${tag}|></${tag}>`).list);
 
     assert.equal(got[0], 'class', tag);
@@ -104,12 +123,28 @@ test('counts: the middle by how often a row was taken on that tag; class and id 
   const fields = [{ var: 'text', label: 'Text', type: 'bard' }];
 
   assert.deepEqual(ranked(nested, fields), ['class', 'visual-edit', 'text:text', 'x-show', 'id']);
-  assert.deepEqual(ranked(nested, fields, { div: { 'x-show': 4, 'text:text': 2 } }), ['class', 'x-show', 'text:text', 'visual-edit', 'id']);
-  assert.deepEqual(ranked(nested, fields, { div: { class: 9, id: 9, 'x-show': 1 } }), ['class', 'x-show', 'visual-edit', 'text:text', 'id']);
+  assert.deepEqual(ranked(nested, fields, { div: { 'x-show': 4, 'text:text': 2 } }), [
+    'class',
+    'x-show',
+    'text:text',
+    'visual-edit',
+    'id',
+  ]);
+  assert.deepEqual(ranked(nested, fields, { div: { class: 9, id: 9, 'x-show': 1 } }), [
+    'class',
+    'x-show',
+    'visual-edit',
+    'text:text',
+    'id',
+  ]);
 
   // Another tag's counts, none, or something that is not a count: the specification's order.
   for (const counts of [{ img: { 'x-show': 9 } }, {}, undefined, null, { div: null }, { div: { 'x-show': 'many' } }]) {
-    assert.deepEqual(ranked(nested, fields, counts), ['class', 'visual-edit', 'text:text', 'x-show', 'id'], JSON.stringify(counts));
+    assert.deepEqual(
+      ranked(nested, fields, counts),
+      ['class', 'visual-edit', 'text:text', 'x-show', 'id'],
+      JSON.stringify(counts)
+    );
   }
 });
 
@@ -117,7 +152,13 @@ test('counts: a row past the cap rises into it', () => {
   const fields = INTRO.filter((row) => row.type === 'assets');
 
   assert.deepEqual(ranked('<img|>', fields), ['class', 'img-src:media', 'img-src:popup_video', 'src', 'id']);
-  assert.deepEqual(ranked('<img|>', fields, { img: { lazy: 3, 'img-src:popup_video': 1 } }), ['class', 'lazy', 'img-src:popup_video', 'img-src:media', 'id']);
+  assert.deepEqual(ranked('<img|>', fields, { img: { lazy: 3, 'img-src:popup_video': 1 } }), [
+    'class',
+    'lazy',
+    'img-src:popup_video',
+    'img-src:media',
+    'id',
+  ]);
 });
 
 /* ---- section -------------------------------------------------------------- */
@@ -136,7 +177,9 @@ test('section with its shell: x-data, and no wrapper, loop or partial inside it'
     assert.equal(list[0].key, 'code_dock_help_attr');
     assert.deepEqual(list[0].args, { attr: 'x-data' });
     assert.ok(
-      out.includes('<section id="id-{{ id }}" class="" x-data="" {{ visual_edit outline_inside="true" section_orderable="true" }}>')
+      out.includes(
+        '<section id="id-{{ id }}" class="" x-data="" {{ visual_edit outline_inside="true" section_orderable="true" }}>'
+      )
     );
     assert.ok(before.endsWith('x-data="') && after.startsWith('"'));
   }
@@ -159,7 +202,11 @@ test('div: class, visual_edit, the Bard field, id — no file, colour or line of
   const { list } = help('<div|>\n</div>', { fields: [...INTRO, ...lines] });
 
   assert.deepEqual(ids(list), ['class', 'visual-edit', 'text:text', 'id']);
-  assert.ok(list.every((item) => item.changes.every((change) => !change.insert.includes('partial') && !change.insert.includes('<img'))));
+  assert.ok(
+    list.every((item) =>
+      item.changes.every((change) => !change.insert.includes('partial') && !change.insert.includes('<img'))
+    )
+  );
 });
 
 test('«Add visual_edit»: {{ visual_edit }} in front of the >, the caret right before its }}', () => {
@@ -192,7 +239,9 @@ test('«Add Text?»: the Bard field in the div, pointed at by visual_edit', () =
 });
 
 test('x-show on a div only inside an element that has x-data — the caret between the quotes', () => {
-  const { html, list } = help('<section x-data>\n    <div>\n        <div class="panel"|></div>\n    </div>\n</section>');
+  const { html, list } = help(
+    '<section x-data>\n    <div>\n        <div class="panel"|></div>\n    </div>\n</section>'
+  );
   const show = byId(list, 'x-show');
   const out = apply(html, show);
   const [before, after] = around(out, show);
@@ -214,24 +263,41 @@ test('a list is the loop with its fields — the same with or without the site�
     const housed = help('<ol>|</ol>', { fields });
     const loop = plain.list.find((item) => item.id.startsWith('loop:'));
 
-    assert.equal(apply(plain.html, loop), apply(housed.html, housed.list.find((item) => item.id === loop.id)));
+    assert.equal(
+      apply(plain.html, loop),
+      apply(
+        housed.html,
+        housed.list.find((item) => item.id === loop.id)
+      )
+    );
     assert.ok(!apply(plain.html, loop).includes('partial'));
   }
 
-  assert.deepEqual(ids(help('<ul|></ul>', { fields: [{ var: 'title', label: 'Title', type: 'text' }] }).list), ['class', 'id']);
+  assert.deepEqual(ids(help('<ul|></ul>', { fields: [{ var: 'title', label: 'Title', type: 'text' }] }).list), [
+    'class',
+    'id',
+  ]);
 });
 
 /* ---- h1–h6, p, span, strong, em ------------------------------------------- */
 
 test('h1–h6 alike: text fields only, the title-like first — no Bard, no textarea', () => {
   for (const tag of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) {
-    assert.deepEqual(ids(help(`<${tag}>|</${tag}>`, { fields: TEXTS }).list), ['class', 'text:title', 'text:label', 'id'], tag);
+    assert.deepEqual(
+      ids(help(`<${tag}>|</${tag}>`, { fields: TEXTS }).list),
+      ['class', 'text:title', 'text:label', 'id'],
+      tag
+    );
   }
 });
 
 test('span, strong, em: text fields only; a <p> takes Bard too, and turns into a div for it', () => {
   for (const tag of ['span', 'strong', 'em']) {
-    assert.deepEqual(ids(help(`<${tag}>|</${tag}>`, { fields: TEXTS }).list), ['class', 'text:title', 'text:label', 'id'], tag);
+    assert.deepEqual(
+      ids(help(`<${tag}>|</${tag}>`, { fields: TEXTS }).list),
+      ['class', 'text:title', 'text:label', 'id'],
+      tag
+    );
   }
 
   const { html, list } = help('<p>|</p>', { fields: TEXTS });
@@ -280,16 +346,27 @@ test('a: one URL row per link field and for a field named url; that one is not l
   ];
 
   assert.deepEqual(ids(help('<a class="btn"|>Læs mere</a>', { fields }).list), ['url:cta', 'url:url', 'href', 'id']);
-  assert.deepEqual(ids(help('<a class="btn">|</a>', { fields: fields.slice(1) }).list), ['url:url', 'href', 'text:title', 'id']);
+  assert.deepEqual(ids(help('<a class="btn">|</a>', { fields: fields.slice(1) }).list), [
+    'url:url',
+    'href',
+    'text:title',
+    'id',
+  ]);
 });
 
 test('a: with an href, the text alone — and never the links block', () => {
   const { html, list } = help('<a href="{{ url }}">|</a>', { fields: LINK_FIELDS });
 
   assert.deepEqual(ids(list), ['class', 'text:title', 'id']);
-  assert.equal(apply(html, list[1]), '<a href="{{ url }}" {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</a>');
+  assert.equal(
+    apply(html, list[1]),
+    '<a href="{{ url }}" {{ visual_edit field="title" inline_edit="true" }}>{{ title }}</a>'
+  );
 
-  const links = help("{{ blocks }}\n    {{ if type == 'links' }}\n        <a class=\"btn\">|</a>\n    {{ /if }}\n{{ /blocks }}", { fields: BLOCKS });
+  const links = help(
+    '{{ blocks }}\n    {{ if type == \'links\' }}\n        <a class="btn">|</a>\n    {{ /if }}\n{{ /blocks }}',
+    { fields: BLOCKS }
+  );
 
   assert.ok(links.list.every((item) => item.changes.every((change) => !change.insert.includes('partial'))));
 });
@@ -331,8 +408,14 @@ test('img: «Add a source», «Alt text» and «Lazy loading» are rows of their
   const sourced = help('<img src="{{ media:url }}" {{ visual_edit field="media" }}|>', { fields: INTRO });
 
   assert.deepEqual(ids(sourced.list), ['class', 'alt', 'lazy', 'id']);
-  assert.equal(apply(sourced.html, byId(sourced.list, 'alt')), '<img alt="" src="{{ media:url }}" {{ visual_edit field="media" }}>');
-  assert.equal(apply(sourced.html, byId(sourced.list, 'lazy')), '<img loading="lazy" src="{{ media:url }}" {{ visual_edit field="media" }}>');
+  assert.equal(
+    apply(sourced.html, byId(sourced.list, 'alt')),
+    '<img alt="" src="{{ media:url }}" {{ visual_edit field="media" }}>'
+  );
+  assert.equal(
+    apply(sourced.html, byId(sourced.list, 'lazy')),
+    '<img loading="lazy" src="{{ media:url }}" {{ visual_edit field="media" }}>'
+  );
   assert.equal(byId(sourced.list, 'lazy').key, 'code_dock_help_lazy');
 
   assert.deepEqual(ids(help('<img src="/a.jpg" alt loading="eager"|>').list), ['class', 'id']);
@@ -364,8 +447,14 @@ test('button: text from a text field; @click only inside x-data, the caret betwe
   assert.ok(out.includes('<button class="btn" @click=""></button>'));
   assert.ok(before.endsWith('@click="') && after.startsWith('"'));
 
-  assert.deepEqual(ids(help('<button>|</button>', { fields: TEXTS }).list), ['class', 'text:title', 'text:label', 'id'], 'no x-data around it');
-  assert.ok(!ids(help('<div x-data>\n    <button x-on:click="open = true"|></button>\n</div>').list).includes('@click'));
+  assert.deepEqual(
+    ids(help('<button>|</button>', { fields: TEXTS }).list),
+    ['class', 'text:title', 'text:label', 'id'],
+    'no x-data around it'
+  );
+  assert.ok(
+    !ids(help('<div x-data>\n    <button x-on:click="open = true"|></button>\n</div>').list).includes('@click')
+  );
 });
 
 /* ---- if ------------------------------------------------------------------- */
@@ -385,15 +474,26 @@ test('on {{ if }}: the fields that print here, «If Text» … — and nothing e
   assert.ok(after.startsWith('\n    {{ /if }}'), 'the caret on the line between');
 
   // The caret right after the tag, as just typed, is on it too.
-  assert.deepEqual(ids(help('<div>{{ if }}|</div>', { fields: INTRO }).list), ['if:text', 'if:media', 'if:color', 'if:popup_video']);
+  assert.deepEqual(ids(help('<div>{{ if }}|</div>', { fields: INTRO }).list), [
+    'if:text',
+    'if:media',
+    'if:color',
+    'if:popup_video',
+  ]);
 });
 
 test('{{ if }} that already closes gets its condition, not a second {{ /if }}; inside a loop, the loop’s fields', () => {
   const closed = help('<div>\n    {{ if| }}\n        <p>Hej</p>\n    {{ /if }}\n</div>', { fields: INTRO });
 
-  assert.equal(apply(closed.html, closed.list[0]), '<div>\n    {{ if text }}\n        <p>Hej</p>\n    {{ /if }}\n</div>');
+  assert.equal(
+    apply(closed.html, closed.list[0]),
+    '<div>\n    {{ if text }}\n        <p>Hej</p>\n    {{ /if }}\n</div>'
+  );
 
-  assert.deepEqual(ids(help('<ul>\n    {{ items }}\n        <li>{{ i|f }}</li>\n    {{ /items }}\n</ul>', { fields: GRID }).list), ['if:title', 'if:text']);
+  assert.deepEqual(
+    ids(help('<ul>\n    {{ items }}\n        <li>{{ i|f }}</li>\n    {{ /items }}\n</ul>', { fields: GRID }).list),
+    ['if:title', 'if:text']
+  );
 });
 
 test('no if rows on an if with a condition, an elseif, or an {{ if }} inside an attribute', () => {

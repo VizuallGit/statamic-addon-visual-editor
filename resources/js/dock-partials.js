@@ -73,8 +73,17 @@ export function findClassTags(html) {
   const text = String(html || '');
 
   return antlersTags(text)
-    .filter((tag) => tag.closed && !tag.comment && !tag.closer && tag.name && !/^(partial|if|elseif|else|unless|endif)$/.test(tag.name.split(':')[0]))
-    .filter((tag) => tag.name.split(':')[0] === 'svg' || /(^|\s)class\s*=\s*(["'])[^"']*\2/.test(text.slice(tag.from, tag.to)))
+    .filter(
+      (tag) =>
+        tag.closed &&
+        !tag.comment &&
+        !tag.closer &&
+        tag.name &&
+        !/^(partial|if|elseif|else|unless|endif)$/.test(tag.name.split(':')[0])
+    )
+    .filter(
+      (tag) => tag.name.split(':')[0] === 'svg' || /(^|\s)class\s*=\s*(["'])[^"']*\2/.test(text.slice(tag.from, tag.to))
+    )
     .map((tag) => ({ from: tag.from, to: tag.to, src: tag.name, tagCall: true }));
 }
 
@@ -393,14 +402,7 @@ function buildMarks(state, cm, mark) {
   return builder.finish();
 }
 
-export function bindPartialNav(win, view, {
-  onOpen,
-  emptyLabel,
-  openLabel,
-  sectionValues,
-  isLocked,
-  setHover,
-}) {
+export function bindPartialNav(win, view, { onOpen, emptyLabel, openLabel, sectionValues, isLocked, setHover }) {
   if (!view?.dom || view.dom._svePartialBound) {
     return;
   }

@@ -33,7 +33,10 @@ function enclosingObject(s, pos) {
   let i = pos;
   for (; i >= 0; i--) {
     if (s[i] === '}') depth++;
-    else if (s[i] === '{') { if (depth === 0) break; depth--; }
+    else if (s[i] === '{') {
+      if (depth === 0) break;
+      depth--;
+    }
   }
   if (i < 0) return null;
   const start = i;
@@ -51,15 +54,22 @@ for (const file of walk(ROOT)) {
   if (STANDALONE.has(rel) || rel === 'lib/protocol.js') continue;
   const s = readFileSync(file, 'utf8');
   const line = (idx) => s.slice(0, idx).split('\n').length;
-  for (const m of s.matchAll(new RegExp(SRC, 'g'))) problems.push(`${rel}:${line(m.index)} the source mark as a literal — use SOURCE from lib/protocol.js`);
+  for (const m of s.matchAll(new RegExp(SRC, 'g')))
+    problems.push(`${rel}:${line(m.index)} the source mark as a literal — use SOURCE from lib/protocol.js`);
   for (const m of s.matchAll(/source:\s*SOURCE/g)) {
     const obj = enclosingObject(s, m.index);
     const t = obj && obj.match(/^\{[^{}]*?type:\s*'([\w.:-]+)'/s);
-    if (t) problems.push(`${rel}:${line(m.index)} sends type '${t[1]}' as a literal — use MSG.${t[1].toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`);
+    if (t)
+      problems.push(
+        `${rel}:${line(m.index)} sends type '${t[1]}' as a literal — use MSG.${t[1].toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`
+      );
   }
   // A message is read off `data`, `e.data`, `event.data`, `msg`, `message` or
   // `payload`; a Bard node's `.type` or a `typeof x.type` is not a message.
-  for (const m of s.matchAll(/(?<!typeof\s)(?:\bdata|\be\.data|\bevent\.data|\bev\.data|\bmsg|\bmessage|\bpayload)\??\.type\s*(?:===|!==)\s*'([\w.:-]+)'/g)) problems.push(`${rel}:${line(m.index)} compares a message type against '${m[1]}' — use MSG.*`);
+  for (const m of s.matchAll(
+    /(?<!typeof\s)(?:\bdata|\be\.data|\bevent\.data|\bev\.data|\bmsg|\bmessage|\bpayload)\??\.type\s*(?:===|!==)\s*'([\w.:-]+)'/g
+  ))
+    problems.push(`${rel}:${line(m.index)} compares a message type against '${m[1]}' — use MSG.*`);
 }
 
 if (problems.length) {

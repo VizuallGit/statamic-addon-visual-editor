@@ -3,11 +3,12 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\ClassUsage;
 use MarioHamann\StatamicVisualEditor\Features;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController\Persist;
 use MarioHamann\StatamicVisualEditor\SiteBuild;
 use MarioHamann\StatamicVisualEditor\SiteClasses;
 use MarioHamann\StatamicVisualEditor\SiteCss;
+use MarioHamann\StatamicVisualEditor\SiteCss\Root;
 
 /**
  * Read and write the site's own files from Live Preview: stylesheets under
@@ -42,8 +43,8 @@ class SiteCssController
 
         return response()->json([
             'defined' => SiteClasses::defined(),
-            'entry' => \MarioHamann\StatamicVisualEditor\SiteCss\Root::ENTRY,
-            'classes' => (string) config('statamic-visual-editor.site_css_classes', \MarioHamann\StatamicVisualEditor\SiteCss\Root::CLASSES),
+            'entry' => Root::ENTRY,
+            'classes' => (string) config('statamic-visual-editor.site_css_classes', Root::CLASSES),
         ]);
     }
 
@@ -55,7 +56,7 @@ class SiteCssController
         $names = array_values(array_unique(array_column(SiteClasses::defined(), 'name')));
 
         return response()->json([
-            'usage' => \MarioHamann\StatamicVisualEditor\ClassUsage::count($names),
+            'usage' => ClassUsage::count($names),
         ]);
     }
 

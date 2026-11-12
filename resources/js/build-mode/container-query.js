@@ -58,7 +58,7 @@ export function containerRem(variant) {
     return null;
   }
 
-  return m[1] ? CONTAINER_SCALE[m[1]] ?? null : Number(m[2]);
+  return m[1] ? (CONTAINER_SCALE[m[1]] ?? null) : Number(m[2]);
 }
 
 /** The length a container variant is under, as written: `@max-xl` → `36rem`, `@max-[22.5em]` → `22.5em`. */

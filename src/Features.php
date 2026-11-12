@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Statamic\Contracts\Auth\User;
 use Statamic\Facades\Addon;
 use Statamic\Facades\YAML;
 
@@ -184,7 +185,7 @@ class Features
      * Site toggle first, then toolbar access (everyone / super / named people).
      * Unknown keys follow `enabled()` — a typo should not hide the editor.
      */
-    public static function allows(string $key, ?\Statamic\Contracts\Auth\User $user = null): bool
+    public static function allows(string $key, ?User $user = null): bool
     {
         if (! static::enabled($key) || (isset(static::TOGETHER[$key]) && ! static::enabled(static::TOGETHER[$key]))) {
             return false;
@@ -202,7 +203,7 @@ class Features
      *
      * @return array<string, bool>
      */
-    public static function visible(?\Statamic\Contracts\Auth\User $user = null): array
+    public static function visible(?User $user = null): array
     {
         $map = static::map();
 

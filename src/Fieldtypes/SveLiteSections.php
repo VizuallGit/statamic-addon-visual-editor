@@ -2,12 +2,15 @@
 
 namespace MarioHamann\StatamicVisualEditor\Fieldtypes;
 
+use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
+use MarioHamann\StatamicVisualEditor\SectionField;
+
 /**
  * Live Preview-skal omkring page sections: Vue mounter én sektion ad gangen.
  *
  * Det er en *egen* handle (`sve_lite_sections`), ikke Statamics `replicator`.
  * YAML på disken bliver ved med at sige `type: replicator`. Listeneren
- * {@see \MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections} bytter
+ * {@see UseLiteSections} bytter
  * kun i hukommelsen, og kun i Live Preview.
  *
  * Arver {@see Replicator} så `unique_sets` stadig gælder. Ingen ekstra
@@ -27,7 +30,7 @@ class SveLiteSections extends Replicator
     /**
      * Replicator's meta, plus the answer to "which field is the page's
      * sections, on which blueprint". The listener swapped exactly that field
-     * ({@see \MarioHamann\StatamicVisualEditor\SectionField}), and the meta is
+     * ({@see SectionField}), and the meta is
      * what the Control Panel gets with the form — Statamic's
      * `publish-container-created` carries `meta` but not the blueprint. Read
      * by `sectionField()` in lib/config.js.

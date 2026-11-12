@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\AiCopy;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Keywords;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * Copy suggestions for one text field in Live Preview, written against the
@@ -37,7 +38,7 @@ class AiCopyController
                 'section' => (string) $request->input('section', ''),
                 'label' => (string) $request->input('label', ''),
             ]);
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             return response()->json([
                 'message' => $e->getMessage() ?: __('sve::messages.ai_text_error'),
             ], $e->getStatusCode());

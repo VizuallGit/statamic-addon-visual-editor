@@ -54,9 +54,11 @@ const keys = ref(false);
 
 const query = computed(() => typed.value.trim().toLowerCase());
 
-const rows = computed(() => (query.value
-  ? props.options.filter((option) => String(option.label).toLowerCase().includes(query.value))
-  : props.options));
+const rows = computed(() =>
+  query.value
+    ? props.options.filter((option) => String(option.label).toLowerCase().includes(query.value))
+    : props.options
+);
 
 const typedClass = computed(() => (props.free && typed.value.trim() ? props.free(typed.value.trim()) || '' : ''));
 
@@ -66,7 +68,9 @@ const word = computed(() => /[A-Za-z0-9_-]*$/.exec(before.value)[0]);
 const inVar = computed(() => /var\(\s*[A-Za-z0-9_-]*$/.test(before.value));
 
 function varRows(q) {
-  const needle = String(q || '').replace(/^-+/, '').toLowerCase();
+  const needle = String(q || '')
+    .replace(/^-+/, '')
+    .toLowerCase();
 
   return props.vars
     .filter((one) => !needle || one.name.slice(2).toLowerCase().includes(needle))
@@ -338,8 +342,19 @@ function tab(event) {
     :data-custom="custom ? '' : undefined"
     :style="custom ? { borderColor: '#3858e9', background: 'rgba(56,88,233,.16)' } : null"
   >
-    <svg v-if="!custom" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    <svg
+      v-if="!custom"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
     </svg>
     <span v-else data-sve-tw-fx aria-hidden="true">ƒx</span>
     <input
@@ -360,7 +375,7 @@ function tab(event) {
       @keydown.enter.prevent="submit"
       @keydown.tab="tab"
       @keydown.escape.stop
-    >
+    />
     <!-- Search the list, or write a value of one's own: lit while writing. -->
     <button
       v-if="canCustom"
@@ -371,7 +386,8 @@ function tab(event) {
       :aria-label="custom ? labels.list : labels.custom"
       @mousedown.prevent
       @click.prevent.stop="toggle"
-    >ƒx</button>
+      >ƒx</button
+    >
   </div>
   <template v-if="custom">
     <div data-sve-tw-fns :aria-label="labels.functions">
@@ -382,7 +398,8 @@ function tab(event) {
         data-sve-tw-fn
         @mousedown.prevent
         @click.prevent.stop="insertFunction(fn)"
-      >{{ fn }}()</button>
+        >{{ fn }}()</button
+      >
     </div>
     <div v-if="outcome" data-sve-tw-outcome :data-bad="outcome.bad ? '' : undefined">{{ outcome.text }}</div>
     <div v-if="hints.length && hints[0].hint === 'var'" data-sve-tw-hints-title>{{ labels.variables }}</div>
@@ -424,7 +441,10 @@ function tab(event) {
   padding: 0 0.35rem;
   border-radius: 0.35rem;
   cursor: pointer;
-  font: italic 600 0.6875rem/1 ui-serif, Georgia, serif;
+  font:
+    italic 600 0.6875rem/1 ui-serif,
+    Georgia,
+    serif;
   opacity: 0.6;
 }
 [data-sve-tw-mode]:hover {
@@ -438,7 +458,10 @@ function tab(event) {
 }
 [data-sve-tw-fx] {
   flex: none;
-  font: italic 600 0.6875rem/1 ui-serif, Georgia, serif;
+  font:
+    italic 600 0.6875rem/1 ui-serif,
+    Georgia,
+    serif;
   color: #93a8ff;
 }
 /* The functions a value is built with, one press each. */
@@ -455,7 +478,13 @@ function tab(event) {
   border-radius: 0.35em;
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  font: 0.6875rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font:
+    0.6875rem/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 }
 [data-sve-tw-fn]:hover {
   background: #3858e9;
@@ -467,7 +496,13 @@ function tab(event) {
   padding: 0.4em 0.55em;
   border-radius: 0.4em;
   background: rgba(255, 255, 255, 0.05);
-  font: 0.6875rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font:
+    0.6875rem/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
   overflow-wrap: anywhere;
   opacity: 0.85;
 }

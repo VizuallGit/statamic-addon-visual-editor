@@ -138,7 +138,6 @@ const PREFILL_MAX = 120;
 /** How still the page must be before marks are repositioned. */
 const REFLOW_QUIET_MS = 150;
 
-
 const CLOSE_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -168,10 +167,7 @@ function styles(win) {
   style.id = STYLES_ID;
   // Own stylesheet rather than inline styles on every mark: a page may carry a
   // hundred of them, and a rule that is written once also stays consistent.
-  win.document.documentElement.style.setProperty(
-    '--sve-ai-primary',
-    ctx.primary() || FALLBACK_PRIMARY
-  );
+  win.document.documentElement.style.setProperty('--sve-ai-primary', ctx.primary() || FALLBACK_PRIMARY);
 
   style.textContent = `
     #${LAYER_ID} {
@@ -510,9 +506,7 @@ function openPopover(target, mark, field = target) {
   applyPalette(el, paletteFor(target));
 
   // Clicks inside the popover are the popover's, never the page's.
-  ['mousedown', 'pointerdown', 'click'].forEach((type) =>
-    el.addEventListener(type, (e) => e.stopPropagation())
-  );
+  ['mousedown', 'pointerdown', 'click'].forEach((type) => el.addEventListener(type, (e) => e.stopPropagation()));
 
   session = {
     target,
@@ -661,9 +655,12 @@ function wordCount(text) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-
 function normalize(text) {
-  return text.replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+  return text
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim();
 }
 
 function positionPopover() {
@@ -716,7 +713,8 @@ function render() {
   const title = doc.createElement('div');
 
   title.textContent = t('ai_text_title');
-  title.style.cssText = 'flex:1 1 auto;display:flex;align-items:center;gap:0.375rem;font-weight:600;font-size:0.8125rem;';
+  title.style.cssText =
+    'flex:1 1 auto;display:flex;align-items:center;gap:0.375rem;font-weight:600;font-size:0.8125rem;';
 
   // Which part of a Bard field the suggestions are for: its tag, as the page has it.
   if (session.part) {

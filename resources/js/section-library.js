@@ -36,7 +36,14 @@ import LibrarySaveButton from './cp/surfaces/LibrarySaveButton.vue';
 import { mountPane } from './cp/mount-pane.js';
 import { mountSurface } from './cp/mount.js';
 import { deleteLibraryUi } from './cp/library/delete-store.js';
-import { forgetLayoutSlots, layoutCards, layoutOpen, layoutSlots, layoutTabs, loadLayoutSlots } from './cp/library/layout-slots.js';
+import {
+  forgetLayoutSlots,
+  layoutCards,
+  layoutOpen,
+  layoutSlots,
+  layoutTabs,
+  loadLayoutSlots,
+} from './cp/library/layout-slots.js';
 import {
   RIGHT_DOCK_ID,
   RIGHT_DOCK_PIN_STACK,
@@ -52,7 +59,20 @@ import {
 } from './right-dock.js';
 import { csrfToken } from './lib/csrf.js';
 import { checkPreviews, paintPreviewButtons, previewsAuto, setPreviewsAuto } from './previews-watch.js';
-import { ZONE_SHELL_ATTR, CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import {
+  ZONE_SHELL_ATTR,
+  CHROME_DESIGNS_ID,
+  COMMENTS_PANEL_ID,
+  GLOBALS_PANEL_ID,
+  GLOBAL_SECTION_HOST_ID,
+  HTML_TREE_PANEL_ID,
+  LIBRARY_BUTTON_ID,
+  LISTVIEW_PANEL_ID,
+  LP_WIDTH_ID,
+  OUTLINE_PANEL_ID,
+  PERF_PANEL_ID,
+  SECTION_PICKER_ID,
+} from './lib/ids.js';
 import { dataGet, findPathByUid, firstEntryId, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
@@ -62,7 +82,13 @@ import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
 import { hideSettingsBar } from './lp-width.js';
 import { selectRow, selectionPanelShowing } from './selection-panel.js';
 import { buildModeUi } from './cp/build-mode/store.js';
-import { activeChromeKind, closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind } from './globals-panel.js';
+import {
+  activeChromeKind,
+  closeChromeDesignsPanel,
+  hasUnsavedGlobals,
+  removeChromeModeToggles,
+  setActiveChromeKind,
+} from './globals-panel.js';
 import { savePageAsTemplate } from './inline-edit.js';
 import { closeGlobalSectionPanel, globalSectionEditorOpen, openGlobalSectionInline } from './global-section.js';
 import { closeChromeInline } from './chrome.js';
@@ -82,8 +108,6 @@ import { MSG, SOURCE } from './lib/protocol.js';
 // split into Custom (insert a copy) and Global (insert a reference). Each is shown
 // with its preview image. Insertion writes straight into the page_sections array,
 // after the section the "+" was clicked on.
-
-
 
 // The type list is handed over at page render. Deleting one replaces it here for
 // the rest of the session — the config is a snapshot, and reloading the CP just
@@ -194,9 +218,7 @@ export function refreshSectionTypes(win, onUpdated) {
  */
 export function libraryWentStale(win) {
   savedSectionIndex = null;
-  win.document
-    .getElementById(SECTION_PICKER_ID)
-    ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
+  win.document.getElementById(SECTION_PICKER_ID)?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
 }
 
 /**
@@ -408,9 +430,7 @@ function nestedMetaTemplate(fieldMeta) {
  */
 export function hydrateExistingMeta(row, template, defaultsRow = null) {
   const out =
-    template && typeof template === 'object' && !Array.isArray(template)
-      ? JSON.parse(JSON.stringify(template))
-      : {};
+    template && typeof template === 'object' && !Array.isArray(template) ? JSON.parse(JSON.stringify(template)) : {};
 
   if (!row || typeof row !== 'object') {
     return out;
@@ -454,8 +474,7 @@ export function hydrateExistingMeta(row, template, defaultsRow = null) {
         }
 
         const matchId = match?._id || match?.id;
-        const typedTemplate =
-          (matchId && fieldMeta.existing && fieldMeta.existing[matchId]) || genericTemplate;
+        const typedTemplate = (matchId && fieldMeta.existing && fieldMeta.existing[matchId]) || genericTemplate;
 
         existing[id] = hydrateExistingMeta(child, typedTemplate, match);
       });
@@ -875,10 +894,7 @@ export function applySidFieldDefaults(row, defaults) {
 
     const current = row[handle];
     const blank =
-      current === undefined ||
-      current === null ||
-      current === '' ||
-      (Array.isArray(current) && !current.length);
+      current === undefined || current === null || current === '' || (Array.isArray(current) && !current.length);
 
     if (blank) {
       row[handle] = coerceSidValue(current, value);
@@ -975,7 +991,15 @@ export function attachSidNestedMeta(parentMeta, nestedField, nestedBuilt) {
  * `template="3:item"` on the parent — N child rows, each filled from
  * `rowTemplate` (the `<li>`'s `template="icon|title"`).
  */
-export async function applySidTemplate(win, row, template, fieldDefaults, parentMeta, rowTemplate = '', fieldTemplates = {}) {
+export async function applySidTemplate(
+  win,
+  row,
+  template,
+  fieldDefaults,
+  parentMeta,
+  rowTemplate = '',
+  fieldTemplates = {}
+) {
   const items = parseSidTemplate(template);
   const nested = [];
   let nestedField = null;
@@ -991,7 +1015,15 @@ export async function applySidTemplate(win, row, template, fieldDefaults, parent
 
         for (let n = 0; n < times; n++) {
           const built = await buildSidTemplateRow(win, nestedHandle, { type: spec.type }, fieldDefaults);
-          const inner = await applySidTemplate(win, built.row, rowTemplate, fieldDefaults, built.meta, '', fieldTemplates);
+          const inner = await applySidTemplate(
+            win,
+            built.row,
+            rowTemplate,
+            fieldDefaults,
+            built.meta,
+            '',
+            fieldTemplates
+          );
           const meta = attachSidNestedMeta(built.meta, inner.nestedField, inner.nested);
 
           nested.push({ row: inner.row, meta: meta || built.meta });
@@ -1077,7 +1109,16 @@ export function sectionTypeFromPath(values, parentPath) {
   return section && typeof section === 'object' ? String(section.type || '') : '';
 }
 
-export async function overlaySidTemplate(win, container, _values, parentPath, added, template, fieldDefaults, rowTemplate = '') {
+export async function overlaySidTemplate(
+  win,
+  container,
+  _values,
+  parentPath,
+  added,
+  template,
+  fieldDefaults,
+  rowTemplate = ''
+) {
   if (!added?._id) {
     return;
   }
@@ -1098,10 +1139,7 @@ export async function overlaySidTemplate(win, container, _values, parentPath, ad
 
   const sectionType = sectionTypeFromPath(values, parentPath);
   const field = parentPath.slice(parentPath.lastIndexOf('.') + 1);
-  const addedMeta =
-    added.type && field
-      ? await fetchNestedSetMeta(win, field, added.type, sectionType)
-      : null;
+  const addedMeta = added.type && field ? await fetchNestedSetMeta(win, field, added.type, sectionType) : null;
 
   // `3:item` seeds a new *list*. A single new *item* (the native picker, or +
   // on an empty ul) should only get the row template — icon|title — not 3 rows.
@@ -1780,8 +1818,7 @@ export function parkGlobalsOverlay(panel) {
 
   panel.hidden = true;
   panel.setAttribute('data-sve-chrome-hidden', '1');
-  panel.style.cssText =
-    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
+  panel.style.cssText = 'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
 }
 
 /** Keep the iframe on body so showing it never moves it in the DOM. */
@@ -1880,8 +1917,7 @@ export function showGlobalsPanel(win) {
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
   if (designs) {
-    designs.style.cssText =
-      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
+    designs.style.cssText = 'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
     designs.setAttribute('data-sve-chrome-hidden', '1');
   }
 
@@ -1897,7 +1933,10 @@ export function closeRightPanels(win, keep = null) {
   const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
   const extra = keepIds.length && RIGHT_DOCK_PIN_STACK ? pinnedKeepIds(win) : [];
   // A tool taking the sidebar in a Build: the tree stays, parked (showInRightShell). Build picks through it.
-  const tree = keep != null && buildModeUi.mode !== 'content' && win.document.getElementById(HTML_TREE_PANEL_ID) ? [HTML_TREE_PANEL_ID] : [];
+  const tree =
+    keep != null && buildModeUi.mode !== 'content' && win.document.getElementById(HTML_TREE_PANEL_ID)
+      ? [HTML_TREE_PANEL_ID]
+      : [];
   const allKeep = [...new Set([...keepIds, ...extra, ...tree])];
 
   beginRightShellSwap();
@@ -2202,9 +2241,7 @@ export function libraryGroupLabel(win, key, types, groups = []) {
     return named.display;
   }
 
-  const fromYaml = (types || []).find(
-    (type) => type.group === key && type.group_display
-  );
+  const fromYaml = (types || []).find((type) => type.group === key && type.group_display);
 
   if (fromYaml?.group_display) {
     return fromYaml.group_display;
@@ -2319,9 +2356,9 @@ export function openSectionPicker(win, options = {}) {
 
   if (doc.getElementById(SECTION_PICKER_ID)) {
     if (initialTab) {
-      doc.getElementById(SECTION_PICKER_ID).dispatchEvent(
-        new CustomEvent('sve-set-tab', { detail: { tab: initialTab } })
-      );
+      doc
+        .getElementById(SECTION_PICKER_ID)
+        .dispatchEvent(new CustomEvent('sve-set-tab', { detail: { tab: initialTab } }));
 
       return;
     }
@@ -2335,9 +2372,9 @@ export function openSectionPicker(win, options = {}) {
   mountSectionPicker(win, options);
 
   if (initialTab) {
-    doc.getElementById(SECTION_PICKER_ID)?.dispatchEvent(
-      new CustomEvent('sve-set-tab', { detail: { tab: initialTab } })
-    );
+    doc
+      .getElementById(SECTION_PICKER_ID)
+      ?.dispatchEvent(new CustomEvent('sve-set-tab', { detail: { tab: initialTab } }));
   }
 }
 
@@ -2455,48 +2492,49 @@ export function mountSectionPicker(win, options = {}) {
   // and so a list, of its own.
   let typesAskedFor = '';
 
-
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
   // the card height (no fixed crop); break-inside keeps a card in one column.
-    // `layout`: a card for one of the layout's places ({@see layoutCards}) —
-    // in use, greyed, or dropped into its place; its trash takes it out of the
-    // layout rather than deleting it from the library.
-    const card = (title, imageUrl, kind, item, layout = null) => {
-      const el = doc.createElement('div');
+  // `layout`: a card for one of the layout's places ({@see layoutCards}) —
+  // in use, greyed, or dropped into its place; its trash takes it out of the
+  // layout rather than deleting it from the library.
+  const card = (title, imageUrl, kind, item, layout = null) => {
+    const el = doc.createElement('div');
 
-      el.setAttribute('data-sve-lib-handle', String(item?.handle || item?.id || title));
-      el.setAttribute('data-sve-lib-kind', kind);
+    el.setAttribute('data-sve-lib-handle', String(item?.handle || item?.id || title));
+    el.setAttribute('data-sve-lib-kind', kind);
 
-      if (kind === 'custom' && item?.section_type) {
-        el.setAttribute('data-sve-lib-set', String(item.section_type));
-      }
-      mountPane(el, LibraryCard, {
-        title,
-        imageUrl: imageUrl || '',
-        noPreview: t(win, 'no_preview'),
-        canDelete: layout ? !!layout.onRemove : !!item?.can_delete,
-        deleteLabel: layout?.removeLabel || '',
-        badge: layout?.badge || '',
-        note: layout?.note || '',
-        disabled: !!layout?.disabled,
-        previewUrl: layout?.previewUrl || '',
-        onDelete: layout?.onRemove || (() => {
+    if (kind === 'custom' && item?.section_type) {
+      el.setAttribute('data-sve-lib-set', String(item.section_type));
+    }
+    mountPane(el, LibraryCard, {
+      title,
+      imageUrl: imageUrl || '',
+      noPreview: t(win, 'no_preview'),
+      canDelete: layout ? !!layout.onRemove : !!item?.can_delete,
+      deleteLabel: layout?.removeLabel || '',
+      badge: layout?.badge || '',
+      note: layout?.note || '',
+      disabled: !!layout?.disabled,
+      previewUrl: layout?.previewUrl || '',
+      onDelete:
+        layout?.onRemove ||
+        (() => {
           confirmDeleteLibraryItem(win, kind, item, () => {
             saved = null;
             templates = null;
             renderActive();
           });
         }),
-      });
+    });
 
-      if (!layout) {
-        beginCardDrag(win, el, kind, item);
-      } else if (layout.onDrop) {
-        beginCardDrag(win, el, kind, item, layout);
-      }
+    if (!layout) {
+      beginCardDrag(win, el, kind, item);
+    } else if (layout.onDrop) {
+      beginCardDrag(win, el, kind, item, layout);
+    }
 
-      return el;
-    };
+    return el;
+  };
 
   const empty = (text) => {
     const el = doc.createElement('div');
@@ -2593,9 +2631,13 @@ export function mountSectionPicker(win, options = {}) {
 
               if (h) {
                 img.style.minHeight = `${Math.round(h)}px`;
-                img.addEventListener('load', () => {
-                  img.style.minHeight = '';
-                }, { once: true });
+                img.addEventListener(
+                  'load',
+                  () => {
+                    img.style.minHeight = '';
+                  },
+                  { once: true }
+                );
               }
 
               img.setAttribute('src', row.imageUrl);
@@ -2676,13 +2718,7 @@ export function mountSectionPicker(win, options = {}) {
 
     if (!items.length) {
       gridEl.innerHTML = '';
-      gridEl.appendChild(
-        empty(
-          synced
-            ? t(win, 'no_global_sections')
-            : t(win, 'no_saved_sections')
-        )
-      );
+      gridEl.appendChild(empty(synced ? t(win, 'no_global_sections') : t(win, 'no_saved_sections')));
 
       return;
     }
@@ -2720,10 +2756,11 @@ export function mountSectionPicker(win, options = {}) {
 
       mountPane(el, LibrarySaveButton, {
         label: t(win, 'save_page_as_template'),
-        onSave: () => savePageAsTemplate(win, () => {
-          templates = null;
-          renderActive();
-        }),
+        onSave: () =>
+          savePageAsTemplate(win, () => {
+            templates = null;
+            renderActive();
+          }),
       });
 
       return el;
@@ -3038,9 +3075,7 @@ export function mountSectionPicker(win, options = {}) {
       }
 
       win.Statamic?.$toast?.success(
-        first.running
-          ? t(win, 'previews_refresh_done', { count: first.stale })
-          : t(win, 'previews_refresh_current')
+        first.running ? t(win, 'previews_refresh_done', { count: first.stale }) : t(win, 'previews_refresh_current')
       );
     });
   });
@@ -3173,10 +3208,7 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
           ]
         : [{ id: 'confirm', label: t(win, confirmKey), variant: 'danger' }];
 
-    deleteLibraryUi.buttons = [
-      { id: 'cancel', label: t(win, 'cancel'), variant: '' },
-      ...confirms,
-    ];
+    deleteLibraryUi.buttons = [{ id: 'cancel', label: t(win, 'cancel'), variant: '' }, ...confirms];
     deleteLibraryUi.onPick = (id) => {
       close();
 
@@ -3218,10 +3250,7 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
         if (isType) {
           // Leads, not body: the note about the two buttons is its own line.
           deleteLibraryUi.body = '';
-          deleteLibraryUi.leads = [
-            t(win, 'delete_section_type_body'),
-            t(win, 'delete_section_type_files_note'),
-          ];
+          deleteLibraryUi.leads = [t(win, 'delete_section_type_body'), t(win, 'delete_section_type_files_note')];
         } else {
           deleteLibraryUi.body = t(
             win,
@@ -3325,7 +3354,10 @@ export function sectionReferenceMatcher(win, savedEntryId) {
     row !== null &&
     typeof row === 'object' &&
     row.type === set &&
-    [].concat(row[set] ?? []).map(String).includes(id);
+    []
+      .concat(row[set] ?? [])
+      .map(String)
+      .includes(id);
 }
 
 /** Takes every matching section row out of the form open in the editor. */
@@ -3375,12 +3407,7 @@ export function pointerOverLivePreview(win, frame, event) {
 
   const r = frame.getBoundingClientRect();
 
-  if (
-    event.clientX < r.left ||
-    event.clientX > r.right ||
-    event.clientY < r.top ||
-    event.clientY > r.bottom
-  ) {
+  if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) {
     return false;
   }
 
@@ -3477,9 +3504,14 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
     const overDrop = (e) => {
       const d = dropRect();
 
-      return !!d && pointerOverLivePreview(win, frame, e)
-        && e.clientX >= d.left && e.clientX <= d.left + d.width
-        && e.clientY >= d.top && e.clientY <= d.top + d.height;
+      return (
+        !!d &&
+        pointerOverLivePreview(win, frame, e) &&
+        e.clientX >= d.left &&
+        e.clientX <= d.left + d.width &&
+        e.clientY >= d.top &&
+        e.clientY <= d.top + d.height
+      );
     };
 
     const stopListen = () => {
@@ -3602,8 +3634,7 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
         return;
       }
 
-      const overPreview =
-        e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
+      const overPreview = e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
 
       if (drop) {
         const landed = e.type !== 'pointercancel' && overDrop(e);
@@ -4060,15 +4091,11 @@ export async function handleDuplicateRow(data, doc, win) {
       const sampleMeta =
         (sampleId && fieldMeta?.existing?.[sampleId]
           ? JSON.parse(JSON.stringify(fieldMeta.existing[sampleId]))
-          : null) || rowMetaTemplate(container, values, parentPath, rows[index]) || {};
+          : null) ||
+        rowMetaTemplate(container, values, parentPath, rows[index]) ||
+        {};
 
-      writeNestedRowMeta(
-        container,
-        values,
-        parentPath,
-        copy._id,
-        hydrateExistingMeta(copy, sampleMeta, rows[index])
-      );
+      writeNestedRowMeta(container, values, parentPath, copy._id, hydrateExistingMeta(copy, sampleMeta, rows[index]));
     }
 
     const next = JSON.parse(JSON.stringify(rows));

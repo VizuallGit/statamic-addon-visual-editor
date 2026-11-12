@@ -130,7 +130,9 @@ export function addGroups(dock = {}) {
         return null;
       }
 
-      return tool ? { ...entry, source: 'tool', def: tool, headings: entry.tool === 'heading' ? dock.headings || [] : undefined } : null;
+      return tool
+        ? { ...entry, source: 'tool', def: tool, headings: entry.tool === 'heading' ? dock.headings || [] : undefined }
+        : null;
     }
 
     if (entry.div) {
@@ -198,7 +200,11 @@ export function tileForTool(dock, toolId) {
  * inside one of them (new-section.js says what a page built from sections takes).
  */
 export function startsFile(entry) {
-  return !!entry?.logic || (entry?.source === 'tool' && entry.def?.tag === 'section') || (entry?.source === 'div' && entry.def?.id === 'div');
+  return (
+    !!entry?.logic ||
+    (entry?.source === 'tool' && entry.def?.tag === 'section') ||
+    (entry?.source === 'div' && entry.def?.id === 'div')
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -211,14 +217,46 @@ export const BUILD_TOOLS = [
   { id: 'tw-weight', title: 'Font weight', css: 'font-weight', tw: 'font-weight', menu: 'choices' },
   { id: 'tw-minw', title: 'Min width', css: 'min-width', tw: 'min-width', menu: 'sizes' },
   // Two declarations each, so a named group as the dock's border widths are (twSetGroup).
-  { id: 'tw-shadow', title: 'Shadow', css: 'box-shadow', twGroup: ['shadow-2xs', 'shadow-xs', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-2xl', 'shadow-none'] },
+  {
+    id: 'tw-shadow',
+    title: 'Shadow',
+    css: 'box-shadow',
+    twGroup: [
+      'shadow-2xs',
+      'shadow-xs',
+      'shadow-sm',
+      'shadow-md',
+      'shadow-lg',
+      'shadow-xl',
+      'shadow-2xl',
+      'shadow-none',
+    ],
+  },
   { id: 'tw-opacity', title: 'Opacity', css: 'opacity', tw: 'opacity', menu: 'values' },
 ];
 
 /** Children the display tool has no button for yet, in its shape; `glyph` is the sketch's icon. */
 export const BUILD_KIDS = {
-  main: [{ id: 'justify-evenly', twClass: 'justify-evenly', title: 'Justify: evenly', css: 'justify-content', value: 'space-evenly', glyph: 'jEvenly' }],
-  cross: [{ id: 'align-baseline', twClass: 'items-baseline', title: 'Align: baseline', css: 'align-items', value: 'baseline', glyph: 'aBaseline' }],
+  main: [
+    {
+      id: 'justify-evenly',
+      twClass: 'justify-evenly',
+      title: 'Justify: evenly',
+      css: 'justify-content',
+      value: 'space-evenly',
+      glyph: 'jEvenly',
+    },
+  ],
+  cross: [
+    {
+      id: 'align-baseline',
+      twClass: 'items-baseline',
+      title: 'Align: baseline',
+      css: 'align-items',
+      value: 'baseline',
+      glyph: 'aBaseline',
+    },
+  ],
 };
 
 /**
@@ -240,7 +278,12 @@ export const STYLE_GROUPS = [
 ];
 
 /* A choice among fixed classes, drawn as buttons: [class, what the button shows, its title]. */
-const seg = (label, options, extra = {}) => ({ label, seg: options, names: options.map((option) => option[0]), ...extra });
+const seg = (label, options, extra = {}) => ({
+  label,
+  seg: options,
+  names: options.map((option) => option[0]),
+  ...extra,
+});
 const value = (css, extra = {}) => ({ label: css, css, ...extra });
 const named = (css, extra = {}) => ({ label: css, css, named: true, ...extra });
 const color = (css, extra = {}) => ({ label: css, css, color: true, ...extra });
@@ -253,7 +296,15 @@ const utility = (label, roots, extra = {}) => ({ label, roots: [].concat(roots),
  * that says a field (`data-position="{{ image_position }}"`) it is written for
  * the value that field stands on (boot.js `placedAt`), as the grid's are.
  */
-export const ORDER_FIELD = seg('order', [['order-first', '#first', 'first'], ['order-last', '#last', 'last'], ['order-none', 'x', 'none']], { wide: true, placement: true });
+export const ORDER_FIELD = seg(
+  'order',
+  [
+    ['order-first', '#first', 'first'],
+    ['order-last', '#last', 'last'],
+    ['order-none', 'x', 'none'],
+  ],
+  { wide: true, placement: true }
+);
 
 /**
  * The fields beyond the ones BuildStyle.vue draws by hand, by family. Every one
@@ -266,27 +317,40 @@ export const ORDER_FIELD = seg('order', [['order-first', '#first', 'first'], ['o
  * sets a style, `break-normal`). Anything not listed is still in the + menu.
  */
 export const STYLE_FIELDS = {
-  position: [
-    value('z-index'),
-    value('inset'),
-    value('top'),
-    value('right'),
-    value('bottom'),
-    value('left'),
-  ],
-  size: [
-    value('aspect-ratio'),
-    named('object-fit'),
-    named('object-position', { wide: true }),
-  ],
+  position: [value('z-index'), value('inset'), value('top'), value('right'), value('bottom'), value('left')],
+  size: [value('aspect-ratio'), named('object-fit'), named('object-position', { wide: true })],
   typography: [
-    seg('text-decoration', [['no-underline', 'x', 'none'], ['line-through', 'strike', 'line-through'], ['underline', 'underline', 'underline'], ['overline', 'overline', 'overline']], { wide: true }),
+    seg(
+      'text-decoration',
+      [
+        ['no-underline', 'x', 'none'],
+        ['line-through', 'strike', 'line-through'],
+        ['underline', 'underline', 'underline'],
+        ['overline', 'overline', 'overline'],
+      ],
+      { wide: true }
+    ),
     color('text-decoration-color', { wide: true }),
     value('text-decoration-thickness'),
     value('text-underline-offset'),
-    seg('font-style', [['not-italic', 'x', 'normal'], ['italic', 'italic', 'italic']]),
-    seg('direction', [['[direction:ltr]', 'arrowR', 'ltr'], ['[direction:rtl]', 'arrowL', 'rtl']]),
-    seg('text-transform', [['normal-case', 'x', 'none'], ['uppercase', '#AB', 'uppercase'], ['capitalize', '#Ab', 'capitalize'], ['lowercase', '#ab', 'lowercase']], { wide: true }),
+    seg('font-style', [
+      ['not-italic', 'x', 'normal'],
+      ['italic', 'italic', 'italic'],
+    ]),
+    seg('direction', [
+      ['[direction:ltr]', 'arrowR', 'ltr'],
+      ['[direction:rtl]', 'arrowL', 'rtl'],
+    ]),
+    seg(
+      'text-transform',
+      [
+        ['normal-case', 'x', 'none'],
+        ['uppercase', '#AB', 'uppercase'],
+        ['capitalize', '#Ab', 'capitalize'],
+        ['lowercase', '#ab', 'lowercase'],
+      ],
+      { wide: true }
+    ),
     named('white-space'),
     named('text-wrap'),
     named('overflow-wrap'),
@@ -303,14 +367,29 @@ export const STYLE_FIELDS = {
     named('background-position'),
     named('background-repeat'),
     named('background-clip'),
-    utility('gradient', [], { names: ['bg-linear-to-t', 'bg-linear-to-tr', 'bg-linear-to-r', 'bg-linear-to-br', 'bg-linear-to-b', 'bg-linear-to-bl', 'bg-linear-to-l', 'bg-linear-to-tl', 'bg-none'], wide: true }),
+    utility('gradient', [], {
+      names: [
+        'bg-linear-to-t',
+        'bg-linear-to-tr',
+        'bg-linear-to-r',
+        'bg-linear-to-br',
+        'bg-linear-to-b',
+        'bg-linear-to-bl',
+        'bg-linear-to-l',
+        'bg-linear-to-tl',
+        'bg-none',
+      ],
+      wide: true,
+    }),
     utility('from', 'from', { only: '--tw-gradient-from:', swatch: true }),
     utility('via', 'via', { only: '--tw-gradient-via:', swatch: true }),
     utility('to', 'to', { only: '--tw-gradient-to:', swatch: true, wide: true }),
   ],
   border: [
     named('border-style', { wide: true }),
-    utility('outline-width', [], { names: ['outline', 'outline-0', 'outline-1', 'outline-2', 'outline-4', 'outline-8'] }),
+    utility('outline-width', [], {
+      names: ['outline', 'outline-0', 'outline-1', 'outline-2', 'outline-4', 'outline-8'],
+    }),
     named('outline-style'),
     color('outline-color', { wide: true }),
     value('outline-offset', { wide: true }),
@@ -341,7 +420,18 @@ export const STYLE_FIELDS = {
     utility('translate-x', ['translate-x', '-translate-x']),
     utility('translate-y', ['translate-y', '-translate-y']),
     named('transform-origin', { wide: true }),
-    utility('transition', [], { names: ['transition', 'transition-all', 'transition-colors', 'transition-opacity', 'transition-shadow', 'transition-transform', 'transition-none'], wide: true }),
+    utility('transition', [], {
+      names: [
+        'transition',
+        'transition-all',
+        'transition-colors',
+        'transition-opacity',
+        'transition-shadow',
+        'transition-transform',
+        'transition-none',
+      ],
+      wide: true,
+    }),
     value('transition-duration'),
     value('transition-delay'),
     named('transition-timing-function'),

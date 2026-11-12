@@ -22,7 +22,10 @@ export function sourceRule(ctx) {
     return [];
   }
 
-  const files = unusedFirst(source, rowsInScope(ctx).filter((row) => ASSET_TYPES.has(row.type)));
+  const files = unusedFirst(
+    source,
+    rowsInScope(ctx).filter((row) => ASSET_TYPES.has(row.type))
+  );
   const out = files.map((row) => {
     const url = `{{ ${row.var}:url }}`;
     const next = withVisualEdit(afterName(open.text, node.tag, `src="${url}"`), `{{ visual_edit field="${row.var}" }}`);

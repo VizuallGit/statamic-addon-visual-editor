@@ -2,7 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fontKind, nearestWeight, sfntInfo, toSfnt, toWoff2 } from '../../resources/js/cp/theme-panel/font-files.js';
-import { familyShape, formatBytes, hasVariant, slug, variantLabel } from '../../resources/js/cp/theme-panel/font-helpers.js';
+import {
+  familyShape,
+  formatBytes,
+  hasVariant,
+  slug,
+  variantLabel,
+} from '../../resources/js/cp/theme-panel/font-helpers.js';
 
 // Two letters ("Ab") of Inter (variable, OFL) and Barlow Condensed Bold (OFL), from the site's fonts.
 const fixture = (name) => new Uint8Array(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
@@ -23,7 +29,10 @@ test('a variable font gives its family and weight range', () => {
 });
 
 test('WOFF and WOFF2 are read through to their tables', async () => {
-  for (const [bytes, kind] of [[barlowWoff, 'woff'], [barlowWoff2, 'woff2']]) {
+  for (const [bytes, kind] of [
+    [barlowWoff, 'woff'],
+    [barlowWoff2, 'woff2'],
+  ]) {
     const info = sfntInfo(await toSfnt(bytes, kind));
 
     assert.deepEqual(info, { family: 'Barlow Condensed', weight: 700, italic: false, axis: null }, kind);
@@ -31,7 +40,10 @@ test('WOFF and WOFF2 are read through to their tables', async () => {
 });
 
 test('a TTF and a WOFF become WOFF2 that reads back the same', async () => {
-  for (const [bytes, kind] of [[inter, 'ttf'], [barlowWoff, 'woff']]) {
+  for (const [bytes, kind] of [
+    [inter, 'ttf'],
+    [barlowWoff, 'woff'],
+  ]) {
     const woff2 = await toWoff2(bytes, kind);
 
     assert.equal(fontKind(woff2), 'woff2', kind);
@@ -48,8 +60,19 @@ test('an odd weight goes to the nearest CSS weight', () => {
 });
 
 test('an installed family says what it holds', () => {
-  const variable = { faces: [{ weight: '300 900', style: 'normal' }, { weight: '300 900', style: 'italic' }] };
-  const statics = { faces: [{ weight: '400', style: 'normal' }, { weight: '700', style: 'normal' }, { weight: '500', style: 'normal' }] };
+  const variable = {
+    faces: [
+      { weight: '300 900', style: 'normal' },
+      { weight: '300 900', style: 'italic' },
+    ],
+  };
+  const statics = {
+    faces: [
+      { weight: '400', style: 'normal' },
+      { weight: '700', style: 'normal' },
+      { weight: '500', style: 'normal' },
+    ],
+  };
 
   assert.deepEqual(familyShape(variable), { weights: '300–900', variable: true, count: 0, italic: true });
   assert.deepEqual(familyShape(statics), { weights: '400–700', variable: false, count: 3, italic: false });

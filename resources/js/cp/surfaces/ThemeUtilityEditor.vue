@@ -91,15 +91,18 @@ onMounted(async () => {
 });
 
 // A save or a discard puts a new body in: the editor takes it, unless it is what it has.
-watch(() => props.value, (value) => {
-  if (!view || value === view.state.doc.toString()) {
-    return;
-  }
+watch(
+  () => props.value,
+  (value) => {
+    if (!view || value === view.state.doc.toString()) {
+      return;
+    }
 
-  applying = true;
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
-  applying = false;
-});
+    applying = true;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+    applying = false;
+  }
+);
 
 onBeforeUnmount(() => {
   view?.destroy();

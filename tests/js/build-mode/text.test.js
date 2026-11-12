@@ -18,7 +18,7 @@ test('headings, paragraphs, links and list items hold text; layout, media and fo
   }
 });
 
-test('reads and replaces a heading\'s text, leaving the tag alone', () => {
+test("reads and replaces a heading's text, leaving the tag alone", () => {
   const html = '<h2 class="text-700">New heading</h2>';
 
   assert.deepEqual(readText(html, first(html)), { kind: 'text', text: 'New heading' });
@@ -32,7 +32,7 @@ test('text laid out over lines reads as one line, and keeps its layout when writ
   assert.equal(withText(html, first(html), 'New text'), '<p>\n    New text\n</p>');
 });
 
-test('a space typed at the end is the text\'s own: written over, it does not pile up', () => {
+test("a space typed at the end is the text's own: written over, it does not pile up", () => {
   let html = '<h1>Title</h1>';
 
   for (const value of ['Hej', 'Hej ', 'Hej &', 'Hej & ', 'Hej & co']) {
@@ -113,7 +113,11 @@ test('a tag still being typed is not written', () => {
 });
 
 test('a pair the tree has no row for is no text: never rewritten', () => {
-  for (const html of ['<p>{{ noparse }}{{ x }}{{ /noparse }}</p>', '<p>{{ once }}Hi{{ /once }}</p>', '<p>{{ foreach:list }}{{ value }}{{ /foreach:list }}</p>']) {
+  for (const html of [
+    '<p>{{ noparse }}{{ x }}{{ /noparse }}</p>',
+    '<p>{{ once }}Hi{{ /once }}</p>',
+    '<p>{{ foreach:list }}{{ value }}{{ /foreach:list }}</p>',
+  ]) {
     assert.deepEqual(readText(html, first(html)), { kind: 'markup' });
     assert.equal(withText(html, first(html), 'x'), html);
   }

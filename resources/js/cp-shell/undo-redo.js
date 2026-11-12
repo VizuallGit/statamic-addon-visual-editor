@@ -41,7 +41,12 @@ function baseContainer(doc, followed) {
     return followed;
   }
 
-  return all.find((one) => unwrapRef(one?.name) === 'base' && typeof one.setValues === 'function' && typeof one.setMeta === 'function') || null;
+  return (
+    all.find(
+      (one) =>
+        unwrapRef(one?.name) === 'base' && typeof one.setValues === 'function' && typeof one.setMeta === 'function'
+    ) || null
+  );
 }
 
 /**
@@ -61,41 +66,44 @@ export function startUndoRedo(win, changed) {
 
   function fileStack(type) {
     if (!files.has(type)) {
-      files.set(type, createUndoStack({
-        read() {
-          const html = ask('dock:html');
+      files.set(
+        type,
+        createUndoStack({
+          read() {
+            const html = ask('dock:html');
 
-          // Empty panes are a step only when they are the file: one emptied
-          // on purpose. Not a dock holding no file, nor one still loading.
-          if (typeof html !== 'string' || (html === '' && (!ask('dock:current-type') || ask('dock:load-settled')))) {
-            return null;
-          }
+            // Empty panes are a step only when they are the file: one emptied
+            // on purpose. Not a dock holding no file, nor one still loading.
+            if (typeof html !== 'string' || (html === '' && (!ask('dock:current-type') || ask('dock:load-settled')))) {
+              return null;
+            }
 
-          return ask('css-mode:on') ? `${html}${CSS_SPLIT}${ask('dock:css') ?? ''}` : html;
-        },
-        write(state) {
-          const [html, css] = state.split(CSS_SPLIT);
-          // Offsets move with the file: the tree stands on the picked element by where it starts now.
-          const path = htmlTreeUi.rows.find((row) => row.current)?.path;
+            return ask('css-mode:on') ? `${html}${CSS_SPLIT}${ask('dock:css') ?? ''}` : html;
+          },
+          write(state) {
+            const [html, css] = state.split(CSS_SPLIT);
+            // Offsets move with the file: the tree stands on the picked element by where it starts now.
+            const path = htmlTreeUi.rows.find((row) => row.current)?.path;
 
-          if (ask('dock:set-html', html) === false) {
-            return false;
-          }
+            if (ask('dock:set-html', html) === false) {
+              return false;
+            }
 
-          if (css !== undefined) {
-            ask('dock:set-css', css);
-            emit('css-mode:restored');
-          }
+            if (css !== undefined) {
+              ask('dock:set-css', css);
+              emit('css-mode:restored');
+            }
 
-          const row = path ? flattenHtmlTree(parseHtmlTree(html), new Set()).find((one) => one.path === path) : null;
+            const row = path ? flattenHtmlTree(parseHtmlTree(html), new Set()).find((one) => one.path === path) : null;
 
-          if (row) {
-            htmlTreeUi.selectFrom = { at: row.from, left: 4 };
-          }
+            if (row) {
+              htmlTreeUi.selectFrom = { at: row.from, left: 4 };
+            }
 
-          return true;
-        },
-      }));
+            return true;
+          },
+        })
+      );
     }
 
     return files.get(type);
@@ -112,7 +120,7 @@ export function startUndoRedo(win, changed) {
   function followForm() {
     const next = inContent() ? baseContainer(win.document, form) : null;
 
-    if (next === form && (!!stopForm === !!next)) {
+    if (next === form && !!stopForm === !!next) {
       return;
     }
 

@@ -11,7 +11,16 @@
 import { buildModeUi } from './cp/build-mode/store.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
-import { LP_COLLAPSED_KEY, LP_MODE_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM, LP_TOGGLE_ID, LP_WIDTH_ID, LP_WIDTH_KEY } from './lib/ids.js';
+import {
+  LP_COLLAPSED_KEY,
+  LP_MODE_ID,
+  LP_SIDE_DEFAULT_REM,
+  LP_SIDE_MAX_REM,
+  LP_SIDE_MIN_REM,
+  LP_TOGGLE_ID,
+  LP_WIDTH_ID,
+  LP_WIDTH_KEY,
+} from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { clearSelection } from './lib/selection.js';
 import { setEditorMode } from './build-mode-host.js';
@@ -20,7 +29,21 @@ import { relayoutCodeDock } from './code-dock-lazy.js';
 import { forgetHelpSwitch } from './dock/help-state.js';
 import { forgetGhostSwitch } from './dock/ghost-state.js';
 import { sveState } from './cp-state.js';
-import { applyHeaderTab, enhanceGrids, ensureHeaderToolbar, ensureLpBackButton, ensureLpPreviewChrome, ensureSettingsTabs, fireTabClick, nativeTabButtons, openSettingsTab, positionLpBackButton, removeLpBackButton, restoreDockedHeaderPanels, watchStatamicLpClose } from './cp.js';
+import {
+  applyHeaderTab,
+  enhanceGrids,
+  ensureHeaderToolbar,
+  ensureLpBackButton,
+  ensureLpPreviewChrome,
+  ensureSettingsTabs,
+  fireTabClick,
+  nativeTabButtons,
+  openSettingsTab,
+  positionLpBackButton,
+  removeLpBackButton,
+  restoreDockedHeaderPanels,
+  watchStatamicLpClose,
+} from './cp.js';
 import { ensureGlobalsPicker, ensureSectionLibraryButton, parkGlobalsPanel } from './globals-panel.js';
 import { pinDockedPanelsUnderHeader } from './lazy/listview.js';
 import { ensureLpMoreButton } from './lp-more-menu.js';
@@ -68,9 +91,7 @@ export let lpWidthApplied = false;
  * subsequent mutations rather than applied once at injection time.
  */
 export function clampSideWidth(win, px) {
-  return Math.round(
-    Math.min(remToPx(win, LP_SIDE_MAX_REM), Math.max(remToPx(win, LP_SIDE_MIN_REM), px))
-  );
+  return Math.round(Math.min(remToPx(win, LP_SIDE_MAX_REM), Math.max(remToPx(win, LP_SIDE_MIN_REM), px)));
 }
 
 /** Bredden panelet står i, som den er gemt. Intet gemt: standarden. */

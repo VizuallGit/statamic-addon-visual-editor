@@ -95,7 +95,10 @@ test('pick inside a scoped HTML pane: the <li> is found in the <ul> slice and wr
   const pane = editors.css.state.doc.toString();
 
   editors.css.type(`${pane}\n.foo {}\n`);
-  assert.equal(editors.html.state.doc.toString(), '<ul class="grid">\n    <li class="[ yyttrr foo ] flex">Hej</li>\n  </ul>');
+  assert.equal(
+    editors.html.state.doc.toString(),
+    '<ul class="grid">\n    <li class="[ yyttrr foo ] flex">Hej</li>\n  </ul>'
+  );
   assert.equal(fullHtml(), HTML.replace('[ yyttrr ]', '[ yyttrr foo ]'));
 });
 
@@ -105,7 +108,7 @@ test('a rule nested inside the picked rule styles something inside it: no [ ] on
   assert.equal(fullHtml(), HTML);
 });
 
-test('a name already in [ ] elsewhere in the file is that element\'s rule, not the <li>\'s', () => {
+test("a name already in [ ] elsewhere in the file is that element's rule, not the <li>'s", () => {
   openOnLi({ by: 'scope' });
 
   const pane = editors.css.state.doc.toString();

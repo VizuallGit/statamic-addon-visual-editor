@@ -2,6 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests\Http\Middleware;
 
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
@@ -142,8 +144,8 @@ class RecordEditorWriteTest extends TestCase
         }
 
         $dock = Route::getRoutes()->getByName('sve.section-template.update');
-        $this->assertContains(\Illuminate\Foundation\Http\Middleware\TrimStrings::class, $dock->excludedMiddleware());
-        $this->assertContains(\Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class, $dock->excludedMiddleware());
+        $this->assertContains(TrimStrings::class, $dock->excludedMiddleware());
+        $this->assertContains(ConvertEmptyStringsToNull::class, $dock->excludedMiddleware());
     }
 
     public function test_a_real_editor_route_stamps_the_session_it_was_called_with(): void

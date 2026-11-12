@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\Component;
 use MarioHamann\StatamicVisualEditor\ComponentMeta;
+use Symfony\Component\Yaml\Exception\ParseException;
 
 /**
  * A component's category and description live beside the component file and
@@ -75,7 +76,7 @@ class ComponentMetaTest extends TestCase
         try {
             ComponentMeta::save('card', 'Cards', '');
             $this->fail('save must refuse');
-        } catch (\Symfony\Component\Yaml\Exception\ParseException) {
+        } catch (ParseException) {
             $this->assertSame("image: [broken\n", file_get_contents(ComponentMeta::path()));
         }
     }

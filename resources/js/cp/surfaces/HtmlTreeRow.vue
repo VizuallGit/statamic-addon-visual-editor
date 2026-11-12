@@ -72,7 +72,11 @@ const DEL =
 
 function rowTitle(row) {
   if (row.synthetic) {
-    return row.frame === 'main' ? ui.frameMainTitle : row.frame === 'template' ? ui.frameTemplateTitle : ui.frameOpenTitle;
+    return row.frame === 'main'
+      ? ui.frameMainTitle
+      : row.frame === 'template'
+        ? ui.frameTemplateTitle
+        : ui.frameOpenTitle;
   }
 
   if (row.kind === 'component') {
@@ -284,12 +288,20 @@ function shownName(row) {
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row, $event.currentTarget)"
-    @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onRename?.(row.id)"
+    @dblclick.prevent="
+      row.synthetic
+        ? ui.onFrameEnter?.(row.frame)
+        : isFrame(row) || isSlot(row) || isShutSection(row)
+          ? null
+          : ui.onRename?.(row.id)
+    "
     @keydown.enter.prevent="onRowClick(row, $event.currentTarget)"
     @keydown.space.prevent="onRowClick(row, $event.currentTarget)"
     @pointerdown="onPointerDown($event, row)"
     @pointerenter="isShutSection(row) ? ui.onSectionHover?.(row.section) : null"
-    @contextmenu.prevent.stop="isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onContext?.($event, row.id)"
+    @contextmenu.prevent.stop="
+      isFrame(row) || isSlot(row) || isShutSection(row) ? null : ui.onContext?.($event, row.id)
+    "
   >
     <!--
       The tags look indents with a spacer that draws one guide per level, each
@@ -300,14 +312,18 @@ function shownName(row) {
       gap below. Neither carries text, so nothing that reads a row's
       textContent sees them.
     -->
-    <span data-sve-ht-indent aria-hidden="true"><i v-for="(cat, i) in row.guides || []" :key="i" :data-sve-ht-cat="cat"></i></span>
+    <span data-sve-ht-indent aria-hidden="true"
+      ><i v-for="(cat, i) in row.guides || []" :key="i" :data-sve-ht-cat="cat"></i
+    ></span>
     <button
       v-if="row.hasChildren || rowCanHold(row)"
       type="button"
       data-sve-ht-twist
       v-bind="(row.synthetic ? ui.mainShut : rowShut(row)) ? { 'data-sve-ht-shut': '' } : {}"
       v-html="TWIST"
-      @click.stop.prevent="row.synthetic ? ui.onFrameTwist?.() : isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)"
+      @click.stop.prevent="
+        row.synthetic ? ui.onFrameTwist?.() : isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)
+      "
       @pointerdown.stop
       @dblclick.stop
     ></button>
@@ -332,7 +348,8 @@ function shownName(row) {
         @click.stop.prevent
         @pointerdown.stop
         @dblclick.stop.prevent="ui.onTagChange?.($event, row.id)"
-      >{{ row.tag }}</button>
+        >{{ row.tag }}</button
+      >
       <!--
         Shut, the tag is not a button: there is no file open to rename it in.
         Same chip, same place, same words — only the door is closed.
@@ -351,7 +368,7 @@ function shownName(row) {
         @keydown.enter.prevent="ui.onRenameCommit?.()"
         @keydown.escape.prevent="ui.onRenameCancel?.()"
         @blur="ui.onRenameCommit?.()"
-      >
+      />
       <span v-else data-sve-ht-name>{{ shownName(row) }}</span>
     </span>
     <!--
@@ -487,7 +504,10 @@ function shownName(row) {
         v-html="MORE"
         @pointerenter="hoverMore($event.currentTarget, row)"
         @pointerleave="leaveMore"
-        @click.stop.prevent="leaveMore(); ui.onMore?.($event.currentTarget, row.id)"
+        @click.stop.prevent="
+          leaveMore();
+          ui.onMore?.($event.currentTarget, row.id);
+        "
         @pointerdown.stop
         @dblclick.stop
       ></button>
@@ -499,7 +519,8 @@ function shownName(row) {
     :data-sve-ht-id="row.id"
     v-bind="ui.dropId === row.id && ui.dropPlace === 'inside' ? { 'data-sve-ht-over': '' } : {}"
     :style="{ '--sve-ht-depth': row.depth + 1 }"
-  >{{ ui.slotText }}</div>
+    >{{ ui.slotText }}</div
+  >
 </template>
 
 <style scoped>

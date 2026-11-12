@@ -21,7 +21,13 @@
  */
 import { ask } from '../cp/bus.js';
 import { classTokens, paintUtilities, swapSiteCss } from '../cp/theme-panel/utility-paint.js';
-import { compilerCss, lockedUtilities, utilityBodies, utilityNameProblem, writeUtilities } from '../cp/theme-panel/utilities.js';
+import {
+  compilerCss,
+  lockedUtilities,
+  utilityBodies,
+  utilityNameProblem,
+  writeUtilities,
+} from '../cp/theme-panel/utilities.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
 import { pageDocuments } from '../lib/preview-frame.js';
@@ -200,12 +206,7 @@ export async function storeUtility(win, name, raws, { quiet = false } = {}) {
   }
 
   if (!quiet || left.length) {
-    toast(
-      win,
-      'success',
-      left.length ? 'tw_utility_saved_left' : 'tw_utility_saved',
-      { name, names: left.join(' ') }
-    );
+    toast(win, 'success', left.length ? 'tw_utility_saved_left' : 'tw_utility_saved', { name, names: left.join(' ') });
   }
 
   return true;

@@ -46,13 +46,13 @@ final class Job
         $id = (string) Str::uuid();
         $user = (string) User::current()?->id();
 
-        static::sweep();
-        static::write($id, [
-            'kind' => in_array($kind, static::KINDS, true) ? $kind : 'complete',
+        self::sweep();
+        self::write($id, [
+            'kind' => in_array($kind, self::KINDS, true) ? $kind : 'complete',
             'request' => $request,
             'user' => $user,
             'state' => 'pending',
-            'started' => static::now(),
+            'started' => self::now(),
         ]);
 
         DockGhost::claim($user, $kind, $id);
@@ -65,11 +65,11 @@ final class Job
     /** The job, or null when there is none by that id (or the id is not one). */
     public static function read(string $id): ?array
     {
-        if (! preg_match('/^[0-9a-f-]{36}$/', $id) || ! is_file(static::path($id))) {
+        if (! preg_match('/^[0-9a-f-]{36}$/', $id) || ! is_file(self::path($id))) {
             return null;
         }
 
-        $job = json_decode((string) @file_get_contents(static::path($id)), true);
+        $job = json_decode((string) @file_get_contents(self::path($id)), true);
 
         return is_array($job) ? $job : null;
     }
@@ -77,26 +77,26 @@ final class Job
     /** The worker's answer, in DockGhost::complete()'s / edit()'s shape. */
     public static function finish(string $id, array $result): void
     {
-        $job = static::read($id);
+        $job = self::read($id);
 
         if ($job === null) {
             return;
         }
 
-        static::write($id, ['state' => 'done', 'result' => $result, 'finished' => static::now()] + $job);
+        self::write($id, ['state' => 'done', 'result' => $result, 'finished' => self::now()] + $job);
     }
 
     /** Still pending after STALE: its worker is gone. */
     public static function stale(array $job): bool
     {
-        return ($job['state'] ?? '') !== 'done' && static::now() - (int) ($job['started'] ?? 0) > static::STALE * 1000;
+        return ($job['state'] ?? '') !== 'done' && self::now() - (int) ($job['started'] ?? 0) > self::STALE * 1000;
     }
 
     /** Job files older than KEEP, gone. */
     public static function sweep(): void
     {
-        foreach (glob(static::directory().'/*') ?: [] as $path) {
-            if (is_file($path) && filemtime($path) < time() - static::KEEP) {
+        foreach (glob(self::directory().'/*') ?: [] as $path) {
+            if (is_file($path) && filemtime($path) < time() - self::KEEP) {
                 @unlink($path);
             }
         }
@@ -104,22 +104,22 @@ final class Job
 
     protected static function path(string $id): string
     {
-        return static::directory().'/'.$id.'.json';
+        return self::directory().'/'.$id.'.json';
     }
 
     /** Whole or not at all: the browser may read the file while the worker writes it. */
     protected static function write(string $id, array $job): void
     {
-        $dir = static::directory();
+        $dir = self::directory();
 
         if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
             return;
         }
 
-        $tmp = static::path($id).'.'.getmypid().'.tmp';
+        $tmp = self::path($id).'.'.getmypid().'.tmp';
 
         file_put_contents($tmp, json_encode($job, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        rename($tmp, static::path($id));
+        rename($tmp, self::path($id));
     }
 
     /** Milliseconds. */

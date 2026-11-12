@@ -27,7 +27,7 @@ final class Run
     public static function start(string $user, string $tab, array $started): string
     {
         $id = (string) Str::uuid();
-        $dir = static::directory();
+        $dir = self::directory();
 
         if (! is_dir($dir)) {
             @mkdir($dir, 0775, true);
@@ -47,7 +47,7 @@ final class Run
      */
     public static function take(string $id): ?array
     {
-        $path = static::directory()."/{$id}.json";
+        $path = self::directory()."/{$id}.json";
 
         if (! preg_match('/^[0-9a-f-]{36}$/', $id) || ! is_file($path)) {
             return null;

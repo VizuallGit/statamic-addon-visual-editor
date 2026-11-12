@@ -12,14 +12,36 @@
  */
 import { ref } from 'vue';
 import { flattenHtmlTree, parseTemplateTree } from '../../../resources/js/html-tree-parse.js';
-import { isGallery, readGallery, withGalleryField, withGalleryImages } from '../../../resources/js/build-mode/gallery.js';
+import {
+  isGallery,
+  readGallery,
+  withGalleryField,
+  withGalleryImages,
+} from '../../../resources/js/build-mode/gallery.js';
 import { wholeOwner } from '../../../resources/js/build-mode/whole.js';
 import { deleteHtml, duplicateHtml } from '../../../resources/js/html-tree-edit.js';
-import { appendToken, readClassAttr, renameTag, replaceToken, splitClass, splitUtility, tokenizeClassValue, writeClassValue } from '../../../resources/js/tw-parse.js';
+import {
+  appendToken,
+  readClassAttr,
+  renameTag,
+  replaceToken,
+  splitClass,
+  splitUtility,
+  tokenizeClassValue,
+  writeClassValue,
+} from '../../../resources/js/tw-parse.js';
 import { readAttribute, withAttribute } from '../../../resources/js/build-mode/attrs.js';
 import { isOneLine, readText, withText } from '../../../resources/js/build-mode/text.js';
 import { onlyTypes, wrongFields } from '../../../resources/js/data-var-types.js';
-import { isRichBlock, readRich, readRichField, richOwner, sameRich, withRich, withRichField } from '../../../resources/js/build-mode/rich.js';
+import {
+  isRichBlock,
+  readRich,
+  readRichField,
+  richOwner,
+  sameRich,
+  withRich,
+  withRichField,
+} from '../../../resources/js/build-mode/rich.js';
 import { withSvgSrc } from '../../../resources/js/build-mode/svg.js';
 import { breakpoints } from '../../../resources/js/breakpoints.js';
 import { HTML_ICONS } from '../../../resources/js/html-tree-icons.js';
@@ -36,11 +58,27 @@ const SCALES = {
   display: ['block', 'inline-block', 'flex', 'inline-flex', 'grid', 'hidden'],
   position: ['static', 'relative', 'absolute', 'fixed', 'sticky'],
   'flex-direction': ['flex-row', 'flex-col', 'flex-row-reverse', 'flex-col-reverse'],
-  'justify-content': ['justify-start', 'justify-center', 'justify-end', 'justify-between', 'justify-around', 'justify-evenly'],
+  'justify-content': [
+    'justify-start',
+    'justify-center',
+    'justify-end',
+    'justify-between',
+    'justify-around',
+    'justify-evenly',
+  ],
   'align-items': ['items-start', 'items-center', 'items-end', 'items-stretch', 'items-baseline'],
   'grid-template-columns': Array.from({ length: 12 }, (_, i) => `grid-cols-${i + 1}`),
   'text-align': ['text-left', 'text-center', 'text-right', 'text-justify'],
-  'font-weight': ['font-thin', 'font-light', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-extrabold', 'font-black'],
+  'font-weight': [
+    'font-thin',
+    'font-light',
+    'font-normal',
+    'font-medium',
+    'font-semibold',
+    'font-bold',
+    'font-extrabold',
+    'font-black',
+  ],
   'font-size': ['300', '400', '500', '600', '700', '800', '900'].map((s) => `text-${s}`),
   'line-height': ['leading-none', 'leading-tight', 'leading-snug', 'leading-normal', 'leading-relaxed'],
   'font-family': ['font-sans', 'font-serif', 'font-mono'],
@@ -57,10 +95,22 @@ const SCALES = {
   'column-gap': SPACE.map((s) => `gap-x-${s}`),
 };
 
-for (const [box, letter] of [['padding', 'p'], ['margin', 'm']]) {
+for (const [box, letter] of [
+  ['padding', 'p'],
+  ['margin', 'm'],
+]) {
   const sides = {
-    '': '', '-block': 'y', '-inline': 'x', '-block-start': 'bs', '-block-end': 'be', '-inline-start': 's', '-inline-end': 'e',
-    '-top': 't', '-bottom': 'b', '-left': 'l', '-right': 'r',
+    '': '',
+    '-block': 'y',
+    '-inline': 'x',
+    '-block-start': 'bs',
+    '-block-end': 'be',
+    '-inline-start': 's',
+    '-inline-end': 'e',
+    '-top': 't',
+    '-bottom': 'b',
+    '-left': 'l',
+    '-right': 'r',
   };
 
   for (const [suffix, side] of Object.entries(sides)) {
@@ -106,7 +156,19 @@ export function propertyOf(name) {
  * The port
  * ------------------------------------------------------------------ */
 
-export function createHarnessPort({ html, lists, strings, components, svgs, sectionTag, states, prose, colors, dataModel = {}, onMenu }) {
+export function createHarnessPort({
+  html,
+  lists,
+  strings,
+  components,
+  svgs,
+  sectionTag,
+  states,
+  prose,
+  colors,
+  dataModel = {},
+  onMenu,
+}) {
   const file = ref(html);
   const selected = ref('');
   const plus = ref('');
@@ -122,7 +184,10 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
   };
   const rows = () => breakpoints(window);
   // The size, then the state — the order tw-classes.js writes them in (`max-md:hover`).
-  const variant = () => [size.value ? rows().find((row) => row.handle === size.value)?.tw || '' : '', state.value].filter(Boolean).join(':');
+  const variant = () =>
+    [size.value ? rows().find((row) => row.handle === size.value)?.tw || '' : '', state.value]
+      .filter(Boolean)
+      .join(':');
   const node = () => (selected.value ? findByPath(parseTemplateTree(file.value), selected.value) : null);
   const value = () => {
     const picked = node();
@@ -241,7 +306,9 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
       const picked = node();
 
       if (picked) {
-        port.write(renameTag(file.value, picked, name), { select: selected.value.replace(/[^/]+$/, (last) => last.replace(/:[^:]+$/, `:${name}`)) });
+        port.write(renameTag(file.value, picked, name), {
+          select: selected.value.replace(/[^/]+$/, (last) => last.replace(/:[^:]+$/, `:${name}`)),
+        });
       }
     },
     attr(name) {
@@ -332,7 +399,11 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
     },
     pickField(anchor, path, types, pick, options) {
       const fits = onlyTypes(dataModel, types, options);
-      const names = [...fits.section, ...fits.page.flatMap((group) => group.items), ...fits.site.flatMap((group) => group.items)].map((row) => row.var);
+      const names = [
+        ...fits.section,
+        ...fits.page.flatMap((group) => group.items),
+        ...fits.site.flatMap((group) => group.items),
+      ].map((row) => row.var);
 
       onMenu?.({ anchor, title: 'data', names, active: '', pick: (name) => pick(`{{ ${name} }}`) });
     },
@@ -424,7 +495,9 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
     activeClass(property) {
       const text = value();
 
-      return text === null ? '' : chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property)?.name || '';
+      return text === null
+        ? ''
+        : chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property)?.name || '';
     },
     setClass(name) {
       const text = value();
@@ -434,7 +507,9 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
       }
 
       const property = propertyOf(name);
-      const hit = chips(text).find((chip) => chip.key === variant() && (chip.name === name || (property && propertyOf(chip.name) === property)));
+      const hit = chips(text).find(
+        (chip) => chip.key === variant() && (chip.name === name || (property && propertyOf(chip.name) === property))
+      );
       const full = variant() ? `${variant()}:${name}` : name;
 
       commit(hit ? replaceToken(text, hit, hit.name === name ? '' : full) : appendToken(text, full));
@@ -453,7 +528,11 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
       }
 
       const full = !name ? '' : variant() ? `${variant()}:${name}` : name;
-      const hits = ownRaw ? chips(text).filter((chip) => chip.raw === ownRaw).sort((a, b) => b.from - a.from) : [];
+      const hits = ownRaw
+        ? chips(text)
+            .filter((chip) => chip.raw === ownRaw)
+            .sort((a, b) => b.from - a.from)
+        : [];
       let next = text;
 
       if (hits.length) {
@@ -462,7 +541,9 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
         });
       } else if (full && !chips(text).some((chip) => chip.raw === full)) {
         const property = propertyOf(name);
-        const hit = property ? chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property) : null;
+        const hit = property
+          ? chips(text).find((chip) => chip.key === variant() && propertyOf(chip.name) === property)
+          : null;
 
         next = hit ? replaceToken(text, hit, full) : appendToken(text, full);
       }
@@ -485,7 +566,13 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
       });
     },
     openMenu(property, anchor) {
-      onMenu?.({ anchor, title: property, names: port.scale(property), active: port.activeClass(property), pick: (name) => port.setClass(name) });
+      onMenu?.({
+        anchor,
+        title: property,
+        names: port.scale(property),
+        active: port.activeClass(property),
+        pick: (name) => port.setClass(name),
+      });
     },
 
     /* One tool of the row — runTwTool / twToolActive's rule */
@@ -508,7 +595,9 @@ export function createHarnessPort({ html, lists, strings, components, svgs, sect
       }
 
       if (item.twGroup) {
-        const have = chips(value() || '').filter((chip) => chip.key === variant()).map((chip) => chip.name);
+        const have = chips(value() || '')
+          .filter((chip) => chip.key === variant())
+          .map((chip) => chip.name);
 
         return item.twGroup.some((name) => have.includes(name));
       }

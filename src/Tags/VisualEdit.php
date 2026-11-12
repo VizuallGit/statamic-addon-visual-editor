@@ -2,19 +2,19 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tags;
 
-use Statamic\Tags\Tags;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesScope;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\Attributes;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\BardConfig;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\Controls;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesFields;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesIcons;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesInserts;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Controls;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\BardConfig;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Attributes;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesScope;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\SetAttributes;
+use Statamic\Tags\Tags;
 
 class VisualEdit extends Tags
 {
-    use ResolvesScope, ResolvesFields, ResolvesIcons, ResolvesInserts;
+    use ResolvesFields, ResolvesIcons, ResolvesInserts, ResolvesScope;
 
     protected static $handle = 'visual_edit';
 

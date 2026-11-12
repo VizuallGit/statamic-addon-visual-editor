@@ -45,12 +45,12 @@ final class SectionFieldGuard
 
     public static function blueprintSaving(BlueprintSaving $event): void
     {
-        if (! static::watching()) {
+        if (! self::watching()) {
             return;
         }
 
         $blueprint = $event->blueprint;
-        $before = static::onDisk($blueprint);
+        $before = self::onDisk($blueprint);
 
         if (! $before || ! SectionField::in($before)) {
             return;
@@ -62,12 +62,12 @@ final class SectionFieldGuard
             return;
         }
 
-        static::guard('blueprint:'.$blueprint->fullyQualifiedHandle().':'.$field, $field, static::pagesOf($blueprint, $field), false);
+        self::guard('blueprint:'.$blueprint->fullyQualifiedHandle().':'.$field, $field, self::pagesOf($blueprint, $field), false);
     }
 
     public static function blueprintDeleting(BlueprintDeleting $event): void
     {
-        if (! static::watching()) {
+        if (! self::watching()) {
             return;
         }
 
@@ -79,12 +79,12 @@ final class SectionFieldGuard
 
         $field = SectionField::of($blueprint);
 
-        static::guard('blueprint-delete:'.$blueprint->fullyQualifiedHandle(), $field, static::pagesOf($blueprint, $field), true);
+        self::guard('blueprint-delete:'.$blueprint->fullyQualifiedHandle(), $field, self::pagesOf($blueprint, $field), true);
     }
 
     public static function fieldsetSaving(FieldsetSaving $event): void
     {
-        if (! static::watching()) {
+        if (! self::watching()) {
             return;
         }
 
@@ -95,24 +95,24 @@ final class SectionFieldGuard
             return;
         }
 
-        $before = static::sectionsFieldsIn(FieldsetFields::flatten((array) YAML::file($path)->parse()));
+        $before = self::sectionsFieldsIn(FieldsetFields::flatten((array) YAML::file($path)->parse()));
         $after = array_column(array_filter(FieldsetFields::flatten($fieldset->contents()), 'is_array'), 'handle');
 
         foreach (array_diff($before, $after) as $field) {
-            static::guard('fieldset:'.$fieldset->handle().':'.$field, $field, static::pagesThrough($fieldset->handle(), $field), false);
+            self::guard('fieldset:'.$fieldset->handle().':'.$field, $field, self::pagesThrough($fieldset->handle(), $field), false);
         }
     }
 
     public static function fieldsetDeleting(FieldsetDeleting $event): void
     {
-        if (! static::watching()) {
+        if (! self::watching()) {
             return;
         }
 
         $fieldset = $event->fieldset;
 
-        foreach (static::sectionsFieldsIn(FieldsetFields::flatten($fieldset->contents())) as $field) {
-            static::guard('fieldset-delete:'.$fieldset->handle().':'.$field, $field, static::pagesThrough($fieldset->handle(), $field), true);
+        foreach (self::sectionsFieldsIn(FieldsetFields::flatten($fieldset->contents())) as $field) {
+            self::guard('fieldset-delete:'.$fieldset->handle().':'.$field, $field, self::pagesThrough($fieldset->handle(), $field), true);
         }
     }
 
@@ -221,8 +221,8 @@ final class SectionFieldGuard
 
         foreach (Collection::all() as $collection) {
             foreach ($collection->entryBlueprints() as $blueprint) {
-                foreach (static::handlesFor($blueprint->contents(), $fieldset, $field) as $handle) {
-                    $pages = array_merge($pages, static::pagesOf($blueprint, $handle));
+                foreach (self::handlesFor($blueprint->contents(), $fieldset, $field) as $handle) {
+                    $pages = array_merge($pages, self::pagesOf($blueprint, $handle));
                 }
             }
         }
@@ -276,9 +276,9 @@ final class SectionFieldGuard
             return;
         }
 
-        Cache::put($key, true, static::CONFIRM_SECONDS);
+        Cache::put($key, true, self::CONFIRM_SECONDS);
 
-        $named = array_slice($pages, 0, static::NAMED);
+        $named = array_slice($pages, 0, self::NAMED);
         $more = count($pages) - count($named);
         $names = implode(', ', $named).($more > 0 ? ' '.trans('sve::messages.sections_guard_more', ['count' => $more]) : '');
 

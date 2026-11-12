@@ -4,6 +4,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\Boot\ControlPanelScript;
+use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\PreviewHost;
 use Statamic\Facades\User;
@@ -107,7 +109,7 @@ class InjectBridgeScript
         $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         $strings = json_encode(
-            \MarioHamann\StatamicVisualEditor\Boot\ControlPanelScript::strings(),
+            ControlPanelScript::strings(),
             $flags | JSON_UNESCAPED_UNICODE
         );
 
@@ -239,6 +241,6 @@ class InjectBridgeScript
 
     protected function resolveScriptUrl(string $entry): string
     {
-        return \MarioHamann\StatamicVisualEditor\BuiltAssets::url($entry);
+        return BuiltAssets::url($entry);
     }
 }

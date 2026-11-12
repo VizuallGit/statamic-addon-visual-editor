@@ -30,7 +30,11 @@ function site() {
   return { root, read: (rel) => readFileSync(join(root, rel), 'utf8'), exists: (rel) => existsSync(join(root, rel)) };
 }
 
-const scope = { files: [SECTION, FIELDSET], create: ['resources/fieldsets/', 'resources/views/partials/page_sections/'], rules: RULES };
+const scope = {
+  files: [SECTION, FIELDSET],
+  create: ['resources/fieldsets/', 'resources/views/partials/page_sections/'],
+  rules: RULES,
+};
 const refused = (result) => typeof result === 'object' && result.isError === true;
 const text = (result) => (typeof result === 'string' ? result : result.content[0].text);
 
@@ -38,7 +42,10 @@ test('an open file is edited and reported', () => {
   const s = site();
   const gate = createGate(s.root, scope);
 
-  assert.equal(gate.editFile({ path: SECTION, old_string: '</h1>', new_string: '</h1>\n  <h2>{{ subtitle }}</h2>' }), `Edited ${SECTION}.`);
+  assert.equal(
+    gate.editFile({ path: SECTION, old_string: '</h1>', new_string: '</h1>\n  <h2>{{ subtitle }}</h2>' }),
+    `Edited ${SECTION}.`
+  );
   assert.match(s.read(SECTION), /<h2>\{\{ subtitle \}\}<\/h2>/);
   assert.deepEqual(gate.written, [SECTION]);
 });
@@ -47,7 +54,11 @@ test("the site's CSS, shared fieldsets and page_sections.yaml are refused and le
   const s = site();
   const gate = createGate(s.root, scope);
 
-  for (const path of ['resources/css/site.css', 'resources/fieldsets/links.yaml', 'resources/fieldsets/page_sections.yaml']) {
+  for (const path of [
+    'resources/css/site.css',
+    'resources/fieldsets/links.yaml',
+    'resources/fieldsets/page_sections.yaml',
+  ]) {
     const before = s.read(path);
 
     assert.ok(refused(gate.writeFile({ path, content: 'gone' })), path);
@@ -96,7 +107,10 @@ test('an absolute path inside the site counts as its relative one', () => {
   assert.equal(gate.writeFile({ path: join(s.root, FIELDSET), content: 'title: Hero 2\n' }), `Wrote ${FIELDSET}.`);
   assert.equal(s.read(FIELDSET), 'title: Hero 2\n');
   // The same site by its real path (the OS temp folder is a symlink on macOS).
-  assert.equal(gate.writeFile({ path: join(realpathSync(s.root), FIELDSET), content: 'title: Hero 3\n' }), `Wrote ${FIELDSET}.`);
+  assert.equal(
+    gate.writeFile({ path: join(realpathSync(s.root), FIELDSET), content: 'title: Hero 3\n' }),
+    `Wrote ${FIELDSET}.`
+  );
 });
 
 test('an edit must match exactly once, or say replace_all', () => {
@@ -105,7 +119,10 @@ test('an edit must match exactly once, or say replace_all', () => {
 
   assert.match(text(gate.editFile({ path: SECTION, old_string: 'nope', new_string: 'x' })), /not in/);
   assert.match(text(gate.editFile({ path: SECTION, old_string: 'section>', new_string: 'div>' })), /2 times/);
-  assert.equal(gate.editFile({ path: SECTION, old_string: 'section>', new_string: 'div>', replace_all: true }), `Edited ${SECTION}.`);
+  assert.equal(
+    gate.editFile({ path: SECTION, old_string: 'section>', new_string: 'div>', replace_all: true }),
+    `Edited ${SECTION}.`
+  );
   assert.equal(s.read(SECTION), '<div>\n  <h1>{{ title }}</h1>\n</div>\n');
 });
 
@@ -122,7 +139,10 @@ test('register_section only records a well-formed request, once', () => {
   const s = site();
   const gate = createGate(s.root, scope);
 
-  assert.match(text(gate.registerSection({ group: 'hero', handle: 'faq/style_1', display: 'FAQ', fieldset: 'faq.style_1' })), /will be added/);
+  assert.match(
+    text(gate.registerSection({ group: 'hero', handle: 'faq/style_1', display: 'FAQ', fieldset: 'faq.style_1' })),
+    /will be added/
+  );
   gate.registerSection({ group: 'hero', handle: 'faq/style_1', display: 'FAQ', fieldset: 'faq.style_1' });
   assert.ok(refused(gate.registerSection({ group: 'hero', handle: '../x', display: 'X', fieldset: 'x.y' })));
   assert.ok(refused(gate.registerSection({ group: 'hero', handle: 'faq/style_2', display: 'FAQ 2' })));
@@ -133,8 +153,23 @@ test('register_section only records a well-formed request, once', () => {
 test('the tools offered: add_rule only when the rules file is open', () => {
   const s = site();
 
-  assert.deepEqual(Object.keys(gateTools(createGate(s.root, scope), { rules: true })).sort(), ['add_rule', 'delete_file', 'edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
-  assert.deepEqual(Object.keys(gateTools(createGate(s.root, { ...scope, rules: null }))).sort(), ['delete_file', 'edit_file', 'fetch_page', 'register_section', 'save_image', 'write_file']);
+  assert.deepEqual(Object.keys(gateTools(createGate(s.root, scope), { rules: true })).sort(), [
+    'add_rule',
+    'delete_file',
+    'edit_file',
+    'fetch_page',
+    'register_section',
+    'save_image',
+    'write_file',
+  ]);
+  assert.deepEqual(Object.keys(gateTools(createGate(s.root, { ...scope, rules: null }))).sort(), [
+    'delete_file',
+    'edit_file',
+    'fetch_page',
+    'register_section',
+    'save_image',
+    'write_file',
+  ]);
 });
 
 /* ---- Build mode on the open site: content and theme, no file to name ---- */
@@ -152,10 +187,24 @@ test('build mode makes a taxonomy, its blueprint and an entry, and changes site.
   const s = site();
   const gate = createGate(s.root, BUILD);
 
-  assert.equal(text(gate.writeFile({ path: 'content/taxonomies/skills.yaml', content: 'title: Skills\n' })), 'Wrote content/taxonomies/skills.yaml.');
-  assert.equal(text(gate.writeFile({ path: 'resources/blueprints/taxonomies/skills/skill.yaml', content: 'title: Skill\n' })), 'Wrote resources/blueprints/taxonomies/skills/skill.yaml.');
-  assert.equal(text(gate.writeFile({ path: 'content/collections/employees/jane-doe.md', content: '---\nid: 1\ntitle: Jane\n---\n' })), 'Wrote content/collections/employees/jane-doe.md.');
-  assert.equal(text(gate.editFile({ path: 'resources/css/site.css', old_string: 'black', new_string: 'navy' })), 'Edited resources/css/site.css.');
+  assert.equal(
+    text(gate.writeFile({ path: 'content/taxonomies/skills.yaml', content: 'title: Skills\n' })),
+    'Wrote content/taxonomies/skills.yaml.'
+  );
+  assert.equal(
+    text(gate.writeFile({ path: 'resources/blueprints/taxonomies/skills/skill.yaml', content: 'title: Skill\n' })),
+    'Wrote resources/blueprints/taxonomies/skills/skill.yaml.'
+  );
+  assert.equal(
+    text(
+      gate.writeFile({ path: 'content/collections/employees/jane-doe.md', content: '---\nid: 1\ntitle: Jane\n---\n' })
+    ),
+    'Wrote content/collections/employees/jane-doe.md.'
+  );
+  assert.equal(
+    text(gate.editFile({ path: 'resources/css/site.css', old_string: 'black', new_string: 'navy' })),
+    'Edited resources/css/site.css.'
+  );
   assert.equal(s.read('resources/css/site.css'), 'body { color: navy; }\n');
 });
 
@@ -163,7 +212,18 @@ test('build mode never writes secrets, PHP, built files, the addon settings or p
   const s = site();
   const gate = createGate(s.root, BUILD);
 
-  for (const path of ['.env', 'content/.env', 'resources/views/evil.blade.php', 'app/Models/User.yaml', 'config/app.yaml', 'resources/addons/visual-editor.yaml', 'resources/fieldsets/page_sections.yaml', 'public/build/manifest.json', 'public/vendor/x.js', '../outside.yaml']) {
+  for (const path of [
+    '.env',
+    'content/.env',
+    'resources/views/evil.blade.php',
+    'app/Models/User.yaml',
+    'config/app.yaml',
+    'resources/addons/visual-editor.yaml',
+    'resources/fieldsets/page_sections.yaml',
+    'public/build/manifest.json',
+    'public/vendor/x.js',
+    '../outside.yaml',
+  ]) {
     assert.ok(refused(gate.writeFile({ path, content: 'x' })), path);
   }
 
@@ -181,8 +241,17 @@ test('save_image only makes new image files in the assets folder', async () => {
   assert.ok(refused(await gate.fetchPage({ url: 'file:///etc/passwd' })));
 });
 
-test('the server\'s own network is never fetched', () => {
-  for (const ip of ['127.0.0.1', '10.0.0.5', '192.168.1.1', '172.16.0.1', '169.254.169.254', '::1', '::ffff:127.0.0.1', 'fd00::1']) {
+test("the server's own network is never fetched", () => {
+  for (const ip of [
+    '127.0.0.1',
+    '10.0.0.5',
+    '192.168.1.1',
+    '172.16.0.1',
+    '169.254.169.254',
+    '::1',
+    '::ffff:127.0.0.1',
+    'fd00::1',
+  ]) {
     assert.equal(privateAddress(ip), true, ip);
   }
 
@@ -190,7 +259,10 @@ test('the server\'s own network is never fetched', () => {
 });
 
 test('a web page is read as its title, images and text', () => {
-  const page = pageText('<html><head><title>Om os &amp; team</title><meta property="og:image" content="/og.jpg"><style>.x{}</style></head><body><h1>Team</h1><img src="img/jane.jpg" alt="Jane Doe"><p>Jane er designer.</p><script>alert(1)</script></body></html>', 'https://example.com/team/');
+  const page = pageText(
+    '<html><head><title>Om os &amp; team</title><meta property="og:image" content="/og.jpg"><style>.x{}</style></head><body><h1>Team</h1><img src="img/jane.jpg" alt="Jane Doe"><p>Jane er designer.</p><script>alert(1)</script></body></html>',
+    'https://example.com/team/'
+  );
 
   assert.match(page, /^Title: Om os & team/);
   assert.match(page, /- https:\/\/example\.com\/og\.jpg/);
@@ -207,11 +279,16 @@ test('build mode deletes a file of the open site or an image, never a closed one
   mkdirSync(join(s.root, 'public/assets/team'), { recursive: true });
   writeFileSync(join(s.root, 'public/assets/team/jane-profil.webp'), 'x');
 
-  assert.equal(text(gate.deleteFile({ path: 'content/collections/employees/old.md' })), 'Deleted content/collections/employees/old.md.');
-  assert.equal(text(gate.deleteFile({ path: 'public/assets/team/jane-profil.webp' })), 'Deleted public/assets/team/jane-profil.webp.');
+  assert.equal(
+    text(gate.deleteFile({ path: 'content/collections/employees/old.md' })),
+    'Deleted content/collections/employees/old.md.'
+  );
+  assert.equal(
+    text(gate.deleteFile({ path: 'public/assets/team/jane-profil.webp' })),
+    'Deleted public/assets/team/jane-profil.webp.'
+  );
   assert.equal(s.exists('public/assets/team/jane-profil.webp'), false);
   assert.ok(gate.written.includes('public/assets/team/jane-profil.webp'), 'reported, so Statamic is told');
   assert.ok(refused(gate.deleteFile({ path: 'resources/fieldsets/page_sections.yaml' })));
   assert.ok(refused(gate.deleteFile({ path: '.env' })));
 });
-

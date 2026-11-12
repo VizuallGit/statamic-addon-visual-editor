@@ -7,7 +7,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EditorState } from '@codemirror/state';
-import { flattenHtmlTree, lockedElementRanges, locksKept, parseTemplateTree } from '../../resources/js/html-tree-parse.js';
+import {
+  flattenHtmlTree,
+  lockedElementRanges,
+  locksKept,
+  parseTemplateTree,
+} from '../../resources/js/html-tree-parse.js';
 import { deleteHtml, lockHtml, moveHtml, unlockHtml } from '../../resources/js/html-tree-edit.js';
 import { editedByHand, lockedRanges } from '../../resources/js/lib/locked-tags.js';
 import { withTemplateElement } from '../../resources/js/template-elements.js';
@@ -70,8 +75,12 @@ test('the locked range runs from the marker to the end of the element', () => {
 });
 
 test('a loop, a component call and the sections loop can be locked too', () => {
-  const html = '{{# sve-lock #}}\n{{ page_sections }}\n    {{ partial src="partials/page_sections/{ type }" }}\n{{ /page_sections }}\n';
-  const rows = flattenHtmlTree(parseTemplateTree(html, { sectionLoops: ['page_sections'], sectionsLabel: 'S' }), new Set());
+  const html =
+    '{{# sve-lock #}}\n{{ page_sections }}\n    {{ partial src="partials/page_sections/{ type }" }}\n{{ /page_sections }}\n';
+  const rows = flattenHtmlTree(
+    parseTemplateTree(html, { sectionLoops: ['page_sections'], sectionsLabel: 'S' }),
+    new Set()
+  );
 
   assert.equal(rows.find((item) => item.kind === 'sections').locked, true);
   assert.ok(html.slice(...lockedElementRanges(html)).endsWith('{{ /page_sections }}'));
@@ -94,7 +103,15 @@ test('an edit that changes a locked element is not kept; one that moves it whole
 test('dropped "before" a locked element lands in front of its lock, not between', () => {
   const locked = lockHtml(PAGE, row(PAGE, 'div'));
   const roots = parseTemplateTree(locked);
-  const find = (nodes, tag) => nodes.flatMap((node) => [node, ...(function all(n) { return n.children.flatMap((c) => [c, ...all(c)]); })(node)]).find((node) => node.tag === tag);
+  const find = (nodes, tag) =>
+    nodes
+      .flatMap((node) => [
+        node,
+        ...(function all(n) {
+          return n.children.flatMap((c) => [c, ...all(c)]);
+        })(node),
+      ])
+      .find((node) => node.tag === tag);
   const moved = moveHtml(locked, roots, find(roots, 'footer').id, find(roots, 'div').id, 'before');
 
   // In front of the marker — the <div> is still the element the lock is on.
@@ -114,9 +131,15 @@ test('the dock refuses a person typing into a locked element, and not beside it'
   const state = EditorState.create({ doc: locked, extensions: [filter] });
   const inside = locked.indexOf('x</p>');
   const typedInside = state.update({ changes: { from: inside, insert: 'y' }, userEvent: 'input.type' }).state;
-  const toolbarInside = state.update({ changes: { from: inside, insert: '<div></div>' }, userEvent: 'input.toolbar' }).state;
+  const toolbarInside = state.update({
+    changes: { from: inside, insert: '<div></div>' },
+    userEvent: 'input.toolbar',
+  }).state;
   const marker = locked.indexOf('{{# sve-lock');
-  const deletedMarker = state.update({ changes: { from: marker, to: marker + 16 }, userEvent: 'delete.backward' }).state;
+  const deletedMarker = state.update({
+    changes: { from: marker, to: marker + 16 },
+    userEvent: 'delete.backward',
+  }).state;
   const beside = locked.indexOf('<footer');
   const typedBeside = state.update({ changes: { from: beside, insert: '<hr>' }, userEvent: 'input.type' }).state;
 

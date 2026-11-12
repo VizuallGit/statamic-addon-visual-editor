@@ -154,7 +154,9 @@ export async function woffToSfnt(bytes) {
     let data = bytes.subarray(offset, offset + compressed);
 
     if (compressed < length) {
-      data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+      data = new Uint8Array(
+        await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer()
+      );
     }
 
     entries.push({ tag: bytes.subarray(at, at + 4), checksum: v.getUint32(at + 16), data });
@@ -243,7 +245,16 @@ export async function readFontFile(file) {
     file,
     bytes,
     kind,
-    family: info.family || stem.replace(/[-_](thin|extralight|light|regular|medium|semibold|bold|extrabold|black|italic|variable|vf)\b.*$/i, '').replace(/[-_]+/g, ' ').trim() || stem,
+    family:
+      info.family ||
+      stem
+        .replace(
+          /[-_](thin|extralight|light|regular|medium|semibold|bold|extrabold|black|italic|variable|vf)\b.*$/i,
+          ''
+        )
+        .replace(/[-_]+/g, ' ')
+        .trim() ||
+      stem,
     weight: info.axis ? info.weight : nearestWeight(info.weight),
     italic: info.italic,
     axis: info.axis,

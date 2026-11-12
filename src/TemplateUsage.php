@@ -36,12 +36,12 @@ final class TemplateUsage
 
         return [
             'view' => $view,
-            'name' => static::name($view),
+            'name' => self::name($view),
             // The layout frames every page there is; listing them says less.
             'everything' => $layout,
-            'used_by' => $layout ? [] : static::usedBy($view),
-            'sections_fields' => $layout ? [] : static::sectionsFields($view),
-            'open' => static::slotFor($view),
+            'used_by' => $layout ? [] : self::usedBy($view),
+            'sections_fields' => $layout ? [] : self::sectionsFields($view),
+            'open' => self::slotFor($view),
         ];
     }
 
@@ -63,10 +63,10 @@ final class TemplateUsage
         if (OwnPage::is($entry)) {
             $blueprint = $entry->blueprint();
 
-            return ['own_page' => true, 'sections_fields' => $blueprint && SectionField::in($blueprint) ? [SectionField::of($blueprint)] : []] + static::of($view);
+            return ['own_page' => true, 'sections_fields' => $blueprint && SectionField::in($blueprint) ? [SectionField::of($blueprint)] : []] + self::of($view);
         }
 
-        return static::of($view) + ['own_page' => false];
+        return self::of($view) + ['own_page' => false];
     }
 
     /**
@@ -106,8 +106,8 @@ final class TemplateUsage
             }
         }
 
-        $items = array_merge($items, array_slice($pages, 0, static::NAMED_PAGES));
-        $more = count($pages) - static::NAMED_PAGES;
+        $items = array_merge($items, array_slice($pages, 0, self::NAMED_PAGES));
+        $more = count($pages) - self::NAMED_PAGES;
 
         if ($more > 0) {
             $items[] = [
@@ -184,7 +184,7 @@ final class TemplateUsage
     /** What the board calls the view's card: "Standardside", "Services · Show". */
     public static function name(string $view): string
     {
-        $slot = static::slotFor($view);
+        $slot = self::slotFor($view);
 
         if ($slot === null) {
             return $view;
