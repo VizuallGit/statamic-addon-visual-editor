@@ -42,7 +42,7 @@ async function waitIn(frame, selector, ms) { try { await frame.waitForSelector(s
 // The test account starts from the default layout (the editor writes its prefs back on every run).
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 if (existsSync(USER_FILE) && env('SVE_NO_PREFS_WRITES', '') !== '1') {
-  writeFileSync(USER_FILE, readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:\n(?:    .*\n)*/m, ''));
+  writeFileSync(USER_FILE, readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, ''));
   info('layout prefs', 'reset');
 }
 

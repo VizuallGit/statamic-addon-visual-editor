@@ -370,7 +370,7 @@ if (WORKTREE) {
 }
 
 if (userYaml !== null) {
-  writeFileSync(USER_FILE, userYaml.replace(/^  sve_chrome:\n(?:    .*\n)*/m, ''));
+  writeFileSync(USER_FILE, userYaml.replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, ''));
 }
 
 let filePath = null;

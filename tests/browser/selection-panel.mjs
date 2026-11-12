@@ -66,7 +66,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 function seed(prefs) {
-  let yaml = readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:\n(?:    .*\n)*/m, '');
+  let yaml = readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, '');
   if (prefs) {
     const block = `  sve_chrome:\n${Object.entries(prefs).map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
     yaml = /^preferences:\n/m.test(yaml) ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`) : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;

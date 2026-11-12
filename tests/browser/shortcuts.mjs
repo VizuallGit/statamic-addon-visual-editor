@@ -75,7 +75,7 @@ const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 const userYaml = existsSync(USER_FILE) ? readFileSync(USER_FILE, 'utf8') : null;
 
 if (userYaml !== null) {
-  writeFileSync(USER_FILE, userYaml.replace(/^  sve_chrome:\n(?:    .*\n)*/m, ''));
+  writeFileSync(USER_FILE, userYaml.replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, ''));
 }
 
 const blockPrefsWrite = (req) => {

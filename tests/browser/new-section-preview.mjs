@@ -32,7 +32,7 @@ const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 // writes them back on every run — so the test account starts clean each time
 // (as the smoke test does), or run N+1 starts where run N left the panels.
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
-writeFileSync(USER_FILE, readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:\n(?:    .*\n)*/m, ''));
+writeFileSync(USER_FILE, readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, ''));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0 = Date.now();
 const at = () => `${String(Date.now() - t0).padStart(6)}ms`;
