@@ -265,9 +265,7 @@ final class Attributes
     {
         $as = Placeholders::normalizeAs($this->params->get('as'));
 
-        if ($as === null) {
-            $as = Placeholders::parsePlaceholderSpec($this->params->get('placeholder'))['as'];
-        }
+        $as ??= Placeholders::parsePlaceholderSpec($this->params->get('placeholder'))['as'];
 
         if ($as === null) {
             return '';
@@ -280,7 +278,7 @@ final class Attributes
     {
         $spec = $this->params->get($param);
 
-        if ($spec === null || $spec === false || $spec === true) {
+        if (in_array($spec, [null, false, true], true)) {
             return '';
         }
 

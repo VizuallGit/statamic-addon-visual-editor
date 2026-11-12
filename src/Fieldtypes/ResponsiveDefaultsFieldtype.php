@@ -74,7 +74,7 @@ class ResponsiveDefaultsFieldtype extends Fieldtype
 
         $out = array_filter(
             $value,
-            fn ($v) => $v !== null && $v !== '' && $v !== []
+            fn ($v) => ! in_array($v, [null, '', []], true)
         );
 
         return $out ?: null;

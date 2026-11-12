@@ -181,13 +181,11 @@ final class GoogleFonts
     /** The css2 faces for a choice, narrowed to the chosen scripts, one per file. */
     private static function faces(array $font, array $variants, array $subsets): array
     {
-        $css = Cache::remember(self::CACHE.':css:'.md5(self::query($font, $variants)), now()->addDay(), function () use ($font, $variants) {
-            return Http::withHeaders(['User-Agent' => self::AGENT])
-                ->timeout(20)
-                ->get(self::CSS.'?family='.static::query($font, $variants).'&display=swap')
-                ->throw()
-                ->body();
-        });
+        $css = Cache::remember(self::CACHE.':css:'.md5(self::query($font, $variants)), now()->addDay(), fn () => Http::withHeaders(['User-Agent' => self::AGENT])
+            ->timeout(20)
+            ->get(self::CSS.'?family='.self::query($font, $variants).'&display=swap')
+            ->throw()
+            ->body());
 
         $all = self::parse($css);
         $named = array_filter(array_column($all, 'subset'), fn ($s) => ! str_starts_with($s, '['));

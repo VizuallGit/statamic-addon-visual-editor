@@ -13,7 +13,7 @@ final class Placeholders
      */
     public static function parsePlaceholderSpec(mixed $spec): array
     {
-        if ($spec === null || $spec === false || $spec === true) {
+        if (in_array($spec, [null, false, true], true)) {
             return ['text' => '', 'as' => null];
         }
 

@@ -20,7 +20,7 @@ final class Declarations
 
             $value = $byBreakpoint[$breakpoint];
 
-            if ($value === null || $value === '' || $value === []) {
+            if (in_array($value, [null, '', []], true)) {
                 continue;
             }
 
@@ -45,7 +45,7 @@ final class Declarations
             return $css;
         }
 
-        if (is_array($value) || $value instanceof \Traversable) {
+        if (is_iterable($value)) {
             return '';
         }
 

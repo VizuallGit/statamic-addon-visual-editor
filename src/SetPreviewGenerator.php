@@ -144,7 +144,7 @@ class SetPreviewGenerator
                     $changed = true;
 
                     return 'ok';
-                } catch (EmptyRenderException $e) {
+                } catch (EmptyRenderException) {
                     @unlink($tmp);
                     $empty++;
 

@@ -268,10 +268,10 @@ class PropFields
         // must stay off there even where the default is on. `sve_defaults`
         // turns the two words back into the booleans a template tests.
         if ($type === 'boolean') {
-            return $value === true || $value === 1 || $value === '1' || $value === 'true' ? 'true' : 'false';
+            return in_array($value, [true, 1, '1', 'true'], true) ? 'true' : 'false';
         }
 
-        if ($value === null || $value === '' || $value === []) {
+        if (in_array($value, [null, '', []], true)) {
             return '';
         }
 

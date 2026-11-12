@@ -201,7 +201,7 @@ class ResponsiveFieldtype extends Fieldtype
     /** Ingen værdi — feltet arver i stedet for at sige noget selv. */
     protected function isBlank($value): bool
     {
-        return $value === null || $value === '' || $value === [];
+        return in_array($value, [null, '', []], true);
     }
 
     /**

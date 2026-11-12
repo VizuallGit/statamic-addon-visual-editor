@@ -88,6 +88,6 @@ class SveProp extends Tags
     {
         $value = $this->unwrap($value);
 
-        return $value === null || $value === '' || $value === [];
+        return in_array($value, [null, '', []], true);
     }
 }

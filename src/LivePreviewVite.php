@@ -36,8 +36,6 @@ class LivePreviewVite extends Vite
             }
 
             $target = new ReflectionProperty(Vite::class, $property->getName());
-            $target->setAccessible(true);
-            $property->setAccessible(true);
 
             $target->setValue($locked, $property->getValue($from));
         }

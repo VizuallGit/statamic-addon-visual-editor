@@ -93,7 +93,7 @@ class OverrideGlobalSectionsInPreview
             $fields = $entry->blueprint()->fields()->addValues($raw);
 
             return $fields->all()->get($field)?->process()->value();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return null;
         }
     }

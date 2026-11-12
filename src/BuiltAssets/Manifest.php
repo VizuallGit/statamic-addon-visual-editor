@@ -150,7 +150,7 @@ final class Manifest
     {
         try {
             $path = self::pathFor('resources/js/addon.js');
-        } catch (RuntimeException $e) {
+        } catch (RuntimeException) {
             return null;
         }
 

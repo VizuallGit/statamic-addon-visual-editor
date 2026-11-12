@@ -180,7 +180,7 @@ final class ScriptCollections
             ->filter(function ($handle) use ($site) {
                 $collection = Collection::findByHandle($handle);
 
-                return $collection && static::previewable($collection, $site);
+                return $collection && self::previewable($collection, $site);
             })
             ->values()
             ->all();
@@ -205,7 +205,7 @@ final class ScriptCollections
                     'url' => $variables->editUrl(),
                     // How many fields the set's blueprint has: none means the
                     // preview's bar for it has nothing to save and stays away.
-                    'fields' => static::fieldCount($set),
+                    'fields' => self::fieldCount($set),
                 ] : null;
             })
             ->filter()

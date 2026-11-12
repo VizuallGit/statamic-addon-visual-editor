@@ -38,7 +38,7 @@ final class Words
             'where' => self::where($e),
             'solution' => self::solution($e),
             'hint' => self::t('lp_error_hint'),
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $message,
         ];
     }
@@ -95,7 +95,7 @@ final class Words
             }
         }
 
-        return self::t('lp_error_generic', ['message' => $message !== '' ? $message : get_class($e)]);
+        return self::t('lp_error_generic', ['message' => $message !== '' ? $message : $e::class]);
     }
 
     /** The tag and line the exception points at, when it carries its node. */

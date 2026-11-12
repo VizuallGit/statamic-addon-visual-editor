@@ -46,7 +46,7 @@ final class Rows
 
         try {
             $value = $field->setValue($sections)->process()->value();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // A missing asset makes Statamic throw here. Keeping the raw values is
             // better than refusing the save: the section is still saved, and the
             // worst of it is a preview drawn without the picture that has gone.
@@ -79,7 +79,7 @@ final class Rows
 
         try {
             $value = $field->fieldtype()->preProcess([$section]);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return $section;
         }
 

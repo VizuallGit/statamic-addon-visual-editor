@@ -139,7 +139,7 @@ class TailwindBuilt
         for ($i = 0; $i < $length; $i++) {
             $char = $css[$i];
 
-            if ($char !== '{' && $char !== '}' && $char !== ';') {
+            if (! in_array($char, ['{', '}', ';'], true)) {
                 continue;
             }
 

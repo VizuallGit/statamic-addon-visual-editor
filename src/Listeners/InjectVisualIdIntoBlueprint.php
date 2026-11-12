@@ -139,9 +139,7 @@ class InjectVisualIdIntoBlueprint
 
     private function processReplicatorSets(array $sets): array
     {
-        return $this->mapSetFields($sets, function (array $fields): array {
-            return $this->processFields($this->injectEditorFields($fields, withLabel: true));
-        });
+        return $this->mapSetFields($sets, fn (array $fields): array => $this->processFields($this->injectEditorFields($fields, withLabel: true)));
     }
 
     /**

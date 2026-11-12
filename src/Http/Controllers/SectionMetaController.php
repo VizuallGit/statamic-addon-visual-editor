@@ -124,7 +124,7 @@ class SectionMetaController
          */
         $definitions = $fields->toPublishArray();
 
-        return response()->json(compact('new', 'defaults', 'definitions'));
+        return response()->json(['new' => $new, 'defaults' => $defaults, 'definitions' => $definitions]);
     }
 
     /**

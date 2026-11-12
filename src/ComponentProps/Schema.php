@@ -103,7 +103,7 @@ final class Schema
             $seen[$handle] = true;
 
             $type = (string) ($prop['type'] ?? 'text');
-            $type = in_array($type, self::TYPES, true) && ! ($inGroup && $type === 'group') ? $type : 'text';
+            $type = in_array($type, self::TYPES, true) && (! $inGroup || $type !== 'group') ? $type : 'text';
 
             $row = [
                 'handle' => $handle,

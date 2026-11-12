@@ -73,7 +73,7 @@ class SetPreviewImages
         try {
             $mtime = $asset->container()->disk()->filesystem()->lastModified($asset->path());
             $url .= (str_contains($url, '?') ? '&' : '?').'v='.$mtime;
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             // Leave un-versioned if the mtime can't be read.
         }
 

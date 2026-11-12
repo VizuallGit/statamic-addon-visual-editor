@@ -167,6 +167,6 @@ class SveDefaults extends Tags
     {
         $value = $value instanceof Value ? $value->value() : $value;
 
-        return $value === null || $value === '' || $value === [];
+        return in_array($value, [null, '', []], true);
     }
 }

@@ -170,7 +170,7 @@ class ResponsiveCss extends Tags
     {
         $raw = $this->params->get($key);
 
-        if ($raw === null || $raw === '' || $raw === []) {
+        if (in_array($raw, [null, '', []], true)) {
             return [];
         }
 
@@ -208,7 +208,7 @@ class ResponsiveCss extends Tags
             foreach (Responsive::handles() as $breakpoint) {
                 $inner = SetValues::innerAt($augmented, $breakpoint, $handle);
 
-                if ($inner === null || $inner === '' || $inner === []) {
+                if (in_array($inner, [null, '', []], true)) {
                     continue;
                 }
 

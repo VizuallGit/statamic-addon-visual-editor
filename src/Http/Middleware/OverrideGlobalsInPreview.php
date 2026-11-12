@@ -107,7 +107,7 @@ class OverrideGlobalsInPreview
         foreach ($fields->all() as $handle => $field) {
             try {
                 $values[$handle] = $field->process()->value();
-            } catch (\Throwable $e) {
+            } catch (\Throwable) {
                 // Keep the saved value for this one field.
             }
         }

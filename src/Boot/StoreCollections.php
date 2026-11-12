@@ -60,7 +60,7 @@ final class StoreCollections
                 ->filter(fn ($collection) => in_array($collection->handle(), $navHandles, true))
                 ->each(function ($collection) use ($nav) {
                     $nav->content($collection->title())
-                        ->url(static::storeNavUrl($collection))
+                        ->url(self::storeNavUrl($collection))
                         ->icon($collection->icon() ?: 'content-writing')
                         ->can('view', $collection);
                 });

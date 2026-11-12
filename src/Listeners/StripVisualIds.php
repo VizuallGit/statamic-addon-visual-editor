@@ -12,7 +12,7 @@ class StripVisualIds
 
     public function handle(EntrySaving|GlobalVariablesSaving $event): void
     {
-        $object = isset($event->entry) ? $event->entry : $event->variables;
+        $object = $event->entry ?? $event->variables;
         $contents = $object->blueprint()->contents();
 
         $data = $object->data()->all();

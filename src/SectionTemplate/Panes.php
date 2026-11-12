@@ -142,7 +142,7 @@ final class Panes
      */
     public static function join(array $parts, string $handle = '', ?string $twHandle = null): string
     {
-        $twHandle = $twHandle ?? $handle;
+        $twHandle ??= $handle;
         $html = (string) ($parts['html'] ?? '');
         $css = (string) ($parts['css'] ?? '');
         $js = (string) ($parts['js'] ?? '');

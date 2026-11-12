@@ -108,7 +108,7 @@ class TailwindBake
 
         foreach ($matches[1] as $attr) {
             foreach (preg_split('/\s+/', trim($attr)) ?: [] as $class) {
-                if ($class === '' || $class === '[' || $class === ']') {
+                if (in_array($class, ['', '[', ']'], true)) {
                     continue;
                 }
 

@@ -177,7 +177,7 @@ final class ScriptChrome
                 new \RecursiveCallbackFilterIterator(
                     new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
                     // Published vendor views never carry the marker; skip the folder.
-                    fn (\SplFileInfo $file) => ! ($file->isDir() && $file->getFilename() === 'vendor')
+                    fn (\SplFileInfo $file) => ! $file->isDir() || $file->getFilename() !== 'vendor'
                 )
             );
 

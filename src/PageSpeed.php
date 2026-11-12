@@ -89,8 +89,7 @@ class PageSpeed
 
         // A literal private address. A name that happens to resolve to one is
         // Google's problem to report, not ours to guess at.
-        return ! (filter_var($host, FILTER_VALIDATE_IP)
-            && ! filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE));
+        return ! filter_var($host, FILTER_VALIDATE_IP) || filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
     }
 
     /** This site's own pages, and no others — never a proxy for scanning the web. */

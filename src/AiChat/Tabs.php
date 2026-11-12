@@ -114,7 +114,7 @@ final class Tabs
         $this->locked(function () {
             $index = $this->readIndex();
 
-            abort_if(count($index['tabs']) >= static::MAX_TABS, 422, 'Too many chats open. Close one first.');
+            abort_if(count($index['tabs']) >= self::MAX_TABS, 422, 'Too many chats open. Close one first.');
 
             $this->addTab($index);
         });
@@ -259,7 +259,7 @@ final class Tabs
             $chat['draft_images'] = [];
 
             if ($chat['pending'] !== null) {
-                abort_if(count($chat['queue']) >= static::MAX_QUEUE, 422, 'The queue is full. Wait for an answer, or remove something from it.');
+                abort_if(count($chat['queue']) >= self::MAX_QUEUE, 422, 'The queue is full. Wait for an answer, or remove something from it.');
 
                 $chat['queue'][] = $item;
                 $out = ['queued' => $item];

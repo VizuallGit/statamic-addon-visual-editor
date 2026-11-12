@@ -35,9 +35,7 @@ class DisableStaticCacheInLivePreview
         try {
             return $next($request);
         } finally {
-            $app->bind(Cacher::class, function ($app) {
-                return $app[StaticCacheManager::class]->driver();
-            });
+            $app->bind(Cacher::class, fn ($app) => $app[StaticCacheManager::class]->driver());
         }
     }
 

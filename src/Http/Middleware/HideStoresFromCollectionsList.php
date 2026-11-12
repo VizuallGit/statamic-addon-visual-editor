@@ -146,7 +146,7 @@ class HideStoresFromCollectionsList
     {
         return array_values(array_filter(
             $rows,
-            fn ($row) => ! (is_array($row) && in_array($row['id'] ?? null, $stores, true))
+            fn ($row) => ! is_array($row) || ! in_array($row['id'] ?? null, $stores, true)
         ));
     }
 }

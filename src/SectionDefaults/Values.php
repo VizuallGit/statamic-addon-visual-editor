@@ -33,7 +33,7 @@ final class Values
             // Nothing to store: leave the key out entirely rather than writing a
             // null, so Antlers falls through to whatever the partial does for a
             // missing value.
-            if ($value === null || $value === [] || $value === '') {
+            if (in_array($value, [null, [], ''], true)) {
                 continue;
             }
 
@@ -83,9 +83,9 @@ final class Values
                     return $row;
                 }
 
-                $fields = static::setFieldsIn($config['sets'] ?? [], $row['type']);
+                $fields = self::setFieldsIn($config['sets'] ?? [], $row['type']);
 
-                return array_merge(static::resolve($fields, $path.'.'.$index), $row);
+                return array_merge(self::resolve($fields, $path.'.'.$index), $row);
             }, $path);
         }
 
@@ -105,7 +105,7 @@ final class Values
      */
     protected static function wrapResponsive(Field $field, mixed $value): mixed
     {
-        if ($value === null || $value === [] || $value === '') {
+        if (in_array($value, [null, [], ''], true)) {
             return $value;
         }
 
@@ -131,7 +131,7 @@ final class Values
                     continue;
                 }
 
-                if ($breakpointValue === null || $breakpointValue === '' || $breakpointValue === []) {
+                if (in_array($breakpointValue, [null, '', []], true)) {
                     continue;
                 }
 

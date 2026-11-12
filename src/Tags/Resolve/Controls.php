@@ -25,7 +25,7 @@ final class Controls
      */
     public function resolve($spec): array
     {
-        if ($spec === null || $spec === false || $spec === true || $spec === '') {
+        if (in_array($spec, [null, false, true, ''], true)) {
             return [];
         }
 
@@ -192,7 +192,7 @@ final class Controls
 
             return $out;
         } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve controls for '.(string) $spec, ['exception' => $e]);
+            Log::debug('VisualEdit: failed to resolve controls for '.$spec, ['exception' => $e]);
 
             return [];
         }

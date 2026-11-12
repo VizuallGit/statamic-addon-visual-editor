@@ -81,7 +81,7 @@ class ColumnSpanFieldtype extends Fieldtype
      */
     protected function parse($value): ?array
     {
-        if ($value === null || $value === '' || $value === []) {
+        if (in_array($value, [null, '', []], true)) {
             return null;
         }
 
@@ -175,7 +175,7 @@ class ColumnSpanFieldtype extends Fieldtype
         return [
             'nullable',
             function ($attribute, $value, $fail) {
-                if ($value !== null && $value !== '' && $value !== [] && $this->parse($value) === null) {
+                if (! in_array($value, [null, '', []], true) && $this->parse($value) === null) {
                     $fail(__('validation.integer', ['attribute' => $attribute]));
                 }
             },

@@ -111,7 +111,7 @@ final class BardConfig
                 }
             }
 
-            $config = $config ?? $matches[0]['config'];
+            $config ??= $matches[0]['config'];
 
             if (($config['type'] ?? null) !== 'bard') {
                 return null;

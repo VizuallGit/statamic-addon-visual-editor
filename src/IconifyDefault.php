@@ -146,7 +146,7 @@ class IconifyDefault
 
     private static function isEmpty(mixed $raw): bool
     {
-        return $raw === null || $raw === '' || $raw === [];
+        return in_array($raw, [null, '', []], true);
     }
 
     /**

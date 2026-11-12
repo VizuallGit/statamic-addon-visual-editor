@@ -214,10 +214,10 @@ class SectionTypes
                     $value = FromTheStart::expand($value, $f->get(FromTheStart::KEY));
                 }
 
-                if ($value !== null && $value !== '' && $value !== []) {
+                if (! in_array($value, [null, '', []], true)) {
                     $defaults[$handle] = $value;
                 }
-            } catch (\Throwable $e) {
+            } catch (\Throwable) {
                 // Skip a field whose default can't be resolved.
             }
         }

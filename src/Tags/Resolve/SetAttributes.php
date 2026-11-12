@@ -182,7 +182,7 @@ final class SetAttributes
     {
         $target = $this->params->get('global_edit', $this->params->get('global-edit'));
 
-        if ($target === null || $target === false || $target === '') {
+        if (in_array($target, [null, false, ''], true)) {
             return '';
         }
 

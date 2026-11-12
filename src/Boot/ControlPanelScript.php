@@ -100,9 +100,9 @@ final class ControlPanelScript
                 'sveGhostProvider' => DockGhost::provider(),
                 'sveAiReady' => AiChat::ready(),
                 'sveAiTextReady' => AiCopy::ready(),
-                'sveComments' => static::commentsPayload(),
+                'sveComments' => self::commentsPayload(),
                 // Every on-screen string, in the CP user's own language.
-                'sveStrings' => static::strings(),
+                'sveStrings' => self::strings(),
                 'sveCollections' => ScriptCollections::pickerCollections(),
                 // The Navigation structures, for the HTML tree's Nav loop.
                 'sveNavigations' => ScriptCollections::navigations(),
@@ -140,7 +140,7 @@ final class ControlPanelScript
             // user who has Build: without it the key is not there at all.
             if (Features::visible()['build_mode'] ?? false) {
                 Statamic::provideToScript([
-                    'sveBuildStrings' => static::buildStrings(),
+                    'sveBuildStrings' => self::buildStrings(),
                     // A video's poster from its own frame: only where a `video_poster`
                     // modifier is installed (statamic-addon/upload-video). Build offers
                     // the poster switch then; the editor never requires it.
