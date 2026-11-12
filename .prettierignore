@@ -1,0 +1,8 @@
+resources/dist
+vendor
+node_modules
+scripts/bundled
+tests/browser/*.out.html
+tests/__fixtures__
+*.md
+*.php

@@ -7,7 +7,12 @@
     "cp:build": "vite build && node scripts/prune-dist.mjs",
     "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs && node scripts/assert-protocol.mjs",
     "test": "node --test \"tests/js/**/*.test.js\"",
-    "check": "npm run isolate && npm test",
+    "check": "npm run isolate && npm test && npm run quality",
+    "quality": "node scripts/quality.mjs js",
+    "quality:all": "node scripts/quality.mjs all",
+    "quality:update": "node scripts/quality.mjs all --update",
+    "quality:numbers": "node scripts/quality-numbers.mjs",
+    "report:bundle": "vite build --config vite.report.config.mjs",
     "test:browser": "node tests/browser/live-preview-smoke.mjs",
     "test:ghost": "node tests/browser/ghost-harness.mjs",
     "test:patterns": "node tests/browser/patterns-card-click.mjs",
@@ -54,7 +59,18 @@
     "woff2-encoder": "^2.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "eslint-plugin-unicorn": "^79.0.0",
+    "eslint-plugin-vue": "^10.12.1",
+    "globals": "^17.14.0",
+    "jscpd": "^5.4.3",
+    "knip": "^6.45.1",
     "laravel-vite-plugin": "^2.0.0",
+    "prettier": "^3.10.1",
+    "rollup-plugin-visualizer": "^7.1.3",
+    "typescript": "^5.9.3",
     "vite": "^7.0.4"
   }
 }

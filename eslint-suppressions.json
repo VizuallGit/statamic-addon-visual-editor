@@ -1,0 +1,777 @@
+{
+  "resources/js/a11y-scan.js": {
+    "sonarjs/no-all-duplicated-branches": {
+      "count": 1
+    }
+  },
+  "resources/js/ai-text-bridge.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/ai-text.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/block-tree.js": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "resources/js/breakpoint-overview.js": {
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 3
+    }
+  },
+  "resources/js/breakpoints.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/bridge/component-pick.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "resources/js/bridge/header-footer.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/bridge/inline-edit.js": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "prefer-const": {
+      "count": 3
+    }
+  },
+  "resources/js/bridge/inserters.js": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/bridge/messages.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/build-mode/canvas-edit.js": {
+    "no-irregular-whitespace": {
+      "count": 1
+    }
+  },
+  "resources/js/build-mode/canvas-focus.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/build-mode/canvas-ui.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/build-mode/canvas.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/build-mode/css-mode/rules.js": {
+    "max-depth": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/chrome.js": {
+    "no-undef": {
+      "count": 3
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/code-dock.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "resources/js/comments.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/component-bind.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/component-signature.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/components/LockedRows.js": {
+    "no-undef": {
+      "count": 1
+    }
+  },
+  "resources/js/components/fieldtypes/ResponsiveFieldtype.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/cp-shell/add-section.js": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "resources/js/cp-shell/block-order.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/cp-shell/header-toolbar.js": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/cp.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/cp/a11y/contrast.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/open-overlay.js": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/perf/editor-vitals.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/surfaces/BardStyles.vue": {
+    "vue/no-dupe-keys": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/surfaces/BuildBoxFields.vue": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/surfaces/BuildContent.vue": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/surfaces/LpBreakpointAdd.vue": {
+    "vue/no-dupe-keys": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/surfaces/TwClassPick.vue": {
+    "vue/no-mutating-props": {
+      "count": 1
+    }
+  },
+  "resources/js/cp/theme-panel/utility-paint.js": {
+    "no-control-regex": {
+      "count": 1
+    }
+  },
+  "resources/js/dedupe-cp-fetch.js": {
+    "no-var": {
+      "count": 8
+    }
+  },
+  "resources/js/design-overlay.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "resources/js/dock/alpine.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/dock/css-tools.js": {
+    "no-unused-vars": {
+      "count": 6
+    }
+  },
+  "resources/js/dock/data-vars.js": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "sonarjs/no-identical-functions": {
+      "count": 2
+    }
+  },
+  "resources/js/dock/dock-api.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/dock/editor.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "resources/js/dock/history-strip.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/dock/html-tools.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/dock/lock-autosave.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/dock/save.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "resources/js/dock/scope.js": {
+    "no-unused-vars": {
+      "count": 4
+    },
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "resources/js/dock/style-modes.js": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "resources/js/dock/tw-utility.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/file-manager.js": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/globals-panel.js": {
+    "no-unused-vars": {
+      "count": 15
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "resources/js/html-tree-edit.js": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "resources/js/html-tree.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/inline-edit.js": {
+    "no-unused-vars": {
+      "count": 3
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/lazy/ai-text.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lazy/listview.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lazy/outline.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lazy/page-activity.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lazy/performance.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lazy/schema.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lib/last-page.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/lp-more-menu.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/lp-panel.js": {
+    "no-unused-vars": {
+      "count": 8
+    }
+  },
+  "resources/js/lp-resume.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "resources/js/lp-width.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "resources/js/open-in-preview.js": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/outline-panel.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/pages.js": {
+    "no-unused-vars": {
+      "count": 4
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "sonarjs/no-identical-functions": {
+      "count": 1
+    }
+  },
+  "resources/js/performance-panel.js": {
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "resources/js/responsive-conditions.js": {
+    "no-prototype-builtins": {
+      "count": 1
+    }
+  },
+  "resources/js/right-dock-tabs.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/save-errors.js": {
+    "no-var": {
+      "count": 39
+    }
+  },
+  "resources/js/schema-panel.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/section-fields.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/section-library.js": {
+    "no-unused-vars": {
+      "count": 8
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/selection-panel.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/sibling-sync.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/side/collection-preset-scaffold.js": {
+    "no-var": {
+      "count": 20
+    }
+  },
+  "resources/js/side/collection-template-picker.js": {
+    "no-var": {
+      "count": 23
+    }
+  },
+  "resources/js/side/default-sets-count.js": {
+    "no-var": {
+      "count": 24
+    }
+  },
+  "resources/js/side/field-prop.js": {
+    "no-var": {
+      "count": 24
+    }
+  },
+  "resources/js/side/grid-collapse.js": {
+    "no-var": {
+      "count": 12
+    }
+  },
+  "resources/js/side/grid-keep-table.js": {
+    "no-var": {
+      "count": 13
+    }
+  },
+  "resources/js/side/icon-button-group-iconify.js": {
+    "no-var": {
+      "count": 28
+    }
+  },
+  "resources/js/side/iconify-hide-remove.js": {
+    "no-var": {
+      "count": 15
+    }
+  },
+  "resources/js/side/inserter-reveal.js": {
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-var": {
+      "count": 121
+    }
+  },
+  "resources/js/side/library-drop-focus.js": {
+    "no-var": {
+      "count": 30
+    }
+  },
+  "resources/js/side/lite-sections.js": {
+    "no-var": {
+      "count": 28
+    }
+  },
+  "resources/js/side/responsive-hide-label.js": {
+    "no-var": {
+      "count": 1
+    }
+  },
+  "resources/js/side/toolbar-look.js": {
+    "no-var": {
+      "count": 30
+    }
+  },
+  "resources/js/side/warm-set-previews.js": {
+    "no-var": {
+      "count": 8
+    }
+  },
+  "resources/js/site-canvas.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "resources/js/site-css.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/sve/block-order.js": {
+    "no-unused-vars": {
+      "count": 5
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "resources/js/tailwind-complete.js": {
+    "no-useless-assignment": {
+      "count": 3
+    }
+  },
+  "resources/js/toolbar-drag.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/tw-classes.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/xray.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "scripts/assert-isolation.mjs": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/hoist-state.mjs": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "scripts/hooks/rollback-guard.mjs": {
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "scripts/panel-api-codemod.mjs": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "tests/browser/alpine-state.mjs": {
+    "no-undef": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "tests/browser/bard-styles.mjs": {
+    "no-regex-spaces": {
+      "count": 2
+    }
+  },
+  "tests/browser/breakpoint-overview.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "prefer-const": {
+      "count": 2
+    }
+  },
+  "tests/browser/component-values-column.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/fieldset-refresh.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/help-mode.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/live-preview-smoke.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "tests/browser/new-section-preview.mjs": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/patterns-card-click.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "tests/browser/section-hide-show.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/section-switch.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "tests/browser/selection-panel-race.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/selection-panel.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "tests/browser/shortcuts.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/site-canvas.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/toolbar-visibility.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "tests/browser/tree-dock-follow.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/browser/tree-global-row.mjs": {
+    "no-regex-spaces": {
+      "count": 1
+    },
+    "sonarjs/no-all-duplicated-branches": {
+      "count": 1
+    }
+  },
+  "tests/browser/video-hold.mjs": {
+    "no-undef": {
+      "count": 2
+    },
+    "no-useless-escape": {
+      "count": 1
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "tests/harness/build-mode/Harness.vue": {
+    "no-undef": {
+      "count": 3
+    },
+    "vue/multi-word-component-names": {
+      "count": 1
+    },
+    "vue/no-mutating-props": {
+      "count": 3
+    }
+  },
+  "tests/harness/build-mode/port.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "tests/harness/build-mode/vite.config.mjs": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "tests/js/breakpoint-overview.test.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "tests/js/build-mode/gallery.test.js": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/js/css-mode-rules.test.js": {
+    "no-regex-spaces": {
+      "count": 2
+    }
+  },
+  "tests/js/dock-css-adds-bracket.test.js": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/js/help-suggest.test.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "tests/js/lp-live-reload.test.js": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "tests/js/save-errors.test.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "tests/js/snippet-css.test.js": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  },
+  "tests/js/theme-colors.test.js": {
+    "no-regex-spaces": {
+      "count": 1
+    }
+  }
+}

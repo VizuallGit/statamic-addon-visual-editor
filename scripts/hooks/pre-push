@@ -1,0 +1,25 @@
+#!/bin/sh
+# The addon's pre-push: the rollback guard, then on a push to main the quality
+# gate (quality pass, phase 1: "the lock"). .git/hooks/pre-push runs this file.
+#
+# Bypassing it (git push --no-verify) needs the owner's yes, like any rollback.
+set -u
+root=$(git rev-parse --show-toplevel)
+input=$(cat)
+
+printf '%s\n' "$input" | node "$root/scripts/hooks/rollback-guard.mjs" || exit 1
+
+# A branch push is work in progress; only main is gated.
+printf '%s\n' "$input" | grep -q ' refs/heads/main ' || exit 0
+
+cd "$root" || exit 1
+if [ ! -x vendor/bin/phpunit ] || [ ! -d node_modules ]; then
+  echo "pre-push: vendor/ or node_modules/ is missing here. Push main from the main checkout." >&2
+  exit 1
+fi
+
+echo "pre-push: quality gate (node scripts/quality.mjs all, npm test, phpunit)…" >&2
+node scripts/quality.mjs all >&2 || exit 1
+npm test --silent >/dev/null 2>&1 || { echo "pre-push: npm test failed. Run npm test to see why." >&2; exit 1; }
+vendor/bin/phpunit --no-progress >/dev/null 2>&1 || { echo "pre-push: phpunit failed. Run vendor/bin/phpunit to see why." >&2; exit 1; }
+echo "pre-push: quality gate green." >&2

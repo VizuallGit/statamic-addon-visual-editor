@@ -66,8 +66,12 @@ const owner = (url) => {
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 function seed(prefs) {
   let yaml = readFileSync(USER_FILE, 'utf8').replace(/^ {2}sve_chrome:\n(?: {4}.*\n)*/m, '');
-  const block = `  sve_chrome:\n${Object.entries(prefs).map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
-  yaml = /^preferences:\n/m.test(yaml) ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`) : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
+  const block = `  sve_chrome:\n${Object.entries(prefs)
+    .map(([k, v]) => `    ${k}: '${String(v).replaceAll("'", "''")}'\n`)
+    .join('')}`;
+  yaml = /^preferences:\n/m.test(yaml)
+    ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`)
+    : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
   writeFileSync(USER_FILE, yaml);
 }
 
@@ -127,11 +131,22 @@ async function longTasks(page, from, to) {
   }
   const hit = all.filter(([start]) => start >= from && start <= to);
 
-  return { count: hit.length, totalMs: hit.reduce((s, [, d]) => s + d, 0), longestMs: hit.reduce((m, [, d]) => Math.max(m, d), 0) };
+  return {
+    count: hit.length,
+    totalMs: hit.reduce((s, [, d]) => s + d, 0),
+    longestMs: hit.reduce((m, [, d]) => Math.max(m, d), 0),
+  };
 }
 
 function bytes(net, from, to) {
-  const out = { files: 0, kb: 0, ve: { js: 0, css: 0 }, statamic: { js: 0, css: 0 }, site: { js: 0, css: 0 }, other: { js: 0, css: 0 } };
+  const out = {
+    files: 0,
+    kb: 0,
+    ve: { js: 0, css: 0 },
+    statamic: { js: 0, css: 0 },
+    site: { js: 0, css: 0 },
+    other: { js: 0, css: 0 },
+  };
   for (const r of net.done) {
     if (r.t < from || r.t > to) continue;
     out.files++;
@@ -139,7 +154,8 @@ function bytes(net, from, to) {
     const kind = r.type === 'Script' ? 'js' : r.type === 'Stylesheet' ? 'css' : null;
     if (kind) out[owner(r.url)][kind] += r.bytes / 1024;
   }
-  const round = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v) : round(v)]));
+  const round = (o) =>
+    Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v) : round(v)]));
 
   return round(out);
 }
@@ -195,7 +211,10 @@ async function session(browser) {
   await page.type('input[name="email"]', USER);
   await page.type('input[name="password"]', PASS);
   // Statamic may answer the POST with 409 (Inertia version); the session is set either way.
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {}), page.keyboard.press('Enter')]);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {}),
+    page.keyboard.press('Enter'),
+  ]);
   await sleep(500);
 
   const net = await trackNetwork(page);
@@ -204,20 +223,31 @@ async function session(browser) {
     const from = Date.now();
     const result = await act();
     const to = await net.quiet();
-    out[name] = { ms: result?.ready ? result.ready - from : null, quietMs: to - from, ...bytes(net, from - 50, to), long: await longTasks(page, from, to), note: result?.note };
+    out[name] = {
+      ms: result?.ready ? result.ready - from : null,
+      quietMs: to - from,
+      ...bytes(net, from - 50, to),
+      long: await longTasks(page, from, to),
+      note: result?.note,
+    };
   };
 
   await moment('entry', async () => {
     await page.goto(`${SITE_URL}${ENTRY}`, { waitUntil: 'domcontentloaded' });
     const ready = await waitFor(async () => !!(await page.$('button')));
 
-    return { ready, note: (await page.$('iframe.sve-edit-overlay[data-open]')) ? 'Live Preview opened by itself' : undefined };
+    return {
+      ready,
+      note: (await page.$('iframe.sve-edit-overlay[data-open]')) ? 'Live Preview opened by itself' : undefined,
+    };
   });
 
   let cp = null;
   await moment('lp', async () => {
     const clicked = await page.evaluate(() => {
-      const btn = [...document.querySelectorAll('button')].find((el) => /^\s*live preview\s*$/i.test(el.textContent || ''));
+      const btn = [...document.querySelectorAll('button')].find((el) =>
+        /^\s*live preview\s*$/i.test(el.textContent || '')
+      );
       btn?.click();
 
       return !!btn;
@@ -227,7 +257,12 @@ async function session(browser) {
       cp = await inFrame(page, 'iframe.sve-edit-overlay[data-open]');
       const preview = cp ? await inFrame(cp, '#live-preview-iframe') : null;
 
-      return !!(cp && (await cp.$('#__sve-toolbar button')) && preview && (await preview.evaluate(() => !!document.querySelector('[id^="id-"]'))));
+      return !!(
+        cp &&
+        (await cp.$('#__sve-toolbar button')) &&
+        preview &&
+        (await preview.evaluate(() => !!document.querySelector('[id^="id-"]')))
+      );
     });
 
     return { ready };
@@ -235,20 +270,32 @@ async function session(browser) {
   await page.keyboard.press('Escape');
 
   await moment('build', async () => {
-    if (!cp || !(await clickIn(page, cp, '[data-sve-build-switch] [data-sve-build-mode="visual"]'))) return { note: 'no Build switch' };
-    const ready = await waitFor(async () => !!(await cp.evaluate(() => document.getElementById('__sve-build-panel')?.childElementCount)));
+    if (!cp || !(await clickIn(page, cp, '[data-sve-build-switch] [data-sve-build-mode="visual"]')))
+      return { note: 'no Build switch' };
+    const ready = await waitFor(
+      async () => !!(await cp.evaluate(() => document.getElementById('__sve-build-panel')?.childElementCount))
+    );
 
     return { ready };
   });
 
   // In Build the dock has no toolbar icon: the bar's dock tool shows it (build-switch.js).
   await moment('dock', async () => {
-    if (!cp || !(await clickIn(page, cp, '[data-sve-build-tool="dock"]'))) return { note: 'no dock tool in the Build bar' };
-    const ready = await waitFor(async () => !!(await cp.evaluate(() => {
-      const dock = document.getElementById('__sve-code-dock');
+    if (!cp || !(await clickIn(page, cp, '[data-sve-build-tool="dock"]')))
+      return { note: 'no dock tool in the Build bar' };
+    const ready = await waitFor(
+      async () =>
+        !!(await cp.evaluate(() => {
+          const dock = document.getElementById('__sve-code-dock');
 
-      return document.documentElement.hasAttribute('data-sve-build-dock-shown') && dock && dock.getBoundingClientRect().height > 0;
-    })), 20000);
+          return (
+            document.documentElement.hasAttribute('data-sve-build-dock-shown') &&
+            dock &&
+            dock.getBoundingClientRect().height > 0
+          );
+        })),
+      20000
+    );
 
     return { ready, note: ready ? undefined : 'dock did not draw within 20 s' };
   });
@@ -278,7 +325,9 @@ try {
     const run = await session(browser);
     runs.push(run);
     for (const [name, m] of Object.entries(run)) {
-      console.log(`info run ${i + 1} ${name.padEnd(6)} ready ${m.ms ?? '-'} ms, quiet ${m.quietMs} ms; ${m.files} files ${m.kb} KB; JS ve ${m.ve.js} / statamic ${m.statamic.js} / site ${m.site.js} KB; CSS ve ${m.ve.css} / statamic ${m.statamic.css} / site ${m.site.css} KB; long ${m.long.count}× ${m.long.totalMs} ms (longest ${m.long.longestMs})${m.note ? ' — ' + m.note : ''}${m.veFiles?.length ? ' — VE FILES ON PUBLIC: ' + m.veFiles.join(' ') : ''}`);
+      console.log(
+        `info run ${i + 1} ${name.padEnd(6)} ready ${m.ms ?? '-'} ms, quiet ${m.quietMs} ms; ${m.files} files ${m.kb} KB; JS ve ${m.ve.js} / statamic ${m.statamic.js} / site ${m.site.js} KB; CSS ve ${m.ve.css} / statamic ${m.statamic.css} / site ${m.site.css} KB; long ${m.long.count}× ${m.long.totalMs} ms (longest ${m.long.longestMs})${m.note ? ' — ' + m.note : ''}${m.veFiles?.length ? ' — VE FILES ON PUBLIC: ' + m.veFiles.join(' ') : ''}`
+      );
     }
   }
 } finally {
@@ -287,20 +336,27 @@ try {
 
 const names = Object.keys(runs[0] || {});
 const pick = (name, get) => median(runs.map((r) => (r[name] ? get(r[name]) : null)));
-const summary = Object.fromEntries(names.map((name) => [name, {
-  readyMs: pick(name, (m) => m.ms),
-  quietMs: pick(name, (m) => m.quietMs),
-  files: pick(name, (m) => m.files),
-  kb: pick(name, (m) => m.kb),
-  veJsKB: pick(name, (m) => m.ve.js),
-  veCssKB: pick(name, (m) => m.ve.css),
-  statamicJsKB: pick(name, (m) => m.statamic.js),
-  siteJsKB: pick(name, (m) => m.site.js),
-  siteCssKB: pick(name, (m) => m.site.css),
-  longMs: pick(name, (m) => m.long.totalMs),
-  longestMs: pick(name, (m) => m.long.longestMs),
-}]));
+const summary = Object.fromEntries(
+  names.map((name) => [
+    name,
+    {
+      readyMs: pick(name, (m) => m.ms),
+      quietMs: pick(name, (m) => m.quietMs),
+      files: pick(name, (m) => m.files),
+      kb: pick(name, (m) => m.kb),
+      veJsKB: pick(name, (m) => m.ve.js),
+      veCssKB: pick(name, (m) => m.ve.css),
+      statamicJsKB: pick(name, (m) => m.statamic.js),
+      siteJsKB: pick(name, (m) => m.site.js),
+      siteCssKB: pick(name, (m) => m.site.css),
+      longMs: pick(name, (m) => m.long.totalMs),
+      longestMs: pick(name, (m) => m.long.longestMs),
+    },
+  ])
+);
 const publicVe = runs.reduce((n, r) => n + (r.public?.veFiles?.length || 0), 0);
-console.log(`${publicVe ? 'FAIL' : 'ok  '} public page loads no Visual Editor file — ${publicVe} in ${runs.length} runs`);
+console.log(
+  `${publicVe ? 'FAIL' : 'ok  '} public page loads no Visual Editor file — ${publicVe} in ${runs.length} runs`
+);
 console.log(`MOMENTS ${JSON.stringify({ entry: ENTRY, runs: runs.length, summary })}`);
 process.exit(publicVe ? 1 : 0);

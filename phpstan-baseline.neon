@@ -1,0 +1,2167 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiChat\:\:modeInstructions$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/AiChat.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiChat\:\:targetFiles$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/AiChat.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<array\{id\: non\-falsy\-string, name\: string, group\: ''Claude''\|''Cursor''\|''Gemini''\|''GPT''\|''Grok'', line\: ''0\:''\|''0\:fable''\|''0\:flash''\|''0\:haiku''\|''0\:opus''\|''0\:pro''\|''0\:sonnet''\|''1\:''\|''1\:fable''\|''1\:flash''\|''1\:haiku''\|''1\:opus''\|''1\:pro''\|''1\:sonnet''\|''2\:''\|''2\:fable''\|''2\:flash''\|''2\:haiku''\|''2\:opus''\|''2\:pro''\|''2\:sonnet''\|''3\:''\|''3\:fable''\|''3\:flash''\|''3\:haiku''\|''3\:opus''\|''3\:pro''\|''3\:sonnet''\|''4\:''\|''4\:fable''\|''4\:flash''\|''4\:haiku''\|''4\:opus''\|''4\:pro''\|''4\:sonnet''\|''5\:''\|''5\:fable''\|''5\:flash''\|''5\:haiku''\|''5\:opus''\|''5\:pro''\|''5\:sonnet'', version\: non\-empty\-string, order\: array\{0\|1\|2\|3\|4\|5, int\<0, max\>\}\}\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/AiChat/Models.php
+
+		-
+			message: '#^Offset ''assets'' on array\{open\: list\<string\>, closed\: list\<string\>, assets\: string, rules\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/AiChat/Prompt.php
+
+		-
+			message: '#^Offset ''closed'' on array\{open\: list\<string\>, closed\: list\<string\>, assets\: string, rules\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/AiChat/Prompt.php
+
+		-
+			message: '#^Offset ''open'' on array\{open\: list\<string\>, closed\: list\<string\>, assets\: string, rules\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/AiChat/Prompt.php
+
+		-
+			message: '#^Parameter \#1 \$scope of static method MarioHamann\\StatamicVisualEditor\\AiChat\\Prompt\:\:writeScope\(\) expects array\{open\: list\<string\>, closed\: list\<string\>, assets\: string, rules\: string\}\|null, array\{files\: list\<string\>, create\: list\<string\>, rules\: string\}\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/AiChat/Prompt.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiCopy\:\:MAX_AVOID$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/AiCopy.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiCopy\:\:MAX_COUNT$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/AiCopy.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiCopy\:\:kindOf$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/AiCopy.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiCopy\:\:parse$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/AiCopy.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:preferredLocale\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/AiCopy/Prompt.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/AiFiles.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiFiles\:\:list$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/AiFiles.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\AiFiles\:\:write$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/AiFiles.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:getPreference\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ControlPanelScript.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Boot/ControlPanelScript.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:initials\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ControlPanelScript.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:name\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ControlPanelScript.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:preferredLocale\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Boot/ControlPanelScript.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Globals\\GlobalSet\:\:blueprint\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ScriptChrome.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Boot\\ScriptChrome\:\:flush$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Boot/ScriptChrome.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 4
+			path: src/Boot/ScriptCollections.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:editUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ScriptCollections.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Boot/ScriptCollections.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:livePreviewUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ScriptCollections.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ScriptCollections.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Boot/ScriptCollections.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Breakpoints\:\:DEFAULTS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/Breakpoints.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Breakpoints\:\:DIRECTIONS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/Breakpoints.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Breakpoints\:\:LABEL_KEYS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/Breakpoints.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Breakpoints\:\:ROOT_PX$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/Breakpoints.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Breakpoints\:\:UNITS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/Breakpoints.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Breakpoints\:\:inherits$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Breakpoints.php
+
+		-
+			message: '#^Call to function method_exists\(\) with Illuminate\\Contracts\\Translation\\Loader and ''namespaces'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Breakpoints/Labels.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Breakpoints/Store.php
+
+		-
+			message: '#^Left side of && is always true\.$#'
+			identifier: booleanAnd.leftAlwaysTrue
+			count: 1
+			path: src/Breakpoints/Store.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\BuiltAssets\:\:addonImports$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/BuiltAssets.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\BuiltAssets\:\:assetsDir$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/BuiltAssets.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\BuiltAssets\:\:lockedRoot$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/BuiltAssets.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\BuiltAssets\:\:refreshLock$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/BuiltAssets.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\BuiltAssets\:\:restoreImportedChunks$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/BuiltAssets.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/BuiltAssets/Lock.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/BuiltAssets/Manifest.php
+
+		-
+			message: '#^Offset 0 on array\{list\<string\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/ClassUsage.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:handle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionPresets.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:template\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionPresets.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:title\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionPresets.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:handle\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionRouting.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:previewTargets\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionRouting.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:routes\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionRouting.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:entryBlueprint\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionViewSample.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:handle\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionViewSample.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:sites\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionViewSample.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:title\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionViewSample.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionViewSample.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:handle\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionViewTemplates.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Collection\:\:title\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionViewTemplates.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionViewTemplates.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:get\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/CollectionViewTemplates.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:slug\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/CollectionViewTemplates.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: src/CollectionViewTemplates.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Commands/GenerateSetPreviews.php
+
+		-
+			message: '#^Negated boolean expression is always true\.$#'
+			identifier: booleanNot.alwaysTrue
+			count: 1
+			path: src/Commands/GenerateSetPreviews.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: src/Commands/GenerateSetPreviews.php
+
+		-
+			message: '#^While loop condition is always true\.$#'
+			identifier: while.alwaysTrue
+			count: 1
+			path: src/Commands/GenerateSetPreviews.php
+
+		-
+			message: '#^Offset ''via'' on array\{ok\: true, text\: string, ms\: int, usage\: array\<string, int\>, status\?\: int, message\?\: string\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/Commands/GhostTry.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\View\\ViewFinderInterface\:\:getPaths\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/ComponentMark.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\ComponentProps\:\:TYPES$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/ComponentProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\ComponentProps\:\:block$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/ComponentProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\ComponentProps\:\:normalize$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/ComponentProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\ComponentProps\:\:open$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/ComponentProps.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/ComponentProps/GroupValue.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<mixed\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/ComponentProps/GroupValue.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/ComponentProps/GroupValue.php
+
+		-
+			message: '#^Parameter \#1 \$array \(non\-empty\-list\<array\{data\: string, mimeType\: string\}\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/CursorAgent.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/CursorAgent.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\DataVars\:\:ASSET_TYPES$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/DataVars.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\DataVars\:\:LOOP_TYPES$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/DataVars.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\DataVars\:\:SKIP_TYPES$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/DataVars.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\DataVars\:\:preview$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/DataVars.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\{kind\: string, handle\: string\} will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/DataVars/Scope.php
+
+		-
+			message: '#^Offset ''handle'' on array\{kind\: string, handle\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/DataVars/Scope.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/DockGhost.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\DockGhost\:\:ready$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/DockGhost.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/DockGhost/Job.php
+
+		-
+			message: '#^Property MarioHamann\\StatamicVisualEditor\\EmptyRenderException\:\:\$url is never read$#'
+			identifier: shipmonk.deadProperty.neverRead
+			count: 1
+			path: src/EmptyRenderException.php
+
+		-
+			message: '#^Offset ''handle'' on array\{handle\: string, title\?\: string, url\?\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/Features.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Features\:\:filterGlobalsPicker$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Features.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Statamic\\Addons\\Addon\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Features.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Fieldtypes\\ColumnSpanValue\:\:span$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Fieldtypes/ColumnSpanValue.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Fieldtypes\\ColumnSpanValue\:\:start$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Fieldtypes/ColumnSpanValue.php
+
+		-
+			message: '#^Property MarioHamann\\StatamicVisualEditor\\Fieldtypes\\IconButtonGroupFieldtype\:\:\$indexComponent is never read$#'
+			identifier: shipmonk.deadProperty.neverRead
+			count: 1
+			path: src/Fieldtypes/IconButtonGroupFieldtype.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\FileManager\:\:DEFAULT_EXCLUDE$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/FileManager.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\FileManager\:\:EXTENSIONS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/FileManager.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\FileManager\:\:language$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/FileManager.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\FileManager\:\:normalize$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/FileManager.php
+
+		-
+			message: '#^Offset ''name'' on array\{type\: ''dir'', path\: string, name\: string, children\: non\-empty\-list\<array\<string, mixed\>\>\}\|array\{type\: ''file'', path\: string, name\: string, language\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/FileManager/Tree.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<array\{type\: ''dir'', path\: string, name\: string, children\: non\-empty\-list\<array\<string, mixed\>\>\}\|array\{type\: ''file'', path\: string, name\: string, language\: string\}\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/FileManager/Tree.php
+
+		-
+			message: '#^Parameter \#2 \$faces of static method MarioHamann\\StatamicVisualEditor\\Fonts\\Stylesheet\:\:addFaces\(\) expects list\<array\{family\: string, file\: string, format\: string, weight\: string, style\: string, unicodeRange\?\: string\|null\}\>, list\<array\{file\: string, format\: ''woff2'', weight\: mixed, style\: mixed, unicodeRange\: mixed\}\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Fonts/GoogleFonts.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: src/Fonts/Stylesheet.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between numeric\-string and '''' will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: src/Fonts/Uploads.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/AiChatController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/AiTabsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/AnimationPresetController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\<string, array\<string, int\|string\>\|string\>\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/AnimationPresetController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/BreakpointsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/ChromePrefsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CollectionEntriesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CollectionEntriesController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CollectionEntriesController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CollectionEntriesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CollectionPresetController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CollectionPresetController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CollectionPresetController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:augmentedValue\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:layout\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:template\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CollectionViewPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CommentsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:initials\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CommentsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:name\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CommentsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Entries\\Entry\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CommentsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/CommentsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\<string, string\>\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/ComponentController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CreateEntryController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CreateEntryController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/CreateEntryController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CreateEntryController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/CreateEntryController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/DataVarsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/DesignOverlayController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/DockGhostController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/ElementFieldsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:lastModified\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:lastModifiedBy\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:slug\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Entries\\Entry\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/EntryActivityController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryBlueprintController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:blueprint\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryBlueprintController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryBlueprintController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:get\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryBlueprintController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:template\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/EntryBlueprintController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Entries\\Entry\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/EntryBlueprintController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\|null given\.$#'
+			identifier: argument.type
+			count: 6
+			path: src/Http/Controllers/FileManagerController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/FileManagerController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/FontsController.php
+
+		-
+			message: '#^Parameter \#2 \$faces of static method MarioHamann\\StatamicVisualEditor\\Fonts\\Stylesheet\:\:addFaces\(\) expects list\<array\{family\: string, file\: string, format\: string, weight\: string, style\: string, unicodeRange\?\: string\|null\}\>, array\{array\{file\: string, format\: string, weight\: string, style\: string, unicodeRange\: null\}\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/FontsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/GlobalSectionStashController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/GlobalSectionStashController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/GlobalSectionStashController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/GlobalsPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/GlobalsPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Globals\\GlobalSet\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/GlobalsPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/LayoutPatternsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/LayoutPatternsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/LayoutPatternsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:whereIn\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/LinkTargetsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/LinkTargetsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/LiveReloadController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/OwnPageController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Entries\\Entry\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/OwnPageController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/PageSpeedController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/PageTransitionLandingController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/PageTransitionSettingsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/PreviewTickController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/PropFieldsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/RenderProfileController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionPreviewController.php
+
+		-
+			message: '#^Call to static method default\(\) on an unknown class MarioHamann\\StatamicVisualEditor\\Http\\Controllers\\Site\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SavedSectionPreviewController.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Http\\Controllers\\SavedSectionPreviewController\:\:hostPage$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Http/Controllers/SavedSectionPreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:delete\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 5
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController/Rows.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedSectionsController/Store.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatePreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatePreviewController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:delete\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SavedTemplatesController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:blueprint\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SectionDefaultsPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SectionDefaultsPreviewController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SectionMetaController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Entries\\Collection\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SectionMetaController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Fields\\Blueprint\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SectionMetaController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/SectionTemplateController/Target.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 9
+			path: src/Http/Controllers/SectionTypesController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SectionTypesController.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Http\\Controllers\\SetPreviewsController\:\:generate$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Http/Controllers/SetPreviewsController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:preferredLocale\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:editUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:previewTargets\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:setSupplement\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:slug\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:template\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/SiteCanvasController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\|null given\.$#'
+			identifier: argument.type
+			count: 4
+			path: src/Http/Controllers/SiteCssController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/SiteCssController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\<string, bool\|string\>\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Http/Controllers/SnippetController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/TemplateBoardController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/TemplateBoardController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:editUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/TemplateBoardController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/TemplateBoardController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Controllers/TemplateBoardController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Http/Controllers/TemplateBoardController.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Controllers/TemplateFieldsController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Auth\\User\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Http/Controllers/TemplatePropsController.php
+
+		-
+			message: '#^Call to function method_exists\(\) with Symfony\\Component\\HttpFoundation\\Response and ''getContent'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Http/Middleware/DisableViteHotReload.php
+
+		-
+			message: '#^Call to function method_exists\(\) with Symfony\\Component\\HttpFoundation\\Response and ''setContent'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Http/Middleware/DisableViteHotReload.php
+
+		-
+			message: '#^Cannot access property \$headers on class\-string\|object\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: src/Http/Middleware/ExplainRenderErrorInPreview.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:preferredLocale\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Middleware/ExplainRenderErrorInPreview/Words.php
+
+		-
+			message: '#^Property Statamic\\View\\Antlers\\Language\\Nodes\\AbstractNode\:\:\$content \(string\) on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.property
+			count: 1
+			path: src/Http/Middleware/ExplainRenderErrorInPreview/Words.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:getPreference\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Middleware/InjectBridgeScript.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Middleware/InjectEditButton.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Http/Middleware/InjectSchema.php
+
+		-
+			message: '#^Static method Statamic\\Facades\\Entry\:\:findByUri\(\) invoked with 1 parameter, 2 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: src/Http/Middleware/InjectSchema.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:repository\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Middleware/OverrideGlobalSectionsInPreview.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:set\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Http/Middleware/OverrideGlobalSectionsInPreview.php
+
+		-
+			message: '#^Call to an undefined static method MarioHamann\\StatamicVisualEditor\\IconifyDefaultTag\:\:register\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/IconifyDefault.php
+
+		-
+			message: '#^Offset ''set'' on array\{set\: string, default\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/IconifyDefault.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\IconifyDefault\:\:fallbackName$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/IconifyDefault.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\IconifyDefault\:\:storedValueIsEmpty$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/IconifyDefault.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\IconifyDefault\:\:svgData$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/IconifyDefault.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/LibraryAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\LibraryAccess\:\:ROLES$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/LibraryAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\LibraryAccess\:\:SCOPE$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/LibraryAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\LibraryAccess\:\:appliesTo$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/LibraryAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\LibraryAccess\:\:audience$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/LibraryAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\LibraryAccess\:\:roles$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/LibraryAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\LibraryAccess\\Scan\:\:scope$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/LibraryAccess/Scan.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/LivePreviewSectionScope.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/LivePreviewSectionScope.php
+
+		-
+			message: '#^Offset ''ok'' on array\{ok\: bool, reason\?\: string, output\?\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/LiveReload.php
+
+		-
+			message: '#^Offset ''type'' on list in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 1
+			path: src/Modifiers/IsDefault.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Modifiers\\IsDefault\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Modifiers/IsDefault.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/OwnPage.php
+
+		-
+			message: '#^Cannot call method workingCopy\(\) on class\-string\|object\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/OwnPage.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:preferredLocale\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PageSpeed.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\Asset\:\:delete\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewFile.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\AssetContainer\:\:disk\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewFile.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\AssetContainer\:\:path\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewFile.php
+
+		-
+			message: '#^Offset 1 on array\{non\-falsy\-string, '''', non\-empty\-string\}\|array\{non\-falsy\-string, non\-empty\-string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/PreviewFingerprint/BuiltCss.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:blueprint\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewHost.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:set\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewHost.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:template\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewHost.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:toResponse\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewHost.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewHost.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Statamic\\Contracts\\Entries\\Entry\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/PreviewHost.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\PreviewRefresher\:\:suppressed$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/PreviewRefresher.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\AssetContainer\:\:disk\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewStatus.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PreviewStatus.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\Asset\:\:path\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/PropFields.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:url\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/PropFields.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\AssetContainer\:\:disk\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SavedSectionPreview.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:collectionHandle\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SavedSectionPreview.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/SavedSectionPreview.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:set\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SavedSectionPreview.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\Entry\:\:value\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: src/SavedSectionPreview.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionDefaults\:\:setConfig$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionDefaults.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/SectionField.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:id\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SectionFieldGuard.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SectionFieldGuard.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/SectionFieldGuard.php
+
+		-
+			message: '#^Offset 0 on array\{string, int\<\-1, max\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/SectionRootTags.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTemplate\:\:LOCK_MARKER$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/SectionTemplate.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTemplate\:\:UNLOCK_MARKER$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/SectionTemplate.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTemplate\:\:defaultsLocked$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTemplate.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTemplate\:\:lockedSnapshots$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTemplate.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTemplate\:\:restoreLocked$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTemplate.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTemplate\:\:writablePath$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTemplate.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/SectionTemplate/Locks.php
+
+		-
+			message: '#^Offset ''css'' on array\{html\: string, css\: string, js\: string, tw\?\: string, html_tag\?\: string\|null, css_tag\?\: string, js_tag\?\: string, props\?\: array, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/SectionTemplate/Panes.php
+
+		-
+			message: '#^Offset ''html'' on array\{html\: string, css\: string, js\: string, tw\?\: string, html_tag\?\: string\|null, css_tag\?\: string, js_tag\?\: string, props\?\: array, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/SectionTemplate/Panes.php
+
+		-
+			message: '#^Offset ''js'' on array\{html\: string, css\: string, js\: string, tw\?\: string, html_tag\?\: string\|null, css_tag\?\: string, js_tag\?\: string, props\?\: array, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/SectionTemplate/Panes.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTypeMaker\:\:VIEW_FOLDER$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/SectionTypeMaker.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTypeMaker\:\:fieldsetFolderForGroup$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTypeMaker.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTypeMaker\:\:freeName$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTypeMaker.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTypeMaker\:\:readFieldset$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTypeMaker.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SectionTypeMaker\:\:viewFolderForGroup$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SectionTypeMaker.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\Asset\:\:path\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SectionTypeMaker/AddField.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SectionTypes.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SectionUsage.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/SectionUsage.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<''buildDirectory''\|''hotFile''\|''input''\|''publicDirectory''\|int\<0, max\>, list\<string\>\|string\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/ServiceProvider.php
+
+		-
+			message: '#^Property MarioHamann\\StatamicVisualEditor\\ServiceProvider\:\:\$listen \(array\<class\-string, array\<class\-string\>\>\) does not accept default value of type array\<string, list\<list\<string\>\|string\>\>\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: src/ServiceProvider.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SetMeta\:\:grids$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SetMeta.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\AssetContainer\:\:disk\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SetPreview/Targets.php
+
+		-
+			message: '#^Method MarioHamann\\StatamicVisualEditor\\SetPreview\\Targets\:\:targets\(\) should return array\<string, array\{status\: string, url\: string\|null, selector\: string, filename\: string\|null, current\: string\|null, source\: string\|null\}\> but returns array\<string, array\{status\: ''excluded''\|''no_source'', candidates\: array\{\}, filename\: null, current\: string\|null, source\: null\}\|array\{status\: ''failed''\|''fresh''\|''missing''\|''renders_nothing''\|''stale'', candidates\: non\-empty\-array\<int, array\{url\: string, selector\: string, data\: array, source\: string\}\>, filename\: non\-falsy\-string, current\: string\|null, source\: string\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/SetPreview/Targets.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Assets\\AssetContainer\:\:disk\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/SetPreviewGenerator.php
+
+		-
+			message: '#^Comparison operation "\<\=" between 1\|2 and 2 is always true\.$#'
+			identifier: smallerOrEqual.alwaysTrue
+			count: 1
+			path: src/SetPreviewGenerator.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SetPreviewImages\:\:filenames$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SetPreviewImages.php
+
+		-
+			message: '#^Offset ''kind'' on array\{kind\: string, imported\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/SiteBuild.php
+
+		-
+			message: '#^Offset 1 on array\{list\<string\>, list\<non\-falsy\-string\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 4
+			path: src/SiteClasses.php
+
+		-
+			message: '#^Offset 1 on array\{list\<string\>, list\<string\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/SiteClasses.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SiteCss\:\:isImported$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SiteCss.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\SiteCss\:\:kind$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/SiteCss.php
+
+		-
+			message: '#^Offset ''name'' on array\{type\: ''dir'', path\: string, name\: string, children\: non\-empty\-list\<array\<string, mixed\>\>\}\|array\{type\: ''file'', path\: string, name\: string, imported\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 4
+			path: src/SiteCss/Files.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<array\{type\: ''dir'', path\: string, name\: string, children\: non\-empty\-list\<array\<string, mixed\>\>\}\|array\{type\: ''file'', path\: string, name\: string, imported\: bool\}\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/SiteCss/Files.php
+
+		-
+			message: '#^Unsafe call to private method MarioHamann\\StatamicVisualEditor\\Snippet\:\:dropOther\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 3
+			path: src/Snippet.php
+
+		-
+			message: '#^Unsafe call to private method MarioHamann\\StatamicVisualEditor\\Snippet\:\:ensureDirectory\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 2
+			path: src/Snippet.php
+
+		-
+			message: '#^Unsafe call to private method MarioHamann\\StatamicVisualEditor\\Snippet\:\:hint\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 1
+			path: src/Snippet.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Snippet\:\:rename$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Snippet.php
+
+		-
+			message: '#^Offset 0 on list\{0\: non\-empty\-string, 1\?\: ''saved_compositions''\|''saved_templates'', 2\?\: ''saved_templates''\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Stores.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\Resolve\\ResolvesFields\:\:resolveFieldType$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/Resolve/ResolvesFields.php
+
+		-
+			message: '#^Offset ''rowTemplate'' on array\{template\: string, rowTemplate\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Tags/Resolve/SetAttributes.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\ResponsiveCss\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/ResponsiveCss.php
+
+		-
+			message: '#^Offset ''kind'' on array\{handle\: string, kind\: string, label_da\: string, label_en\: string, vars\: array\<string, string\>, timing\?\: array\<string, int\>, listed\?\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Tags/SveAnimation.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveAnimation\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveAnimation.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveCache\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveCache.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveComponent\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveComponent.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveDefaults\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveDefaults.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SvePageTransition\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SvePageTransition.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveProp\:\:field$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveProp.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveProp\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveProp.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\SveTw\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/SveTw.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\Tags\\VisualEdit\:\:index$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/Tags/VisualEdit.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TailwindBake\:\:classes$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/TailwindBake.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TailwindBake\:\:fromHtml$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/TailwindBake.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TailwindBake\:\:peelVariants$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/TailwindBake.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TailwindBuilt\:\:classes$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/TailwindBuilt.php
+
+		-
+			message: '#^Offset 1 on array\{list\<string\>, list\<non\-empty\-string\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/TailwindTheme.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/TemplateBoard.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Entries\\QueryBuilder\:\:where\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/TemplateFields.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/TemplateHistory.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:ASSET_KINDS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:KIND_ASSETS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:KIND_COLLECTION$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:KIND_TEXT$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:MEDIA_ATTRIBUTES$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:TEXT_KINDS$#'
+			identifier: shipmonk.deadConstant
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\TemplateProps\:\:fieldDefinition$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/TemplateProps.php
+
+		-
+			message: '#^Cannot call method blueprint\(\) on class\-string\|object\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/TemplateUsage.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\ToolbarAccess\:\:normalize$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/ToolbarAccess.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\ToolbarAccess\:\:rules$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/ToolbarAccess.php
+
+		-
+			message: '#^Call to an undefined method Statamic\\Contracts\\Auth\\User\:\:can\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/ToolbarModes.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 1
+			path: src/ToolbarModes.php
+
+		-
+			message: '#^Offset 1 on array\{list\<string\>, list\<non\-falsy\-string\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/VisualEditAntlers.php
+
+		-
+			message: '#^Unused MarioHamann\\StatamicVisualEditor\\VisualEditAntlers\:\:section$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: src/VisualEditAntlers.php

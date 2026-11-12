@@ -18,7 +18,12 @@
         "spatie/browsershot": "^5.0"
     },
     "require-dev": {
-        "orchestra/testbench": "^11.0"
+        "orchestra/testbench": "^11.0",
+        "phpstan/phpstan": "^2.3",
+        "larastan/larastan": "^3.15",
+        "shipmonk/dead-code-detector": "^1.4",
+        "rector/rector": "^2.8",
+        "laravel/pint": "^1.32"
     },
     "config": {
         "allow-plugins": {
@@ -41,5 +46,11 @@
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
-    "license": "proprietary"
+    "license": "proprietary",
+    "scripts": {
+        "quality": "node scripts/quality.mjs php"
+    },
+    "scripts-descriptions": {
+        "quality": "PHPStan, Pint and Rector against the baselines (quality pass)"
+    }
 }

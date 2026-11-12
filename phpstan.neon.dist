@@ -1,0 +1,20 @@
+# Quality pass, phase 1: level 5 with a baseline, so only new code has to pass.
+# Regenerate the baseline only when findings went down:
+#   vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/shipmonk/dead-code-detector/rules.neon
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - src
+    # Bridges to optional addons (statamic-iconify, style-push) extend their
+    # classes and only load when that addon is installed; the addon's own
+    # vendor/ does not have them, and "extends unknown class" cannot be baselined.
+    excludePaths:
+        - src/IconifyDefaultTag.php
+        - src/ScriptPushStackBridge.php
+        - src/StylePushStackBridge.php
+    tmpDir: .phpstan-cache
