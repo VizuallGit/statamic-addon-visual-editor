@@ -44,7 +44,7 @@ const STYLE_RE = /\.css(\?|#|$)/i;
  * stylesheet reports as `css`, and lumping fonts in with CSS is how a page with
  * six font files comes to look like it has a big stylesheet problem.
  */
-export function resourceKind(entry) {
+function resourceKind(entry) {
   const url = entry.name || '';
 
   if (FONT_RE.test(url)) {

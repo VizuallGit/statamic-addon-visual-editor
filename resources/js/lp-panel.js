@@ -52,8 +52,6 @@ import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
 export const KEEP_CHROME_KEY = 'sve-keep-chrome';
 
-export const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
-
 /**
  * Statamics egen nøgle, og med vilje.
  *
@@ -71,8 +69,7 @@ export const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
 //   hide — never opens, not even when something in the preview is clicked
 //   auto — closed until something in the preview is clicked, then opens on it
 //   show — always open
-export const LP_MODES = ['hide', 'auto', 'show'];
-export const LP_MODE_LABELS = { hide: 'Hidden', auto: 'Auto', show: 'Visible' };
+const LP_MODES = ['hide', 'auto', 'show'];
 
 /**
  * Flat Save & Publish blue — lightest stop from Statamic’s primary gradient
@@ -122,7 +119,7 @@ export function paintLpActiveControl(btn, on) {
  * Flat primary fill matching our chrome pills — kills Statamic’s gradient + border
  * on the Live Preview “Save & Publish” (and plain “Save”) header button.
  */
-export function isLpSaveLabel(text) {
+function isLpSaveLabel(text) {
   const t = (text || '').replace(/\s+/g, ' ').trim();
 
   return (
@@ -131,7 +128,7 @@ export function isLpSaveLabel(text) {
   );
 }
 
-export function isLpPublishLabel(text) {
+function isLpPublishLabel(text) {
   const t = (text || '').replace(/\s+/g, ' ').trim();
 
   return /^(publish|publicér|publicer)(\.\.\.|…)?$/i.test(t);
@@ -334,7 +331,7 @@ export function paintLpSaveButton(win) {
 }
 
 /** Så svag som en streg kan være og stadig dele to ord. */
-export const LP_SEP_OPACITY = '.15';
+const LP_SEP_OPACITY = '.15';
 
 /**
  * Topbarens egen baggrundsfarve, aflæst frem for gættet.
@@ -415,15 +412,6 @@ export function lpMode(win) {
   }
 
   return stored;
-}
-
-/** True while a page change is in flight — the next editor should keep the bar as it was. */
-export function shouldKeepChrome(win) {
-  try {
-    return win.sessionStorage.getItem(KEEP_CHROME_KEY) === '1';
-  } catch {
-    return false;
-  }
 }
 
 export function storedLpCollapsed(win) {

@@ -79,7 +79,7 @@ import { isMac } from './lib/shortcuts.js';
 import { resetUserShortcuts, setUserShortcut, shortcutLayers } from './toolbar-shortcuts.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
-export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
+const LP_MORE_MENU_ID = '__sve-lp-more-menu';
 
 /** The top-bar tools that open in the right sidebar, in the order the Sidebars tab lists them. */
 const SIDEBAR_TOOLS = ['listview', 'outline', 'comments', 'sections', 'ai', 'performance', 'theme'];

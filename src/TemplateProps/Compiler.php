@@ -2,8 +2,6 @@
 
 namespace MarioHamann\StatamicVisualEditor\TemplateProps;
 
-use MarioHamann\StatamicVisualEditor\SundayAug30;
-
 /**
  * Turns the author syntax into Antlers Statamic can render (`sve_prop`
  * tags), leaving comments alone.
@@ -17,10 +15,6 @@ final class Compiler
     public static function compile(?string $antlers): string
     {
         $antlers ??= '';
-
-        if (! SundayAug30::enabled()) {
-            return $antlers;
-        }
 
         $placeholders = [];
         $masked = preg_replace_callback('/\{\{#.*?#\}\}/s', function (array $m) use (&$placeholders) {

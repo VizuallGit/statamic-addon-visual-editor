@@ -76,7 +76,7 @@ export function forgetComponentProps(src) {
  * ------------------------------------------------------------------ */
 
 /** What a group's value is written behind. Mirrors `ComponentProps\GroupValue::PREFIX`. */
-export const GROUP_PREFIX = 'sve64:';
+const GROUP_PREFIX = 'sve64:';
 
 /**
  * What a group's written value holds, or null when it is not one.
@@ -297,10 +297,10 @@ export function bindCall(html, call, binds) {
  * section field named `headline` were one name with two meanings, and the
  * section's won.
  */
-export const PROP_PREFIX = 'props_';
+const PROP_PREFIX = 'props_';
 
 /** The parameter name a prop is written as. */
-export function propParam(handle) {
+function propParam(handle) {
   return PROP_PREFIX + String(handle || '');
 }
 

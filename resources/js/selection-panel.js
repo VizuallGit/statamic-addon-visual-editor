@@ -173,7 +173,7 @@ export function selectRow(win, uid, source = 'tree') {
 }
 
 /** A whole tab of a form — the header, the footer — chosen by the editor. */
-export function selectTab(win, tab, ctxName, source = 'chrome') {
+function selectTab(win, tab, ctxName, source = 'chrome') {
   if (!tab || !ctxName) {
     return false;
   }

@@ -8,7 +8,7 @@
  * (`build`) or one of the dock's panes (`code_html`, …). `code` means the whole
  * dock when something is moved, and is never stored.
  */
-export const ZONES = ['left', 'right', 'bottom'];
+const ZONES = ['left', 'right', 'bottom'];
 export const CODE_PANES = ['html', 'css', 'alpine', 'js'];
 export const CODE_KEYS = CODE_PANES.map((pane) => `code_${pane}`);
 

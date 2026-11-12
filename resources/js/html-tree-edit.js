@@ -16,7 +16,7 @@ export function findNode(nodes, id) {
   return null;
 }
 
-export function containsId(node, id) {
+function containsId(node, id) {
   return (node.children || []).some((child) => child.id === id || containsId(child, id));
 }
 

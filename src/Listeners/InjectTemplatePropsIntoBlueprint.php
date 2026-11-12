@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Listeners;
 
 use MarioHamann\StatamicVisualEditor\FieldsetFields;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
-use MarioHamann\StatamicVisualEditor\SundayAug30;
 use MarioHamann\StatamicVisualEditor\TemplateProps;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\GlobalVariablesBlueprintFound;
@@ -19,10 +18,6 @@ class InjectTemplatePropsIntoBlueprint
 {
     public function handle(EntryBlueprintFound|GlobalVariablesBlueprintFound $event): void
     {
-        if (! SundayAug30::enabled()) {
-            return;
-        }
-
         $contents = $event->blueprint->contents();
         $contents = $this->processContents($contents);
         $event->blueprint->setContents($contents);

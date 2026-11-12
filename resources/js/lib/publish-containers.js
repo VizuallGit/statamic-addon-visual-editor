@@ -167,7 +167,7 @@ export function unregisterContainerContext(ctx) {
 }
 
 /** Forget every context of a container that Statamic has taken down. */
-export function forgetContainerContexts(name) {
+function forgetContainerContexts(name) {
   const gone = ctxEntries.filter((ctx) => containerContextName(ctx) === name);
 
   if (!gone.length) {
@@ -267,7 +267,7 @@ export function registerContainerEvents(win = window) {
   });
 }
 
-export function containerFromDom(doc) {
+function containerFromDom(doc) {
   // Synced-section forms often have no [data-visual-id] yet (stripped on save).
   // Walk from any publish-form mount point, not only AutoUuid inputs.
   const starters = [

@@ -242,7 +242,7 @@ export function readToolbarGroups(win) {
   return carried;
 }
 
-export function writeToolbarGroups(win, groups) {
+function writeToolbarGroups(win, groups) {
   const clean = cleanGroups(groups);
 
   if (clean.length) {
@@ -368,7 +368,7 @@ function newGroupSquare(win) {
  * new-group square — moving only what is not already there. A box whose
  * group is gone is taken out once its tools have been placed elsewhere.
  */
-export function syncToolbarGroups(win) {
+function syncToolbarGroups(win) {
   const doc = win.document;
   const barNode = barEl(win);
 
@@ -480,7 +480,7 @@ export function placeToolbarButton(win, el) {
 }
 
 /** Replace this mode's hidden list (Show all). An icon the mode may not have is not this user's to list. */
-export function setHiddenTools(win, keys) {
+function setHiddenTools(win, keys) {
   writeKeys(win, TOOLBAR_HIDDEN_KEYS[toolbarMode()], [
     ...new Set(keys.filter((key) => validKey(key) && toolbarToolAllowed(win, key))),
   ]);
@@ -502,7 +502,7 @@ export function showAllToolbarTools(win) {
 }
 
 /** Store an arrangement and draw it. */
-export function setToolbarGroups(win, groups) {
+function setToolbarGroups(win, groups) {
   writeToolbarGroups(win, groups);
   syncToolbarLayout(win);
 }

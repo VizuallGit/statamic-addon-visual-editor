@@ -92,7 +92,7 @@ export function storedZones(win) {
   return parseZones(chromeGet(win, ZONES_KEY));
 }
 
-export function paneZone(win, key) {
+function paneZone(win, key) {
   return zoneOf(storedZones(win), key);
 }
 
@@ -526,7 +526,7 @@ export function beginPaneDrag(win, key, label) {
 }
 
 /** What dropping does; the probes and the drag go through here. */
-export function movePane(win, key, zone, before = '') {
+function movePane(win, key, zone, before = '') {
   const doc = win.document;
   const keys = keysOf(key);
   const shell =

@@ -53,7 +53,7 @@ function leafHandle(field) {
  * Breakpoint bag only — every own key is one of this site's sizes, and each
  * drawer is a plain object of inner field values.
  */
-export function isResponsiveBag(value) {
+function isResponsiveBag(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
   }
@@ -68,7 +68,7 @@ export function isResponsiveBag(value) {
   });
 }
 
-export function effectiveLeaf(bag, bp, handle) {
+function effectiveLeaf(bag, bp, handle) {
   const effective = {};
   for (const step of bpOrder()) {
     Object.assign(effective, bag[step] || {});
@@ -87,7 +87,7 @@ export function effectiveLeaf(bag, bp, handle) {
   return effective;
 }
 
-export function unwrapResponsiveConditionValue(value, field, bp = activeBp || bpBase(window)) {
+function unwrapResponsiveConditionValue(value, field, bp = activeBp || bpBase(window)) {
   if (!isResponsiveBag(value)) {
     return value;
   }

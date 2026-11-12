@@ -14,7 +14,7 @@
  *
  * May import: lib/values.js.
  */
-import { dataGet, findPathByUid, humanizeHandle } from '../../lib/values.js';
+import { findPathByUid, humanizeHandle } from '../../lib/values.js';
 
 /** Every field of a publish blueprint, in order, whichever shape the blueprint has. */
 export function blueprintFields(blueprint) {
@@ -234,9 +234,4 @@ export function resolveTab(blueprint, handle) {
     row: null,
     parentUid: null,
   };
-}
-
-/** The row's values, for a reader that has the path but not the row. */
-export function rowAt(values, path) {
-  return dataGet(values, path);
 }

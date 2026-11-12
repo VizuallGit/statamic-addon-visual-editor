@@ -144,14 +144,6 @@ export const TOOLBAR_NEW_GROUP_ATTR = 'data-sve-toolbar-new-group';
 export const HEADER_SURFACE = 'rgba(128,128,128,.16)';
 /** Hover-flade på venstre toolbar-ikoner — idle-flade på close, så den læses som en knap. */
 export const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
-/**
- * Fladen bag et felt man vælger i, oven på gruppens.
- *
- * Lysere end gruppen, ikke mørkere: den mørke er taget af knappen, og de to må
- * ikke kunne forveksles. Et felt man vælger i og en knap man trykker på gør ikke
- * det samme, så de skal heller ikke se ens ud.
- */
-export const HEADER_FIELD_SURFACE = 'rgba(128,128,128,.3)';
 
 /**
  * A square icon button in the Live Preview top bar — Close, reload, blueprint.

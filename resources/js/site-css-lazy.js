@@ -18,7 +18,7 @@ export function isSiteCssOpen(doc) {
   return !!doc?.getElementById(PANEL_ID);
 }
 
-export function loadSiteCss() {
+function loadSiteCss() {
   if (css) {
     return Promise.resolve(css);
   }

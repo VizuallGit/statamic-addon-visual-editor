@@ -13,7 +13,7 @@ import { isVoidTag } from '../html-tree-parse.js';
 
 export const HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 export const TEXT_TAGS = ['p', 'span', 'strong', 'b', 'em', 'small', 'blockquote'];
-export const LINK_TAGS = ['a', 'button'];
+const LINK_TAGS = ['a', 'button'];
 export const LAYOUT_TAGS = [
   'div',
   'section',

@@ -26,7 +26,7 @@ const VIEWPORT_PAD = 8;
 
 let menu = null;
 
-export function dismissToolbarAddMenu() {
+function dismissToolbarAddMenu() {
   if (!menu) {
     return;
   }

@@ -16,7 +16,7 @@ import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
 
 let pending = null;
 
-export function fetchLinkTargets(win) {
+function fetchLinkTargets(win) {
   if (!pending) {
     pending = win
       .fetch('/!/sve/link-targets', {
@@ -31,14 +31,9 @@ export function fetchLinkTargets(win) {
   return pending;
 }
 
-/** A page was added or renamed; ask again next time. */
-export function forgetLinkTargets() {
-  pending = null;
-}
-
 let menu = null;
 
-export function closePageMenu() {
+function closePageMenu() {
   menu?.dismiss();
   menu = null;
 }

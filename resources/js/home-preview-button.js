@@ -37,12 +37,12 @@ import { publishContainers } from './lib/publish-containers.js';
 import { unwrapRef } from './lib/values.js';
 import { goToPreview } from './open-in-preview.js';
 
-export const HOME_PREVIEW_ATTR = 'data-sve-home-preview';
+const HOME_PREVIEW_ATTR = 'data-sve-home-preview';
 const STYLE_ID = '__sve-home-preview-style';
 
 /** The global header, and its search (the command palette's dialog trigger). */
-export const GLOBAL_HEADER_MARK = '[data-global-header-breadcrumbs]';
-export const GLOBAL_HEADER_SEARCH = 'button[aria-haspopup="dialog"]';
+const GLOBAL_HEADER_MARK = '[data-global-header-breadcrumbs]';
+const GLOBAL_HEADER_SEARCH = 'button[aria-haspopup="dialog"]';
 
 const ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
@@ -85,7 +85,7 @@ function rememberShownPage(win) {
 }
 
 /** Where the button goes, and what it says on hover: the last page, else the front page. */
-export function buttonTarget(win, home) {
+function buttonTarget(win, home) {
   const last = lastPage(storageOf(win), win.location.origin, {
     ...noteScope(win),
     previewable: win.Statamic?.$config?.get?.('svePreviewable'),
@@ -176,7 +176,7 @@ function searchItem(doc) {
 }
 
 /** Put the button in the header if the header is there and the button is not. */
-export function ensureHomePreviewButton(win, home) {
+function ensureHomePreviewButton(win, home) {
   const doc = win.document;
 
   if (doc.querySelector(`[${HOME_PREVIEW_ATTR}]`)) {

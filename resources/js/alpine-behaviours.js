@@ -22,10 +22,6 @@
  * popup needs and nobody remembers: click outside, and Escape.
  */
 
-/** Where a behaviour's attributes go. */
-export const ON_TAG = 'tag';
-export const ON_STATE = 'state';
-
 export const ALPINE_GROUPS = [
   { id: 'state', lang: 'alpine_group_state' },
   { id: 'act', lang: 'alpine_group_act' },
@@ -197,7 +193,7 @@ export function behaviourHint(behaviour) {
 /** Anything Alpine owns: `x-…`, `@…`, and the `:` shorthand for `x-bind:`. */
 const ALPINE_ATTR = /^(x-[\w:.-]+|@[\w:.-]+|:[\w-]+)$/;
 
-export function isAlpineAttr(name) {
+function isAlpineAttr(name) {
   return ALPINE_ATTR.test(String(name || ''));
 }
 

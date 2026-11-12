@@ -71,7 +71,7 @@ export function parentOf(roots, node, parent = null) {
 }
 
 /** What Build calls a row: elementKind with its own and its parent's classes read from the file. */
-export function kindAt(source, roots, node) {
+function kindAt(source, roots, node) {
   const parent = parentOf(roots, node) || null;
 
   return elementKind(node, classesOf(source, node), parent, classesOf(source, parent));

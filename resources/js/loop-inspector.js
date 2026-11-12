@@ -22,7 +22,7 @@ import { NAV_PAGES } from './antlers-blocks.js';
 import { writeLoopSource, writeLoopTag } from './antlers-edit.js';
 import { t } from './lib/i18n.js';
 
-export function siteCollections(win) {
+function siteCollections(win) {
   const list = win.Statamic?.$config?.get?.('sveCollections');
 
   return Array.isArray(list) ? list : [];
@@ -35,7 +35,7 @@ export function siteCollections(win) {
  * because `{{ nav }}` reaches it by handle rather than through a navigation. A
  * site with none configured therefore still has something to loop.
  */
-export function siteNavigations(win) {
+function siteNavigations(win) {
   const list = win.Statamic?.$config?.get?.('sveNavigations');
 
   return Array.isArray(list) ? list : [];

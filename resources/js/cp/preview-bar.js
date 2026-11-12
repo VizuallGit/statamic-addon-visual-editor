@@ -23,7 +23,7 @@
 import { BP_OVERVIEW_ID } from '../lib/ids.js';
 
 /** `.live-preview-main` — the pane's parent — or null outside Live Preview. */
-export function barHost(frame) {
+function barHost(frame) {
   return frame?.closest?.('.live-preview-contents')?.parentElement || null;
 }
 

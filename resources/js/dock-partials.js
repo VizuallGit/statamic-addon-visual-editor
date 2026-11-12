@@ -126,7 +126,7 @@ const LOOP_SKIP = new Set([
  * Innermost Antlers pair around `pos` that is a field loop
  * (`{{ content_block }}` … `{{ /content_block }}`), not `if` / `partial`.
  */
-export function enclosingLoopField(html, pos) {
+function enclosingLoopField(html, pos) {
   const pairs = [];
   const re = /\{\{\s*(\/?)([A-Za-z_][A-Za-z0-9_]*)\b[\s\S]*?\}\}/g;
   let match;
@@ -166,7 +166,7 @@ export function enclosingLoopField(html, pos) {
   return best?.name || null;
 }
 
-export function usedTypesIn(values, field) {
+function usedTypesIn(values, field) {
   const types = new Set();
 
   const walk = (node) => {
@@ -208,7 +208,7 @@ export function usedTypesIn(values, field) {
   return types;
 }
 
-export function itemsForPartial(hit, items, html, section) {
+function itemsForPartial(hit, items, html, section) {
   if (!hit.src.includes('{')) {
     return items;
   }
@@ -231,7 +231,7 @@ export function itemsForPartial(hit, items, html, section) {
   return items.filter((item) => used.has(item.label));
 }
 
-export function fetchPartialItems(win, src) {
+function fetchPartialItems(win, src) {
   if (cache.has(src)) {
     return cache.get(src);
   }
@@ -272,7 +272,7 @@ export function closePartialMenu(doc) {
   doc?.getElementById(PARTIAL_MENU_ID)?.remove();
 }
 
-export function showPartialMenu(win, items, x, y, { onOpen, emptyLabel, labelFor, onStay, onLeave }) {
+function showPartialMenu(win, items, x, y, { onOpen, emptyLabel, labelFor, onStay, onLeave }) {
   const doc = win.document;
 
   closePartialMenu(doc);

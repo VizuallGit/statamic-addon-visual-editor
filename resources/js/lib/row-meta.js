@@ -5,7 +5,6 @@
  *   setMeta(win, handle)      display name, icon, instructions of a set
  *   gridMeta(win, handle)     the same for a Grid field's rows
  *   setRowForUid(uid, doc)    the row a uid points at, as the forms hold it
- *   setTypeForUid(uid, doc)   its set handle ("hero/style_2")
  *
  * May import: lib/.
  */
@@ -49,11 +48,4 @@ export function setRowForUid(uid, doc) {
   }
 
   return null;
-}
-
-/** The set handle ("hero/style_2") of the row a uid points at. */
-export function setTypeForUid(uid, doc) {
-  const row = setRowForUid(uid, doc);
-
-  return row && typeof row.type === 'string' ? row.type : null;
 }

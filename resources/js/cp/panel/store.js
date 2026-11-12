@@ -67,7 +67,7 @@ export function setPanelSelection(selection) {
 }
 
 /** The page's own context: the one named 'base', else the oldest. */
-export function pageContext() {
+function pageContext() {
   return (
     panelStore.ctxs.find((ctx) => containerContextName(ctx) === 'base') ||
     panelStore.ctxs[panelStore.ctxs.length - 1] ||
@@ -84,7 +84,7 @@ export function valuesOf(ctx) {
   return unwrapRef(ctx?.values) || null;
 }
 
-export function blueprintOf(ctx) {
+function blueprintOf(ctx) {
   return unwrapRef(ctx?.blueprint) || null;
 }
 

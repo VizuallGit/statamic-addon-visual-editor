@@ -16,8 +16,6 @@ import {
   isSetCollapsed,
   sendToPreview,
 } from './cp.js';
-import { rightDockWidth, splitterFill } from './right-dock.js';
-import { chromeSet } from './chrome-prefs.js';
 import { ensurePanel } from './lazy-panels.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
@@ -97,13 +95,13 @@ import { ask } from './cp/bus.js';
 // for these unsaved ones. Statamic itself only re-renders when the ENTRY changes,
 // so the re-render is triggered by replaying the last preview URL.
 
-export const GLOBALS_DEBOUNCE = 200;
+const GLOBALS_DEBOUNCE = 200;
 
 // How many 250ms poll ticks a parked panel keeps comparing after a message,
 // so an asynchronous setFieldValue is never missed (~5 s).
 const PARKED_SYNC_TICKS = 20;
 
-export let globalsSaveTimer = null;
+let globalsSaveTimer = null;
 
 export function globalSets(win) {
   const sets = win.Statamic?.$config?.get?.('sveGlobalSets');
@@ -112,7 +110,7 @@ export function globalSets(win) {
 }
 
 /** Global sets the globe menu lists — not every set the editor can still open. */
-export function pickerGlobalSets(win) {
+function pickerGlobalSets(win) {
   const sets = globalSets(win);
   const allowed = win.Statamic?.$config?.get?.('sveGlobalsPicker');
   const off = win.Statamic?.$config?.get?.('sveGlobalsPickerOff') || [];
@@ -255,7 +253,7 @@ export function setActiveChromeKind(kind) {
 }
 
 /** Tell the preview iframe to keep header/footer chrome focus (soft rebind). */
-export function assertChromeFocusInPreview(win) {
+function assertChromeFocusInPreview(win) {
   if (!activeChromeKind) {
     return;
   }
@@ -322,7 +320,7 @@ export let globalsAcceptValues = true;
 export let chromeIgnoreValuePostsUntil = 0;
 
 /** Cancel pending stash POSTs and ignore value polls until re-enabled. */
-export function invalidateGlobalsPreviewStash() {
+function invalidateGlobalsPreviewStash() {
   clearTimeout(globalsSaveTimer);
   globalsSaveTimer = null;
   globalsStashEpoch += 1;
@@ -332,7 +330,7 @@ export function invalidateGlobalsPreviewStash() {
 }
 
 /** Mark chrome form clean after open/save/discard settle. */
-export function markChromeFormClean(win) {
+function markChromeFormClean(win) {
   sveState.globalsStashActive = false;
   clearGlobalsDirtyMarks(win);
 
@@ -436,9 +434,9 @@ export function notifyGlobalSectionDirty(win) {
 }
 
 /** Listeners for Theme Settings / globals-panel save results (iframe). */
-export const globalsSaveListeners = [];
+const globalsSaveListeners = [];
 
-export function onGlobalsSave(callback) {
+function onGlobalsSave(callback) {
   globalsSaveListeners.push(callback);
 
   return () => {
@@ -450,7 +448,7 @@ export function onGlobalsSave(callback) {
   };
 }
 
-export function globalsPanelFrame(win) {
+function globalsPanelFrame(win) {
   return win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe') || null;
 }
 
@@ -519,7 +517,7 @@ export function hasUnsavedWork(win) {
 }
 
 /** Clear Statamic.$dirty marks inside the Theme Settings iframe. */
-export function clearGlobalsDirtyMarks(win) {
+function clearGlobalsDirtyMarks(win) {
   const iwin = globalsPanelFrame(win)?.contentWindow;
 
   if (!iwin) {
@@ -756,7 +754,7 @@ export function watchGlobalsPanelSaves(iwin, parentWin, entryPath = null) {
   };
 }
 
-export function ensureGlobalsPanelSaveWatch(win) {
+function ensureGlobalsPanelSaveWatch(win) {
   const frame = globalsPanelFrame(win);
 
   if (!frame) {
@@ -831,7 +829,7 @@ export function clearGlobalsStash(win, { refresh = true, force = false } = {}) {
     });
 }
 
-export function closeGlobalsPanel(win) {
+function closeGlobalsPanel(win) {
   // Whichever one is open. Only one ever is.
   if (closeChromeInline(win)) {
     return;
@@ -886,71 +884,7 @@ export function parkGlobalsPanel(win) {
   syncPreviewInset(win);
 }
 
-export const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
-export const GLOBALS_MIN_WIDTH = 320;
-
-export function globalsPanelWidth(win) {
-  return rightDockWidth(win);
-}
-
-/**
- * Drag handle on a docked panel's inner edge; the width is remembered.
- * `side: 'right'` = panel on the right (handle on its left). `side: 'left'` =
- * panel on the left (handle on its right).
- */
-export function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_WIDTH_KEY, onResize } = {}) {
-  const handle = win.document.createElement('div');
-  const grip = splitterFill('ew');
-
-  handle.style.cssText =
-    side === 'left'
-      ? `position:absolute;right:-8px;top:0;bottom:0;width:16px;cursor:ew-resize;z-index:2;touch-action:none;${grip}`
-      : `position:absolute;left:-8px;top:0;bottom:0;width:16px;cursor:ew-resize;z-index:2;touch-action:none;${grip}`;
-  handle.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    handle.setPointerCapture(event.pointerId);
-
-    const frame = panel.querySelector('iframe');
-
-    if (frame) {
-      frame.style.pointerEvents = 'none';
-    }
-
-    const onMove = (move) => {
-      const max = Math.max(GLOBALS_MIN_WIDTH, win.innerWidth - 360);
-      const width =
-        side === 'left'
-          ? Math.min(Math.max(move.clientX, GLOBALS_MIN_WIDTH), max)
-          : Math.min(Math.max(win.innerWidth - move.clientX, GLOBALS_MIN_WIDTH), max);
-
-      panel.style.width = `${width}px`;
-      syncPreviewInset(win);
-      onResize?.(width);
-    };
-
-    const onUp = () => {
-      win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-
-      if (frame) {
-        frame.style.pointerEvents = '';
-      }
-
-      chromeSet(win, storageKey, String(parseInt(panel.style.width, 10)));
-    };
-
-    win.addEventListener('pointermove', onMove);
-    win.addEventListener('pointerup', onUp);
-  });
-
-  return handle;
-}
-
-export function globalsPanelUrl(win, set) {
+function globalsPanelUrl(win, set) {
   const url = new URL(set.url, win.location.origin);
 
   url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
@@ -986,7 +920,7 @@ export function scheduleChromeGlobalsPrefetch(win) {
  * because their form is already mounted; chrome needs the same head start —
  * ideally before the user opens Live Preview at all.
  */
-export function prefetchChromeGlobals(win) {
+function prefetchChromeGlobals(win) {
   const doc = win.document;
 
   // Don't run inside the panel iframe itself.
@@ -999,7 +933,7 @@ export function prefetchChromeGlobals(win) {
   warmChromeInlinePages(win);
 }
 
-export function openGlobalsPanel(win, set, options = {}) {
+function openGlobalsPanel(win, set, options = {}) {
   const doc = win.document;
   const existing = doc.getElementById(GLOBALS_PANEL_ID);
   const prefetch = options.prefetch === true;
@@ -1858,9 +1792,6 @@ export function initGlobalsPanelFrame(win) {
   return true;
 }
 
-/** Library-only fields on a saved_sections entry — not part of a normal section edit. */
-export const SAVED_SECTION_META_HANDLES = ['title', 'synced', 'section_type', 'preview_image'];
-
 /**
  * Assign stable `id` on every set row that lacks one (synced sections saved
  * before nested ids were preserved). Returns true when anything changed.
@@ -1940,14 +1871,14 @@ export function chromeGlobalHandle(win, kind = null) {
   return own || cfg.global || cfg.header?.global || cfg.footer?.global || 'theme_settings';
 }
 
-export function chromeConfig(win) {
+function chromeConfig(win) {
   const cfg = win.Statamic?.$config?.get?.('sveChrome');
 
   return cfg && typeof cfg === 'object' ? cfg : {};
 }
 
 /** Configured layout cards for header/footer (`sveChrome.header.styles` etc.). */
-export function chromeStyles(win, kind) {
+function chromeStyles(win, kind) {
   const list = chromeConfig(win)[kind]?.styles;
 
   return Array.isArray(list) ? list : [];
@@ -1973,7 +1904,7 @@ function chromeKindInPlay(win, panel = null) {
  * nothing to choose between, so the Design | Edit content toggle would be two
  * names for the one thing the sidebar can show. Then it stays away.
  */
-export function chromeHasDesigns(win, panel = null) {
+function chromeHasDesigns(win, panel = null) {
   return chromeStyles(win, chromeKindInPlay(win, panel)).length > 0;
 }
 
@@ -1983,20 +1914,9 @@ export function closeChromeDesignsPanel(win) {
   syncPreviewInset(win);
 }
 
-export const CHROME_MODE_TOGGLE_ATTR = 'data-sve-chrome-mode-toggle';
+const CHROME_MODE_TOGGLE_ATTR = 'data-sve-chrome-mode-toggle';
 
-/** Which chrome sidebar view is visible: design picker vs Theme Settings. */
-export function currentChromeSidebarMode(win) {
-  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
-
-  if (designs && !designs.hasAttribute('data-sve-chrome-hidden') && designs.style.display !== 'none') {
-    return 'design';
-  }
-
-  return 'settings';
-}
-
-export function paintChromeModeToggle(row, mode) {
+function paintChromeModeToggle(row, mode) {
   if (!row) {
     return;
   }
@@ -2011,7 +1931,7 @@ export function paintChromeModeToggle(row, mode) {
   });
 }
 
-export function paintAllChromeModeToggles(win, mode) {
+function paintAllChromeModeToggles(win, mode) {
   win.document.querySelectorAll(`[${CHROME_MODE_TOGGLE_ATTR}]`).forEach((row) => {
     paintChromeModeToggle(row, mode);
   });
@@ -2025,7 +1945,7 @@ export function removeChromeModeToggles(win) {
  * Segmented Design | Settings control for the chrome sidebar.
  * Replaces the old Designs/Settings buttons on the preview bottom bar.
  */
-export function buildChromeModeToggle(win, mode) {
+function buildChromeModeToggle(win, mode) {
   const doc = win.document;
   const row = doc.createElement('div');
 
@@ -2064,7 +1984,7 @@ export function buildChromeModeToggle(win, mode) {
 }
 
 /** Insert (or refresh) the Design/Settings toggle under a panel header. */
-export function ensureChromeModeToggle(win, panel, mode) {
+function ensureChromeModeToggle(win, panel, mode) {
   if (!panel) {
     return;
   }
@@ -2130,7 +2050,7 @@ export function setChromeSidebarMode(win, mode) {
  * Design picker for header/footer — same shared LP editor as Theme Settings /
  * page sections. Hides Theme Settings while open; form stays mounted for writes.
  */
-export function openChromeDesignsPanel(win, kind) {
+function openChromeDesignsPanel(win, kind) {
   const doc = win.document;
   const chromeKind = kind === 'footer' ? 'footer' : 'header';
   const existing = doc.getElementById(CHROME_DESIGNS_ID);
@@ -2330,7 +2250,7 @@ export function handleOpenChrome(data, doc, win) {
 }
 
 /** Writes header.style / footer.style into the open globals panel form. */
-export function setChromeStyle(win, kind, style, attempt = 0) {
+function setChromeStyle(win, kind, style, attempt = 0) {
   const handle = chromeGlobalHandle(win, kind);
   const sets = globalSets(win);
   const set = sets.find((candidate) => candidate.handle === handle);
@@ -2369,7 +2289,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
 }
 
 /** Waits for the panel's form to mount, then scrolls the field into view. */
-export function focusGlobalField(win, field, attempts = 0) {
+function focusGlobalField(win, field, attempts = 0) {
   const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
   const inner = frame?.contentDocument;
 

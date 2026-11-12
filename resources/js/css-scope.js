@@ -860,7 +860,7 @@ export function fillClassRule(css, name, body) {
   return `${source.slice(0, rule.brace + 1)}\n${fresh.map((line) => `${indent}${line}`).join('\n')}${rest}\n${closeIndent}${source.slice(rule.close)}`;
 }
 
-export function renameCssClass(css, from, to) {
+function renameCssClass(css, from, to) {
   const next = sanitizeCssClassName(to);
 
   if (!from || !next || from === next) {
@@ -874,7 +874,7 @@ export function renameCssClass(css, from, to) {
   return String(css || '').replace(new RegExp(`(^|[^\\w-])\\.${escapeRe(from)}(\\s*\\{)`, 'g'), `$1.${next}$2`);
 }
 
-export function removeCssClassRule(css, name) {
+function removeCssClassRule(css, name) {
   let next = String(css || '');
 
   for (;;) {

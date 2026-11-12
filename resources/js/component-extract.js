@@ -96,7 +96,7 @@ async function post(win, body) {
 /**
  * @returns {{ html: string, css: string, keepCss: string, lead: string, from: number, to: number }|null}
  */
-export function componentPartsFor(html, node) {
+function componentPartsFor(html, node) {
   const { from, to } = blockRange(html, node);
   const block = html.slice(from, to);
 

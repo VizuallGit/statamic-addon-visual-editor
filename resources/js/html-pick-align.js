@@ -139,10 +139,6 @@ export function findPickRoot(doc, { uid, uids, tag, klass } = {}) {
   );
 }
 
-export function stampHtmlPick(root, nodes) {
-  stampHtmlPickAll(root ? [root] : [], nodes);
-}
-
 /**
  * The same paths on every rendering of the file.
  *

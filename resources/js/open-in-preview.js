@@ -56,7 +56,7 @@ export function openInPreviewCollections(win) {
   return Array.isArray(list) ? list : [];
 }
 
-export const OPEN_PREVIEW_LABEL_ATTR = 'data-sve-open-preview';
+const OPEN_PREVIEW_LABEL_ATTR = 'data-sve-open-preview';
 const OPEN_PREVIEW_STYLE_ID = '__sve-open-preview-style';
 
 /**
@@ -67,9 +67,9 @@ const OPEN_PREVIEW_STYLE_ID = '__sve-open-preview-style';
  *
  * Both are named in CONTRACTS (scripts/statamic-update-check.py on the site).
  */
-export const ROW_TITLE_LINKS = 'a.title-index-field[href], .page-tree-branch a[href]';
+const ROW_TITLE_LINKS = 'a.title-index-field[href], .page-tree-branch a[href]';
 
-export function ensureOpenPreviewStyles(doc) {
+function ensureOpenPreviewStyles(doc) {
   injectStyle(
     doc,
     OPEN_PREVIEW_STYLE_ID,
@@ -130,7 +130,7 @@ function labelAfter(anchor) {
  * reuse a row's element for another entry after a sort, so an existing label
  * is re-pointed rather than trusted.
  */
-export function labelRows(win, root, collections) {
+function labelRows(win, root, collections) {
   const doc = win.document;
   const origin = win.location.origin;
 
@@ -187,9 +187,9 @@ export function labelRows(win, root, collections) {
 export const OPEN_IN_PREVIEW_ORIGIN = 'sve-open-in-preview-origin';
 
 // The note, once claimed: this document's preview and where it came from.
-export let openedFrom = null;
+let openedFrom = null;
 
-export function rememberOrigin(win, entryPath, from) {
+function rememberOrigin(win, entryPath, from) {
   try {
     win.sessionStorage.setItem(OPEN_IN_PREVIEW_ORIGIN, JSON.stringify({ entry: entryPath, from }));
   } catch {
@@ -269,7 +269,7 @@ export {
   showEntryOpening,
 };
 
-export const LP_OPENING_ATTR = 'data-sve-lp-opening';
+const LP_OPENING_ATTR = 'data-sve-lp-opening';
 const LP_OPENING_STYLE_ID = '__sve-lp-opening-style';
 
 /**
@@ -406,7 +406,7 @@ export function initOpenInPreview(win) {
 // be). Watching the network rather than a Statamic event: `saved` is emitted on
 // the publish component, not on a global bus, so there is nothing to listen to
 // from out here.
-export const saveListeners = [];
+const saveListeners = [];
 
 export function onEntrySave(callback) {
   saveListeners.push(callback);
@@ -666,7 +666,7 @@ export function publishButtonIn(doc) {
   );
 }
 
-export function isPublishButtonLabel(text) {
+function isPublishButtonLabel(text) {
   return /^(publish|udgiv|public[eé]r)\b/i.test(text);
 }
 

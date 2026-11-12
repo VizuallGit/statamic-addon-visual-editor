@@ -118,14 +118,14 @@ export function luminance(color) {
 }
 
 /** WCAG contrast ratio, 1 (identical) to 21 (black on white). */
-export function contrastRatio(fg, bg) {
+function contrastRatio(fg, bg) {
   const a = luminance(fg);
   const b = luminance(bg);
 
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-export function toHex(color) {
+function toHex(color) {
   const part = (value) =>
     Math.round(Math.min(255, Math.max(0, value)))
       .toString(16)

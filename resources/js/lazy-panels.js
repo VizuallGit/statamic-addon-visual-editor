@@ -21,7 +21,7 @@ import {
 } from './lib/ids.js';
 import { mountSectionPicker } from './section-library.js';
 
-export const PANEL_IDS = {
+const PANEL_IDS = {
   listview: LISTVIEW_PANEL_ID,
   outline: OUTLINE_PANEL_ID,
   html_tree: HTML_TREE_PANEL_ID,

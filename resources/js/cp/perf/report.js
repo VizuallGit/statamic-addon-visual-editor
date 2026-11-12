@@ -15,7 +15,7 @@ import { fileName } from './measure.js';
 const KB = 1024;
 
 /** [good, poor] — at or under the first is 100, at or over the second is 0. */
-export const BUDGETS = {
+const BUDGETS = {
   weight: [1000 * KB, 3000 * KB],
   js: [200 * KB, 700 * KB],
   image: [800 * KB, 2500 * KB],
@@ -108,7 +108,7 @@ export function weighKinds(raw) {
   return totals;
 }
 
-export function totalWeight(totals) {
+function totalWeight(totals) {
   return Object.values(totals).reduce((sum, n) => sum + n, 0);
 }
 

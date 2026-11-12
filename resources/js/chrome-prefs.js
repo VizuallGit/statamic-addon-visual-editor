@@ -126,7 +126,7 @@ export function chromeRemove(win, key) {
   scheduleChromeSave(win);
 }
 
-export function readChromeBlob(win) {
+function readChromeBlob(win) {
   const out = {};
 
   CHROME_KEYS.forEach((key) => {
@@ -200,7 +200,7 @@ export function hydrateChromePrefs(win) {
   }
 }
 
-export function scheduleChromeSave(win) {
+function scheduleChromeSave(win) {
   if (saveTimer) {
     win.clearTimeout(saveTimer);
   }

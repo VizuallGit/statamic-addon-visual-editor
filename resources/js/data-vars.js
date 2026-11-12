@@ -132,7 +132,7 @@ export function resetDataVars(setHandle) {
 }
 
 /** A value shortened to one row of a menu. Mirrors DataVars::preview() in PHP. */
-export function previewValue(value) {
+function previewValue(value) {
   if (value == null || value === '') {
     return '';
   }

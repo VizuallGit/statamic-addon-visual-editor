@@ -274,13 +274,6 @@ export function bpMedia(handle, prefer = 'em', win = window) {
   return (prefer === 'px' ? row.media_px : row.media) || row.media || '';
 }
 
-/** Both spellings of one size's boundary, for matching what a file already has. */
-export function bpMediaForms(handle, win = window) {
-  const row = bpRow(handle, win);
-
-  return row && !row.base ? [row.media, row.media_px].filter(Boolean) : [];
-}
-
 /** The Tailwind variant that means this size — `max-lg` desktop-first, `lg` mobile-first. */
 export function bpTailwind(handle, win = window) {
   return bpRow(handle, win)?.tw || '';

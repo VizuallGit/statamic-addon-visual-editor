@@ -25,7 +25,7 @@ import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
-import { publishContainers, whenContainerContext } from './lib/publish-containers.js';
+import { whenContainerContext } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import {
   closeRightPanels,
@@ -43,7 +43,7 @@ import { clearSelection, select } from './lib/selection.js';
 export const GLOBAL_SECTION_CONTAINER = 'sve-global-section';
 
 /** True after we've pushed unsaved global-section values into the preview stash. */
-export let sectionsStashActive = false;
+let sectionsStashActive = false;
 
 /**
  * Whether the open global section holds something to save: the stash is only
@@ -56,7 +56,7 @@ export function hasUnsavedGlobalSection() {
 }
 
 /** Tells the preview to re-render asking for (or forgetting) the stashed section. */
-export function refreshSections(win, active) {
+function refreshSections(win, active) {
   const frame = previewFrame(win.document);
 
   const url = ask('lp:lastPreviewUrl');
@@ -69,7 +69,7 @@ export function refreshSections(win, active) {
 }
 
 /** A stash landed while someone was typing — the page owes itself a re-render. */
-export let sectionRefreshPending = false;
+let sectionRefreshPending = false;
 
 /**
  * Re-render the page from the stash, unless someone is typing into it.
@@ -87,7 +87,7 @@ export let sectionRefreshPending = false;
  * withheld is the one it is already displaying. The debt is settled on the way
  * out of the edit.
  */
-export function refreshSectionsUnlessEditing(win) {
+function refreshSectionsUnlessEditing(win) {
   if (editSession) {
     sectionRefreshPending = true;
 
@@ -152,9 +152,9 @@ export function clearSectionsStash(win, { refresh = true } = {}) {
 }
 
 /** Listeners for global-section panel save results. */
-export const sectionSaveListeners = [];
+const sectionSaveListeners = [];
 
-export function onSectionSave(callback) {
+function onSectionSave(callback) {
   sectionSaveListeners.push(callback);
 
   return () => {
@@ -202,7 +202,7 @@ export function saveGlobalSectionPanel(win, done) {
 }
 
 /** Announce the result of a synced-section save: saved = the new clean baseline. */
-export function announceSectionSave(win, ok) {
+function announceSectionSave(win, ok) {
   if (ok) {
     sectionsStashActive = true;
 
@@ -225,7 +225,7 @@ export function announceSectionSave(win, ok) {
  * between global sections, so which entry counts as "the save" changes while
  * the same patched fetch and XHR stay in place. Patched once per window.
  */
-export function watchGlobalSectionSaves(iwin, entryPath) {
+function watchGlobalSectionSaves(iwin, entryPath) {
   if (!iwin || iwin.__sveSectionSaveWatch) {
     return;
   }
@@ -314,8 +314,8 @@ export function closeGlobalSectionPanel(win) {
 }
 
 /** The mounted form: its Vue app, the entry it shows, and how to save it. */
-export let globalSectionApp = null;
-export let globalSectionEntryPath = null;
+let globalSectionApp = null;
+let globalSectionEntryPath = null;
 let stopGlobalSectionValues = null;
 
 export function globalSectionHost(doc) {
@@ -325,11 +325,6 @@ export function globalSectionHost(doc) {
 /** True while a global section owns the editor. */
 export function globalSectionEditorOpen(doc) {
   return !!globalSectionHost(doc);
-}
-
-/** The synced entry's own publish container, once its form has mounted. */
-export function globalSectionContainer() {
-  return publishContainers.find((container) => container.name === GLOBAL_SECTION_CONTAINER) || null;
 }
 
 /**
@@ -391,14 +386,14 @@ export async function fetchInertiaPage(win, path) {
 }
 
 /** The synced entry's screen, as Inertia would have delivered it. */
-export function fetchGlobalSectionProps(win, id) {
+function fetchGlobalSectionProps(win, id) {
   const collection = encodeURIComponent(savedSectionsCollection(win));
 
   return fetchInertiaPage(win, `/cp/collections/${collection}/entries/${encodeURIComponent(id)}`);
 }
 
 /** Inertia props → the prop names EntryPublishForm declares. */
-export function globalSectionFormProps(props) {
+function globalSectionFormProps(props) {
   return {
     publishContainer: GLOBAL_SECTION_CONTAINER,
     method: 'patch',
@@ -448,7 +443,7 @@ export function globalSectionFormProps(props) {
  * the real screen — the form cannot tell the difference, which is the only way
  * this stays true as Statamic changes.
  */
-export function mountBorrowedForm(win, host, renderRoot, label) {
+function mountBorrowedForm(win, host, renderRoot, label) {
   const Vue = win.Vue;
   const app = win.Statamic?.$app;
 
@@ -474,7 +469,7 @@ export function mountBorrowedForm(win, host, renderRoot, label) {
   }
 }
 
-export function mountGlobalSectionForm(win, host, props) {
+function mountGlobalSectionForm(win, host, props) {
   globalSectionApp = mountBorrowedForm(
     win,
     host,
@@ -609,7 +604,7 @@ function adoptGlobalSectionContext(win, host, id) {
  * wrapper reshapes its drawers before its first render), and read earlier
  * those writes counted as edits — Close then asked to discard nothing.
  */
-export function watchGlobalSectionInlineValues(win, id, ctx) {
+function watchGlobalSectionInlineValues(win, id, ctx) {
   stopGlobalSectionInlineValues(win);
 
   let timer = null;
@@ -639,7 +634,7 @@ export function watchGlobalSectionInlineValues(win, id, ctx) {
   };
 }
 
-export function stopGlobalSectionInlineValues() {
+function stopGlobalSectionInlineValues() {
   if (stopGlobalSectionValues) {
     stopGlobalSectionValues();
     stopGlobalSectionValues = null;
@@ -654,7 +649,7 @@ export function stopGlobalSectionInlineValues() {
  * toast and all. An entry's button reads "Save & Publish" and a global set's
  * reads "Save", so the match is on the start of the label.
  */
-export function pressGlobalSectionSave(win) {
+function pressGlobalSectionSave(win) {
   const host = globalSectionHost(win.document);
 
   if (!host) {
@@ -678,7 +673,7 @@ export function pressGlobalSectionSave(win) {
  * Take the form back down and hand the column back to the page. Returns whether
  * there was one.
  */
-export function closeGlobalSectionInline(win, { refresh = true } = {}) {
+function closeGlobalSectionInline(win, { refresh = true } = {}) {
   const doc = win.document;
   const host = globalSectionHost(doc);
 

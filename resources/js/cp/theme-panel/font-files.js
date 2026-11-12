@@ -10,8 +10,6 @@
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
-export const FONT_EXTENSIONS = ['woff2', 'woff', 'ttf', 'otf'];
-
 /** The format from the first four bytes, whatever the file is called. */
 export function fontKind(bytes) {
   const tag = String.fromCharCode(...bytes.subarray(0, 4));
@@ -35,7 +33,7 @@ const view = (bytes) => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteL
 const tagAt = (bytes, at) => String.fromCharCode(...bytes.subarray(at, at + 4));
 
 /** The table directory of a TTF/OTF: `{ 'OS/2': { offset, length }, … }`. */
-export function sfntTables(bytes) {
+function sfntTables(bytes) {
   const v = view(bytes);
   const tables = {};
 
@@ -141,7 +139,7 @@ export function sfntInfo(bytes) {
 }
 
 /** WOFF (1.0) back to the TTF/OTF it wraps: each table inflated where it was compressed. */
-export async function woffToSfnt(bytes) {
+async function woffToSfnt(bytes) {
   const v = view(bytes);
   const count = v.getUint16(12);
   const entries = [];

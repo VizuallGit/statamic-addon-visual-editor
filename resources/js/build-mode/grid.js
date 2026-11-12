@@ -39,7 +39,7 @@ export const MAX_TRACKS = 12;
  * with no class for it: a span of one. A start has none — written, it is
  * where the child was put.
  */
-export const GRID_PARTS = {
+const GRID_PARTS = {
   cols: { prefix: 'grid-cols', match: /^grid-cols-(?:\d+|none|subgrid|\[.+\]|\(.+\))$/ },
   rows: { prefix: 'grid-rows', match: /^grid-rows-(?:\d+|none|subgrid|\[.+\]|\(.+\))$/ },
   colSpan: { prefix: 'col-span', match: /^col-span-(?:\d+|full|\[.+\])$/, none: 1 },

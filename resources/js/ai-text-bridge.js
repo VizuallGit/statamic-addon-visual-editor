@@ -1290,7 +1290,7 @@ export function handleAiTextMessage(data) {
  * On / off
  * ------------------------------------------------------------------------ */
 
-export function setAiTextMode(next) {
+function setAiTextMode(next) {
   if (!ctx) {
     return;
   }

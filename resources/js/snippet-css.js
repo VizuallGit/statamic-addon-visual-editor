@@ -35,7 +35,7 @@ function withoutComments(text) {
 }
 
 /** No blank edge lines, the common indent gone, no trailing spaces. */
-export function dedentBody(raw) {
+function dedentBody(raw) {
   const lines = String(raw || '')
     .replace(/\r\n?/g, '\n')
     .split('\n');

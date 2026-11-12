@@ -14,16 +14,12 @@
  *
  * May import: lazy-panels.js.
  */
-import { ensurePanel, loadedPanel } from '../lazy-panels.js';
+import { ensurePanel } from '../lazy-panels.js';
 
 const KEY = 'build_mode';
 
 let unmount = null;
 let ticket = 0;
-
-export function isBuildLoaded() {
-  return !!loadedPanel(KEY);
-}
 
 /**
  * Draw the Build panel into `host`. Resolves true once it is drawn, false

@@ -15,8 +15,8 @@
 import { placementLabel, px, sizeLabel, tokenFor } from './measure.js';
 
 /** One colour per grid, cycled — nested grids must be told apart. */
-export const GRID_COLORS = ['#d6336c', '#7048e8', '#1c7ed6', '#e8590c', '#0ca678'];
-export const FLEX_COLOR = '#9c36b5';
+const GRID_COLORS = ['#d6336c', '#7048e8', '#1c7ed6', '#e8590c', '#0ca678'];
+const FLEX_COLOR = '#9c36b5';
 const SPACING_COLOR = '#f03e3e';
 const TYPE_COLOR = '#0c8599';
 const OVERFLOW_COLOR = '#e03131';

@@ -48,15 +48,15 @@ import { mountStatamicSurface } from './cp/mount-statamic.js';
 import ChromeForm from './cp/surfaces/ChromeForm.vue';
 import { MSG, SOURCE } from './lib/protocol.js';
 
-export let chromeApp = null;
+let chromeApp = null;
 export let chromeInlineKind = null;
-export let chromeInlineHandle = null;
+let chromeInlineHandle = null;
 
 /** The headless form's api ({ save }) while it is mounted. */
-export let chromeForm = null;
+let chromeForm = null;
 
 /** The mounted chrome form's publish context, while the selection panel draws it. */
-export let chromeCtx = null;
+let chromeCtx = null;
 
 export function chromeHost(doc) {
   return doc.getElementById(CHROME_HOST_ID);
@@ -78,7 +78,7 @@ export function chromeContainer() {
  * context; nothing of the globals screen itself is borrowed, so this holds in
  * every build of the Control Panel. What is typed arrives on `onChange`.
  */
-export function mountChromeContainer(win, host, page, handle) {
+function mountChromeContainer(win, host, page, handle) {
   chromeForm = null;
 
   try {
@@ -107,9 +107,9 @@ export function mountChromeContainer(win, host, page, handle) {
  * mount consumes the page and warms the next one — so nothing here outlives a
  * save of the set it came from.
  */
-export const chromeInlinePages = new Map();
+const chromeInlinePages = new Map();
 
-export async function takeChromeInlinePage(win, handle) {
+async function takeChromeInlinePage(win, handle) {
   const pending = chromeInlinePages.get(handle);
 
   chromeInlinePages.delete(handle);
@@ -123,20 +123,6 @@ export async function takeChromeInlinePage(win, handle) {
   const warmed = pending ? await pending : null;
 
   return warmed ?? fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
-}
-
-export function prefetchOtherChromeHalf(win, kind) {
-  const handle = chromeGlobalHandle(win, kind === 'footer' ? 'header' : 'footer');
-
-  // One shared set: the other half is a tab of the form already mounted.
-  if (handle === chromeGlobalHandle(win, kind) || chromeInlinePages.has(handle)) {
-    return;
-  }
-
-  chromeInlinePages.set(
-    handle,
-    fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null)
-  );
 }
 
 /**
@@ -341,7 +327,7 @@ export function pressChromeSave(win) {
 }
 
 /** Hear the globals save go out — it is this window's request now. */
-export function watchChromeInlineSaves(win) {
+function watchChromeInlineSaves(win) {
   watchGlobalsPanelSaves(win, win, () => (chromeInlineHandle ? `/cp/globals/${chromeInlineHandle}` : null));
 }
 

@@ -123,7 +123,7 @@ function typesOnPage(win) {
  * page, and then has the preview render itself again from the values as they
  * stand.
  */
-export async function refreshInPlace(win) {
+async function refreshInPlace(win) {
   // The section templates the tree pulled in, and the meta cache behind every
   // panel. Dropped first: what follows has to ask the server, not answer from
   // what it already had. The tree's cache is only there when the tree has
@@ -241,7 +241,7 @@ function showDone(win, pill) {
  * One at a time. A second call while one runs does nothing and resolves
  * false, so a caller that must not miss a change waits and calls again.
  */
-export function refreshInPlaceShown(win) {
+function refreshInPlaceShown(win) {
   if (running) {
     return Promise.resolve(false);
   }

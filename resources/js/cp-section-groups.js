@@ -7,24 +7,7 @@
  */
 import { SELECTORS } from './cp-selectors.js';
 
-export const SECTION_TOGGLE_ATTR = 'data-sve-section-toggle';
-export const SECTION_GROUP_ATTR = 'data-sve-section-group';
-export const SECTION_SEG_ATTR = 'data-sve-section-seg';
-export const SECTION_ACTIVE_ATTR = 'data-sve-section-active';
-export const SECTION_CONTENT_KEY = '__content';
-
-export const SECTION_PANEL_ATTR = 'data-sve-section-panel';
-export const SECTION_PANEL_CARD_ATTR = 'data-sve-panel-card';
-export const SECTION_PANEL_HEAD_ATTR = 'data-sve-panel-head';
-export const SECTION_PANEL_BODY_ATTR = 'data-sve-panel-body';
-export const SECTION_PANEL_OPEN_ATTR = 'data-sve-panel-open';
-export const SECTION_PANEL_OWNER_ATTR = 'data-sve-panel-owner';
-
-export const FIELD_LIST = '.publish-fields';
-
-export function fieldListOf(el) {
-  return el?.closest?.(FIELD_LIST) || null;
-}
+const FIELD_LIST = '.publish-fields';
 
 export function sectionFieldLists(setEl) {
   const depth = (el) => {
@@ -50,29 +33,11 @@ export function sectionFieldLists(setEl) {
   return lists.filter((el) => depth(el) === shallowest);
 }
 
-export function sectionFieldRows(list) {
-  return [...list.children].filter((row) => !row.hasAttribute(SECTION_TOGGLE_ATTR));
-}
-
-export function rowFieldtype(row, name) {
-  const el = row.classList?.contains(name) ? row : row.querySelector(`.${name}`);
-
-  return el && fieldListOf(el) === row.parentElement ? el : null;
-}
-
-export function ownDescendants(list, selector) {
-  return [...list.querySelectorAll(selector)].filter((el) => fieldListOf(el) === list);
-}
-
-export function ownDescendant(list, selector) {
-  return ownDescendants(list, selector)[0] || null;
-}
-
 export function fieldLabel(row) {
   return (row.querySelector('label')?.textContent || '').trim();
 }
 
-export const PANEL_ICONS = {
+const PANEL_ICONS = {
   color: {
     box: '2.15 2.15 19.7 19.7',
     paths: '<path d="M12 3v18a6 6 0 0 0 0-12 6 6 0 0 1 0-6Z"/><circle cx="12" cy="12" r="9"/>',
@@ -113,9 +78,9 @@ export const PANEL_ICONS = {
   },
 };
 
-export const iconifyCache = new Map();
+const iconifyCache = new Map();
 
-export function adoptSvg(el, markup) {
+function adoptSvg(el, markup) {
   el.innerHTML = markup;
 
   const svg = el.querySelector('svg');
@@ -207,22 +172,10 @@ export function panelIcon(doc, name) {
   return holder;
 }
 
-export function setSectionGroup(list, key) {
-  list?.ownerDocument?.defaultView?.VizuallTabs?.setGroup?.(list, key);
-}
-
 export function revealSegmentsFor(el, doc) {
   const win = doc?.defaultView || (el && el.ownerDocument?.defaultView);
 
   win?.VizuallTabs?.revealFor?.(el, doc);
-}
-
-export function enhanceSectionGroupsIn(win, root = win.document) {
-  win.VizuallTabs?.enhanceIn?.(win, root);
-}
-
-export function settleUngroupedFieldLists(win, root = win.document) {
-  win.VizuallTabs?.settle?.(win, root);
 }
 
 export function stampGridRows(root = document) {

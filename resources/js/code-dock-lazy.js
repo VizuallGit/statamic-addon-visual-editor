@@ -19,12 +19,7 @@ export { ARMED_KEY, isCodeDockArmed, setCodeDockArmed, templateDockAllowed } fro
 let dock = null;
 let loading = null;
 
-/** True once the editor is here — the call sites never need to ask. */
-export function codeDockLoaded() {
-  return !!dock;
-}
-
-export function loadCodeDock() {
+function loadCodeDock() {
   if (dock) {
     return Promise.resolve(dock);
   }

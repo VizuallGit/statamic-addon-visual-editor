@@ -23,38 +23,5 @@ export const HIGHLIGHT_DURATION = 2000; // ms — matches the sve-highlight-puls
 // Update this if Statamic's collapse transition duration ever changes.
 export const COLLAPSE_SETTLE_MS = 300;
 
-/**
- * Walks up from a [data-visual-id] input looking for a Grid row container.
- *
- * Two cases are handled:
- * 1. Replicator/Bard sets: nearest ancestor with a direct <header> child
- *    containing a [data-drag-handle] button.
- * 2. Grid table rows (Statamic v6 GridTable): the <tr> element inside a
- *    <tbody> inside a <table class="grid-table">. The Grid's drag handle is
- *    rendered as <td class="drag-handle"> with no [data-drag-handle] attribute,
- *    so we match on the table class instead.
- */
-export function findGridRow(input) {
-  let el = input.parentElement;
-
-  while (el) {
-    // Replicator/Bard style: direct <header> child with [data-drag-handle]
-    const header = el.querySelector(':scope > header');
-
-    if (header && header.querySelector('[data-drag-handle]')) {
-      return el;
-    }
-
-    // Grid table style: <tr> inside <tbody> inside <table class="grid-table">
-    if (el.tagName === 'TR' && el.parentElement?.tagName === 'TBODY' && el.closest('table.grid-table')) {
-      return el;
-    }
-
-    el = el.parentElement;
-  }
-
-  return null;
-}
-
 /** Query flag for the stripped globals / saved-section panel frame. */
 export const GLOBALS_PANEL_PARAM = 'sve-panel';

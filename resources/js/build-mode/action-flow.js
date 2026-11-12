@@ -296,7 +296,7 @@ const withClick = (html, path, part) =>
  * the panels, the first shown. Roles and `aria-selected` are the tabs' own,
  * so a screen reader hears tabs and `aria-selected:` styles the chosen one.
  */
-export function withTabs(html, controls, panels) {
+function withTabs(html, controls, panels) {
   const tabs = childrenOf(html, controls);
   const shown = childrenOf(html, panels);
 
@@ -333,7 +333,7 @@ export function withTabs(html, controls, panels) {
  * round the ends; any between are dots, one per slide. The target's children
  * are the slides, the first shown.
  */
-export function withCarousel(html, controls, slides) {
+function withCarousel(html, controls, slides) {
   const buttons = childrenOf(html, controls);
   const shown = childrenOf(html, slides);
   const n = shown.length;

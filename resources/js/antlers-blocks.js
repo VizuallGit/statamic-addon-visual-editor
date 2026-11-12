@@ -16,7 +16,7 @@
  * `sve_*` tags are single tags; the rest are control flow with rows of their
  * own, or noise nobody needs a row for.
  */
-export const NOT_A_LOOP = new Set([
+const NOT_A_LOOP = new Set([
   'if',
   'elseif',
   'else',
@@ -67,7 +67,7 @@ export const NAV_PAGES = 'collection::pages';
  * and `handle="collection::pages"` — so they are read into the one sentinel and
  * the panel never has to know which was typed.
  */
-export function navSource(rest) {
+function navSource(rest) {
   const raw = String(rest || '');
   const param = raw.match(/\bhandle\s*=\s*["']([A-Za-z0-9_:-]+)["']/);
   const colon = raw.match(/^:((?:collection::?)?[A-Za-z0-9_-]+)/);
@@ -92,7 +92,7 @@ export function navSource(rest) {
  *
  * @returns {{navDepth: string, includeHome: boolean}}
  */
-export function navOptions(rest) {
+function navOptions(rest) {
   const raw = String(rest || '');
   const depth = raw.match(/\bmax_depth\s*=\s*["']?(\d+)["']?/);
   const home = raw.match(/\binclude_home\s*=\s*["']?(true|false)["']?/i);

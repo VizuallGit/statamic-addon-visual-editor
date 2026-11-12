@@ -58,7 +58,7 @@ const DARKEST = 0.1;
 
 export const MAX_VARIANTS = 9;
 
-export function isLiteral(value) {
+function isLiteral(value) {
   return LITERAL.test(String(value).trim());
 }
 
@@ -852,7 +852,7 @@ export function takenNames(families) {
  * Colors the theme always has. Sections are wireframed in gray and imported
  * into every site, so the gray scale can be seen but never edited or removed.
  */
-export const CORE_COLORS = ['gray'];
+const CORE_COLORS = ['gray'];
 
 export function isCoreColor(name) {
   return CORE_COLORS.includes(name);

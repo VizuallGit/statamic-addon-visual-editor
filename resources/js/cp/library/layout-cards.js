@@ -8,7 +8,7 @@
  *
  * May import: nothing. Pure, so the rules are tested without a CP.
  */
-export const LAYOUT_KIND = { header: 'header', footer: 'footer', sections: 'section' };
+const LAYOUT_KIND = { header: 'header', footer: 'footer', sections: 'section' };
 
 export function layoutCardStates(data, tab, { query = '' } = {}) {
   const kind = LAYOUT_KIND[tab];

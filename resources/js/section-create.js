@@ -187,7 +187,7 @@ async function send(win, method, body) {
  * `static`: a set with markup and no fieldset, in the static group the server
  * keeps. `hidden`: kept out of the picker — an editor cannot insert it.
  */
-export function createSection(win, { display, group = '', static: isStatic = false, hidden = false }) {
+function createSection(win, { display, group = '', static: isStatic = false, hidden = false }) {
   return send(win, 'POST', { display, group, static: isStatic, hidden });
 }
 

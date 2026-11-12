@@ -296,14 +296,6 @@ class ServiceProvider extends AddonServiceProvider
      */
     public function register()
     {
-        if (! SundayAug30::enabled()) {
-            $this->scripts = array_values(array_filter(
-                $this->scripts,
-                fn (string $path) => ! str_ends_with($path, 'field-prop.js')
-                    && ! str_ends_with($path, 'collection-preset-scaffold.js')
-            ));
-        }
-
         parent::register();
 
         // Stache caches entries in Laravel's file store, which only unserializes
@@ -332,15 +324,13 @@ class ServiceProvider extends AddonServiceProvider
 
         // `:handle ?? default` in a section template becomes Antlers the
         // runtime can render. Official preparser hook — not a wrap of Engine.
-        if (SundayAug30::enabled()) {
-            $this->app->extend(AntlersParser::class, function ($parser) {
-                if (method_exists($parser, 'preparse')) {
-                    $parser->preparse([TemplateProps::class, 'compile']);
-                }
+        $this->app->extend(AntlersParser::class, function ($parser) {
+            if (method_exists($parser, 'preparse')) {
+                $parser->preparse([TemplateProps::class, 'compile']);
+            }
 
-                return $parser;
-            });
-        }
+            return $parser;
+        });
     }
 
     /**

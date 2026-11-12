@@ -25,7 +25,7 @@
 export const CONTAINER_CLASS = 'container';
 
 /** The class a Container had before — still one where the markup has it. */
-export const OLD_CONTAINER_CLASS = 'wrapper';
+const OLD_CONTAINER_CLASS = 'wrapper';
 
 /** Narrowest first, as the chooser shows them. `token` is the `@theme` name without `--`. */
 export const CONTAINER_WIDTHS = [

@@ -13,7 +13,7 @@
  */
 
 /** Tailwind v4's default `--container-*` scale, in rem, narrowest first. */
-export const CONTAINER_SCALE = {
+const CONTAINER_SCALE = {
   '3xs': 16,
   '2xs': 18,
   xs: 20,

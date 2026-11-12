@@ -66,7 +66,7 @@ async function sectionType(win, handle) {
 }
 
 /** The fieldset a section type imports its fields from, or null. */
-export async function fieldsetFor(win, handle) {
+async function fieldsetFor(win, handle) {
   const type = await sectionType(win, handle);
 
   return type ? { fieldset: type.fieldset || null, display: type.display || handle } : null;

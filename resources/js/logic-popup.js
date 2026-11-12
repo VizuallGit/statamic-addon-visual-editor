@@ -121,7 +121,7 @@ export function openLogicPopup(win, { path, at, beside } = {}) {
   );
 }
 
-export function closeLogicPopup() {
+function closeLogicPopup() {
   const mine = current;
 
   if (!mine) {

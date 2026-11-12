@@ -18,7 +18,7 @@ export function isAiPanelOpen(doc) {
   return !!doc?.getElementById(PANEL_ID);
 }
 
-export function loadAiPanel() {
+function loadAiPanel() {
   if (panel) {
     return Promise.resolve(panel);
   }

@@ -147,7 +147,7 @@ function hidden(el) {
  * puts them. It errs towards finding a name — the cost of missing one is a
  * false alarm, and a false alarm is what makes a checker worthless.
  */
-export function accessibleName(el) {
+function accessibleName(el) {
   const doc = el.ownerDocument;
   const aria = el.getAttribute('aria-label');
 

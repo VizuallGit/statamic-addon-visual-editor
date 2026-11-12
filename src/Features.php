@@ -155,10 +155,6 @@ class Features
                     "statamic-visual-editor.features.{$key}",
                     ! in_array($key, static::DEFAULT_OFF, true)
                 );
-
-            if (! SundayAug30::enabled() && $key === 'html_tree') {
-                $map[$key] = false;
-            }
         }
 
         return static::$map = $map;

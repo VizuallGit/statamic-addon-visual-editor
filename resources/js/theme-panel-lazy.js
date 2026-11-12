@@ -28,7 +28,7 @@ export function isThemePanelOpen(doc) {
   return !!doc?.getElementById(THEME_PANEL_ID);
 }
 
-export function loadThemePanel() {
+function loadThemePanel() {
   if (panel) {
     return Promise.resolve(panel);
   }

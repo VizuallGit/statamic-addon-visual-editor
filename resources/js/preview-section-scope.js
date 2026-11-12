@@ -66,7 +66,7 @@ function cloneRows(rows) {
  * when the response lands — a second call after the snapshot is updated would
  * look like "no change" and wipe the uids before postMessage.
  */
-export function noteSectionPreviewScope(win) {
+function noteSectionPreviewScope(win) {
   const rows = rowsOf(win);
 
   if (!rows) {

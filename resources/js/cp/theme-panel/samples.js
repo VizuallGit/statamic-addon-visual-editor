@@ -15,7 +15,7 @@ export function sizeLabel(s) {
 }
 
 /** `var(--size-sm)` → the scale's desktop size in rem; `fallback` for a value that is not one of the scale's. */
-export function sampleSize(value, sizes, fallback) {
+function sampleSize(value, sizes, fallback) {
   const size = sizes.find((s) => s.name === sizeRef(value));
 
   return size ? `${size.max / 16}rem` : fallback;

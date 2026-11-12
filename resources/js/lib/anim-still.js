@@ -22,13 +22,13 @@
  */
 export const STILL_ATTR = 'data-sve-anim-still';
 export const PLAYING_ATTR = 'data-sve-anim-playing';
-export const STILL_SHEET_ID = '__sve-anim-still';
+const STILL_SHEET_ID = '__sve-anim-still';
 
 /** What runtime.css animates: the element, each child of one that animates its children, each word of one that animates its words. */
 const RUNS =
   ':is([data-anim="self"], [data-anim="parallax"], [data-anim="ticker"], [data-anim="children"] > *, [data-anim="words"] [data-anim-word])';
 
-export const STILL_CSS = [
+const STILL_CSS = [
   `html[${STILL_ATTR}] ${RUNS}:not([${PLAYING_ATTR}], [${PLAYING_ATTR}] > *, [${PLAYING_ATTR}] [data-anim-word]) { animation: none; }`,
   `html[${STILL_ATTR}] [data-anim="mouse"] { translate: none; transition: none; }`,
 ].join('\n');

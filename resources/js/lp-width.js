@@ -77,12 +77,7 @@ export function activateSectionsTab(win) {
 
 // Tracks whether Live Preview was open, so teardown (and stash clear) runs once
 // when leaving — not on every MutationObserver tick outside LP.
-export let lpWasOpen = false;
-
-// Den gemte bredde sættes én gang pr. besøg i Live Preview, ikke på hvert tjek.
-// Håndtaget skriver i den samme inline-style mens der trækkes, og en regel der
-// blev hævdet hvert øjeblik ville trække tilbage under fingeren.
-export let lpWidthApplied = false;
+let lpWasOpen = false;
 
 /**
  * Injects the panel toggle when the Live Preview screen is (re)mounted, and
@@ -90,12 +85,12 @@ export let lpWidthApplied = false;
  * the editor pane mounts AFTER the header, so the state must be re-asserted on
  * subsequent mutations rather than applied once at injection time.
  */
-export function clampSideWidth(win, px) {
+function clampSideWidth(win, px) {
   return Math.round(Math.min(remToPx(win, LP_SIDE_MAX_REM), Math.max(remToPx(win, LP_SIDE_MIN_REM), px)));
 }
 
 /** Bredden panelet står i, som den er gemt. Intet gemt: standarden. */
-export function lpStoredWidth(win) {
+function lpStoredWidth(win) {
   const stored = parseInt(chromeGet(win, LP_WIDTH_KEY) ?? '', 10);
   const fallback = remToPx(win, LP_SIDE_DEFAULT_REM);
 
@@ -128,7 +123,7 @@ export function applyLpEditorWidth(win, px) {
  * Own the left resizer so we can sit at 16–50 rem. Statamic's own handle
  * floors at 350px and would ignore a narrower stored width.
  */
-export function bindLpEditorResize(win) {
+function bindLpEditorResize(win) {
   const doc = win.document;
   const handle = doc.querySelector('.live-preview-resizer');
   const editor = doc.querySelector('.live-preview-editor');
@@ -189,7 +184,7 @@ export function bindLpEditorResize(win) {
 }
 
 /** The globals overlay, or Build mode (build-mode-host.js), owns the column — Page Settings/SEO stay off. */
-export function settingsBarTakeover(win) {
+function settingsBarTakeover(win) {
   return !!isGlobalsOverlayOpen(win) || buildModeUi.on;
 }
 
@@ -275,7 +270,7 @@ export function placeLpWidthPicker(win) {
  * Statamic's drag strip sits in the flex content box under our tab padding.
  * Pin it absolute so it runs from the editor top (under the header) to the bottom.
  */
-export function placeLpResizer(win) {
+function placeLpResizer(win) {
   const handle = win.document.querySelector('.live-preview-resizer');
   const editor = win.document.querySelector('.live-preview-editor');
 
@@ -345,7 +340,7 @@ export function ensureLpWidthPicker(win) {
   placeLpWidthPicker(win);
 }
 
-export let lpPanelToggleBusy = false;
+let lpPanelToggleBusy = false;
 
 export function ensureLpPanelToggle(win) {
   // Re-entry guard: our own DOM writes (toolbar, chrome, width bar) fire the
@@ -366,14 +361,13 @@ export function ensureLpPanelToggle(win) {
   }
 }
 
-export function ensureLpPanelToggleInner(win) {
+function ensureLpPanelToggleInner(win) {
   const doc = win.document;
   const header = lpHeader(doc);
 
   if (!header) {
     if (lpWasOpen) {
       lpWasOpen = false;
-      lpWidthApplied = false;
       sveState.lpCollapsed = null;
       sveState.lpHeaderBgCache = null; // næste åbning kan være i et andet CP-tema
       doc.getElementById(LP_WIDTH_ID)?.remove();

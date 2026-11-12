@@ -17,7 +17,7 @@
 const AT_NESTED = /^@(media|supports|container|layer|scope)\b/i;
 
 /** Top-level blocks of a stylesheet, in source order, with the text between them. */
-export function cssBlocks(css) {
+function cssBlocks(css) {
   const text = String(css || '');
   const out = [];
   let i = 0;
@@ -107,7 +107,7 @@ export function cssBlocks(css) {
 }
 
 /** Class, id and tag names a piece of markup actually contains. */
-export function markupTokens(html) {
+function markupTokens(html) {
   const text = String(html || '');
   const classes = new Set();
   const ids = new Set();
@@ -144,7 +144,7 @@ export function markupTokens(html) {
  * bare `p`, say — falls back to its tag names, which is why such a rule is
  * only ever copied, never moved out from under the section.
  */
-export function selectorHits(selector, tokens) {
+function selectorHits(selector, tokens) {
   const text = String(selector || '')
     .replace(/::?[a-zA-Z-]+(\([^)]*\))?/g, ' ')
     .replace(/\[[^\]]*\]/g, ' ');

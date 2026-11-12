@@ -19,13 +19,13 @@ import { SOURCE } from '../../lib/protocol.js';
 import { previewFrame } from '../../lib/preview-frame.js';
 
 /** Long tasks are judged over the last ten seconds. */
-export const TASK_WINDOW_MS = 10000;
+const TASK_WINDOW_MS = 10000;
 /** Message rate is judged over the last five. */
-export const MESSAGE_WINDOW_MS = 5000;
+const MESSAGE_WINDOW_MS = 5000;
 /** How many keystroke → preview timings are kept for the median. */
-export const LATENCY_SAMPLES = 12;
+const LATENCY_SAMPLES = 12;
 /** A keystroke the preview never answered within this is not a sample. */
-export const LATENCY_TIMEOUT_MS = 8000;
+const LATENCY_TIMEOUT_MS = 8000;
 
 /**
  * @param {{start: number, duration: number}[]} tasks

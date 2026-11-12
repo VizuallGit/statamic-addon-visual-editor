@@ -357,7 +357,7 @@ export function scopeCss(css, mode) {
  * Not errors — the section is written either way. They are the two things a
  * browser would drop silently, and silence is what makes them expensive.
  */
-export function importNotes(source) {
+function importNotes(source) {
   const html = String(source || '');
   const notes = [];
 

@@ -57,7 +57,7 @@ import { scrollBehavior } from './scroll-pref.js';
 // value watcher updates its editor when the value changes from outside.
 
 /** Node types the inline editor may edit as a single contenteditable block. */
-export const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
+const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
 
 // The active inline-edit session, keyed by the bridge's requestId.
 export let editSession = null;
@@ -69,7 +69,7 @@ export let editSession = null;
  * against this snapshot instead of trusting $dirty alone.
  */
 export let entryValuesBaseline = null;
-export let entryBaselineTimer = null;
+let entryBaselineTimer = null;
 // True between a successful save/publish response and the delayed re-baseline.
 // Statamic writes the response into the form with trackDirtyState off for 500ms,
 // so an immediate snapshot is the *pre*-response values — leave then thinks the
@@ -77,7 +77,7 @@ export let entryBaselineTimer = null;
 export let entrySaveSettling = false;
 
 /** The entry publish container ("base"), if we've seen it. */
-export function entryPublishContainer() {
+function entryPublishContainer() {
   const named = publishContainers.find((container) => container.name === 'base');
 
   if (named) {
@@ -205,8 +205,8 @@ export function clearEntryBaseline() {
  * Coalesce: only the latest pending value is applied, once, after a short wait
  * so Vue can catch up first. If TipTap already matches, we no-op.
  */
-export let bardSyncTimer = null;
-export let bardSyncPending = null;
+let bardSyncTimer = null;
+let bardSyncPending = null;
 
 export function syncBardEditorFromValue(doc, field, scope, value) {
   if (!doc || !field || !Array.isArray(value)) {
@@ -221,7 +221,7 @@ export function syncBardEditorFromValue(doc, field, scope, value) {
   bardSyncTimer = setTimeout(flushBardEditorSync, 100);
 }
 
-export function flushBardEditorSync(attempt = 0) {
+function flushBardEditorSync(attempt = 0) {
   const job = bardSyncPending;
 
   if (!job) {
@@ -281,7 +281,7 @@ export function flushBardEditorSync(attempt = 0) {
 }
 
 /** Write Bard JSON to the form AND force the sidebar TipTap view to match. */
-export function writeBardFieldValue(container, path, value, doc, session) {
+function writeBardFieldValue(container, path, value, doc, session) {
   const next = JSON.parse(JSON.stringify(value));
 
   container.setFieldValue(path, next);
@@ -289,7 +289,7 @@ export function writeBardFieldValue(container, path, value, doc, session) {
 }
 
 /** The row a field path sits in ("…blocks.1.headline" → "…blocks.1"). */
-export function rowPathOf(fieldPath) {
+function rowPathOf(fieldPath) {
   return fieldPath.includes('.') ? fieldPath.slice(0, fieldPath.lastIndexOf('.')) : '';
 }
 
@@ -297,7 +297,7 @@ export function rowPathOf(fieldPath) {
  * Current values of the sibling fields the preview toolbar asked for
  * (controls="font_tag|size"), so it can render them pre-selected.
  */
-export function controlValues(values, fieldPath, handles) {
+function controlValues(values, fieldPath, handles) {
   if (!Array.isArray(handles) || !handles.length) {
     return null;
   }
@@ -331,7 +331,7 @@ export function normText(s) {
  * DOM's textContent. hardBreak maps to '' — <br> contributes nothing to
  * textContent, so both sides must agree ("råvarer.<br>Vi" reads "råvarer.Vi").
  */
-export function bardNodeText(node) {
+function bardNodeText(node) {
   if (!node) {
     return '';
   }
@@ -348,7 +348,7 @@ export function bardNodeText(node) {
 }
 
 /** Unwrapped inline Bard root (text/hardBreak) — form may hold this after process(). */
-export function isUnwrappedInlineBard(value) {
+function isUnwrappedInlineBard(value) {
   return (
     Array.isArray(value) &&
     value.length > 0 &&
@@ -362,7 +362,7 @@ export function isUnwrappedInlineBard(value) {
  * - unwrapped text nodes (post-process / default)
  * - already-wrapped paragraph/heading docs
  */
-export function normalizeInlineBardValue(value) {
+function normalizeInlineBardValue(value) {
   if (typeof value === 'string') {
     return [
       {
@@ -384,7 +384,7 @@ export function normalizeInlineBardValue(value) {
  * preview `_visual_id` / attrs.id — used when whole-field edit re-serializes
  * text blocks but must keep set nodes in place.
  */
-export function findPreservedBardNode(nodes, visualId) {
+function findPreservedBardNode(nodes, visualId) {
   if (!Array.isArray(nodes) || !visualId) {
     return null;
   }
@@ -414,7 +414,7 @@ export function findPreservedBardNode(nodes, visualId) {
  * The caller requires EXACTLY one candidate — ambiguity means we cannot know
  * which value the user clicked, so editing is denied.
  */
-export function resolveEditTargets(value, path, req, depth = 0) {
+function resolveEditTargets(value, path, req, depth = 0) {
   if (typeof value === 'string') {
     const t = normText(value);
 
@@ -455,7 +455,7 @@ export function resolveEditTargets(value, path, req, depth = 0) {
 }
 
 /** HTML tag → ProseMirror mark type for inline content parsing. */
-export const MARK_TAGS = {
+const MARK_TAGS = {
   STRONG: 'bold',
   B: 'bold',
   EM: 'italic',
@@ -473,9 +473,9 @@ export const MARK_TAGS = {
 // class is one of these maps to a btsSpan ProseMirror mark; any other span is
 // treated as transparent styling. Mirrors the span-type entries in
 // config/statamic/bard_texstyle.php — extend here if the site adds more.
-export const BTS_SPAN_CLASSES = ['uppercase'];
+const BTS_SPAN_CLASSES = ['uppercase'];
 
-export function sameMarks(a, b) {
+function sameMarks(a, b) {
   return JSON.stringify(a || []) === JSON.stringify(b || []);
 }
 
@@ -663,7 +663,7 @@ export function parseInlineHtml(html, doc = document, spanClasses = BTS_SPAN_CLA
 }
 
 /** innerText → stored string: nbsp → space, strip the trailing newline(s). */
-export function cleanEditedText(text) {
+function cleanEditedText(text) {
   return (text || '').replace(/\u00a0/g, ' ').replace(/\n+$/, '');
 }
 
@@ -1040,7 +1040,7 @@ export function handleEditRequest(data, doc, win) {
  * iframe can take a beat to hydrate — hold the request and retry once it does,
  * instead of denying and making the click feel dead.
  */
-export function queueEditUntilPanelReady(data, doc, win) {
+function queueEditUntilPanelReady(data, doc, win) {
   if (!globalSectionEditorOpen(doc) || sveState.sectionPanelValues?.values) {
     return false;
   }
@@ -1080,7 +1080,7 @@ export function handleEditControl(data) {
   editSession.container.setFieldValue(row ? `${row}.${data.handle}` : data.handle, data.value);
 }
 
-export let themeSwatchesPromise = null;
+let themeSwatchesPromise = null;
 
 /**
  * Preview asked for theme colour swatches (highlight colour control). Fetch from
@@ -1276,7 +1276,7 @@ export function handleEditEnd(data, win = window) {
 
 // command → CP Bard toolbar button title matcher. Core Statamic titles are
 // English even in a translated CP; addon buttons (colour) are localized.
-export const BARD_CMD_TITLE = {
+const BARD_CMD_TITLE = {
   link: /link|anker|anchor/i,
   color: /farve|colou?r/i,
   unorderedlist: /unordered list|bullet|punkt/i,
@@ -1288,7 +1288,7 @@ export const BARD_CMD_TITLE = {
 };
 
 /** Builds a DOM Range spanning [from,to] character offsets within blockEl. */
-export function domRangeForOffsets(blockEl, from, to) {
+function domRangeForOffsets(blockEl, from, to) {
   const walker = blockEl.ownerDocument.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
   let count = 0;
   let startNode = null;
@@ -1427,7 +1427,7 @@ export function handleBardCommand(data, doc, win) {
  * / the sidebar button. Search stays inside this Bard field so we never
  * click some other "Link" button on the page.
  */
-export function openBardLinkToolbar(bardEl) {
+function openBardLinkToolbar(bardEl) {
   if (!bardEl) {
     return false;
   }
@@ -1449,7 +1449,7 @@ export function openBardLinkToolbar(bardEl) {
   return clickBardToolbarButton(bardEl, BARD_CMD_TITLE.link, bardEl);
 }
 
-export function clickBardToolbarButton(bardEl, titleRe, doc) {
+function clickBardToolbarButton(bardEl, titleRe, doc) {
   const btn = findBardToolbarButton(bardEl, titleRe, doc);
 
   if (!btn) {
@@ -1461,7 +1461,7 @@ export function clickBardToolbarButton(bardEl, titleRe, doc) {
   return true;
 }
 
-export function findBardToolbarButton(bardEl, titleRe, doc) {
+function findBardToolbarButton(bardEl, titleRe, doc) {
   const roots = [
     bardEl?.querySelector('.bard-fixed-toolbar'),
     bardEl?.querySelector('.bard-floating-toolbar'),
@@ -1497,7 +1497,7 @@ const LINK_STACK_RE = /apply link|anvend link|update link|opdater link|indsæt l
  * colour palette) by a distinctive bit of its content, then climbs to the
  * floating (positioned) container.
  */
-export function findBardPopupEl(command, doc) {
+function findBardPopupEl(command, doc) {
   if (command === 'link') {
     const stack = [...doc.querySelectorAll('.stack-content')].find((el) => {
       if (LINK_STACK_RE.test(el.textContent || '')) {
@@ -1566,7 +1566,7 @@ export function findBardPopupEl(command, doc) {
  * it — only raise the portal and call the Stack's own close() on Escape /
  * click outside, the same two exits the sidebar uses.
  */
-export function revealBardLinkStack(doc, win) {
+function revealBardLinkStack(doc, win) {
   let tries = 0;
 
   const run = () => {
@@ -1668,7 +1668,7 @@ function bindNativeStackDismiss(doc, win, stack, host) {
  * editor panel hidden. Uses !important so Statamic's floating-ui inline styles
  * (written without priority) can't drag it back to the off-screen button.
  */
-export function repositionBardPopup(command, anchorRect, doc, win) {
+function repositionBardPopup(command, anchorRect, doc, win) {
   const iframe = doc.getElementById('live-preview-iframe');
 
   if (!iframe || !anchorRect) {
@@ -1864,7 +1864,7 @@ export function handleIconEdit(data, doc, win = window) {
   tryOpen();
 }
 
-export function openIconifyFromField(fieldEl, doc) {
+function openIconifyFromField(fieldEl, doc) {
   if (!fieldEl) {
     return false;
   }
@@ -1876,7 +1876,7 @@ export function openIconifyFromField(fieldEl, doc) {
   return (opener && opener()) || openIconifyStack(root) || clickBrowseIconify(root);
 }
 
-export function clickBrowseIconify(root) {
+function clickBrowseIconify(root) {
   const browse = [...root.querySelectorAll('button, [role="button"]')].find((b) =>
     /browse iconify/i.test(b.textContent || '')
   );
@@ -1890,15 +1890,11 @@ export function clickBrowseIconify(root) {
   return true;
 }
 
-export function openIconifyStackFromInstance(inst) {
-  return openStackInTree(inst?.subTree, 0) || openStackInTree(inst?.vnode, 0);
-}
-
 /**
  * Iconify's Stack exposes open(); v-model:open also has onUpdate:open.
  * Title is never minified.
  */
-export function openStackInTree(vnode, depth) {
+function openStackInTree(vnode, depth) {
   if (!vnode || typeof vnode !== 'object' || depth > 36) {
     return false;
   }
@@ -1956,7 +1952,7 @@ export function openStackInTree(vnode, depth) {
   return false;
 }
 
-export function openIconifyStack(fieldEl) {
+function openIconifyStack(fieldEl) {
   const root = fieldEl.querySelector('.iconify-fieldtype') || fieldEl;
   const seen = new Set();
 
@@ -1979,7 +1975,7 @@ export function openIconifyStack(fieldEl) {
   return false;
 }
 
-export function resolveIconField(data, doc) {
+function resolveIconField(data, doc) {
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
@@ -2019,7 +2015,7 @@ export function resolveIconField(data, doc) {
   return null;
 }
 
-export function writeIconField(data, doc, value) {
+function writeIconField(data, doc, value) {
   const found = resolveIconField(data, doc);
 
   if (found) {
@@ -2166,7 +2162,7 @@ export function handleColumnWidth(data, doc) {
  * still written when nobody has said where the block begins. An object carries
  * both. Null is "no opinion at all".
  */
-export function placementOf(value) {
+function placementOf(value) {
   if (value === null || value === undefined || value === '') {
     return null;
   }
@@ -2184,7 +2180,7 @@ export function placementOf(value) {
 }
 
 /** Same placement, or not — both numbers have to agree, including "no start". */
-export function samePlacement(a, b) {
+function samePlacement(a, b) {
   return a !== null && b !== null && a.span === b.span && a.start === b.start;
 }
 
@@ -2195,7 +2191,7 @@ export function samePlacement(a, b) {
  * nothing says "the same as the one above". Null when nobody above said
  * anything either.
  */
-export function inheritedPlacement(drawers, bp, field) {
+function inheritedPlacement(drawers, bp, field) {
   for (const key of BP_INHERITS[bp] ?? []) {
     const placement = placementOf(drawers?.[key]?.[field]);
 
@@ -2205,11 +2201,6 @@ export function inheritedPlacement(drawers, bp, field) {
   }
 
   return null;
-}
-
-/** The inherited width alone, for callers that only ever cared about that. */
-export function inheritedSpan(drawers, bp, field) {
-  return inheritedPlacement(drawers, bp, field)?.span ?? null;
 }
 
 /**
@@ -2372,7 +2363,7 @@ export function handleAddColumn(data, doc, win) {
  * mounted — the same flow the card's own plus icon runs. Cards that already
  * have a type get their edit popup instead.
  */
-export function openColumnTypePicker(rowId, doc, win, attempts = 0) {
+function openColumnTypePicker(rowId, doc, win, attempts = 0) {
   const card = doc.querySelector(`[data-cb-item-id="${rowId}"]`);
   const trigger = card?.querySelector('.cb-col-plus') ?? card?.querySelector('.cb-edit-btn');
 
@@ -2393,7 +2384,7 @@ export function openColumnTypePicker(rowId, doc, win, attempts = 0) {
  * editor panel parked off-screen (Hide/Auto mode) that lands at left:-10000px.
  * Pull it back into view, centered, so picking a type happens over the preview.
  */
-export function keepPickerOnScreen(doc, win, attempts = 0) {
+function keepPickerOnScreen(doc, win, attempts = 0) {
   const panel = [...doc.body.children].find((el) => el.style?.position === 'fixed' && el.style?.zIndex === '99999');
 
   if (panel) {
@@ -2489,7 +2480,7 @@ export function handleSaveSection(data, doc, win) {
  * Replace the page section at `uid` with a `global_section` row pointing at the
  * newly saved synced entry — same shape as dropping a Global card from the library.
  */
-export async function replaceSectionWithGlobalReference(win, doc, uid, savedEntryId) {
+async function replaceSectionWithGlobalReference(win, doc, uid, savedEntryId) {
   const set = globalSectionSet(win);
   const meta = await fetchSetMeta(win, set);
   const newId = newRowId();
@@ -2591,7 +2582,7 @@ export function savePageAsTemplate(win, onSaved = () => {}) {
  * nested ids Antlers cascades to the section id and inline edit resolves the
  * wrong path (`page_sections.0.headline` instead of `….blocks.N.headline`).
  */
-export function stripSavedSectionData(section) {
+function stripSavedSectionData(section) {
   const clone = JSON.parse(JSON.stringify(section));
 
   const walk = (node) => {
@@ -2621,7 +2612,7 @@ export function stripSavedSectionData(section) {
 }
 
 /** Minimal "what should it be called?" prompt, themed to the CP. */
-export function promptForName(win, heading, placeholder, onOk) {
+function promptForName(win, heading, placeholder, onOk) {
   const overlay = openCpOverlay(win.document, NamePrompt, {
     heading,
     nameLabel: t(win, 'name'),
@@ -2636,7 +2627,7 @@ export function promptForName(win, heading, placeholder, onOk) {
 }
 
 /** Minimal name + synced prompt, themed to the CP, appended to the body. */
-export function saveSectionDialog(win, section, onSave) {
+function saveSectionDialog(win, section, onSave) {
   const overlay = openCpOverlay(win.document, SaveSectionDialog, {
     heading: t(win, 'save_section_heading'),
     nameLabel: t(win, 'name'),

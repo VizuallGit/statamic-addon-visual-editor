@@ -45,7 +45,7 @@ import {
   zonesOn,
 } from './panel-zones.js';
 
-export const TOOL_PLACEMENT = {
+const TOOL_PLACEMENT = {
   settings: 'topbar',
   pages: 'topbar',
   globals: 'topbar',
@@ -60,7 +60,7 @@ export const TOOL_PLACEMENT = {
 };
 
 /** Right-dock tools that also keep an icon in the top bar. */
-export const TOOLBAR_SHORTCUTS = [];
+const TOOLBAR_SHORTCUTS = [];
 
 export { RIGHT_DOCK_ID };
 
@@ -125,7 +125,7 @@ const CHEVRON_ICON =
   '<svg data-sve-right-chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
   'stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
 
-export const RIGHT_PANE_TOOLS = ['listview', 'outline', 'html_tree', 'comments', 'sections', 'ai', 'performance'];
+const RIGHT_PANE_TOOLS = ['listview', 'outline', 'html_tree', 'comments', 'sections', 'ai', 'performance'];
 
 /** Inner panel fill — the shell owns position, width, border and the grip. */
 export const RIGHT_PANEL_FILL =
@@ -144,7 +144,7 @@ export const DRAG_DOTS_V =
   "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 17'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' y='10' rx='1'/><rect width='2' height='2' y='15' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='5' y='10' rx='1'/><rect width='2' height='2' x='5' y='15' rx='1'/></g></svg>\")";
 
 /** Horizontal twin (4×2) for ns-resize splitters. */
-export const DRAG_DOTS_H =
+const DRAG_DOTS_H =
   "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 7'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='10' rx='1'/><rect width='2' height='2' x='15' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='10' y='5' rx='1'/><rect width='2' height='2' x='15' y='5' rx='1'/></g></svg>\")";
 
 /** Same 16px strip as Statamic `.live-preview-resizer`: grey fill + drag-dots. */
@@ -177,7 +177,7 @@ export function isRightDockResizing() {
   return widthDragging;
 }
 
-export function toolPlacement(key) {
+function toolPlacement(key) {
   return TOOL_PLACEMENT[key] || 'topbar';
 }
 
@@ -191,20 +191,6 @@ export function isToolbarShortcut(key) {
 
 export function registerRightDockHook(key, hook) {
   hooks[key] = hook || {};
-}
-
-function storedOpen(win) {
-  const raw = chromeGet(win, OPEN_KEY);
-
-  if (raw === '0') {
-    return false;
-  }
-
-  if (raw === '1') {
-    return true;
-  }
-
-  return false;
 }
 
 function storeOpen(win, open) {
@@ -1242,27 +1228,7 @@ export function showInRightShell(win, panel, { keep = false } = {}) {
   return dock;
 }
 
-/** Hide a keep-child in place (do not reparent — that reloads iframes). */
-export function parkInRightShell(win, panel) {
-  if (!panel) {
-    return;
-  }
-
-  const dock = ensureRightDock(win);
-  const slot = slotEl(dock);
-
-  panel.setAttribute('data-sve-right-keep', '');
-
-  if (slot && panel.parentElement !== slot) {
-    slot.appendChild(panel);
-  }
-
-  hideKeepChild(panel);
-  layoutStack(win, dockEl(win.document));
-  releaseRightShellIfEmpty(win);
-}
-
-export function visibleRightShellChild(win) {
+function visibleRightShellChild(win) {
   const slot = slotEl(dockEl(win.document));
 
   return [...(slot?.children || [])].find(isVisibleChild) || null;
@@ -1336,70 +1302,12 @@ export function hideRightDock(win) {
   win.dispatchEvent(new Event('resize'));
 }
 
-export function closeRightDock(win) {
-  const dock = dockEl(win.document);
-
-  if (!dock) {
-    storeOpen(win, false);
-    notify(win);
-
-    return;
-  }
-
-  const slot = slotEl(dock);
-
-  for (const child of [...(slot?.children || [])]) {
-    if (isFixedPane(paneKeyOf(child))) {
-      continue;
-    }
-
-    if (child.hasAttribute('data-sve-right-keep')) {
-      hideKeepChild(child);
-    } else {
-      child.remove();
-    }
-  }
-
-  if (slot?.querySelector(`[data-sve-right-keep], #${BUILD_PANEL_ID}, [data-sve-code-slot]`)) {
-    hideRightDock(win);
-
-    return;
-  }
-
-  dock.remove();
-  storeOpen(win, false);
-  notify(win);
-  win.dispatchEvent(new Event('resize'));
-}
-
-export function toggleRightDock(win) {
-  if (isRightDockOpen(win)) {
-    hideRightDock(win);
-  } else {
-    openRightDock(win);
-  }
-}
-
-export function setRightPane(win, key, on) {
+function setRightPane(win, key, on) {
   hooks[key]?.[on ? 'show' : 'hide']?.(win, null);
 }
 
 export function revealRightPane(win, key) {
   setRightPane(win, key, true);
-}
-
-export function restoreRightDock(win) {
-  if (!storedOpen(win)) {
-    return;
-  }
-
-  const dock = dockEl(win.document);
-
-  if (dock && visibleRightShellChild(win)) {
-    dock.removeAttribute('data-sve-right-closed');
-    placeRightDock(win);
-    notify(win);
-  }
 }
 
 export function relayoutRightDock(win) {
@@ -1411,14 +1319,4 @@ export function relayoutRightDock(win) {
     placeRightDock(win);
     layoutStack(win, dockEl(win.document));
   }
-}
-
-export function isRightPaneOn(win, key) {
-  const pane = win.document.querySelector(`[data-sve-right-pane="${key}"]`);
-
-  if (!pane || pane.closest('[data-sve-right-closed]')) {
-    return false;
-  }
-
-  return isVisibleChild(pane);
 }

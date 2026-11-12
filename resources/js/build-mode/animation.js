@@ -35,7 +35,7 @@ import { elementAttrs, withAlpineAttr, withoutAlpineAttr } from './alpine.js';
 import { readAttribute, withAttribute } from './attrs.js';
 import { findByPath } from './place.js';
 
-export const TARGETS = ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse'];
+const TARGETS = ['self', 'children', 'words', 'parallax', 'ticker', 'stack', 'mouse'];
 
 /**
  * A preset's kind: the target it is for, each with its own gallery in the
@@ -51,7 +51,7 @@ export const KINDS = TARGETS;
  * more (Style → State → hover does), but an element that has one keeps it
  * until the author picks another trigger.
  */
-export const TRIGGER_KEYS = ['view', 'scroll', 'load', 'hover', 'switch'];
+const TRIGGER_KEYS = ['view', 'scroll', 'load', 'hover', 'switch'];
 
 /** Whether the target plays a preset on a trigger; the recipes do one thing of their own. */
 export const timed = (target) => target === 'self' || target === 'children' || target === 'words';
@@ -87,7 +87,7 @@ const SWITCH_ATTRS = [':data-anim-active', 'x-bind:data-anim-active'];
  * fill measures against, the lowest it goes, its step, and whether `max` is
  * as high as it goes (`cap`).
  */
-export const EFFECTS = [
+const EFFECTS = [
   { key: 'opacity', name: '--anim-opacity', unit: '', neutral: 1, add: 0, max: 1, min: 0, step: 0.05, cap: true },
   { key: 'y', name: '--anim-y', unit: 'rem', neutral: 0, add: 2, max: 5, min: -20, step: 0.25 },
   { key: 'x', name: '--anim-x', unit: 'rem', neutral: 0, add: -2, max: 5, min: -20, step: 0.25 },

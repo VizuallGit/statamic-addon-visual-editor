@@ -92,7 +92,7 @@ function firstSelector(rule) {
 const kind = (rule) => rule?.constructor?.name || '';
 
 /** The site's built stylesheets: same-origin `<link>`s under /build/assets. */
-export function siteLinks(doc) {
+function siteLinks(doc) {
   return [...doc.querySelectorAll('link[rel~="stylesheet"][href]')].filter((link) => {
     try {
       const base = new URL(doc.baseURI);

@@ -28,7 +28,7 @@ import { siteImageOptions } from './site-images.js';
  * ------------------------------------------------------------------ */
 
 /** Build's own elements, in HTML_TOOLS shape. */
-export const BUILD_ELEMENTS = {
+const BUILD_ELEMENTS = {
   // The site's own button class, as `wrapper` is its container in HTML_DIVS.
   button: { id: 'button', tag: 'a', classes: 'btn' },
   divider: { id: 'divider', tag: 'hr' },
