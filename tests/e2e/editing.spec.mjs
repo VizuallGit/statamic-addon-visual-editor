@@ -64,3 +64,21 @@ test('a double-click edits a heading in place, and the form gets the text', asyn
     cp.locator('#__sve-selection-panel .ProseMirror').filter({ hasText: added.trim() }).first()
   ).toBeAttached();
 });
+
+test('the menu on a locked row has neither Duplicate nor Delete', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  // The site's Header global: its Blocks replicator has "Lock rows" on.
+  await page.goto('/cp/globals/site_head');
+  const licence = page.getByRole('dialog', { name: 'Licensing Alert' });
+  const row = page.locator('[data-replicator-set][data-row-locked]').first();
+  await expect(row).toBeVisible();
+  if (await licence.count()) await licence.getByRole('button', { name: 'Snooze' }).click();
+
+  await row.locator('[data-ui-dropdown-trigger], button[aria-haspopup]').first().click();
+  const menu = page.locator('[data-ui-dropdown-content]').last();
+  // The menu opens with Statamic's own items; the locked row's are taken out as it appears.
+  await expect(menu.locator('[data-ui-dropdown-item]').first()).toBeVisible();
+  await expect(menu.locator('[data-ui-dropdown-item]', { hasText: /Duplicate|Delete/ })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -342,7 +342,7 @@ function watchDropdowns() {
     true
   );
 
-  const blocked = () => BLOCKED_ITEMS.map(translate);
+  const blocked = () => BLOCKED_ITEMS.map((item) => statamicTranslate(item));
 
   const prune = (content) => {
     if (!lockedTrigger) return;

@@ -19,7 +19,7 @@
  */
 import { sveState } from './cp-state.js';
 import { syncCodeDock } from './code-dock-lazy.js';
-import { CHROME_CONTAINER, CHROME_HOST_ID, HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { CHROME_CONTAINER, CHROME_HOST_ID, GLOBALS_PANEL_ID, HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
 import { containerContextName, publishContainers, whenContainerContext } from './lib/publish-containers.js';
 import { clearSelection, select } from './lib/selection.js';
@@ -31,6 +31,7 @@ import {
   syncSectionLibraryAvailability,
 } from './section-library.js';
 import {
+  activeChromeKind,
   chromeGlobalHandle,
   chromeIgnoreValuePostsUntil,
   clearGlobalsStash,
