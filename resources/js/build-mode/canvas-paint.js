@@ -24,6 +24,13 @@
  * rendered for it (`learnTags`). Antlers standing where an attribute would
  * (`{{ visual_edit … }}`) brings the rendered element's other attributes.
  *
+ * An image the server finishes — an `<img>` with `format`, `quality` or
+ * `blur`, and the `<source>`s of its `<picture>` (the site's ImageMarkup) —
+ * takes its address, srcset, width and height from the real preview: the file
+ * holds the instructions, the crop is made on the server. Until the server
+ * has made the size the file asks for, the canvas shows that size's shape
+ * on the picture it has (`paintImage`).
+ *
  * An element the file leaves empty — nothing inside but whitespace, no child,
  * no field, no island — is stamped for the canvas's placeholder, read off the
  * plan: `:empty` does not match an element holding a line break.
@@ -45,6 +52,11 @@ export const CANVAS_EMPTY = 'data-sve-build-empty';
 
 /** An element `x-cloak` holds back. Its own name: `x-cloak` itself is Alpine's (`inertAttr`), and the canvas runs none. */
 export const CANVAS_CLOAK = 'data-sve-build-cloak';
+
+/** The options that make an `<img>` one the server finishes (the site's ImageMarkup reads the same three). */
+export const IMAGE_OPTIONS = ['format', 'quality', 'blur'];
+/** What the server writes on such an image and its sources: read off the real preview (`servedImage`). */
+const IMAGE_SERVED = ['src', 'srcset', 'width', 'height'];
 
 /** Blocks of text: emptied, they stand on the page with no height of their own. */
 const TEXT_BLOCKS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote', 'figcaption']);
@@ -322,7 +334,12 @@ export function planTemplate(html, field = () => undefined) {
       leaf: node.to <= node.openTo,
       items: [],
       empty: '',
+      image: '',
     };
+
+    if (String(node.tag).toLowerCase() === 'img' && el.attrs.some((attr) => IMAGE_OPTIONS.includes(attr.name.toLowerCase()))) {
+      el.image = 'img';
+    }
 
     elements.push(el);
 
@@ -374,6 +391,13 @@ export function planTemplate(html, field = () => undefined) {
     flush(Math.max(cursor, end), null);
     el.empty = emptyKind(node, el);
 
+    // A `<picture>` whose `<img>` the server finishes: its sources are finished with it.
+    const kids = el.items.filter((item) => item.items);
+
+    if (String(node.tag).toLowerCase() === 'picture' && kids.some((kid) => kid.image === 'img')) {
+      kids.filter((kid) => String(kid.tag).toLowerCase() === 'source').forEach((kid) => (kid.image = 'source'));
+    }
+
     return el;
   };
 
@@ -383,6 +407,96 @@ export function planTemplate(html, field = () => undefined) {
 /** A value read off the DOM, back into an attribute. */
 function encodeAttr(value) {
   return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+/** An attribute's value as the file writes it, or null when the file has no such attribute. */
+function fileValue(el, name) {
+  return el.attrs.find((attr) => attr.name.toLowerCase() === name)?.value ?? null;
+}
+
+/** Which of the file's attributes names the picture: an `<img>`'s src, a `<source>`'s srcset. */
+const imageAddress = (el) => (el.image === 'source' ? 'srcset' : 'src');
+
+/**
+ * What the server made of an image the file asks it to finish (`el.image`),
+ * read off the real preview's element at the same path, with the address the
+ * file had when it did — so a picture changed since is known not to be it.
+ *
+ * @param {object} el    an element of planTemplate(...) with `image` set
+ * @param {Element} dom  the real preview's element at its path
+ * @returns {{ from: string|null, attrs: Record<string, string|null> }}
+ */
+export function servedImage(el, dom) {
+  return {
+    from: fileValue(el, imageAddress(el)),
+    attrs: Object.fromEntries(IMAGE_SERVED.map((name) => [name, dom.getAttribute(name)])),
+  };
+}
+
+/**
+ * An image the server finishes, its attributes for the canvas.
+ *
+ * - The server has made what the file asks (the same picture, the width and
+ *   height the file writes): its address, srcset, width and height.
+ * - The size has changed, the picture not: the server's last picture, at the
+ *   file's width and height, cut to their shape (`aspect-ratio` and
+ *   `object-fit: cover` on the canvas only — the crop around the focus point
+ *   follows from the server).
+ * - Another picture, or none rendered yet: the file's address, in the shape.
+ *
+ * The options themselves (`format`, `quality`, `blur`) are the server's and
+ * never stand on the canvas.
+ */
+function paintImage(el, served, attrText) {
+  const size = (name) => {
+    const attr = el.attrs.find((row) => row.name.toLowerCase() === name);
+
+    return attr && !attr.parts && /^\s*\d+\s*$/.test(attr.value ?? '') ? String(Number(attr.value)) : null;
+  };
+  const width = size('width');
+  const height = size('height');
+  const same = !!served && served.from === fileValue(el, imageAddress(el));
+  const made = same && (width === null || served.attrs.width === width) && (height === null || served.attrs.height === height);
+  const from = (name) => (made || (same && (name === 'src' || name === 'srcset')) ? served.attrs[name] : undefined);
+  const shape = !made && el.image === 'img' && width && height ? `aspect-ratio: ${width} / ${height}; object-fit: cover` : '';
+  const out = [];
+  const done = new Set();
+
+  for (const attr of el.attrs) {
+    const name = attr.name.toLowerCase();
+
+    if (inertAttr(attr.name) || IMAGE_OPTIONS.includes(name)) {
+      continue;
+    }
+
+    const value = IMAGE_SERVED.includes(name) ? from(name) : undefined;
+
+    done.add(name);
+
+    if (value !== undefined) {
+      if (value !== null) {
+        out.push(`${attr.name}="${encodeAttr(value)}"`);
+      }
+    } else if (name === 'style' && shape) {
+      out.push(attr.value === null ? `style="${shape}"` : `${attrText(attr).slice(0, -1).replace(/;?\s*$/, '')}; ${shape}"`);
+    } else {
+      out.push(attrText(attr));
+    }
+  }
+
+  for (const name of IMAGE_SERVED) {
+    const value = done.has(name) ? undefined : from(name);
+
+    if (value !== undefined && value !== null) {
+      out.push(`${name}="${encodeAttr(value)}"`);
+    }
+  }
+
+  if (shape && !done.has('style')) {
+    out.push(`style="${shape}"`);
+  }
+
+  return out;
 }
 
 /**
@@ -409,9 +523,10 @@ export function attrRendered(plan, path, name, rendered) {
  *   served   Set of tag sources the server answers otherwise than the form (learnTags)
  *   extras   Map path → [[name, value]] (the attributes a loose tag rendered)
  *   islands  Map island key → HTML
+ *   images   Map path → servedImage(...) (what the server made of an image it finishes)
  * @returns {{ html: string, waiting: string[] }}  waiting: islands not rendered yet
  */
-export function paintPlan(plan, { learned = new Map(), served = new Set(), extras = new Map(), islands = new Map() } = {}) {
+export function paintPlan(plan, { learned = new Map(), served = new Set(), extras = new Map(), islands = new Map(), images = new Map() } = {}) {
   const waiting = [];
 
   const attrText = (attr) => {
@@ -439,7 +554,7 @@ export function paintPlan(plan, { learned = new Map(), served = new Set(), extra
   };
 
   const paint = (el, root) => {
-    const attrs = el.attrs.filter((attr) => !inertAttr(attr.name)).map(attrText);
+    const attrs = el.image ? paintImage(el, images.get(el.path), attrText) : el.attrs.filter((attr) => !inertAttr(attr.name)).map(attrText);
 
     if (el.loose) {
       for (const [name, value] of extras.get(el.path) || []) {

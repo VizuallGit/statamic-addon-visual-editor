@@ -35,7 +35,10 @@
  *                paths html-pick-align.js stamps, each time it has rendered.
  *                One that is a field's alone (a Bard document) is the form's
  *                editor's while that is typed in (canvas-fields.js).
- *   Its own      an element the file leaves empty stands open, dashed, until
+ *   The images   an image the server finishes (`format`, `quality`, `blur`)
+ *                is read off the same copy: its address, srcset, width and
+ *                height are what the server made (`servedImage`).
+ *   Its own     an element the file leaves empty stands open, dashed, until
  *                something is put in it (`CANVAS_EMPTY`, stamped by the paint),
  *                and one that folds to nothing in another section does too
  *                (canvas-empty.js); the + and the drags are canvas-ui.js's.
@@ -87,7 +90,7 @@ import { injectStyle } from '../lib/style.js';
 import { note } from '../lib/debug.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT, BUILD_CANVAS_UNSTYLED_ATTR, BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
 import { HT_PATH_ATTR, findPickRoot, serializePickTree, sidElement, stampHtmlPickAll } from '../html-pick-align.js';
-import { CANVAS_CLOAK, CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate } from './canvas-paint.js';
+import { CANVAS_CLOAK, CANVAS_EMPTY, CANVAS_PATH, CANVAS_ROOT, ISLAND_WAIT, attrRendered, fieldLookup, inertAttr, learnTags, pageClasses, paintPlan, planTemplate, servedImage } from './canvas-paint.js';
 import { EMPTY_CSS, findEmpties, fitRows } from './canvas-empty.js';
 import { UI_CSS, canvasUi } from './canvas-ui.js';
 import { SECTION_BAR_CSS, sectionBar } from './canvas-section-bar.js';
@@ -277,7 +280,7 @@ function whenStyled(page) {
  */
 export function startCanvas(win) {
   const doc = win.document;
-  const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map(), rendered: new Map() };
+  const known = { learned: new Map(), served: new Set(), extras: new Map(), islands: new Map(), rendered: new Map(), images: new Map() };
   const forget = () => Object.values(known).forEach((store) => store.clear());
   // rootKey: the open section's key in the real preview, which its painted root stands for (canvas-live.js).
   const painted = { uid: null, html: null, sheet: null, rootKey: '' };
@@ -827,7 +830,14 @@ export function startCanvas(win) {
       const dom = byPath.get(el.path);
 
       if (!dom) {
+        known.images.delete(el.path);
+
         continue;
+      }
+
+      // An image the server finishes: what it made is the truth, the file's attributes its instructions.
+      if (el.image) {
+        known.images.set(el.path, servedImage(el, dom));
       }
 
       for (const attr of el.attrs) {

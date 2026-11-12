@@ -16,6 +16,7 @@ import {
   pageClasses,
   paintPlan,
   planTemplate,
+  servedImage,
 } from '../../../resources/js/build-mode/canvas-paint.js';
 
 const ROW = { id: 'abc123', title: 'Hello', hero: { title: 'Nested' }, empty: null, list: [1, 2] };
@@ -293,4 +294,84 @@ test('an attribute counts as rendered only when the real preview rendered its ta
   assert.equal(attrRendered(plan, '0', 'title', new Map()), true);
   assert.equal(attrRendered(plan, '0', 'data-x', new Map()), true);
   assert.equal(attrRendered(null, '0', 'src', new Map()), true);
+});
+
+/* An image the server finishes (the site's ImageMarkup): the crop is the server's. */
+
+const IMG = '<img src="/assets/portrait.webp" alt="Camilla" width="400" height="711" format="webp" quality="10" blur>';
+const GLIDE = (w, h) => `/img/asset/portrait.webp?w=${w}&h=${h}&fit=crop_focal&q=10&fm=webp`;
+const rendered = (attrs) => ({ getAttribute: (name) => attrs[name] ?? null });
+const imgOf = (html) => paintPlan(...html).html.match(/<img\b[^>]*>/)[0];
+
+test('an <img> with format, quality or blur is the server’s to finish; a plain one is not', () => {
+  assert.equal(planTemplate(IMG, field).root.image, 'img');
+  assert.equal(planTemplate('<img src="a.png" width="400" height="300">', field).root.image, '');
+  assert.equal(planTemplate('<img src="a.png" blur>', field).root.image, 'img');
+});
+
+test('the server has made the size the file asks: its address, srcset, width and height; no option on the canvas', () => {
+  const plan = planTemplate(IMG, field);
+  const made = servedImage(plan.root, rendered({ src: GLIDE(400, 711), srcset: `${GLIDE(400, 711)} 1x, ${GLIDE(800, 1422)} 2x`, width: '400', height: '711' }));
+  const img = imgOf([plan, { images: new Map([[plan.root.path, made]]) }]);
+
+  assert.ok(img.includes(`src="${GLIDE(400, 711).replace(/&/g, '&amp;')}"`), img);
+  assert.ok(img.includes('srcset="'), img);
+  assert.ok(img.includes('width="400"') && img.includes('height="711"'), img);
+  assert.ok(img.includes('alt="Camilla"'), img);
+  assert.ok(!/\s(?:format|quality|blur)\b/.test(img), img);
+  assert.ok(!img.includes('aspect-ratio'), 'the server’s crop has its own shape');
+});
+
+test('a new size: the server’s last picture at once, in the shape the file asks, until the server has made it', () => {
+  const plan = planTemplate(IMG.replace('height="711"', 'height="400"'), field);
+  const before = servedImage(planTemplate(IMG, field).root, rendered({ src: GLIDE(400, 711), width: '400', height: '711' }));
+  const img = imgOf([plan, { images: new Map([[plan.root.path, before]]) }]);
+
+  assert.ok(img.includes(`src="${GLIDE(400, 711).replace(/&/g, '&amp;')}"`), 'the picture there is, not the raw file');
+  assert.ok(img.includes('width="400"') && img.includes('height="400"'), img);
+  assert.ok(img.includes('style="aspect-ratio: 400 / 400; object-fit: cover"'), img);
+});
+
+test('another picture, or none rendered yet: the file’s address in the file’s shape; an own style is kept', () => {
+  const plan = planTemplate(IMG.replace('portrait.webp', 'other.webp').replace('<img ', '<img style="opacity: .9;" '), field);
+  const old = servedImage(planTemplate(IMG, field).root, rendered({ src: GLIDE(400, 711), width: '400', height: '711' }));
+
+  for (const images of [new Map([[plan.root.path, old]]), new Map()]) {
+    const img = imgOf([plan, { images }]);
+
+    assert.ok(img.includes('src="/assets/other.webp"'), img);
+    assert.ok(img.includes('style="opacity: .9; aspect-ratio: 400 / 711; object-fit: cover"'), img);
+    assert.ok(!img.includes('srcset'), img);
+  }
+});
+
+test('a width alone keeps the picture’s own shape: no cut on the canvas', () => {
+  const plan = planTemplate('<img src="/assets/portrait.webp" width="600" format="webp">', field);
+  const before = servedImage(plan.root, rendered({ src: GLIDE(400, 400), width: '400', height: '400' }));
+  const img = imgOf([plan, { images: new Map([[plan.root.path, before]]) }]);
+
+  assert.ok(img.includes('width="600"') && !img.includes('height='), img);
+  assert.ok(!img.includes('aspect-ratio'), img);
+
+  const made = servedImage(plan.root, rendered({ src: GLIDE(600, 600), width: '600', height: '600' }));
+
+  assert.ok(imgOf([plan, { images: new Map([[plan.root.path, made]]) }]).includes('height="600"'), 'the height the server worked out');
+});
+
+test('a <picture>: its sources are finished with the <img>, a plain <picture> is left alone', () => {
+  const source = '<source media="(width < 48em)" srcset="/assets/portrait.webp" width="768" height="768">';
+  const plan = planTemplate(`<picture>${source}${IMG}</picture>`, field);
+  const [, src, img] = plan.elements;
+
+  assert.equal(src.image, 'source');
+  assert.equal(img.image, 'img');
+  assert.equal(planTemplate(`<picture>${source}<img src="a.png"></picture>`, field).elements[1].image, '');
+
+  const made = servedImage(src, rendered({ srcset: `${GLIDE(768, 768)} 1x`, width: '768', height: '768' }));
+  const { html } = paintPlan(plan, { images: new Map([[src.path, made]]) });
+  const painted = html.match(/<source\b[^>]*>/)[0];
+
+  assert.ok(painted.includes(`srcset="${GLIDE(768, 768).replace(/&/g, '&amp;')} 1x"`), painted);
+  assert.ok(painted.includes('media="(width < 48em)"'), painted);
+  assert.ok(!painted.includes('aspect-ratio'), 'a source has no box of its own');
 });
