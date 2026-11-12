@@ -21,6 +21,8 @@
  * /vendor/visual-editor/ and /!/sve/, "statamic" is /vendor/statamic/, "site"
  * is the site's own /build/. Encoded bytes: on a server that compresses,
  * these are the wire bytes; on `php artisan serve` they equal the file size.
+ * A long task is counted once, though every document of the tab reports it
+ * (tests/e2e/long-tasks.mjs).
  *
  *   SVE_SITE_DIR / SVE_SITE_URL / SVE_USER / SVE_PASS / SVE_ENTRY   as in the smoke test
  *   SVE_PUBLIC   public path of the entry (default /test-ny)
@@ -33,6 +35,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { OBSERVE_LONG_TASKS, longTaskSummary } from '../e2e/long-tasks.mjs';
 
 const env = (key, fallback) => process.env[key] || fallback;
 const SITE_DIR = env('SVE_SITE_DIR', `${process.env.HOME}/Sites/vizuall-skabelon`);
@@ -74,16 +77,6 @@ function seed(prefs) {
     : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
   writeFileSync(USER_FILE, yaml);
 }
-
-/** Long tasks in every document of the tab, on the wall clock. */
-const LONG_TASKS = `
-  window.__mmLong = [];
-  try {
-    new PerformanceObserver((list) => {
-      for (const e of list.getEntries()) window.__mmLong.push([Math.round(performance.timeOrigin + e.startTime), Math.round(e.duration)]);
-    }).observe({ type: 'longtask', buffered: true });
-  } catch (e) {}
-`;
 
 /** Every finished request of the tab: url, CDP resource type, encoded bytes, wall-clock start. */
 async function trackNetwork(page) {
@@ -127,15 +120,10 @@ async function trackNetwork(page) {
 async function longTasks(page, from, to) {
   const all = [];
   for (const f of page.frames()) {
-    all.push(...(await f.evaluate(() => window.__mmLong || []).catch(() => [])));
+    all.push(...(await f.evaluate(() => window.__longTasks || []).catch(() => [])));
   }
-  const hit = all.filter(([start]) => start >= from && start <= to);
 
-  return {
-    count: hit.length,
-    totalMs: hit.reduce((s, [, d]) => s + d, 0),
-    longestMs: hit.reduce((m, [, d]) => Math.max(m, d), 0),
-  };
+  return longTaskSummary(all, from, to);
 }
 
 function bytes(net, from, to) {
@@ -204,7 +192,7 @@ async function session(browser) {
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
   await page.setViewport({ width: 1440, height: 900 });
-  await page.evaluateOnNewDocument(LONG_TASKS);
+  await page.evaluateOnNewDocument(OBSERVE_LONG_TASKS);
 
   await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
   await page.waitForSelector('input[name="email"]', { timeout: 15000 });
@@ -306,7 +294,7 @@ async function session(browser) {
   const visitor = await browser.createBrowserContext();
   const pub = await visitor.newPage();
   await pub.setViewport({ width: 1440, height: 900 });
-  await pub.evaluateOnNewDocument(LONG_TASKS);
+  await pub.evaluateOnNewDocument(OBSERVE_LONG_TASKS);
   const pubNet = await trackNetwork(pub);
   const from = Date.now();
   await pub.goto(`${SITE_URL}${PUBLIC}`, { waitUntil: 'load' });

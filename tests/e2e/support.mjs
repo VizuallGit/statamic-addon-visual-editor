@@ -4,7 +4,7 @@
  *
  * Waits are on the real thing (an element, a message, a count), never on time.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, request as http } from '@playwright/test';
 
@@ -41,6 +41,36 @@ export function resetLayout(prefs = { 'sve-lp-panel-mode': 'show', 'sve-lp-colla
     ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`)
     : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
   writeFileSync(file, yaml);
+}
+
+/**
+ * resetLayout, and again each time something else writes the user's file, until
+ * it has stood still for `quietMs`. A page sends its whole layout as it closes
+ * (chrome-prefs.js flushes on pagehide), so the page of the test before can
+ * land its save after this test's reset, and a dock or a tab it left open opens
+ * here. For a test that measures, where that changes the numbers.
+ */
+export async function settledLayout(quietMs = 1500) {
+  const file = join(SITE_DIR, 'users', `${USER}.yaml`);
+
+  if (!existsSync(file)) return;
+
+  let written = 0;
+  await expect
+    .poll(
+      () => {
+        if (statSync(file).mtimeMs > written) {
+          resetLayout();
+          written = statSync(file).mtimeMs;
+
+          return false;
+        }
+
+        return Date.now() - written >= quietMs;
+      },
+      { timeout: 30_000, intervals: [100] }
+    )
+    .toBe(true);
 }
 
 /** How many sections the public page renders for a visitor (no session): what the preview must show too. */

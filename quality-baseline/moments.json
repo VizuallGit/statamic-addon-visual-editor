@@ -1,0 +1,22 @@
+{
+  "build": {
+    "veJsKB": 2051,
+    "longMs": 395,
+    "longTasks": 5
+  },
+  "dock": {
+    "veJsKB": 0,
+    "longMs": 54,
+    "longTasks": 1
+  },
+  "lp": {
+    "veJsKB": 875,
+    "longMs": 422,
+    "longTasks": 5
+  },
+  "typing": {
+    "veJsKB": 0,
+    "longMs": 0,
+    "longTasks": 0
+  }
+}
