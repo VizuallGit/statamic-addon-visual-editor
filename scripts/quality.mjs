@@ -322,12 +322,23 @@ const checks = {
           .map(([k]) => k)
       );
       for (const entry of Object.values(manifest)) for (const dyn of entry.dynamicImports || []) roots.add(dyn);
+      // A shared chunk's key carries the build's hash (`_boot-DJS7CGbA.js`), which
+      // changes with every build; its budget is kept under its name (`_boot.js`).
+      // Two shared chunks with one name (CodeMirror's `index`) are told apart by
+      // what they import.
+      const named = (key) => (key.startsWith('_') ? `_${manifest[key].name}.js` : key);
+      const twins = {};
+      for (const key of roots) twins[named(key)] = (twins[named(key)] || 0) + 1;
+      const budgetKey = (key) =>
+        twins[named(key)] > 1
+          ? `${named(key)} importing ${(manifest[key].imports || []).map(named).sort().join(', ') || 'nothing'}`
+          : named(key);
       const current = {};
       for (const key of roots) {
         let bytes = 0;
         for (const k of closure(key))
           bytes += size(manifest[k].file) + (manifest[k].css || []).reduce((s, c) => s + size(c), 0);
-        current[key] = Math.round(bytes / 1024);
+        current[budgetKey(key)] = Math.round(bytes / 1024);
       }
       const base = readJson('budgets.json', null);
 
