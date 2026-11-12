@@ -847,7 +847,7 @@ onBeforeUnmount(() => {
 /* A family's More: its switch under what stands in front; on, what it unfolds goes below it. */
 .sve-build .fg-sec__more { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .sve-build .fg-sec__more.is-open { order: 2; }
-.sve-build .fg-sec__more-row { order: 1; display: flex; align-items: center; gap: 0.4rem; width: fit-content; font-size: 0.75rem; font-weight: 500; color: var(--bm-muted); cursor: pointer; }
+.sve-build .fg-sec__more-row { order: 1; display: flex; align-items: center; gap: 0.4rem; width: fit-content; margin-top: 0.5rem; font-size: 0.75rem; font-weight: 500; color: var(--bm-muted); cursor: pointer; }
 .sve-build .fg-sec__more-row:hover { color: var(--bm-ink); }
 /* The class list's count and switch (.fg-classes), a size down. */
 .sve-build .fg-sec__more-row .fg-classes__count { min-width: 0.875rem; height: 0.875rem; }
