@@ -92,7 +92,7 @@ test('preview.js hands a render on through the one hook the overview sets, after
   // deletion took off the page while an inline edit held the full render back.
   assert.equal((preview.match(/__sveMirror/g) || []).length, 2, 'a render and a removal, nothing else, in preview.js');
   assert.ok(
-    /window\.__sveMirror\?\.\(\{ html: text/.test(preview),
+    /window\.__sveMirror\?\.\(\{\s*html: text/.test(preview),
     'the render: an optional call — closed, the property does not exist'
   );
   assert.ok(/window\.__sveMirror\?\.\(\{ removed: ids \}\)/.test(preview), 'the removal: the same optional call');

@@ -69,7 +69,7 @@ test('a Style field draws the data icon only when its port hands it one', () => 
   for (const name of ['BuildValueInput', 'BuildClassField']) {
     const field = read(join(ROOT, `cp/surfaces/${name}.vue`));
 
-    assert.ok(/<component :is="port\.bindIcon" v-if="port\.bindIcon/.test(field), name);
+    assert.ok(/<component\s+:is="port\.bindIcon"\s+v-if="port\.bindIcon/.test(field), name);
     assert.ok(
       !/css-mode|BuildDataBind/.test(field.replace(/\/\*[\s\S]*?\*\//g, '')),
       `${name} imports nothing of the demo`

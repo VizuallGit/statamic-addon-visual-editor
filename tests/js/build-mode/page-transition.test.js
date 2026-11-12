@@ -245,7 +245,7 @@ test("a component's Animation tab holds its page transition", () => {
   const panel = read('resources/js/cp/surfaces/BuildPanel.vue');
 
   assert.match(panel, /\['animation', 'anim_tab'\],\s*\]\s*: \[\['content', 'tab_settings'\]\]/);
-  assert.match(panel, /<BuildPageTransition v-else-if="tab === 'animation' && picked.kind === 'component'"/);
+  assert.match(panel, /<BuildPageTransition\s+v-else-if="tab === 'animation' && picked.kind === 'component'"/);
   assert.match(
     read('src/Boot/EditorRoutes.php'),
     /'\/!\/sve\/page-transition\/landing', PageTransitionLandingController::class/

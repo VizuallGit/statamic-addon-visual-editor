@@ -49,6 +49,6 @@ test('the panel leaves Style out when it is off, and shows Content where Style w
   const panel = read('resources/js/cp/surfaces/BuildPanel.vue');
 
   assert.match(panel, /\]\.filter\(\(\[value\]\) => value !== 'style' \|\| styleShown\.value\)/);
-  assert.match(panel, /chosen\.value === 'style' && !styleShown\.value\) \? 'content'/);
+  assert.match(panel, /chosen\.value === 'style' && !styleShown\.value\)? \? 'content'/);
   assert.match(read('resources/js/lp-more-menu.js'), /styleTab: \(on\) => setBuildStyleTabShown\(win, on\)/);
 });
