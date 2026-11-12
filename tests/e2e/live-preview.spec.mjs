@@ -39,6 +39,20 @@ test('a hover in the preview reaches the CP', async ({ page }) => {
   await expect.poll(() => messages(cpFrame)).toContain('hover');
 });
 
+test('a hover on the selection panel marks its element in the preview', async ({ page }) => {
+  const { cp, preview } = await openLivePreview(page, await publicSectionCount());
+  const heading = preview.locator('h1[data-sid-field], h2[data-sid-field]').first();
+
+  await heading.click();
+  await expect(cp.locator('#__sve-selection-panel [data-sve-selection-panel]')).toBeVisible();
+  await page.mouse.move(5, 500); // off the preview, onto the CP's left column
+  await expect(heading).not.toHaveAttribute('data-sid-hover', /.*/);
+
+  await cp.locator('#__sve-selection-panel .form-group:visible').first().hover();
+
+  await expect(heading).toHaveAttribute('data-sid-hover', /.*/);
+});
+
 // The side scripts (resources/js/side/) each mark themselves in window.__sveDebug.ran;
 // "no errors" alone would not tell a script that never ran from one that did.
 const SIDE_SCRIPTS = [

@@ -89,6 +89,23 @@ export async function openLivePreview(page, sections, { navigate = true } = {}) 
   return { cp, cpFrame, preview };
 }
 
+/**
+ * Back to Content before a Build test ends. The editor saves its mode to the
+ * user's file a moment after a switch (POST /!/sve/chrome-prefs); a test that
+ * ends in Build would have that save land after the next test's resetLayout,
+ * and the next test would open in Build. So switch, and wait for the save.
+ */
+export async function leaveBuild(page) {
+  if (!(await page.locator(OVERLAY).count())) return;
+  const cp = page.frameLocator(OVERLAY);
+  if (!(await cp.locator('#__sve-build-panel').count())) return;
+
+  const saved = page.waitForResponse((r) => r.url().includes('/!/sve/chrome-prefs') && r.request().method() === 'POST');
+  await cp.locator('[data-sve-build-switch] [data-sve-build-mode="content"]').click();
+  await expect(cp.locator('#__sve-build-panel')).toHaveCount(0);
+  await saved;
+}
+
 /** Start collecting the editor's messages in a frame; read them with `messages(frame)`. */
 export async function listen(frame) {
   await frame.evaluate((source) => {
