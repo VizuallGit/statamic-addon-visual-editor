@@ -12,7 +12,7 @@ Det byggede editor-JS bor **kun** i `resources/dist/build`. Det er addonen. Ikke
 ## Forbudt
 
 - Skriv aldrig i sitets `public/vendor/visual-editor` eller `public/vendor/statamic-addon`
-- `vendor:publish` af dette dist — nej. Control Panel får en symlink, preview henter `/!/sve/build/…`
+- `vendor:publish` af dette dist: kun via composer, aldrig i hånden. Control Panel får en symlink, preview henter `/!/sve/build/…`. Composers egen kopiering er i orden. Kør aldrig `vendor:publish` i hånden som rettelse, og skriv aldrig i mappen.
 - Vite med `configFile: false` eller kun ét input (`overlay-host.js`, `preview.js`, `bridge.js`)
 - Slet aldrig `overlay-host-*.js`, `addon-*.js`, `bridge-*.js`, `preview-*.js` i `resources/dist/build/assets`
 - Ret aldrig én hash i `manifest.json` uden at `addon.js` importerer præcis den samme overlay-host-fil

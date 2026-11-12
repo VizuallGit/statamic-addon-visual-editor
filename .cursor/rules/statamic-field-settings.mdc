@@ -15,7 +15,7 @@ Only **build on top**. Changing Statamic default is allowed only when the user e
 
 - Subclass + `::register()` on an existing handle (`iconify`, `replicator`, `text`, …)
 - Wrap/replace a field's Vue component
-- `npm run cp:build` here or on the site when it rebuilds `addon.js` — that breaks field settings
+- A build of one entry alone. One full `npm run cp:build` here belongs to a release; the site's own `cp:build` is only the site's CP CSS. If the fields in the CP break after a build: stop and restore.
 - Overwrite `public/vendor/app/` or `public/vendor/statamic-addon/`
 - Change how `default-sets-fieldtype` behaves (`resources/js/side/default-sets-count.js`, bundled into `addon.js`; the old `DefaultSetsFieldtype.js` was deleted in WP6a)
 - CSS that hits native inputs

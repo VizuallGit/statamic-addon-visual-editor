@@ -24,7 +24,7 @@ Spørger ejeren "kan du det, eller er det en Fable-opgave?", så afgør det her 
 
 ## Regler uanset hvem der koder
 
-- Kør `npm test` og `npm run isolate` før commit. Rør aldrig `resources/dist` i hånden.
+- Kør `npm run check` før commit (låsen kører den også ved push). Rør aldrig `resources/dist` i hånden.
 - Skal ændringen bygges eller udgives for at kunne ses (cp:build → commit → tag → composer), så **stop efter koden og sig det** — udgivelseskæden er Fables.
 - Én overflade pr. opgave. Ingen "mens vi er her"-rettelser.
 
