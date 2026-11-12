@@ -61,11 +61,13 @@ export async function publicSectionCount() {
 }
 
 /**
- * Open the entry and its Live Preview. Returns the CP frame inside the overlay
+ * Open the entry and its Live Preview (or, with navigate: false, Live Preview
+ * again on the entry already open). Returns the CP frame inside the overlay
  * (a Frame, for evaluate) and locators for the CP and the preview.
  */
-export async function openLivePreview(page, sections) {
-  await page.goto(ENTRY);
+export async function openLivePreview(page, sections, { navigate = true } = {}) {
+  // navigate: false opens it again on the page as it stands (the wear test: one tab, many rounds).
+  if (navigate) await page.goto(ENTRY);
   const button = page.getByRole('button', { name: 'Live Preview', exact: true });
   await expect(button).toBeVisible();
   // A trial licence shows Statamic's "Licensing Alert" over the whole CP; Snooze is what a person clicks.

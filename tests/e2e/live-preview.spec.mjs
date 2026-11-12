@@ -38,3 +38,36 @@ test('a hover in the preview reaches the CP', async ({ page }) => {
 
   await expect.poll(() => messages(cpFrame)).toContain('hover');
 });
+
+// The side scripts (resources/js/side/) each mark themselves in window.__sveDebug.ran;
+// "no errors" alone would not tell a script that never ran from one that did.
+const SIDE_SCRIPTS = [
+  'default-sets-count',
+  'iconify-hide-remove',
+  'icon-button-group-iconify',
+  'responsive-hide-label',
+  'grid-keep-table',
+  'grid-collapse',
+  'inserter-reveal',
+  'toolbar-look',
+  'library-drop-focus',
+  'collection-template-picker',
+  'collection-preset-scaffold',
+  'field-prop',
+  'section-meta-prefetch',
+  'lite-sections',
+];
+
+test('Live Preview boots without a JavaScript error, and every side script ran', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    window.__sveDebug = { ran: [] };
+  });
+
+  const { cpFrame } = await openLivePreview(page, await publicSectionCount());
+
+  const ran = await cpFrame.evaluate(() => window.__sveDebug?.ran || []);
+  expect(SIDE_SCRIPTS.filter((name) => !ran.includes(name))).toEqual([]);
+  expect(errors).toEqual([]);
+});

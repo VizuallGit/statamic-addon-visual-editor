@@ -6,14 +6,16 @@
 import { expect, test } from '@playwright/test';
 import { openLivePreview, publicSectionCount, resetLayout } from './support.mjs';
 
-const ROUNDS = Number(process.env.SVE_WEAR_ROUNDS || 20);
+const ROUNDS = Number(process.env.SVE_WEAR_ROUNDS || 6);
 
 test.beforeEach(() => resetLayout());
 
-// Not yet: after a click on "Close Live Preview" the overlay keeps [data-open]
-// (30 s). How Live Preview closes goes through overlay-host.js (core); the
-// close step has to be read there before this test can count anything.
-test.fixme(`Live Preview opened and closed ${ROUNDS} times does not grow`, async ({ page }) => {
+test(`Live Preview opened and closed ${ROUNDS} times does not grow`, async ({ page }) => {
+  // A known leak, measured 12 Nov 2026 on v1.1.801: every open and close in one
+  // tab leaves about 6 documents, 6,700 nodes and 28 MB of heap behind (204 →
+  // 348 MB over 6 rounds). Marked as expected to fail: the day it is fixed this
+  // test turns red ("expected to fail, but passed"), and this line goes.
+  test.fail();
   test.setTimeout(ROUNDS * 30_000);
   const sections = await publicSectionCount();
   const cdp = await page.context().newCDPSession(page);
@@ -32,9 +34,13 @@ test.fixme(`Live Preview opened and closed ${ROUNDS} times does not grow`, async
   const rounds = [];
 
   for (let i = 1; i <= ROUNDS; i++) {
-    const { cp } = await openLivePreview(page, sections);
+    const { cp } = await openLivePreview(page, sections, { navigate: i === 1 });
+    // Close opens a menu: back to the admin (this entry), back to the site, or a new tab.
     await cp.getByRole('button', { name: 'Close Live Preview' }).click();
+    await cp.getByText('Back to admin', { exact: true }).click();
     await expect(page.locator('iframe.sve-edit-overlay[data-open]')).toHaveCount(0);
+    // Still the same document: a reload would hide any leak this test is for.
+    expect(new URL(page.url()).pathname).toContain('/cp/collections/');
     rounds.push(await counters());
   }
 
