@@ -91,7 +91,7 @@ async function removeRow(row) {
 
 const name = ref('');
 const icon = ref(props.icons.find((item) => item.key === 'tablet_landscape')?.key || props.icons[0]?.key || 'desktop');
-const min = ref('');
+const minInput = ref('');
 const unit = ref('em');
 const width = ref('');
 const saving = ref(false);
@@ -149,7 +149,12 @@ function shortcutOwner(combo) {
 }
 
 const canSave = computed(
-  () => !saving.value && handle.value !== '' && min.value !== '' && Number(min.value) >= 0 && Number(width.value) >= 240
+  () =>
+    !saving.value &&
+    handle.value !== '' &&
+    minInput.value !== '' &&
+    Number(minInput.value) >= 0 &&
+    Number(width.value) >= 240
 );
 
 /** A preset fills the width and a matching preview width; everything stays editable. */
@@ -158,22 +163,22 @@ function usePreset(preset) {
     return;
   }
 
-  min.value = unit.value === 'px' ? String(preset.px) : String(Math.round((preset.px / 16) * 100) / 100);
+  minInput.value = unit.value === 'px' ? String(preset.px) : String(Math.round((preset.px / 16) * 100) / 100);
   width.value = String(preset.px);
 }
 
 /** Switching unit converts the number, so 48em and 768px stay the same line. */
 watch(unit, (next, prev) => {
-  const n = Number(min.value);
+  const n = Number(minInput.value);
 
-  if (min.value === '' || !Number.isFinite(n) || next === prev) {
+  if (minInput.value === '' || !Number.isFinite(n) || next === prev) {
     return;
   }
 
   if (prev === 'px' && next !== 'px') {
-    min.value = String(Math.round((n / 16) * 100) / 100);
+    minInput.value = String(Math.round((n / 16) * 100) / 100);
   } else if (prev !== 'px' && next === 'px') {
-    min.value = String(Math.round(n * 16));
+    minInput.value = String(Math.round(n * 16));
   }
 });
 
@@ -190,7 +195,7 @@ async function submit() {
     handle: handle.value,
     label: name.value.trim(),
     icon: icon.value,
-    min: Number(min.value),
+    min: Number(minInput.value),
     unit: unit.value,
     width: Math.round(Number(width.value)),
     shortcut: shortcut.value,
@@ -329,7 +334,7 @@ async function submit() {
         <label class="sve-bp-add__field sve-bp-add__field--grow">
           <span class="sve-bp-add__label">{{ strings.from }}</span>
           <span class="sve-bp-add__join">
-            <input v-model="min" class="sve-bp-add__input" type="number" min="0" step="any" inputmode="decimal" />
+            <input v-model="minInput" class="sve-bp-add__input" type="number" min="0" step="any" inputmode="decimal" />
             <select v-model="unit" class="sve-bp-add__input sve-bp-add__unit" :aria-label="strings.unit">
               <option v-for="option in units" :key="option" :value="option">{{ option }}</option>
             </select>

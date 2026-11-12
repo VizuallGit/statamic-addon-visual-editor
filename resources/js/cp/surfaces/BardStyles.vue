@@ -410,9 +410,14 @@
 
       <footer class="sve-bs__foot">
         <span class="sve-bs__status" :class="{ 'is-bad': statusBad }" data-sve-bs-status>{{ status }}</span>
-        <button v-if="savedOnce && !dirty" type="button" class="sve-theme__add" data-sve-bs-reload @click="reload">{{
-          t('bard_styles_reload')
-        }}</button>
+        <button
+          v-if="savedOnce && !dirty"
+          type="button"
+          class="sve-theme__add"
+          data-sve-bs-reload
+          @click="reloadStyles"
+          >{{ t('bard_styles_reload') }}</button
+        >
         <button
           v-if="canEdit"
           type="button"
@@ -789,7 +794,7 @@ async function requestClose() {
 
 props.bindClose?.(requestClose);
 
-function reload() {
+function reloadStyles() {
   props.reload();
 }
 

@@ -29,6 +29,15 @@ abstract class TestCase extends AddonTestCase
 
     protected function setUp(): void
     {
+        // Tests that save a user delete it in tearDown; a run that dies first
+        // leaves the file here, and every later run then finds that user. Cleared
+        // before Statamic reads the folder. editor@example.com is in git.
+        foreach (glob(__DIR__.'/__fixtures__/users/*.yaml') ?: [] as $file) {
+            if (basename($file) !== 'editor@example.com.yaml') {
+                unlink($file);
+            }
+        }
+
         parent::setUp();
 
         // The feature map is cached for the life of a request; a test run is one
