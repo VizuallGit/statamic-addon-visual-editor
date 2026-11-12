@@ -796,6 +796,7 @@ return [
     'lp_settings_shortcuts_sizes' => 'Skærmstørrelser',
     'lp_settings_shortcuts_hint' => 'Kun dine egne, i alle browsere du logger ind i. Nedtonet er sitets genvej. En genvej er et klik på ikonet; et skjult ikon forbliver skjult.',
     'lp_settings_shortcuts_reset' => 'Nulstil genveje',
+    'lp_settings_page_transitions' => 'Sideskift spiller i Live Preview (fra = siderne skifter uden; sitet beholder dem)',
     // Optagefeltet til en genvej, hvor det end står.
     'shortcut_recording' => 'Tryk tasterne …',
     'shortcut_none' => 'Ingen',
