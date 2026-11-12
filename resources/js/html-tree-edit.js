@@ -24,7 +24,7 @@ export function blockRange(html, node) {
   // A locked element starts at its lock: moved or taken out, the marker goes
   // with it, and nothing dropped "before" it lands between the two.
   let from = node.lockFrom ?? node.wrapFrom ?? node.from;
-  let to = node.wrapTo ?? node.to;
+  const to = node.wrapTo ?? node.to;
 
   if (from > 0 && html[from - 1] === '\n') {
     from -= 1;

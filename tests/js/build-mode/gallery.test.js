@@ -45,7 +45,7 @@ test("images are written with the first one's classes and the asset's alt", () =
 
   assert.match(
     out,
-    /^<div class="grid grid-cols-3 gap-4">\n    <img src="\/c\.jpg" alt="[^\n]*\/c\.jpg[^\n]*" class="w-full">\n<\/div>$/
+    /^<div class="grid grid-cols-3 gap-4">\n {4}<img src="\/c\.jpg" alt="[^\n]*\/c\.jpg[^\n]*" class="w-full">\n<\/div>$/
   );
   assert.equal(isGallery(out, first(out)), true);
 });

@@ -653,7 +653,7 @@ try {
       }, wantLabel);
     const b = await (await cp.frameElement()).boundingBox();
     let viaTree = false;
-    let hops = [];
+    const hops = [];
     const otherRow = (await shutRow(OTHER)) || (await shutRow(''));
     if (otherRow) {
       await page.mouse.click(b.x + otherRow.x, b.y + otherRow.y);

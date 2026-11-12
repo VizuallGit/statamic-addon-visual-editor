@@ -81,7 +81,7 @@ function specFor(file, target) {
 }
 function addImport(f, target, names) {
   if (!names.length) return;
-  let s = read(f);
+  const s = read(f);
   const spec = specFor(f, target);
   const re = new RegExp(`^import \\{([^}]*)\\} from '${esc(spec)}';$`, 'm');
   const m = s.match(re);

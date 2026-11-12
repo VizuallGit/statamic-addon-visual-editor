@@ -99,7 +99,7 @@ const { ensureLpLiveReload } = await import(target);
 function fakeWindow(answers) {
   const delays = [];
   const urls = [];
-  let pending = [...answers];
+  const pending = [...answers];
   const events = [];
   const win = {
     document: { hidden: false, dispatchEvent: (e) => events.push(e) },

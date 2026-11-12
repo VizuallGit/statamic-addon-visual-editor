@@ -232,7 +232,7 @@ async function waitIn(frame, selector, ms) {
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 function seedLayoutPrefs(prefs) {
   let yaml = readFileSync(USER_FILE, 'utf8');
-  yaml = yaml.replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, '');
+  yaml = yaml.replace(/^ {2}sve_chrome:.*\n(?: {4}.*\n)*/m, '');
   const entries = Object.entries(prefs || {});
   if (entries.length) {
     const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;

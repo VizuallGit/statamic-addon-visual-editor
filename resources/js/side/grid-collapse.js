@@ -11,20 +11,20 @@ import { mark } from '../lib/debug.js';
 
   mark('grid-collapse');
 
-  var KEY = 'sve_grid_collapse';
-  var OPEN_ATTR = 'data-sve-grid-open';
-  var ROW_ATTR = 'data-sve-grid-row';
-  var COLLAPSED_ATTR = 'data-sve-grid-collapsed';
+  const KEY = 'sve_grid_collapse';
+  const OPEN_ATTR = 'data-sve-grid-open';
+  const ROW_ATTR = 'data-sve-grid-row';
+  const COLLAPSED_ATTR = 'data-sve-grid-collapsed';
 
   function configOf(vm) {
     return vm && vm.config && typeof vm.config === 'object' ? vm.config : null;
   }
 
   function vueOf(el) {
-    var inst = el && el.__vueParentComponent;
+    let inst = el && el.__vueParentComponent;
 
     while (inst) {
-      var config = configOf(inst.proxy);
+      const config = configOf(inst.proxy);
 
       if (config && ((config.type || '').toLowerCase() === 'grid' || KEY in config)) {
         return inst.proxy;
@@ -37,8 +37,8 @@ import { mark } from '../lib/debug.js';
   }
 
   function wantsCollapse(stacked) {
-    var field = stacked.closest('.grid-fieldtype');
-    var vm = vueOf(field || stacked);
+    const field = stacked.closest('.grid-fieldtype');
+    const vm = vueOf(field || stacked);
 
     return !!(vm && configOf(vm) && configOf(vm)[KEY]);
   }
@@ -54,9 +54,9 @@ import { mark } from '../lib/debug.js';
   function openRow(row) {
     row.removeAttribute(COLLAPSED_ATTR);
 
-    var header = row.querySelector(':scope > header');
-    var title = header && header.querySelector('.sve-grid-title');
-    var chevron = header && header.querySelector('.sve-grid-chevron');
+    const header = row.querySelector(':scope > header');
+    const title = header && header.querySelector('.sve-grid-title');
+    const chevron = header && header.querySelector('.sve-grid-chevron');
 
     if (title) {
       title.style.display = 'none';
@@ -93,7 +93,7 @@ import { mark } from '../lib/debug.js';
     document.body.__sveGridCollapseWatch = true;
     scan(document);
 
-    var timer = null;
+    let timer = null;
 
     new MutationObserver(function () {
       if (timer) {

@@ -51,7 +51,7 @@ const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 // (its layout saves are answered below and never reach it).
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 if (existsSync(USER_FILE) && /vizuall-skabelon\.test/.test(SITE_URL)) {
-  writeFileSync(USER_FILE, readFileSync(USER_FILE, 'utf8').replace(/^  sve_chrome:.*\n(?:    .*\n)*/m, ''));
+  writeFileSync(USER_FILE, readFileSync(USER_FILE, 'utf8').replace(/^ {2}sve_chrome:.*\n(?: {4}.*\n)*/m, ''));
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -16,21 +16,21 @@ import { mark } from '../lib/debug.js';
 
   mark('warm-set-previews');
 
-  var MAX = 80;
+  const MAX = 80;
 
   function looksLikeImage(url) {
     return /\/thumbnails\//.test(url) || /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(url);
   }
 
   function warm() {
-    var raw = document.getElementById('statamic')?.getAttribute('data-page');
+    const raw = document.getElementById('statamic')?.getAttribute('data-page');
 
     if (!raw) return;
 
-    var seen = {};
-    var count = 0;
-    var re = /"preview":"((?:[^"\\]|\\.)+)"/g;
-    var match;
+    const seen = {};
+    let count = 0;
+    const re = /"preview":"((?:[^"\\]|\\.)+)"/g;
+    let match;
 
     while (count < MAX && (match = re.exec(raw))) {
       var url;
@@ -49,7 +49,7 @@ import { mark } from '../lib/debug.js';
     }
   }
 
-  var idle = window.requestIdleCallback;
+  const idle = window.requestIdleCallback;
 
   if (typeof idle === 'function') {
     idle(warm, { timeout: 6000 });

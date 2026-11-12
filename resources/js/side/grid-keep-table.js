@@ -16,10 +16,10 @@ import { injectStyle } from '../lib/style.js';
 
   mark('grid-keep-table');
 
-  var KEY = 'sve_keep_table';
-  var PIN = 9999;
-  var FIELD_SEL = '.grid-fieldtype';
-  var STYLE_ID = 'sve-keep-table-style';
+  const KEY = 'sve_keep_table';
+  const PIN = 9999;
+  const FIELD_SEL = '.grid-fieldtype';
+  const STYLE_ID = 'sve-keep-table-style';
 
   function ensureStyles() {
     injectStyle(
@@ -41,7 +41,7 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function flagOn(vm) {
-    var config = configOf(vm);
+    const config = configOf(vm);
 
     return !!(config && config[KEY]);
   }
@@ -67,7 +67,7 @@ import { injectStyle } from '../lib/style.js';
       return;
     }
 
-    var config = configOf(vm);
+    const config = configOf(vm);
 
     if (config && config.mode === 'stacked') {
       config.mode = 'table';
@@ -94,7 +94,7 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function eachAncestorProxy(el, visit) {
-    var inst = el && el.__vueParentComponent;
+    let inst = el && el.__vueParentComponent;
 
     while (inst) {
       if (inst.proxy) {
@@ -106,9 +106,9 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function lockField(el) {
-    var flagged = false;
-    var grids = [];
-    var seen = [];
+    let flagged = false;
+    const grids = [];
+    const seen = [];
 
     function visit(vm) {
       if (!vm || seen.indexOf(vm) !== -1) {
@@ -151,7 +151,7 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function hideEditorColumns(field) {
-    var table = field.querySelector('table.grid-table');
+    const table = field.querySelector('table.grid-table');
 
     if (!table) {
       return;
@@ -162,7 +162,7 @@ import { injectStyle } from '../lib/style.js';
         return;
       }
 
-      var index = td.cellIndex + 1;
+      const index = td.cellIndex + 1;
 
       table.querySelectorAll('tr > :nth-child(' + index + ')').forEach(function (cell) {
         cell.setAttribute('data-sve-keep-table-col-hidden', '');
@@ -183,7 +183,7 @@ import { injectStyle } from '../lib/style.js';
     ensureStyles();
     scan(document);
 
-    var timer = null;
+    let timer = null;
 
     new MutationObserver(function () {
       if (timer) {

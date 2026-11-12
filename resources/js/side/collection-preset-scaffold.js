@@ -19,10 +19,10 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
 
   mark('collection-preset-scaffold');
 
-  var PANEL_ID = '__sve-collection-preset';
-  var PANEL_UI = '6';
+  const PANEL_ID = '__sve-collection-preset';
+  const PANEL_UI = '6';
 
-  var SELECT_CLASS = [
+  const SELECT_CLASS = [
     'h-10 w-64 max-w-full rounded-lg ps-3 pe-9',
     'appearance-none bg-no-repeat',
     'bg-white dark:bg-gray-900',
@@ -32,7 +32,7 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
     'cursor-pointer',
   ].join(' ');
 
-  var BUTTON_CLASS = [
+  const BUTTON_CLASS = [
     'relative inline-flex items-center justify-center whitespace-nowrap shrink-0',
     'font-medium antialiased cursor-pointer no-underline',
     'px-4 h-10 text-sm gap-2 rounded-lg',
@@ -43,8 +43,8 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
   ].join(' ');
 
   function onScaffold() {
-    var path = window.location.pathname || '';
-    var match = path.match(/\/collections\/([^/]+)\/scaffold\/?$/);
+    const path = window.location.pathname || '';
+    let match = path.match(/\/collections\/([^/]+)\/scaffold\/?$/);
     if (match) {
       return decodeURIComponent(match[1]);
     }
@@ -86,23 +86,23 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
   }
 
   function tableEl() {
-    var label = document.querySelector('label[for="field_index"]');
+    const label = document.querySelector('label[for="field_index"]');
     return label ? label.closest('table') : document.querySelector('table.data-table');
   }
 
   function buildPanel(handle, list) {
-    var panel = document.createElement('div');
+    const panel = document.createElement('div');
     panel.id = PANEL_ID;
     panel.setAttribute('data-sve-preset-ui', PANEL_UI);
     panel.className = 'rounded-xl px-4 py-5';
     panel.style.margin = '0 0 1.25rem';
     panel.style.backgroundColor = '#1E1E21';
 
-    var title = document.createElement('div');
+    const title = document.createElement('div');
     title.textContent = t(window, 'collection_preset_label');
     title.style.cssText = 'font-weight:600;margin-bottom:.35rem;';
 
-    var hint = document.createElement('p');
+    const hint = document.createElement('p');
     hint.textContent = list.length ? t(window, 'collection_preset_hint') : t(window, 'collection_preset_empty');
     hint.style.cssText = 'font-size:.875rem;opacity:.8;margin:0 0 .75rem;';
 
@@ -113,33 +113,33 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
       return panel;
     }
 
-    var row = document.createElement('div');
+    const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;';
 
-    var select = document.createElement('select');
+    const select = document.createElement('select');
     select.className = SELECT_CLASS;
-    var blank = document.createElement('option');
+    const blank = document.createElement('option');
     blank.value = '';
     blank.textContent = t(window, 'collection_preset_none');
     select.appendChild(blank);
     list.forEach(function (preset) {
-      var option = document.createElement('option');
+      const option = document.createElement('option');
       option.value = preset.handle;
       option.textContent = preset.title || preset.handle;
       select.appendChild(option);
     });
 
-    var button = document.createElement('button');
+    const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('data-ui-button', '');
     button.className = BUTTON_CLASS;
     button.textContent = t(window, 'collection_preset_apply');
 
-    var error = document.createElement('div');
+    const error = document.createElement('div');
     error.style.cssText = 'display:none;margin-top:.6rem;font-size:.875rem;color:#f87171;';
 
     button.addEventListener('click', function () {
-      var preset = select.value;
+      const preset = select.value;
       if (!preset) {
         select.focus();
         return;
@@ -185,9 +185,9 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
   }
 
   function mount() {
-    var handle = onScaffold();
-    var table = tableEl();
-    var existing = document.getElementById(PANEL_ID);
+    const handle = onScaffold();
+    const table = tableEl();
+    const existing = document.getElementById(PANEL_ID);
 
     if (!handle) {
       if (existing) {

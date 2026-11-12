@@ -254,7 +254,7 @@ function seedLayoutPrefs(prefs) {
   // Either form the CP saves: a block of keys, or an empty `sve_chrome: {}`.
   // Leaving the inline one and adding a block gave the user a duplicate key,
   // and Statamic answered every login with a 500.
-  let yaml = readFileSync(file, 'utf8').replace(/^  sve_chrome:[^\n]*\n(?:    .*\n)*/m, '');
+  let yaml = readFileSync(file, 'utf8').replace(/^ {2}sve_chrome:[^\n]*\n(?: {4}.*\n)*/m, '');
   const entries = Object.entries(prefs || {});
   if (entries.length) {
     const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
@@ -2255,7 +2255,7 @@ try {
       3000,
       50
     );
-  let ops = (await settled('0.7')) || (await frameOpacities());
+  const ops = (await settled('0.7')) || (await frameOpacities());
   step(
     'with a size picked, every other frame stands at 70 % and the picked one at 100 %',
     ops.some((o) => o.active) && ops.every((o) => (o.active ? o.opacity === '1' : o.opacity === '0.7')),
@@ -3181,7 +3181,7 @@ try {
       )
     );
     await sleep(3500); // the save and the morph
-    let run = await playing(await livePreview(), 'sve-bpo-video');
+    const run = await playing(await livePreview(), 'sve-bpo-video');
     step('the preview plays it after the morph', run.moved && run.b?.paused === false, showVideo(run.b));
     let copies = await openOverview();
     const plays = copies ? await Promise.all(copies.map((f) => playing(f, 'sve-bpo-video'))) : [];

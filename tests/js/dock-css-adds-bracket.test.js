@@ -68,7 +68,7 @@ for (const by of ['pick', 'scope']) {
     assert.match(fullHtml(), /<li class="\[ yyttrr foo \] flex">Hej<\/li>/);
     assert.deepEqual(names(), ['wrap', 'yyttrr', 'foo']);
     assert.equal(count(dockState.cssFull, 'foo'), 1);
-    assert.match(dockState.cssFull, /\.foo \{\n    color: blue;\n\}/);
+    assert.match(dockState.cssFull, /\.foo \{\n {4}color: blue;\n\}/);
 
     const text = editors.html.state.doc.toString();
 

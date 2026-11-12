@@ -252,7 +252,7 @@ async function visible(frame, selector) {
 function seedLayoutPrefs(prefs) {
   const file = `${SITE_DIR}/users/${USER}.yaml`;
   if (!LOCAL_SITE || NO_PREFS_WRITES || !existsSync(file)) return;
-  let yaml = readFileSync(file, 'utf8').replace(/^  sve_chrome:[^\n]*\n(?:    .*\n)*/m, '');
+  let yaml = readFileSync(file, 'utf8').replace(/^ {2}sve_chrome:[^\n]*\n(?: {4}.*\n)*/m, '');
   const entries = Object.entries(prefs || {});
   if (entries.length) {
     const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;

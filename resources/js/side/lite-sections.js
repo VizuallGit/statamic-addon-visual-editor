@@ -21,7 +21,7 @@
 import { mark } from '../lib/debug.js';
 import { registerContainerContext, unregisterContainerContext } from '../lib/publish-containers.js';
 
-var liteRegistered = false;
+let liteRegistered = false;
 
 mark('lite-sections');
 
@@ -31,7 +31,7 @@ mark('lite-sections');
  * against comes from `config.sets`, handed to the form once when it was
  * built.
  */
-var livePanels = [];
+const livePanels = [];
 
 /**
  * Gives every panel the section's fields as they are now.
@@ -45,9 +45,9 @@ var livePanels = [];
  * @returns {number} panels updated
  */
 function refreshSetFields(handle, fields) {
-  var updated = 0;
-  var i;
-  var set;
+  let updated = 0;
+  let i;
+  let set;
 
   if (!handle || !Array.isArray(fields)) {
     return 0;
@@ -84,14 +84,14 @@ function refreshSetFields(handle, fields) {
  * @returns {number} panels updated
  */
 function addSetConfig(handle, set, group) {
-  var added = 0;
-  var i;
-  var j;
-  var config;
-  var groups;
-  var target;
-  var entry;
-  var groupKey = group || 'sections';
+  let added = 0;
+  let i;
+  let j;
+  let config;
+  let groups;
+  let target;
+  let entry;
+  const groupKey = group || 'sections';
 
   if (!handle || !set || typeof set !== 'object') {
     return 0;
@@ -146,12 +146,12 @@ function addSetConfig(handle, set, group) {
 }
 
 function setConfigFrom(config, handle) {
-  var groups = (config && config.sets) || [];
-  var i;
-  var j;
-  var sets;
-  var key;
-  var inner;
+  const groups = (config && config.sets) || [];
+  let i;
+  let j;
+  let sets;
+  let key;
+  let inner;
 
   if (Array.isArray(groups)) {
     for (i = 0; i < groups.length; i++) {
@@ -197,8 +197,8 @@ function setConfigFrom(config, handle) {
 }
 
 function liteFieldtypeOptions() {
-  var Vue = window.Vue;
-  var FieldtypeMixin = window.__STATAMIC__ && window.__STATAMIC__.core && window.__STATAMIC__.core.FieldtypeMixin;
+  const Vue = window.Vue;
+  const FieldtypeMixin = window.__STATAMIC__ && window.__STATAMIC__.core && window.__STATAMIC__.core.FieldtypeMixin;
 
   if (!window.Statamic || !Statamic.$components || !Vue || typeof Vue.h !== 'function' || !FieldtypeMixin) {
     return null;
@@ -223,7 +223,7 @@ function liteFieldtypeOptions() {
     },
 
     beforeUnmount: function () {
-      var at = livePanels.indexOf(this);
+      const at = livePanels.indexOf(this);
 
       unregisterContainerContext(this.sveContainerContext);
 
@@ -246,9 +246,9 @@ function liteFieldtypeOptions() {
  */
 function liteFieldtypeOptionsAsync() {
   return new Promise(function (resolve, reject) {
-    var tries = 0;
-    var tick = function () {
-      var options = liteFieldtypeOptions();
+    let tries = 0;
+    const tick = function () {
+      const options = liteFieldtypeOptions();
 
       if (options) {
         resolve(options);
@@ -285,7 +285,7 @@ function registerLiteFieldtype() {
     return true;
   }
 
-  var options = liteFieldtypeOptions();
+  const options = liteFieldtypeOptions();
 
   if (!options) {
     return false;
@@ -302,7 +302,7 @@ function bootUntilReady() {
     return;
   }
 
-  var tries = 0;
+  let tries = 0;
   var timer = window.setInterval(function () {
     tries += 1;
 

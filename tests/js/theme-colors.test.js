@@ -111,7 +111,7 @@ test('a new family goes after the last literal color, before the variable tokens
     --color-moss-800: #2a3020;
 `)
   );
-  assert.equal(out.replace(/\n    --color-moss[^\n]*/g, '').replace('#627e7f;\n\n', '#627e7f;\n'), SITE_CSS);
+  assert.equal(out.replace(/\n {4}--color-moss[^\n]*/g, '').replace('#627e7f;\n\n', '#627e7f;\n'), SITE_CSS);
   assert.deepEqual(
     readColors(out).map((f) => f.name),
     ['white', 'black', 'primary', 'secondary', 'moss']

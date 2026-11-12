@@ -24,7 +24,7 @@ const CAROUSEL = [
 test('one whole rule gives its inside, dedented, without the selector', () => {
   const pane = `.testimonials-list {\n    ${CAROUSEL.split('\n')
     .join('\n    ')
-    .replace(/\n    \n/g, '\n\n')}\n}\n`;
+    .replace(/\n {4}\n/g, '\n\n')}\n}\n`;
 
   assert.deepEqual(snippetBodyFrom(pane), { body: CAROUSEL });
 });

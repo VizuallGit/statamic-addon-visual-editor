@@ -16,7 +16,7 @@ import { t } from '../lib/i18n.js';
 
   mark('field-prop');
 
-  var SELECT_CLASS = [
+  const SELECT_CLASS = [
     'w-full h-10 rounded-lg ps-3 pe-9',
     'appearance-none bg-no-repeat',
     'bg-white dark:bg-gray-900',
@@ -43,7 +43,7 @@ import { t } from '../lib/i18n.js';
   }
 
   function collectionHandle(bindings, map) {
-    var collection = (bindings || []).find(function (b) {
+    const collection = (bindings || []).find(function (b) {
       return b.kind === 'collection';
     });
 
@@ -71,17 +71,17 @@ import { t } from '../lib/i18n.js';
   }
 
   function register() {
-    var Vue = window.Vue;
+    const Vue = window.Vue;
 
     if (!window.Statamic || !Statamic.$components || !Vue || typeof Vue.h !== 'function') {
       return;
     }
 
-    var ref = Vue.ref;
-    var computed = Vue.computed;
-    var onMounted = Vue.onMounted;
-    var onUnmounted = Vue.onUnmounted;
-    var h = Vue.h;
+    const ref = Vue.ref;
+    const computed = Vue.computed;
+    const onMounted = Vue.onMounted;
+    const onUnmounted = Vue.onUnmounted;
+    const h = Vue.h;
 
     Statamic.$components.register('sve-template-props-fieldtype', {
       props: {
@@ -108,12 +108,12 @@ import { t } from '../lib/i18n.js';
       emits: ['update:value'],
 
       setup: function (props, ctx) {
-        var emit = ctx.emit;
-        var bindings = ref(props.meta.bindings || []);
-        var collections = ref(props.meta.collections || {});
-        var fields = ref(props.meta.fields || {});
-        var assetFields = ref(props.meta.assetFields || {});
-        var timer = null;
+        const emit = ctx.emit;
+        const bindings = ref(props.meta.bindings || []);
+        const collections = ref(props.meta.collections || {});
+        const fields = ref(props.meta.fields || {});
+        const assetFields = ref(props.meta.assetFields || {});
+        let timer = null;
 
         function applyPayload(data) {
           if (!data || !Array.isArray(data.bindings)) {
@@ -127,7 +127,7 @@ import { t } from '../lib/i18n.js';
         }
 
         function refresh() {
-          var type = props.config.section_type;
+          const type = props.config.section_type;
 
           if (!type) {
             return;
@@ -152,12 +152,12 @@ import { t } from '../lib/i18n.js';
           }
         });
 
-        var map = computed(function () {
+        const map = computed(function () {
           return asMap(props.value);
         });
 
         function setHandle(handle, next) {
-          var out = asMap(props.value);
+          const out = asMap(props.value);
           out[handle] = next;
           emit('update:value', out);
         }
@@ -169,8 +169,8 @@ import { t } from '../lib/i18n.js';
             });
           }
 
-          var source = binding.kind === 'assets' ? assetFields.value : fields.value;
-          var list = source[collectionHandle(bindings.value, map.value)] || [];
+          const source = binding.kind === 'assets' ? assetFields.value : fields.value;
+          const list = source[collectionHandle(bindings.value, map.value)] || [];
 
           return Array.isArray(list) ? list : [];
         }
@@ -180,10 +180,10 @@ import { t } from '../lib/i18n.js';
         }
 
         return function () {
-          var rows = bindings.value.map(function (binding) {
-            var current = currentFor(binding);
-            var opts = optionsFor(binding).slice();
-            var known = opts.some(function (opt) {
+          const rows = bindings.value.map(function (binding) {
+            const current = currentFor(binding);
+            const opts = optionsFor(binding).slice();
+            const known = opts.some(function (opt) {
               return opt.handle === current;
             });
 
@@ -191,7 +191,7 @@ import { t } from '../lib/i18n.js';
               opts.unshift({ handle: current, display: current });
             }
 
-            var children = opts.map(function (opt) {
+            const children = opts.map(function (opt) {
               return h('option', { key: opt.handle, value: opt.handle }, opt.display || opt.handle);
             });
 

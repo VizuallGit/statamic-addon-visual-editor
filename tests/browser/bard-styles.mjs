@@ -290,8 +290,8 @@ try {
   step(
     'nothing else in the list moved',
     saved
-      .replace(/  -\n    handle: sve-test-gruppe\n[\s\S]*?(?=styles:)/, '')
-      .replace(/  -\n    handle: sve_test_lead\n[\s\S]*?group: sve-test-gruppe\n/, '') === original
+      .replace(/ {2}-\n {4}handle: sve-test-gruppe\n[\s\S]*?(?=styles:)/, '')
+      .replace(/ {2}-\n {4}handle: sve_test_lead\n[\s\S]*?group: sve-test-gruppe\n/, '') === original
   );
 
   const nextLoad = await cp.evaluate(

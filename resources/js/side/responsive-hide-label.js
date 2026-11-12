@@ -14,7 +14,7 @@ import { bpBase } from '../breakpoints.js';
 
   mark('responsive-hide-label');
 
-  var pending = false;
+  let pending = false;
 
   function baseBp() {
     // breakpoints.js is the one reader of `sveBreakpoints` and falls back to

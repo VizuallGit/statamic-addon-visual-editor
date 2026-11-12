@@ -14,9 +14,9 @@ import { injectStyle } from '../lib/style.js';
 
   mark('icon-button-group-iconify');
 
-  var NAME_RE = /^[a-z0-9-]+:[a-z0-9-]+$/i;
-  var FIELD_SEL = '.icon_button_group-fieldtype, .icon-button-group-fieldtype';
-  var cache = new Map();
+  const NAME_RE = /^[a-z0-9-]+:[a-z0-9-]+$/i;
+  const FIELD_SEL = '.icon_button_group-fieldtype, .icon-button-group-fieldtype';
+  const cache = new Map();
 
   function isIconifyName(name) {
     return typeof name === 'string' && NAME_RE.test(name.trim());
@@ -41,10 +41,10 @@ import { injectStyle } from '../lib/style.js';
       return markup || '';
     }
 
-    var wrap = document.createElement('div');
+    const wrap = document.createElement('div');
     wrap.innerHTML = markup;
 
-    var svg = wrap.querySelector('svg');
+    const svg = wrap.querySelector('svg');
 
     if (!svg) {
       return markup;
@@ -64,14 +64,14 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function fetchIcon(name) {
-    var cached = cache.get(name);
+    const cached = cache.get(name);
 
     if (cached) {
       return cached;
     }
 
-    var parts = name.split(':');
-    var request = fetch('https://api.iconify.design/' + parts[0] + '/' + parts[1] + '.svg')
+    const parts = name.split(':');
+    const request = fetch('https://api.iconify.design/' + parts[0] + '/' + parts[1] + '.svg')
       .then(function (res) {
         return res.ok ? res.text() : '';
       })
@@ -88,11 +88,11 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function vueOf(el) {
-    var inst = el && el.__vueParentComponent;
+    let inst = el && el.__vueParentComponent;
 
     while (inst) {
-      var proxy = inst.proxy;
-      var options = fieldOptions(proxy);
+      const proxy = inst.proxy;
+      const options = fieldOptions(proxy);
 
       if (options.length) {
         return proxy;
@@ -113,7 +113,7 @@ import { injectStyle } from '../lib/style.js';
       return option.icon.trim();
     }
 
-    var raw = option.iconify;
+    const raw = option.iconify;
 
     if (isIconifyName(raw)) {
       return raw.trim();
@@ -131,13 +131,13 @@ import { injectStyle } from '../lib/style.js';
       return [];
     }
 
-    var meta = vm.meta && Array.isArray(vm.meta.options) ? vm.meta.options : [];
+    const meta = vm.meta && Array.isArray(vm.meta.options) ? vm.meta.options : [];
 
     if (meta.length) {
       return meta;
     }
 
-    var config = vm.config && Array.isArray(vm.config.options) ? vm.config.options : [];
+    const config = vm.config && Array.isArray(vm.config.options) ? vm.config.options : [];
 
     return config;
   }
@@ -147,7 +147,7 @@ import { injectStyle } from '../lib/style.js';
       return;
     }
 
-    var holder = btn.querySelector('[data-sve-ibg-iconify]');
+    let holder = btn.querySelector('[data-sve-ibg-iconify]');
 
     if (!holder) {
       holder = document.createElement('span');
@@ -161,12 +161,12 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function markSelected(el, vm) {
-    var options = fieldOptions(vm);
-    var buttons = el.querySelectorAll('button');
-    var value = vm ? vm.value : undefined;
+    const options = fieldOptions(vm);
+    const buttons = el.querySelectorAll('button');
+    const value = vm ? vm.value : undefined;
 
     buttons.forEach(function (btn, index) {
-      var option = options[index];
+      const option = options[index];
 
       if (option && value == option.value) {
         btn.setAttribute('data-sve-ibg-selected', '');
@@ -183,8 +183,8 @@ import { injectStyle } from '../lib/style.js';
 
     el.__sveIbgSelectedWatch = true;
     el.addEventListener('click', function () {
-      var apply = function () {
-        var vm = vueOf(el) || vueOf(el.querySelector('[class*="-fieldtype"]'));
+      const apply = function () {
+        const vm = vueOf(el) || vueOf(el.querySelector('[class*="-fieldtype"]'));
         markSelected(el, vm);
       };
 
@@ -194,19 +194,19 @@ import { injectStyle } from '../lib/style.js';
   }
 
   function paintField(el) {
-    var vm = vueOf(el) || vueOf(el.querySelector('[class*="-fieldtype"]'));
-    var options = fieldOptions(vm);
+    const vm = vueOf(el) || vueOf(el.querySelector('[class*="-fieldtype"]'));
+    const options = fieldOptions(vm);
 
     if (!options.length) {
       return;
     }
 
-    var buttons = el.querySelectorAll('button');
+    const buttons = el.querySelectorAll('button');
 
     options.forEach(function (option, index) {
-      var btn = buttons[index];
-      var html = option.icon_html;
-      var name = optionName(option);
+      const btn = buttons[index];
+      const html = option.icon_html;
+      const name = optionName(option);
 
       if (!btn) {
         return;
@@ -247,7 +247,7 @@ import { injectStyle } from '../lib/style.js';
     document.body.__sveIbgPaint = true;
     scan(document);
 
-    var timer = null;
+    let timer = null;
 
     new MutationObserver(function () {
       if (timer) {

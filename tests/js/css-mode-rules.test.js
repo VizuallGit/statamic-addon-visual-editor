@@ -52,12 +52,12 @@ test("a class goes in the file's one @scope, an ID at the top of the file", () =
 
   assert.match(
     withClass,
-    /@scope\(\.\{\{ _class \}\}\) \{\n    \.title \{ color: red; \}\n    \.card \{\n        display: flex;\n    \}\n\}/
+    /@scope\(\.\{\{ _class \}\}\) \{\n {4}\.title \{ color: red; \}\n {4}\.card \{\n {8}display: flex;\n {4}\}\n\}/
   );
 
   const withId = set(css, '#hero', 'display', 'flex');
 
-  assert.match(withId, /^@scope[\s\S]*\}\n\n#hero \{\n    display: flex;\n\}\n$/);
+  assert.match(withId, /^@scope[\s\S]*\}\n\n#hero \{\n {4}display: flex;\n\}\n$/);
 });
 
 test('an ID with Antlers is one rule, read and written where it stands', () => {

@@ -16,7 +16,7 @@ import { t } from '../lib/i18n.js';
 
   mark('default-sets-count');
 
-  var MAX = 24;
+  const MAX = 24;
 
   function publishValues(ctx) {
     return ctx?.values?.value ?? ctx?.values ?? {};
@@ -39,7 +39,7 @@ import { t } from '../lib/i18n.js';
   }
 
   function clampCount(n) {
-    var parsed = parseInt(n, 10);
+    const parsed = parseInt(n, 10);
 
     if (!Number.isFinite(parsed) || parsed < 1) return 1;
 
@@ -47,15 +47,15 @@ import { t } from '../lib/i18n.js';
   }
 
   function register() {
-    var Vue = window.Vue;
+    const Vue = window.Vue;
 
     if (!window.Statamic || !Statamic.$components || !Vue || typeof Vue.h !== 'function') {
       return;
     }
 
-    var inject = Vue.inject;
-    var computed = Vue.computed;
-    var h = Vue.h;
+    const inject = Vue.inject;
+    const computed = Vue.computed;
+    const h = Vue.h;
 
     Statamic.$components.register('default-sets-fieldtype', {
       props: {
@@ -75,16 +75,16 @@ import { t } from '../lib/i18n.js';
       emits: ['update:value'],
 
       setup: function (props, ctx) {
-        var emit = ctx.emit;
-        var publishContext = inject('PublishContainerContext', null);
+        const emit = ctx.emit;
+        const publishContext = inject('PublishContainerContext', null);
 
-        var sets = computed(function () {
-          var groups = publishValues(publishContext).sets;
+        const sets = computed(function () {
+          const groups = publishValues(publishContext).sets;
 
           if (!Array.isArray(groups)) return [];
 
           return groups.flatMap(function (group) {
-            var groupName = group?.display || group?.handle || '';
+            const groupName = group?.display || group?.handle || '';
 
             return (group?.sections ?? [])
               .filter(function (set) {
@@ -100,7 +100,7 @@ import { t } from '../lib/i18n.js';
           });
         });
 
-        var rows = computed(function () {
+        const rows = computed(function () {
           return asRows(props.value);
         });
 
@@ -111,7 +111,7 @@ import { t } from '../lib/i18n.js';
         }
 
         function countOf(handle) {
-          var n = rows.value.filter(function (row) {
+          const n = rows.value.filter(function (row) {
             return row.type === handle;
           }).length;
 
@@ -119,11 +119,11 @@ import { t } from '../lib/i18n.js';
         }
 
         function emitType(handle, count) {
-          var current = rows.value;
-          var first = current.findIndex(function (row) {
+          const current = rows.value;
+          const first = current.findIndex(function (row) {
             return row.type === handle;
           });
-          var without = current.filter(function (row) {
+          const without = current.filter(function (row) {
             return row.type !== handle;
           });
 
@@ -132,17 +132,17 @@ import { t } from '../lib/i18n.js';
             return;
           }
 
-          var template = current.find(function (row) {
+          const template = current.find(function (row) {
             return row.type === handle;
           }) || { type: handle };
-          var copies = [];
-          var i;
+          const copies = [];
+          let i;
 
           for (i = 0; i < count; i++) {
             copies.push(Object.assign({}, template, { type: handle }));
           }
 
-          var next = without.slice();
+          const next = without.slice();
           next.splice(first === -1 ? next.length : first, 0, ...copies);
           emit('update:value', next);
         }
@@ -163,7 +163,7 @@ import { t } from '../lib/i18n.js';
         }
 
         return function () {
-          var list = sets.value;
+          const list = sets.value;
 
           if (!list.length) {
             return h(
@@ -177,8 +177,8 @@ import { t } from '../lib/i18n.js';
             'div',
             { class: 'flex flex-col gap-2' },
             list.map(function (set) {
-              var checked = isChecked(set.handle);
-              var labelKids = [
+              const checked = isChecked(set.handle);
+              const labelKids = [
                 h('input', {
                   type: 'checkbox',
                   checked: checked,
@@ -193,7 +193,7 @@ import { t } from '../lib/i18n.js';
                 labelKids.push(h('span', { class: 'text-xs text-gray-600 dark:text-gray-400' }, set.group));
               }
 
-              var rowKids = [h('label', { class: 'flex items-center gap-2 cursor-pointer min-w-0' }, labelKids)];
+              const rowKids = [h('label', { class: 'flex items-center gap-2 cursor-pointer min-w-0' }, labelKids)];
 
               if (checked) {
                 rowKids.push(

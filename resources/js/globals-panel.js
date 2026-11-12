@@ -1502,7 +1502,7 @@ export function initGlobalsPanelFrame(win) {
 
   // When set (e.g. "header"), chrome focus hides every other publish tab so you
   // can't jump to Colors / Typography while editing the site header/footer.
-  let lockedTabNeedle = null;
+  const lockedTabNeedle = null;
 
   // Tabs this global set never shows in the docked panel (see the addon's
   // `chrome.hidden_tabs`). Header and footer are edited by clicking them on the
