@@ -12,6 +12,7 @@ import { mark } from '../lib/debug.js';
  * Own CP script — not addon.js. Does not touch overlay-host / preview / bridge.
  */
 import { injectStyle } from '../lib/style.js';
+import { surfaceIsDark } from '../lib/surface-tone.js';
 
 (function () {
   'use strict';
@@ -140,74 +141,6 @@ import { injectStyle } from '../lib/style.js';
     }
 
     injectStyle(win.document, STYLE_ID, css());
-  }
-
-  function parseRgb(value) {
-    var m;
-    var h;
-
-    if (!value || typeof value !== 'string') {
-      return null;
-    }
-
-    m = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-
-    if (m) {
-      h = m[1];
-
-      if (h.length === 3) {
-        h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
-      }
-
-      return {
-        r: parseInt(h.slice(0, 2), 16),
-        g: parseInt(h.slice(2, 4), 16),
-        b: parseInt(h.slice(4, 6), 16),
-        a: 1,
-      };
-    }
-
-    m = value.match(/rgba?\(\s*([\d.]+)\s*[, ]\s*([\d.]+)\s*[, ]\s*([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?/i);
-
-    if (!m) {
-      return null;
-    }
-
-    return {
-      r: Number(m[1]),
-      g: Number(m[2]),
-      b: Number(m[3]),
-      a: m[4] == null ? 1 : m[4].indexOf('%') !== -1 ? parseFloat(m[4]) / 100 : Number(m[4]),
-    };
-  }
-
-  function surfaceIsDark(win, el) {
-    var node = el;
-    var i;
-    var cs;
-    var parsed;
-    var lum;
-
-    for (i = 0; node && i < 16; i++) {
-      cs = win.getComputedStyle(node);
-      parsed = parseRgb(cs.backgroundColor);
-
-      if (parsed && parsed.a >= 0.4) {
-        if (node === win.document.body || node === win.document.documentElement) {
-          break;
-        }
-
-        lum = (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255;
-
-        // Light chrome only on a really dark surface (≈ 70% dark).
-        // Same cut as inserter-reveal.js. Text/outline stays in bridge.js.
-        return lum < 0.3;
-      }
-
-      node = node.parentElement;
-    }
-
-    return false;
   }
 
   function sampleUnder(win, bar) {
