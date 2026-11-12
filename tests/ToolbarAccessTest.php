@@ -111,6 +111,28 @@ class ToolbarAccessTest extends TestCase
         $this->assertTrue(Features::visible($this->user(super: true))['page_activity']);
     }
 
+    public function test_build_mode_is_off_until_switched_on_and_follows_the_dock(): void
+    {
+        $this->assertFalse(Features::enabled('build_mode'));
+        $this->assertFalse(Features::buildMode($this->user(super: true)));
+
+        // On, but the dock is off: Build writes the dock's file, so no Build.
+        config(['statamic-visual-editor.features.build_mode' => true]);
+        Features::flush();
+
+        $this->assertFalse(Features::buildMode($this->user(super: true)));
+        $this->assertFalse(Features::visible($this->user(super: true))['build_mode']);
+
+        // Dock on for super admins (its default audience): Build follows it.
+        config(['statamic-visual-editor.features.template_dock' => true]);
+        Features::flush();
+
+        $this->assertTrue(Features::buildMode($this->user(super: true)));
+        $this->assertFalse(Features::buildMode($this->user(super: false)));
+        $this->assertTrue(Features::visible($this->user(super: true))['build_mode']);
+        $this->assertFalse(Features::visible($this->user(super: false))['build_mode']);
+    }
+
     public function test_normalize_fills_defaults_for_missing_keys(): void
     {
         $rules = ToolbarAccess::normalize(['pages' => ['audience' => 'super']]);

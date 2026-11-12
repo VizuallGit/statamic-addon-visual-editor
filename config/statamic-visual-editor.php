@@ -170,6 +170,7 @@ return [
         'open_in_preview' => false,
         'home_preview_button' => true,
         'template_dock' => false,
+        'build_mode' => false,
         'site_css' => false,
         'file_manager' => false,
         'live_reload' => false,

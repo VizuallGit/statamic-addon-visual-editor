@@ -44,6 +44,7 @@ class Features
         'collection_templates',
         'previews_autowatch',
         'site_canvas',
+        'build_mode',
     ];
 
     /** Every toggle, in the order the settings screen shows them. */
@@ -77,6 +78,11 @@ class Features
         // or config say false; off, it is one button and nothing else.
         'home_preview_button',
         'template_dock',
+        // The Live Preview top bar's Content | Build switch (preview). Build
+        // writes the dock's file, so it also needs template_dock access:
+        // allows() asks ToolbarAccess for `build_mode`, which answers for
+        // the dock. Off until the settings say on.
+        'build_mode',
         'site_css',
         'file_manager',
         // A button on the public site that reloads the page when the site's
@@ -190,7 +196,21 @@ class Features
             $map[$key] = static::allows($key, $user);
         }
 
+        $map['build_mode'] = static::buildMode($user);
+
         return $map;
+    }
+
+    /**
+     * Is Build mode on for this user?
+     *
+     * Build writes the file the template dock has open, so it is on only
+     * where the dock is: the `build_mode` toggle, and the dock's own toggle
+     * and audience (template_dock_access). No audience row of its own.
+     */
+    public static function buildMode(?\Statamic\Contracts\Auth\User $user = null): bool
+    {
+        return static::enabled('build_mode') && static::allows('template_dock', $user);
     }
 
     /**

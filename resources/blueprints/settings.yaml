@@ -495,6 +495,17 @@ tabs:
                 enabled: 'equals true'
                 template_dock: 'equals true'
           -
+            handle: build_mode
+            field:
+              type: toggle
+              display: 'Build mode (preview)'
+              instructions: 'A Content | Build switch in the Live Preview top bar. Build shows the Build panel (Add | Style) in the left column instead of the fields; Content is the editor as it is. Build writes the section''s template file, so it follows the template dock''s toggle and people above. Off by default.'
+              default: false
+              width: 50
+              if:
+                enabled: 'equals true'
+                template_dock: 'equals true'
+          -
             handle: site_css
             field:
               type: toggle

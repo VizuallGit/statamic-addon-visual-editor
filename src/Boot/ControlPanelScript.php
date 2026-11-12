@@ -102,6 +102,10 @@ final class ControlPanelScript
                 'sveComments' => static::commentsPayload(),
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
+                // Build mode's strings (build.php), only where Build is on for
+                // this user: with the flag off the key does not exist, and the
+                // Control Panel is byte for byte what it was.
+                ...(Features::buildMode() ? ['sveBuildStrings' => static::buildStrings()] : []),
                 'sveCollections' => ScriptCollections::pickerCollections(),
                 // The Navigation structures, for the HTML tree's Nav loop.
                 'sveNavigations' => ScriptCollections::navigations(),
@@ -160,6 +164,20 @@ final class ControlPanelScript
         return array_merge(
             (array) trans('sve::messages', [], 'en'),
             (array) trans('sve::messages', [], $locale),
+        );
+    }
+
+    /**
+     * Build mode's strings (resources/lang/{en,da}/build.php), on the same
+     * terms as strings(): English as the base, the user's language over it.
+     */
+    public static function buildStrings(): array
+    {
+        $locale = User::current()?->preferredLocale() ?? config('app.locale');
+
+        return array_merge(
+            (array) trans('sve::build', [], 'en'),
+            (array) trans('sve::build', [], $locale),
         );
     }
 
