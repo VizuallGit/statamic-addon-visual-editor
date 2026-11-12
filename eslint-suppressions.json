@@ -95,9 +95,6 @@
     }
   },
   "resources/js/chrome.js": {
-    "no-undef": {
-      "count": 3
-    },
     "no-unused-vars": {
       "count": 1
     }
@@ -119,11 +116,6 @@
   },
   "resources/js/component-signature.js": {
     "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "resources/js/components/LockedRows.js": {
-    "no-undef": {
       "count": 1
     }
   },
@@ -170,11 +162,6 @@
       "count": 1
     }
   },
-  "resources/js/cp/surfaces/BardStyles.vue": {
-    "vue/no-dupe-keys": {
-      "count": 1
-    }
-  },
   "resources/js/cp/surfaces/BuildBoxFields.vue": {
     "no-unused-vars": {
       "count": 1
@@ -182,11 +169,6 @@
   },
   "resources/js/cp/surfaces/BuildContent.vue": {
     "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "resources/js/cp/surfaces/LpBreakpointAdd.vue": {
-    "vue/no-dupe-keys": {
       "count": 1
     }
   },
@@ -287,14 +269,6 @@
   "resources/js/globals-panel.js": {
     "no-unused-vars": {
       "count": 15
-    },
-    "prefer-const": {
-      "count": 1
-    }
-  },
-  "resources/js/html-tree-edit.js": {
-    "prefer-const": {
-      "count": 1
     }
   },
   "resources/js/html-tree.js": {
@@ -437,41 +411,6 @@
       "count": 3
     }
   },
-  "resources/js/side/collection-preset-scaffold.js": {
-    "no-var": {
-      "count": 20
-    }
-  },
-  "resources/js/side/collection-template-picker.js": {
-    "no-var": {
-      "count": 23
-    }
-  },
-  "resources/js/side/default-sets-count.js": {
-    "no-var": {
-      "count": 24
-    }
-  },
-  "resources/js/side/field-prop.js": {
-    "no-var": {
-      "count": 24
-    }
-  },
-  "resources/js/side/grid-collapse.js": {
-    "no-var": {
-      "count": 12
-    }
-  },
-  "resources/js/side/grid-keep-table.js": {
-    "no-var": {
-      "count": 13
-    }
-  },
-  "resources/js/side/icon-button-group-iconify.js": {
-    "no-var": {
-      "count": 28
-    }
-  },
   "resources/js/side/iconify-hide-remove.js": {
     "no-var": {
       "count": 15
@@ -482,7 +421,7 @@
       "count": 1
     },
     "no-var": {
-      "count": 121
+      "count": 114
     }
   },
   "resources/js/side/library-drop-focus.js": {
@@ -492,22 +431,17 @@
   },
   "resources/js/side/lite-sections.js": {
     "no-var": {
-      "count": 28
-    }
-  },
-  "resources/js/side/responsive-hide-label.js": {
-    "no-var": {
       "count": 1
     }
   },
   "resources/js/side/toolbar-look.js": {
     "no-var": {
-      "count": 30
+      "count": 23
     }
   },
   "resources/js/side/warm-set-previews.js": {
     "no-var": {
-      "count": 8
+      "count": 1
     }
   },
   "resources/js/site-canvas.js": {
@@ -518,14 +452,6 @@
   "resources/js/site-css.js": {
     "no-unused-vars": {
       "count": 3
-    }
-  },
-  "resources/js/sve/block-order.js": {
-    "no-unused-vars": {
-      "count": 5
-    },
-    "prefer-const": {
-      "count": 1
     }
   },
   "resources/js/tailwind-complete.js": {
@@ -566,11 +492,6 @@
       "count": 1
     }
   },
-  "scripts/panel-api-codemod.mjs": {
-    "prefer-const": {
-      "count": 1
-    }
-  },
   "tests/browser/alpine-state.mjs": {
     "no-undef": {
       "count": 2
@@ -582,44 +503,15 @@
       "count": 1
     }
   },
-  "tests/browser/bard-styles.mjs": {
-    "no-regex-spaces": {
-      "count": 2
-    }
-  },
   "tests/browser/breakpoint-overview.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 2
     },
     "no-useless-escape": {
       "count": 1
-    },
-    "prefer-const": {
-      "count": 2
-    }
-  },
-  "tests/browser/component-values-column.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
-  "tests/browser/fieldset-refresh.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
-  "tests/browser/help-mode.mjs": {
-    "no-regex-spaces": {
-      "count": 1
     }
   },
   "tests/browser/live-preview-smoke.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "no-useless-assignment": {
       "count": 1
     }
@@ -627,28 +519,14 @@
   "tests/browser/new-section-preview.mjs": {
     "no-empty": {
       "count": 1
-    },
-    "no-regex-spaces": {
-      "count": 1
     }
   },
   "tests/browser/patterns-card-click.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 1
     }
   },
-  "tests/browser/section-hide-show.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
   "tests/browser/section-switch.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 1
     }
@@ -659,40 +537,16 @@
     }
   },
   "tests/browser/selection-panel.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 2
     }
   },
-  "tests/browser/shortcuts.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
-  "tests/browser/site-canvas.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
   "tests/browser/toolbar-visibility.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 1
     }
   },
-  "tests/browser/tree-dock-follow.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
   "tests/browser/tree-global-row.mjs": {
-    "no-regex-spaces": {
-      "count": 1
-    },
     "sonarjs/no-all-duplicated-branches": {
       "count": 1
     }
@@ -702,9 +556,6 @@
       "count": 2
     },
     "no-useless-escape": {
-      "count": 1
-    },
-    "prefer-const": {
       "count": 1
     }
   },
@@ -734,44 +585,14 @@
       "count": 2
     }
   },
-  "tests/js/build-mode/gallery.test.js": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
-  "tests/js/css-mode-rules.test.js": {
-    "no-regex-spaces": {
-      "count": 2
-    }
-  },
-  "tests/js/dock-css-adds-bracket.test.js": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
   "tests/js/help-suggest.test.js": {
     "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "tests/js/lp-live-reload.test.js": {
-    "prefer-const": {
       "count": 1
     }
   },
   "tests/js/save-errors.test.js": {
     "no-unused-vars": {
       "count": 2
-    }
-  },
-  "tests/js/snippet-css.test.js": {
-    "no-regex-spaces": {
-      "count": 1
-    }
-  },
-  "tests/js/theme-colors.test.js": {
-    "no-regex-spaces": {
-      "count": 1
     }
   }
 }
