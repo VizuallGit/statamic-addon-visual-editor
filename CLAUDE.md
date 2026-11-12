@@ -71,15 +71,32 @@ The header, the footer, a global section and a component are *in focus* the same
 - Never replace native Statamic fieldtypes (text, integer, replicator, grid, bard, iconify, …).
 - Plus under a block opens Statamic Search Sets. Keep `handle` on `groupedPickerSets` (not `all`). `isPreviewMessageSource` must accept `event.source === overlay`. Open the picker in `setTimeout(0)`.
 - Overlay open → host swallows Vite `full-reload`. Site `npm run dev` stays on for the public frontend.
-- Tags that must keep working on the site: `visual_edit`, `style_push` / `script_push`, `responsive_css`, `sve_tw`, `sve_props` / `sve_defaults`, `theme_color_scale`.
+- Tags that must keep working on the site: `visual_edit`, `style_push` / `script_push`, `responsive_css`, `sve_tw`, `sve_props` / `sve_defaults`, `theme_tokens` (the site's tag; it reads `site.css` `@theme`, which the Theme panel writes).
 - Danish UI copy may remain; identifiers stay English.
 - Ask instead of a second code path. Delete dead code. Stop at the boundary when something breaks far away.
 
 ---
 
-## Sibling sync (works; do not commit unless asked)
+## Sibling sync (works)
 
 Lives in this repo: `resources/js/sibling-sync.js`, `src/SiblingSync.php`, tests. Do not rewrite sync/badge/lock as a side effect of Instant or CSS work. Working copy: `.restore/sibling-sync-working/`.
+
+---
+
+## Quality gate (since 12 November 2026)
+
+- `git push` to main runs `scripts/hooks/pre-push`: the rollback guard, then
+  `node scripts/quality.mjs all`, `npm test`, `vendor/bin/phpunit`. New code must
+  pass; old debt is frozen in `quality-baseline/` (see its README).
+- A JS/Vue file over 1000 lines or a PHP class over 300 may not grow: new code
+  goes in a new file. A file that must grow needs the owner's yes in
+  `quality-baseline/exceptions.json`.
+- No silent `catch`: log or handle the error; a comment is not handling.
+- No built entry or lazy chunk may grow more than 5 % (`quality-baseline/budgets.json`).
+- Baselines only go down (`npm run quality:update`). Raising one is a hand edit
+  with the owner's yes.
+- A new surface gets a Playwright test in `tests/e2e/`; run `npm run e2e` on the
+  bench (site `docs/kvalitetsrunde-brief.md` §7), never on the demo or Cuben.
 
 ---
 
@@ -107,17 +124,16 @@ The plan with measured numbers is `docs/v2-plan.md` on the site. These are the r
 
 **A standalone script must never `import()` a hashed build file.** `html-tree-section-sync.js` did — `import("/vendor/visual-editor/build/assets/addon-CwKv_5uQ.js")` to read the bus's `ask` off a minified export. The name froze at one build; `emptyOutDir: false` kept the file on disk, so every later release silently ran a second, stale copy of the whole CP bundle beside the live one (own `message` listeners, own state). On v1.1.157 that copy swallowed the preview's click. The script is gone (18 September 2026): `handleRemoveRow` emits `row:removed` on the bus, and `html-tree.js` and `dock/dock-api.js` each listen for what concerns them — no wrapper, no 500 ms poll, no registry line. Anything a standalone script needs from the bundle is a `window.sve` compat line until WP6, never a build file by name.
 
-**Safety net runs before every push.**
+**Before every push: the quality gate above** (the pre-push hook runs it on main). Besides it:
 
 ```
-npm run check          # isolation lint + dist integrity + node --test (tests/js)
-npm run test:browser   # Live Preview smoke test against the site (see the file header for env vars)
+npm run check          # isolation lint + dist integrity + protocol + node --test (tests/js) + npm run quality
+npm run e2e            # Playwright, tests/e2e/, against the bench (site docs/kvalitetsrunde-brief.md §7)
+npm run test:browser   # the older Puppeteer smoke test against the site (see the file header for env vars)
 SVE_WORKTREE=1 npm run test:browser   # same, but the CP loads THIS checkout's build — prove a bundle before release
-SVE_WORKTREE=1 npm run test:instant   # likewise for the dock chunk
 SVE_BUILD_DIR=<dir> …                 # serve another build, e.g. `vite build --minify false --outDir <dir>` for readable stack traces
 SVE_PREFS='{"sve-lp-device":"Tablet"}' … # start the smoke test from a saved layout (keys as in chrome-prefs.js)
 SVE_DEBUG=1 …                         # which frame got the mouse, the overlay's hit stack, a screenshot in the temp dir
-npm run test:instant   # dock instant paint, likewise served from the working tree
 npm run test:switch    # opening a section writes nothing: no save, no section reload (installed PHP; see the file header)
 ```
 
@@ -125,7 +141,7 @@ npm run test:switch    # opening a section writes nothing: no save, no section r
 
 **Release pipeline — nothing is copied by hand.** Edit here → `npm run cp:build` (one full build, then `scripts/prune-dist.mjs` keeps only what the manifest names and refreshes `locked/` with the live addon and its imports — dist is committed and is ~5 MB, not the 550 MB of every hash ever built) → commit source + dist together → push (auto-tag) → on the site `composer update statamic-addon/visual-editor --no-cache` → `registerScript()` republishes the standalone scripts and `BuiltAssets::linkForControlPanel()` points `public/vendor/visual-editor/build` at the installed package. Verify with the manifest md5: repo, `vendor/` and `public/` must be identical. Never write into `vendor/` or `public/vendor/` by hand.
 
-**Known baseline (17 Sep 2026):** 15 PHP tests fail before any V2 work (SveDefaults props_ rename, ComponentProps, StripVisualIds, InjectBridgeScript). The browser smoke test's "code dock" step is timing-sensitive on both v1.1.139 and v1.1.140; it retries once.
+**Test baseline:** the PHP suite is green (1,124 tests on 12 Nov 2026, Statamic 6.35.1 / Laravel 13.34, the site's versions). *History, 17 Sep 2026:* 15 PHP tests failed before any V2 work (SveDefaults props_ rename, ComponentProps, StripVisualIds, InjectBridgeScript), and the browser smoke test's "code dock" step was timing-sensitive on v1.1.139 and v1.1.140.
 
 **The server is where editing happens.** `GET /!/sve/section-template` answers `writable.template` / `writable.tw` (can this server's PHP write the file and its baked CSS?) and the dock says so before the first keystroke; a save the server cannot write answers `{ error: 'not_writable' }` (500) and the dock names the cause; `tw_written: false` means the template landed but the Tailwind CSS did not — the dock keeps the compile dirty and says the classes will be missing on the site. A successful save flushes Statamic's static cache when a strategy is configured (Live Preview bypasses it; visitors do not). The site's `docs/server-checklist.md` is the operator's list; keep it true.
 

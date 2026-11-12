@@ -17,7 +17,7 @@ Only **build on top**. Changing Statamic default is allowed only when the user e
 - Wrap/replace a field's Vue component
 - `npm run cp:build` here or on the site when it rebuilds `addon.js` — that breaks field settings
 - Overwrite `public/vendor/app/` or `public/vendor/statamic-addon/`
-- Change `DefaultSetsFieldtype.js` (bundled in `addon-DmXwhlR7.js`)
+- Change how `default-sets-fieldtype` behaves (`resources/js/side/default-sets-count.js`, bundled into `addon.js`; the old `DefaultSetsFieldtype.js` was deleted in WP6a)
 - CSS that hits native inputs
 - `appendConfigFields` on `Fieldtype::class` so every field's settings break
 

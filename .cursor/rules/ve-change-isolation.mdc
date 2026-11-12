@@ -1,15 +1,15 @@
 ---
-description: Vue-fork of Visual Editor — never touch the live addon
+description: Visual Editor source — one surface per task, the kernel stays locked
 alwaysApply: true
 ---
 
-# Visual Editor Vue-fork
+# Visual Editor — the source
 
-This folder is `~/Sites/statamic-addon-visual-editor-vue`. It is a copy. The site still runs `~/Sites/statamic-addon-visual-editor`. **Never edit the original.**
+This folder is `~/Sites/statamic-addon-visual-editor-vue`. It is the source: all Visual Editor code is written here, and Packagist builds the package the site runs from it. **Never edit** `~/Sites/statamic-addon-visual-editor` (the old restore point) or any `… copy` / `…-app` / `…-vue-backup-*` folder.
 
 ## Surfaces
 
-- Kernel (not Vue): `preview.js`, `overlay-host.js`, `bridge.js`
+- Kernel (not Vue), under `resources/js/`: `bridge.js` + `bridge/`, `preview.js`, `mirror.js`, `overlay-host.js`, `cp.js` + `cp-shell/`, `code-dock.js` + `dock/`, `lib/protocol.js` (the site's `docs/kvalitetsrunde-brief.md` §4.2)
 - A CP panel: one Vue app under `resources/js/cp/surfaces/`. No import of the kernel or `cp.js`.
 - Fieldtypes: own Vue files via `Statamic.component()`. Do not wrap Statamic's `replicator`, `icon`, `bard`, `grid`.
 
