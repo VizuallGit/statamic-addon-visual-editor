@@ -8,3 +8,5 @@ tests/browser/instant-target.out.html
 tests/browser/instant-calls.out.html
 .phpstan-cache
 .eslintcache
+tests/e2e/.auth
+tests/e2e/.results

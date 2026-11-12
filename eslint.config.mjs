@@ -78,7 +78,7 @@ export default [
     languageOptions: { globals: { ...globals.node } },
   },
   {
-    files: ['tests/browser/**/*.{js,mjs}', 'tests/harness/**/*.{js,mjs}'],
+    files: ['tests/browser/**/*.{js,mjs}', 'tests/harness/**/*.{js,mjs}', 'tests/e2e/**/*.{js,mjs}'],
     languageOptions: { globals: { ...globals.node, ...globals.browser, Statamic: 'readonly' } },
   },
 ];

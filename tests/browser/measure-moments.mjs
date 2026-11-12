@@ -65,7 +65,7 @@ const owner = (url) => {
 /** Same seed as build-mode.mjs: the left column shown, so every run starts in one layout. */
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 function seed(prefs) {
-  let yaml = readFileSync(USER_FILE, 'utf8').replace(/^ {2}sve_chrome:\n(?: {4}.*\n)*/m, '');
+  let yaml = readFileSync(USER_FILE, 'utf8').replace(/^ {2}sve_chrome:.*\n(?: {4}.*\n)*/m, '');
   const block = `  sve_chrome:\n${Object.entries(prefs)
     .map(([k, v]) => `    ${k}: '${String(v).replaceAll("'", "''")}'\n`)
     .join('')}`;
