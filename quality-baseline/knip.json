@@ -215,8 +215,6 @@
   "exports resources/js/globals-panel.js#globalsStashEpoch",
   "exports resources/js/globals-panel.js#refreshPreview",
   "exports resources/js/home-preview-button.js#homePreview",
-  "exports resources/js/inline-edit.js#normText",
-  "exports resources/js/inline-edit.js#parseInlineHtml",
   "exports resources/js/lazy/listview.js#dockedPanelTop",
   "exports resources/js/lazy/listview.js#gridRowPreview",
   "exports resources/js/lazy/listview.js#isGridRowValue",

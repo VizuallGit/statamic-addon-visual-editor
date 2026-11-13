@@ -273,9 +273,14 @@
   },
   "resources/js/inline-edit.js": {
     "no-unused-vars": {
-      "count": 3
+      "count": 2
     },
     "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/inline-edit/fields.js": {
+    "no-unused-vars": {
       "count": 1
     }
   },
