@@ -316,7 +316,17 @@ export function paintLpSaveButton(win) {
     // Combined "Save & Publish" stays the primary button.
     const highlight = isPublish || (isSave && !hasPublish);
     const idleSurface = 'rgba(128,128,128,.16)';
+    const paint = highlight ? 'primary' : 'idle';
 
+    // Painted once per look. `background` followed by `background-image` changes
+    // the button's style on every call, also when it ends as it began, and the
+    // next thing to measure the top bar then makes the browser work the whole
+    // page out again: some twenty times in the first switch to Build.
+    if (btn.getAttribute('data-sve-save-paint') === paint) {
+      return;
+    }
+
+    btn.setAttribute('data-sve-save-paint', paint);
     btn.style.setProperty('background', highlight ? LP_PRIMARY_FLAT : idleSurface, 'important');
     btn.style.setProperty('background-image', 'none', 'important');
     btn.style.setProperty('color', highlight ? '#fff' : 'currentColor', 'important');

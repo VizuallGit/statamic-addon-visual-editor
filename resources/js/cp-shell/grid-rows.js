@@ -724,7 +724,7 @@ export function markStatamicLpCloseHidden(close) {
   }
 
   close.setAttribute('data-sve-statamic-lp-close', '');
-  close.classList.add('sve-off');
+  close.classList.toggle('sve-off', true); // not add(): add() rewrites class on a button that has it, and that woke watchStatamicLpClose every frame
   close.style.setProperty('display', 'none', 'important');
   close.style.setProperty('visibility', 'hidden', 'important');
   close.style.setProperty('pointer-events', 'none', 'important');
