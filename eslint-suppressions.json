@@ -314,6 +314,21 @@
       "count": 1
     }
   },
+  "resources/js/library/card-drag.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/library/row-meta.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "resources/js/library/row-ops.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
   "resources/js/lp-more-menu.js": {
     "no-unused-vars": {
       "count": 1
@@ -390,10 +405,7 @@
   },
   "resources/js/section-library.js": {
     "no-unused-vars": {
-      "count": 8
-    },
-    "no-useless-assignment": {
-      "count": 1
+      "count": 6
     }
   },
   "resources/js/selection-panel.js": {
