@@ -271,11 +271,6 @@
       "count": 11
     }
   },
-  "resources/js/html-tree.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "resources/js/inline-edit.js": {
     "no-unused-vars": {
       "count": 3

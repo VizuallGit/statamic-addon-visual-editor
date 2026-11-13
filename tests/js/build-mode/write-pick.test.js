@@ -27,16 +27,21 @@ test('the host passes the flag through html-tree:from-preview, true by default',
 });
 
 test('the tree marks the row and outlines it in the preview either way; only a reveal touches the dock', () => {
+  // html-tree.js keeps the register and selectHtmlTreeRow; selectHtmlTreeByPath is in html-tree/select.js.
   const tree = read('html-tree.js');
+  const select = read('html-tree/select.js');
 
   assert.ok(tree.includes("register('html-tree:from-preview', ({ path, src, uid, reveal = true } = {}) => {"));
   assert.ok(tree.includes('selectHtmlTreeByPath(window, componentPathFor(path, src) || path, { reveal });'));
-  assert.ok(tree.includes('function selectHtmlTreeByPath(win, path, { reveal = true } = {}) {'));
-  assert.ok(tree.includes('selectHtmlTreeRow(win, row.id, htmlTreeUi.rows, { reveal });'));
+  assert.ok(select.includes('function selectHtmlTreeByPath(win, path, { reveal = true } = {}) {'));
+  assert.ok(select.includes('selectHtmlTreeRow(win, row.id, htmlTreeUi.rows, { reveal });'));
   assert.ok(tree.includes('function selectHtmlTreeRow(win, id, rows, { reveal = true } = {}) {'));
   assert.match(tree, /if \(reveal\) \{\n\s+ask\('dock:reveal-html', \{[\s\S]{0,600}ask\('dock:tw-follow'\);\n\s+\}/);
   // The preview's outline is not behind the flag.
-  const fn = tree.slice(tree.indexOf('function selectHtmlTreeRow('), tree.indexOf('function componentPathFor('));
+  const fn = tree.slice(
+    tree.indexOf('function selectHtmlTreeRow('),
+    tree.indexOf('export function watchHtmlTreeDock(')
+  );
   const outline = fn.indexOf('MSG.SVE_HTML_PICK_FOCUS');
   const gate = fn.indexOf('if (reveal) {');
   const gateEnd = fn.indexOf("ask('dock:tw-follow');");
@@ -45,11 +50,9 @@ test('the tree marks the row and outlines it in the preview either way; only a r
 });
 
 test('the row already picked, picked again, is not a redraw: the rows come from the dock change (watchHtmlTreeDock)', () => {
-  const tree = read('html-tree.js');
-  const fn = tree.slice(
-    tree.indexOf('function selectHtmlTreeByPath('),
-    tree.indexOf('export function watchHtmlTreeDock(')
-  );
+  // The last function in html-tree/select.js.
+  const select = read('html-tree/select.js');
+  const fn = select.slice(select.indexOf('function selectHtmlTreeByPath('));
   const short = fn.indexOf('if (picked && picked.path === path) {');
   const render = fn.indexOf('renderHtmlTree(win);');
 
