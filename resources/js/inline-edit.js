@@ -3,7 +3,7 @@
  * Click text in the preview and type into it.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { ACTIVE_ATTR, COLLAPSE_SETTLE_MS, SELECTORS } from './cp-selectors.js';
+import { SELECTORS } from './cp-selectors.js';
 import { logCaught } from './lib/caught.js';
 import {
   BP_INHERITS,
@@ -17,15 +17,14 @@ import {
   handleFieldFocus,
   rowIsLocked,
   sendToPreview,
-  switchToContainingTab,
 } from './cp.js';
 import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { setLpCollapsed } from './lp-panel.js';
+import { selectFromPreview } from './selection-panel.js';
 import { rowLocation, sortableItemForUid } from './section-library.js';
 import { flushPendingSectionRefresh } from './global-section.js';
 import { MSG, SOURCE } from './lib/protocol.js';
-import { scrollBehavior } from './scroll-pref.js';
 import {
   EDITABLE_NODE_TYPES,
   bardNodeText,
@@ -612,47 +611,14 @@ export function handleOpenPanelField(data, doc, win) {
 }
 
 /**
- * Opens the asset browser for the clicked image field: locates the CP field
- * wrapper (retrying while the containing set expands — the accompanying click
- * message triggers that expansion) and clicks its Browse button. Statamic's
- * asset selector portals to the body, so it shows even while the editor panel
- * is collapsed off-screen.
+ * The preview's image door: a click on an image opens Statamic's asset
+ * browser for its field. The selection panel holds the field (the click
+ * message before this one has selected its row) and presses the field's own
+ * Browse once it stands, as for a click on an empty image. Statamic's asset
+ * selector portals to the body.
  */
 export function handleAssetEdit(data, doc) {
-  let attempts = 0;
-
-  const tryOpen = () => {
-    const setEl = data.scope ? findSetByUid(data.scope, doc) : null;
-
-    // Collapsed sets don't render their field wrappers — expand the scoped set
-    // (and its ancestors) so the assets field mounts, then retry below.
-    if (setEl) {
-      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-    }
-
-    // Assets fields don't always render a field_{path} wrapper id (observed in
-    // replicator sets) — fall back to the fieldtype root inside the scoped set.
-    const fieldEl =
-      findFieldElement(data.field, doc, data.scope) ||
-      (setEl ? setEl.querySelector('.assets-fieldtype') : null) ||
-      (data.scope ? null : doc.querySelector('.assets-fieldtype'));
-
-    const browse = fieldEl
-      ? [...fieldEl.querySelectorAll('button, [role="button"]')].find((b) => /browse|gennemse/i.test(b.textContent))
-      : null;
-
-    if (browse) {
-      browse.click();
-
-      return;
-    }
-
-    if (++attempts < 8) {
-      setTimeout(tryOpen, 250);
-    }
-  };
-
-  tryOpen();
+  selectFromPreview(doc.defaultView, data, { browse: true });
 }
 
 /**
@@ -700,47 +666,16 @@ export function handleIconEdit(data, doc, win = window) {
 
 /**
  * Link-edit shortcut from the preview toolbar: opens the editor panel and
- * focuses the row's url/link field so the user can change the URL or pick
- * another entry with Statamic's own link fieldtype UI.
+ * marks the row's url field in the selection panel, so the user can change
+ * the URL or pick another entry with Statamic's own link fieldtype UI.
  */
 export function handleLinkEdit(data, doc, win) {
   if (!editSession || editSession.requestId !== data.requestId || !editSession.linkPath) {
     return;
   }
 
-  const { linkPath, scope } = editSession;
-
   setLpCollapsed(win, false);
-
-  setTimeout(() => {
-    // Preferred: the url field's own wrapper (stacked grids render one).
-    let target = findFieldElement(linkPath, doc);
-
-    // Table-mode grid cells carry no field wrapper id — locate the row via its
-    // _visual_id and use the link fieldtype cell (or the row itself).
-    if (!target && scope) {
-      const rowEl = findSetByUid(scope, doc);
-
-      if (rowEl) {
-        target = rowEl.querySelector('.link-fieldtype') || rowEl;
-      }
-    }
-
-    if (!target) {
-      return;
-    }
-
-    doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => el.removeAttribute(ACTIVE_ATTR));
-    target.setAttribute(ACTIVE_ATTR, '');
-    switchToContainingTab(target, doc);
-    collectAncestorSets(target).forEach(expandSet);
-
-    setTimeout(() => {
-      target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
-      target.classList.add('sve-field-highlight');
-      setTimeout(() => target.classList.remove('sve-field-highlight'), 2000);
-    }, COLLAPSE_SETTLE_MS);
-  }, 100);
+  selectFromPreview(win, { scope: editSession.scope, field: editSession.linkPath });
 }
 
 /**

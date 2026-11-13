@@ -84,10 +84,12 @@ let host = null;
 let started = false;
 
 /**
- * `{ uid, field }` while a click in the preview on the box an image or a video
- * with no file shows (`emptyMedia` on the click message) waits for its field
- * to be drawn: the field's own Browse is pressed then, once. Every preview
- * click sets it anew, so an older ask never rides on a later click.
+ * `{ uid, field }` while an ask for the asset browser waits for its field to
+ * be drawn: a click in the preview on the box an image or a video with no file
+ * shows (`emptyMedia` on the click message), or the preview's image door
+ * (`asset-edit`, inline-edit.js). The field's own Browse is pressed then,
+ * once. Every preview click sets it anew, so an older ask never rides on a
+ * later click.
  */
 let browseAsked = null;
 
@@ -116,12 +118,16 @@ export function selectionPanelTakes(win, uid) {
  * section (`uid`); the field, when the click landed on one, is revealed after
  * the paint. Returns false when this panel does not take the row, so the
  * caller keeps its own path for it.
+ *
+ * `browse`: the field's own Browse is pressed once it stands (`browseAsked`).
+ * A click on an empty image or video asks it on the click message; the
+ * preview's image door asks it outright.
  */
-export function selectFromPreview(win, data) {
+export function selectFromPreview(win, data, { browse = data?.emptyMedia === true } = {}) {
   const uid = data?.scope || data?.uid || null;
   const field = fieldHandle(data?.field);
 
-  browseAsked = uid && field && data?.emptyMedia === true ? { uid, field } : null;
+  browseAsked = uid && field && browse ? { uid, field } : null;
 
   if (!uid) {
     return false;

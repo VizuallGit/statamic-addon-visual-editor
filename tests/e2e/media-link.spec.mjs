@@ -3,11 +3,10 @@
  * the preview into the CP. Written before inline-edit.js was split (quality
  * pass, tab G), so the split has a net: a click on an image asks the CP for
  * its field, and a button's text in edit offers "Skift link" when its row has
- * a URL.
- *
- * What these do not check, because it does not happen on the bench today
- * (v1.1.818; see the status file, tab G): the asset browser opening after
- * the image click, and a highlight on the URL field after "Skift link".
+ * a URL. Since v1.1.823 they also check where the doors lead: the image click
+ * opens Statamic's asset browser, and "Skift link" marks the URL field in the
+ * selection panel (both had looked in the form behind the panel since
+ * v1.1.553; Fable's tab H report, section 8).
  *
  * The link test gives the hero's first button a URL in the bench's copy of
  * the page, so it only runs with SVE_SITE_DIR set, and puts the file back.
@@ -46,9 +45,14 @@ test('a click on an image asks the CP for its field, and the panel shows the ima
 
   await expect.poll(() => messages(cpFrame)).toContain('asset-edit');
   await expect(cp.locator('.assets-fieldtype').filter({ visible: true })).toContainText('rectangle-1-(6).jpg');
+
+  // Statamic's asset browser is open: its toolbar is on screen. Closed again with its own Cancel.
+  await expect(cp.getByRole('button', { name: 'Create Folder', exact: true })).toBeVisible();
+  await cp.getByRole('button', { name: 'Cancel', exact: true }).filter({ visible: true }).click();
+  await expect(cp.getByRole('button', { name: 'Create Folder', exact: true })).toBeHidden();
 });
 
-test('a button whose row has a URL offers "Skift link" while its text is edited, and the panel shows the URL', async ({
+test('a button whose row has a URL offers "Skift link" while its text is edited, and the panel marks the URL', async ({
   page,
 }) => {
   test.skip(!process.env.SVE_SITE_DIR, 'writes the page: run it on the bench (SVE_SITE_DIR)');
@@ -56,7 +60,7 @@ test('a button whose row has a URL offers "Skift link" while its text is edited,
   expect(original.includes(LABEL), 'the hero button this test gives a URL').toBe(true);
   writeFileSync(PAGE, original.replace(LABEL, `${LABEL}                url: /e2e-link\n`));
 
-  const { cpFrame, preview } = await openLivePreview(page, await publicSectionCount());
+  const { cp, cpFrame, preview } = await openLivePreview(page, await publicSectionCount());
   await listen(cpFrame);
   const label = preview.locator('[data-sid-field="text"][data-sid-inline-edit]', { hasText: 'Kontakt mig' }).first();
   await expect(label.locator('xpath=ancestor::a[1]')).toHaveAttribute('href', '/e2e-link');
@@ -68,4 +72,6 @@ test('a button whose row has a URL offers "Skift link" while its text is edited,
 
   await expect.poll(() => messages(cpFrame)).toContain('link-edit');
   await expect.poll(() => shownInput(cpFrame, '/e2e-link')).toBe(true);
+  // The URL field is the one marked in the panel.
+  await expect(cp.locator('#__sve-selection-panel [data-sve-active]:has(label[for$="_url"])')).toBeVisible();
 });

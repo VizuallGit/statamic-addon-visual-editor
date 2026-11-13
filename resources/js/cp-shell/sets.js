@@ -482,7 +482,7 @@ export function focusBardSet(setEl, duration = HIGHLIGHT_DURATION) {
  * Returns true when a tab switch was initiated, false when not needed or not
  * possible.
  */
-export function switchToContainingTab(setEl, doc = document) {
+function switchToContainingTab(setEl, doc = document) {
   const tabPanel = setEl.closest('[role="tabpanel"]');
 
   if (!tabPanel) {
