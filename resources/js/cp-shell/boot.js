@@ -668,6 +668,3 @@ export function initCp(win = window) {
     removeThumb();
   };
 }
-
-/** Used by the template dock. Implementation lives in globals-panel.js (toggle `globals`). */
-export { replayLivePreview } from '../lp-replay.js';

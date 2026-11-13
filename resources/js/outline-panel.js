@@ -12,7 +12,8 @@
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
-import { applyHeaderTab, sendToPreview, setHeaderTab } from './cp.js';
+import { applyHeaderTab, setHeaderTab } from './lib/header-tab.js';
+import { sendToPreview } from './lib/preview-frame.js';
 import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import OutlinePane from './cp/surfaces/OutlinePane.vue';

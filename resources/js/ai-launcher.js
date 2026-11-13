@@ -17,7 +17,7 @@
 import { mountSurface } from './cp/mount.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { watchPage } from './cp/page-watch.js';
-import { TOOLBAR_ICONS } from './cp.js';
+import { TOOLBAR_ICONS } from './lib/toolbar-icons.js';
 import { t } from './lib/i18n.js';
 import { injectStyle } from './lib/style.js';
 

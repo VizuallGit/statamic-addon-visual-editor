@@ -22,6 +22,7 @@ import {
   LP_PREVIEW_CHROME_ID,
   LP_PUBLISH_ID,
   LP_RELOAD_ID,
+  LP_SAVE_TIMEOUT,
   LP_SIDE_DEFAULT_REM,
 } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
@@ -304,8 +305,7 @@ export function enhanceGrids(win) {
   });
 }
 
-/** How long to wait for a save to come back before giving the button up again. */
-export const LP_SAVE_TIMEOUT = 15000;
+export { LP_SAVE_TIMEOUT }; // in lib/ids.js, where a panel that saves can take it without the shell
 
 /**
  * Leaving the editor publishes what you changed. Clicking Statamic's own

@@ -8,12 +8,17 @@
  *   loadCodeMirror()          Promise of the package namespaces, cached. The
  *                             packages stay dynamic imports, so none of this
  *                             lands in the main bundle; Vite splits them into
- *                             chunks the editors share.
+ *                             chunks the editors share. With them come the two
+ *                             HTML helpers (`emmet`, `tagSync`), which import
+ *                             the packages statically: fetched here, an
+ *                             editor's own file runs without CodeMirror, and
+ *                             the bytes come when an editor is drawn.
  *   vscTheme(cm, options)     The two extensions every editor adds last: the
  *                             dark editor theme and the syntax colours. Options
  *                             are the few things the editors differ on.
  *
- * May import: npm packages only.
+ * May import: npm packages, and html-emmet.js and html-tag-sync.js — all of
+ * them with import(), never statically.
  */
 let ready = null;
 
@@ -32,8 +37,10 @@ export function loadCodeMirror() {
     import('@codemirror/lang-javascript'),
     import('@codemirror/language'),
     import('@lezer/highlight'),
+    import('../html-emmet.js'),
+    import('../html-tag-sync.js'),
   ])
-    .then(([view, state, commands, autocomplete, langHtml, langCss, langJs, language, highlight]) => ({
+    .then(([view, state, commands, autocomplete, langHtml, langCss, langJs, language, highlight, emmet, tagSync]) => ({
       view,
       state,
       commands,
@@ -43,6 +50,8 @@ export function loadCodeMirror() {
       langJs,
       language,
       highlight,
+      emmet,
+      tagSync,
     }))
     .catch((err) => {
       // Let the next call try again rather than caching the failure.

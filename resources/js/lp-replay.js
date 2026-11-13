@@ -11,8 +11,8 @@
  *     page in place. Never location.reload(): a full reload of the front end in
  *     the iframe ejects Live Preview.
  *
- * Owned by the CP shell (cp.js). Panels ask for a replay through cp.js or the
- * registry; they do not import this file.
+ * Owned by the CP shell (cp.js). Panels ask for a replay over the bus
+ * (`lp:replay`, `lp:lastPreviewUrl`); they do not import this file.
  *
  * May import: lib/, preview-section-scope.js. Must not import panels.
  */
@@ -26,7 +26,7 @@ import {
 
 // The URL of the most recent preview render, replayed whenever something other
 // than the entry changes. Written only by watchPreviewRenders() below.
-export let lastPreviewUrl = null;
+let lastPreviewUrl = null;
 
 // Panels ask the shell for it rather than importing the replay core.
 register('lp:lastPreviewUrl', () => lastPreviewUrl);
@@ -34,7 +34,7 @@ register('lp:lastPreviewUrl', () => lastPreviewUrl);
 register('lp:replay', ({ win, opts }) => replayLivePreview(win, opts));
 
 /** The URL the preview iframe is actually showing, not a remembered one. */
-export function frameDocumentUrl(frame) {
+function frameDocumentUrl(frame) {
   try {
     const href = frame?.contentWindow?.location?.href;
 
@@ -54,7 +54,7 @@ export function frameDocumentUrl(frame) {
  * Replaying those into the iframe paints the front end (with Rediger) over the
  * preview and looks exactly like Live Preview closed.
  */
-export function isLivePreviewDocumentUrl(url, origin) {
+function isLivePreviewDocumentUrl(url, origin) {
   if (!url) {
     return false;
   }
@@ -88,7 +88,7 @@ export function isLivePreviewDocumentUrl(url, origin) {
  * Must morph, never `location.reload()`: a full reload of the front-end in the
  * iframe ejects Live Preview (same failure Vite `refresh: true` used to cause).
  */
-export function replayLivePreview(win, opts) {
+function replayLivePreview(win, opts) {
   const frame = previewFrame(win.document);
 
   if (!frame?.contentWindow) {

@@ -22,10 +22,15 @@
  * overview's layer, which is in the document only while the overview is open;
  * closed, the list is empty after one lookup by id.
  *
- * May import: lib/ids.js.
+ * `sendToPreview` is how the CP sends the preview a message from the protocol.
+ * A panel imports it from here, never from the CP shell.
+ *
+ * May import: lib/ids.js, lib/build-canvas-ids.js, lib/protocol.js.
  */
 import { BP_OVERVIEW_ID } from './ids.js';
 import { BUILD_CANVAS_ID } from './build-canvas-ids.js';
+import { MIRRORED } from './protocol.js';
+
 function documentOf(winOrDoc) {
   return winOrDoc?.document || winOrDoc || null;
 }
@@ -94,6 +99,29 @@ export function previewCopies(winOrDoc) {
   }
 
   return out;
+}
+
+/** Send the preview a message; what every frame shows goes to the preview's copies too. */
+export function sendToPreview(message, win) {
+  const iframe = win.document.getElementById('live-preview-iframe');
+
+  if (iframe && iframe.contentWindow) {
+    // Use '*' as targetOrigin because the preview iframe may be served from a
+    // different origin (e.g. a custom preview domain). Restricting to a specific
+    // origin would silently drop messages. This is admin-only functionality so
+    // the cross-origin exposure is acceptable.
+    iframe.contentWindow.postMessage(message, '*');
+
+    // What every frame shows — a video held or let go, an Alpine state set —
+    // reaches the preview's copies too: the breakpoint overview's frames,
+    // while it is open. Closed, there are none (lib/preview-frame.js). The
+    // bridge's own messages — editing, hover, focus — stay with the preview.
+    if (MIRRORED.includes(message?.type)) {
+      for (const copy of previewCopies(win.document)) {
+        copy.postMessage(message, '*');
+      }
+    }
+  }
 }
 
 /**

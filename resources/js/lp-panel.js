@@ -11,7 +11,7 @@ import { t } from './lib/i18n.js';
 import { clearSelection } from './lib/selection.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
-import { setHeaderTab } from './cp.js';
+import { setHeaderTab } from './lib/header-tab.js';
 import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';

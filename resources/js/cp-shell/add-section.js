@@ -19,7 +19,7 @@ import {
 } from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { isEmbeddedInSite, livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
-import { previewCopies, previewFrame } from '../lib/preview-frame.js';
+import { previewFrame } from '../lib/preview-frame.js';
 import { syncStoredVideoHolds } from '../video-holds.js';
 import { syncStoredAlpineStates } from '../alpine-states.js';
 import { scrollBehavior, tellScrollMode } from '../scroll-pref.js';
@@ -100,7 +100,10 @@ import { selectFromPreview, selectRow } from '../selection-panel.js';
 import { log } from '../lib/debug.js';
 import { tellPreviewWherePillIs } from './grid-rows.js';
 import { openOverlay } from '../cp.js';
-import { MIRRORED, MSG, SOURCE } from '../lib/protocol.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
+
+// Lives in lib/ since the quality pass (4.3 B); kept on the shell's surface for the shell and cp.js.
+export { sendToPreview } from '../lib/preview-frame.js';
 
 // ===== add-section =====
 // --- Add section ("+" in the preview) -------------------------------------------
@@ -2463,28 +2466,6 @@ export const CP_STYLES = `
   to   { opacity: 1; transform: scale(1); }
 }
 `;
-
-export function sendToPreview(message, win) {
-  const iframe = win.document.getElementById('live-preview-iframe');
-
-  if (iframe && iframe.contentWindow) {
-    // Use '*' as targetOrigin because the preview iframe may be served from a
-    // different origin (e.g. a custom preview domain). Restricting to a specific
-    // origin would silently drop messages. This is admin-only functionality so
-    // the cross-origin exposure is acceptable.
-    iframe.contentWindow.postMessage(message, '*');
-
-    // What every frame shows — a video held or let go, an Alpine state set —
-    // reaches the preview's copies too: the breakpoint overview's frames,
-    // while it is open. Closed, there are none (lib/preview-frame.js). The
-    // bridge's own messages — editing, hover, focus — stay with the preview.
-    if (MIRRORED.includes(message?.type)) {
-      for (const copy of previewCopies(win.document)) {
-        copy.postMessage(message, '*');
-      }
-    }
-  }
-}
 
 export function getUidFromSet(setEl) {
   const inputs = setEl.querySelectorAll(SELECTORS.visualIdInput);

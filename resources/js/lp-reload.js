@@ -26,10 +26,16 @@
 import { t } from './lib/i18n.js';
 import { bindTips } from './cp/tip.js';
 import { ask } from './cp/bus.js';
-import { LP_ICON_BTN_STYLE } from './cp.js';
 import { injectStyle } from './lib/style.js';
 import { lpHeader } from './lib/live-preview.js';
-import { HEADER_SURFACE, LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import {
+  HEADER_SURFACE,
+  LP_BACK_ID,
+  LP_CHROME_H,
+  LP_ICON_BTN_STYLE,
+  LP_RELOAD_ID,
+  SECTION_PICKER_ID,
+} from './lib/ids.js';
 import { sectionField } from './lib/config.js';
 import { dataGet, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';

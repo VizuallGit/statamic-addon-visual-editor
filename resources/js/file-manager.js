@@ -13,8 +13,6 @@
  */
 import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
-import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
-import { htmlTagSync } from './html-tag-sync.js';
 import { t } from './lib/i18n.js';
 import FileManagerPane from './cp/surfaces/FileManagerPane.vue';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
@@ -49,6 +47,10 @@ let jsLang;
 let HighlightStyle;
 let syntaxHighlighting;
 let tags;
+// The HTML mode's own extensions: they import CodeMirror, so they arrive with it.
+let expandHtmlTab;
+let htmlEmmetExtensions;
+let htmlTagSync;
 
 let cmReady = null;
 let cm = null;
@@ -92,6 +94,9 @@ function loadCm() {
       HighlightStyle = cm.language.HighlightStyle;
       syntaxHighlighting = cm.language.syntaxHighlighting;
       tags = cm.highlight.tags;
+      expandHtmlTab = cm.emmet.expandHtmlTab;
+      htmlEmmetExtensions = cm.emmet.htmlEmmetExtensions;
+      htmlTagSync = cm.tagSync.htmlTagSync;
     })
     .catch((err) => {
       cmReady = null;

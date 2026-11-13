@@ -1,31 +1,15 @@
 {
-  "ai-launcher.js": [
-    "import cp.js"
-  ],
-  "ai-text.js": [
-    "import cp.js"
-  ],
   "block-tree.js": [
-    "import cp.js"
-  ],
-  "component-focus.js": [
     "import cp.js"
   ],
   "dock/dock-api.js": [
     "import cp.js"
   ],
   "dock/save.js": [
-    "import cp.js",
-    "replayLivePreview"
-  ],
-  "global-section.js": [
     "import cp.js"
   ],
   "globals-panel.js": [
-    "import cp.js",
-    "import lp-replay.js",
-    "replayLivePreview",
-    "watchPreviewRenders"
+    "import cp.js"
   ],
   "html-tree.js": [
     "import cp.js"
@@ -36,12 +20,6 @@
   "lp-more-menu.js": [
     "import cp.js"
   ],
-  "lp-panel.js": [
-    "import cp.js"
-  ],
-  "lp-reload.js": [
-    "import cp.js"
-  ],
   "lp-width.js": [
     "import cp.js"
   ],
@@ -50,19 +28,10 @@
     "import cp.js",
     "openOverlay"
   ],
-  "outline-panel.js": [
-    "import cp.js"
-  ],
   "pages.js": [
     "import overlay-host.js",
     "import cp.js",
     "gotoOverlay"
-  ],
-  "performance-panel.js": [
-    "import cp.js"
-  ],
-  "section-create.js": [
-    "import cp.js"
   ],
   "section-library.js": [
     "import cp.js"

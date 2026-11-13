@@ -14,13 +14,12 @@
  * postMessage), the solo boot that isolated the mounted form and the value
  * poll went with phase 2 of the selection panel.
  *
- * Imports leftover helpers from cp.js. Does not get imported by cp.js.
+ * Imports nothing from the CP shell: what it needs from it, it asks for over the bus.
  */
 import { watch } from 'vue';
 import { sveState } from './cp-state.js';
-import { LP_SAVE_TIMEOUT } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
-import { GLOBAL_SECTION_HOST_ID } from './lib/ids.js';
+import { GLOBAL_SECTION_HOST_ID, LP_SAVE_TIMEOUT } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';

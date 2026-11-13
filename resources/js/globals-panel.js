@@ -19,13 +19,6 @@ import {
 import { ensurePanel } from './lazy-panels.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
-import {
-  frameDocumentUrl,
-  isLivePreviewDocumentUrl,
-  lastPreviewUrl,
-  replayLivePreview,
-  watchPreviewRenders,
-} from './lp-replay.js';
 import { injectStyle } from './lib/style.js';
 import {
   CHROME_DESIGNS_ID,
@@ -228,8 +221,9 @@ export function ensurePreviewOutsideDismiss(win) {
 /** Ask the preview to render again, with or without the unsaved globals. */
 export function refreshPreview(win, active) {
   const frame = previewFrame(win.document);
+  const url = ask('lp:lastPreviewUrl');
 
-  if (!frame?.contentWindow || !lastPreviewUrl) {
+  if (!frame?.contentWindow || !url) {
     return;
   }
 
@@ -237,7 +231,7 @@ export function refreshPreview(win, active) {
     {
       name: 'sve.globals',
       active,
-      url: lastPreviewUrl,
+      url,
       // Authoritative for surgical morph — don't rely on html class races alone.
       chromeKind: active ? activeChromeKind : null,
     },

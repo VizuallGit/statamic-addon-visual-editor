@@ -18,7 +18,7 @@
  */
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
-import { setHeaderTab, applyHeaderTab } from './cp.js';
+import { setHeaderTab, applyHeaderTab } from './lib/header-tab.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import PerfPane from './cp/surfaces/PerfPane.vue';

@@ -2,8 +2,8 @@
  * code-dock.js — region "save", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */
-import { replayLivePreview, topLevelSectionIds } from '../cp.js';
-import { emit } from '../cp/bus.js';
+import { topLevelSectionIds } from '../cp.js';
+import { ask, emit } from '../cp/bus.js';
 import { twCandidates } from '../tw-candidates.js';
 import { tailwindDockOn } from '../tailwind-complete.js';
 import { componentPropsOn } from '../component-props.js';
@@ -58,7 +58,7 @@ export function refreshPreview(win) {
   // footer) as it was; the whole document is replayed instead, and the preview
   // morphs the focused half alone when one is focused.
   if (!dockState.lastUid || !type || String(type).startsWith('view:') || isChromeTemplateType(win, type)) {
-    replayLivePreview(win);
+    ask('lp:replay', { win });
 
     return;
   }
@@ -68,14 +68,14 @@ export function refreshPreview(win) {
   // per render (`sve_sid` names one row), so the copy kept the old markup
   // until the page was saved; the whole page is replayed instead.
   if (sectionsOfType(win, type) > 1) {
-    replayLivePreview(win);
+    ask('lp:replay', { win });
 
     return;
   }
 
   const sectionUids = topLevelSectionIds(dockState.lastUid, win.document);
 
-  replayLivePreview(win, sectionUids.length ? { sectionUids } : undefined);
+  ask('lp:replay', { win, opts: sectionUids.length ? { sectionUids } : undefined });
 }
 
 function postSave(win, type, parts) {

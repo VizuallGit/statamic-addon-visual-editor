@@ -68,3 +68,30 @@ test('a click on the header asks first, then opens the header for editing', asyn
 
   await expect.poll(() => messages(cpFrame)).toContain('open-chrome');
 });
+
+test('the outline panel opens and closes from the toolbar, and the icon shows it', async ({ page }) => {
+  const { cp } = await openLivePreview(page, await publicSectionCount());
+  // The outline is in the editor's toolbar on the bench; the performance panel
+  // makes the same two calls (lib/header-tab.js) but its icon is in the
+  // developer's toolbar only.
+  const icon = cp.locator('#__sve-toolbar button[data-tab="outline"]');
+  const panel = cp.locator('#__sve-outline-panel');
+
+  await icon.click();
+  await expect(panel).toBeVisible();
+  await expect(icon).toHaveAttribute('aria-pressed', 'true');
+
+  // Closed from the panel's own close button: the panel clears the tab and asks
+  // the shell to draw the toolbar again (lib/header-tab.js, over the bus).
+  await panel.locator('[data-sve-close]').click();
+  await expect(panel).toHaveCount(0);
+  await expect(icon).toHaveAttribute('aria-pressed', 'false');
+
+  // And from the icon itself, both ways.
+  await icon.click();
+  await expect(panel).toBeVisible();
+  await expect(icon).toHaveAttribute('aria-pressed', 'true');
+  await icon.click();
+  await expect(panel).toHaveCount(0);
+  await expect(icon).toHaveAttribute('aria-pressed', 'false');
+});

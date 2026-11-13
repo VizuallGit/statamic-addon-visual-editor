@@ -15,7 +15,7 @@
 import { t } from './lib/i18n.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { syncBardEditorFromValue } from './inline-edit.js';
-import { sendToPreview } from './cp.js';
+import { sendToPreview } from './lib/preview-frame.js';
 import { currentSectionType } from './cp/preview-context.js';
 import { csrfToken } from './lib/csrf.js';
 import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from './lib/values.js';

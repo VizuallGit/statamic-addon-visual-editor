@@ -268,7 +268,7 @@
   },
   "resources/js/globals-panel.js": {
     "no-unused-vars": {
-      "count": 15
+      "count": 11
     }
   },
   "resources/js/html-tree.js": {

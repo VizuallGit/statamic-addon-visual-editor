@@ -153,5 +153,7 @@ export const LP_ICON_BTN_STYLE =
   `box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;` +
   'display:inline-flex;align-items:center;justify-content:center;padding:0;' +
   `border:none;border-radius:.5rem;cursor:pointer;background:${HEADER_SURFACE};color:currentColor;`;
+/** How long to wait for a save to come back before giving the button up again. */
+export const LP_SAVE_TIMEOUT = 15000;
 /** The dock's type for the site's layout — the file that puts header, main and footer around a page. */
 export const LAYOUT_TEMPLATE_TYPE = 'view:layout';

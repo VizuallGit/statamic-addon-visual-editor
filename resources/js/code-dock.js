@@ -54,6 +54,11 @@ export let unfoldEffect;
 export let foldedRanges;
 let syntaxHighlighting;
 export let tags;
+// The HTML pane's own extensions (html-emmet.js, html-tag-sync.js): they import
+// CodeMirror, so they arrive with it instead of being imported by dock/editor.js.
+export let expandHtmlTab;
+export let htmlEmmetExtensions;
+export let htmlTagSync;
 
 let cmReady = null;
 export let cm = null;
@@ -99,6 +104,9 @@ export function loadCm() {
       unfoldEffect = cm.language.unfoldEffect;
       foldedRanges = cm.language.foldedRanges;
       tags = cm.highlight.tags;
+      expandHtmlTab = cm.emmet.expandHtmlTab;
+      htmlEmmetExtensions = cm.emmet.htmlEmmetExtensions;
+      htmlTagSync = cm.tagSync.htmlTagSync;
 
       readOnlyOf.html = new Compartment();
       readOnlyOf.css = new Compartment();

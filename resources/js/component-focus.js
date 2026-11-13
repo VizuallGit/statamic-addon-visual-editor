@@ -13,7 +13,7 @@
  * `data-sid`.
  */
 import { on, ask } from './cp/bus.js';
-import { sendToPreview } from './cp.js';
+import { sendToPreview } from './lib/preview-frame.js';
 import { findPartials } from './dock-partials.js';
 import { componentSelector, componentSrcFromType } from './component-signature.js';
 import { MSG, SOURCE } from './lib/protocol.js';

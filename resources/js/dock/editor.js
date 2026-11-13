@@ -6,8 +6,6 @@ import { SUNDAY_AUG30 } from '../sunday-aug30.js';
 import { emit } from '../cp/bus.js';
 import { antlersDecorations } from '../antlers-highlight.js';
 import { emptySizeBlocks, idRulesForSize } from '../css-sizes.js';
-import { expandHtmlTab, htmlEmmetExtensions } from '../html-emmet.js';
-import { htmlTagSync } from '../html-tag-sync.js';
 import { partialDecorations } from '../dock-partials.js';
 import { classTokenDecorations } from '../dock-class-tokens.js';
 import { tailwindClassCompletions, tailwindHoverExtension } from '../tailwind-complete.js';
@@ -31,11 +29,14 @@ import {
   defaultKeymap,
   editableOf,
   editors,
+  expandHtmlTab,
   highlightActiveLine,
   highlightActiveLineGutter,
   historyKeymap,
   hoverTooltip,
+  htmlEmmetExtensions,
   htmlLanguage,
+  htmlTagSync,
   indentWithTab,
   keymap,
   lineNumbers,

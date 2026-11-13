@@ -23,14 +23,13 @@
  * go and find.
  */
 import { t } from './lib/i18n.js';
-import { sendToPreview } from './cp.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
 import ImportPrompt from './cp/surfaces/ImportPrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { csrfToken } from './lib/csrf.js';
-import { previewDocument } from './lib/preview-frame.js';
+import { previewDocument, sendToPreview } from './lib/preview-frame.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
 import { addLiteSetConfig } from './side/lite-sections.js';
 import { MSG, SOURCE } from './lib/protocol.js';
