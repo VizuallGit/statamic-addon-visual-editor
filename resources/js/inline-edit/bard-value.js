@@ -6,6 +6,9 @@
 import { dataGet } from '../lib/values.js';
 import { syncBardEditorFromValue } from '../inline-edit.js';
 
+/** Node types the inline editor may edit as a single contenteditable block. */
+export const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
+
 /** Write Bard JSON to the form AND force the sidebar TipTap view to match. */
 export function writeBardFieldValue(container, path, value, doc, session) {
   const next = JSON.parse(JSON.stringify(value));

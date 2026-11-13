@@ -27,6 +27,7 @@ import { flushPendingSectionRefresh } from './global-section.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { scrollBehavior } from './scroll-pref.js';
 import {
+  EDITABLE_NODE_TYPES,
   bardNodeText,
   controlValues,
   isUnwrappedInlineBard,
@@ -64,9 +65,6 @@ export * from './library/save-section.js';
 // Statamic's own reactivity does the rest: the deep values watcher marks the
 // form dirty and triggers the live preview re-render, and the Bard fieldtype's
 // value watcher updates its editor when the value changes from outside.
-
-/** Node types the inline editor may edit as a single contenteditable block. */
-export const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
 
 // The active inline-edit session, keyed by the bridge's requestId.
 export let editSession = null;

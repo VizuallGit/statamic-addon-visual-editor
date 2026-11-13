@@ -7,8 +7,15 @@ import { sveState } from '../cp-state.js';
 import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from '../lib/values.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { globalSectionEditorOpen } from '../global-section.js';
-import { bardNodeText, normText, normalizeInlineBardValue, rowPathOf, writeBardFieldValue } from './bard-value.js';
-import { EDITABLE_NODE_TYPES, editSession, handleEditRequest } from '../inline-edit.js';
+import {
+  EDITABLE_NODE_TYPES,
+  bardNodeText,
+  normText,
+  normalizeInlineBardValue,
+  rowPathOf,
+  writeBardFieldValue,
+} from './bard-value.js';
+import { editSession, handleEditRequest } from '../inline-edit.js';
 
 /**
  * Find a Bard set (or other locked node) from the session original by its
