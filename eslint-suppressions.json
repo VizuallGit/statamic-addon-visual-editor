@@ -268,7 +268,17 @@
   },
   "resources/js/globals-panel.js": {
     "no-unused-vars": {
-      "count": 11
+      "count": 8
+    }
+  },
+  "resources/js/globals/chrome-mode.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "resources/js/globals/panel.js": {
+    "no-unused-vars": {
+      "count": 1
     }
   },
   "resources/js/inline-edit.js": {
