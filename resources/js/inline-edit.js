@@ -4,6 +4,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { ACTIVE_ATTR, COLLAPSE_SETTLE_MS, SELECTORS } from './cp-selectors.js';
+import { logCaught } from './lib/caught.js';
 import {
   BP_INHERITS,
   collectAncestorSets,
@@ -148,8 +149,8 @@ function flushBardEditorSync(attempt = 0) {
     if ('json' in proxy) {
       proxy.json = JSON.parse(JSON.stringify(value));
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logCaught('inline-edit: the Bard editor from the form value', error);
   }
 
   bardSyncPending = null;
