@@ -8,23 +8,31 @@
  * `globalThis.__sveStub(specifier, name)` returns when the stub is evaluated.
  *
  * register('./support/stub-imports.mjs', import.meta.url, { data: { target, keep } })
+ *
+ * `family` (optional): URL prefixes of modules that are the target too — a
+ * module split into a folder (tw-classes.js and tw-classes/*.js). Their imports
+ * are stubbed the same way, and they load each other for real.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 let target = '';
 let keep = [];
+let family = [];
 const importsOf = new Map();
 
 export async function initialize(data) {
   target = data.target;
   keep = data.keep || [];
+  family = data.family || [];
 }
 
-/** The names the target imports from `specifier`, read from its own source. */
-function namesFor(specifier) {
-  if (!importsOf.has(target)) {
-    const source = readFileSync(fileURLToPath(target), 'utf8');
+const isTarget = (url) => url === target || family.some((prefix) => url.startsWith(prefix));
+
+/** The names `parent` (the target, or one of its family) imports from `specifier`, read from its own source. */
+function namesFor(parent, specifier) {
+  if (!importsOf.has(parent)) {
+    const source = readFileSync(fileURLToPath(parent), 'utf8');
     const map = new Map();
     const re = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?/gm;
     let m;
@@ -56,19 +64,19 @@ function namesFor(specifier) {
       map.set(m[2], names);
     }
 
-    importsOf.set(target, map);
+    importsOf.set(parent, map);
   }
 
-  return importsOf.get(target).get(specifier) || [];
+  return importsOf.get(parent).get(specifier) || [];
 }
 
 export async function resolve(specifier, context, nextResolve) {
-  if (context.parentURL === target) {
-    const url = new URL(specifier, target).href;
+  if (context.parentURL && isTarget(context.parentURL)) {
+    const url = new URL(specifier, context.parentURL).href;
 
-    if (!keep.some((suffix) => url.endsWith(suffix))) {
+    if (!isTarget(url) && !keep.some((suffix) => url.endsWith(suffix))) {
       return {
-        url: `sve-stub:${encodeURIComponent(specifier)}?${namesFor(specifier).join(',')}`,
+        url: `sve-stub:${encodeURIComponent(specifier)}?${namesFor(context.parentURL, specifier).join(',')}`,
         shortCircuit: true,
       };
     }

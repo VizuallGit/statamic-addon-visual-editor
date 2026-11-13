@@ -235,8 +235,5 @@
   "exports resources/js/section-import.js#VISUAL_EDIT",
   "exports resources/js/selection-panel.js#selectionPanelTakes",
   "exports resources/js/template-elements.js#sectionsLoop",
-  "exports resources/js/tw-classes.js#twClassesHost",
-  "exports resources/js/tw-classes.js#twOpenTagMenu",
-  "exports resources/js/tw-classes.js#twSetGroup",
   "exports resources/js/tw-compile.js#forgetTailwindTheme"
 ]
