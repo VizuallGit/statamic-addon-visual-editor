@@ -148,22 +148,17 @@
   // — a reload of the whole CP used to be the only way to see them.
   //
   // A CP form can sit in an iframe, and the panel fires on the window it
-  // lives in, so all three are listened to. addEventListener ignores the
-  // same function twice on one target, so the usual case costs nothing.
+  // lives in: the window above passes the event down to its frames
+  // (lib/site-css-saved.js). So this listens on its own window and nowhere
+  // else. A listener put on window.parent or window.top is never taken off,
+  // and the page above then holds this whole frame after it has been removed:
+  // that was the leak a closed Live Preview left behind (wear.spec.mjs).
   function forgetSwatches() {
     delete cache.swatches;
     delete inflight.swatches;
   }
 
-  [window, window.parent, window.top].forEach(function (w) {
-    try {
-      if (w) {
-        w.addEventListener('sve:site-css-saved', forgetSwatches);
-      }
-    } catch (err) {
-      /* cross-origin */
-    }
-  });
+  window.addEventListener('sve:site-css-saved', forgetSwatches);
 
   window.fetch.__sveDedupeCpFetch = true;
 })();

@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "cp:build": "vite build && node scripts/prune-dist.mjs",
+    "cp:build": "vite build && node scripts/prune-dist.mjs && php scripts/write-dist-lock.php",
     "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs && node scripts/assert-protocol.mjs",
     "test": "node --test \"tests/js/**/*.test.js\"",
     "e2e": "playwright test",

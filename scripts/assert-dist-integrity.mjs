@@ -17,8 +17,13 @@
  *      BuiltAssets::recover() restores from when a chunk goes missing;
  *   4. the overlay-host the live addon.js reaches (directly or through the
  *      cluster) is the one the manifest names — a split build means one entry
- *      was rebuilt alone.
+ *      was rebuilt alone;
+ *   5. resources/dist/lock.json is for this build (its `build` is the md5 of
+ *      manifest.json) and every file it names exists. The last step of
+ *      `npm run cp:build` writes it (scripts/write-dist-lock.php); a lock for
+ *      another build makes every server walk the build on every request.
  */
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +33,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'resources/dist/build');
 const ASSETS = join(BUILD, 'assets');
 const LOCKED = join(ROOT, 'resources/dist/locked');
+const LOCK = join(ROOT, 'resources/dist/lock.json');
 const MANIFEST = join(BUILD, 'manifest.json');
 
 function fail(message) {
@@ -153,6 +159,30 @@ if (missing.length) {
   );
 }
 
+// 5. The lock is for this build, and what it names is there.
+const WRITE_LOCK = 'It is written by the last step of `npm run cp:build` (scripts/write-dist-lock.php), never by hand.';
+
+if (!existsSync(LOCK)) {
+  fail(`Visual Editor lock is missing: ${LOCK}. ${WRITE_LOCK}`);
+}
+
+const lock = JSON.parse(readFileSync(LOCK, 'utf8'));
+const buildKey = createHash('md5').update(readFileSync(MANIFEST)).digest('hex');
+
+if (lock.build !== buildKey) {
+  fail(
+    `Visual Editor lock is for another build: lock.json says ${lock.build}, manifest.json is ${buildKey}. ${WRITE_LOCK}`
+  );
+}
+
+const lockedOut = [lock.addon, ...lock.imports.map((name) => `assets/${name}`)].filter(
+  (rel) => !existsSync(join(BUILD, rel))
+);
+
+if (lockedOut.length) {
+  fail(`Visual Editor lock names files that are gone:\n  - ${lockedOut.join('\n  - ')}\n${WRITE_LOCK}`);
+}
+
 /**
  * No chunk may import a bare module name.
  *
@@ -223,5 +253,5 @@ if (bare.length) {
 }
 
 console.log(
-  'Dist integrity ok: manifest files, live addon.js imports and locked recovery copies all exist; no bare imports.'
+  'Dist integrity ok: manifest files, live addon.js imports and locked recovery copies all exist; lock.json is for this build; no bare imports.'
 );

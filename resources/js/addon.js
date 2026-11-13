@@ -67,11 +67,17 @@ import { initTemplateBoard } from './template-board-boot.js';
 import { registerContainerEvents } from './lib/publish-containers.js';
 import { registerEntryPublishForm } from './lib/entry-publish-form.js';
 import { livePreviewButton, livePreviewEditorEl, registerPanelConditions } from './lib/live-preview.js';
+import { passSiteCssSavedDown } from './lib/site-css-saved.js';
 
 // The entry form's publish state (public URL or not), for the close menu in
 // the cluster. A mixin, so it has to be in before Statamic mounts — the
 // cluster may land after that.
 registerEntryPublishForm();
+
+// A save of site.css in this window reaches the CP forms in the frames under
+// it (the overlay, the globals panel). Every CP window runs this file, so each
+// passes it on to its own frames.
+passSiteCssSavedDown(window);
 
 // ---- the deferred Live Preview cluster --------------------------------------
 

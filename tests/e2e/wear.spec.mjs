@@ -11,15 +11,15 @@ const ROUNDS = Number(process.env.SVE_WEAR_ROUNDS || 6);
 test.beforeEach(() => resetLayout());
 
 test(`Live Preview opened and closed ${ROUNDS} times does not grow`, async ({ page }) => {
-  // A known leak, measured 12 Nov 2026 on v1.1.801: every open and close in one
-  // tab leaves about 6 documents, 6,700 nodes and 28 MB of heap behind (204 →
-  // 348 MB over 6 rounds). Marked as expected to fail: the day it is fixed this
-  // test turns red ("expected to fail, but passed"), and this line goes.
-  test.fail();
   test.setTimeout(ROUNDS * 30_000);
   const sections = await publicSectionCount();
   const cdp = await page.context().newCDPSession(page);
   const counters = async () => {
+    // The browser keeps what was written to the console, with the objects in
+    // it. Statamic's developer build (APP_DEBUG) writes a Vue warning with the
+    // live component for every form it mounts, so there the console holds each
+    // old form. That is the console's memory, not the page's: emptied first.
+    await cdp.send('Runtime.discardConsoleEntries');
     await cdp.send('HeapProfiler.collectGarbage');
     const dom = await cdp.send('Memory.getDOMCounters');
     const heap = await cdp.send('Runtime.getHeapUsage');
