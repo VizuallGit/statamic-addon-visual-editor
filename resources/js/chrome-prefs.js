@@ -7,6 +7,7 @@
  * machine sees their own blob, or the defaults.
  */
 import { csrfToken } from './lib/csrf.js';
+import { logCaught } from './lib/caught.js';
 
 export const CHROME_KEYS = [
   'sve-right-dock-open',
@@ -101,8 +102,8 @@ function writeRaw(win, key, value) {
     } else {
       win.localStorage.setItem(key, value);
     }
-  } catch {
-    /* private mode */
+  } catch (error) {
+    logCaught('chrome-prefs: remember a setting', error);
   }
 }
 

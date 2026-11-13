@@ -6,6 +6,7 @@
 import { t } from './lib/i18n.js';
 import { postToHost } from './cp.js';
 import { injectStyle } from './lib/style.js';
+import { logCaught } from './lib/caught.js';
 import { unwrapRef } from './lib/values.js';
 import { isEmbeddedInSite, lpHeader } from './lib/live-preview.js';
 import { previewUrlFor } from './lib/entry-open.js';
@@ -192,8 +193,8 @@ let openedFrom = null;
 function rememberOrigin(win, entryPath, from) {
   try {
     win.sessionStorage.setItem(OPEN_IN_PREVIEW_ORIGIN, JSON.stringify({ entry: entryPath, from }));
-  } catch {
-    /* private mode — the way out is then the ordinary one */
+  } catch (error) {
+    logCaught('open-in-preview: remember where the entry was opened from', error);
   }
 }
 
@@ -236,8 +237,8 @@ export function forgetOrigin(win) {
 
   try {
     win.sessionStorage.removeItem(OPEN_IN_PREVIEW_ORIGIN);
-  } catch {
-    /* nothing was stored either */
+  } catch (error) {
+    logCaught('open-in-preview: forget where the entry was opened from', error);
   }
 }
 
@@ -250,8 +251,8 @@ export function goToPreview(win, url, fromEl) {
     const parsed = new URL(url, win.location.origin);
 
     rememberOrigin(win, parsed.pathname, win.location.href);
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logCaught('open-in-preview: read the preview address', error);
   }
 
   showEntryOpening(win.document, fromEl, url);
@@ -527,15 +528,15 @@ export function disarmUnloadWarning(win) {
     names = Array.isArray(list) ? [...list] : [];
     dirty.disableWarning?.();
     names.forEach((name) => dirty.remove(name));
-  } catch {
-    /* best effort — worst case the browser asks */
+  } catch (error) {
+    logCaught('open-in-preview: stand the unload warning down', error);
   }
 
   return () => {
     try {
       names.forEach((name) => dirty.add(name));
-    } catch {
-      /* same */
+    } catch (error) {
+      logCaught('open-in-preview: arm the unload warning again', error);
     }
   };
 }
@@ -591,8 +592,8 @@ export function hasUnsavedChanges(win) {
 
       return list.some((name) => tracked.has(name) && dirty.has(name));
     }
-  } catch {
-    /* fall through */
+  } catch (error) {
+    logCaught('open-in-preview: read the dirty marks', error);
   }
 
   const tracked = new Set(publishContainers.map((container) => container.name).filter(Boolean));
@@ -691,8 +692,8 @@ export function leaveQuietly(win, leave, attempts = 0) {
     }
 
     win.Statamic?.$dirty?.disableWarning?.();
-  } catch {
-    /* best effort — worst case the browser asks */
+  } catch (error) {
+    logCaught('open-in-preview: clear the dirty marks before leaving', error);
   }
 
   leave();

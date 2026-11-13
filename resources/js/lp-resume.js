@@ -26,6 +26,7 @@ import { register } from './cp/bus.js';
 import { sveState } from './cp-state.js';
 import { currentSelection, select } from './lib/selection.js';
 import { whenContainerContext } from './lib/publish-containers.js';
+import { logCaught } from './lib/caught.js';
 
 const KEY = 'sve-lp-resume';
 
@@ -91,8 +92,8 @@ export function rememberWhereWeAre(win) {
 
   try {
     win.sessionStorage.setItem(KEY, JSON.stringify(reading));
-  } catch {
-    /* private mode: the reload still works, it just starts at the top */
+  } catch (error) {
+    logCaught('lp-resume: remember the scroll and the selection', error);
   }
 }
 
@@ -100,8 +101,8 @@ export function rememberWhereWeAre(win) {
 export function forgetWhereWeAre(win) {
   try {
     win.sessionStorage.removeItem(KEY);
-  } catch {
-    /* private mode */
+  } catch (error) {
+    logCaught('lp-resume: forget the reading', error);
   }
 }
 
@@ -202,8 +203,8 @@ function holdScroll(win, scroll) {
     try {
       watchInput(pwin);
       applyScroll(pwin, scroll);
-    } catch {
-      /* the frame is between documents */
+    } catch (error) {
+      logCaught('lp-resume: put the scroll back', error);
     }
 
     win.setTimeout(tick, TICK_MS);

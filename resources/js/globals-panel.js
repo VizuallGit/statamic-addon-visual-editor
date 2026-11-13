@@ -20,6 +20,7 @@ import { ensurePanel } from './lazy-panels.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { logCaught } from './lib/caught.js';
 import {
   CHROME_DESIGNS_ID,
   GLOBALS_PANEL_ID,
@@ -184,11 +185,7 @@ export function ensurePreviewOutsideDismiss(win) {
       return;
     }
 
-    try {
-      win.document.body?.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-    } catch {
-      /* nothing to dismiss with */
-    }
+    win.document.body?.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
   };
 
   // Re-armed per document: the preview reloads on every render, and the new
@@ -365,8 +362,8 @@ function markChromeFormClean(win) {
         break;
       }
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logCaught('globals-panel: baseline from the globals frame', error);
   }
 
   notifyChromeDirty(win);
@@ -534,17 +531,13 @@ function clearGlobalsDirtyMarks(win) {
     }
 
     dirty?.disableWarning?.();
-  } catch {
-    /* best effort */
+  } catch (error) {
+    logCaught('globals-panel: clear dirty marks', error);
   }
 
   // Re-baseline the iframe value poll so the post-save form snapshot
   // doesn't immediately re-mark chrome as dirty.
-  try {
-    iwin.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVED }, win.location.origin);
-  } catch {
-    /* ignore */
-  }
+  iwin.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVED }, win.location.origin);
 }
 
 /** Drop Theme Settings dirty marks + preview stash (discard path). */
@@ -762,8 +755,8 @@ function ensureGlobalsPanelSaveWatch(win) {
         watchGlobalsPanelSaves(frame.contentWindow, win);
         hearShortcutsIn(frame.contentWindow, win);
       }
-    } catch {
-      /* iframe not ready */
+    } catch (error) {
+      logCaught('globals-panel: arm the save watch', error);
     }
   };
 
@@ -967,11 +960,7 @@ function openGlobalsPanel(win, set, options = {}) {
       const switchSet = () => {
         existing.setAttribute('data-sve-globals-handle', set.handle);
         // New document → need a fresh save watch on the next load.
-        try {
-          delete frame.contentWindow.__sveGlobalsSaveWatch;
-        } catch {
-          /* ignore */
-        }
+        delete frame.contentWindow.__sveGlobalsSaveWatch;
         frame.contentWindow.location.replace(globalsPanelUrl(win, set));
         setActiveChromeKind(null);
       };
@@ -1644,11 +1633,7 @@ export function initGlobalsPanelFrame(win) {
   }).observe(doc.documentElement, { childList: true, subtree: true });
 
   // Style picks / tab jumps must not trip "Leave site?" from Statamic's dirty check.
-  try {
-    win.Statamic?.$dirty?.disableWarning?.();
-  } catch {
-    /* ignore */
-  }
+  win.Statamic?.$dirty?.disableWarning?.();
 
   // Statamic's own Save button lives in the page header the panel strips away.
   // It still works — it just can't be seen — so the panel's Save clicks it, and
@@ -1770,14 +1755,11 @@ export function initGlobalsPanelFrame(win) {
         return;
       }
 
-      try {
-        win.parent.postMessage(
-          { source: SOURCE, type: MSG.SVE_GLOBALS_VALUES, handle, values: JSON.parse(serialized) },
-          win.location.origin
-        );
-      } catch {
-        /* the panel was closed */
-      }
+      // A frame that has been taken out of the page has no parent.
+      win.parent?.postMessage(
+        { source: SOURCE, type: MSG.SVE_GLOBALS_VALUES, handle, values: JSON.parse(serialized) },
+        win.location.origin
+      );
 
       return;
     }
@@ -2104,13 +2086,7 @@ function openChromeDesignsPanel(win, kind) {
   syncPreviewInset(win);
 
   // Recalc columns when the shared editor is resized.
-  try {
-    const ro = new win.ResizeObserver(() => applyLayout());
-
-    ro.observe(panel);
-  } catch {
-    /* older browsers */
-  }
+  new win.ResizeObserver(() => applyLayout()).observe(panel);
 
   const titleEl = panel.querySelector('[data-sve-title]');
   const hintEl = panel.querySelector('[data-sve-hint]');

@@ -47,6 +47,7 @@ import { fetchInertiaPage, postSectionValues } from './global-section.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
 import ChromeForm from './cp/surfaces/ChromeForm.vue';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { logCaught } from './lib/caught.js';
 
 let chromeApp = null;
 export let chromeInlineKind = null;
@@ -359,8 +360,8 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   if (chromeApp) {
     try {
       chromeApp.unmount();
-    } catch {
-      /* already gone */
+    } catch (error) {
+      logCaught('chrome: unmount the header/footer form', error);
     }
 
     chromeApp = null;

@@ -45,6 +45,7 @@ import { resetChromeInlinePages } from './chrome.js';
 import { libraryWentStale, refreshSectionTypes, sectionMetaCache } from './section-library.js';
 import { clearHtmlTreeTemplates, renderHtmlTree } from './lazy/html-tree.js';
 import { previewFrame } from './lib/preview-frame.js';
+import { logCaught } from './lib/caught.js';
 
 // No static import of section-fields: it is reached only from the HTML tree's
 // lazy chunk today, and importing it here — from a file the Control Panel
@@ -162,9 +163,9 @@ async function refreshInPlace(win) {
   for (const type of typesOnPage(win)) {
     try {
       await refreshFieldsForType(win, type);
-    } catch {
-      // A type whose fieldset has gone is not a reason to stop refreshing the
-      // rest — it simply keeps what it had.
+    } catch (error) {
+      // A type whose fieldset has gone keeps what it had; the rest still refresh.
+      logCaught(`lp-reload: refresh the fields of ${type}`, error);
     }
   }
 

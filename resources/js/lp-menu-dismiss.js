@@ -1,3 +1,5 @@
+import { logCaught } from './lib/caught.js';
+
 export function dropMenu(el) {
   if (!el) {
     return;
@@ -71,8 +73,8 @@ export function bindMenuDismiss(win, isInside, dismiss) {
       try {
         iframeWin.removeEventListener('pointerdown', onPreview, true);
         iframeWin.removeEventListener('keydown', onKey, true);
-      } catch {
-        /* iframe navigated */
+      } catch (error) {
+        logCaught('lp-menu-dismiss: let go of the preview', error);
       }
     }
   };

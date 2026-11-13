@@ -22,6 +22,7 @@ import RightDockShell from './cp/surfaces/RightDockShell.vue';
 import { mountPane } from './cp/mount-pane.js';
 import dockCss from '../css/right-dock.css?inline';
 import { injectStyle } from './lib/style.js';
+import { logCaught } from './lib/caught.js';
 import { t } from './lib/i18n.js';
 import { attachDock, dockParent } from './lib/dock-host.js';
 import { HTML_TREE_PANEL_ID } from './lib/ids.js';
@@ -237,19 +238,25 @@ export function paneKeyOf(el) {
   return el?.getAttribute?.('data-sve-right-pane') || PANE_BY_ID[el?.id] || '';
 }
 
+/** A stored setting, parsed: null when there is none, or when it is not JSON. */
+function storedJson(win, key) {
+  try {
+    return JSON.parse(chromeGet(win, key) || 'null');
+  } catch (error) {
+    logCaught(`right-dock-tabs: read the stored ${key}`, error);
+
+    return null;
+  }
+}
+
 function storedPinned(win) {
   const out = {};
+  const raw = storedJson(win, PIN_KEY);
 
-  try {
-    const raw = JSON.parse(chromeGet(win, PIN_KEY) || 'null');
-
-    if (raw && typeof raw === 'object') {
-      for (const key of Object.values(PANE_BY_ID)) {
-        out[key] = raw[key] === true;
-      }
+  if (raw && typeof raw === 'object') {
+    for (const key of Object.values(PANE_BY_ID)) {
+      out[key] = raw[key] === true;
     }
-  } catch {
-    /* ignore */
   }
 
   return out;
@@ -261,17 +268,12 @@ function storePinned(win, pinned) {
 
 function storedFolded(win) {
   const out = {};
+  const raw = storedJson(win, FOLDED_KEY);
 
-  try {
-    const raw = JSON.parse(chromeGet(win, FOLDED_KEY) || 'null');
-
-    if (raw && typeof raw === 'object') {
-      for (const key of Object.values(PANE_BY_ID)) {
-        out[key] = raw[key] === true;
-      }
+  if (raw && typeof raw === 'object') {
+    for (const key of Object.values(PANE_BY_ID)) {
+      out[key] = raw[key] === true;
     }
-  } catch {
-    /* ignore */
   }
 
   return out;
@@ -282,17 +284,9 @@ function storeFolded(win, folded) {
 }
 
 function storedHeights(win) {
-  try {
-    const raw = JSON.parse(chromeGet(win, HEIGHTS_KEY) || 'null');
+  const raw = storedJson(win, HEIGHTS_KEY);
 
-    if (raw && typeof raw === 'object') {
-      return raw;
-    }
-  } catch {
-    /* ignore */
-  }
-
-  return {};
+  return raw && typeof raw === 'object' ? raw : {};
 }
 
 function storeHeights(win, heights) {
@@ -300,17 +294,9 @@ function storeHeights(win, heights) {
 }
 
 export function storedOrder(win) {
-  try {
-    const raw = JSON.parse(chromeGet(win, ORDER_KEY) || 'null');
+  const raw = storedJson(win, ORDER_KEY);
 
-    if (Array.isArray(raw)) {
-      return raw.filter((key) => typeof key === 'string');
-    }
-  } catch {
-    /* ignore */
-  }
-
-  return [];
+  return Array.isArray(raw) ? raw.filter((key) => typeof key === 'string') : [];
 }
 
 export function storeOrder(win, order) {
@@ -318,17 +304,11 @@ export function storeOrder(win, order) {
 }
 
 function storedOpenPanes(win) {
-  try {
-    const raw = JSON.parse(chromeGet(win, OPEN_PANES_KEY) || 'null');
+  const raw = storedJson(win, OPEN_PANES_KEY);
 
-    if (Array.isArray(raw)) {
-      return raw.filter((key) => typeof key === 'string' && Object.values(PANE_BY_ID).includes(key));
-    }
-  } catch {
-    /* ignore */
-  }
-
-  return [];
+  return Array.isArray(raw)
+    ? raw.filter((key) => typeof key === 'string' && Object.values(PANE_BY_ID).includes(key))
+    : [];
 }
 
 export function visiblePaneKeys(win) {

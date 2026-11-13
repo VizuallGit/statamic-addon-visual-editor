@@ -14,9 +14,10 @@
  * Pure — storage and the Control Panel's facts are handed in — so the rules
  * can be held in tests without a document.
  *
- * May import: lib/entry-open.js.
+ * May import: lib/entry-open.js, lib/caught.js.
  */
 import { entryCollectionOf } from './entry-open.js';
+import { logCaught } from './caught.js';
 
 export const LAST_PAGE_KEY = 'sve-lp-last-page';
 
@@ -35,8 +36,8 @@ export function rememberLastPage(storage, href, origin, { site, user, title }) {
 
   try {
     storage.setItem(LAST_PAGE_KEY, JSON.stringify(note));
-  } catch {
-    /* private mode: the button opens the front page */
+  } catch (error) {
+    logCaught('last-page: remember the page', error);
   }
 }
 
