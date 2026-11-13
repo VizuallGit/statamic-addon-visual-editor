@@ -17,6 +17,7 @@
  */
 import { SOURCE } from '../../lib/protocol.js';
 import { previewFrame } from '../../lib/preview-frame.js';
+import { logCaught } from '../../lib/caught.js';
 
 /** Long tasks are judged over the last ten seconds. */
 const TASK_WINDOW_MS = 10000;
@@ -159,8 +160,8 @@ export function startEditorVitals(win, onSample) {
 
     try {
       attachedTo?.removeEventListener('statamic:preview-updated', onPreviewUpdated);
-    } catch {
-      /* the old window is gone */
+    } catch (error) {
+      logCaught('editor-vitals: let go of the old preview', error);
     }
 
     target.addEventListener('statamic:preview-updated', onPreviewUpdated);
@@ -202,8 +203,8 @@ export function startEditorVitals(win, onSample) {
 
     try {
       attachedTo?.removeEventListener('statamic:preview-updated', onPreviewUpdated);
-    } catch {
-      /* gone */
+    } catch (error) {
+      logCaught('editor-vitals: let go of the preview', error);
     }
   };
 }

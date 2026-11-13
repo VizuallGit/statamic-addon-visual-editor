@@ -18,6 +18,7 @@ import { on } from './cp/bus.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { pageSectionRows } from './lib/publish-containers.js';
+import { logCaught } from './lib/caught.js';
 
 const VIDEO_HOLDS_KEY = 'sveVideoHolds';
 
@@ -53,8 +54,9 @@ export function rememberVideoHolds(win, type, held) {
     }
 
     win.localStorage.setItem(VIDEO_HOLDS_KEY, JSON.stringify(all));
-  } catch {
-    /* no storage: the hold lasts the session */
+  } catch (error) {
+    // No storage: the hold lasts the session.
+    logCaught('video-holds: remember the holds', error);
   }
 }
 

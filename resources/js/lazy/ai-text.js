@@ -8,9 +8,10 @@
  * stub did: "loads" ones load the panel first and return that promise, "default"
  * ones answer with a fixed value, the rest skip (the caller did not load it).
  *
- * May import: lazy-panels.js. Generated for WP4h; edit by hand from here on.
+ * May import: lazy-panels.js, lib/caught.js. Generated for WP4h; edit by hand from here on.
  */
 import { ensurePanel, loadedPanel } from '../lazy-panels.js';
+import { logCaught } from '../lib/caught.js';
 
 const KEY = 'ai_text';
 
@@ -48,8 +49,8 @@ export function aiTextStoredOn(win) {
         return true;
       }
     }
-  } catch {
-    /* private mode */
+  } catch (error) {
+    logCaught('ai-text: read the switch', error);
   }
 
   return false;

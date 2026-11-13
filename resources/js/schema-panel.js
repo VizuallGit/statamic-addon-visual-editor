@@ -13,6 +13,7 @@
  */
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
+import { logCaught } from './lib/caught.js';
 import { paintLpActiveControl } from './lp-panel.js';
 
 const PANEL_ID = '__sve-schema-panel';
@@ -101,8 +102,9 @@ async function openSchema(win) {
       state.page = typeof body?.entry === 'string' ? body.entry : '';
       render(win);
     }
-  } catch {
-    /* an empty panel is still usable */
+  } catch (error) {
+    // An empty panel is still usable.
+    logCaught('schema-panel: load the schema', error);
   }
 }
 

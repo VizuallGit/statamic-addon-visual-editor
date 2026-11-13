@@ -230,11 +230,9 @@ function fallbackCopy(text, done) {
   try {
     win.value.document.execCommand('copy');
     done();
-  } catch {
-    /* ignore */
+  } finally {
+    area.remove();
   }
-
-  area.remove();
 }
 
 function insertSnippet(index, parts) {

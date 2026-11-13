@@ -17,6 +17,7 @@
  * the question you can act on. It does not answer "what does this feel like on
  * a phone on 4G" — nothing running locally can.
  */
+import { logCaught } from '../../lib/caught.js';
 
 const VIEWPORT_W = 1440;
 const VIEWPORT_H = 900;
@@ -167,8 +168,9 @@ function observeVitals(frameWin) {
 
       observer.observe({ type, buffered: true });
       observers.push(observer);
-    } catch {
-      /* not supported here */
+    } catch (error) {
+      // An entry type this browser does not know must not cost the others.
+      logCaught(`perf: observe ${type}`, error);
     }
   };
 
@@ -270,8 +272,8 @@ function resourceRow(entry, origin) {
 
   try {
     thirdParty = new URL(entry.name).origin !== origin;
-  } catch {
-    /* data: and blob: are nobody's third party */
+  } catch (error) {
+    logCaught('perf: read the address of a file', error);
   }
 
   return {
@@ -352,8 +354,8 @@ export async function measurePage(win, url) {
 
     try {
       await doc.fonts?.ready;
-    } catch {
-      /* no font manager here */
+    } catch (error) {
+      logCaught('perf: wait for the fonts', error);
     }
 
     await scrollThrough(win, frameWin, doc);

@@ -2,6 +2,8 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { DRAG_DOTS_V } from '../../right-dock-tabs.js';
 import { FIELDSET_SAVE_URL, watchFieldsetSaves } from './fieldset-save.js';
+import { logCaught } from '../../lib/caught.js';
+import { keepLocal, readLocal } from '../../lib/storage.js';
 
 const WIDTH_KEY = 'sve-fieldset-drawer-width';
 const MIN_WIDTH = 380;
@@ -70,17 +72,9 @@ function clampWidth(value) {
 }
 
 function storedWidth() {
-  try {
-    const saved = Number(window.localStorage.getItem(WIDTH_KEY));
+  const saved = Number(readLocal(window, WIDTH_KEY));
 
-    if (saved > 0) {
-      return clampWidth(saved);
-    }
-  } catch {
-    // Private windows and blocked site data: a default is a fine answer.
-  }
-
-  return clampWidth(Math.min(992, window.innerWidth * 0.55));
+  return clampWidth(saved > 0 ? saved : Math.min(992, window.innerWidth * 0.55));
 }
 
 const width = ref(storedWidth());
@@ -96,11 +90,7 @@ function endResize(event) {
   window.removeEventListener('pointermove', onMove);
   window.removeEventListener('pointerup', endResize);
 
-  try {
-    window.localStorage.setItem(WIDTH_KEY, String(width.value));
-  } catch {
-    // Not being able to remember it costs a drag, not the edit.
-  }
+  keepLocal(window, WIDTH_KEY, String(width.value));
 }
 
 function startResize(event) {
@@ -146,10 +136,9 @@ function trimChrome() {
     `;
 
     doc.head.appendChild(style);
-  } catch {
-    // A cross-origin frame cannot happen here — the Control Panel is this same
-    // site — but a reach into a document mid-navigation can throw, and the
-    // panel is perfectly usable untrimmed.
+  } catch (error) {
+    // A document mid-navigation can throw; the panel is usable untrimmed.
+    logCaught('FieldsetOverlay: trim the Fieldsets screen', error);
   }
 }
 

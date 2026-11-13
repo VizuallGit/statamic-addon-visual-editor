@@ -13,6 +13,7 @@ import { mark } from '../lib/debug.js';
 import { injectStyle } from '../lib/style.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { surfaceIsDark } from '../lib/surface-tone.js';
+import { logCaught } from '../lib/caught.js';
 
 (function () {
   'use strict';
@@ -485,7 +486,8 @@ import { surfaceIsDark } from '../lib/surface-tone.js';
         dressWrap(win, layer.children[i]);
       }
     } catch (err) {
-      /* look never blocks "+" placement */
+      // The look never blocks "+" placement.
+      logCaught('inserter-reveal: dress the plus buttons', err);
     }
   }
 
@@ -497,7 +499,8 @@ import { surfaceIsDark } from '../lib/surface-tone.js';
       paintLook(wrap, dir, wrap.getAttribute('data-sve-ins-tone') === 'dark');
       bindLookHover(wrap);
     } catch (err) {
-      /* look never blocks "+" placement */
+      // The look never blocks "+" placement.
+      logCaught('inserter-reveal: dress a plus button', err);
     }
   }
 
@@ -898,7 +901,7 @@ import { surfaceIsDark } from '../lib/surface-tone.js';
         bindPreview(nested.contentWindow);
       }
     } catch (err) {
-      /* cross-origin */
+      logCaught('inserter-reveal: bind the preview', err);
     }
   }
 

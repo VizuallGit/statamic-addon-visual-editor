@@ -39,6 +39,7 @@
  */
 import { isSetPicker, vueRootElement } from '../lib/vue-vm.js';
 import { statamicTranslate } from '../lib/i18n.js';
+import { logCaught } from '../lib/caught.js';
 
 const CONFIG_KEY = 'unique_sets';
 
@@ -256,8 +257,9 @@ function guardAddSet(field) {
 
       return original.apply(this, args);
     };
-  } catch {
+  } catch (error) {
     // Kan metoden ikke byttes, er filtreringen af menuen alene om det.
+    logCaught('UniqueSets: guard addSet', error);
   }
 }
 

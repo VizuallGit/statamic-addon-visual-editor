@@ -11,6 +11,7 @@
  */
 import { t } from '../../lib/i18n.js';
 import { fileName } from './measure.js';
+import { logCaught } from '../../lib/caught.js';
 
 const KB = 1024;
 
@@ -331,8 +332,8 @@ export function fileRow(win, res, i) {
   if (res.thirdParty) {
     try {
       parts.push(new URL(res.url).hostname);
-    } catch {
-      /* not a parseable host */
+    } catch (error) {
+      logCaught('perf report: read the host of a file', error);
     }
   }
 

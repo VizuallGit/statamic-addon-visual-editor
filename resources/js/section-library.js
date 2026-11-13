@@ -3624,10 +3624,8 @@ export function beginCardDrag(win, cardEl, kind, item, drop = null) {
       stopListen();
       ghost?.remove();
 
-      try {
+      if (cardEl.hasPointerCapture(e.pointerId)) {
         cardEl.releasePointerCapture(e.pointerId);
-      } catch {
-        /* already released */
       }
 
       if (!active) {

@@ -13,6 +13,7 @@
  * May import: ./toolbar-visibility.js, ./lib/*. Does not import the kernel.
  */
 import { t } from './lib/i18n.js';
+import { logCaught } from './lib/caught.js';
 import {
   HEADER_FRAME_PREFIX,
   HEADER_SURFACE,
@@ -302,10 +303,11 @@ function swallowNextClick(win, bar) {
 function startDrag(g) {
   g.active = true;
 
+  // A pointer already gone: pointerup / cancel cleans up.
   try {
     g.node.setPointerCapture(g.pointerId);
-  } catch {
-    /* pointer already gone: pointerup / cancel cleans up */
+  } catch (error) {
+    logCaught('toolbar-drag: capture the pointer', error);
   }
 
   if (g.kind === 'group') {

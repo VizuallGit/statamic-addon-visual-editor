@@ -10,6 +10,7 @@ import { mark } from '../lib/debug.js';
  */
 import { injectStyle } from '../lib/style.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
+import { logCaught } from '../lib/caught.js';
 
 (function () {
   'use strict';
@@ -370,7 +371,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         bindPreview(nested.contentWindow);
       }
     } catch (err) {
-      /* cross-origin */
+      logCaught('library-drop-focus: bind the preview', err);
     }
   }
 

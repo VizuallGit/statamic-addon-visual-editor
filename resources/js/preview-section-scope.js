@@ -11,6 +11,7 @@
 import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { logCaught } from './lib/caught.js';
 
 let snapshot = null;
 let pendingUids = null;
@@ -151,8 +152,9 @@ function wrapFrame(win) {
     child.__sveSectionScopeWrapped = true;
 
     return;
-  } catch {
-    /* assignment can fail on platform postMessage */
+  } catch (error) {
+    // Assignment can fail on the platform's postMessage: defined below instead.
+    logCaught('preview-section-scope: assign postMessage', error);
   }
 
   try {
@@ -162,8 +164,9 @@ function wrapFrame(win) {
       value: wrapped,
     });
     child.__sveSectionScopeWrapped = true;
-  } catch {
-    /* Statamic then morphs the full body, same as before this module */
+  } catch (error) {
+    // Statamic then morphs the full body, as before this module.
+    logCaught('preview-section-scope: define postMessage', error);
   }
 }
 

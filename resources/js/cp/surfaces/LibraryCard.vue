@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { logCaught } from '../../lib/caught.js';
 
 defineProps({
   title: { type: String, required: true },
@@ -42,8 +43,9 @@ function fit(event) {
     for (const el of root ? [root, ...root.querySelectorAll('*')] : []) {
       height = Math.max(height, el.getBoundingClientRect().bottom - top);
     }
-  } catch {
-    /* not readable: keep the minimum */
+  } catch (error) {
+    // Not readable: keep the minimum.
+    logCaught('LibraryCard: measure the preview', error);
   }
 
   frame.style.transform = `scale(${scale})`;

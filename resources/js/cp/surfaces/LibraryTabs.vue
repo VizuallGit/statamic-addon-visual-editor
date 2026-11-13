@@ -23,12 +23,8 @@ let ro = null;
 onMounted(() => {
   syncFade();
 
-  try {
-    ro = new ResizeObserver(syncFade);
-    ro.observe(rowEl.value);
-  } catch {
-    // No observer, no live resize — the mount and scroll syncs still run.
-  }
+  ro = new ResizeObserver(syncFade);
+  ro.observe(rowEl.value);
 });
 
 onBeforeUnmount(() => ro?.disconnect());

@@ -23,6 +23,7 @@ import { LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { pageSectionRows } from './lib/publish-containers.js';
+import { logCaught } from './lib/caught.js';
 
 const ALPINE_STATES_KEY = 'sveAlpineStates';
 
@@ -113,8 +114,9 @@ export function rememberAlpineStates(win, type, states) {
     }
 
     win.localStorage.setItem(ALPINE_STATES_KEY, JSON.stringify(all));
-  } catch {
-    /* no storage: the state lasts the session */
+  } catch (error) {
+    // No storage: the state lasts the session.
+    logCaught('alpine-states: remember the states', error);
   }
 }
 

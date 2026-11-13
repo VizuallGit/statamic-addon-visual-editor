@@ -24,6 +24,7 @@
 import { fetchNestedSetMeta, fetchSetMeta, globalSectionSet } from '../section-library.js';
 import { mark } from '../lib/debug.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
+import { logCaught } from '../lib/caught.js';
 
 mark('section-meta-prefetch');
 
@@ -283,8 +284,8 @@ function bindPreviewFrames() {
     if (nested) {
       bindPreviewDoc(nested.contentDocument);
     }
-  } catch {
-    /* cross-origin */
+  } catch (error) {
+    logCaught('section-meta-prefetch: bind the preview', error);
   }
 }
 

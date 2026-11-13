@@ -13,6 +13,7 @@ import { mark } from '../lib/debug.js';
  */
 import { injectStyle } from '../lib/style.js';
 import { surfaceIsDark } from '../lib/surface-tone.js';
+import { logCaught } from '../lib/caught.js';
 
 (function () {
   'use strict';
@@ -257,7 +258,8 @@ import { surfaceIsDark } from '../lib/surface-tone.js';
       try {
         paint(win);
       } catch (err) {
-        /* look must not abort bind */
+        // The look must not stop the binding.
+        logCaught('toolbar-look: paint the toolbar', err);
       }
     });
   }
@@ -307,7 +309,7 @@ import { surfaceIsDark } from '../lib/surface-tone.js';
         bindPreview(nested.contentWindow);
       }
     } catch (err) {
-      /* cross-origin */
+      logCaught('toolbar-look: bind the preview', err);
     }
   }
 

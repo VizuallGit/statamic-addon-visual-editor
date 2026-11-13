@@ -10,6 +10,7 @@ import { mark } from '../lib/debug.js';
  * Must use Vue `h()`: Statamic's CP Vue is runtime-only.
  */
 import { t } from '../lib/i18n.js';
+import { logCaught } from '../lib/caught.js';
 
 (function () {
   'use strict';
@@ -138,7 +139,9 @@ import { t } from '../lib/i18n.js';
               return res.ok ? res.json() : null;
             })
             .then(applyPayload)
-            .catch(function () {});
+            .catch(function (err) {
+              logCaught('field-prop: load the template props', err);
+            });
         }
 
         onMounted(function () {

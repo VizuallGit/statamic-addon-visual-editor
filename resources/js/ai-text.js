@@ -18,6 +18,7 @@ import { syncBardEditorFromValue } from './inline-edit.js';
 import { sendToPreview } from './lib/preview-frame.js';
 import { currentSectionType } from './cp/preview-context.js';
 import { csrfToken } from './lib/csrf.js';
+import { logCaught } from './lib/caught.js';
 import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { paintLpActiveControl } from './lp-panel.js';
@@ -89,8 +90,9 @@ export function isAiTextOn(win) {
         break;
       }
     }
-  } catch {
-    /* private mode — the switch starts off */
+  } catch (error) {
+    // Storage refused: the switch starts off.
+    logCaught('ai-text: read the switch', error);
   }
 
   return aiTextOn;
@@ -408,8 +410,9 @@ async function loadSiteKeywords(win) {
 
       siteKeywords = Array.isArray(body?.site) ? body.site : [];
     }
-  } catch {
-    /* the popover works without them */
+  } catch (error) {
+    // The popover works without them.
+    logCaught('ai-text: load the site keywords', error);
   }
 }
 

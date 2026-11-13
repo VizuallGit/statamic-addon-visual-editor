@@ -150,11 +150,7 @@ function installCapture() {
       });
 
       if (looksLikeValidator && patchValidatorProto(proto)) {
-        try {
-          delete Object.prototype[CAPTURE_KEY];
-        } catch {
-          // ignore
-        }
+        delete Object.prototype[CAPTURE_KEY];
       }
     },
   });

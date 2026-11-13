@@ -21,6 +21,7 @@ import { ensurePanel } from './lazy-panels.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
 import { dataGet, unwrapRef } from './lib/values.js';
+import { logCaught } from './lib/caught.js';
 import { pageBuilderQuery, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { fetchSetMeta, hydrateExistingMeta, sectionMetaCache, writeSetMeta } from './section-library.js';
@@ -90,8 +91,9 @@ function cacheKeyHitsSet(key, setHandle) {
 
   try {
     hay = decodeURIComponent(text);
-  } catch {
-    /* a malformed percent-sequence is still searchable as itself */
+  } catch (error) {
+    // A malformed percent-sequence is still searchable as itself.
+    logCaught('section-fields: decode a cache key', error);
   }
 
   return (
@@ -314,9 +316,9 @@ export function openFieldsetOverlay(win, handle, { onClose } = {}) {
           if (!fresh) {
             try {
               await refreshFieldsForType(win, handle);
-            } catch {
-              // A failed refresh costs a reload, not the edit — the fieldset
-              // is already saved. Refresh the preview regardless.
+            } catch (error) {
+              // The fieldset is already saved: a failed refresh costs a reload, not the edit.
+              logCaught(`section-fields: refresh the fields of ${handle}`, error);
             }
           }
 
