@@ -18,7 +18,7 @@
  */
 
 import { reactive } from 'vue';
-import { mountStatamicSurface, statamicFieldsReady } from './cp/mount-statamic.js';
+import { mountStatamicSurface, statamicFieldsReady, unmountStatamicSurface } from './cp/mount-statamic.js';
 import PropValues from './cp/surfaces/PropValues.vue';
 import { csrfToken } from './lib/csrf.js';
 
@@ -228,11 +228,7 @@ export function createPropValues(name) {
   }
 
   function unmount() {
-    try {
-      app?.unmount();
-    } catch {
-      /* already gone */
-    }
+    unmountStatamicSurface(app, 'prop-values: unmount the values');
 
     app = null;
     host = null;

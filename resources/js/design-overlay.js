@@ -26,6 +26,7 @@ import { csrfToken } from './lib/csrf.js';
 import { remToPx } from './lib/dom.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { runEach } from './lib/caught.js';
 import { barEdge, onScreen } from './lib/under-bar.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { HEADER_TOOLBAR_ID } from './lib/ids.js';
@@ -180,13 +181,7 @@ function listen(target, type, fn, opts) {
 }
 
 function detachPreview() {
-  live.off.splice(0).forEach((undo) => {
-    try {
-      undo();
-    } catch {
-      /* the document went with its window */
-    }
-  });
+  runEach(live.off.splice(0), 'design-overlay: let go of the preview');
   live.frameResize?.disconnect();
   live.frameResize = null;
   live.doc?.getElementById(IMG_ID)?.remove();

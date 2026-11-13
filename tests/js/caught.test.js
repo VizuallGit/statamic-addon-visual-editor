@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { logCaught } from '../../resources/js/lib/caught.js';
+import { logCaught, runEach } from '../../resources/js/lib/caught.js';
 
 /** What logCaught wrote with console.warn while `run` ran. */
 function warned(run) {
@@ -68,4 +68,23 @@ test('what is thrown need not be an Error', () => {
     lines.map(([line]) => line),
     ['[sve] test: thrown: a string', '[sve] test: thrown: undefined', '[sve] test: thrown: [object Object]']
   );
+});
+
+test('runEach runs every function in order; one that throws is logged and the rest still run', () => {
+  const ran = [];
+  const lines = warned(() =>
+    runEach(
+      [
+        () => ran.push(1),
+        () => {
+          throw new TypeError('window is gone');
+        },
+        () => ran.push(3),
+      ],
+      'test: close'
+    )
+  );
+
+  assert.deepEqual(ran, [1, 3]);
+  assert.deepEqual(lines, [['[sve] test: close: TypeError: window is gone']]);
 });

@@ -2,6 +2,7 @@
  * Display names for the HTML tree only. Never written into the template.
  * Keyed by dock template type + structural path (tag + sibling index).
  */
+import { logCaught } from './lib/caught.js';
 
 const STORAGE_KEY = 'sve-html-tree-labels';
 
@@ -24,8 +25,8 @@ function readAll() {
 function writeAll(all) {
   try {
     globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch {
-    /* quota / private mode */
+  } catch (error) {
+    logCaught('html-tree-labels: keep the names', error);
   }
 }
 

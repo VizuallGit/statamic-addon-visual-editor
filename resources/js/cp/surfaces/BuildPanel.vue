@@ -47,6 +47,7 @@ import { STYLE_TAB_EVENT, buildStyleTabShown } from '../../build-style-pref.js';
 import BuildStyleMode from './BuildStyleMode.vue';
 import { describeAt } from '../../build-mode/place.js';
 import { ic } from '../../build-mode/icons.js';
+import { keepLocal, readLocal } from '../../lib/storage.js';
 
 const props = defineProps({
   port: { type: Object, required: true },
@@ -103,13 +104,9 @@ const styled = computed(() => content.value === 'content');
 const TAB_KEY = 'sve-build-element-tab';
 
 function readTab() {
-  try {
-    const saved = window.localStorage.getItem(TAB_KEY);
+  const saved = readLocal(window, TAB_KEY);
 
-    return saved === 'content' || saved === 'action' || saved === 'animation' ? saved : 'style';
-  } catch {
-    return 'style';
-  }
+  return saved === 'content' || saved === 'action' || saved === 'animation' ? saved : 'style';
 }
 
 const chosen = ref(readTab());
@@ -138,12 +135,7 @@ watch(port.contentAsked, () => {
 function choose(value) {
   chosen.value = value;
   revealTab(value, 'smooth');
-
-  try {
-    window.localStorage.setItem(TAB_KEY, value);
-  } catch {
-    /* the choice lasts this visit */
-  }
+  keepLocal(window, TAB_KEY, value);
 }
 
 /* Action's «Give it an animation» opens Animation on the element it has just picked. */

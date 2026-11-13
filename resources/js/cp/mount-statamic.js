@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { logCaught } from '../lib/caught.js';
 
 /**
  * A surface that may use the Control Panel's own components.
@@ -35,6 +36,21 @@ export function mountStatamicSurface(component, el, props) {
   app.mount(el);
 
   return app;
+}
+
+/**
+ * The other half: take a surface down. What its teardown throws is logged, and
+ * the caller goes on closing, so one surface's broken unmount does not leave
+ * the rest of a panel standing.
+ *
+ * @param {string} where who is closing what, for the log
+ */
+export function unmountStatamicSurface(app, where) {
+  try {
+    app?.unmount();
+  } catch (error) {
+    logCaught(where, error);
+  }
 }
 
 /**

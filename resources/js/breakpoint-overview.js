@@ -153,6 +153,7 @@ import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, SID_ATTR, SID_FI
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
+import { logCaught, runEach } from './lib/caught.js';
 import { bindMenuDismiss } from './lp-menu-dismiss.js';
 
 const LAYER_ID = BP_OVERVIEW_ID;
@@ -719,13 +720,7 @@ function teardown(win) {
 
   stopGlide();
 
-  for (const cleanup of state.cleanups.splice(0).reverse()) {
-    try {
-      cleanup();
-    } catch {
-      /* a frame's window already gone */
-    }
-  }
+  runEach(state.cleanups.splice(0).reverse(), 'breakpoint-overview: close');
 
   // Blank first, so the frames' network and video stop at once.
   for (const entry of state.frames) {
@@ -1100,8 +1095,8 @@ function post(entry, render) {
 
   try {
     entry.el.contentWindow?.postMessage({ source: SOURCE, type: MSG.SVE_MIRROR, render }, new URL(entry.src).origin);
-  } catch {
-    /* the frame is on its way out */
+  } catch (error) {
+    logCaught('breakpoint-overview: send the render to a frame', error);
   }
 }
 
@@ -1235,8 +1230,8 @@ function bindMain(main) {
       mainWin.removeEventListener('sve:inline-edit-end', onInlineEditEnd);
       overviewState.editing = null;
       delete mainWin.__sveMirror;
-    } catch {
-      /* the window is gone */
+    } catch (error) {
+      logCaught('breakpoint-overview: let go of the preview', error);
     }
   };
 }
@@ -1476,8 +1471,8 @@ function syncFrom(source) {
       // scrollbar across its foot), and a scroll that went nowhere fires no
       // event to clear the mark.
       holder.expectTop = win.scrollY === before ? null : win.scrollY;
-    } catch {
-      /* the frame is on its way out */
+    } catch (error) {
+      logCaught('breakpoint-overview: scroll a frame along', error);
     }
   }
 }
@@ -1655,8 +1650,8 @@ function wheel(event, anchor, target) {
   // event of a trackpad's stream, and fall behind the fingers.
   try {
     target?.scrollBy({ top: event.deltaY * unit, behavior: 'instant' });
-  } catch {
-    /* the frame is on its way out */
+  } catch (error) {
+    logCaught('breakpoint-overview: scroll with the wheel', error);
   }
 }
 

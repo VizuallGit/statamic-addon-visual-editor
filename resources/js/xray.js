@@ -28,6 +28,7 @@
 import { t } from './lib/i18n.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { logCaught, runEach } from './lib/caught.js';
 import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { BUILD_CANVAS_ID, BUILD_CANVAS_SHOWN_EVENT } from './lib/build-canvas-ids.js';
 import { buildCanvasFrame } from './lib/build-canvas.js';
@@ -220,13 +221,7 @@ function listen(target, type, fn, opts) {
 }
 
 function detachPreview() {
-  live.off.splice(0).forEach((undo) => {
-    try {
-      undo();
-    } catch {
-      /* the document went with its window */
-    }
-  });
+  runEach(live.off.splice(0), 'xray: let go of the preview');
   live.observer?.disconnect();
   live.resize?.disconnect();
   live.frameResize?.disconnect();
@@ -235,8 +230,8 @@ function detachPreview() {
   if (live.raf && live.pwin) {
     try {
       live.pwin.cancelAnimationFrame(live.raf);
-    } catch {
-      /* closed */
+    } catch (error) {
+      logCaught('xray: cancel the next frame', error);
     }
   }
 

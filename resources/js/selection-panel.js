@@ -60,7 +60,7 @@ import { log } from './lib/debug.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { ACTIVE_ATTR } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
-import { mountStatamicSurface } from './cp/mount-statamic.js';
+import { mountStatamicSurface, unmountStatamicSurface } from './cp/mount-statamic.js';
 import {
   ctxKey,
   panelStore,
@@ -389,13 +389,7 @@ function ensureHost(win) {
 }
 
 function teardown() {
-  if (app) {
-    try {
-      app.unmount();
-    } catch {
-      /* already gone with its column */
-    }
-  }
+  unmountStatamicSurface(app, 'selection-panel: unmount the panel');
 
   app = null;
   host?.remove();

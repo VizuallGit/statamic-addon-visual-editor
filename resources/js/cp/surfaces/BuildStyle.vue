@@ -48,6 +48,7 @@ import {
   styleGroups,
 } from '../../build-mode/catalog.js';
 import { dataStateLabel } from '../../lib/data-states.js';
+import { keepLocal, readLocal } from '../../lib/storage.js';
 import { containerLength, isContainerVariant } from '../../build-mode/container-query.js';
 import { effectiveClass, fromClass, rootOf, variantChain } from '../../build-mode/classes.js';
 import { MAX_TRACKS, fewestTracks, gapAxisOf, gridShape, presetOf, presetTooSmall } from '../../build-mode/grid.js';
@@ -592,23 +593,14 @@ const flowHint = computed(() => {
 const SPACING_VIEW_KEY = 'sve-build-spacing-view';
 
 function readSpacingView() {
-  try {
-    return window.localStorage.getItem(SPACING_VIEW_KEY) === 'fields' ? 'fields' : 'box';
-  } catch {
-    return 'box';
-  }
+  return readLocal(window, SPACING_VIEW_KEY) === 'fields' ? 'fields' : 'box';
 }
 
 const spacingView = ref(readSpacingView());
 
 function flipSpacingView() {
   spacingView.value = spacingView.value === 'box' ? 'fields' : 'box';
-
-  try {
-    window.localStorage.setItem(SPACING_VIEW_KEY, spacingView.value);
-  } catch {
-    /* the choice lasts this visit */
-  }
+  keepLocal(window, SPACING_VIEW_KEY, spacingView.value);
 }
 
 /*

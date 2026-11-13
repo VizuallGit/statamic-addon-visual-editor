@@ -23,7 +23,7 @@
  */
 
 import { ask } from './cp/bus.js';
-import { mountStatamicSurface } from './cp/mount-statamic.js';
+import { mountStatamicSurface, unmountStatamicSurface } from './cp/mount-statamic.js';
 import { componentPropsUi as ui } from './cp/component-props/store.js';
 import { paintComponentProps } from './component-props-panel.js';
 import ComponentSidebar from './cp/surfaces/ComponentSidebar.vue';
@@ -61,11 +61,7 @@ function restoreSolo(win) {
 }
 
 function drop(host) {
-  try {
-    app?.unmount();
-  } catch {
-    /* already gone */
-  }
+  unmountStatamicSurface(app, 'component-props-host: unmount the fields');
 
   app = null;
   host?.remove();

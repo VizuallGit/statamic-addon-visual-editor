@@ -82,6 +82,7 @@ import {
 } from './loop-inspector.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { logCaught } from './lib/caught.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import {
   collectionTemplatesCollection,
@@ -3910,10 +3911,11 @@ function trackHtmlTreePointer(win, event) {
   if (!htmlTreeUi.dragging) {
     htmlTreeUi.dragging = true;
 
+    // Capture is optional: document listeners still track the move.
     try {
       htmlTreeDragEl?.setPointerCapture?.(htmlTreePointerId);
-    } catch {
-      // Capture is optional — document listeners still track the move.
+    } catch (error) {
+      logCaught('html-tree: capture the pointer for a row', error);
     }
   }
 
@@ -4060,10 +4062,8 @@ function keepRoomOpen(win, html, next, sourceId, targetId) {
 }
 
 function endHtmlTreeDrag() {
-  try {
-    htmlTreeDragEl?.releasePointerCapture?.(htmlTreePointerId);
-  } catch {
-    // Already released, or never captured.
+  if (htmlTreeDragEl?.hasPointerCapture?.(htmlTreePointerId)) {
+    htmlTreeDragEl.releasePointerCapture(htmlTreePointerId);
   }
 
   htmlTreeDragUnhook?.();
@@ -4135,10 +4135,11 @@ function trackSectionPointer(win, event) {
   if (!htmlTreeUi.dragging) {
     htmlTreeUi.dragging = true;
 
+    // Capture is optional: document listeners still track the move.
     try {
       htmlTreeSecDragEl?.setPointerCapture?.(htmlTreeSecPointerId);
-    } catch {
-      // Capture is optional — document listeners still track the move.
+    } catch (error) {
+      logCaught('html-tree: capture the pointer for a section', error);
     }
   }
 
@@ -4185,10 +4186,8 @@ function finishSectionPointer(win, event) {
 }
 
 function endSectionDrag() {
-  try {
-    htmlTreeSecDragEl?.releasePointerCapture?.(htmlTreeSecPointerId);
-  } catch {
-    // Already released, or never captured.
+  if (htmlTreeSecDragEl?.hasPointerCapture?.(htmlTreeSecPointerId)) {
+    htmlTreeSecDragEl.releasePointerCapture(htmlTreeSecPointerId);
   }
 
   htmlTreeSecDragUnhook?.();

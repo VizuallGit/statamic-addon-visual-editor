@@ -18,6 +18,7 @@ import { ic } from '../../build-mode/icons.js';
 import { ATTR_NAME } from '../../build-mode/attrs.js';
 import { halfTag } from '../../build-mode/text.js';
 import { typed } from './build-typed.js';
+import { logCaught } from '../../lib/caught.js';
 
 const props = defineProps({
   path: { type: String, required: true },
@@ -150,10 +151,11 @@ function openList(input) {
 
   input.focus();
 
+  // A browser that cannot open the list by hand: the box has the caret, and typing shows it.
   try {
     input.showPicker?.();
-  } catch {
-    /* a browser that cannot open a list by hand: the box has the caret, and typing shows it */
+  } catch (error) {
+    logCaught('BuildAttrRow: open the list', error);
   }
 }
 

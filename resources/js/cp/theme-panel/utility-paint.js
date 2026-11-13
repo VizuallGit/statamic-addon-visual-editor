@@ -290,8 +290,12 @@ function replaceRules(snap, want) {
     try {
       snap.layer.insertRule(text, drawn.length);
       drawn.push(text);
-    } catch {
-      // A rule this browser cannot parse is left out, as it would be from a stylesheet.
+    } catch (error) {
+      // A rule this browser cannot parse is left out, as it would be from a
+      // stylesheet. Any other refusal is a fault in the paint: not swallowed.
+      if (error?.name !== 'SyntaxError') {
+        throw error;
+      }
     }
   }
 

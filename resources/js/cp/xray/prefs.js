@@ -10,9 +10,11 @@
  * Read by the eager facade (lazy/xray.js) to decide whether to load the tool at
  * all, and by the tool itself.
  *
- * May import: lib/config.js.
+ * May import: lib/config.js, lib/caught.js, lib/storage.js.
  */
 import { featureOn } from '../../lib/config.js';
+import { logCaught } from '../../lib/caught.js';
+import { keepLocal } from '../../lib/storage.js';
 
 const KEY = 'sve-xray';
 
@@ -64,17 +66,14 @@ export function readXrayPrefs(win = window) {
 
       return out;
     }
-  } catch {
-    /* private mode or a hand-edited value — start from the defaults */
+  } catch (error) {
+    // Storage refused, or a hand-edited value: the defaults.
+    logCaught('xray: read the settings', error);
   }
 
   return { ...XRAY_DEFAULTS };
 }
 
 export function writeXrayPrefs(win, prefs) {
-  try {
-    win.localStorage.setItem(KEY, JSON.stringify(prefs));
-  } catch {
-    /* private mode — the switch still works for this page */
-  }
+  keepLocal(win, KEY, JSON.stringify(prefs));
 }

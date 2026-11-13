@@ -42,6 +42,7 @@
  * frame after reads only the canvas and moves the ghost last.
  */
 import { injectStyle } from '../lib/style.js';
+import { logCaught } from '../lib/caught.js';
 import { parseTemplateTree } from '../html-tree-parse.js';
 import { CANVAS_EMPTY, CANVAS_PATH } from './canvas-paint.js';
 import { dropInto, dropMove, dropNew, dropWhere, dropZones, movable, sectionLanding, treeLanding } from './drop.js';
@@ -454,10 +455,11 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
     const begin = () => {
       started = true;
 
+      // The document listeners follow the pointer anyway.
       try {
         capture.setPointerCapture(pointerId);
-      } catch {
-        /* the document listeners follow the pointer anyway */
+      } catch (error) {
+        logCaught('canvas-ui: capture the pointer', error);
       }
 
       // `section`: the tile's kind (new-section.js); `rows`: the page's sections, read once for the drag.
@@ -527,10 +529,8 @@ export function canvasUi(win, { page, frame, port, hovered, schedule }) {
 
       drag = null;
 
-      try {
+      if (capture.hasPointerCapture(pointerId)) {
         capture.releasePointerCapture(pointerId);
-      } catch {
-        /* already released */
       }
 
       done.ghost?.remove();

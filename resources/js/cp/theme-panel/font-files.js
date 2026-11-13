@@ -7,6 +7,7 @@
  *
  * Pure except for `readFontFile` / `toWoff2` (they load the encoder).
  */
+import { logCaught } from '../../lib/caught.js';
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
@@ -235,8 +236,9 @@ export async function readFontFile(file) {
 
   try {
     info = sfntInfo(await toSfnt(bytes, kind));
-  } catch {
+  } catch (error) {
     // Unreadable tables: the name and the defaults above are the best guess.
+    logCaught(`font-files: read the tables of ${file.name}`, error);
   }
 
   return {

@@ -41,6 +41,7 @@ import { watch } from 'vue';
 import { BUILD_COLUMNS_LAYER_ID } from '../lib/build-canvas-ids.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { injectStyle } from '../lib/style.js';
+import { logCaught } from '../lib/caught.js';
 import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { columnsFor, selfAndParent } from './place.js';
 import { MAX_TRACKS, fewestTracks, spanTo, startAt } from './grid.js';
@@ -579,8 +580,8 @@ export function startColumnsOverlay(
 
       try {
         event.target.setPointerCapture?.(event.pointerId);
-      } catch {
-        /* a pointer already let go */
+      } catch (error) {
+        logCaught('columns-overlay: capture the pointer', error);
       }
     }
 
@@ -688,8 +689,8 @@ export function startColumnsOverlay(
         target.removeEventListener('pointerup', onUp, true);
         target.removeEventListener('pointercancel', endDrag, true);
         target.removeEventListener('keydown', onKey, true);
-      } catch {
-        /* the canvas's window is gone with its document */
+      } catch (error) {
+        logCaught('columns-overlay: let go of the drag', error);
       }
     }
     schedule();
@@ -712,8 +713,8 @@ export function startColumnsOverlay(
     try {
       frameWin?.removeEventListener('scroll', schedule, true);
       frameWin?.removeEventListener(updated, find);
-    } catch {
-      /* the old document is gone */
+    } catch (error) {
+      logCaught('columns-overlay: let go of the old canvas', error);
     }
 
     frameWin = next;
@@ -803,8 +804,8 @@ export function startColumnsOverlay(
     try {
       frameWin?.removeEventListener('scroll', schedule, true);
       frameWin?.removeEventListener(updated, find);
-    } catch {
-      /* gone with its document */
+    } catch (error) {
+      logCaught('columns-overlay: let go of the canvas', error);
     }
 
     clear();

@@ -18,6 +18,7 @@ import { openCpOverlay } from '../open-overlay.js';
 import ChoiceDialog from '../surfaces/ChoiceDialog.vue';
 import { t } from '../../lib/i18n.js';
 import { csrfToken } from '../../lib/csrf.js';
+import { logCaught } from '../../lib/caught.js';
 import { themePanelUi as ui } from './store.js';
 import { dedent } from './utilities.js';
 import { freshSnippetRow, mergeSnippetRows, normalizeSnippetName, snippetProblem } from './snippet-rows.js';
@@ -62,8 +63,9 @@ export async function loadSnippets(win) {
     );
 
     ui.snippets = mergeSnippetRows(ui.snippets, fresh);
-  } catch {
+  } catch (error) {
     // The list stays as it was; the tab says nothing is here if it was empty.
+    logCaught('theme snippets: load the list', error);
   }
 }
 

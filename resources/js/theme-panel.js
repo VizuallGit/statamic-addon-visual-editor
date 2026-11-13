@@ -14,6 +14,7 @@ import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
+import { logCaught } from './lib/caught.js';
 import { pageDocuments, previewDocument } from './lib/preview-frame.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import { closeRightPanels } from './section-library.js';
@@ -152,11 +153,7 @@ function fontFamilies(win) {
   const names = new Set(installedNames());
   const doc = previewDocument(win);
 
-  try {
-    doc?.fonts?.forEach((face) => names.add(face.family.replace(/^['"]|['"]$/g, '')));
-  } catch {
-    // no FontFaceSet: the theme's own families below are enough
-  }
+  doc?.fonts?.forEach((face) => names.add(face.family.replace(/^['"]|['"]$/g, '')));
 
   [ui.type['font-base'], ui.type['font-heading'], ui.type['title-font']].forEach(
     (stack) => stack && names.add(firstFamily(stack))
@@ -344,8 +341,9 @@ async function drawUtilities(win) {
       paintUtilities(pageDocuments(win), names, css);
       utilitiesPainted = true;
     }
-  } catch {
+  } catch (error) {
     // Not CSS Tailwind can read yet: the next keystroke tries again.
+    logCaught('theme-panel: draw the utilities being typed', error);
   }
 }
 
@@ -411,8 +409,9 @@ async function buildSiteCss(win) {
     }
 
     reason = data.reason || reason;
-  } catch {
-    // The server did not answer: said below.
+  } catch (error) {
+    // The server did not answer: said below, and why in the console.
+    logCaught('theme-panel: build the site CSS', error);
   }
 
   ui.buildNote = t(win, 'theme_utilities_not_built', { reason: t(win, `theme_utilities_reason_${reason}`) });

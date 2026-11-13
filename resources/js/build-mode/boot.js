@@ -181,7 +181,7 @@ import BuildPanel from '../cp/surfaces/BuildPanel.vue';
 import ComponentPropsPane from '../cp/surfaces/ComponentPropsPane.vue';
 import ComponentSidebar from '../cp/surfaces/ComponentSidebar.vue';
 import HtmlTreeInspector from '../cp/surfaces/HtmlTreeInspector.vue';
-import { mountStatamicSurface } from '../cp/mount-statamic.js';
+import { mountStatamicSurface, unmountStatamicSurface } from '../cp/mount-statamic.js';
 
 /**
  * Mount the panel into `host` (the left column's Build host).
@@ -1850,11 +1850,5 @@ function listen(target, type, fn) {
 
 /** A mounted app as the port's unmount function. */
 function unmounter(app) {
-  return () => {
-    try {
-      app?.unmount();
-    } catch {
-      /* already gone with its host */
-    }
-  };
+  return () => unmountStatamicSurface(app, 'build-mode: unmount a panel');
 }

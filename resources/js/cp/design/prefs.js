@@ -5,9 +5,11 @@
  * localStorage key both Live Preview windows can read. The images themselves
  * are on the server, per page and size; only how they are shown is here.
  *
- * May import: lib/config.js.
+ * May import: lib/config.js, lib/caught.js, lib/storage.js.
  */
 import { featureOn } from '../../lib/config.js';
+import { logCaught } from '../../lib/caught.js';
+import { keepLocal } from '../../lib/storage.js';
 
 const KEY = 'sve-design-overlay';
 
@@ -48,19 +50,16 @@ export function readDesignPrefs(win = window) {
         out.opacity = Math.min(100, Math.max(0, Math.round(stored.opacity)));
       }
     }
-  } catch {
-    /* private mode or a hand-edited value — start from the defaults */
+  } catch (error) {
+    // Storage refused, or a hand-edited value: the defaults.
+    logCaught('design-overlay: read the settings', error);
   }
 
   return out;
 }
 
 export function writeDesignPrefs(win, prefs) {
-  try {
-    win.localStorage.setItem(KEY, JSON.stringify(prefs));
-  } catch {
-    /* private mode — the switch still works for this page */
-  }
+  keepLocal(win, KEY, JSON.stringify(prefs));
 }
 
 /**

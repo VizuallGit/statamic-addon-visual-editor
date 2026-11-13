@@ -47,6 +47,7 @@ import { loadFamilies, ownValueLabels, ownVariables } from '../../tw-families.js
 import { splitClass, splitUtility } from '../../tw-parse.js';
 import { readAttribute, withAttribute } from '../attrs.js';
 import { dataStates } from '../../lib/data-states.js';
+import { keepLocal, readLocal } from '../../lib/storage.js';
 import { BUILD_CANVAS_SHOWN_EVENT } from '../../lib/build-canvas-ids.js';
 import { buildCanvasFrame } from '../../lib/build-canvas.js';
 import { fieldLookup } from '../canvas-paint.js';
@@ -135,13 +136,9 @@ function createCssPort(win, port) {
   });
 
   function readKind() {
-    try {
-      const stored = win.localStorage.getItem(KIND_KEY);
+    const stored = readLocal(win, KIND_KEY);
 
-      return stored === 'id' || stored === 'data' ? stored : 'class';
-    } catch {
-      return 'class';
-    }
+    return stored === 'id' || stored === 'data' ? stored : 'class';
   }
 
   const rows = () => port.sizes();
@@ -1026,13 +1023,7 @@ function createCssPort(win, port) {
       fits.types,
       (tag) => {
         const name = tag.replace(/^\{\{\s*|\s*\}\}$/g, '');
-        let unit = 'rem';
-
-        try {
-          unit = win.localStorage.getItem(UNIT_KEY) || unit;
-        } catch {
-          /* the default */
-        }
+        const unit = readLocal(win, UNIT_KEY) || 'rem';
 
         Promise.resolve(ask('dock:data-model', { at: at?.node.from })).then((model) => {
           const rowsOf = [
@@ -1060,11 +1051,7 @@ function createCssPort(win, port) {
       kind.value = next === 'id' || next === 'data' ? next : 'class';
       notice.value = '';
 
-      try {
-        win.localStorage.setItem(KIND_KEY, kind.value);
-      } catch {
-        /* lasts this visit */
-      }
+      keepLocal(win, KIND_KEY, kind.value);
 
       own.value += 1;
     },

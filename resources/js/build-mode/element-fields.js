@@ -21,7 +21,7 @@
  */
 
 import { reactive } from 'vue';
-import { mountStatamicSurface, statamicFieldsReady } from '../cp/mount-statamic.js';
+import { mountStatamicSurface, statamicFieldsReady, unmountStatamicSurface } from '../cp/mount-statamic.js';
 import PropValues from '../cp/surfaces/PropValues.vue';
 import { csrfToken } from '../lib/csrf.js';
 import { ADDRESS } from './attrs.js';
@@ -186,11 +186,7 @@ export function mountElementField(
       flush();
     }
 
-    try {
-      app.unmount();
-    } catch {
-      /* already gone with its host */
-    }
+    unmountStatamicSurface(app, 'element-fields: unmount the fields');
   };
 }
 

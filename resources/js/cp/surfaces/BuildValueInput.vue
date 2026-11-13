@@ -43,6 +43,7 @@ import {
   variantChain,
 } from '../../build-mode/classes.js';
 import BuildFieldReset from './BuildFieldReset.vue';
+import { logCaught } from '../../lib/caught.js';
 
 const props = defineProps({
   tool: { type: Object, required: true },
@@ -209,10 +210,11 @@ function press(event) {
       moving = true;
       dragged = true;
 
+      // The document listeners follow it anyway.
       try {
         el.setPointerCapture(pointer);
-      } catch {
-        /* the document listeners follow it anyway */
+      } catch (error) {
+        logCaught('BuildValueInput: capture the pointer', error);
       }
     }
 

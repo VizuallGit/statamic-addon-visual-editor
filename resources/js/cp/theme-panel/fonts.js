@@ -10,6 +10,7 @@
  * changes how the CP looks.
  */
 import { csrfToken } from '../../lib/csrf.js';
+import { logCaught } from '../../lib/caught.js';
 import { themePanelUi as ui } from './store.js';
 import { familyAlias } from './font-helpers.js';
 
@@ -77,8 +78,9 @@ function drawInCp(win) {
         }
 
         doc.fonts.add(new win.FontFace(familyAlias(family.name), `url("${face.url}")`, descriptors));
-      } catch {
+      } catch (error) {
         // A descriptor the browser refuses: the row keeps the CP's own font.
+        logCaught(`theme fonts: draw ${family.name}`, error);
       }
     }
   }

@@ -127,6 +127,7 @@ import { themePanelUi as ui } from '../theme-panel/store.js';
 import { errorText, filesText, fontsRequest } from '../theme-panel/fonts.js';
 import { readFontFile, toWoff2 } from '../theme-panel/font-files.js';
 import { WEIGHT_NAMES, formatBytes } from '../theme-panel/font-helpers.js';
+import { logCaught } from '../../lib/caught.js';
 
 const props = defineProps({ win: { type: Object, required: true } });
 const emit = defineEmits(['installed']);
@@ -178,8 +179,9 @@ async function add(files) {
       // The file itself, drawn in its row: what you see is what gets installed.
       try {
         props.win.document.fonts.add(new props.win.FontFace(`sve-up-${item.id}`, item.bytes.slice().buffer));
-      } catch {
+      } catch (error) {
         // A font the browser will not draw still installs; the row keeps the CP's font.
+        logCaught(`FontUpload: draw ${item.file?.name ?? item.family}`, error);
       }
     }
   }

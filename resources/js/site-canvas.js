@@ -128,6 +128,7 @@ import { BP_OVERVIEW_ID, SITE_CANVAS_ID } from './lib/ids.js';
 import { currentEntryId } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { runEach } from './lib/caught.js';
 import { zoomKey } from './lib/zoom-keys.js';
 
 export { SITE_CANVAS_ID };
@@ -855,13 +856,7 @@ function teardown(win) {
   const state = canvasState;
   const owner = state.win || win;
 
-  for (const cleanup of state.cleanups.splice(0).reverse()) {
-    try {
-      cleanup();
-    } catch {
-      /* a frame's window already gone */
-    }
-  }
+  runEach(state.cleanups.splice(0).reverse(), 'site-canvas: close');
 
   // Blank first, so the frames' network and video stop at once.
   for (const entry of state.entries.values()) {

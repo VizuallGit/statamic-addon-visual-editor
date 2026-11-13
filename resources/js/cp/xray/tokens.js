@@ -13,9 +13,10 @@
  * Only tokens the page's stylesheet defines are found; Tailwind writes the ones
  * in use to :root, which is exactly the set a measurement can match.
  *
- * May import: cp/xray/measure.js.
+ * May import: cp/xray/measure.js, lib/caught.js.
  */
 import { tokenName } from './measure.js';
+import { logCaught } from '../../lib/caught.js';
 
 export const PROBE_ID = '__sve-xray-probe';
 
@@ -69,8 +70,11 @@ function rootProperties(pwin, doc) {
   for (const sheet of doc.styleSheets) {
     try {
       walk(sheet.cssRules);
-    } catch {
-      /* a cross-origin sheet (fonts) — not ours to read */
+    } catch (error) {
+      // A cross-origin sheet (fonts) is not ours to read: expected, so not logged.
+      if (error?.name !== 'SecurityError') {
+        logCaught('xray: read the tokens of a stylesheet', error);
+      }
     }
   }
 

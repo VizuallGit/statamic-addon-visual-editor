@@ -663,13 +663,9 @@ export function startCanvas(win) {
     liveObserver?.disconnect();
     liveObserver = null;
 
-    try {
-      realWin?.removeEventListener('statamic:preview-updated', onRealUpdated);
-      realDoc?.removeEventListener('play', onRealMedia, true);
-      realDoc?.removeEventListener('pause', onRealMedia, true);
-    } catch {
-      /* gone with its document */
-    }
+    realWin?.removeEventListener('statamic:preview-updated', onRealUpdated);
+    realDoc?.removeEventListener('play', onRealMedia, true);
+    realDoc?.removeEventListener('pause', onRealMedia, true);
 
     realDoc = null;
     realWin = null;

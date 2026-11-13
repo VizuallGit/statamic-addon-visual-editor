@@ -50,3 +50,20 @@ export function logCaught(where, error) {
   seen.add(line);
   console.warn(line);
 }
+
+/**
+ * Run each function, in order. One that throws is logged and the rest still
+ * run: a close must not stop half-way because one listener's window is gone.
+ *
+ * @param {Iterable<Function>} fns
+ * @param {string} where who is running them, for the log
+ */
+export function runEach(fns, where) {
+  for (const fn of fns) {
+    try {
+      fn();
+    } catch (error) {
+      logCaught(where, error);
+    }
+  }
+}

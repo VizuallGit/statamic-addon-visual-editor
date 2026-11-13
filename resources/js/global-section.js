@@ -24,6 +24,7 @@ import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
+import { unmountStatamicSurface } from './cp/mount-statamic.js';
 import { whenContainerContext } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import {
@@ -683,11 +684,7 @@ function closeGlobalSectionInline(win, { refresh = true } = {}) {
   }
 
   if (globalSectionApp) {
-    try {
-      globalSectionApp.unmount();
-    } catch {
-      /* already gone */
-    }
+    unmountStatamicSurface(globalSectionApp, 'global-section: unmount the form');
 
     globalSectionApp = null;
   }

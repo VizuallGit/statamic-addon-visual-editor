@@ -26,6 +26,7 @@ import BuildValueInput from './BuildValueInput.vue';
 import { SIDES, sideFallbackTools, sideTool } from '../../build-mode/classes.js';
 import { kidsById } from '../../build-mode/catalog.js';
 import { ic } from '../../build-mode/icons.js';
+import { keepLocal, readLocal } from '../../lib/storage.js';
 
 const props = defineProps({
   tools: { type: Object, required: true }, // { padding, margin } CSS_TOOLS entries
@@ -46,13 +47,9 @@ const UNITS = UNIT_GROUPS.flatMap(([, units]) => units);
 const UNIT_KEY = 'sve-build-spacing-unit';
 
 function readUnit() {
-  try {
-    const kept = window.localStorage.getItem(UNIT_KEY);
+  const kept = readLocal(window, UNIT_KEY);
 
-    return UNITS.includes(kept) ? kept : 'rem';
-  } catch {
-    return 'rem';
-  }
+  return UNITS.includes(kept) ? kept : 'rem';
 }
 
 const unit = ref(readUnit());
@@ -62,12 +59,7 @@ const rowUnits = computed(() => (COMMON.includes(unit.value) ? COMMON : [...COMM
 function setUnit(value) {
   unit.value = value;
   moreUnits.value = false;
-
-  try {
-    window.localStorage.setItem(UNIT_KEY, value);
-  } catch {
-    /* kept for this visit */
-  }
+  keepLocal(window, UNIT_KEY, value);
 }
 
 const kids = computed(() => kidsById(props.tools[box.value]));
